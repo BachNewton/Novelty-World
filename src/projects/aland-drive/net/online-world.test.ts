@@ -6,7 +6,7 @@ import type { GuestMessage, HostMessage } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
-const STATE: CarState = { position: [10, 2, -30], rotation: [0, 0, 0, 1], velocity: [5, 0, -12], spin: [0, 0.3, 0], steer: 0.1, suspension: [0.1, 0.1, 0.1, 0.1], roll: 3 };
+const STATE: CarState = { position: [10, 2, -30], rotation: [0, 0, 0, 1], velocity: [5, 0, -12], spin: [0, 0.3, 0], car: "skerry-gt", steer: 0.1, suspension: [0.1, 0.1, 0.1, 0.1], roll: 3 };
 const player = (peerId: string): Player => ({ id: `profile-${peerId}`, name: peerId, peerId });
 
 interface Client {
@@ -53,7 +53,7 @@ function createStar() {
         };
       },
       {
-        onCar: (peerId, _car, carState) => client.cars.set(peerId, carState),
+        onCar: (peerId, carState) => client.cars.set(peerId, carState),
         onGone: (peerId) => client.cars.delete(peerId),
         onPlayers: (others) => {
           client.others = others.map((other) => other.peerId);
@@ -93,7 +93,7 @@ function createStar() {
 }
 
 /** A frame in which the car stepped this many times. */
-const drive = (client: Client, steps = SEND_EVERY_STEPS, at: CarState = STATE) => client.world.send(steps, "Skerry GT", at);
+const drive = (client: Client, steps = SEND_EVERY_STEPS, at: CarState = STATE) => client.world.send(steps, at);
 
 describe("the online world", () => {
   it("hands every car to everyone else through the host, and nobody hears their own", () => {
@@ -157,7 +157,7 @@ describe("the online world", () => {
     expect([...a.cars.keys()]).toEqual(["b"]);
     expect([...b.cars.keys()]).toEqual(["a"]);
 
-    b.world.send(1, "Skerry GT", { ...STATE, position: [99, 2, -30] });
+    b.world.send(1, { ...STATE, position: [99, 2, -30] });
     star.flush();
     expect(a.cars.get("b")?.position).toEqual([99, 2, -30]);
   });

@@ -1,9 +1,10 @@
 import { RELAY_PARAM, relayUrlFromSearch } from "@/shared/lib/peer";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
+import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
 
 /*
  * What players send each other in the online world: each car's state, as its
- * own client has it, and which car it's drawn as. A guest sends its own up; the
+ * own client has it, which names the car it is. A guest sends its own up; the
  * host hands each one on to every other guest, naming whose it is, and sends
  * its own down. Every payload off the wire is untrusted and parsed here.
  */
@@ -16,8 +17,6 @@ export const WORLD_PARAM = "drive-world";
 const WORLD_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export interface CarMessage {
-  /** The car's name in `art/cars`. */
-  car: string;
   state: CarState;
 }
 
@@ -55,6 +54,7 @@ export function wireState(state: CarState): CarState {
     rotation: state.rotation.map(fine) as Rotation,
     velocity: state.velocity.map(metres) as Vector3,
     spin: state.spin.map(metres) as Vector3,
+    car: state.car,
     steer: fine(state.steer),
     suspension: [fine(state.suspension[0]), fine(state.suspension[1]), fine(state.suspension[2]), fine(state.suspension[3])],
     roll: metres(state.roll),
@@ -70,6 +70,13 @@ function numbers(value: unknown, count: number): number[] | null {
   return value.every((item) => typeof item === "number" && Number.isFinite(item)) ? (value as number[]) : null;
 }
 
+/** A car this version of the game knows, or its default car: another version may have a car this one doesn't. */
+function knownCar(car: string): CarId {
+  if (isCarId(car)) return car;
+  console.warn(`aland-drive online: no car ${car} in this version; drawing ${DEFAULT_CAR}`);
+  return DEFAULT_CAR;
+}
+
 function parseState(value: unknown): CarState | null {
   if (!isRecord(value)) return null;
   const position = numbers(value.position, 3);
@@ -77,7 +84,8 @@ function parseState(value: unknown): CarState | null {
   const velocity = numbers(value.velocity, 3);
   const spin = numbers(value.spin, 3);
   const suspension = numbers(value.suspension, 4);
-  const [steer, roll] = [value.steer, value.roll];
+  const [steer, roll, car] = [value.steer, value.roll, value.car];
+  if (typeof car !== "string" || car.length === 0 || car.length > 64) return null;
   if (!position || !rotation || !velocity || !spin || !suspension || typeof steer !== "number" || !Number.isFinite(steer) || typeof roll !== "number" || !Number.isFinite(roll)) return null;
   const length = Math.hypot(...rotation);
   if (length < 0.5) return null;
@@ -86,6 +94,7 @@ function parseState(value: unknown): CarState | null {
     rotation: rotation.map((part) => part / length) as Rotation,
     velocity: velocity as Vector3,
     spin: spin as Vector3,
+    car: knownCar(car),
     steer,
     suspension: suspension as CarState["suspension"],
     roll,
@@ -94,8 +103,7 @@ function parseState(value: unknown): CarState | null {
 
 function parseCar(value: Record<string, unknown>): CarMessage | null {
   const state = parseState(value.state);
-  if (state === null || typeof value.car !== "string" || value.car.length === 0 || value.car.length > 64) return null;
-  return { car: value.car, state };
+  return state && { state };
 }
 
 export function parseGuestMessage(value: unknown): GuestMessage | null {

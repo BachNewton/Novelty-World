@@ -2,7 +2,7 @@ import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, 
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { CarState } from "../../sim/car-state";
-import { AXLE_Y, groundY, SAG_M, type CarDetail } from "./build";
+import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
 import { buildCarArt, createCarModel, type CarLights } from "./model";
 import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
 import { CARS, WORLD_CARS } from "./specs";
@@ -18,13 +18,14 @@ const HOOD = { forwardM: 2.35, aboveM: 0.28, lookAheadM: 30, fieldOfViewDeg: 72 
 
 const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
 
-const restState = (steer: number, roll: number): CarState => ({
+const restState = ({ id, ride }: CarSpec, steer: number, roll: number): CarState => ({
   position: [0, 0, 0],
   rotation: [0, 0, 0, 1],
   velocity: [0, 0, 0],
   spin: [0, 0, 0],
+  car: id ?? "skerry-gt",
   steer,
-  suspension: [SAG_M, SAG_M, SAG_M, SAG_M],
+  suspension: [ride.sagM, ride.sagM, ride.sagM, ride.sagM],
   roll,
 });
 
@@ -58,7 +59,7 @@ async function start(width: number, height: number) {
   asphalt.colorNode = mix(mix(grass, road, onRoad), paintLine, edge);
   const ground = new Mesh(new PlaneGeometry(2000, 2000), asphalt);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = groundY(0.33);
+  ground.position.y = groundY(CARS[0]);
   scene.add(ground);
 
   const arts = new Map<string, ReturnType<typeof buildCarArt>>();
@@ -77,9 +78,9 @@ async function start(width: number, height: number) {
       const art = artOf(shot.car, shot.detail);
       const model = createCarModel(art, SUN);
       scene.add(model.root);
-      ground.position.y = groundY(art.spec.wheel.radiusM);
+      ground.position.y = groundY(art.spec);
       model.setLights({ brake: false, reversing: false, headlights: false, ...shot.lights });
-      model.draw(restState(shot.steer ?? 0, shot.roll ?? 0));
+      model.draw(restState(art.spec, shot.steer ?? 0, shot.roll ?? 0));
       if (shot.lean) {
         model.pivot.rotation.x = shot.lean[0];
         model.pivot.rotation.z = shot.lean[1];
@@ -137,7 +138,7 @@ async function start(width: number, height: number) {
     async heroCost(car: number, pairs: number) {
       const art = artOf(car, "hero");
       const model = createCarModel(art, SUN);
-      model.draw(restState(0, 0));
+      model.draw(restState(art.spec, 0, 0));
       camera.fov = CHASE.fieldOfViewDeg;
       camera.position.set(0, CHASE.aboveM, CHASE.behindM);
       camera.lookAt(0, CHASE.lookAboveM, -CHASE.lookAheadM);
@@ -178,7 +179,7 @@ declare global {
   }
 }
 
-window.__axleY = AXLE_Y;
+window.__axleY = axleY(CARS[0]);
 window.__startCarGallery = async (width, height) => {
   window.__carGallery = await start(width, height);
 };

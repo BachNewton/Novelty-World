@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CAR } from "../../sim/tuning";
+import { CAR_IDS, CARS as TUNINGS } from "../../sim/cars";
 import { buildDistant } from "./body";
 import { buildCarParts } from "./build";
 import type { Soup } from "./mesh";
-import { CARS, PLAYER_CAR, WORLD_CARS } from "./specs";
+import { CARS, WORLD_CARS } from "./specs";
 
 const HERO_BUDGET = 25000;
 const FAR_BUDGET = 2000;
@@ -44,13 +44,24 @@ describe("the cars", () => {
     expect(signedVolume(distant)).toBeGreaterThan(0);
   });
 
-  it("the player's car is the simulation's car", () => {
-    expect(PLAYER_CAR.body.axleZ).toEqual([-CAR.wheelBaseM / 2, CAR.wheelBaseM / 2]);
-    expect(PLAYER_CAR.body.trackM).toBe(CAR.trackM);
-    expect(PLAYER_CAR.wheel.radiusM).toBe(CAR.wheelRadiusM);
-    const { positions } = buildCarParts(PLAYER_CAR, "hero").body;
-    let longest = 0;
-    for (let at = 2; at < positions.length; at += 3) longest = Math.max(longest, Math.abs(positions[at]));
-    expect(longest).toBeCloseTo(CAR.halfSize[2], 1);
+  it("has art for every car a player can drive, once each", () => {
+    expect(CARS.map(({ id }) => id)).toEqual(CAR_IDS);
+  });
+
+  it.each(CARS.map((car) => [car.name, car] as const))("%s collides as the box it's drawn as, above its sills and under its roof", (_, car) => {
+    if (!car.id) throw new Error(`${car.name} has no simulation`);
+    const { halfSize, boxUpM } = TUNINGS[car.id].car;
+    const { positions } = buildCarParts(car, "far").body;
+    const low = [Infinity, Infinity, Infinity];
+    const high = [-Infinity, -Infinity, -Infinity];
+    for (let at = 0; at < positions.length; at++) {
+      low[at % 3] = Math.min(low[at % 3], positions[at]);
+      high[at % 3] = Math.max(high[at % 3], positions[at]);
+    }
+    // The drawn width takes in the mirrors.
+    expect(Math.abs(halfSize[0] - (high[0] - low[0]) / 2)).toBeLessThan(0.15);
+    expect(Math.abs(halfSize[2] - (high[2] - low[2]) / 2)).toBeLessThan(0.12);
+    expect(boxUpM - halfSize[1]).toBeGreaterThan(low[1] + 0.15);
+    expect(boxUpM + halfSize[1]).toBeLessThan(high[1]);
   });
 });

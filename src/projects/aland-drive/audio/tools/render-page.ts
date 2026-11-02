@@ -1,6 +1,6 @@
 import { createDriveAudio } from "../graph";
 import type { DriveAudioState, Place, Surface } from "../model";
-import type { VehicleId } from "../vehicles";
+import { ENGINE_IDS, type VehicleId } from "../vehicles";
 
 /*
  * The headless check's page side: plays a scene through the real graph in an
@@ -41,10 +41,10 @@ const pull = (vehicle: VehicleId) => ({
   at: (t: number) => (t < 12 ? { speedMS: 55 * Math.sqrt(t / 12), throttle: 1 } : { speedMS: 55 - (t - 12) * 2 }),
 });
 
-const surface = (name: Surface, slip = 0) => held("electric", `tyres ${name}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, surface: name, slip, heldRpm: 0 });
+const surface = (name: Surface, slip = 0) => held("strom", `tyres ${name}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, surface: name, slip, heldRpm: 0 });
 
 export const SCENES: (Scene & { vehicle: VehicleId })[] = [
-  ...(["skerry-gt", "old-estate", "electric", "diesel-van"] as const).flatMap((vehicle) => [
+  ...ENGINE_IDS.flatMap((vehicle) => [
     held(vehicle, `${vehicle} idle`, {}),
     held(vehicle, `${vehicle} cruise`, { speedMS: 25, throttle: 0.3 }),
     held(vehicle, `${vehicle} held 3000`, { heldRpm: 3000, speedMS: 20, throttle: 0.6 }),
@@ -56,15 +56,15 @@ export const SCENES: (Scene & { vehicle: VehicleId })[] = [
   surface("asphalt", 1),
   surface("gravel", 1),
   surface("grass", 1),
-  held("electric", "wind 15", { speedMS: 15, heldRpm: 0, surface: "asphalt", suspension: [0, 0, 0, 0] }),
-  held("electric", "wind 30", { speedMS: 30, heldRpm: 0, suspension: [0, 0, 0, 0] }),
-  held("electric", "wind 55", { speedMS: 55, heldRpm: 0, suspension: [0, 0, 0, 0] }),
+  held("strom", "wind 15", { speedMS: 15, heldRpm: 0, surface: "asphalt", suspension: [0, 0, 0, 0] }),
+  held("strom", "wind 30", { speedMS: 30, heldRpm: 0, suspension: [0, 0, 0, 0] }),
+  held("strom", "wind 55", { speedMS: 55, heldRpm: 0, suspension: [0, 0, 0, 0] }),
   held("bike", "bike coasting", { speedMS: 7 }),
   held("bike", "bike pedalling", { speedMS: 7, throttle: 0.7 }),
   held("bike", "bike gravel", { speedMS: 7, throttle: 0.7, surface: "gravel" }),
-  held("electric", "forest", { place: { forest: 1, shore: 0, town: 0 } }, 12),
-  held("electric", "shore", { place: { forest: 0, shore: 1, town: 0 } }, 12),
-  held("electric", "town", { place: { forest: 0, shore: 0, town: 1 } }, 12),
+  held("strom", "forest", { place: { forest: 1, shore: 0, town: 0 } }, 12),
+  held("strom", "shore", { place: { forest: 0, shore: 1, town: 0 } }, 12),
+  held("strom", "town", { place: { forest: 0, shore: 0, town: 1 } }, 12),
   {
     name: "everything at worst",
     vehicle: "skerry-gt",

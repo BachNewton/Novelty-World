@@ -1,9 +1,6 @@
-import { BufferGeometry, CircleGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Object3D, type Scene } from "three/webgpu";
-import { float, positionGeometry, smoothstep, vec2, vec3 } from "three/tsl";
-import { themeColor } from "@/shared/lib/three/theme-color";
-import { CAR, SUSPENSION } from "../../sim/tuning";
+import { BufferGeometry, Group, Mesh, type Node, type Object3D, type Scene } from "three/webgpu";
 import type { CarState } from "../../sim/car-state";
-import { AXLE_Y, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
+import { axleY, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
 
 /*
@@ -13,9 +10,6 @@ import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./materi
  * body pivot at the centre of mass, which leans on top of whatever the
  * simulation is doing, and the wheels beside it, steering then rolling.
  */
-
-const SHADOW_STRENGTH = 0.6;
-const SHADOW_LIFT_M = 0.03;
 
 /** The parts' geometries, which any number of cars of one spec can share. */
 export interface CarArt {
@@ -56,19 +50,20 @@ export interface CarViewOptions {
 
 export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevationDeg: number }, options: CarViewOptions = {}) {
   const { spec } = art;
-  const road = groundY(spec.wheel.radiusM);
+  const road = groundY(spec);
+  const { ride } = spec;
   const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed, hero: art.glass !== null });
   const glassLook = art.glass && glassMaterial({ sun, hazed: options.hazed });
 
   const root = new Group();
   const pivot = new Group();
-  pivot.position.y = CAR.massUpM;
+  pivot.position.y = ride.massUpM;
   const shell = new Mesh(art.body, material);
-  shell.position.y = -CAR.massUpM;
+  shell.position.y = -ride.massUpM;
   pivot.add(shell);
   if (art.glass && glassLook) {
     const glass = new Mesh(art.glass, glassLook);
-    glass.position.y = -CAR.massUpM;
+    glass.position.y = -ride.massUpM;
     glass.renderOrder = 1;
     pivot.add(glass);
   }
@@ -84,7 +79,7 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
     ] as const
   ).map(([side, z, isFront]) => {
     const steering = new Group();
-    steering.position.set((side * spec.body.trackM) / 2, AXLE_Y, z);
+    steering.position.set((side * spec.body.trackM) / 2, axleY(spec), z);
     const rolling = new Group();
     const mesh = new Mesh(art.wheel, material);
     mesh.rotation.y = side < 0 ? Math.PI : 0;
@@ -93,21 +88,6 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
     root.add(steering);
     return { steering, rolling, isFront };
   });
-
-  const shadowGeometry = new CircleGeometry(1, 4);
-  shadowGeometry.rotateX(-Math.PI / 2);
-  shadowGeometry.rotateY(Math.PI / 4);
-  const shadowMaterial = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
-  const { r, g, b } = themeColor("--color-aland-drive-car-shadow");
-  shadowMaterial.colorNode = vec3(r, g, b);
-  const [wide, long] = spec.shadowHalf;
-  const toEdge = vec2(positionGeometry.x, positionGeometry.z).abs().mul(Math.SQRT2).sub(vec2(1, 1));
-  const toScale = vec2(wide + 0.3, long + 0.3).div(0.3);
-  const outside = toEdge.mul(toScale).add(1).max(vec2(0, 0)).length();
-  shadowMaterial.opacityNode = float(1).sub(smoothstep(float(0), float(1), outside)).mul(SHADOW_STRENGTH);
-  const shadow = new Mesh(shadowGeometry, shadowMaterial);
-  shadow.scale.set(wide + 0.3, 1, long + 0.3);
-  root.add(shadow);
 
   setLights({ brake: false, reversing: false, headlights: false });
 
@@ -122,21 +102,15 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
     draw(state: CarState) {
       root.position.set(...state.position);
       root.quaternion.set(...state.rotation);
-      let hang = 0;
       wheels.forEach(({ steering, rolling, isFront }, index) => {
-        const y = -SUSPENSION.droopM + state.suspension[index];
-        hang += y / wheels.length;
-        steering.position.y = y;
+        steering.position.y = -ride.droopM + state.suspension[index];
         steering.rotation.y = isFront ? -state.steer : 0;
-        rolling.rotation.x = -(state.roll * CAR.wheelRadiusM) / spec.wheel.radiusM;
+        rolling.rotation.x = -state.roll;
       });
-      shadow.position.y = hang - spec.wheel.radiusM + SHADOW_LIFT_M;
     },
     dispose() {
       material.dispose();
       glassLook?.dispose();
-      shadowGeometry.dispose();
-      shadowMaterial.dispose();
     },
   };
 }
@@ -158,17 +132,10 @@ export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevation
 
 /** A car in the scene from art other cars share, which outlives it. */
 export function carOnRoad(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, art: CarArt) {
-  const { spec } = art;
   const model = createCarModel(art, sun);
   scene.add(model.root);
-  // The simulation has one size of wheel, so its road is where that wheel touches: a car on others rides up or down to meet it.
-  const ride = new Vector3();
-  const rideM = spec.wheel.radiusM - CAR.wheelRadiusM;
   return {
-    draw(state: CarState) {
-      model.draw(state);
-      model.root.position.add(ride.set(0, rideM, 0).applyQuaternion(model.root.quaternion));
-    },
+    draw: model.draw,
     setLights: model.setLights,
     objects: [model.root] as Object3D[],
     dispose() {

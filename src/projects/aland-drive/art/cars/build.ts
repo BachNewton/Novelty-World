@@ -1,4 +1,5 @@
-import { SUSPENSION, CAR } from "../../sim/tuning";
+import { CARS, DEFAULT_CAR, type CarId } from "../../sim/cars";
+import { sagOf, type CarTuning } from "../../sim/tuning";
 import { buildBody, ROWS, type BodySpec, type BodyDetail } from "./body";
 import { pick, type Soup, type Surface } from "./mesh";
 import { buildWheel, type WheelSpec } from "./wheel";
@@ -10,7 +11,21 @@ import { buildWheel, type WheelSpec } from "./wheel";
 
 export type CarDetail = "hero" | "far";
 
+/** How a body hangs on its wheels: where a wheel hangs with no weight on it, how far the springs settle, and the centre of mass, all from the body's origin. */
+export interface Ride {
+  droopM: number;
+  sagM: number;
+  massUpM: number;
+}
+
+export const rideOf = (tuning: CarTuning): Ride => ({ droopM: tuning.suspension.droopM, sagM: sagOf(tuning), massUpM: tuning.car.massUpM });
+
+/** A world car hangs as the game's own car does. */
+export const WORLD_RIDE = rideOf(CARS[DEFAULT_CAR]);
+
 export interface CarSpec {
+  /** A car a player can drive: its wheels and ride are its simulation's. */
+  id?: CarId;
   name: string;
   /** A paint token, without the `--color-aland-drive-` prefix. */
   paint: string;
@@ -20,6 +35,7 @@ export interface CarSpec {
   livery?: boolean;
   /** Half the length and width of the shadow on the road. */
   shadowHalf: readonly [wide: number, long: number];
+  ride: Ride;
 }
 
 export interface CarParts {
@@ -51,20 +67,18 @@ const FAR: BodyDetail = {
   cabin: false,
 };
 
-/** The sag of the springs under the car's weight: the same sum the simulation starts from. */
-export const SAG_M = (CAR.massKg * 9.81) / 4 / SUSPENSION.springNPerM;
 /** Where a wheel's centre sits in the car at rest. */
-export const AXLE_Y = -SUSPENSION.droopM + SAG_M;
+export const axleY = ({ ride }: Pick<CarSpec, "ride">) => -ride.droopM + ride.sagM;
 
 /** The road under a car at rest, in the car's own frame: heights in a spec are measured from here. */
-export const groundY = (radiusM: number) => AXLE_Y - radiusM;
+export const groundY = (spec: Pick<CarSpec, "ride" | "wheel">) => axleY(spec) - spec.wheel.radiusM;
 
 /** The parts a world car can have or not, which `fleet.ts` turns on per instance. */
 const isOption = (surface: Surface) => surface === "rack" || surface === "plateBand";
 
 export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false): CarParts {
   const hero = detail === "hero";
-  const shell = buildBody(spec.body, groundY(spec.wheel.radiusM), hero ? HERO : FAR);
+  const shell = buildBody(spec.body, groundY(spec), hero ? HERO : FAR);
   return {
     body: pick(shell, (surface) => (options || !isOption(surface)) && !(hero && surface === "glass")),
     glass: hero ? pick(shell, (surface) => surface === "glass") : null,

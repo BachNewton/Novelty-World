@@ -1,7 +1,7 @@
 import { speedOf, type CarState, type Rotation, type Vector3 } from "../sim/car-state";
 import type { DriveInput } from "../sim/car";
 import type { EngineRead } from "../sim/gearbox";
-import { SUSPENSION } from "../sim/tuning";
+import { CARS, DEFAULT_CAR } from "../sim/cars";
 import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -117,7 +117,8 @@ export function readJolts(past: Jolts, state: DriveAudioState, dt: number): { jo
   if (fastest >= THUD_MS) heard.push({ sound: "thud", strength: clamp(fastest / FULL_THUD_MS, 0.4) });
   else if (fastest >= KNOCK_MS) heard.push({ sound: "knock", strength: clamp(fastest / THUD_MS, 0.4) });
 
-  const stopped = state.suspension.some((wheel) => wheel >= SUSPENSION.travelM - STOP_MARGIN_M);
+  const { travelM } = CARS[state.vehicle === "bike" ? DEFAULT_CAR : state.vehicle].suspension;
+  const stopped = state.suspension.some((wheel) => wheel >= travelM - STOP_MARGIN_M);
   if (stopped && !past.stopped) heard.push({ sound: "bump-stop", strength: 1 });
 
   const lost = past.recentSpeedMS - state.speedMS;

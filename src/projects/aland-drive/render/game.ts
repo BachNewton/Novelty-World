@@ -46,7 +46,8 @@ import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround, surfaceUnder } from "../sim/surroundings";
-import { GEARBOX, STEP_S } from "../sim/tuning";
+import { STEP_S } from "../sim/tuning";
+import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 
@@ -130,10 +131,10 @@ export interface GameProbe {
   memory: () => { jsMB: number; meshMB: number; texturesMB: number };
   /** The renderer's own counts of what it holds, to show nothing is left behind. */
   rendererMemory: () => Record<string, number>;
-  /** Draws a different car, by name. The drive carries on: nothing in the simulation changes. */
-  setCar: (name: string) => void;
-  /** The name of the car being drawn. */
-  carName: () => string;
+  /** Swaps the car for another, its looks, handling and sound. The drive carries on from where it was. */
+  setCar: (id: CarId) => void;
+  /** The car being driven. */
+  carId: () => CarId;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
@@ -169,8 +170,8 @@ export interface GameEvents {
   onMapReady?: () => void;
   onMapOpen?: (open: boolean) => void;
   onDevMenuOpen?: (open: boolean) => void;
-  /** Another car is being drawn. */
-  onCarChange?: (name: string) => void;
+  /** Another car is being driven. */
+  onCarChange?: (id: CarId) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
   /** Everyone else in the online world, by name, whenever that changes. */
@@ -192,6 +193,7 @@ export interface MapCanvases {
 
 /** A car the dev menu can offer. */
 export interface CarChoice {
+  id: CarId;
   name: string;
   /** A paint token, without the `--color-aland-drive-` prefix. */
   paint: string;
@@ -201,7 +203,7 @@ export interface Game {
   probe: GameProbe;
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
-  setCar: (name: string) => void;
+  setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
@@ -834,14 +836,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     ].join("\n");
   };
 
-  const setCar = (name: string) => {
-    const spec = CARS.find((car) => car.name === name);
-    if (!spec) throw new Error(`no car called ${name}`);
+  const setCar = (id: CarId) => {
+    const spec = CARS.find((car) => car.id === id);
+    if (!spec) throw new Error(`no car's art for ${id}`);
     if (spec === carSpec) return;
+    drive.setCar(id);
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, manifest.sun, spec);
-    events.onCarChange?.(name);
+    events.onCarChange?.(id);
   };
 
   const onAction = (action: GameAction) => {
@@ -907,13 +910,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
   const remoteViews = createRemoteCarViews(scene, manifest.sun);
-  const others = new Map<string, { name: string; car: string | null }>();
+  const others = new Map<string, { name: string; heard: boolean }>();
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
-        onCar: (peerId, car, state) => {
+        onCar: (peerId, state) => {
           const other = others.get(peerId);
           if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
-          other.car = car;
+          other.heard = true;
           drive.remotes.hear(peerId, state);
         },
         onGone: (peerId) => {
@@ -923,7 +926,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         onPlayers: (players) => {
           const before = new Map(others);
           others.clear();
-          for (const { peerId, name } of players) others.set(peerId, { name, car: before.get(peerId)?.car ?? null });
+          for (const { peerId, name } of players) others.set(peerId, { name, heard: before.get(peerId)?.heard ?? false });
           events.onPlayers?.(players.map(({ name }) => name));
         },
       })
@@ -933,11 +936,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   /** Draws everyone else's car where it's on ground of ours, and says where they all are for the maps. */
   const drawRemotes = (share: number): MapPlayer[] => {
     const shown: MapPlayer[] = [];
-    for (const [peerId, { name, car }] of others) {
-      if (car === null) continue;
+    for (const [peerId, { name, heard }] of others) {
+      if (!heard) continue;
       const state = drive.remotes.stateAt(peerId, share);
       const [x, , z] = state.position;
-      remoteViews.draw(peerId, car, state, world.tileAt(x, z)?.detail != null);
+      remoteViews.draw(peerId, state, world.tileAt(x, z)?.detail != null);
       shown.push({ x, z, headingClockwise: headingClockwise(state), name });
     }
     return shown;
@@ -982,7 +985,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const car = drive.stateAt(share);
     carView.draw(car);
-    onlineWorld?.send(stepped, carSpec.name, drive.stateAt(1));
+    onlineWorld?.send(stepped, drive.stateAt(1));
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
     if (mapFrom && worldMap) {
@@ -1018,13 +1021,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
     const engine = drive.engine();
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / GEARBOX.redlineRpm, 1), cue });
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: "skerry-gt", engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1144,22 +1147,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       rendererMemory: () => ({ ...renderer.info.memory }),
       setCar,
-      carName: () => carSpec.name,
+      carId: () => drive.carId,
       online: () => {
         const state = onlineWorld?.state();
         return { status: state?.status ?? "idle", role: state?.role ?? null };
       },
       players: () =>
-        [...others].map(([peerId, { name, car }]) => ({
+        [...others].map(([peerId, { name, heard }]) => ({
           peerId,
           name,
-          position: car === null ? null : drive.remotes.stateAt(peerId, 1).position,
+          position: !heard ? null : drive.remotes.stateAt(peerId, 1).position,
           drawn: remoteViews.drawn(peerId),
           ghost: drive.remotes.ghost(peerId),
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
     },
-    cars: CARS.map(({ name, paint }) => ({ name, paint })),
+    cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
     whereabouts,
