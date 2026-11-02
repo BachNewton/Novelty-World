@@ -64,7 +64,10 @@ interface Ring {
   texture: DataTexture;
   levels: Float32Array;
   levelTexture: DataTexture;
+  shore: Float32Array;
+  shoreTexture: DataTexture;
   waterLevelAt: (place: Node<"vec2">) => Node<"float">;
+  shoreAt: (place: Node<"vec2">) => Node<"float">;
   origin: { value: Vector2 };
   /** The lattice node of the ring's first vertex, to know when it moved. */
   column: number;
@@ -86,16 +89,21 @@ export interface Clipmap {
   groundBlendedAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** The drawn water surface at the ring's nearest node to a place, or the world's `dryLevel` where no water is near. */
   waterLevelAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** Metres from the shore at a place, out into the water and below zero on land, read between the ring's four nearest nodes as the waterline is drawn. */
+  shoreAt: (level: number, place: Node<"vec2">) => Node<"float">;
   dispose: () => void;
 }
 
-/** A colour for the ground or the water, given how deep the water is there: the water's level less the ground's, below 0 on land. */
-export type ByDepth = (depthM: Node<"float">) => Node<"vec3">;
+/**
+ * A colour for the ground or the water, given how deep the water is there (the water's level less the ground's, below 0
+ * above the water) and how far the shore is (out into the water, below 0 on land).
+ */
+export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">) => Node<"vec3">;
 
 /** What rises from the ground far off (the forest's canopy), given a place and the ring's level. */
 export type TerrainLift = (place: Node<"vec2">, level: number) => Node<"float">;
 
-export function createClipmap(scene: Scene, world: World, stepM: number, groundColour: ByDepth, waterColour: ByDepth, lift: TerrainLift): Clipmap {
+export function createClipmap(scene: Scene, world: World, stepM: number, groundColour: ByWater, waterColour: ByWater, lift: TerrainLift): Clipmap {
   const dryLevel = world.manifest.water.dryLevel;
   const across = CELLS + 1;
   const positions = new Float32Array(across * across * 3);
@@ -127,6 +135,9 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const levels = new Float32Array(across * across);
     const levelTexture = new DataTexture(levels, across, across, RedFormat, FloatType);
     levelTexture.minFilter = levelTexture.magFilter = NearestFilter;
+    const shore = new Float32Array(across * across);
+    const shoreTexture = new DataTexture(shore, across, across, RedFormat, FloatType);
+    shoreTexture.minFilter = shoreTexture.magFilter = NearestFilter;
     const origin = uniform(new Vector2());
 
     const grid = positionGeometry.xz;
@@ -145,10 +156,11 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const waterLevel = mix(ownLevel, coarseLevel, fold);
     // Dry nodes sit hundreds of metres down, so a depth that mixes in one is far below zero: land.
     const depth = varying(waterLevel.sub(ground));
+    const fromShore = varying(mix(textureLoad(shoreTexture, ivec2(grid)).r, textureLoad(shoreTexture, ivec2(grid.sub(odd))).r, fold));
 
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
-    material.colorNode = groundColour(depth);
+    material.colorNode = groundColour(depth, fromShore);
     materials.push(material);
 
     const geometry = new BufferGeometry();
@@ -165,9 +177,10 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
       const waterMaterial = new MeshBasicNodeMaterial();
       waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
-      waterMaterial.colorNode = waterColour(depth);
-      // Only a triangle wet at all three corners is water: the rest lie under the land.
-      waterMaterial.opacityNode = wet;
+      waterMaterial.colorNode = waterColour(depth, fromShore);
+      // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
+      // the line is, smooth where a low shore's corners sit within centimetres of the water.
+      waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));
       waterMaterial.alphaTest = 0.999;
       materials.push(waterMaterial);
       water = new Mesh(geometry, waterMaterial);
@@ -175,29 +188,33 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       scene.add(water);
     }
     const groundAt = (spot: Node<"vec2">) => textureLoad(texture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    const groundBlendedAt = (spot: Node<"vec2">) => {
+    const blendedAt = (from: DataTexture) => (spot: Node<"vec2">) => {
       const inRing = spot.sub(origin).div(ringStep);
       const corner = floor(inRing);
       const share = inRing.sub(corner);
-      const at = (column: number, row: number) => textureLoad(texture, ivec2(corner.add(vec2(column, row)))).r;
+      const at = (column: number, row: number) => textureLoad(from, ivec2(corner.add(vec2(column, row)))).r;
       return mix(mix(at(0, 0), at(1, 0), share.x), mix(at(0, 1), at(1, 1), share.x), share.y);
     };
+    const groundBlendedAt = blendedAt(texture);
     const waterLevelAt = (spot: Node<"vec2">) => textureLoad(levelTexture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    return { stepM: ringStep, groundAt, groundBlendedAt, heights, texture, levels, levelTexture, waterLevelAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
+    const shoreAt = blendedAt(shoreTexture);
+    return { stepM: ringStep, groundAt, groundBlendedAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
     const stride = nodeStride(level);
-    const { heights, levels } = ring;
+    const { heights, levels, shore } = ring;
     let at = 0;
     for (let row = 0; row < across; row++) {
       for (let column = 0; column < across; column++) {
         heights[at] = world.node(ring.column + column * stride, ring.row + row * stride);
-        levels[at++] = world.waterLevel(ring.column + column * stride, ring.row + row * stride);
+        levels[at] = world.waterLevel(ring.column + column * stride, ring.row + row * stride);
+        shore[at++] = world.shore(ring.column + column * stride, ring.row + row * stride);
       }
     }
     ring.texture.needsUpdate = true;
     ring.levelTexture.needsUpdate = true;
+    ring.shoreTexture.needsUpdate = true;
     ring.origin.value.set(ring.column * stepM, ring.row * stepM);
   };
 
@@ -210,6 +227,9 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     },
     waterLevelAt(level, place) {
       return rings[level].waterLevelAt(place);
+    },
+    shoreAt(level, place) {
+      return rings[level].shoreAt(place);
     },
     showWide(shown) {
       for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;
@@ -252,6 +272,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
         if (ring.water) scene.remove(ring.water);
         ring.texture.dispose();
         ring.levelTexture.dispose();
+        ring.shoreTexture.dispose();
       }
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();

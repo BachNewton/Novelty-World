@@ -493,11 +493,12 @@
     "L2343F"
   ],
   "water": {
-    "nodesFile": "water-nodes.bin.gz",
     "levelsFile": "water-levels.bin.gz",
     "farLevelsFile": "water-levels-far.bin.gz",
+    "shoreFile": "shore.bin.gz",
+    "farShoreFile": "shore-far.bin.gz",
     "dryLevel": -300.0,
-    "encoding": "the drawn water surface at each height node, coded as the heights are; dryLevel where no water is near"
+    "encoding": "coded as the heights are: the drawn water surface at each height node, dryLevel where no water is near; and the metres from the shore, out into the water and below zero on land"
   },
   "roads": {
     "file": "roads.json",

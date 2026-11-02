@@ -44,7 +44,9 @@ DEEPEST_M = 3.5
 SHALLOWS_GROW_SAMPLES = 3
 SHALLOWS_ABOVE_M = 0.06
 # Shore lines follow the samples in steps; this much blur turns the steps into a curve.
-SHORE_BLUR_SAMPLES = 1.0
+SHORE_BLUR_SAMPLES = 1.5
+# Past this, how far from the shore no longer matters: wider than a triangle of the farthest ring that draws water.
+FARTHEST_SHORE_M = 64.0
 # How far beyond water a corner still carries its level: past a triangle of the coarsest ring that draws it.
 LEVEL_REACH_M = 40.0
 LEVEL_BLUR_SAMPLES = 4
@@ -202,20 +204,28 @@ def shallows(mosaic: np.ndarray, flat: np.ndarray, water: np.ndarray) -> np.ndar
     return ndimage.binary_dilation(water, iterations=SHALLOWS_GROW_SAMPLES, mask=low | water)
 
 
-def seabed(corners: np.ndarray, untouched: np.ndarray, mosaic: np.ndarray, flat: np.ndarray, water: np.ndarray, levels: np.ndarray) -> np.ndarray:
+def shore_distance(mosaic: np.ndarray, flat: np.ndarray, water: np.ndarray) -> np.ndarray:
+    """Metres from the shore at each of the tile's corners, out into the water and below zero on land, to FARTHEST_SHORE_M.
+
+    The shore is a smooth line round the water, shallows and all, so the waterline drawn
+    from it is a curve rather than the samples' steps or the mesh's.
+    """
+    if not flat.any():
+        return np.full(tile_corners(sample_corners(mosaic)).shape, -FARTHEST_SHORE_M)
+    wet = shallows(mosaic, flat, water)
+    # A sample's distance to the shore is from its middle, half a sample short of what the transform counts.
+    signed = (ndimage.distance_transform_edt(wet) - 0.5 * wet) - (ndimage.distance_transform_edt(~wet) - 0.5 * ~wet)
+    return np.clip(_on_corners(ndimage.gaussian_filter(signed, SHORE_BLUR_SAMPLES) * SAMPLE_M), -FARTHEST_SHORE_M, FARTHEST_SHORE_M)
+
+
+def seabed(corners: np.ndarray, untouched: np.ndarray, shore: np.ndarray, levels: np.ndarray) -> np.ndarray:
     """The tile's corners with the ground under water falling away from the shore, below the drawn surface.
 
     The model writes water as its flat surface, so without this the land meets the water
     on a slope of nothing and the shore has no line. The seabed starts at the drawn surface
-    on a smooth line round the water, so the shore is a curve rather than the samples' steps.
-    Corners another rule shaped (`untouched` false: the ground under a road and just beside it) keep their height.
+    on the shore's line. Corners another rule shaped (`untouched` false: the ground under a
+    road and just beside it) keep their height.
     """
-    if not flat.any():
-        return corners
-    wet = shallows(mosaic, flat, water)
-    # A sample's distance to the shore is from its middle, half a sample short of what the transform counts.
-    signed = (ndimage.distance_transform_edt(wet) - 0.5 * wet) - (ndimage.distance_transform_edt(~wet) - 0.5 * ~wet)
-    signed_m = _on_corners(ndimage.gaussian_filter(signed, SHORE_BLUR_SAMPLES) * SAMPLE_M)
-    depth = np.minimum(SEABED_SLOPE * signed_m, DEEPEST_M)
-    under = (signed_m > 0) & untouched & (levels > DRY_LEVEL_M)
+    depth = np.minimum(SEABED_SLOPE * shore, DEEPEST_M)
+    under = (shore > 0) & untouched & (levels > DRY_LEVEL_M)
     return np.where(under, np.minimum(corners, levels - depth), corners)

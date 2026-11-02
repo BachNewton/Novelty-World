@@ -48,6 +48,8 @@ FAR_NODE_STRIDE = 4
 FAR_SHADE_PIXELS = 750
 FAR_SHADE_QUALITY = 80
 MASK_PIXELS = 1500
+# Ground a road shaped over the water that stands this far out of it is the road's bank, and land.
+ROAD_BANK_ABOVE_WATER_M = 0.5
 # The drive starts here, on this tile's main road.
 START_TILE = "L2343C"
 ATTRIBUTION = [
@@ -81,8 +83,8 @@ def surface_mask(water: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]]
     return Image.merge("RGB", [channel.reduce(SAMPLES // MASK_PIXELS) for channel in (wet, *canvases)])
 
 
-def beside_roads(ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, north: float) -> np.ndarray:
-    """True on the tile's corners under a road's surface, shoulders included, or within a mesh cell of it."""
+def road_cover(ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, north: float) -> np.ndarray:
+    """True on the tile's samples under a road's surface, shoulders included."""
     scale = SAMPLES / TILE_SIZE_M
     canvas = Image.new("L", (SAMPLES, SAMPLES), 0)
     pen = ImageDraw.Draw(canvas)
@@ -91,15 +93,18 @@ def beside_roads(ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, nort
         rows = (north - rings[:, (0, 4), 1]) * scale
         for section in range(len(rings) - 1):
             pen.polygon([(columns[section, 0], rows[section, 0]), (columns[section, 1], rows[section, 1]), (columns[section + 1, 1], rows[section + 1, 1]), (columns[section + 1, 0], rows[section + 1, 0])], fill=255)
-    near = ndimage.binary_dilation(np.asarray(canvas) > 0, iterations=terrain.HEIGHT_STEP_SAMPLES)
-    padded = np.pad(near, 1, mode="edge")
+    return np.asarray(canvas) > 0
+
+
+def samples_to_corners(samples: np.ndarray) -> np.ndarray:
+    """True on the corners that touch a true sample."""
+    padded = np.pad(samples, 1, mode="edge")
     return padded[:-1, :-1] | padded[1:, :-1] | padded[:-1, 1:] | padded[1:, 1:]
 
 
-def water_nodes(water: np.ndarray) -> np.ndarray:
-    """A byte for each height node: 1 where the 2 m mask holds water at the node's corner."""
-    padded = np.pad(water, ((0, 1), (0, 1)), mode="edge")
-    return padded[:: terrain.HEIGHT_STEP_SAMPLES, :: terrain.HEIGHT_STEP_SAMPLES].astype(np.uint8)
+def corners_to_samples(corners: np.ndarray) -> np.ndarray:
+    """True on the samples one of whose corners is true."""
+    return corners[:-1, :-1] | corners[1:, :-1] | corners[:-1, 1:] | corners[1:, 1:]
 
 
 def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]], aprons: list[road_surface.Apron]) -> bytes:
@@ -181,15 +186,28 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
 
     levels = terrain.water_levels(mosaic, flat_water)
     # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.
-    road_shaped = (conformed != raw) & beside_roads(baked, west, north)
-    conformed = terrain.seabed(conformed, ~road_shaped, mosaic, flat_water, water_with_rim, levels)
+    roads_cover = road_cover(baked, west, north)
+    road_shaped = (conformed != raw) & samples_to_corners(ndimage.binary_dilation(roads_cover, iterations=terrain.HEIGHT_STEP_SAMPLES))
+    shore = terrain.shore_distance(mosaic, flat_water, water_with_rim)
+    conformed = terrain.seabed(conformed, ~road_shaped, shore, levels)
+    # A road on a bank out of the water is land, so the waterline runs along its edge, measured from the road's own
+    # outline rather than the corners, which would draw a road crossing the grid as stairs. A path at the water's
+    # level, such as a pier, keeps the water under it.
+    bank = roads_cover & corners_to_samples(road_shaped & (conformed > levels + ROAD_BANK_ABOVE_WATER_M))
+    if bank.any():
+        from_bank = np.pad(ndimage.distance_transform_edt(~bank) * SAMPLE_M, 1, mode="edge")
+        shore = np.minimum(shore, (from_bank[:-1, :-1] + from_bank[1:, :-1] + from_bank[:-1, 1:] + from_bank[1:, 1:]) / 4 - SAMPLE_M / 2)
+    # To the decimetre: the line needs no finer, and the file packs far smaller.
+    shore_nodes = terrain.height_nodes(np.round(shore, 1))
+
     nodes = terrain.height_nodes(conformed)
     level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
     (folder / "heights-far.bin.gz").write_bytes(encode_heights(nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
-    (folder / "water-nodes.bin.gz").write_bytes(gzip.compress(water_nodes(water).tobytes(), 9, mtime=0))
     (folder / "water-levels.bin.gz").write_bytes(encode_heights(level_nodes))
     (folder / "water-levels-far.bin.gz").write_bytes(encode_heights(level_nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
+    (folder / "shore.bin.gz").write_bytes(encode_heights(shore_nodes))
+    (folder / "shore-far.bin.gz").write_bytes(encode_heights(shore_nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
     surface_mask(water, baked, west, north).save(folder / "mask.png", optimize=True)
 
     shade = terrain.bake_shade(terrain.with_ground_moved(mosaic, raw, conformed))
@@ -233,11 +251,12 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "models": placed.write(folder),
         "buildingSheets": building_sheets(tile),
         "water": {
-            "nodesFile": "water-nodes.bin.gz",
             "levelsFile": "water-levels.bin.gz",
             "farLevelsFile": "water-levels-far.bin.gz",
+            "shoreFile": "shore.bin.gz",
+            "farShoreFile": "shore-far.bin.gz",
             "dryLevel": terrain.DRY_LEVEL_M,
-            "encoding": "the drawn water surface at each height node, coded as the heights are; dryLevel where no water is near",
+            "encoding": "coded as the heights are: the drawn water surface at each height node, dryLevel where no water is near; and the metres from the shore, out into the water and below zero on land",
         },
         "roads": {"file": "roads.json", "count": len(roads)},
         "buildings": {"file": "buildings.json", "count": len(buildings)},

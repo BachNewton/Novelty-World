@@ -36,7 +36,7 @@ class Seabed(unittest.TestCase):
         self.shore_column = SHORE - 1 - terrain.CORNER_RIM
 
     def bed(self) -> np.ndarray:
-        return terrain.seabed(self.corners, self.untouched, self.mosaic, self.flat, self.water, self.levels)
+        return terrain.seabed(self.corners, self.untouched, terrain.shore_distance(self.mosaic, self.flat, self.water), self.levels)
 
     def test_the_seabed_falls_from_the_drawn_surface_to_its_deepest(self):
         row = self.bed()[30]

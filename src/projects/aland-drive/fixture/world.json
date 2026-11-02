@@ -1,6 +1,6 @@
 {
   "format": 6,
-  "version": "d61f4fe68ae9",
+  "version": "58fd4de08cfe",
   "worldOrigin": {
     "east": 110000,
     "north": 6690000
@@ -23,8 +23,8 @@
     "stepM": 4.0,
     "unitM": 0.01,
     "encoding": "gzip of int16le; rows north to south, west to east; each value the difference from the one to its west",
-    "min": -3.6,
-    "max": 51.34
+    "min": -3.54,
+    "max": 49.66
   },
   "far": {
     "heightsFile": "heights-far.bin.gz",
@@ -65,11 +65,12 @@
     "encoding": "gzip of bytes, 4 a pixel, rows north to south, west to east: the shares of pine, spruce and birch, 0 to 255, what's left being other broadleaf, then the share of lattice places holding a tree"
   },
   "water": {
-    "nodesFile": "water-nodes.bin.gz",
     "levelsFile": "water-levels.bin.gz",
     "farLevelsFile": "water-levels-far.bin.gz",
+    "shoreFile": "shore.bin.gz",
+    "farShoreFile": "shore-far.bin.gz",
     "dryLevel": -300.0,
-    "encoding": "the drawn water surface at each height node, coded as the heights are; dryLevel where no water is near"
+    "encoding": "coded as the heights are: the drawn water surface at each height node, dryLevel where no water is near; and the metres from the shore, out into the water and below zero on land"
   },
   "overview": {
     "west": -12000,

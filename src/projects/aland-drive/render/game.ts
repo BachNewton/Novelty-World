@@ -411,11 +411,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))));
   const pastTiles = select(inOverview, mix(openSea, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), openSea);
   const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth));
-  const terrainColour = (depth: Node<"float">) => {
-    // The ground under water is drawn as the water above it, in a line as sharp as the pixel, so far off, where no
-    // water mesh is, the shore still has its edge.
-    const edge = fwidth(depth).max(0.001);
-    const under = smoothstep(edge.negate(), edge, depth);
+  const terrainColour = (depth: Node<"float">, shore: Node<"float">) => {
+    // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
+    // line rather than where the mesh's corners cross the water.
+    const edge = fwidth(shore).max(0.001);
+    const under = smoothstep(edge.negate(), edge, shore);
     const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
     const near = mix(land.mul(mix(float(1), float(WET_SHADE), wet)), waterColour(depth), under);
     return hazed(mix(pastTiles, near, farSeen));
