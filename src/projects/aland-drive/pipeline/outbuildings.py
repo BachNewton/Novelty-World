@@ -119,7 +119,8 @@ class Placed:
     def take(self, footprint_kind: int, outline: Polygon, ground: np.ndarray, toward_road: np.ndarray | None, seed: int) -> bool:
         """Places a model on the outline if it's a boathouse or shed. `ground` is the heights along the outline."""
         ring = np.array(outline.exterior.coords)
-        kind = kind_of(footprint_kind, self.tags.of(outline), outline, float(self.shores.at(ring).min()))
+        shore = self.shores.at(ring)
+        kind = kind_of(footprint_kind, self.tags.of(outline), outline, float(shore.min()))
         if kind is None:
             return False
         centre, long_half, short_half = _rectangle(outline)
@@ -128,7 +129,10 @@ class Placed:
             sides = [long_half, -long_half, short_half, -short_half]
             nearest = int(np.argmin(self.shores.at(np.array([centre + side for side in sides]))))
             front, across = sides[nearest], short_half if nearest < 2 else long_half
-            model, y = _pick(seed, BOATHOUSES), float(ground.min())
+            # The model's foot is the water line: the lowest ground of the outline's part on land, which at the shore is
+            # the water's level, never the bed under the water, which can lie well below it.
+            on_land = ground[shore > 0]
+            model, y = _pick(seed, BOATHOUSES), float(on_land.min() if on_land.size else ground.max())
         else:
             front = long_half if toward_road is None or toward_road @ long_half >= 0 else -long_half
             if toward_road is None and seed & 1:

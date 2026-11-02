@@ -44,6 +44,15 @@ class Boathouses(unittest.TestCase):
         self.assertAlmostEqual(math.cos(yaw), 1, places=3)
         self.assertAlmostEqual((width, length), (8, 4), places=2)
 
+    def test_one_half_over_the_water_stands_at_the_water_line_not_on_the_bed(self):
+        where = placed()
+        # Its front half over the water, where the ground is the seabed 3 m down; its back on the shore, 0.2 m up.
+        outline = box(100, 36, 104, 44)
+        ground = np.array([-3.0 if north < 40 else 0.2 for _, north in outline.exterior.coords])
+        self.assertTrue(where.take(OUTBUILDING, outline, ground, None, seed=0))
+        _, y, _, _, _, _ = next(places[-1] for places in where.models.values() if places)
+        self.assertAlmostEqual(y, 0.2)
+
     def test_a_house_on_the_shore_is_left_alone(self):
         self.assertIsNone(take(placed(), HOUSE, box(100, 40, 110, 50)))
 
