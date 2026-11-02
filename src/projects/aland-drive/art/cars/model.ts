@@ -120,6 +120,18 @@ export type CarModel = ReturnType<typeof createCarModel>;
 /** A car in the scene, with `setLights` for what a `CarState` doesn't carry. */
 export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, spec: CarSpec, detail: CarDetail = "hero") {
   const art = buildCarArt(spec, detail);
+  const view = carOnRoad(scene, sun, art);
+  return {
+    ...view,
+    dispose() {
+      view.dispose();
+      art.dispose();
+    },
+  };
+}
+
+/** A car in the scene from art other cars share, which outlives it. */
+export function carOnRoad(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, art: CarArt) {
   const model = createCarModel(art, sun);
   scene.add(model.root);
   return {
@@ -129,7 +141,6 @@ export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevation
     dispose() {
       scene.remove(model.root);
       model.dispose();
-      art.dispose();
     },
   };
 }

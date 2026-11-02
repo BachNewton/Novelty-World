@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { useProfile } from "@/shared/lib/profile";
+import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
@@ -28,6 +30,7 @@ const INK = "var(--color-aland-drive-ui-ink)";
 const SHADE = "var(--color-aland-drive-ui-shade)";
 const ACCENT = "var(--color-aland-drive-ui-accent)";
 const REDLINE = "var(--color-aland-drive-ui-redline)";
+const PLAYER = "var(--color-aland-drive-ui-player)";
 
 /** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
 const DIAL_SWEEP = 0.75;
@@ -56,7 +59,8 @@ function distanceText(metres: number): string {
   return `${Math.round(metres / 10) * 10} m`;
 }
 
-export function AlandDrive() {
+/** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). */
+export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const speedText = useRef<HTMLSpanElement>(null);
   const gearText = useRef<HTMLSpanElement>(null);
@@ -79,6 +83,7 @@ export function AlandDrive() {
   const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
+  const [others, setOthers] = useState<string[]>([]);
   useFrameStats();
 
   useEffect(() => {
@@ -109,6 +114,9 @@ export function AlandDrive() {
         return;
       }
       const { NoWebGpuError, startGame } = await import("../render/game");
+      const search = window.location.search;
+      const relayUrl = solo ? null : onlineRelay(search, navigator.webdriver);
+      const { id, name } = useProfile.getState();
       try {
         const game = await startGame(element, {
           onHud: showSpeed,
@@ -120,8 +128,9 @@ export function AlandDrive() {
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
           onCarChange: setCarId,
-          onRoad: (name) => { setRoad((last) => ({ name, seen: (last?.seen ?? 0) + 1 })); },
-        }, { mini, world });
+          onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
+          onPlayers: setOthers,
+        }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
           return;
@@ -146,7 +155,7 @@ export function AlandDrive() {
       cleanup.abort();
       stop?.();
     };
-  }, []);
+  }, [solo]);
 
   const stillLoading = !started && !noWebGpu && failure === null;
 
@@ -171,7 +180,7 @@ export function AlandDrive() {
             </div>
           )}
           {!mapOpen && camera !== "free" && (
-            <div ref={cue} className="pointer-events-none absolute top-3 right-6 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
+            <div ref={cue} className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
               <div ref={cueArrow}>
                 <ArrowUp className="size-10" style={{ color: ACCENT }} />
               </div>
@@ -192,6 +201,12 @@ export function AlandDrive() {
               <span ref={gearText} className="absolute inset-x-0 bottom-1 text-center text-3xl font-bold tabular-nums" aria-label="Gear">
                 1
               </span>
+            </div>
+          )}
+          {others.length > 0 && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>
+              <Users className="size-5" style={{ color: PLAYER }} aria-hidden />
+              <span>{others.length}</span>
             </div>
           )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>

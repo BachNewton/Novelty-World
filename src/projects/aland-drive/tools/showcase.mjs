@@ -2,7 +2,7 @@
 // view set for art and performance checks. Headless Chromium, on a tile server of its own.
 //
 // Prereq: a page server. Usage:
-//   node src/projects/aland-drive/tools/showcase.mjs <folder> [--size=3440x1440] [--folder=<tiles>]
+//   node src/projects/aland-drive/tools/showcase.mjs <folder> [--size=3440x1440] [--folder=<tiles>] [--keys=9,0]
 // ALAND_DRIVE_URL overrides the page's address.
 
 import { chromium } from "playwright";
@@ -13,7 +13,7 @@ const OUT = process.argv[2];
 const [WIDTH, HEIGHT] = option("size", "3440x1440").split("x").map(Number);
 const PAGE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const FRAMES_TO_SETTLE = 12;
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+const KEYS = option("keys", "1,2,3,4,5,6,7,8,9,0").split(",");
 
 const tiles = await serveTiles(option("folder", "src/projects/aland-drive/.data/tiles"));
 const browser = await chromium.launch({ channel: "chromium", headless: true, args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] });

@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw
 import buildings as solids
 import canopy
 import ground as ground_colour
+import landmarks as landmark_sites
 import laser
 import outbuildings
 import overview
@@ -182,7 +183,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     photo = ground_colour.graded(raw_photo)
     above = laser.above_ground(tile)
     placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
-    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed)
+    sites = landmark_sites.Landmarks(tile)
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
@@ -212,6 +214,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "stands": stands.MANIFEST,
         "solids": solids_manifest,
         "models": placed.write(folder),
+        "landmarks": sites.places(solids.Heights(conformed, west, north)),
         "buildingSheets": building_sheets(tile),
         "water": {"nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
@@ -242,7 +245,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "version": digest.hexdigest()[:12],
         "worldOrigin": first["worldOrigin"],
         "tileM": TILE_SIZE_M,
-        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"]} for manifest in manifests],
+        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"], **({"landmarks": manifest["landmarks"]} if manifest.get("landmarks") else {})} for manifest in manifests],
         "start": {"tile": START_TILE if any(manifest["tile"] == START_TILE for manifest in manifests) else first["tile"], "chain": 0},
         "heights": first["heights"],
         "far": first["far"],

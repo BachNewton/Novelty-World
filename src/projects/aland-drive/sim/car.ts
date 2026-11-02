@@ -2,6 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { axleShare, sagOf, STEP_S, wheelBaseOf, type CarTuning } from "./tuning";
 import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
+import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
 import { pullAt, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
 
 /*
@@ -102,7 +103,7 @@ export class Car {
       .setAngularDamping(0.4);
     this.body = world.createRigidBody(description);
     const [x, y, z] = car.halfSize;
-    this.collider = world.createCollider(RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, car.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1), this.body);
+    this.collider = world.createCollider(RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, car.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(CAR_GROUPS), this.body);
     this.engineNow = restingEngine(tuning.gearbox);
   }
 
@@ -184,7 +185,7 @@ export class Car {
       const mount = along(position, rotate(rotation, [(wheel.side * car.trackM) / 2, 0, car.axleZ[wheel.end === 1 ? 0 : 1]]), 1);
       mounts.push(mount);
       ray.origin = { x: mount[0], y: mount[1], z: mount[2] };
-      const hit = this.world.castRayAndGetNormal(ray, reach, true, undefined, undefined, this.collider);
+      const hit = this.world.castRayAndGetNormal(ray, reach, true, undefined, WHEEL_RAY_GROUPS, this.collider);
       hits.push(hit);
       compression.push(hit ? reach - hit.timeOfImpact : 0);
       this.contact[index] = hit !== null;

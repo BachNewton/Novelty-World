@@ -4,6 +4,8 @@ import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState } from "./car-state";
 import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
+import { WORLD_GROUPS } from "./groups";
+import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
@@ -45,6 +47,8 @@ export class Drive {
   readonly rapier: RAPIER.World;
   readonly ground: GroundBlocks;
   private car: Car;
+  /** Other players' cars, which this one can hit. */
+  readonly remotes: RemoteCars;
   private before!: CarState;
   private after!: CarState;
   private readonly recentVerticalSpeeds: number[] = [];
@@ -63,6 +67,7 @@ export class Drive {
     this.ground = new GroundBlocks(this.rapier, world);
     this.addWalls();
     this.car = new Car(this.rapier, car);
+    this.remotes = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
 
@@ -72,7 +77,7 @@ export class Drive {
     const { wallHeightM: tall, wallThicknessM: thick } = PHYSICS;
     const half = tileM / 2;
     const wall = (x: number, z: number, halfX: number, halfZ: number) => {
-      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05));
+      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
     };
     for (const { column, row } of this.world.all()) {
       const west = column * tileM;
@@ -136,7 +141,9 @@ export class Drive {
     this.ground.around(position[0], position[2]);
     this.car.step(input);
     if (this.overWater(position[0], position[2])) this.car.addDrag(PHYSICS.waterDrag);
+    this.remotes.steer(position);
     this.rapier.step();
+    this.remotes.settle();
     this.after = this.car.state();
     this.record();
   }

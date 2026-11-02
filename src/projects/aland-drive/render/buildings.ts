@@ -3,6 +3,7 @@ import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, Fn, fr
 import type { SolidsCell } from "./solids";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
 import { facadeArt } from "../art/facades/facade";
+import { PAINT_STYLE } from "../art/landmarks/kit";
 import IDS from "../art/facades/facade-ids.json";
 
 /*
@@ -140,7 +141,8 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
     const tall = fwidth(up).toVar();
     const reads = select(dFdx(along).lessThan(0), float(-1), float(1)).toVar();
     const drawn = vec3(0).toVar();
-    If(style.greaterThan(FACADE_STYLES_FROM - 0.5), () => {
+    // A model's own paint is drawn after this, as it is: no wall of its own.
+    If(style.greaterThan(PAINT_STYLE - 0.5), () => undefined).ElseIf(style.greaterThan(FACADE_STYLES_FROM - 0.5), () => {
       const red = round(tint.r.mul(255));
       const green = round(tint.g.mul(255));
       const front = floor(red.div(32));
@@ -156,7 +158,8 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
 
   const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
   const material = new MeshBasicNodeMaterial();
-  material.colorNode = hazed(select(style.lessThan(0.5), roof, walls.mul(nearGround)).mul(lit));
+  const painted = style.greaterThan(PAINT_STYLE - 0.5);
+  material.colorNode = hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, walls.mul(nearGround))).mul(lit));
   material.side = 2;
   return material;
 }
