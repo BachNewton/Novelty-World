@@ -1,6 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { cos, dot, float, fract, If, int, mix, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
-import { buildBirch, buildBush, buildJuniper, ruralColours, ruralLight, ruralPaint } from "../art/rural";
+import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
 import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
@@ -54,6 +54,9 @@ const SALLOW_NEAR_WATER = 0.6;
 const GROUND_SHARE = 0.1;
 /** A plant turns from its own colour towards the photo's between these. */
 const MATCHES = [250, 700] as const;
+
+/** How much brighter a plant's sunny side is than its middle, and its shaded side darker. */
+const SUN_SIDE = 0.2;
 
 const ROWS = 3;
 const BANDS = 5;
@@ -113,6 +116,8 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   ];
   const [HAZEL, , SALLOW, JUNIPER, , BIRCH] = [0, 1, 2, 3, 4, 5];
 
+  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
+  const toSun = vec2(Math.sin(azimuth), -Math.cos(azimuth));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
@@ -187,7 +192,9 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
       const painted = isFar ? (bandsOf.element(int(live.w.mul(BANDS).add(band))) as unknown as Node<"vec3">) : paint;
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
-      const { lit } = ruralLight(sun);
+      // As the forest lights a tree: its own shade by height, and its sunny side a little brighter, smooth across each vertex.
+      const radial = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin)));
+      const lit = varying(dot(normalize(radial.add(vec2(1e-4, 0))), toSun).mul(SUN_SIDE).add(1));
       const coloured = mix(painted.mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));

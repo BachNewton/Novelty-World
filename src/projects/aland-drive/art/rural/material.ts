@@ -197,7 +197,7 @@ function gablePainted(base: Node<"vec3">, paint: (part: RuralPart) => Node<"vec3
 }
 
 /** The kit's light on a flat-shaded face: the sky's, and the sun's on a face turned to it. */
-export function ruralLight(sun: RoadsideInputs["sun"]) {
+function ruralLight(sun: RoadsideInputs["sun"]) {
   const azimuth = (sun.azimuthDeg * Math.PI) / 180;
   const elevation = (sun.elevationDeg * Math.PI) / 180;
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
