@@ -14,7 +14,7 @@ NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
 # A car park on the ground: the others are buildings, or under one.
 PARKING_ON_THE_GROUND = {None, "surface", "lane", "street_side", "layby"}
-KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "maxspeed", "junction")
+KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "covered", "maxspeed", "junction")
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
 SEAM_CHORD_M = 30.0
 

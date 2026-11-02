@@ -1,8 +1,9 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside";
 import { BOAT_PARTS, KIND, PAINT, SAIL_KINDS } from "./mesh";
 import "./tokens.css";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The instance layout of the roadside kit, so `placeModel` places these models, and
@@ -58,8 +59,7 @@ function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {
   }));
   const tint = attribute<"vec4">("tint", "vec4");
   const painted = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   return painted.mul(float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
 }
 

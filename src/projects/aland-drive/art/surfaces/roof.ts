@@ -7,7 +7,9 @@ import { COARSE_M } from "./ground";
  * lays out what the roof is made of. Warm roofs are tile, in courses up the
  * slope; the rest are sheet metal, with a standing seam running down it. A flat
  * roof is felt. Like the walls' boards, the courses and seams fade by the size
- * of a pixel, to what they average to.
+ * of a pixel, to what they average to. Courses and seams are laid in the face's
+ * own metres, which the pipeline writes on its vertices: the world's coordinates
+ * reach 25 km, too coarse a number for a pattern a few centimetres fine.
  */
 
 const COURSE_M = 0.34;
@@ -20,6 +22,10 @@ const MOSS_SHARE = 0.34;
 export interface RoofInput {
   /** The roof's colour from the photo, linear. */
   base: Node<"vec3">;
+  /** Metres across the slope and up it, along the face itself. */
+  across: Node<"float">;
+  upSlope: Node<"float">;
+  /** The world position, for weathering that varies over metres. */
   position: Node<"vec3">;
   /** The face's normal, towards the camera. */
   normal: Node<"vec3">;
@@ -28,12 +34,10 @@ export interface RoofInput {
   detail: Texture;
 }
 
-export function roofDetail({ base, position, normal, toSun, moss, detail }: RoofInput): Node<"vec3"> {
+export function roofDetail({ base, across, upSlope, position, normal, toSun, moss, detail }: RoofInput): Node<"vec3"> {
   const up = abs(normal.y);
   const downhill = normalize(vec2(normal.x, normal.z).add(vec2(0.0001, 0)));
   const sideways = normalize(cross(vec3(downhill.x, 0, downhill.y), vec3(0, 1, 0)));
-  const across = dot(position, sideways);
-  const upSlope = dot(position.xz, downhill).div(up.max(0.3));
   const pixel = fwidth(across).add(fwidth(upSlope));
   const shown = float(1).sub(smoothstep(float(GONE[0]), float(GONE[1]), pixel));
   const stain = texture(detail, position.xz.div(COARSE_M * 2.3));

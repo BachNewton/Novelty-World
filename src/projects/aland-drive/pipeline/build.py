@@ -32,6 +32,7 @@ import roads as road_surface
 import stands
 import terrain
 import vectors
+from give_way import give_way
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
 from sources import buildings3d_path, dem_path, osm_path
@@ -124,9 +125,14 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     surface_manifest = None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
+    openings = []
+    sites = landmark_sites.Landmarks(tile)
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
+        meetings = give_way(roads, solids.outlines_near(tile, sites))
+        roads, openings = meetings.roads, meetings.openings
+        print(f"  {meetings.stopped} road parts stop at a building, {len(openings)} pass through one, {meetings.pushed} pushed clear of one beside them")
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
         compact = {"ensure_ascii": False, "separators": (",", ":")}
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
@@ -183,8 +189,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     photo = ground_colour.graded(raw_photo)
     above = laser.above_ground(tile)
     placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
-    sites = landmark_sites.Landmarks(tile)
-    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites)
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites, openings)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)

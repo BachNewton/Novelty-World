@@ -1,8 +1,9 @@
 import { Vector3, Vector4, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cross, dFdx, dFdy, dot, float, floor, fract, int, mix, normalize, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, dot, float, floor, fract, int, mix, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
 import { streetMaterials, type StreetInputs } from "../street";
 import { MARINA_PARTS, PAINT } from "./paint";
 import "./tokens.css";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The street's two materials, so these models grow, dissolve and move exactly as the
@@ -32,8 +33,7 @@ function paint({ linear, sun }: Pick<StreetInputs, "linear" | "sun">, isNear: bo
   const tint = attribute<"vec4">("tint", "vec4");
   const entry = palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec4">;
   const painted = entry.xyz.mul(tint.g.mul(255 / 128));
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const footed = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), positionGeometry.y));
   const shaded = painted.mul(lit).mul(select(entry.w.mod(2).greaterThan(0.5), float(1), footed));

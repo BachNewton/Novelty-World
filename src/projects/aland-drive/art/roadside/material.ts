@@ -1,7 +1,8 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalize, positionGeometry, round, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
+import { flatNormal } from "../flat-normal";
 
 /*
  * Every roadside object draws through the same two materials (near and far) and
@@ -89,8 +90,7 @@ function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: 
   const part = round(tint.r.mul(255));
   const base = (palette.element(int(part)) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
 
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const grounded = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot));
   return { base, lit: lit.mul(grounded), part };
