@@ -1,7 +1,8 @@
 import { steerLimit, type DriveInput } from "./car";
 import { headingOf, speedOf, type CarState } from "./car-state";
 import type { RoadLine } from "./road-net";
-import { CAR } from "./tuning";
+import { CARS } from "./cars";
+import { wheelBaseOf } from "./tuning";
 
 /*
  * A plain driver for measuring: pure pursuit along one line, as fast as the
@@ -65,7 +66,7 @@ export class Autopilot {
     const off = wrap(toTarget - headingOf(car.rotation));
     const distance = Math.hypot(ahead.x - car.position[0], ahead.z - car.position[2]);
     // Pure pursuit's arc to the target, as the wheels' angle. Heading runs anticlockwise; steering, clockwise.
-    const wheels = Math.atan((2 * CAR.wheelBaseM * Math.sin(-off)) / distance);
+    const wheels = Math.atan((2 * wheelBaseOf(CARS[car.car]) * Math.sin(-off)) / distance);
 
     let allowed = this.cruiseMS;
     for (let step = 1; step <= LOOK_STEPS; step++) {
@@ -78,7 +79,7 @@ export class Autopilot {
     return {
       throttle: Math.max(0, Math.min(1, error * THROTTLE_PER_MS)),
       brake: Math.max(0, Math.min(1, -error * THROTTLE_PER_MS)),
-      steer: Math.max(-1, Math.min(1, wheels / steerLimit(speed, false))),
+      steer: Math.max(-1, Math.min(1, wheels / steerLimit(CARS[car.car], speed, false))),
       handbrake: false,
     };
   }

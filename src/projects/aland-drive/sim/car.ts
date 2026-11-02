@@ -1,7 +1,8 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { CAR, GEARBOX, GRIP, POWER, STEERING, STEP_S, SUSPENSION, WORLD } from "./tuning";
+import { axleShare, sagOf, STEP_S, wheelBaseOf, type CarTuning } from "./tuning";
+import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
-import { engineBrakeAt, radiansPerMetre, restingEngine, stepEngine, torqueAt, type EngineRead } from "./gearbox";
+import { pullAt, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
 
 /*
  * The car: a rigid body on four rays. Each step a ray from each wheel's mount
@@ -35,6 +36,8 @@ const WHEELS = [
 
 const SLOW_MS = 0.6;
 const STOPPED_FOR_REVERSE_MS = 1;
+/** The share of the peak slip angle the lock allows on top of the path, measured: more and the fronts slide past their peak at middle speeds. */
+const SLIP_ROOM = 0.3;
 
 function rotate(q: Rotation, v: Vector3): Vector3 {
   const [x, y, z, w] = q;
@@ -53,16 +56,23 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
 const point = ({ x, y, z }: { x: number; y: number; z: number }): Vector3 => [x, y, z];
 
 /** Grip against slip: a rise to the peak, then an easing down to a sliding share. */
-function gripAt(slip: number): number {
-  const size = Math.abs(slip) / GRIP.peakSlip;
-  const curve = size < 1 ? 1.5 * size - 0.5 * size ** 3 : GRIP.slideShare + (1 - GRIP.slideShare) * Math.exp(1 - size);
+function gripAt({ peakSlip, slideShare }: CarTuning["grip"], slip: number): number {
+  const size = Math.abs(slip) / peakSlip;
+  const curve = size < 1 ? 1.5 * size - 0.5 * size ** 3 : slideShare + (1 - slideShare) * Math.exp(1 - size);
   return Math.sign(slip) * curve;
 }
 
-/** The wheels' lock at a speed: the angle that asks for about all the grip there is, and no more. */
-export function steerLimit(speed: number, handbrake: boolean): number {
-  const asked = Math.atan((CAR.wheelBaseM * STEERING.cornerMS2 * STEERING.cornerMargin) / Math.max(speed * speed, 1));
-  return Math.min(STEERING.lock, asked) * (handbrake ? STEERING.handbrakeLock : 1);
+/**
+ * The wheels' lock at a speed: the angle that asks for about all the grip there
+ * is, and no more. A tyre only pushes sideways once it runs at an angle to where
+ * it rolls, so on top of the path's own angle the lock keeps room for some of the
+ * slip the tyres grip best at. With the path's angle alone the lock was a degree
+ * or so at speed, and the fronts never reached their grip.
+ */
+export function steerLimit(tuning: CarTuning, speed: number, handbrake: boolean): number {
+  const { grip, steering } = tuning;
+  const path = Math.atan((wheelBaseOf(tuning) * steering.cornerMS2 * steering.cornerMargin) / Math.max(speed * speed, 1));
+  return Math.min(steering.lock, path + SLIP_ROOM * grip.peakSlip) * (handbrake ? steering.handbrakeLock : 1);
 }
 
 export class Car {
@@ -71,31 +81,66 @@ export class Car {
   private steer = 0;
   private roll = 0;
   private reversingNow = false;
-  private engineNow = restingEngine(GEARBOX);
+  private engineNow: EngineRead;
   private readonly suspension: [number, number, number, number] = [0, 0, 0, 0];
   /** Whether each wheel touched the road on the last step. */
   readonly contact = [false, false, false, false];
 
-  constructor(private readonly world: RAPIER.World) {
-    const [wide, tall, long] = CAR.inertia;
+  readonly tuning: CarTuning;
+
+  constructor(
+    private readonly world: RAPIER.World,
+    readonly id: CarId,
+  ) {
+    const tuning = CARS[id];
+    this.tuning = tuning;
+    const { car } = tuning;
+    const [wide, tall, long] = car.inertia;
     const description = RAPIER.RigidBodyDesc.dynamic()
-      .setAdditionalMassProperties(CAR.massKg, { x: 0, y: CAR.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
+      .setAdditionalMassProperties(car.massKg, { x: 0, y: car.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
       .setCanSleep(false)
       .setAngularDamping(0.4);
     this.body = world.createRigidBody(description);
-    const [x, y, z] = CAR.halfSize;
-    this.collider = world.createCollider(RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, CAR.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1), this.body);
+    const [x, y, z] = car.halfSize;
+    this.collider = world.createCollider(RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, car.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1), this.body);
+    this.engineNow = restingEngine(tuning.gearbox);
+  }
+
+  /** How high the body's origin rides over the road at rest. */
+  get rideM(): number {
+    return this.tuning.car.wheelRadiusM + this.tuning.suspension.droopM - sagOf(this.tuning);
+  }
+
+  /** Takes over from another car mid-drive: the same place on the road, moving as it moved, the engine in the gear this speed asks for. */
+  takeOver(from: Car): void {
+    const before = from.state();
+    const lift = this.rideM - from.rideM;
+    const up = rotate(before.rotation, [0, lift, 0]);
+    this.body.setTranslation({ x: before.position[0] + up[0], y: before.position[1] + up[1], z: before.position[2] + up[2] }, true);
+    const [x, y, z, w] = before.rotation;
+    this.body.setRotation({ x, y, z, w }, true);
+    this.body.setLinvel({ x: before.velocity[0], y: before.velocity[1], z: before.velocity[2] }, true);
+    this.body.setAngvel({ x: before.spin[0], y: before.spin[1], z: before.spin[2] }, true);
+    this.steer = before.steer;
+    this.roll = before.roll;
+    this.reversingNow = from.reversingNow;
+    this.engineNow = runningEngine(this.tuning.gearbox, Math.hypot(...before.velocity));
+  }
+
+  /** Takes the car out of the world. */
+  remove(): void {
+    this.world.removeRigidBody(this.body);
   }
 
   /** Puts the car still on the ground at a heading: radians anticlockwise from north. */
   place(position: Vector3, heading: number): void {
-    this.body.setTranslation({ x: position[0], y: position[1] + CAR.wheelRadiusM + SUSPENSION.droopM - this.sag(), z: position[2] }, true);
+    this.body.setTranslation({ x: position[0], y: position[1] + this.rideM, z: position[2] }, true);
     this.body.setRotation({ x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.steer = 0;
     this.reversingNow = false;
-    this.engineNow = restingEngine(GEARBOX);
+    this.engineNow = restingEngine(this.tuning.gearbox);
   }
 
   get engine(): EngineRead {
@@ -106,11 +151,10 @@ export class Car {
     return this.reversingNow;
   }
 
-  private sag() {
-    return (CAR.massKg * WORLD.gravity) / 4 / SUSPENSION.springNPerM;
-  }
-
   step(input: DriveInput): void {
+    const { tuning } = this;
+    const { car, suspension, grip, power, steering } = tuning;
+    const wheelBase = wheelBaseOf(tuning);
     const rotation = this.rotation();
     const position = point(this.body.translation());
     const velocity = point(this.body.linvel());
@@ -122,29 +166,29 @@ export class Car {
 
     if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
     if (input.throttle > 0) this.reversingNow = false;
-    this.engineNow = stepEngine(GEARBOX, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S).read;
+    this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S).read;
 
-    const target = input.steer * steerLimit(speed, input.handbrake);
-    const rate = (Math.abs(target) < Math.abs(this.steer) ? STEERING.returnPerS : STEERING.turnPerS) * STEP_S;
+    const target = input.steer * steerLimit(tuning, speed, input.handbrake);
+    const rate = (Math.abs(target) < Math.abs(this.steer) ? steering.returnPerS : steering.turnPerS) * STEP_S;
     this.steer += clamp(target - this.steer, -rate, rate);
 
     const drive = this.driveForce(input, forward);
     const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: -up[0], y: -up[1], z: -up[2] });
-    const reach = SUSPENSION.droopM + CAR.wheelRadiusM;
+    const reach = suspension.droopM + car.wheelRadiusM;
 
     // Springs first: the anti-roll bar needs each axle's two compressions.
     const compression: number[] = [];
     const hits: (RAPIER.RayColliderIntersection | null)[] = [];
     const mounts: Vector3[] = [];
     WHEELS.forEach((wheel, index) => {
-      const mount = along(position, rotate(rotation, [(wheel.side * CAR.trackM) / 2, 0, (-wheel.end * CAR.wheelBaseM) / 2]), 1);
+      const mount = along(position, rotate(rotation, [(wheel.side * car.trackM) / 2, 0, car.axleZ[wheel.end === 1 ? 0 : 1]]), 1);
       mounts.push(mount);
       ray.origin = { x: mount[0], y: mount[1], z: mount[2] };
       const hit = this.world.castRayAndGetNormal(ray, reach, true, undefined, undefined, this.collider);
       hits.push(hit);
       compression.push(hit ? reach - hit.timeOfImpact : 0);
       this.contact[index] = hit !== null;
-      this.suspension[index] = Math.min(compression[index], SUSPENSION.travelM);
+      this.suspension[index] = Math.min(compression[index], suspension.travelM);
     });
 
     let grounded = 0;
@@ -158,10 +202,11 @@ export class Car {
       const at = along(velocity, cross(spin, arm), 1);
       const rising = -dot(at, normal);
       const opposite = compression[index ^ 1];
-      const over = Math.max(0, compression[index] - SUSPENSION.travelM);
+      const over = Math.max(0, compression[index] - suspension.travelM);
+      const axle = axleShare(tuning, wheel.end === 1);
       const load = Math.max(
         0,
-        SUSPENSION.springNPerM * compression[index] + SUSPENSION.damperNPerMS * rising + SUSPENSION.bumpStopNPerM * over + SUSPENSION.antiRollNPerM * (compression[index] - opposite),
+        axle * (suspension.springNPerM * compression[index] + suspension.damperNPerMS * rising + suspension.bumpStopNPerM * over) + suspension.antiRollNPerM * (compression[index] - opposite),
       );
 
       const isFront = wheel.end === 1;
@@ -173,13 +218,13 @@ export class Car {
       const slideSpeed = dot(at, sideways);
 
       const handbraked = !isFront && input.handbrake;
-      const reachGrip = (isFront ? GRIP.frontMu : GRIP.rearMu) * (handbraked ? GRIP.handbrakeRearShare : 1) * load;
-      const slip = Math.atan2(slideSpeed, Math.max(Math.abs(rollSpeed), GRIP.lowSpeedMS));
-      let side = -reachGrip * gripAt(slip);
-      let ahead = (isFront ? 1 - POWER.rearShare : POWER.rearShare) * drive / 2;
-      const braking = input.brake > 0 && !this.reversingNow ? input.brake * POWER.brakeN * (isFront ? POWER.brakeFrontShare : 1 - POWER.brakeFrontShare) / 2 : 0;
-      const handbrake = handbraked ? POWER.handbrakeN / 2 : 0;
-      const parked = input.throttle === 0 && input.brake === 0 && speed < SLOW_MS ? POWER.brakeN / 8 : POWER.rollingN / 4;
+      const reachGrip = (isFront ? grip.frontMu : grip.rearMu) * (handbraked ? grip.handbrakeRearShare : 1) * load;
+      const slip = Math.atan2(slideSpeed, Math.max(Math.abs(rollSpeed), grip.lowSpeedMS));
+      let side = -reachGrip * gripAt(grip, slip);
+      let ahead = (isFront ? 1 - power.rearShare : power.rearShare) * drive / 2;
+      const braking = input.brake > 0 && !this.reversingNow ? input.brake * power.brakeN * (isFront ? power.brakeFrontShare : 1 - power.brakeFrontShare) / 2 : 0;
+      const handbrake = handbraked ? power.handbrakeN / 2 : 0;
+      const parked = input.throttle === 0 && input.brake === 0 && speed < SLOW_MS ? power.brakeN / 8 : power.rollingN / 4;
       ahead -= clamp(rollSpeed / SLOW_MS, -1, 1) * (braking + handbrake + parked);
 
       const asked = Math.hypot(side, ahead);
@@ -188,33 +233,32 @@ export class Car {
         ahead *= reachGrip / asked;
       }
 
-      const applied = along(contact, up, GRIP.forceLiftM);
+      const applied = along(contact, up, grip.forceLiftM);
       const impulse = along(along(scale(normal, load), sideways, side), rolling, ahead);
       this.body.applyImpulseAtPoint({ x: impulse[0] * STEP_S, y: impulse[1] * STEP_S, z: impulse[2] * STEP_S }, { x: applied[0], y: applied[1], z: applied[2] }, true);
     });
 
-    const drag = POWER.dragPerMS2 * speed;
-    const downforce = grounded > 0 ? POWER.downforcePerMS2 * speed * speed : 0;
+    const drag = power.dragPerMS2 * speed;
+    const downforce = grounded > 0 ? power.downforcePerMS2 * speed * speed : 0;
     const air = along(scale(velocity, -drag), up, -downforce);
     this.body.applyImpulse({ x: air[0] * STEP_S, y: air[1] * STEP_S, z: air[2] * STEP_S }, true);
 
     if (grounded === 4 && !input.handbrake && speed > SLOW_MS) {
-      const asked = (forward * Math.tan(this.steer)) / CAR.wheelBaseM;
+      // The rate the wheels' angle asks for, but no faster than the tyres can turn the car at this speed.
+      const most = steering.cornerMS2 / Math.abs(forward);
+      const asked = clamp((forward * Math.tan(this.steer)) / wheelBase, -most, most);
       const yaw = dot(spin, up);
-      const assist = STEERING.yawAssist * (-asked - yaw) * STEP_S;
+      const assist = steering.yawAssist * (-asked - yaw) * STEP_S;
       this.body.applyTorqueImpulse({ x: up[0] * assist, y: up[1] * assist, z: up[2] * assist }, true);
     }
 
-    this.roll += (forward / CAR.wheelRadiusM) * STEP_S;
+    this.roll += (forward / car.wheelRadiusM) * STEP_S;
   }
 
   private driveForce(input: DriveInput, forward: number): number {
-    if (this.reversingNow) return forward > -POWER.reverseSpeedMS ? -input.brake * POWER.reverseN : 0;
-    const { gear, rpm, shiftLeftS } = this.engineNow;
-    if (shiftLeftS > 0) return 0;
-    const toRoad = radiansPerMetre(gear);
-    const pull = Math.min(POWER.launchN, torqueAt(rpm) * toRoad);
-    return input.throttle * pull - (1 - input.throttle) * engineBrakeAt(rpm) * toRoad;
+    const { power } = this.tuning;
+    if (this.reversingNow) return forward > -power.reverseSpeedMS ? -input.brake * power.reverseN : 0;
+    return pullAt(this.tuning, this.engineNow, input.throttle);
   }
 
   rotation(): Rotation {
@@ -235,6 +279,7 @@ export class Car {
       rotation,
       velocity: point(this.body.linvel()),
       spin: point(this.body.angvel()),
+      car: this.id,
       steer: this.steer,
       suspension: [...this.suspension],
       roll: this.roll,

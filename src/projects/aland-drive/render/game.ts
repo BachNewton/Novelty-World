@@ -39,7 +39,8 @@ import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround, surfaceUnder } from "../sim/surroundings";
-import { GEARBOX, STEP_S } from "../sim/tuning";
+import { STEP_S } from "../sim/tuning";
+import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 
@@ -123,10 +124,10 @@ export interface GameProbe {
   memory: () => { jsMB: number; meshMB: number; texturesMB: number };
   /** The renderer's own counts of what it holds, to show nothing is left behind. */
   rendererMemory: () => Record<string, number>;
-  /** Draws a different car, by name. The drive carries on: nothing in the simulation changes. */
-  setCar: (name: string) => void;
-  /** The name of the car being drawn. */
-  carName: () => string;
+  /** Swaps the car for another, its looks, handling and sound. The drive carries on from where it was. */
+  setCar: (id: CarId) => void;
+  /** The car being driven. */
+  carId: () => CarId;
 }
 
 export interface HudReading {
@@ -156,8 +157,8 @@ export interface GameEvents {
   onMapReady?: () => void;
   onMapOpen?: (open: boolean) => void;
   onDevMenuOpen?: (open: boolean) => void;
-  /** Another car is being drawn. */
-  onCarChange?: (name: string) => void;
+  /** Another car is being driven. */
+  onCarChange?: (id: CarId) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
 }
@@ -170,6 +171,7 @@ export interface MapCanvases {
 
 /** A car the dev menu can offer. */
 export interface CarChoice {
+  id: CarId;
   name: string;
   /** A paint token, without the `--color-aland-drive-` prefix. */
   paint: string;
@@ -179,7 +181,7 @@ export interface Game {
   probe: GameProbe;
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
-  setCar: (name: string) => void;
+  setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
@@ -781,14 +783,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     ].join("\n");
   };
 
-  const setCar = (name: string) => {
-    const spec = CARS.find((car) => car.name === name);
-    if (!spec) throw new Error(`no car called ${name}`);
+  const setCar = (id: CarId) => {
+    const spec = CARS.find((car) => car.id === id);
+    if (!spec) throw new Error(`no car's art for ${id}`);
     if (spec === carSpec) return;
+    drive.setCar(id);
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, manifest.sun, spec);
-    events.onCarChange?.(name);
+    events.onCarChange?.(id);
   };
 
   const onAction = (action: GameAction) => {
@@ -923,13 +926,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed) ?? null;
     const engine = drive.engine();
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / GEARBOX.redlineRpm, 1), cue });
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: "skerry-gt", engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1048,9 +1051,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       rendererMemory: () => ({ ...renderer.info.memory }),
       setCar,
-      carName: () => carSpec.name,
+      carId: () => drive.carId,
     },
-    cars: CARS.map(({ name, paint }) => ({ name, paint })),
+    cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
     whereabouts,

@@ -27,7 +27,7 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 - **Models in `art/facades`:** the facades and shop fronts are in the game. Its models aren't: villas' porches and add-ons, supermarket entrances, fuel stations and churches, which the gallery (`gallery.mjs`) stands in the world. A church replaces the solids in `replaced-solids.json`, which the pipeline must then drop. None of the models have collision. `church-yards.json` and `fuel-stations.json` came from scripts that were not kept.
 - **Night (`art/night`):** the `real` list in `integration.mjs`, with steps for the baked light, haze, windows and each frame's updates. `lights.json` needs an OSM/ODbL credit when it ships. Make the new meshes part of the precompile, or the first use stalls a frame.
 - **Water:** it reflects the sky and melts into its foot at the horizon. Give `createWater` `seaAtHour` once the night lands.
-- **Sound (`audio/`):** in the game, every car sounding as the Skerry GT, and the `?sounds` page is the audition, on `audio/sound-lab`. Still to add: a Sound section in `CLAUDE.md`. `sim/surroundings.ts` reads the surface and the place. Forest is a stand-in, the land that's neither town nor shore, because canopy data is only on the GPU, and service and unclassified roads read as gravel in town too. The owner judges it by ear.
+- **Surfaces:** every tyre grips the same on tarmac, gravel and grass. The sound already knows the surface under the car (`sim/surroundings.ts`); the tyres don't yet, and each car's could answer it differently.
 
 ## Decisions waiting on the owner
 

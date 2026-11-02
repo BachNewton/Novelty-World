@@ -8,6 +8,7 @@ import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, V
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import { DEFAULT_CAR, type CarId } from "../sim/cars";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -77,7 +78,7 @@ export function AlandDrive() {
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
   const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
-  const [carName, setCarName] = useState("");
+  const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   useFrameStats();
 
   useEffect(() => {
@@ -118,7 +119,7 @@ export function AlandDrive() {
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
-          onCarChange: setCarName,
+          onCarChange: setCarId,
           onRoad: (name) => { setRoad((last) => ({ name, seen: (last?.seen ?? 0) + 1 })); },
         }, { mini, world });
         if (closed()) {
@@ -127,7 +128,7 @@ export function AlandDrive() {
         }
         window.__alandDrive = game.probe;
         setDev(game);
-        setCarName(game.probe.carName());
+        setCarId(game.probe.carId());
         setStarted(true);
         stop = () => {
           game.dispose();
@@ -203,7 +204,7 @@ export function AlandDrive() {
           </ul>
         </>
       )}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>
