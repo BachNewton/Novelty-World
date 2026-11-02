@@ -34,7 +34,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
 | **Granite** | `art/rural` | Built | OSM `natural=bare_rock` (2,286), MTK rock classes | [ ] | [ ] | [ ] |
 | **Bushes, juniper, birch** | `art/rural` | Built | OSM `natural=scrub` (619), edges by rule | [ ] | [ ] | [ ] |
-| **Reeds** | `art/rural`, `render/reeds.ts` | In the game, waiting for the owner's look | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [ ] |
+| **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
 | **Stone walls** | `art/rural` | Built | OSM `barrier=wall`; field edges by rule | [ ] | [ ] | [ ] |
 | **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
