@@ -170,7 +170,7 @@ export function AlandDrive() {
             </div>
           )}
           {!mapOpen && camera !== "free" && (
-            <div ref={cue} className="pointer-events-none absolute top-3 right-6 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
+            <div ref={cue} className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
               <div ref={cueArrow}>
                 <ArrowUp className="size-10" style={{ color: ACCENT }} />
               </div>
