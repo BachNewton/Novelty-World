@@ -14,7 +14,8 @@ import type { LandAt } from "./tile-reads";
  * much open water lies round a shore. Within a kilometre, mapped reed beds have 36%
  * water at the median and bare rock 71%: reeds fill inner bays, and the open shores
  * are rock. So a clump stands in the water near land, where the water round about is
- * mostly land, and where the shallows are pale enough to be shallow. Over the built
+ * mostly land, where the shallows are pale enough to be shallow, and away from a
+ * town's quays, which its roads give away. Over the built
  * tiles that keeps a quarter of the mapped beds' water, 3% of the water off mapped
  * rock, and 7% of other shallows, much of which is beds nobody mapped.
  *
@@ -51,6 +52,14 @@ const LEAST_LAND = 0.12;
 /** The photo's brightness from dark deep water to pale shallows. */
 const SHALLOW = [85 / 255, 120 / 255] as const;
 const IN_WATER = 0.5;
+/**
+ * Roads as a share of the land round a shore, at the mask's 256 m level: a town's is a
+ * fifth road, a country shore's a twentieth, and a town's has quays, not reeds. Of the
+ * land, not of everything, or the water beside a quay would dilute it.
+ */
+const BUILT_MIP = 6;
+const BUILT = [0.1, 0.16] as const;
+const LEAST_LAND_AROUND = 0.1;
 const ROAD_CLEAR = 0.05;
 const MOST_OF_A_PLACE = 0.8;
 const SIZES = [0.85, 1.2] as const;
@@ -121,7 +130,8 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
         If(land.greaterThan(LEAST_LAND), () => {
           const grid = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)));
           const open = grid.reduce((sum, read) => sum.add(read)).div(grid.length);
-          const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open));
+          const built = roadsAt(place, BUILT_MIP).div(float(1).sub(waterAt(place, BUILT_MIP)).max(LEAST_LAND_AROUND));
+          const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open)).mul(float(1).sub(smoothstep(float(BUILT[0]), float(BUILT[1]), built)));
           const shore = landAt(place);
           const shallow = smoothstep(float(SHALLOW[0]), float(SHALLOW[1]), dot(shore.broad, vec3(1 / 3)));
           const clear = roadsAt(place, 0).lessThan(ROAD_CLEAR);
