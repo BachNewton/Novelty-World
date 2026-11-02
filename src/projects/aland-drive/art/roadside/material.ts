@@ -31,6 +31,8 @@ export interface Placement {
   stretch?: number;
   /** Metres up per metre along +x, so a fence follows a slope. */
   shear?: number;
+  /** Lengthens along the model's +z, so a building fits its outline. Only the rural kit's materials read it. */
+  depth?: number;
 }
 
 /** The paint of each part: a token, or two mixed; then a brightness. All colour comes from the game's own tokens. */
@@ -154,8 +156,8 @@ function instanced(geometry: BufferGeometry, buffers: Record<string, InstancedBu
 
 function instanceBuffers(model: RoadsideModel, places: readonly Placement[]) {
   const data = new Float32Array(places.length * STRIDE);
-  places.forEach(({ x, y, z, yaw = 0, scale = 1, stretch = 1, shear = 0 }, index) => {
-    data.set([x, y, z, yaw, scale, stretch, shear, 0, model.swapM, model.reachM], index * STRIDE);
+  places.forEach(({ x, y, z, yaw = 0, scale = 1, stretch = 1, shear = 0, depth = 1 }, index) => {
+    data.set([x, y, z, yaw, scale, stretch, shear, depth, model.swapM, model.reachM], index * STRIDE);
   });
   const part = (size: number, from: number) => {
     const column = new Float32Array(places.length * size);

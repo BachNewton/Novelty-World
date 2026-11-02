@@ -74,6 +74,10 @@ export const PAINT = {
 export type RuralPart = keyof typeof PAINT;
 export const RURAL_PARTS = Object.keys(PAINT) as RuralPart[];
 
+/** A far version's wall whose pattern byte is this or more wears gable paint (`GABLE_PAINTS`) instead: the near version's door, windows and trim, drawn on it. */
+export const PAINTED_FROM = 32;
+const WALLS: readonly RuralPart[] = ["red-boards", "grey-boards", "tar-boards"];
+
 const STAND_IN: Part = "lens";
 const LUMP_TOP: Part = "needles-lit";
 const LUMP_UNDER: Part = "needles";
@@ -142,6 +146,14 @@ export class RuralMesh {
       this.tints.push(RURAL_PARTS.indexOf(part), Math.min(255, Math.round(shadeAt(corner) * SHADE_UNIT)), patternOf(part), this.footShade);
     }
     for (const [a, b, c] of triangles) this.indices.push(first + a, first + b, first + c);
+    return this;
+  }
+
+  /** Every wall so far wears gable paint `record`, read by the far material. */
+  paintWalls(record: number): this {
+    for (let index = 0; index < this.tints.length; index += 4) {
+      if (WALLS.includes(RURAL_PARTS[this.tints[index]])) this.tints[index + 2] = PAINTED_FROM + record;
+    }
     return this;
   }
 

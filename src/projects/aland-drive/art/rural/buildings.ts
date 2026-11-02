@@ -31,13 +31,13 @@ function gabled(mesh: RuralMesh, { x, z, floor, eaves, ridge, overhang, wall }: 
     mesh.face([[0, ridge, -zOut], [0, ridge, zOut], [side * xOut, low, zOut], [side * xOut, low, -zOut]], "roof-dark", 1.02);
     mesh.face([[side * x, eaves - 0.14, -zOut], [side * x, eaves - 0.14, zOut], [side * xOut, low - 0.1, zOut], [side * xOut, low - 0.1, -zOut]], "roof-under");
     // The fascia at the eaves, and the white barge boards up each gable.
-    mesh.face([[side * xOut, low, -zOut], [side * xOut, low, zOut], [side * xOut, low - 0.13, zOut], [side * xOut, low - 0.13, -zOut]], "trim", 0.95);
-    for (const end of [-zOut, zOut]) mesh.face([[0, ridge + 0.02, end], [side * xOut, low + 0.02, end], [side * xOut, low - 0.15, end], [0, ridge - 0.17, end]], "trim");
+    mesh.face([[side * xOut, low, -zOut], [side * xOut, low, zOut], [side * xOut, low - FASCIA_M, zOut], [side * xOut, low - FASCIA_M, -zOut]], "trim", 0.95);
+    for (const end of [-zOut, zOut]) mesh.face([[0, ridge + 0.02, end], [side * xOut, low + 0.02, end], [side * xOut, low - BARGE_BOARD_M + 0.02, end], [0, ridge - BARGE_BOARD_M, end]], "trim");
     // Corner boards.
     for (const end of [-z, z]) {
-      mesh.face([[side * (x + 0.012), floor, end], [side * (x + 0.012), eaves, end], [side * (x + 0.012), eaves, end - Math.sign(end) * 0.13], [side * (x + 0.012), floor, end - Math.sign(end) * 0.13]], "trim");
+      mesh.face([[side * (x + 0.012), floor, end], [side * (x + 0.012), eaves, end], [side * (x + 0.012), eaves, end - Math.sign(end) * CORNER_BOARD_M], [side * (x + 0.012), floor, end - Math.sign(end) * CORNER_BOARD_M]], "trim");
       const way = Math.sign(end) * 0.012;
-      mesh.face([[side * x, floor, end + way], [side * x, eaves, end + way], [side * (x - 0.13), eaves, end + way], [side * (x - 0.13), floor, end + way]], "trim");
+      mesh.face([[side * x, floor, end + way], [side * x, eaves, end + way], [side * (x - CORNER_BOARD_M), eaves, end + way], [side * (x - CORNER_BOARD_M), floor, end + way]], "trim");
     }
   }
   return mesh;
@@ -50,18 +50,64 @@ function gableFar(mesh: RuralMesh, { x, z, floor, eaves, ridge, overhang, wall }
     .face([[x, floor, -z], [-x, floor, -z], [-x, eaves, -z], [0, ridge, -z], [x, eaves, -z]], wall, 0.92)
     .face([[x, floor, z], [x, floor, -z], [x, eaves, -z], [x, eaves, z]], wall, 0.96)
     .face([[-x, floor, -z], [-x, floor, z], [-x, eaves, z], [-x, eaves, -z]], wall, 0.96);
-  for (const side of [-1, 1]) mesh.face([[0, ridge, -zOut], [0, ridge, zOut], [side * xOut, eaves - 0.15, zOut], [side * xOut, eaves - 0.15, -zOut]], "roof-dark");
+  // The roof's edge where the near version's is, so the outline doesn't change at the swap.
+  const low = eaves - (overhang * (ridge - eaves)) / x;
+  for (const side of [-1, 1]) mesh.face([[0, ridge, -zOut], [0, ridge, zOut], [side * xOut, low, zOut], [side * xOut, low, -zOut]], "roof-dark");
   return mesh;
 }
 
-/** A framed opening on a wall facing +z or -z, centred on x. */
-function doorway(mesh: RuralMesh, centre: number, floor: number, wide: number, tall: number, z: number, door: RuralPart, leaves: 1 | 2): RuralMesh {
+interface Door {
+  centre: number;
+  bottom: number;
+  wide: number;
+  tall: number;
+  leaves: 1 | 2;
+}
+
+interface SideWindow {
+  y: number;
+  z: number;
+  size: number;
+  /** On the -x wall as well as the +x one. */
+  bothSides: boolean;
+}
+
+const DOOR_FRAME_M = 0.1;
+const WINDOW_FRAME_M = 0.055;
+const MULLION_M = 0.05;
+const BAR_M = 0.04;
+const CORNER_BOARD_M = 0.13;
+const FASCIA_M = 0.13;
+const BARGE_BOARD_M = 0.17;
+
+/**
+ * What a far version draws on its walls in place of the near version's trim, door and
+ * windows, as their share of the pixel, so the swap between the two doesn't show. The
+ * near version is built from these same numbers.
+ */
+export interface GablePaint {
+  gable: Pick<Gable, "x" | "z" | "floor" | "eaves" | "ridge">;
+  door: Door;
+  window: SideWindow;
+  /** A loft hatch in the front gable, in the door's paint. */
+  hatch: { half: number; bottom: number; top: number } | null;
+  /** The Z braces of a double door, as two rails across each leaf. */
+  braces: boolean;
+}
+
+export const TRIM_WIDTHS = { doorFrame: DOOR_FRAME_M, windowFrame: WINDOW_FRAME_M, mullion: MULLION_M, bar: BAR_M, corner: CORNER_BOARD_M, fascia: FASCIA_M, barge: BARGE_BOARD_M };
+/** A double door's Z braces: across each leaf from the mullion, two rails, measured up from the door's foot. */
+export const BRACES = { from: 0.08, to: 1.08, low: 0.28, high: 1.58, tall: 0.12 };
+
+/** A framed opening on a wall facing +z or -z. */
+function doorway(mesh: RuralMesh, { centre, bottom: floor, wide, tall, leaves }: Door, z: number, door: RuralPart): RuralMesh {
   const way = Math.sign(z);
   const [left, right, top] = [centre - wide / 2, centre + wide / 2, floor + tall];
   const skin = z + way * 0.02;
-  const frame = 0.1;
+  const frame = DOOR_FRAME_M;
+  const mullion = MULLION_M / 2;
   mesh.face([[left, floor, skin], [right, floor, skin], [right, top, skin], [left, top, skin]], door);
-  if (leaves === 2) mesh.face([[centre - 0.025, floor, skin + way * 0.01], [centre + 0.025, floor, skin + way * 0.01], [centre + 0.025, top, skin + way * 0.01], [centre - 0.025, top, skin + way * 0.01]], "trim");
+  if (leaves === 2) mesh.face([[centre - mullion, floor, skin + way * 0.01], [centre + mullion, floor, skin + way * 0.01], [centre + mullion, top, skin + way * 0.01], [centre - mullion, top, skin + way * 0.01]], "trim");
   const out = skin + way * 0.012;
   mesh
     .face([[left - frame, floor, out], [left, floor, out], [left, top + frame, out], [left - frame, top + frame, out]], "trim")
@@ -74,20 +120,31 @@ function doorway(mesh: RuralMesh, centre: number, floor: number, wide: number, t
 function windowOnSide(mesh: RuralMesh, x: number, y: number, z: number, size: number): RuralMesh {
   const way = Math.sign(x);
   const half = size / 2;
-  const frame = 0.055;
+  const frame = WINDOW_FRAME_M;
+  const bar = BAR_M / 2;
   const out = x + way * 0.02;
   return mesh
     .face([[out, y - half - frame, z - half - frame], [out, y - half - frame, z + half + frame], [out, y + half + frame, z + half + frame], [out, y + half + frame, z - half - frame]], "trim")
     .face([[out + way * 0.01, y - half, z - half], [out + way * 0.01, y - half, z + half], [out + way * 0.01, y + half, z + half], [out + way * 0.01, y + half, z - half]], "glass")
-    .face([[out + way * 0.02, y - 0.02, z - half], [out + way * 0.02, y - 0.02, z + half], [out + way * 0.02, y + 0.02, z + half], [out + way * 0.02, y + 0.02, z - half]], "trim");
+    .face([[out + way * 0.02, y - bar, z - half], [out + way * 0.02, y - bar, z + half], [out + way * 0.02, y + bar, z + half], [out + way * 0.02, y + bar, z - half]], "trim");
+}
+
+function sideWindows(mesh: RuralMesh, x: number, { y, z, size, bothSides }: SideWindow): RuralMesh {
+  windowOnSide(mesh, x, y, z, size);
+  return bothSides ? windowOnSide(mesh, -x, y, z, size) : mesh;
 }
 
 export type ShedKind = "red" | "grey" | "woodshed";
 
+/** The shed's walls: its ridge runs along z, so its door is in a gable end. */
+export const SHED: Omit<Gable, "wall"> = { x: 1.7, z: 1.4, floor: -0.5, eaves: 2, ridge: 2.85, overhang: 0.24 };
+const SHED_DOOR: Door = { centre: 0, bottom: 0, wide: 1.05, tall: 1.85, leaves: 1 };
+const SHED_WINDOW: SideWindow = { y: 1.25, z: 0.2, size: 0.5, bothSides: false };
+
 /** A farm or garden shed, 3.4 × 2.8 m. `woodshed` is open along its front, with split logs stacked to the eaves. */
 export function buildShed(kind: ShedKind = "red"): RoadsideModel {
   const wall: RuralPart = kind === "red" ? "red-boards" : "grey-boards";
-  const gable: Gable = { x: 1.7, z: 1.4, floor: -0.5, eaves: 2, ridge: 2.85, overhang: 0.24, wall };
+  const gable: Gable = { ...SHED, wall };
   const near = new RuralMesh();
   if (kind === "woodshed") {
     const [x, z, eaves, ridge] = [gable.x, gable.z, 2, 2.5];
@@ -103,14 +160,24 @@ export function buildShed(kind: ShedKind = "red"): RoadsideModel {
     return finished(near, far, 110, 700);
   }
   gabled(near, gable);
-  doorway(near, 0, 0, 1.05, 1.85, gable.z, "door", 1);
-  windowOnSide(near, gable.x, 1.25, 0.2, 0.5);
-  return finished(near, gableFar(new RuralMesh(), gable), 110, 700);
+  doorway(near, SHED_DOOR, gable.z, "door");
+  sideWindows(near, gable.x, SHED_WINDOW);
+  return finished(near, gableFar(new RuralMesh(), gable).paintWalls(SHED_PAINT), 110, 700);
 }
 
 export type BoathouseKind = "red" | "tarred";
 
-const BOATHOUSE = { x: 2.2, z: 3.8, floor: 0.45, eaves: 2.6, ridge: 4.1, overhang: 0.32 };
+export const BOATHOUSE: Omit<Gable, "wall"> = { x: 2.2, z: 3.8, floor: 0.45, eaves: 2.6, ridge: 4.1, overhang: 0.32 };
+const BOATHOUSE_DOOR: Door = { centre: 0, bottom: BOATHOUSE.floor + 0.02, wide: 2.3, tall: 1.95, leaves: 2 };
+const BOATHOUSE_WINDOWS: SideWindow = { y: 1.9, z: -0.6, size: 0.5, bothSides: true };
+const LOFT_HATCH = { half: 0.28, bottom: 3.05, top: 3.5 };
+
+/** Each gabled building's paint, by the index its far walls carry. */
+export const GABLE_PAINTS: readonly GablePaint[] = [
+  { gable: SHED, door: SHED_DOOR, window: SHED_WINDOW, hatch: null, braces: false },
+  { gable: BOATHOUSE, door: BOATHOUSE_DOOR, window: BOATHOUSE_WINDOWS, hatch: LOFT_HATCH, braces: true },
+];
+const [SHED_PAINT, BOATHOUSE_PAINT] = [0, 1];
 
 /**
  * A boathouse with its gable and double doors to the water. Its origin is where the
@@ -124,15 +191,18 @@ export function buildBoathouse(kind: BoathouseKind = "red"): RoadsideModel {
   const near = new RuralMesh({ grounded: false });
   const atSea = z * 0.4;
   gabled(near, gable);
-  doorway(near, 0, floor + 0.02, 2.3, 1.95, z, "door", 2);
+  doorway(near, BOATHOUSE_DOOR, z, "door");
   // The door's Z braces.
+  const { bottom } = BOATHOUSE_DOOR;
   for (const side of [-1, 1]) {
-    near.face([[side * 0.08, floor + 0.3, z + 0.04], [side * 1.08, floor + 0.3, z + 0.04], [side * 1.08, floor + 0.42, z + 0.04], [side * 0.08, floor + 0.42, z + 0.04]], "trim", 0.9);
-    near.face([[side * 0.08, floor + 1.6, z + 0.04], [side * 1.08, floor + 1.6, z + 0.04], [side * 1.08, floor + 1.72, z + 0.04], [side * 0.08, floor + 1.72, z + 0.04]], "trim", 0.9);
+    for (const low of [BRACES.low, BRACES.high]) {
+      const [from, to] = [bottom + low, bottom + low + BRACES.tall];
+      near.face([[side * BRACES.from, from, z + 0.04], [side * BRACES.to, from, z + 0.04], [side * BRACES.to, to, z + 0.04], [side * BRACES.from, to, z + 0.04]], "trim", 0.9);
+    }
   }
-  windowOnSide(near, x, 1.9, -0.6, 0.5);
-  windowOnSide(near, -x, 1.9, -0.6, 0.5);
-  near.face([[-0.28, 3.05, z + 0.03], [0.28, 3.05, z + 0.03], [0.28, 3.5, z + 0.03], [-0.28, 3.5, z + 0.03]], "door");
+  sideWindows(near, x, BOATHOUSE_WINDOWS);
+  const { half, bottom: hatchBottom, top: hatchTop } = LOFT_HATCH;
+  near.face([[-half, hatchBottom, z + 0.03], [half, hatchBottom, z + 0.03], [half, hatchTop, z + 0.03], [-half, hatchTop, z + 0.03]], "door");
   // Under the floor: dark, then stone at the back, piles at the front.
   near.box([-x + 0.04, -1, -z], [x - 0.04, floor + 0.02, atSea], "stone", { open: true, shade: 0.9, shadeTop: 0.8 });
   near.face([[-x, floor, atSea], [x, floor, atSea], [x, floor, z + 1.7], [-x, floor, z + 1.7]], "deck", 0.82);
@@ -151,7 +221,7 @@ export function buildBoathouse(kind: BoathouseKind = "red"): RoadsideModel {
     const share = sleeper / 4;
     near.beam([-0.95, floor - share * (floor + 0.5), z + 1.7 + share * 3.3], [0.95, floor - share * (floor + 0.5), z + 1.7 + share * 3.3], 0.14, 0.08, "pile", 0.85);
   }
-  const far = gableFar(new RuralMesh({ grounded: false }), gable).face([[-0.9, floor, z + 0.03], [0.9, floor, z + 0.03], [0.9, 2.3, z + 0.03], [-0.9, 2.3, z + 0.03]], "door").face([[-x, floor, z], [x, floor, z], [x, -1, z], [-x, -1, z]], "pile", 0.6).face([[-x, floor, atSea], [x, floor, atSea], [x, floor, z + 1.7], [-x, floor, z + 1.7]], "deck");
+  const far = gableFar(new RuralMesh({ grounded: false }), gable).paintWalls(BOATHOUSE_PAINT).face([[-x, floor, z], [x, floor, z], [x, -1, z], [-x, -1, z]], "pile", 0.6).face([[-x, floor, atSea], [x, floor, atSea], [x, floor, z + 1.7], [-x, floor, z + 1.7]], "deck");
   return finished(near, far, 180, 1400);
 }
 
@@ -266,7 +336,7 @@ export function buildWindmill(): RoadsideModel {
   // Windows, the door at the back, its landing, the steps and the tail pole.
   windowOnSide(near, x - 0.1, 6.2, 0.4, 0.46);
   windowOnSide(near, -x + 0.1, 6.2, -0.4, 0.46);
-  doorway(near, 0, 5.05, 0.95, 1.8, -z + 0.09, "door", 1);
+  doorway(near, { centre: 0, bottom: 5.05, wide: 0.95, tall: 1.8, leaves: 1 }, -z + 0.09, "door");
   const landingZ = -z - 0.8;
   near.box([-0.75, 4.92, landingZ], [0.75, 5.02, -z + 0.14], "deck-pale", { shade: 0.85, shadeTop: 1 });
   const stepsFoot: V3[] = [[-0.55, 0.05, -9.2], [0.55, 0.05, -9.2]];

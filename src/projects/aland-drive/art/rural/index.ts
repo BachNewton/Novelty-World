@@ -1,4 +1,4 @@
-export { buildBoathouse, buildShed, buildWindmill, type BoathouseKind, type ShedKind } from "./buildings";
+export { BOATHOUSE, buildBoathouse, buildShed, buildWindmill, SHED, type BoathouseKind, type ShedKind } from "./buildings";
 export { buildHayBale, buildSheep, buildStoneWall, buildTractor, buildWrappedBale, STONE_WALL_M, type SheepCoat, type SheepPose } from "./farm";
 export { ruralColours, ruralMaterials, ruralPaint } from "./material";
 export { buildBirch, buildBush, buildJuniper, buildReedBed, REED_BED_M, type BirchForm, type BushKind, type JuniperForm } from "./plants";

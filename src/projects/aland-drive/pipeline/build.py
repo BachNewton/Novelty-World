@@ -24,6 +24,7 @@ import buildings as solids
 import canopy
 import ground as ground_colour
 import laser
+import outbuildings
 import overview
 import road_map
 import roads as road_surface
@@ -175,7 +176,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     raw_photo = ground_colour.read_photo(tile)
     photo = ground_colour.graded(raw_photo)
     above = laser.above_ground(tile)
-    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder)
+    placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
@@ -204,6 +206,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "canopy": {"file": "canopy.webp", "pixels": canopy.PIXELS, "unitM": canopy.UNIT_M},
         "stands": stands.MANIFEST,
         "solids": solids_manifest,
+        "models": placed.write(folder),
         "buildingSheets": building_sheets(tile),
         "water": {"nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
