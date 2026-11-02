@@ -208,7 +208,7 @@ def seabed(corners: np.ndarray, untouched: np.ndarray, mosaic: np.ndarray, flat:
     The model writes water as its flat surface, so without this the land meets the water
     on a slope of nothing and the shore has no line. The seabed starts at the drawn surface
     on a smooth line round the water, so the shore is a curve rather than the samples' steps.
-    Corners another rule shaped (`untouched` false: roads, culverts) keep their height.
+    Corners another rule shaped (`untouched` false: the ground under a road and just beside it) keep their height.
     """
     if not flat.any():
         return corners

@@ -19,6 +19,7 @@ for setting in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "GDAL_NUM_THREADS"):
 
 import numpy as np
 from PIL import Image, ImageDraw
+from scipy import ndimage
 
 import buildings as solids
 import canopy
@@ -78,6 +79,21 @@ def surface_mask(water: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]]
             pens[0 if tiers[section] == 0 else 1].polygon(quad, fill=255)
     wet = Image.fromarray(water.astype(np.uint8) * 255)
     return Image.merge("RGB", [channel.reduce(SAMPLES // MASK_PIXELS) for channel in (wet, *canvases)])
+
+
+def beside_roads(ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, north: float) -> np.ndarray:
+    """True on the tile's corners under a road's surface, shoulders included, or within a mesh cell of it."""
+    scale = SAMPLES / TILE_SIZE_M
+    canvas = Image.new("L", (SAMPLES, SAMPLES), 0)
+    pen = ImageDraw.Draw(canvas)
+    for rings, _ in ribbons:
+        columns = (rings[:, (0, 4), 0] - west) * scale
+        rows = (north - rings[:, (0, 4), 1]) * scale
+        for section in range(len(rings) - 1):
+            pen.polygon([(columns[section, 0], rows[section, 0]), (columns[section, 1], rows[section, 1]), (columns[section + 1, 1], rows[section + 1, 1]), (columns[section + 1, 0], rows[section + 1, 0])], fill=255)
+    near = ndimage.binary_dilation(np.asarray(canvas) > 0, iterations=terrain.HEIGHT_STEP_SAMPLES)
+    padded = np.pad(near, 1, mode="edge")
+    return padded[:-1, :-1] | padded[1:, :-1] | padded[:-1, 1:] | padded[1:, 1:]
 
 
 def water_nodes(water: np.ndarray) -> np.ndarray:
@@ -164,7 +180,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         }
 
     levels = terrain.water_levels(mosaic, flat_water)
-    conformed = terrain.seabed(conformed, conformed == raw, mosaic, flat_water, water_with_rim, levels)
+    # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.
+    road_shaped = (conformed != raw) & beside_roads(baked, west, north)
+    conformed = terrain.seabed(conformed, ~road_shaped, mosaic, flat_water, water_with_rim, levels)
     nodes = terrain.height_nodes(conformed)
     level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
