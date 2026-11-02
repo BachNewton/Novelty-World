@@ -6,7 +6,7 @@ what it has (lamps, poles and minor power lines, give-way and stop signs, bus
 stops, marked crossings, guard rails), and rules place the rest from the road
 surface and OSM's road tags:
 
-- lamps along roads OSM tags as lit, on one side;
+- lamps along roads OSM tags as lit, and a town's streets it doesn't tag, on one side;
 - edge posts along unlit main roads, both sides;
 - guard rails on embankments and either side of a bridge;
 - a give-way sign where a lesser road meets a main one;
@@ -55,6 +55,8 @@ BUILDING_CLEAR_M = 1.0
 
 LAMP_SPACING_M = 32.0
 LAMP_OUT_M = 1.2
+# In town a sidewalk runs beside the kerb, so a lamp or a sign steps out past it, as far as this, to stand off the paving.
+STEP_OUT_M = (1.5, 2.5, 3.5, 4.5, 5.5)
 # A rule's lamp gives way to one OSM has mapped this near.
 MAPPED_LAMP_M = 20.0
 
@@ -333,6 +335,14 @@ class Roadside:
         height = edge[2] + (outer[2] - edge[2]) * out_m / shoulder if out_m <= shoulder else self.heights.at(*point)
         return point, float(height), out
 
+    def standing(self, chain: Chain, along: float, side: int, out_m: float, clear_m: float = CLEAR_M) -> tuple[np.ndarray, float, np.ndarray] | None:
+        """The first spot off the paving, `out_m` past the carriageway's edge or stepping out past a sidewalk."""
+        for out in (out_m, *(step for step in STEP_OUT_M if step > out_m)):
+            spot = self.beside(chain, along, side, out)
+            if self.free(spot[0], clear_m, besides=chain.index):
+                return spot
+        return None
+
     def place(self, model: str, point: np.ndarray, height: float, yaw: float, stretch: float = 1.0, shear: float = 0.0) -> None:
         self.models.setdefault(model, []).append([round(float(point[0]), 2), round(height, 2), round(float(-point[1]), 2), round(yaw, 4), round(stretch, 3), round(shear, 4)])
 
@@ -378,8 +388,14 @@ class Roadside:
             yield along
             along += spacing
 
+    def built_up(self, point: np.ndarray) -> bool:
+        return len(self.building_tree.query(Point(point), predicate="dwithin", distance=BUILT_UP_M)) >= BUILT_UP_BUILDINGS
+
     def lit(self, chain: Chain, along: float) -> bool:
-        return self.ways.at(chain.ring_at(along)[CENTRE, :2]).get("lit") == "yes"
+        """OSM's word, and a town's street where it has none: OSM leaves most of Mariehamn's untagged."""
+        centre = chain.ring_at(along)[CENTRE, :2]
+        tagged = self.ways.at(centre).get("lit")
+        return tagged == "yes" or tagged is None and self.built_up(centre)
 
     # Rules
 
@@ -410,9 +426,10 @@ class Roadside:
             for along in self.walk(chain, LAMP_SPACING_M, LAMP_SPACING_M / 3):
                 if chain.on_span(along, 2.0) or not self.lit(chain, along):
                     continue
-                point, height, out = self.beside(chain, along, side, LAMP_OUT_M)
-                if any(np.hypot(*(point - lamp)) < MAPPED_LAMP_M for lamp in mapped) or not self.free(point, besides=chain.index):
+                spot = self.standing(chain, along, side, LAMP_OUT_M)
+                if spot is None or any(np.hypot(*(spot[0] - lamp)) < MAPPED_LAMP_M for lamp in mapped):
                     continue
+                point, height, out = spot
                 self.lamp(point, height, facing(*-out))
 
     def lamp(self, point: np.ndarray, height: float, yaw: float) -> None:
@@ -602,9 +619,9 @@ class Roadside:
                     continue
                 direction = chain.direction_at(along)
                 for side, speed, travel in ((1, after, direction), (-1, before, -direction)):
-                    point, height, _ = self.beside(chain, along, side, SIGN_OUT_M)
-                    if self.free(point, SIGN_JUNCTION_CLEAR_M, besides=chain.index):
-                        self.sign(f"speed-{speed}", point, height, -travel)
+                    spot = self.standing(chain, along, side, SIGN_OUT_M, SIGN_JUNCTION_CLEAR_M)
+                    if spot is not None:
+                        self.sign(f"speed-{speed}", spot[0], spot[1], -travel)
 
     def stops_and_crossings(self) -> None:
         for element in self.osm["elements"]:
@@ -616,9 +633,9 @@ class Roadside:
                     continue
                 chain, along, side = road
                 travel = chain.direction_at(along) * side
-                sign, height, out = self.beside(chain, along, side, SIGN_OUT_M)
-                if self.free(sign, besides=chain.index):
-                    self.sign("bus-stop", sign, height, -travel)
+                spot = self.standing(chain, along, side, SIGN_OUT_M)
+                if spot is not None:
+                    self.sign("bus-stop", spot[0], spot[1], -travel)
                 if element["tags"].get("shelter") == "yes":
                     shelter, height, out = self.beside(chain, min(along + SHELTER_ALONG_M * side, chain.length), side, SHELTER_OUT_M)
                     if self.free(shelter, CLEAR_M + SHELTER_HALF_M[1], besides=chain.index):
@@ -632,9 +649,9 @@ class Roadside:
                 chain, along, _ = road
                 direction = chain.direction_at(along)
                 for side in (1, -1):
-                    sign, height, _ = self.beside(chain, along, side, SIGN_OUT_M)
-                    if self.free(sign, besides=chain.index):
-                        self.sign("pedestrian-crossing", sign, height, -direction * side)
+                    spot = self.standing(chain, along, side, SIGN_OUT_M)
+                    if spot is not None:
+                        self.sign("pedestrian-crossing", spot[0], spot[1], -direction * side)
 
     def mailboxes(self, landings: list) -> None:
         for chain, along, towards, greater in landings:
@@ -644,7 +661,7 @@ class Roadside:
             if roll(*end) > MAILBOX_SHARE or not len(self.building_tree.query(chain.line, predicate="dwithin", distance=HOUSE_NEAR_DRIVE_M)):
                 continue
             mouth = greater.line.project(Point(end))
-            if self.lit(greater, mouth) or len(self.building_tree.query(Point(end), predicate="dwithin", distance=BUILT_UP_M)) >= BUILT_UP_BUILDINGS:
+            if self.lit(greater, mouth) or self.built_up(end):
                 continue
             offset = end - np.array(greater.line.interpolate(mouth).coords[0])
             direction = greater.direction_at(mouth)

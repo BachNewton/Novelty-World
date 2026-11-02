@@ -124,16 +124,16 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
   rebuildSigns();
 
   return {
-    add(tile: string, placed: TileRoadside) {
-      for (const name of Object.keys(placed.models)) if (!(name in MODELS)) throw new Error(`${tile} places a roadside model called ${name}, which there isn't`);
-      tiles.set(tile, placed);
-      rebuild(placed);
+    add(tile: string, lists: TileRoadside) {
+      for (const name of Object.keys(lists.models)) if (!(name in MODELS)) throw new Error(`${tile} places a roadside model called ${name}, which there isn't`);
+      tiles.set(tile, lists);
+      rebuild(lists);
     },
     remove(tile: string) {
-      const placed = tiles.get(tile);
-      if (!placed) throw new Error(`${tile} has no roadside to remove`);
+      const lists = tiles.get(tile);
+      if (!lists) throw new Error(`${tile} has no roadside to remove`);
       tiles.delete(tile);
-      rebuild(placed);
+      rebuild(lists);
     },
     /** Every mesh shown, for compiling before the drive; `false` puts back what has places. */
     showAll(all: boolean) {
@@ -147,7 +147,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
     },
     /** How many places each list holds across the loaded tiles, signs as posts. */
     counts() {
-      const counted: Record<string, number> = Object.fromEntries(models.map(({ name }) => [name, [...tiles.values()].reduce((sum, tile) => sum + (tile.models[name]?.length ?? 0) / ROADSIDE_FLOATS, 0)]));
+      const counted: Record<string, number> = Object.fromEntries(models.map(({ name }) => [name, [...tiles.values()].reduce((sum, tile) => sum + (name in tile.models ? tile.models[name].length / ROADSIDE_FLOATS : 0), 0)]));
       counted.wires = [...tiles.values()].reduce((sum, tile) => sum + tile.wires.length / WIRE_FLOATS, 0);
       counted.signs = [...tiles.values()].reduce((sum, tile) => sum + Object.values(tile.signs).reduce((posts, floats) => posts + floats.length / SIGN_FLOATS, 0), 0);
       return counted;
