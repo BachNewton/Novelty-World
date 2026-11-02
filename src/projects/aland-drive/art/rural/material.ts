@@ -114,6 +114,21 @@ function straw(base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">) {
   return base.mul(float(1).add(streak.mul(0.12).mul(float(1).sub(gone(0.03, away))))).mul(float(1).add(swell(at.mul(3)).mul(0.1)));
 }
 
+/** Every part's paint in linear light, by its place in `RURAL_PARTS`. */
+export function ruralColours(linear: RoadsideInputs["linear"]): Vector3[] {
+  return RURAL_PARTS.map((part) => {
+    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
+    const { from, to = from, share = 0, gain = 1 } = paint;
+    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
+  });
+}
+
+/** A vertex's paint from the kit's palette, before any light. */
+export function ruralPaint(palette: ReturnType<typeof uniformArray>): Node<"vec3"> {
+  const tint = attribute<"vec4">("tint", "vec4");
+  return (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+}
+
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
   const { linear, colour, hazed, sun } = inputs;
   const place = attribute<"vec4">("place", "vec4");
@@ -147,12 +162,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const azimuth = (sun.azimuthDeg * Math.PI) / 180;
   const elevation = (sun.elevationDeg * Math.PI) / 180;
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const palette = uniformArray(RURAL_PARTS.map((part) => {
-    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
-    const { from, to = from, share = 0, gain = 1 } = paint;
-    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
-  }));
-  const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+  const base = ruralPaint(uniformArray(ruralColours(linear)));
 
   const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
   const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
