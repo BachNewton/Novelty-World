@@ -432,7 +432,8 @@ function farModel() {
   const cream = flat("mast-cream");
   for (const x of [...SQUARE_MASTS, JIGGER]) mesh.tube([x, MAIN_DECK, 0], [x, x === JIGGER ? JIGGER_TOP : MAST_TOP, 0], 0.5, 0.12, 3, cream);
   for (const x of SQUARE_MASTS) {
-    for (const at of [0, 2, 4]) yard(mesh, x, YARDS[at][0], YARDS[at][1], 3, 0.28);
+    // Every yard the near version has: they're what a square-rigger's outline is from afar.
+    for (const [y, length] of YARDS) yard(mesh, x, y, length, 3, 0.28);
   }
   mesh.tube(BOWSPRIT_FOOT, BOWSPRIT_TIP, 0.45, 0.14, 3, cream);
   return mesh.done();

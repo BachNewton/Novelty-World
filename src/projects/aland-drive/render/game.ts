@@ -5,6 +5,7 @@ import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
+import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
@@ -468,6 +469,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const bridges = new Map<string, Mesh>();
@@ -502,7 +504,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const bytes = meshBytesOf(detail, roadDress, cells);
         meshBytesByTile.set(detail.name, bytes);
         meshBytes += bytes;
-        layers.placeNear(world.named(detail.name), mips, ground, manifest, done);
+        layers.placeNear(world.named(detail.name), mips, ground, manifest, () => {
+          done();
+          landmarks.add(detail.name);
+        });
       },
       placeFar(tile, done) {
         const place = world.named(tile.name);
@@ -525,6 +530,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
+        landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
           scene.remove(bridge);
@@ -926,6 +932,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     forest.update(spot, camera);
     verge.update(spot, camera, seconds);
     showRibbons(spot);
+    landmarks.update(spot);
     sky.update(camera.position, seconds);
     renderer.render(scene, camera);
     frames++;
@@ -1056,6 +1063,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       wallMaterial.dispose();
       outbuildings.dispose();
+      landmarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();
       detail.dispose();

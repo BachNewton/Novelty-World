@@ -396,18 +396,10 @@ function farModel(spec: ChurchSpec, paint: Painter) {
   if (transept) {
     mesh.box([transept.x, (transept.eaves - SINK_M) / 2, 0], [transept.halfX * 2, transept.eaves + SINK_M, transept.halfZ * 2], wall, 0, roof);
   }
-  const { x, z, halfX, halfZ, stone: stoneTop, top } = towerSpec;
+  const { x, z, halfX, halfZ, stone: stoneTop, top, roof: roofKind } = towerSpec;
   mesh.box([x, (stoneTop - SINK_M) / 2, z], [halfX * 2, stoneTop + SINK_M, halfZ * 2], wall, 0, roof);
-  mesh.lathe(
-    [x, z],
-    [
-      [Math.max(halfX, halfZ) * Math.SQRT2, stoneTop],
-      [0, top],
-    ],
-    4,
-    roof,
-    Math.PI / 4,
-  );
+  // The near version's own roof: a spire is a church's outline on the skyline, so the swap mustn't change it.
+  towerRoof(mesh, paint, roofKind === "belfry" ? "hood" : roofKind, [x, z], halfX, halfZ, stoneTop, top, spec.east + 3);
   return mesh.done();
 }
 

@@ -40,7 +40,8 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
-| **Villas' porches, fuel stations, supermarket entrances, churches** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
+| **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
+| **Stone churches** | `art/facades` | In the game, on tiles rebuilt since; not yet published | Their real sites, in place of their NLS solids (`pipeline/landmarks.py`) | [x] | [x] | [x] |
 | **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
@@ -55,22 +56,23 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 
 ## Landmarks
 
-Each has a real position, exported with its model. Replacing an NLS solid means removing that solid from the pipeline too.
+Each has a real position, exported with its model, and `pipeline/landmarks.py` drops what it replaces, from `art/landmarks/sites.json`. They're in the game on tiles rebuilt since, not yet published. Bomarsund's fort found no solids inside its outline to replace.
 
 | Landmark | Folder | Replaces | In game | Seen on terrain |
 |---|---|---|---|---|
-| Water tower | `art/landmarks` | Nothing | [ ] | [ ] |
-| Pommern | `art/landmarks` | Nothing | [ ] | [ ] |
-| Von Knorring | `art/landmarks` | Nothing | [ ] | [ ] |
-| S:t Görans church | `art/landmarks` | `ahvenanmaa_2022_15285` | [ ] | [ ] |
-| Town hall | `art/landmarks` | `ahvenanmaa_2022_135417` | [ ] | [ ] |
-| Kastelholm | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
-| Bomarsund fort | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
-| Notvikstornet | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
+| Water tower | `art/landmarks` | Nothing | [x] | [x] |
+| Pommern | `art/landmarks` | Nothing | [x] | [x] |
+| Von Knorring | `art/landmarks` | Nothing | [x] | [x] |
+| S:t Görans church | `art/landmarks` | `ahvenanmaa_2022_15285` | [x] | [x] |
+| Town hall | `art/landmarks` | `ahvenanmaa_2022_135417` | [x] | [x] |
+| Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
+| Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
+| Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Ferry | `art/town-kit` (replaces the one in `art/landmarks`) | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
 
+- Kastelholm's near walls are 2 m patches of flat red and white, drawn as geometry, so they shimmer at a distance and, at the 1.4 km swap, still read as red-and-white speckle against the far version's even average. Drawing the patches as each one's share of the pixel would fix both. Pommern's near rigging sparkles in single pixels before its swap for the same reason.
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.

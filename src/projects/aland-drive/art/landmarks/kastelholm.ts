@@ -36,6 +36,19 @@ function stone(width: number, height: number) {
   };
 }
 
+/** The stone's mean in light, for the far version: far off a wall is the average of its patches, not its palest stone. */
+function averageStone(): Paint {
+  const [width, height, samples] = [20, 15, 400];
+  const patch = stone(width, height);
+  const sum = [0, 0, 0];
+  for (let at = 0; at < samples; at++) {
+    const paint = patch(random() * width, random() * height);
+    for (const channel of [0, 1, 2]) sum[channel] += Math.pow(paint[channel] / 255, 2.2);
+  }
+  const [red, green, blue] = sum.map((total) => Math.round(255 * Math.pow(total / samples, 1 / 2.2)));
+  return [red, green, blue, 0];
+}
+
 function stoneWall(mesh: MeshBuilder, a: Vec2, b: Vec2, bottom: number, top: number) {
   const width = Math.hypot(b[0] - a[0], b[1] - a[1]);
   mesh.mottledWall(a, b, bottom, top, 2.1, 1.9, stone(width, top - bottom));
@@ -136,11 +149,12 @@ export function buildKastelholm(): Landmark {
   curtains(near);
 
   const far = createBuilder();
+  const walls = averageStone();
   for (const { corners, eaves, ridge } of [NORTH_WING, EAST_WING, KURTORNET]) {
-    far.extrude(corners, ROCK_BELOW, eaves, flat("stone-pale"));
-    far.gableRoof(corners[0], corners[1], corners[2], corners[3], eaves, ridge, flat("slate-roof"), flat("stone-pale"), 0.2);
+    far.extrude(corners, ROCK_BELOW, eaves, walls);
+    far.gableRoof(corners[0], corners[1], corners[2], corners[3], eaves, ridge, flat("slate-roof"), walls, 0.2);
   }
-  far.extrude(RING_OUTER, ROCK_BELOW, RING.eaves, flat("stone-pale"), flat("slate-roof"));
+  far.extrude(RING_OUTER, ROCK_BELOW, RING.eaves, walls, flat("slate-roof"));
 
   return { id: "kastelholm", name: "Kastelholms slott", east: 117245, north: 6697445, baseM: 7, near: near.done(), far: far.done(), farFromM: 700 };
 }

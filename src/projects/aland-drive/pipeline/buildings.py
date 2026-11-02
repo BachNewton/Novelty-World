@@ -35,6 +35,7 @@ from shapely.ops import split, unary_union
 import facades
 from facades import APARTMENTS, CHURCH, COMMERCIAL, COTTAGE, HOUSE, INDUSTRIAL, OUTBUILDINGS
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, Tile, neighbour, to_local
+from landmarks import Landmarks
 from outbuildings import Placed, toward
 from sources import buildings3d_path, osm_xml, topographic_path
 
@@ -506,8 +507,9 @@ def _road_shapes(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> tuple[list[Pol
     return strips, lines
 
 
-def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None) -> tuple[dict, np.ndarray]:
-    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building. A footprint `placed` takes is a model of its own, not a shape here."""
+def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None, landmarks: Landmarks | None = None) -> tuple[dict, np.ndarray]:
+    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building. A footprint `placed` takes, or one a
+    landmark replaces, is a model of its own, not a shape here."""
     west, north = to_local(tile.west, tile.north)
     heights = Heights(corners, west, north)
     footprints = read_footprints(tile)
@@ -521,7 +523,7 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     cells: dict[tuple[int, int], Cell] = {}
     outlines: list[Polygon] = []
     through = 0
-    counts = {"modelled": 0, "generated": 0, "placed": 0}
+    counts = {"modelled": 0, "generated": 0, "placed": 0, "replaced": 0}
     built = np.zeros((SAMPLES, SAMPLES), dtype=bool)
     # Every building is found first, so the facade rule can count each one's neighbours. A placed model has no faces here.
     found: list[tuple[list[Face] | None, Polygon, int, str, float]] = []
@@ -539,6 +541,10 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         local = shapely.transform(solid.footprint, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1])))
         ground = heights.at(*np.array(local.exterior.coords).T)
         base = float(np.median(ground))
+        if landmarks is not None and landmarks.replaces_solid(solid.name, solid.footprint):
+            found.append((None, local, kind, solid.name, base))
+            counts["replaced"] += 1
+            continue
         if placed is not None and best is not None and placed.take_solid(kind, local, solid.footprint, footprints[best].shape, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(solid.name)):
             found.append((None, local, kind, solid.name, base))
             counts["placed"] += 1
@@ -557,6 +563,10 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         ground = heights.at(*np.array(local.exterior.coords).T)
         base = float(np.median(ground))
         name = f"{tile.name}-{index}"
+        if landmarks is not None and landmarks.covers(name, footprint.shape):
+            found.append((None, local, footprint.kind, name, base))
+            counts["replaced"] += 1
+            continue
         if placed is not None and placed.take(footprint.kind, local, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(name)):
             found.append((None, local, footprint.kind, name, base))
             counts["placed"] += 1
@@ -598,6 +608,10 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         _mesh_solid(cell, faces, frames, base, look, _roof_colour(local, photo, west, north), seed, middle, street, lines)
         collide(local)
 
+    if landmarks is not None:
+        for plan in landmarks.plans():
+            collide(shapely.transform(plan, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1]))))
+        print(f"  landmarks: {landmarks.report()}")
     walls = []
     for outline in outlines:
         for ring in (outline.simplify(0.2).exterior, *outline.interiors):
@@ -606,6 +620,6 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     wall_array = np.concatenate(walls) if walls else np.zeros((0, 4))
     (folder / "solids.bin.gz").write_bytes((data := _encode(cells, wall_array))[0])
     triangles = sum(entry["indices"] for entry in data[1]) // 3
-    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
+    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {counts['replaced']} under landmarks, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
     print("  facades: " + ", ".join(f"{why} {count}" for why, count in sorted(looks.items(), key=lambda item: -item[1])))
     return {"file": "solids.bin.gz", "unitM": UNIT_M, "cells": data[1], "walls": len(wall_array), "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)", "overRoads": through, "modelled": counts["modelled"], "generated": counts["generated"]}, built
