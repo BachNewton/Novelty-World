@@ -1,4 +1,5 @@
-import { abs, float, fract, fwidth, max, mod, select, smoothstep } from "three/tsl";
+import { abs, float, fwidth, max, min, mod, select } from "three/tsl";
+import { band, pulses } from "./coverage";
 import type { Node } from "three/webgpu";
 import { GIVE_WAY, STOP, ZEBRA } from "./road-attributes";
 
@@ -27,7 +28,11 @@ export interface MarkInput {
   mark: Node<"float">;
 }
 
-/** How much paint is on this spot of road, 0 to 1. */
+/**
+ * How much paint is on this spot of road, 0 to 1: each mark's share of the
+ * pixel (`coverage.ts`), so a mark is crisp near and settles on its own share of
+ * the road far off, with no distance where it fades in.
+ */
 export function junctionMarks({ across, halfWidth, toMark, mark }: MarkInput): Node<"float"> {
   const kind = abs(mark);
   const line = mod(kind, float(ZEBRA));
@@ -35,28 +40,26 @@ export function junctionMarks({ across, halfWidth, toMark, mark }: MarkInput): N
   const metres = across.mul(halfWidth);
   // Traffic keeps right, so the lane coming to a chain's end is on its right, and the lane coming to its start on its left.
   const inLane = select(mark.greaterThan(0), metres.negate(), metres);
-  const blurAlong = fwidth(toMark).max(0.002);
-  const blurAcross = fwidth(metres).max(0.002);
-  const band = (from: number, to: number) => smoothstep(float(from).sub(blurAlong), float(from).add(blurAlong), toMark).mul(float(1).sub(smoothstep(float(to).sub(blurAlong), float(to).add(blurAlong), toMark)));
+  const pixelAlong = fwidth(toMark);
+  const pixelAcross = fwidth(metres);
+  const alongRow = (from: number, to: number) => band(toMark, from, to, pixelAlong);
 
-  const ownLane = select(halfWidth.greaterThan(OWN_LANE_FROM_M), smoothstep(float(0.05).sub(blurAcross), float(0.05).add(blurAcross), inLane), float(1));
-  const withinEdges = float(1).sub(smoothstep(blurAcross.negate(), blurAcross, abs(metres).sub(halfWidth).add(EDGE_LEFT_M)));
+  const ownLane = select(halfWidth.greaterThan(OWN_LANE_FROM_M), band(inLane, 0.05, 1000, pixelAcross), float(1));
+  const withinEdges = band(abs(metres), -1, halfWidth.sub(EDGE_LEFT_M), pixelAcross);
 
-  const stopLine = band(LINE_FROM_M, LINE_FROM_M + STOP_LINE_M).mul(ownLane).mul(withinEdges);
+  const stopLine = alongRow(LINE_FROM_M, LINE_FROM_M + STOP_LINE_M).mul(ownLane).mul(withinEdges);
 
-  // Shark's teeth, their points towards the driver, their bases at the junction's side.
-  const toothPlace = abs(fract(metres.div(TOOTH_EVERY_M)).sub(0.5)).mul(TOOTH_EVERY_M);
-  const toothUp = toMark.sub(LINE_FROM_M).div(TEETH_ROW_M);
-  const halfBase = float(TOOTH_WIDE_M / 2).mul(float(1).sub(toothUp));
-  const tooth = float(1).sub(smoothstep(halfBase.sub(blurAcross), halfBase.add(blurAcross), toothPlace)).mul(band(LINE_FROM_M, LINE_FROM_M + TEETH_ROW_M));
+  // Shark's teeth, their points towards the driver, their bases at the junction's side. A tooth narrows evenly, so its
+  // width at the middle of the part of the row a pixel spans is its mean width over that part.
+  const rowEnd = LINE_FROM_M + TEETH_ROW_M;
+  const spanned = max(toMark.sub(pixelAlong.mul(0.5)), LINE_FROM_M).add(min(toMark.add(pixelAlong.mul(0.5)), rowEnd)).mul(0.5);
+  const halfBase = float(TOOTH_WIDE_M / 2).mul(float(1).sub(spanned.sub(LINE_FROM_M).div(TEETH_ROW_M).clamp(0, 1)));
+  const tooth = pulses(metres.sub(TOOTH_EVERY_M / 2), TOOTH_EVERY_M, halfBase, pixelAcross).mul(alongRow(LINE_FROM_M, rowEnd));
   const teeth = tooth.mul(ownLane).mul(withinEdges);
 
-  const stripePlace = abs(fract(metres.div(ZEBRA_STRIPE_M * 2)).sub(0.5));
-  const stripe = float(1).sub(smoothstep(float(0.25).sub(blurAcross), float(0.25).add(blurAcross), stripePlace));
-  const zebra = stripe.mul(band(ZEBRA_FROM_M, ZEBRA_FROM_M + ZEBRA_LENGTH_M)).mul(withinEdges).mul(select(hasZebra, float(1), float(0)));
+  const stripes = pulses(metres.sub(ZEBRA_STRIPE_M), ZEBRA_STRIPE_M * 2, ZEBRA_STRIPE_M / 2, pixelAcross);
+  const zebra = stripes.mul(alongRow(ZEBRA_FROM_M, ZEBRA_FROM_M + ZEBRA_LENGTH_M)).mul(withinEdges).mul(select(hasZebra, float(1), float(0)));
 
   const lineChoice = select(abs(line.sub(GIVE_WAY)).lessThan(0.5), teeth, select(abs(line.sub(STOP)).lessThan(0.5), stopLine, float(0)));
-  // Past a pixel the marks are too fine to draw, so they fade, like the road's own lines.
-  const fades = float(1).sub(smoothstep(float(0.05), float(0.18), max(blurAlong, blurAcross)));
-  return max(lineChoice, zebra).mul(fades);
+  return max(lineChoice, zebra);
 }

@@ -18,8 +18,8 @@ export function band(x: F, from: Value, to: Value, size: F): F {
 }
 
 /** The same for a row of pulses `half` either side of every multiple of `period`. */
-export function pulses(x: F, period: F, half: number, size: F): F {
-  const width = float(half * 2);
+export function pulses(x: F, period: Value, half: Value, size: F): F {
+  const width = typeof half === "number" ? float(half * 2) : half.mul(2);
   // How much of the row lies below x, counted from the start of a pulse.
   const before = (at: F) => {
     const cycles = at.add(half).div(period);

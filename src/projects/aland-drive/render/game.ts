@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RedFormat, RepeatWrapping, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fract, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, ROAD_TIERS, SHADE_SHARE, type RoadTier, type WorldManifest } from "./tile";
@@ -22,6 +22,7 @@ import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
+import { band, pulses } from "../art/surfaces";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -444,17 +445,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const isMain = float(1).sub(smoothstep(float(0.4), float(0.6), tier));
   const carriageway = mix(tierColor(ROAD_TIERS[1]), tierColor(ROAD_TIERS[2]), smoothstep(float(1.4), float(1.6), tier));
   const surfaceColor = mix(carriageway, tierColor(ROAD_TIERS[0]), isMain);
-  // A painted line fades instead of sparkling once it's narrower than a pixel.
-  const lineMask = (distance: Node<"float">, width: number) => {
-    const blur = fwidth(distance).max(0.0001);
-    const edge = float(1).sub(smoothstep(float(width).sub(blur), float(width).add(blur), distance));
-    return edge.mul(float(width).div(blur).min(1));
-  };
-  const edgeLine = lineMask(across.sub(LINE_INSET).abs(), LINE_WIDTH);
+  const signedAcross = attribute<"float">("across", "float");
+  // Each line is its share of the pixel, so far off it thins to its share of the road instead of sparkling.
+  const edgeLine = band(across, LINE_INSET - LINE_WIDTH, LINE_INSET + LINE_WIDTH, fwidth(across));
   // Centred on every whole dash, so the pattern reads the same from both tiles at a seam, whichever way their chains run.
-  const fromDash = fract(along.div(DASH_LENGTH_M).add(0.5)).sub(0.5).abs();
-  const dash = float(1).sub(smoothstep(float(DASH_SHARE / 2 - 0.005), float(DASH_SHARE / 2 + 0.005), fromDash));
-  const centreLine = lineMask(across, CENTRE_LINE_WIDTH).mul(dash);
+  const dash = pulses(along, DASH_LENGTH_M, (DASH_SHARE / 2) * DASH_LENGTH_M, fwidth(along));
+  const centreLine = band(signedAcross, -CENTRE_LINE_WIDTH, CENTRE_LINE_WIDTH, fwidth(signedAcross)).mul(dash);
   const painted = mix(surfaceColor, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain));
   const onShoulder = smoothstep(float(1), float(1.08), across);
   const shoulderColor = mix(colorOf("road-shoulder"), groundColor, smoothstep(float(1.05), float(1.6), across));
