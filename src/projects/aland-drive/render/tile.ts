@@ -27,6 +27,8 @@ export interface TileManifest {
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
   /** Boathouses and sheds drawn by the rural kit on real footprints. A tile built before them has none. */
   models?: { file: string };
+  /** Jetties, piers, pontoons and boats from OSM's piers. A tile built before them has none. */
+  docks?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */
@@ -86,6 +88,8 @@ export interface RoadChain {
   motor: boolean;
   /** The first and last section of each stretch held up over a gap. */
   spans?: [number, number][];
+  /** Which of those spans run along a quay, a pier that carries the road: they're its decks, not bridges. */
+  quays?: number[];
 }
 
 /** Cross-sections across a road, in rings of five points: outer left, edge left, centre, edge right, outer right. */

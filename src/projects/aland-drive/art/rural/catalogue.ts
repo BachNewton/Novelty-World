@@ -1,5 +1,5 @@
 import type { RoadsideModel } from "../roadside/index";
-import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
+import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
 
 /** Every model the kit builds, with its near-triangle limit, for the budget test and the gallery's counts. */
 export function catalogue(): { name: string; limit: number; farLimit: number; model: RoadsideModel }[] {
@@ -26,6 +26,8 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
     small("woodshed", buildShed("woodshed")),
     small("jetty section", buildJettySection()),
     small("jetty head", buildJettyHead()),
+    small("pier section", buildPierSection()),
+    small("pontoon section", buildPontoonSection()),
     small("rowing boat", buildRowingBoat("white")),
     small("sailboat moored", buildSailboat("moored")),
     small("sailboat sailing", buildSailboat("sailing")),

@@ -24,6 +24,7 @@ import buildings as solids
 import canopy
 import ground as ground_colour
 import laser
+import docks
 import outbuildings
 import overview
 import road_map
@@ -126,6 +127,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
+        piers, marinas = docks.read(osm_file)
+        quay_piers = docks.quays(roads, piers)
+        roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
         compact = {"ensure_ascii": False, "separators": (",", ":")}
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
@@ -156,7 +160,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
             "tiers": road_surface.TIERS,
             "chains": [
-                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
+                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None, "quays": docks.quay_spans(chain.motor, ring, spans, quay_piers) or None}.items() if value is not None}
                 for chain, ring, _, spans in ribbons
             ],
             "aprons": {
@@ -183,6 +187,12 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     above = laser.above_ground(tile)
     placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
     solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed)
+    docks_manifest = None
+    if with_vectors:
+        land = docks.Land(mosaic[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES], water, west, north)
+        moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places])
+        moored.place(piers, marinas, quay_piers)
+        docks_manifest = moored.write(folder)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
@@ -220,6 +230,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     }
     if surface_manifest is not None:
         manifest["roadSurface"] = surface_manifest
+    if docks_manifest is not None:
+        manifest["docks"] = docks_manifest
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}

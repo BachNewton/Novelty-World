@@ -4,7 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildFarmFence, buildPine, FARM_FENCE_M, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside/index";
 import { catalogue } from "./catalogue";
-import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M } from "./index";
+import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, PIER_SECTION, PONTOON_SECTION, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M } from "./index";
 
 /*
  * The gallery's scene: a straight road on the game's own renderer, camera, haze, sun,
@@ -223,6 +223,10 @@ add(buildRowingBoat("blue"), [{ x: SHORE_X + 4, y: SEA_Y, z: 21, yaw: 2.5 }]);
 add(buildRowingBoat("wood"), [{ x: SHORE_X + 1, y: SEA_Y + 0.15, z: -5, yaw: 0.9 }]);
 add(buildSailboat("moored"), [{ x: SHORE_X + 26, y: SEA_Y, z: JETTY_Z - 8, yaw: 1.2 }]);
 add(buildSailboat("sailing"), [{ x: SHORE_X + 160, y: SEA_Y, z: 40, yaw: 0.5 }]);
+// A harbour pier with a pontoon off its end, as the game runs them: sections end to end.
+const PIER_Z = -70;
+add(buildPierSection(), [0, 1, 2, 3, 4].map((index) => ({ x: SHORE_X - 1 + index * PIER_SECTION.lengthM, y: SEA_Y, z: PIER_Z })));
+add(buildPontoonSection(), [0, 1, 2, 3].map((index) => ({ x: SHORE_X + 5 * PIER_SECTION.lengthM + 1.5, y: SEA_Y, z: PIER_Z - 2 - index * PONTOON_SECTION.lengthM, yaw: Math.PI / 2 })));
 const BANK_EYE = 1.4;
 look("shore", "shore from the bank", SHORE_X, [-26, BANK_EYE, 20], [14, -1, -8], 56);
 look("reeds", "reed bed", SHORE_X, [-8, BANK_EYE, -38], [4, -0.2, -38], 56);
@@ -231,6 +235,7 @@ look("boathouse-side", "boathouse from the bank", SHORE_X, [-10, BANK_EYE, -6], 
 look("jetty", "jetty and boats", SHORE_X, [-7, BANK_EYE, -5], [10, -1, JETTY_Z - 1], 56);
 look("rowing-boat", "rowing boat", SHORE_X, [3, 0.4, JETTY_Z + 6.5], [7, -1, JETTY_Z + 2.4], 40);
 look("sailboat", "sailboat moored", SHORE_X, [36, -0.2, JETTY_Z - 20], [26, 2.4, JETTY_Z - 8], 56);
+look("pier", "harbour pier and pontoon", SHORE_X, [-6, BANK_EYE, PIER_Z + 12], [14, -0.5, PIER_Z - 6], 56);
 look("slabs", "shore slabs", SHORE_X, [-11, BANK_EYE, 30], [8, -0.8, 34], 60);
 
 // Dissolve and growth, on a long lens with the camera moved: the same mill and boulders through their bands.
