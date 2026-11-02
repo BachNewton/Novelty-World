@@ -189,8 +189,8 @@ const SKY_REACH_M = CAMERA_FAR * 0.9;
 /** Under the deepest seabed (`DEEPEST_M` in `pipeline/terrain.py`), so where the terrain reaches, it draws its own water. */
 const SEA_BELOW_LAND_M = -5;
 /** Land this little above the water is wet, and darker for it. */
-const WET_BAND_M = 0.35;
-const WET_SHADE = 0.62;
+const WET_BAND_M = 0.2;
+const WET_SHADE = 0.75;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
