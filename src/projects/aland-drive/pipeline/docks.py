@@ -12,8 +12,8 @@ harbour pier. Otherwise it's a private jetty, which may have a rowing boat at it
 end and a head with a bench. A pier that carries a motor road (a ferry or fish
 quay) is the road's, drawn by the bridge kit as a quay, and gets nothing here.
 
-Every place's height is the water's, the level of the water round it in the
-elevation model, which is the level the terrain draws there. A jetty within reach
+Every place's height is the water's as drawn: the level of the flat water round
+it in the elevation model, less the drop the drawn surface sits under it. A jetty within reach
 of a boathouse is run on to its wall. Boats are by rule: berths down both sides of
 a marina's piers and of every pontoon, each bow to the pier, where the whole hull is on
 open water clear of every dock and other boat.
@@ -33,6 +33,7 @@ import shapely
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import SAMPLE_M, Tile, lonlat_to_grid, to_local
+from terrain import WATERLINE_BELOW_FLAT_M
 
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 
@@ -260,7 +261,7 @@ class Land:
         return self.water[self._index(points)]
 
     def level_near(self, points: np.ndarray) -> float | None:
-        """The water's level round some points: the median of the water samples within reach, the nearer reach first."""
+        """The drawn water's level round some points: from the median of the water samples within reach, the nearer reach first."""
         for reach in WATER_NEAR_M:
             box = shapely.box(*(points.min(axis=0) - reach), *(points.max(axis=0) + reach))
             west, south, east, north = box.bounds
@@ -269,7 +270,7 @@ class Land:
             r0, r1 = (np.clip(int((self.north - y) / SAMPLE_M), 0, last) for y in (north, south))
             water = self.water[r0 : r1 + 1, c0 : c1 + 1]
             if water.any():
-                return float(np.median(self.ground[r0 : r1 + 1, c0 : c1 + 1][water]))
+                return float(np.median(self.ground[r0 : r1 + 1, c0 : c1 + 1][water])) - WATERLINE_BELOW_FLAT_M
         return None
 
 

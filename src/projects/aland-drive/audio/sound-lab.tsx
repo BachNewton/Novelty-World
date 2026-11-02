@@ -7,15 +7,18 @@ import { createDriveAudio } from "./graph";
 import { SURFACES, type DriveAudioState, type Place, type Surface } from "./model";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
-import { BIKE, ENGINES, VEHICLE_IDS, VEHICLE_LABELS, type VehicleId } from "./vehicles";
+import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
+import { CARS } from "../sim/cars";
+import { pullAt, resistanceAt, restingEngine, stepEngine, topSpeedMS, type EngineRead } from "../sim/gearbox";
 
 /*
  * The `?sounds` page: the shared audition for the one-shots, and above it a
  * little drive of sliders for the continuous sounds, played through the same
- * graph as the game, one `update` an animation frame.
+ * graph as the game, one `update` an animation frame. Every car is here, each
+ * on its own gearbox, and flooring it pulls as that car pulls in the game, on
+ * the flat, through its own gears to its own top speed.
  */
 
-const FULL_MS = 55.6;
 const ACCELERATION_MS2 = 7;
 const BRAKING_MS2 = 11;
 /** This page only ever loads in the browser, and lives as long as the tab, so its one graph stays up. */
@@ -107,14 +110,25 @@ function Bench() {
 
   useEffect(() => {
     if (!running) return;
+    let engine: EngineRead | undefined;
+    let engineOf: VehicleId | null = null;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
       const knob = latest.current;
       let speedMS = knob.kmh / 3.6;
-      const top = knob.vehicle === "bike" ? BIKE.fullSpeedMS : FULL_MS;
-      if (knob.floorIt) speedMS = Math.min(speedMS + ACCELERATION_MS2 * (1 - (0.8 * speedMS) / top) * dt, top);
+      const throttle = knob.floorIt ? 1 : knob.throttle;
+      if (knob.vehicle === "bike") {
+        engine = undefined;
+        if (knob.floorIt) speedMS = Math.min(speedMS + ACCELERATION_MS2 * (1 - (0.8 * speedMS) / BIKE.fullSpeedMS) * dt, BIKE.fullSpeedMS);
+      } else {
+        const tuning = CARS[knob.vehicle];
+        if (engineOf !== knob.vehicle || engine === undefined) engine = restingEngine(tuning.gearbox);
+        engine = stepEngine(tuning.gearbox, engine, speedMS, throttle, dt).read;
+        if (knob.floorIt) speedMS = Math.max(speedMS + ((pullAt(tuning, engine, 1) - resistanceAt(tuning, speedMS)) / tuning.car.massKg) * dt, 0);
+      }
+      engineOf = knob.vehicle;
       if (knob.handbrake) speedMS = Math.max(speedMS - BRAKING_MS2 * dt, 0);
       const moved = Math.round(speedMS * 3.6 * 10) / 10;
       if (moved !== knob.kmh) set({ kmh: moved });
@@ -122,7 +136,7 @@ function Bench() {
         {
           vehicle: knob.vehicle,
           speedMS,
-          throttle: knob.floorIt ? 1 : knob.throttle,
+          throttle,
           brake: 0,
           handbrake: knob.handbrake,
           slip: knob.handbrake && speedMS > 3 ? Math.max(knob.slip, 0.55) : knob.slip,
@@ -130,6 +144,7 @@ function Bench() {
           suspension: REST,
           place: knob.place,
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
+          engine,
         },
         dt,
       );
@@ -151,7 +166,7 @@ function Bench() {
   };
 
   const engine = knobs.vehicle === "bike" ? null : ENGINES[knobs.vehicle];
-  const topKmh = knobs.vehicle === "bike" ? BIKE.fullSpeedMS * 3.6 : FULL_MS * 3.6;
+  const topKmh = (knobs.vehicle === "bike" ? BIKE.fullSpeedMS : topSpeedMS(CARS[knobs.vehicle])) * 3.6;
 
   return (
     <section className="flex w-full flex-col gap-4 rounded-xl border border-border-default bg-surface-secondary p-4">
@@ -161,7 +176,7 @@ function Bench() {
         </button>
         <span className="text-xs text-text-muted tabular-nums">{readout}</span>
       </div>
-      <Choice values={VEHICLE_IDS} label={(id) => VEHICLE_LABELS[id]} value={knobs.vehicle} onChange={(vehicle) => set({ vehicle, kmh: 0, floorIt: false, rpm: vehicle === "bike" ? 0 : Math.min(ENGINES[vehicle].redlineRpm * 0.4, 3000) })} />
+      <Choice values={VEHICLE_IDS} label={vehicleLabel} value={knobs.vehicle} onChange={(vehicle) => set({ vehicle, kmh: 0, floorIt: false, rpm: vehicle === "bike" ? 0 : Math.min(ENGINES[vehicle].redlineRpm * 0.4, 3000) })} />
       <Choice values={SURFACES} label={capitalised} value={knobs.surface} onChange={(surface) => set({ surface })} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Slider label="Speed, km/h" value={knobs.kmh} min={0} max={Math.round(topKmh)} onChange={(kmh) => set({ kmh, floorIt: false })} />

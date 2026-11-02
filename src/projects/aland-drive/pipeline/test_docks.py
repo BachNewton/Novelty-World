@@ -8,6 +8,7 @@ import numpy as np
 from shapely.geometry import LineString, Polygon
 
 from docks import HULLS, Docks, Land, Pier, off_piers, quays
+from terrain import WATERLINE_BELOW_FLAT_M
 from grid import WORLD_ORIGIN
 
 # 200 m square at 2 m: land 2 m up north of north = 40, the sea at 0 south of it.
@@ -50,7 +51,7 @@ class Placing(unittest.TestCase):
         docks = Docks(TILE, land(), [], [])
         docks.place([pier([(100, 55), (100, 20)])], [], [])
         (x, y, z, _, width, length), = docks.models["jetty"]
-        self.assertEqual(y, 0)
+        self.assertAlmostEqual(y, -WATERLINE_BELOW_FLAT_M)
         self.assertAlmostEqual(-z, 40, delta=2.5)
         self.assertAlmostEqual(length, 20, delta=2.5)
         self.assertEqual(len(docks.walls), 4)

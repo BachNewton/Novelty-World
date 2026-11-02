@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, MapPin, X } from "lucide-react";
 import type { CarChoice } from "../render/game";
+import type { CarId } from "../sim/cars";
 
 /*
  * A tool for the owner, not part of the game: no prompt, no controller. Set to
@@ -23,26 +24,26 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function CarList({ cars, car, onCar }: { cars: readonly CarChoice[]; car: string; onCar: (name: string) => void }) {
+function CarList({ cars, car, onCar }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void }) {
   const current = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     current.current?.focus();
   }, []);
   return (
     <ul className="grid grid-cols-2 gap-1">
-      {cars.map(({ name, paint }) => (
-        <li key={name}>
+      {cars.map(({ id, name, paint }) => (
+        <li key={id}>
           <button
-            ref={name === car ? current : undefined}
+            ref={id === car ? current : undefined}
             type="button"
-            aria-pressed={name === car}
+            aria-pressed={id === car}
             className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm"
-            style={{ borderColor: name === car ? ACCENT : "transparent" }}
-            onClick={() => { onCar(name); }}
+            style={{ borderColor: id === car ? ACCENT : "transparent" }}
+            onClick={() => { onCar(id); }}
           >
             <span aria-hidden className="size-4 shrink-0 rounded-full border" style={{ background: `var(--color-aland-drive-${paint})`, borderColor: INK }} />
             <span className="grow">{name}</span>
-            {name === car && <Check aria-hidden className="size-4" style={{ color: ACCENT }} />}
+            {id === car && <Check aria-hidden className="size-4" style={{ color: ACCENT }} />}
           </button>
         </li>
       ))}
@@ -65,7 +66,7 @@ function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
   );
 }
 
-export function DevMenu({ cars, car, onCar, whereabouts, onClose }: { cars: readonly CarChoice[]; car: string; onCar: (name: string) => void; whereabouts: () => string; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; whereabouts: () => string; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div

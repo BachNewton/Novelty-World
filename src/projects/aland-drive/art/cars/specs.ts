@@ -1,16 +1,23 @@
-import { CAR } from "../../sim/tuning";
+import { CARS as TUNINGS, type CarId } from "../../sim/cars";
 import { ROWS, type Band, type Block, type BodySpec, type Cabin, type Decal, type SilhouettePoint } from "./body";
-import type { CarSpec } from "./build";
+import { rideOf, WORLD_RIDE, type CarSpec } from "./build";
 import { curve, type Key } from "./curve";
 import type { Surface } from "./mesh";
 
 /*
  * The cars, each a set of numbers on one shared recipe: where the axles, the
  * screen, the roof and the tail are, and which of three tails it has. All are
- * invented: no maker, no badge, no real car's face. The player's car has the
- * simulation's own dimensions; the others have theirs, for the day each has its
- * own tuning.
+ * invented: no maker, no badge, no real car's face. A car a player can drive
+ * takes its name, axles, track, wheels and ride height from its simulation
+ * (`sim/cars.ts`), so it sits on its wheels where the simulation has them.
  */
+
+/** What a drivable car's art takes from its simulation. */
+function driven(id: CarId) {
+  const tuning = TUNINGS[id];
+  const { axleZ, trackM, wheelRadiusM } = tuning.car;
+  return { id, name: tuning.name, ride: rideOf(tuning), axleZ, trackM, wheelRadiusM };
+}
 
 const { sillTop, belt, windowBase, rail, roofInner, centre } = ROWS;
 const ALL = centre + 1;
@@ -270,13 +277,13 @@ function lampUnits({ headX, headH, tailH, tailX }: { headX: readonly number[]; h
   ];
 }
 
-const halfBase = CAR.wheelBaseM / 2;
+const SKERRY = driven("skerry-gt");
 
 /** The sports fastback the game starts in: wide hips, a ducktail, a full-width bar of light. */
 const playerShape: Shape = {
-  trackM: CAR.trackM,
-  axleZ: [-halfBase, halfBase],
-  wheelRadiusM: CAR.wheelRadiusM,
+  trackM: SKERRY.trackM,
+  axleZ: SKERRY.axleZ,
+  wheelRadiusM: SKERRY.wheelRadiusM,
   tyreWidthM: 0.235,
   noseZ: -2.2,
   tailZ: 2.2,
@@ -347,23 +354,28 @@ const playerShape: Shape = {
 };
 
 export const PLAYER_CAR: CarSpec = {
-  name: "Skerry GT",
+  id: SKERRY.id,
+  name: SKERRY.name,
+  ride: SKERRY.ride,
   paint: "car-body",
   body: bodyOf(playerShape),
-  wheel: { radiusM: CAR.wheelRadiusM, widthM: 0.235, rimShare: 0.74, spokes: 5, twinSpokes: true },
+  wheel: { radiusM: SKERRY.wheelRadiusM, widthM: 0.235, rimShare: 0.74, spokes: 5, twinSpokes: true },
   shadowHalf: [0.92, 2.2],
 };
 
+const hatch = driven("ljus");
 /** A small upright five-door: short nose, tall tail, lamps up the sides of the rear window. */
 const HATCH: CarSpec = {
-  name: "Ljus",
+  id: hatch.id,
+  name: hatch.name,
+  ride: hatch.ride,
   paint: "car-paint-teal",
-  wheel: { radiusM: 0.31, widthM: 0.195, rimShare: 0.68, spokes: 7, twinSpokes: false },
+  wheel: { radiusM: hatch.wheelRadiusM, widthM: 0.195, rimShare: 0.68, spokes: 7, twinSpokes: false },
   shadowHalf: [0.86, 1.98],
   body: bodyOf({
-    trackM: 1.5,
-    axleZ: [-1.23, 1.23],
-    wheelRadiusM: 0.31,
+    trackM: hatch.trackM,
+    axleZ: hatch.axleZ,
+    wheelRadiusM: hatch.wheelRadiusM,
     tyreWidthM: 0.195,
     noseZ: -1.96,
     tailZ: 1.96,
@@ -424,18 +436,21 @@ const HATCH: CarSpec = {
   }),
 };
 
+const estate = driven("fjard");
 /** A long, low Nordic estate: a roof that runs right to the back, and bars on it. */
 const ESTATE: CarSpec = {
-  name: "Fjärd",
+  id: estate.id,
+  name: estate.name,
+  ride: estate.ride,
   paint: "car-paint-navy",
-  wheel: { radiusM: 0.33, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
+  wheel: { radiusM: estate.wheelRadiusM, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
   shadowHalf: [0.92, 2.38],
   body: bodyOf({
     nose: "grille",
     noseRake: 0.6,
-    trackM: 1.58,
-    axleZ: [-1.42, 1.38],
-    wheelRadiusM: 0.33,
+    trackM: estate.trackM,
+    axleZ: estate.axleZ,
+    wheelRadiusM: estate.wheelRadiusM,
     tyreWidthM: 0.215,
     noseZ: -2.38,
     tailZ: 2.38,
@@ -499,16 +514,19 @@ const ESTATE: CarSpec = {
   }),
 };
 
+const coupe = driven("sund");
 /** A low two-seater: long hood, cabin set back, a wing. */
 const COUPE: CarSpec = {
-  name: "Sund",
+  id: coupe.id,
+  name: coupe.name,
+  ride: coupe.ride,
   paint: "car-paint-mustard",
-  wheel: { radiusM: 0.34, widthM: 0.265, rimShare: 0.76, spokes: 6, twinSpokes: true },
+  wheel: { radiusM: coupe.wheelRadiusM, widthM: 0.265, rimShare: 0.76, spokes: 6, twinSpokes: true },
   shadowHalf: [0.96, 2.2],
   body: bodyOf({
-    trackM: 1.62,
-    axleZ: [-1.27, 1.23],
-    wheelRadiusM: 0.34,
+    trackM: coupe.trackM,
+    axleZ: coupe.axleZ,
+    wheelRadiusM: coupe.wheelRadiusM,
     tyreWidthM: 0.265,
     noseZ: -2.2,
     tailZ: 2.15,
@@ -583,16 +601,19 @@ const COUPE: CarSpec = {
   }),
 };
 
+const pickup = driven("holm");
 /** A working pickup: tall, square, a long bed, high on its tyres. */
 const PICKUP: CarSpec = {
-  name: "Holm",
+  id: pickup.id,
+  name: pickup.name,
+  ride: pickup.ride,
   paint: "car-paint-forest",
-  wheel: { radiusM: 0.385, widthM: 0.25, rimShare: 0.62, spokes: 6, twinSpokes: false },
+  wheel: { radiusM: pickup.wheelRadiusM, widthM: 0.25, rimShare: 0.62, spokes: 6, twinSpokes: false },
   shadowHalf: [1.0, 2.62],
   body: bodyOf({
-    trackM: 1.66,
-    axleZ: [-1.6, 1.6],
-    wheelRadiusM: 0.385,
+    trackM: pickup.trackM,
+    axleZ: pickup.axleZ,
+    wheelRadiusM: pickup.wheelRadiusM,
     tyreWidthM: 0.25,
     noseZ: -2.62,
     tailZ: 2.62,
@@ -666,17 +687,20 @@ const PICKUP: CarSpec = {
   }),
 };
 
+const van = driven("kobb");
 /** A tall tradesman's van: almost no nose, a slab of a back with lamps up its corners. */
 const VAN: CarSpec = {
-  name: "Kobb",
+  id: van.id,
+  name: van.name,
+  ride: van.ride,
   paint: "car-paint-white",
-  wheel: { radiusM: 0.345, widthM: 0.215, rimShare: 0.62, spokes: 5, twinSpokes: false },
+  wheel: { radiusM: van.wheelRadiusM, widthM: 0.215, rimShare: 0.62, spokes: 5, twinSpokes: false },
   shadowHalf: [0.96, 2.48],
   body: bodyOf({
     noseRake: 0.7,
-    trackM: 1.66,
-    axleZ: [-1.62, 1.42],
-    wheelRadiusM: 0.345,
+    trackM: van.trackM,
+    axleZ: van.axleZ,
+    wheelRadiusM: van.wheelRadiusM,
     tyreWidthM: 0.215,
     noseZ: -2.48,
     tailZ: 2.46,
@@ -743,14 +767,14 @@ const VAN: CarSpec = {
 
 type TailStyle = "fast" | "notch" | "upright" | "box" | "bed" | "open";
 
-/** A car in a dozen numbers: the rest of its shape follows from them. */
-interface Sketch {
-  name: string;
+/** A car in a dozen numbers: the rest of its shape follows from them. A drivable car's wheels and name are its simulation's. */
+type Sketch = SketchShape & ({ driven: ReturnType<typeof driven> } | { name: string; base: number; radius: number });
+
+interface SketchShape {
   paint: string;
   livery?: boolean;
-  /** Length, wheelbase, width, height. */
-  size: readonly [number, number, number, number];
-  radius: number;
+  /** Length, width, height. */
+  size: readonly [number, number, number];
   tyre: number;
   sill: number;
   hood: number;
@@ -773,11 +797,12 @@ interface Sketch {
 }
 
 function sketched(car: Sketch): CarSpec {
-  const [length, base, width, height] = car.size;
-  const { radius, tyre, sill, hood, tail: style } = car;
+  const sim = "driven" in car ? car.driven : null;
+  const [name, radius, axleZ] = "driven" in car ? [car.driven.name, car.driven.wheelRadiusM, car.driven.axleZ] : [car.name, car.radius, [-car.base / 2, car.base / 2] as const];
+  const [length, width, height] = car.size;
+  const { tyre, sill, hood, tail: style } = car;
   const [cowlZ, headerZ, roofEndZ] = car.screen;
   const [noseZ, tailZ] = [-length / 2, length / 2];
-  const axleZ = [-base / 2, base / 2] as const;
   const w = width / 2;
   const rise = car.belt ?? 0.08;
   const beltAt = (z: number) => hood - 0.04 + (rise * (z - cowlZ)) / (tailZ - cowlZ);
@@ -849,7 +874,7 @@ function sketched(car: Sketch): CarSpec {
 
   const shape: Shape = {
     openTop: open,
-    trackM: width - tyre - 0.03,
+    trackM: sim?.trackM ?? width - tyre - 0.03,
     axleZ,
     wheelRadiusM: radius,
     tyreWidthM: tyre,
@@ -919,7 +944,9 @@ function sketched(car: Sketch): CarSpec {
     },
   };
   return {
-    name: car.name,
+    id: sim?.id,
+    name,
+    ride: sim?.ride ?? WORLD_RIDE,
     paint: car.paint,
     livery: car.livery,
     body: bodyOf(shape),
@@ -936,35 +963,35 @@ const stripe = (wide: number, along: number, h: number, long: number): Decal => 
 const hoodStripe = (x: number, wide: number, z: number, long: number): Decal => ({ on: "top", at: [x, z], size: [wide, long], surface: "stripe", cells: [1, 8], mirror: true });
 
 /** The eight other cars a player can own. */
-const SALTA = sketched({ name: "Sälta", paint: "car-paint-sky", size: [4.75, 2.72, 1.72, 1.44], radius: 0.31, tyre: 0.185, sill: 0.2, hood: 0.88, screen: [-0.95, -0.25, 2.0], tail: "upright", nose: "grille", rake: 0.3, roofBars: true, spokes: 8, rim: 0.6, belt: 0.04, seat: "seatTan" });
-const VIK = sketched({ name: "Vik", paint: "car-paint-oxblood", size: [3.95, 2.3, 1.55, 1.12], radius: 0.3, tyre: 0.165, sill: 0.17, hood: 0.72, screen: [-0.28, -0.12, 0.2], tail: "open", nose: "round", rake: 2, spokes: 14, rim: 0.7, seat: "seatTan", flare: 0.05, decals: round(0.46, 0.57, 0.15) });
-const STEN = sketched({ name: "Sten", paint: "car-paint-orange", size: [3.95, 2.5, 1.78, 1.42], radius: 0.31, tyre: 0.215, sill: 0.2, hood: 0.86, screen: [-0.92, -0.2, 1.42], tail: "upright", nose: "grille", rake: 0.6, flare: 0.045, spokes: 6, decals: [stripe(0.09, 0, 0.56, 3)], blocks: [{ at: [0, 1.44, -0.05], size: [0.34, 0.04, 0.24], surface: "trim", fine: true }, { at: [0.3, 0.62, -1.99], size: [0.17, 0.17, 0.08], surface: "lensHead", mirror: true }] });
-const BERG = sketched({ name: "Berg", paint: "car-paint-cream", size: [4.4, 2.6, 1.84, 1.92], radius: 0.4, tyre: 0.26, sill: 0.42, hood: 1.24, screen: [-1.0, -0.62, 1.98], tail: "box", nose: "round", rake: 0.2, spokes: 5, rim: 0.56, belt: 0.02, decals: round(0.56, 0.98, 0.2), roofBars: true, blocks: [{ at: [0, 1.15, 2.3], size: [0.72, 0.72, 0.2], surface: "tyre" }] });
-const STROM = sketched({ name: "Ström", paint: "car-paint-mint", size: [4.5, 2.85, 1.9, 1.62], radius: 0.36, tyre: 0.235, sill: 0.26, hood: 0.98, screen: [-1.2, -0.3, 1.5], tail: "fast", nose: "smooth", rake: 1.4, rim: 0.74, spokes: 3, twin: true, belt: 0.14 });
-const ANKAR = sketched({ name: "Ankar", paint: "car-paint-black", size: [5.1, 3.05, 1.92, 1.46], radius: 0.35, tyre: 0.245, sill: 0.19, hood: 0.92, screen: [-0.95, -0.2, 1.0], tail: "notch", nose: "grille", rake: 0.4, spokes: 10, rim: 0.74, seat: "seatTan", decals: [stripe(0.012, 0, 0.8, 4.2)] });
-const BRIS = sketched({ name: "Bris", paint: "car-paint-white", size: [4.3, 2.55, 1.8, 1.3], radius: 0.32, tyre: 0.225, sill: 0.18, hood: 0.84, screen: [-0.6, -0.1, 0.3], tail: "open", nose: "paint", rake: 1.3, rim: 0.74, seat: "seatTan", rearSeats: true });
-const GRUS = sketched({ name: "Grus", paint: "car-paint-white", size: [4.2, 2.5, 1.88, 1.34], radius: 0.32, tyre: 0.245, sill: 0.2, hood: 0.8, screen: [-0.78, -0.08, 0.8], tail: "fast", nose: "paint", rake: 1.6, flare: 0.06, rim: 0.7, spokes: 6, rearSeats: false, decals: [hoodStripe(0.14, 0.18, -1.45, 1.35), stripe(0.14, 0, 0.5, 3)], wing: { z: 1.85, h: 1.2, halfWidth: 0.78, chord: 0.14, rise: 0.045 } });
+const SALTA = sketched({ driven: driven("salta"), paint: "car-paint-sky", size: [4.75, 1.72, 1.44], tyre: 0.185, sill: 0.2, hood: 0.88, screen: [-0.95, -0.25, 2.0], tail: "upright", nose: "grille", rake: 0.3, roofBars: true, spokes: 8, rim: 0.6, belt: 0.04, seat: "seatTan" });
+const VIK = sketched({ driven: driven("vik"), paint: "car-paint-oxblood", size: [3.95, 1.55, 1.12], tyre: 0.165, sill: 0.17, hood: 0.72, screen: [-0.28, -0.12, 0.2], tail: "open", nose: "round", rake: 2, spokes: 14, rim: 0.7, seat: "seatTan", flare: 0.05, decals: round(0.46, 0.57, 0.15) });
+const STEN = sketched({ driven: driven("sten"), paint: "car-paint-orange", size: [3.95, 1.78, 1.42], tyre: 0.215, sill: 0.2, hood: 0.86, screen: [-0.92, -0.2, 1.42], tail: "upright", nose: "grille", rake: 0.6, flare: 0.045, spokes: 6, decals: [stripe(0.09, 0, 0.56, 3)], blocks: [{ at: [0, 1.44, -0.05], size: [0.34, 0.04, 0.24], surface: "trim", fine: true }, { at: [0.3, 0.62, -1.99], size: [0.17, 0.17, 0.08], surface: "lensHead", mirror: true }] });
+const BERG = sketched({ driven: driven("berg"), paint: "car-paint-cream", size: [4.4, 1.84, 1.92], tyre: 0.26, sill: 0.42, hood: 1.24, screen: [-1.0, -0.62, 1.98], tail: "box", nose: "round", rake: 0.2, spokes: 5, rim: 0.56, belt: 0.02, decals: round(0.56, 0.98, 0.2), roofBars: true, blocks: [{ at: [0, 1.15, 2.3], size: [0.72, 0.72, 0.2], surface: "tyre" }] });
+const STROM = sketched({ driven: driven("strom"), paint: "car-paint-mint", size: [4.5, 1.9, 1.62], tyre: 0.235, sill: 0.26, hood: 0.98, screen: [-1.2, -0.3, 1.5], tail: "fast", nose: "smooth", rake: 1.4, rim: 0.74, spokes: 3, twin: true, belt: 0.14 });
+const ANKAR = sketched({ driven: driven("ankar"), paint: "car-paint-black", size: [5.1, 1.92, 1.46], tyre: 0.245, sill: 0.19, hood: 0.92, screen: [-0.95, -0.2, 1.0], tail: "notch", nose: "grille", rake: 0.4, spokes: 10, rim: 0.74, seat: "seatTan", decals: [stripe(0.012, 0, 0.8, 4.2)] });
+const BRIS = sketched({ driven: driven("bris"), paint: "car-paint-white", size: [4.3, 1.8, 1.3], tyre: 0.225, sill: 0.18, hood: 0.84, screen: [-0.6, -0.1, 0.3], tail: "open", nose: "paint", rake: 1.3, rim: 0.74, seat: "seatTan", rearSeats: true });
+const GRUS = sketched({ driven: driven("grus"), paint: "car-paint-white", size: [4.2, 1.88, 1.34], tyre: 0.245, sill: 0.2, hood: 0.8, screen: [-0.78, -0.08, 0.8], tail: "fast", nose: "paint", rake: 1.6, flare: 0.06, rim: 0.7, spokes: 6, rearSeats: false, decals: [hoodStripe(0.14, 0.18, -1.45, 1.35), stripe(0.14, 0, 0.5, 3)], wing: { z: 1.85, h: 1.2, halfWidth: 0.78, chord: 0.14, rise: 0.045 } });
 
 /** Cars of the world, which nobody drives. */
 const WORLD: readonly Sketch[] = [
-  { name: "Raggare", paint: "car-paint-cream", livery: true, size: [5.5, 3.05, 1.98, 1.42], radius: 0.36, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.8, -0.2, 0.9], tail: "notch", nose: "round", rake: 0.3, rim: 0.56, spokes: 9, belt: 0.06, decals: [...round(0.68, 0.74, 0.17), { on: "front", at: [0, 0.34], size: [1.9, 0.09], surface: "rim", cells: [6, 1] }, { on: "rear", at: [0, 0.36], size: [1.9, 0.09], surface: "rim", cells: [6, 1] }, stripe(0.03, 0, 0.72, 4.8)], blocks: [{ at: [0.86, 1.02, 2.2], size: [0.1, 0.34, 1.1], surface: "paint", mirror: true, taper: [0.5, 0.2] }] },
-  { name: "Myra", paint: "car-paint-sky", size: [2.75, 1.75, 1.46, 1.52], radius: 0.24, tyre: 0.145, sill: 0.17, hood: 0.8, screen: [-0.72, -0.26, 1.05], tail: "upright", nose: "paint", rake: 0.5, rim: 0.56 },
-  { name: "Brev", paint: "car-paint-post", livery: true, size: [4.6, 2.8, 1.84, 2.0], radius: 0.33, tyre: 0.205, sill: 0.24, hood: 1.16, screen: [-1.42, -0.66, 2.1], tail: "box", nose: "paint", rake: 0.7, rim: 0.56, decals: [stripe(0.22, 0.5, 1.2, 2.8)] },
-  { name: "Åker", paint: "car-paint-grey", size: [5.0, 3.0, 1.84, 1.72], radius: 0.36, tyre: 0.215, sill: 0.34, hood: 1.08, screen: [-0.86, -0.3, 0.68], tail: "bed", nose: "grille", rake: 0.3, rim: 0.55 },
-  { name: "Droska", paint: "car-paint-black", livery: true, size: [4.8, 2.82, 1.84, 1.47], radius: 0.33, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.95, -0.22, 1.0], tail: "notch", nose: "grille", rake: 0.5, blocks: [{ at: [0, 1.53, 0.35], size: [0.56, 0.12, 0.16], surface: "plate" }] },
-  { name: "Vakt", paint: "car-paint-white", livery: true, size: [4.8, 2.8, 1.86, 1.52], radius: 0.33, tyre: 0.225, sill: 0.2, hood: 0.93, screen: [-1.0, -0.25, 1.95], tail: "upright", nose: "paint", rake: 0.9, decals: [stripe(0.26, 0, 0.66, 4.2)], blocks: [{ at: [0, 1.57, 0.3], size: [1.05, 0.09, 0.26], surface: "stripe" }] },
-  { name: "Pärla", paint: "car-paint-silver", size: [3.55, 2.34, 1.64, 1.5], radius: 0.29, tyre: 0.175, sill: 0.2, hood: 0.86, screen: [-0.98, -0.3, 1.32], tail: "upright", nose: "paint", rake: 1 },
-  { name: "Nio", paint: "car-paint-silver", size: [4.0, 2.48, 1.68, 1.42], radius: 0.3, tyre: 0.185, sill: 0.2, hood: 0.86, screen: [-0.92, -0.24, 1.3], tail: "upright", nose: "grille", rake: 0.4 },
-  { name: "Tusen", paint: "car-paint-silver", size: [4.2, 2.58, 1.76, 1.48], radius: 0.31, tyre: 0.195, sill: 0.2, hood: 0.92, screen: [-1.05, -0.28, 1.4], tail: "upright", nose: "slit", rake: 1 },
-  { name: "Nu", paint: "car-paint-silver", size: [4.3, 2.66, 1.8, 1.46], radius: 0.325, tyre: 0.215, sill: 0.19, hood: 0.94, screen: [-1.0, -0.2, 1.3], tail: "upright", nose: "grille", rake: 1.2 },
-  { name: "Rad", paint: "car-paint-silver", size: [4.7, 2.76, 1.82, 1.46], radius: 0.325, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.96, -0.22, 0.98], tail: "notch", nose: "slit", rake: 1 },
-  { name: "Stig", paint: "car-paint-silver", size: [4.4, 2.66, 1.84, 1.62], radius: 0.345, tyre: 0.225, sill: 0.28, hood: 1.02, screen: [-1.02, -0.28, 1.5], tail: "upright", nose: "grille", rake: 0.8, roofBars: true },
-  { name: "Långa", paint: "car-paint-silver", size: [4.75, 2.78, 1.84, 1.5], radius: 0.325, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-1.0, -0.24, 1.95], tail: "upright", nose: "slit", rake: 0.9, roofBars: true },
-  { name: "Flock", paint: "car-paint-silver", size: [4.65, 2.82, 1.84, 1.72], radius: 0.33, tyre: 0.215, sill: 0.2, hood: 1.0, screen: [-1.42, -0.62, 1.92], tail: "upright", nose: "paint", rake: 1 },
-  { name: "Gammal", paint: "car-paint-silver", size: [4.5, 2.62, 1.7, 1.42], radius: 0.3, tyre: 0.185, sill: 0.2, hood: 0.86, screen: [-0.9, -0.26, 0.92], tail: "notch", nose: "grille", rake: 0.2 },
-  { name: "Bud", paint: "car-paint-white", size: [4.3, 2.72, 1.76, 1.8], radius: 0.31, tyre: 0.195, sill: 0.22, hood: 1.0, screen: [-1.2, -0.46, 1.95], tail: "box", nose: "paint", rake: 0.8 },
-  { name: "Verk", paint: "car-paint-white", size: [5.0, 3.0, 1.84, 1.7], radius: 0.35, tyre: 0.225, sill: 0.3, hood: 1.04, screen: [-0.9, -0.28, 0.66], tail: "bed", nose: "paint", rake: 0.5 },
-  { name: "Puls", paint: "car-paint-silver", size: [3.9, 2.56, 1.76, 1.54], radius: 0.32, tyre: 0.195, sill: 0.2, hood: 0.92, screen: [-1.06, -0.3, 1.2], tail: "upright", nose: "smooth", rake: 1.2, rim: 0.72 },
+  { name: "Raggare", paint: "car-paint-cream", livery: true, size: [5.5, 1.98, 1.42], base: 3.05, radius: 0.36, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.8, -0.2, 0.9], tail: "notch", nose: "round", rake: 0.3, rim: 0.56, spokes: 9, belt: 0.06, decals: [...round(0.68, 0.74, 0.17), { on: "front", at: [0, 0.34], size: [1.9, 0.09], surface: "rim", cells: [6, 1] }, { on: "rear", at: [0, 0.36], size: [1.9, 0.09], surface: "rim", cells: [6, 1] }, stripe(0.03, 0, 0.72, 4.8)], blocks: [{ at: [0.86, 1.02, 2.2], size: [0.1, 0.34, 1.1], surface: "paint", mirror: true, taper: [0.5, 0.2] }] },
+  { name: "Myra", paint: "car-paint-sky", size: [2.75, 1.46, 1.52], base: 1.75, radius: 0.24, tyre: 0.145, sill: 0.17, hood: 0.8, screen: [-0.72, -0.26, 1.05], tail: "upright", nose: "paint", rake: 0.5, rim: 0.56 },
+  { name: "Brev", paint: "car-paint-post", livery: true, size: [4.6, 1.84, 2.0], base: 2.8, radius: 0.33, tyre: 0.205, sill: 0.24, hood: 1.16, screen: [-1.42, -0.66, 2.1], tail: "box", nose: "paint", rake: 0.7, rim: 0.56, decals: [stripe(0.22, 0.5, 1.2, 2.8)] },
+  { name: "Åker", paint: "car-paint-grey", size: [5.0, 1.84, 1.72], base: 3.0, radius: 0.36, tyre: 0.215, sill: 0.34, hood: 1.08, screen: [-0.86, -0.3, 0.68], tail: "bed", nose: "grille", rake: 0.3, rim: 0.55 },
+  { name: "Droska", paint: "car-paint-black", livery: true, size: [4.8, 1.84, 1.47], base: 2.82, radius: 0.33, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.95, -0.22, 1.0], tail: "notch", nose: "grille", rake: 0.5, blocks: [{ at: [0, 1.53, 0.35], size: [0.56, 0.12, 0.16], surface: "plate" }] },
+  { name: "Vakt", paint: "car-paint-white", livery: true, size: [4.8, 1.86, 1.52], base: 2.8, radius: 0.33, tyre: 0.225, sill: 0.2, hood: 0.93, screen: [-1.0, -0.25, 1.95], tail: "upright", nose: "paint", rake: 0.9, decals: [stripe(0.26, 0, 0.66, 4.2)], blocks: [{ at: [0, 1.57, 0.3], size: [1.05, 0.09, 0.26], surface: "stripe" }] },
+  { name: "Pärla", paint: "car-paint-silver", size: [3.55, 1.64, 1.5], base: 2.34, radius: 0.29, tyre: 0.175, sill: 0.2, hood: 0.86, screen: [-0.98, -0.3, 1.32], tail: "upright", nose: "paint", rake: 1 },
+  { name: "Nio", paint: "car-paint-silver", size: [4.0, 1.68, 1.42], base: 2.48, radius: 0.3, tyre: 0.185, sill: 0.2, hood: 0.86, screen: [-0.92, -0.24, 1.3], tail: "upright", nose: "grille", rake: 0.4 },
+  { name: "Tusen", paint: "car-paint-silver", size: [4.2, 1.76, 1.48], base: 2.58, radius: 0.31, tyre: 0.195, sill: 0.2, hood: 0.92, screen: [-1.05, -0.28, 1.4], tail: "upright", nose: "slit", rake: 1 },
+  { name: "Nu", paint: "car-paint-silver", size: [4.3, 1.8, 1.46], base: 2.66, radius: 0.325, tyre: 0.215, sill: 0.19, hood: 0.94, screen: [-1.0, -0.2, 1.3], tail: "upright", nose: "grille", rake: 1.2 },
+  { name: "Rad", paint: "car-paint-silver", size: [4.7, 1.82, 1.46], base: 2.76, radius: 0.325, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-0.96, -0.22, 0.98], tail: "notch", nose: "slit", rake: 1 },
+  { name: "Stig", paint: "car-paint-silver", size: [4.4, 1.84, 1.62], base: 2.66, radius: 0.345, tyre: 0.225, sill: 0.28, hood: 1.02, screen: [-1.02, -0.28, 1.5], tail: "upright", nose: "grille", rake: 0.8, roofBars: true },
+  { name: "Långa", paint: "car-paint-silver", size: [4.75, 1.84, 1.5], base: 2.78, radius: 0.325, tyre: 0.215, sill: 0.2, hood: 0.92, screen: [-1.0, -0.24, 1.95], tail: "upright", nose: "slit", rake: 0.9, roofBars: true },
+  { name: "Flock", paint: "car-paint-silver", size: [4.65, 1.84, 1.72], base: 2.82, radius: 0.33, tyre: 0.215, sill: 0.2, hood: 1.0, screen: [-1.42, -0.62, 1.92], tail: "upright", nose: "paint", rake: 1 },
+  { name: "Gammal", paint: "car-paint-silver", size: [4.5, 1.7, 1.42], base: 2.62, radius: 0.3, tyre: 0.185, sill: 0.2, hood: 0.86, screen: [-0.9, -0.26, 0.92], tail: "notch", nose: "grille", rake: 0.2 },
+  { name: "Bud", paint: "car-paint-white", size: [4.3, 1.76, 1.8], base: 2.72, radius: 0.31, tyre: 0.195, sill: 0.22, hood: 1.0, screen: [-1.2, -0.46, 1.95], tail: "box", nose: "paint", rake: 0.8 },
+  { name: "Verk", paint: "car-paint-white", size: [5.0, 1.84, 1.7], base: 3.0, radius: 0.35, tyre: 0.225, sill: 0.3, hood: 1.04, screen: [-0.9, -0.28, 0.66], tail: "bed", nose: "paint", rake: 0.5 },
+  { name: "Puls", paint: "car-paint-silver", size: [3.9, 1.76, 1.54], base: 2.56, radius: 0.32, tyre: 0.195, sill: 0.2, hood: 0.92, screen: [-1.06, -0.3, 1.2], tail: "upright", nose: "smooth", rake: 1.2, rim: 0.72 },
 ];
 
 /** Cars a player can drive, with a hero model and a world model each. */

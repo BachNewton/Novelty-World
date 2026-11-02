@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DynamicDrawUsage, InstancedBufferAttri
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildDistant } from "./body";
-import { AXLE_Y, buildCarParts, groundY, type CarSpec } from "./build";
+import { axleY, buildCarParts, groundY, type CarSpec } from "./build";
 import { SURFACES, type Soup } from "./mesh";
 import { geometryOf, worldCarMaterial } from "./material";
 
@@ -87,13 +87,13 @@ function patchUnder(spec: CarSpec, road: number): BufferGeometry {
 /** One car's world model, its origin on the road under its middle. */
 export function worldGeometry(spec: CarSpec): BufferGeometry {
   const parts = buildCarParts(spec, "far", true);
-  const road = groundY(spec.wheel.radiusM);
+  const road = groundY(spec);
   const pieces: BufferGeometry[] = [withOptions(parts.body)];
   const wheel = withOptions(parts.wheel);
   for (const z of spec.body.axleZ) {
     for (const side of [-1, 1]) {
       const placed = wheel.clone();
-      placed.applyMatrix4(new Matrix4().makeTranslation((side * spec.body.trackM) / 2, AXLE_Y, z).multiply(new Matrix4().makeRotationY(side < 0 ? Math.PI : 0)));
+      placed.applyMatrix4(new Matrix4().makeTranslation((side * spec.body.trackM) / 2, axleY(spec), z).multiply(new Matrix4().makeRotationY(side < 0 ? Math.PI : 0)));
       pieces.push(placed);
     }
   }
@@ -105,7 +105,7 @@ export function worldGeometry(spec: CarSpec): BufferGeometry {
 
 /** One car's stand-in, about thirty triangles of its outline. */
 export function distantGeometry(spec: CarSpec): BufferGeometry {
-  const road = groundY(spec.wheel.radiusM);
+  const road = groundY(spec);
   const geometry = withOptions(buildDistant(spec.body, road));
   geometry.translate(0, -road, 0);
   return geometry;

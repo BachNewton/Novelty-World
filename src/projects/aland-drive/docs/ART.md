@@ -40,7 +40,8 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
-| **Villas' porches, fuel stations, supermarket entrances, churches** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
+| **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
+| **Stone churches** | `art/facades` | In the game, on tiles rebuilt since; not yet published | Their real sites, in place of their NLS solids (`pipeline/landmarks.py`) | [x] | [x] | [x] |
 | **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
@@ -55,18 +56,18 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 
 ## Landmarks
 
-Each has a real position, exported with its model. Replacing an NLS solid means removing that solid from the pipeline too.
+Each has a real position, exported with its model, and `pipeline/landmarks.py` drops what it replaces, from `art/landmarks/sites.json`. They're in the game on tiles rebuilt since, not yet published. Bomarsund's fort found no solids inside its outline to replace.
 
 | Landmark | Folder | Replaces | In game | Seen on terrain |
 |---|---|---|---|---|
-| Water tower | `art/landmarks` | Nothing | [ ] | [ ] |
-| Pommern | `art/landmarks` | Nothing | [ ] | [ ] |
-| Von Knorring | `art/landmarks` | Nothing | [ ] | [ ] |
-| S:t Görans church | `art/landmarks` | `ahvenanmaa_2022_15285` | [ ] | [ ] |
-| Town hall | `art/landmarks` | `ahvenanmaa_2022_135417` | [ ] | [ ] |
-| Kastelholm | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
-| Bomarsund fort | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
-| Notvikstornet | `art/landmarks` | Solids inside its outline | [ ] | [ ] |
+| Water tower | `art/landmarks` | Nothing | [x] | [x] |
+| Pommern | `art/landmarks` | Nothing | [x] | [x] |
+| Von Knorring | `art/landmarks` | Nothing | [x] | [x] |
+| S:t Görans church | `art/landmarks` | `ahvenanmaa_2022_15285` | [x] | [x] |
+| Town hall | `art/landmarks` | `ahvenanmaa_2022_135417` | [x] | [x] |
+| Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
+| Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
+| Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Ferry | `art/town-kit` (replaces the one in `art/landmarks`) | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
@@ -74,6 +75,8 @@ Each has a real position, exported with its model. Replacing an NLS solid means 
 - Footbridges that OSM tags `bridge=yes` over water (wooden ones near Västerhamn and in the country, the terminal's walkway) are still drawn by the bridge kit as concrete road bridges; a timber footbridge look would suit them.
 - Reeds and the verge's shrubs are a shader's rule from images, so in a reedy bay they stand through a jetty or among berthed boats. Docks would need to reach the reeds' pass, as a mask or a list, to clear them.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
+- Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.
+- From close above, a church tower's roof shows a thin light line along its lower rim, which starts just outside the wall (seen on Sund).
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.

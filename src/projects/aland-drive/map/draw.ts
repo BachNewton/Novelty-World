@@ -42,12 +42,14 @@ export interface MapInk {
   ink: string;
   shade: string;
   accent: string;
+  /** Other players. */
+  player: string;
 }
 
 export function mapInk(): MapInk {
   const styles = getComputedStyle(document.documentElement);
   const token = (name: string) => styles.getPropertyValue(`--color-aland-drive-${name}`).trim();
-  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent") };
+  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player") };
 }
 
 /** The land as an image a canvas can draw, from the overview's pixels. */
@@ -213,20 +215,69 @@ export function drawNames(pen: CanvasRenderingContext2D, view: MapView, graph: R
 
 /** The car: an arrow pointing the way it faces, on the map's own turn. */
 export function drawCar(pen: CanvasRenderingContext2D, view: MapView, x: number, z: number, headingClockwise: number, size: number, ink: MapInk): void {
-  const [screenX, screenY] = view.toScreen(x, z);
+  arrow(pen, view.toScreen(x, z), headingClockwise - view.turn, size, ink.accent, ink);
+}
+
+function arrow(pen: CanvasRenderingContext2D, [screenX, screenY]: [number, number], turn: number, size: number, fill: string, ink: MapInk): void {
   pen.save();
   pen.translate(screenX, screenY);
-  pen.rotate(headingClockwise - view.turn);
+  pen.rotate(turn);
   pen.beginPath();
   pen.moveTo(0, -size);
   pen.lineTo(size * 0.7, size * 0.8);
   pen.lineTo(0, size * 0.4);
   pen.lineTo(-size * 0.7, size * 0.8);
   pen.closePath();
-  pen.fillStyle = ink.accent;
+  pen.fillStyle = fill;
   pen.strokeStyle = ink.shade;
   pen.lineWidth = 2;
   pen.fill();
   pen.stroke();
   pen.restore();
+}
+
+/** Another player on a map. */
+export interface MapPlayer {
+  x: number;
+  z: number;
+  headingClockwise: number;
+  name: string;
+}
+
+/** Where on the canvas every player has to stay: a circle (the mini map) or the whole canvas less a margin. */
+export type MapBounds = { circle: [x: number, y: number, radius: number] } | { margin: number };
+
+/** Where a place falls on the canvas, held to the bounds, and whether it had to be. */
+function heldIn([x, y]: [number, number], view: MapView, bounds: MapBounds): { at: [number, number]; held: boolean } {
+  if ("circle" in bounds) {
+    const [centreX, centreY, radius] = bounds.circle;
+    const out = Math.hypot(x - centreX, y - centreY);
+    if (out <= radius) return { at: [x, y], held: false };
+    return { at: [centreX + ((x - centreX) * radius) / out, centreY + ((y - centreY) * radius) / out], held: true };
+  }
+  const { margin } = bounds;
+  const at: [number, number] = [Math.min(Math.max(x, margin), view.width - margin), Math.min(Math.max(y, margin), view.height - margin)];
+  return { at, held: at[0] !== x || at[1] !== y };
+}
+
+/** Every other player, wherever they are: one off the map waits at its edge, the way they lie. */
+export function drawPlayers(pen: CanvasRenderingContext2D, view: MapView, players: readonly MapPlayer[], size: number, ink: MapInk, bounds: MapBounds, named: boolean): void {
+  pen.font = "600 12px system-ui, sans-serif";
+  pen.textAlign = "left";
+  pen.textBaseline = "middle";
+  pen.lineJoin = "round";
+  for (const { x, z, headingClockwise, name } of players) {
+    const { at, held } = heldIn(view.toScreen(x, z), view, bounds);
+    pen.globalAlpha = held ? 0.75 : 1;
+    arrow(pen, at, headingClockwise - view.turn, held ? size * 0.8 : size, ink.player, ink);
+    if (named) {
+      const [textX, textY] = [at[0] + size + 4, at[1]];
+      pen.strokeStyle = ink.shade;
+      pen.lineWidth = 3;
+      pen.strokeText(name, textX, textY);
+      pen.fillStyle = ink.player;
+      pen.fillText(name, textX, textY);
+    }
+  }
+  pen.globalAlpha = 1;
 }

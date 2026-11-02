@@ -85,6 +85,8 @@ export interface ReedInputs {
   landAt: LandAt;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the drawn waterline, out into the water and below zero on land. */
+  shoreAt: (place: Node<"vec2">) => Node<"float">;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -105,7 +107,7 @@ export interface Reeds {
   dispose: () => void;
 }
 
-export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, groundAt, lightOf, linear, hazed }: ReedInputs): Reeds {
+export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, groundAt, shoreAt, lightOf, linear, hazed }: ReedInputs): Reeds {
   const clumps = SEEDS.map((seed) => buildReedClump(seed));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
@@ -125,7 +127,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
       const chance = roll(seed, 93.989, 67.345).toVar();
-      If(chance.lessThan(MOST_OF_A_PLACE).and(waterAt(place, 0).greaterThan(IN_WATER)), () => {
+      If(chance.lessThan(MOST_OF_A_PLACE).and(waterAt(place, 0).greaterThan(IN_WATER)).and(shoreAt(place).greaterThan(0)), () => {
         const land = float(1).sub(waterAt(place, BELT_MIP)).toVar();
         If(land.greaterThan(LEAST_LAND), () => {
           const grid = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)));

@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { patchIndices } from "../render/tile";
+import { WORLD_GROUPS } from "./groups";
 import { BLOCK_M, WALL_FLOATS, type World } from "./world";
 
 /*
@@ -114,6 +115,6 @@ export class GroundBlocks {
       next += 6;
     }
     this.built++;
-    return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3));
+    return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
   }
 }

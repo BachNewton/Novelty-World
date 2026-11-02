@@ -28,7 +28,7 @@ export function JunctionLab() {
 
   return (
     <>
-      <AlandDrive />
+      <AlandDrive solo />
       <aside className="fixed top-14 left-3 z-10 flex max-h-[calc(100vh-5rem)] w-64 flex-col gap-1 overflow-y-auto rounded-lg bg-surface-elevated/90 p-3 text-sm text-text-primary">
         <h1 className="font-bold">Junction lab</h1>
         {JUNCTION_SPOTS.map((junction, index) => (

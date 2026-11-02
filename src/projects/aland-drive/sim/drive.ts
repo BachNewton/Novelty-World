@@ -1,8 +1,11 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Car, type DriveInput } from "./car";
+import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState } from "./car-state";
 import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
+import { WORLD_GROUPS } from "./groups";
+import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
@@ -43,7 +46,9 @@ export async function initPhysics(): Promise<void> {
 export class Drive {
   readonly rapier: RAPIER.World;
   readonly ground: GroundBlocks;
-  private readonly car: Car;
+  private car: Car;
+  /** Other players' cars, which this one can hit. */
+  readonly remotes: RemoteCars;
   private before!: CarState;
   private after!: CarState;
   private readonly recentVerticalSpeeds: number[] = [];
@@ -55,12 +60,14 @@ export class Drive {
   constructor(
     private readonly world: World,
     start: RoadPoint,
+    car: CarId = DEFAULT_CAR,
   ) {
     this.rapier = new RAPIER.World({ x: 0, y: -PHYSICS.gravity, z: 0 });
     this.rapier.timestep = STEP_S;
     this.ground = new GroundBlocks(this.rapier, world);
     this.addWalls();
-    this.car = new Car(this.rapier);
+    this.car = new Car(this.rapier, car);
+    this.remotes = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
 
@@ -70,7 +77,7 @@ export class Drive {
     const { wallHeightM: tall, wallThicknessM: thick } = PHYSICS;
     const half = tileM / 2;
     const wall = (x: number, z: number, halfX: number, halfZ: number) => {
-      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05));
+      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
     };
     for (const { column, row } of this.world.all()) {
       const west = column * tileM;
@@ -89,6 +96,22 @@ export class Drive {
     this.before = this.after = this.car.state();
     this.recentVerticalSpeeds.length = 0;
     this.placements++;
+  }
+
+  /** The car being driven. */
+  get carId(): CarId {
+    return this.car.id;
+  }
+
+  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
+  setCar(id: CarId): void {
+    if (id === this.car.id) return;
+    const next = new Car(this.rapier, id);
+    next.takeOver(this.car);
+    this.car.remove();
+    this.car = next;
+    this.after = this.car.state();
+    this.before = { ...this.before, car: id };
   }
 
   /** The engine as it stands after the last step, and whether the car is in reverse. */
@@ -118,7 +141,9 @@ export class Drive {
     this.ground.around(position[0], position[2]);
     this.car.step(input);
     if (this.overWater(position[0], position[2])) this.car.addDrag(PHYSICS.waterDrag);
+    this.remotes.steer(position);
     this.rapier.step();
+    this.remotes.settle();
     this.after = this.car.state();
     this.record();
   }
