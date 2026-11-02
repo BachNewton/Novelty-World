@@ -26,12 +26,17 @@ import { stateFromCar } from "../audio/model";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
+import { createRemoteCarViews } from "./remote-cars";
+import { createOnlineWorld } from "../net/online-world";
+import { GAME } from "../net/protocol";
+import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
+import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
 import { ruralMaterials } from "../art/rural/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
+import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
@@ -129,6 +134,12 @@ export interface GameProbe {
   setCar: (name: string) => void;
   /** The name of the car being drawn. */
   carName: () => string;
+  /** Where the online world stands. */
+  online: () => Pick<RoomState, "status" | "role">;
+  /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
+  players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
+  /** How many other players each map drew last. */
+  mapPlayers: () => { mini: number; world: number };
 }
 
 export interface HudReading {
@@ -162,6 +173,15 @@ export interface GameEvents {
   onCarChange?: (name: string) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
+  /** Everyone else in the online world, by name, whenever that changes. */
+  onPlayers?: (names: string[]) => void;
+}
+
+/** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
+export interface OnlineOptions {
+  relayUrl: string;
+  code: string;
+  profile: PlayerProfile;
 }
 
 /** The canvases the page keeps for the maps. */
@@ -311,7 +331,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
 }
 
 /** A page with no `canvases` gets the drive with no maps. */
-export async function startGame(container: HTMLElement, events: GameEvents, canvases?: MapCanvases): Promise<Game> {
+export async function startGame(container: HTMLElement, events: GameEvents, canvases?: MapCanvases, online?: OnlineOptions): Promise<Game> {
   const base = tileBase(window.location.search);
   const [manifest] = await Promise.all([
     fetch(`${base}/world.json`).then((response) => {
@@ -871,6 +891,44 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return lastInput;
   };
 
+  // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
+  const remoteViews = createRemoteCarViews(scene, manifest.sun);
+  const others = new Map<string, { name: string; car: string | null }>();
+  const onlineWorld = online
+    ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
+        onCar: (peerId, car, state) => {
+          const other = others.get(peerId);
+          if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
+          other.car = car;
+          drive.remotes.hear(peerId, state);
+        },
+        onGone: (peerId) => {
+          drive.remotes.forget(peerId);
+          remoteViews.forget(peerId);
+        },
+        onPlayers: (players) => {
+          const before = new Map(others);
+          others.clear();
+          for (const { peerId, name } of players) others.set(peerId, { name, car: before.get(peerId)?.car ?? null });
+          events.onPlayers?.(players.map(({ name }) => name));
+        },
+      })
+    : null;
+  onlineWorld?.start();
+  const unbindPageHide = onlineWorld ? stopOnPageHide(onlineWorld) : () => undefined;
+  /** Draws everyone else's car where it's on ground of ours, and says where they all are for the maps. */
+  const drawRemotes = (share: number): MapPlayer[] => {
+    const shown: MapPlayer[] = [];
+    for (const [peerId, { name, car }] of others) {
+      if (car === null) continue;
+      const state = drive.remotes.stateAt(peerId, share);
+      const [x, , z] = state.position;
+      remoteViews.draw(peerId, car, state, world.tileAt(x, z)?.detail != null);
+      shown.push({ x, z, headingClockwise: headingClockwise(state), name });
+    }
+    return shown;
+  };
+
   const detailSpotAt = new Vector3();
   /** This frame's camera as a view of the ground, for what's drawn over the render. */
   const mapViewOf = (height: number, turn: number): MapView => {
@@ -899,16 +957,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const seconds = Math.min(lastFrame === null ? 0 : (now - lastFrame) / 1000, LONGEST_FRAME_S);
     lastFrame = now;
     let share = 1;
+    let stepped = 0;
     if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
     if (!held && !mapFrom && !jumping && !devMenuOpen) {
       owedSeconds += seconds;
-      const steps = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
-      for (let step = 0; step < steps; step++) drive.step(nextInput());
-      owedSeconds = Math.min(owedSeconds - steps * STEP_S, STEP_S);
+      stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
+      for (let step = 0; step < stepped; step++) drive.step(nextInput());
+      owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
     }
     const car = drive.stateAt(share);
     carView.draw(car);
+    onlineWorld?.send(stepped, carSpec.name, drive.stateAt(1));
+    const players = drawRemotes(share);
+    worldMap?.setPlayers(players);
     if (mapFrom && worldMap) {
       const carNow = mapFrom.car;
       const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(worldMap), groundAt);
@@ -940,7 +1002,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     edgeMesh.visible = !lifted;
     clipmap.showWide(lifted);
     const speed = speedOf(car);
-    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed) ?? null;
+    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
     const engine = drive.engine();
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / GEARBOX.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
@@ -1069,6 +1131,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       rendererMemory: () => ({ ...renderer.info.memory }),
       setCar,
       carName: () => carSpec.name,
+      online: () => {
+        const state = onlineWorld?.state();
+        return { status: state?.status ?? "idle", role: state?.role ?? null };
+      },
+      players: () =>
+        [...others].map(([peerId, { name, car }]) => ({
+          peerId,
+          name,
+          position: car === null ? null : drive.remotes.stateAt(peerId, 1).position,
+          drawn: remoteViews.drawn(peerId),
+          ghost: drive.remotes.ghost(peerId),
+        })),
+      mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
     },
     cars: CARS.map(({ name, paint }) => ({ name, paint })),
     setCar,
@@ -1083,6 +1158,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       controls.dispose();
       worldMap?.dispose();
       carView.dispose();
+      unbindPageHide();
+      onlineWorld?.stop();
+      remoteViews.dispose();
       drive.dispose();
       stream.dispose();
       fetcher.dispose();
