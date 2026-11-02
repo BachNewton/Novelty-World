@@ -1,5 +1,5 @@
 import { CARS } from "../cars/specs";
-import { groundY, SAG_M, type CarSpec } from "../cars/build";
+import { groundY, type CarSpec } from "../cars/build";
 import type { CarState } from "../../sim/car-state";
 import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId } from "./exteriors";
 import type { Interior, InteriorId } from "./interiors";
@@ -33,12 +33,13 @@ export function carNamed(name: string): CarSpec {
 export function restingCar(spec: CarSpec, at: CarSlot["at"], yaw: number): CarState {
   const half = yaw / 2;
   return {
-    position: [at[0], at[1] - groundY(spec.wheel.radiusM), at[2]],
+    position: [at[0], at[1] - groundY(spec), at[2]],
     rotation: [0, Math.sin(half), 0, Math.cos(half)],
     velocity: [0, 0, 0],
     spin: [0, 0, 0],
     steer: 0,
-    suspension: [SAG_M, SAG_M, SAG_M, SAG_M],
+    car: spec.id ?? "skerry-gt",
+    suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
     roll: 0,
   };
 }

@@ -37,8 +37,10 @@ export interface TileDetail {
   manifest: TileManifest;
   grid: HeightGrid;
   surface: RoadSurface;
-  /** A byte per height node: 1 on a lake or the sea. */
-  waterNodes: Uint8Array;
+  /** The drawn water surface at each height node, `dryLevel` where no water is near. */
+  waterLevels: HeightGrid;
+  /** Metres from the shore at each height node, out into the water, below zero on land. */
+  shore: HeightGrid;
   ribbon: RibbonMesh;
   roads: TileRoads;
   blockRoads: BlockRoads;
@@ -150,7 +152,7 @@ function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: numb
 }
 
 /** `walls` are the buildings' outlines, two ends to one; `standing` is anything else the car can't pass, `WALL_FLOATS` to one. */
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterNodes: Uint8Array, tileM: number, walls: Float32Array = new Float32Array(0), standing: Float32Array = new Float32Array(0)): TileDetail {
+export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), standing: Float32Array = new Float32Array(0)): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest);
   const ribbon = ribbonMesh(surface, manifest.bounds);
   const bridges = bridgeKit(surface, grid);
@@ -164,7 +166,8 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
     manifest,
     grid,
     surface,
-    waterNodes,
+    waterLevels,
+    shore,
     ribbon,
     roads: tileRoads(surface, column, row, tileM),
     blockRoads: blockRoads(ribbon, manifest.bounds.west, manifest.bounds.north, tileM),
@@ -179,6 +182,9 @@ export interface WorldTile {
   column: number;
   row: number;
   far: HeightGrid | null;
+  /** The far grid's water levels and distances from the shore, on its nodes. */
+  farLevels: HeightGrid | null;
+  farShore: HeightGrid | null;
   detail: TileDetail | null;
   /** Grows whenever its data comes or goes. */
   revision: number;
@@ -209,7 +215,7 @@ export class World {
     for (const { name, west, north } of manifest.tiles) {
       const column = Math.round(west / this.tileM);
       const row = Math.round(-north / this.tileM);
-      this.tiles.set(tileKey(column, row), { name, column, row, far: null, detail: null, revision: 0 });
+      this.tiles.set(tileKey(column, row), { name, column, row, far: null, farLevels: null, farShore: null, detail: null, revision: 0 });
     }
   }
 
@@ -235,9 +241,11 @@ export class World {
     this.farRevision++;
   }
 
-  addFar(name: string, grid: HeightGrid): void {
+  addFar(name: string, grid: HeightGrid, levels: HeightGrid, shore: HeightGrid): void {
     const tile = this.named(name);
     tile.far = grid;
+    tile.farLevels = levels;
+    tile.farShore = shore;
     tile.revision++;
     this.revision++;
     this.farRevision++;
@@ -246,6 +254,8 @@ export class World {
   removeFar(name: string): void {
     const tile = this.named(name);
     tile.far = null;
+    tile.farLevels = null;
+    tile.farShore = null;
     tile.revision++;
     this.revision++;
     this.farRevision++;
@@ -284,8 +294,8 @@ export class World {
     this.revision++;
   }
 
-  /** The height of a node on the world's 4 m lattice: its own where the tile's detail is here, else read off the far grid. */
-  node(column: number, row: number): number {
+  /** The tile holding a node on the world's 4 m lattice, if any. */
+  private tileOfNode(column: number, row: number): WorldTile | undefined {
     const cells = this.tileCells;
     let tileColumn = Math.floor(column / cells);
     let tileRow = Math.floor(row / cells);
@@ -296,9 +306,16 @@ export class World {
     if (!tile && column === tileColumn * cells) tile = this.tiles.get(tileKey(--tileColumn, tileRow));
     if (!tile && row === tileRow * cells) tile = this.tiles.get(tileKey(tileColumn, --tileRow));
     if (!tile && column === (tileColumn + 1) * cells) tile = this.tiles.get(tileKey(++tileColumn, tileRow));
+    return tile;
+  }
+
+  /** The height of a node on the world's 4 m lattice: its own where the tile's detail is here, else read off the far grid. */
+  node(column: number, row: number): number {
+    const tile = this.tileOfNode(column, row);
     if (!tile) return this.overviewHeight(column * this.stepM, row * this.stepM);
-    const cellColumn = column - tileColumn * cells;
-    const cellRow = row - tileRow * cells;
+    const cells = this.tileCells;
+    const cellColumn = column - tile.column * cells;
+    const cellRow = row - tile.row * cells;
     if (tile.detail) {
       const { heights, nodes } = tile.detail.grid;
       return heights[cellRow * nodes + cellColumn];
@@ -316,6 +333,27 @@ export class World {
     return north + down * (south - north);
   }
 
+  /** The drawn water surface at a node of the 4 m lattice, from the best detail loaded there, or `dryLevel` where there's none. */
+  waterLevel(column: number, row: number): number {
+    const tile = this.tileOfNode(column, row);
+    return this.nearestOn(tile, tile?.detail?.waterLevels ?? tile?.farLevels, column, row) ?? this.manifest.water.dryLevel;
+  }
+
+  /** Metres from the shore at a node of the 4 m lattice, out into the water and below zero on land, or `dryLevel` where nothing's loaded. */
+  shore(column: number, row: number): number {
+    const tile = this.tileOfNode(column, row);
+    return this.nearestOn(tile, tile?.detail?.shore ?? tile?.farShore, column, row) ?? this.manifest.water.dryLevel;
+  }
+
+  /** A grid's value at the node nearest a node of the 4 m lattice. */
+  private nearestOn(tile: WorldTile | undefined, grid: HeightGrid | null | undefined, column: number, row: number): number | null {
+    if (!tile || !grid) return null;
+    const scale = this.stepM / grid.stepM;
+    const gridColumn = Math.round((column - tile.column * this.tileCells) * scale);
+    const gridRow = Math.round((row - tile.row * this.tileCells) * scale);
+    return grid.heights[gridRow * grid.nodes + gridColumn];
+  }
+
   /** The height of the drawn ground at a point, at the best detail loaded there. */
   height(x: number, z: number): number {
     const tile = this.tileAt(x, z);
@@ -323,7 +361,6 @@ export class World {
     return grid ? surfaceHeight(grid, x, -z) : this.overviewHeight(x, z);
   }
 
-  /** A lake or the sea at a point. Ground with no detail loaded yet counts as land. */
   /** How many walls cross the block a place is in: how built up it is there. */
   wallsAt(x: number, z: number): number {
     const detail = this.tileAt(x, z)?.detail;
@@ -333,13 +370,10 @@ export class World {
     return first[block + 1] - first[block];
   }
 
+  /** Whether a point is past the shore, in the water as it's drawn. Ground with no detail loaded yet counts as land. */
   isWater(x: number, z: number): boolean {
-    const detail = this.tileAt(x, z)?.detail;
-    if (!detail) return false;
-    const { grid, waterNodes } = detail;
-    const column = Math.round((x - grid.west) / grid.stepM);
-    const row = Math.round((grid.north + z) / grid.stepM);
-    return waterNodes[row * grid.nodes + column] !== 0;
+    const shore = this.tileAt(x, z)?.detail?.shore;
+    return shore !== undefined && surfaceHeight(shore, x, -z) > 0;
   }
 
   /** Every loaded tile's ribbon triangles crossing a block on the world's lattice of blocks. */

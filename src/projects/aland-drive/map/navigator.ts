@@ -1,4 +1,4 @@
-import { drawCar, drawLand, drawNames, drawRoads, drawRoute, flatView, type MapInk, type SharpLand } from "./draw";
+import { drawCar, drawLand, drawNames, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
@@ -42,6 +42,8 @@ const MINI_FAR_SCALE = 0.17;
 const MINI_FAR_SPEED_MS = 45;
 const MINI_LAND_DIM = 0.35;
 const MINI_NAMES = 4;
+/** Other players stay this far inside the mini map's rim. */
+const MINI_RIM_PX = 12;
 
 export class Navigator {
   route: Route | null = null;
@@ -52,6 +54,9 @@ export class Navigator {
   private lastRoute = { x: Number.NaN, z: Number.NaN };
   private lastRead = { x: Number.NaN, z: Number.NaN };
   private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0 };
+  private lastPlayers: readonly MapPlayer[] = [];
+  /** How many other players the mini map last drew. */
+  playersDrawn = 0;
   private readonly pen: CanvasRenderingContext2D;
 
   constructor(
@@ -139,11 +144,17 @@ export class Navigator {
     this.events.onRoad(name);
   }
 
-  private drawMini(x: number, z: number, headingClockwise: number, speedMS: number): void {
+  private playersMoved(players: readonly MapPlayer[]): boolean {
+    const last = this.lastPlayers;
+    return players.length !== last.length || players.some((player, index) => player.name !== last[index].name || Math.hypot(player.x - last[index].x, player.z - last[index].z) >= REDRAW_MOVED_M);
+  }
+
+  private drawMini(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): void {
     const last = this.lastDraw;
-    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision;
+    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && !this.playersMoved(players);
     if (unchanged) return;
     this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision };
+    this.lastPlayers = players;
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
     const view = flatView(x, z, MINI_NEAR_SCALE + share * (MINI_FAR_SCALE - MINI_NEAR_SCALE), headingClockwise, width, height, width / 2, height * 0.62);
@@ -152,14 +163,16 @@ export class Navigator {
     drawRoads(pen, view, this.graph, 3, ink);
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
+    drawPlayers(pen, view, players, 8, ink, { circle: [width / 2, height / 2, width / 2 - MINI_RIM_PX] }, false);
+    this.playersDrawn = players.length;
     drawCar(pen, view, x, z, headingClockwise, 9, ink);
   }
 
-  /** Every frame the car can move. */
-  update(x: number, z: number, headingClockwise: number, speedMS: number): RouteCue | null {
+  /** Every frame the car can move, with everyone else who's online. */
+  update(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): RouteCue | null {
     const cue = this.updateRoute(x, z, headingClockwise);
     this.updateRoad(x, z);
-    this.drawMini(x, z, headingClockwise, speedMS);
+    this.drawMini(x, z, headingClockwise, speedMS, players);
     return cue;
   }
 }

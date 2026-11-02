@@ -1,9 +1,9 @@
 import IDS from "./facade-ids.json";
-import type { Frame, LandmarkMesh, Paint, Vec2 } from "../landmarks/kit";
+import { PAINT_STYLE, type Frame, type LandmarkMesh, type Paint, type Vec2 } from "../landmarks/kit";
 
 /*
  * Colours and walls for the models. A model is drawn with the wall material (`render/buildings.ts`), so a flat colour is
- * that material's roof style, as the landmark kit's `flat`, here for this folder's tokens. Letters on a model are the
+ * that material's plain paint style, as the landmark kit's `flat`, here for this folder's tokens. Letters on a model are the
  * facade shader's: a wall quad given a facade and the "plate" front.
  */
 
@@ -27,7 +27,7 @@ export function painter(inks: Inks) {
       const linear = Math.pow(parseInt(hex.slice(at, at + 2), 16) / 255, 2.2);
       return Math.min(255, Math.round(255 * Math.pow((linear * shade) / ROOF_GAIN, 1 / ROOF_GAMMA)));
     };
-    return [byte(1), byte(3), byte(5), 0];
+    return [byte(1), byte(3), byte(5), PAINT_STYLE];
   };
 }
 

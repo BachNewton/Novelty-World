@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { useProfile } from "@/shared/lib/profile";
+import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import { DEFAULT_CAR, type CarId } from "../sim/cars";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -27,6 +30,7 @@ const INK = "var(--color-aland-drive-ui-ink)";
 const SHADE = "var(--color-aland-drive-ui-shade)";
 const ACCENT = "var(--color-aland-drive-ui-accent)";
 const REDLINE = "var(--color-aland-drive-ui-redline)";
+const PLAYER = "var(--color-aland-drive-ui-player)";
 
 /** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
 const DIAL_SWEEP = 0.75;
@@ -55,7 +59,8 @@ function distanceText(metres: number): string {
   return `${Math.round(metres / 10) * 10} m`;
 }
 
-export function AlandDrive() {
+/** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). */
+export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const speedText = useRef<HTMLSpanElement>(null);
   const gearText = useRef<HTMLSpanElement>(null);
@@ -77,7 +82,8 @@ export function AlandDrive() {
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
   const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
-  const [carName, setCarName] = useState("");
+  const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
+  const [others, setOthers] = useState<string[]>([]);
   useFrameStats();
 
   useEffect(() => {
@@ -108,6 +114,9 @@ export function AlandDrive() {
         return;
       }
       const { NoWebGpuError, startGame } = await import("../render/game");
+      const search = window.location.search;
+      const relayUrl = solo ? null : onlineRelay(search, navigator.webdriver);
+      const { id, name } = useProfile.getState();
       try {
         const game = await startGame(element, {
           onHud: showSpeed,
@@ -118,16 +127,17 @@ export function AlandDrive() {
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
-          onCarChange: setCarName,
-          onRoad: (name) => { setRoad((last) => ({ name, seen: (last?.seen ?? 0) + 1 })); },
-        }, { mini, world });
+          onCarChange: setCarId,
+          onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
+          onPlayers: setOthers,
+        }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
           return;
         }
         window.__alandDrive = game.probe;
         setDev(game);
-        setCarName(game.probe.carName());
+        setCarId(game.probe.carId());
         setStarted(true);
         stop = () => {
           game.dispose();
@@ -145,7 +155,7 @@ export function AlandDrive() {
       cleanup.abort();
       stop?.();
     };
-  }, []);
+  }, [solo]);
 
   const stillLoading = !started && !noWebGpu && failure === null;
 
@@ -170,7 +180,7 @@ export function AlandDrive() {
             </div>
           )}
           {!mapOpen && camera !== "free" && (
-            <div ref={cue} className="pointer-events-none absolute top-3 right-6 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
+            <div ref={cue} className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
               <div ref={cueArrow}>
                 <ArrowUp className="size-10" style={{ color: ACCENT }} />
               </div>
@@ -193,6 +203,12 @@ export function AlandDrive() {
               </span>
             </div>
           )}
+          {others.length > 0 && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>
+              <Users className="size-5" style={{ color: PLAYER }} aria-hidden />
+              <span>{others.length}</span>
+            </div>
+          )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>
             {(mapOpen ? MAP_HINTS : HINTS).map(({ binding, icon: Icon, label }) => (
               <li key={label} className="flex items-center gap-1" title={label}>
@@ -203,7 +219,7 @@ export function AlandDrive() {
           </ul>
         </>
       )}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>
