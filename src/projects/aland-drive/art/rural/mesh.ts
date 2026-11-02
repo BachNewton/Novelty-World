@@ -30,7 +30,7 @@ export const PAINT = {
   "birch-twig": { from: "tree-bark", gain: 0.9 },
   "reed-straw": { from: "wall-yellow", to: "wall-cream", share: 0.35, gain: 0.82 },
   "reed-green": { from: "tree-birch", to: "wall-yellow", share: 0.3, gain: 0.95 },
-  "reed-plume": { from: "wall-door", to: "wall-grey", share: 0.3, gain: 0.85 },
+  "reed-plume": { from: "wall-door", to: "wall-cream", share: 0.55, gain: 0.95 },
   "red-boards": { from: "wall-red", pattern: "boards" },
   "grey-boards": { from: "wall-grey", to: "tree-bark", share: 0.18, gain: 0.9, pattern: "boards" },
   "tar-boards": { from: "wall-door", to: "wall-plinth", share: 0.5, gain: 0.72, pattern: "boards" },
