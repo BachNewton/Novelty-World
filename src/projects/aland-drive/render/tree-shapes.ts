@@ -69,9 +69,57 @@ function farRings(rings: Rings): Rings {
   return [[baseUp, 0], fullest, [1, 0]];
 }
 
-/** Rows of rings of (up, wide), for the shader: a tree's value is at row × rings + ring. */
-export const NEAR_TABLE = Float32Array.from(ROWS.flat(2));
-export const FAR_TABLE = Float32Array.from(ROWS.map(farRings).flat(2));
+/** Where a ring is in the crown, 0 at its base and 1 at its tip, and the trunk at the base. */
+const inCrown = (rings: Rings) => {
+  const baseUp = rings[TRUNK_RINGS][0];
+  return rings.map(([up], ring) => (ring < TRUNK_RINGS ? 0 : (up - baseUp) / (1 - baseUp)));
+};
+
+/** How far out a ring reaches, as a share of the crown's outer envelope there: below 1 it's tucked between tiers or plates, where little light gets in. */
+function outerShare(rings: Rings): number[] {
+  const crown = rings.slice(TRUNK_RINGS);
+  const hull: Rings = [];
+  for (const ring of crown) {
+    while (hull.length >= 2) {
+      const [[upA, wideA], [upB, wideB]] = hull.slice(-2);
+      if ((upB - upA) * (ring[1] - wideA) - (wideB - wideA) * (ring[0] - upA) < 0) break;
+      hull.pop();
+    }
+    hull.push(ring);
+  }
+  const hullAt = (up: number) => {
+    const above = hull.findIndex(([hullUp]) => hullUp >= up);
+    if (above <= 0) return hull[0][1];
+    const [[upA, wideA], [upB, wideB]] = [hull[above - 1], hull[above]];
+    return wideA + ((wideB - wideA) * (up - upA)) / (upB - upA);
+  };
+  return rings.map(([up, wide], ring) => (ring < TRUNK_RINGS || hullAt(up) === 0 ? 1 : wide / hullAt(up)));
+}
+
+/** A row's tucked share averaged over its crown's height, so a far crown, which has no tiers, is as dark on the whole as its near one. */
+function meanOuterShare(rings: Rings): number {
+  const share = outerShare(rings);
+  let sum = 0;
+  for (let ring = TRUNK_RINGS + 1; ring < rings.length; ring++) sum += ((share[ring] + share[ring - 1]) / 2) * (rings[ring][0] - rings[ring - 1][0]);
+  return sum / (1 - rings[TRUNK_RINGS][0]);
+}
+
+/** A ring as the shader reads it: (up, wide), then where it is in the crown and how far out it reaches, for its light. */
+const nearRow = (rings: Rings) => {
+  const [crown, outer] = [inCrown(rings), outerShare(rings)];
+  return rings.map(([up, wide], ring) => [up, wide, crown[ring], outer[ring]]);
+};
+const farRow = (rings: Rings) => {
+  const far = farRings(rings);
+  const [baseUp] = far[0];
+  const outer = meanOuterShare(rings);
+  return far.map(([up, wide]) => [up, wide, (up - baseUp) / (1 - baseUp), outer]);
+};
+
+/** Rows of rings of (up, wide, in crown, outer share), for the shader: a tree's value is at row × rings + ring. */
+export const RING_VALUES = 4;
+export const NEAR_TABLE = Float32Array.from(ROWS.flatMap(nearRow).flat());
+export const FAR_TABLE = Float32Array.from(ROWS.flatMap(farRow).flat());
 
 /** The widest any crown spreads, as a share of the tree's height, with a ring's swell. */
 export const WIDEST_CROWN = Math.max(...ROWS.flat().map(([, wide]) => wide)) * (1 + SWELL);
