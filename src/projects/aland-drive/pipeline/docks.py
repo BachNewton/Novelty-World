@@ -60,7 +60,7 @@ NARROWEST_RUN_M = 1.0
 BURIED_M = 0.1
 WATER_NEAR_M = (15.0, 60.0)
 SHORTEST_RUN_M = 1.5
-# A dock stays this far from a motor road's line, so no dock or wall stands on a road.
+# A dock's edge stays this far from a motor road's line, so no dock or wall stands on a road.
 ROAD_CLEAR_M = 4.0
 # A jetty this near a boathouse is run on to its wall.
 BOATHOUSE_REACH_M = 8.0
@@ -283,7 +283,7 @@ class Docks:
         self.land = land
         self.boathouses = [_boathouse_outline(place) for place in boathouses]
         motor = [LineString(road["line"]) for road in roads if road["motor"] and len(road["line"]) >= 2]
-        self.roads = shapely.union_all(motor).buffer(ROAD_CLEAR_M) if motor else None
+        self.roads = shapely.union_all(motor) if motor else None
         self.models: dict[str, list[list[float]]] = {}
         self.walls: list[list[float]] = []
         self.taken: list[shapely.Geometry] = []
@@ -329,7 +329,7 @@ class Docks:
                 continue
             laid = []
             for index, (start, end, width) in enumerate(segments):
-                run = self._trimmed(kind, start, end, level)
+                run = self._trimmed(kind, start, end, width, level)
                 if run is not None:
                     laid.append((*run, width))
             if not laid:
@@ -345,7 +345,7 @@ class Docks:
         for pier, start, end, width, level in berthed:
             self._berths(pier, start, end, width, level)
 
-    def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, level: float) -> tuple[np.ndarray, np.ndarray] | None:
+    def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, width: float, level: float) -> tuple[np.ndarray, np.ndarray] | None:
         """A run cut back to its longest stretch where its deck stands clear of the ground and of every motor road, or for a pontoon where it floats."""
         length = float(np.hypot(*(end - start)))
         if length < 1e-3:
@@ -357,7 +357,7 @@ class Docks:
         else:
             clear = self.land.height(points) < level + DECK_M[kind] - BURIED_M
         if self.roads is not None:
-            clear &= ~shapely.contains_xy(self.roads, points[:, 0], points[:, 1])
+            clear &= ~shapely.dwithin(self.roads, shapely.points(points), ROAD_CLEAR_M + width / 2)
         edges = np.flatnonzero(np.diff(np.concatenate(([0], clear.astype(np.int8), [0]))))
         if len(edges) == 0:
             return None
