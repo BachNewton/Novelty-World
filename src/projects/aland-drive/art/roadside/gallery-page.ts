@@ -1,8 +1,9 @@
 import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, TimestampQuery, Vector3, WebGPURenderer, type Node } from "three/webgpu";
-import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, step, uniform, vec3 } from "three/tsl";
+import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
-import { buildBridge, buildBusShelter, buildFarmFence, buildFarmFencePost, buildGangway, buildMailbox, buildPier, buildPine, buildPontoon, buildPowerPole, buildSignPlate, buildSignPost, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, FARM_FENCE_M, placeModel, placeSigns, placeWires, roadsideMaterials, SIGN_PLATE_Y_M, SIGN_PLATE_Z_M, signMaterial, signSheetUv, TOWN_FENCE_M, wireMaterial, type Placement, type RoadsideModel, type SignShape } from "./index";
+import { createSignSheet } from "../surfaces";
+import { buildBridge, buildBusShelter, buildFarmFence, buildFarmFencePost, buildGangway, buildMailbox, buildPier, buildPine, buildPontoon, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, createSignKit, FARM_FENCE_M, placeModel, placeWires, roadsideMaterials, TOWN_FENCE_M, wireMaterial, type Placement, type RoadsideModel } from "./index";
 
 /*
  * The gallery's scene: one stretch of straight road on the game's own renderer,
@@ -123,16 +124,11 @@ addMeshes(placeWires(wireModel, wireSpans, wires));
 look("power-pole", "power pole and wires", station(1), [-20, 1.3, 1.5], [10, 6.5, VERGE_Z]);
 look("pole-top", "pole top", station(1), [-7, 1.3, 1.5], [0, 9.6, poleZ], 14);
 
-// 2: signs. A placeholder sheet of checks, so the plate's uv shows.
-const sheet = mix(colorOf("wall-trim"), colorOf("car-body"), step(float(0.5), sin(signSheetUv().x.mul(40)).mul(sin(signSheetUv().y.mul(40))).add(0.5)));
-const signs = signMaterial(inputs, sheet);
-const shapes: [SignShape, number][] = [["round", 0.64], ["triangle", 0.9], ["diamond", 0.64], ["wide", 1.4]];
-shapes.forEach(([shape, size], index) => {
-  const x = station(2) + index * 3;
-  add(buildSignPost(), [{ x, y: 0, z: VERGE_Z + 1 }]);
-  addMeshes(placeSigns(buildSignPlate(shape, size), [{ x, y: SIGN_PLATE_Y_M, z: VERGE_Z + 1 + SIGN_PLATE_Z_M, cell: [0, 0, 1, 1] }], signs));
-});
-look("sign-posts", "sign posts, placeholder faces", station(2), [-3, 1.3, 1.5], [4.5, 1.8, VERGE_Z]);
+// 2: signs, the road-sign kit's own plates and posts, as the game places them.
+const signKit = createSignKit(createSignSheet((name) => token(name).getStyle()), { colour: colorOf, hazed }, SUN);
+const galleryPlates = ["give-way", "stop", "speed-80", "bus-stop", "pedestrian-crossing"];
+addMeshes(...signKit.place(new Map(galleryPlates.map((name, index) => [name, [{ x: station(2) + index * 3, y: 0, z: VERGE_Z + 1 }]]))));
+look("sign-posts", "sign posts", station(2), [-3, 1.3, 1.5], [6, 1.8, VERGE_Z]);
 look("sign-backs", "sign backs", station(2), [4, 1.3, VERGE_Z - 7], [4.5, 1.8, VERGE_Z + 1]);
 
 // 3: farm fence, along a slope at the far end.
@@ -212,10 +208,10 @@ add(poleModel, street.poles);
 addMeshes(placeWires(wireModel, street.poles.slice(1).map((pole, index) => ({ from: { yaw: 0, ...street.poles[index] }, to: { yaw: 0, ...pole } })), wires));
 add(farmModel, street.fences);
 add(buildMailbox(), street.mail);
-add(buildSignPost(), street.signs);
+addMeshes(...signKit.place(new Map([["speed-60", street.signs]])));
 add(buildBusShelter(), street.shelters);
 add(pineModel, street.pines);
-const streetModels: [RoadsideModel, Placement[]][] = [[buildStreetLamp(), street.lamps], [poleModel, street.poles], [farmModel, street.fences], [buildMailbox(), street.mail], [buildSignPost(), street.signs], [buildBusShelter(), street.shelters], [pineModel, street.pines]];
+const streetModels: [RoadsideModel, Placement[]][] = [[buildStreetLamp(), street.lamps], [poleModel, street.poles], [farmModel, street.fences], [buildMailbox(), street.mail], [buildBusShelter(), street.shelters], [pineModel, street.pines]];
 const counted = Object.values(street).reduce((sum, places) => sum + places.length, 0);
 const streetEye = { x: streetX + 1100, z: 1.5 };
 look("street", `${counted} objects, mid-way along 2.4 km`, streetX, [1100, 1.3, 1.5], [1300, 3, 0]);
@@ -292,8 +288,6 @@ window.__roadsideGallery = {
     "street lamp": triangles(buildStreetLamp()),
     "power pole": triangles(poleModel),
     "wire span": triangles(wireModel),
-    "sign post": triangles(buildSignPost()),
-    "sign plate, round": triangles(buildSignPlate("round", 0.64)),
     "farm fence 2.4 m": triangles(farmModel),
     "farm fence post": triangles(buildFarmFencePost()),
     "town fence 2 m": triangles(buildTownFence()),

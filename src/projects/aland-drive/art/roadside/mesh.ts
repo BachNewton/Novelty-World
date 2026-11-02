@@ -32,8 +32,6 @@ export const PARTS = [
   "bark-upper",
   "needles",
   "needles-lit",
-  "sign-back",
-  "sign-face",
 ] as const;
 
 export type Part = (typeof PARTS)[number];

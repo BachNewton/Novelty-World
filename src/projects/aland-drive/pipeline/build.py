@@ -28,6 +28,7 @@ import outbuildings
 import overview
 import road_map
 import roads as road_surface
+import roadside
 import stands
 import terrain
 import vectors
@@ -300,6 +301,7 @@ def main() -> None:
     else:
         for name in names:
             build_named(name, arguments.refresh_osm)
+    roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

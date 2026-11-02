@@ -86,44 +86,9 @@ export function buildWireSpan(): RoadsideModel {
   return model(wires, null, 1000, 1000);
 }
 
-const SIGN_POST_TOP_M = 3;
-/** The usual height of a single plate's middle, and how far in front of the post's axis a plate sits. */
+/** Where a sign plate's middle stands above the ground, and how far in front of its post's axis it sits. */
 export const SIGN_PLATE_Y_M = 2.25;
 export const SIGN_PLATE_Z_M = 0.05;
-
-/** A plain galvanised sign post, for any plates. */
-export function buildSignPost(): RoadsideModel {
-  const near = new Model().tube([0, -SINK_M, 0], [0, SIGN_POST_TOP_M, 0], 0.03, 5, { cap: true }, "galvanised");
-  return model(near, null, 220, 220);
-}
-
-export type SignShape = "round" | "triangle" | "diamond" | "square" | "wide";
-
-const ROUND_SIDES = 10;
-const SIGN_OUTLINES: Record<SignShape, readonly (readonly [x: number, y: number])[]> = {
-  round: Array.from({ length: ROUND_SIDES }, (_, side) => {
-    const angle = (side / ROUND_SIDES) * 2 * Math.PI;
-    return [Math.sin(angle) * 0.5, Math.cos(angle) * 0.5] as const;
-  }),
-  triangle: [[0, 0.46], [-0.5, -0.41], [0.5, -0.41]],
-  diamond: [[0, 0.5], [-0.5, 0], [0, -0.5], [0.5, 0]],
-  square: [[-0.5, 0.5], [-0.5, -0.5], [0.5, -0.5], [0.5, 0.5]],
-  wide: [[-0.5, 0.25], [-0.5, -0.25], [0.5, -0.25], [0.5, 0.25]],
-};
-
-/**
- * A plate in its real shape, its origin at its middle, `sizeM` across. The front's
- * uv runs 0 to 1 over the plate's bounding square (v up), for a cell of the sign
- * sheet; the back is plain metal.
- */
-export function buildSignPlate(shape: SignShape, sizeM: number): RoadsideModel {
-  const outline = SIGN_OUTLINES[shape];
-  const corners = outline.map(([x, y]): V3 => [x * sizeM, y * sizeM, 0]);
-  const near = new Model()
-    .face(corners, "sign-face", 1, outline.map(([x, y]) => [x + 0.5, y + 0.5] as const))
-    .face([...corners].reverse().map(([x, y]): V3 => [x, y, -0.006]), "sign-back");
-  return model(near, null, 220, 220);
-}
 
 const FENCE_LOW_M = 0.08;
 

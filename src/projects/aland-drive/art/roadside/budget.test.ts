@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPine, buildPowerPole, buildSignPlate, buildSignPost, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, type RoadsideModel } from "./index";
+import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPine, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, type RoadsideModel } from "./index";
 
 const ROADSIDE_LIMIT = 150;
 const FAR_LIMIT = 24;
@@ -12,8 +12,6 @@ describe("roadside triangle budgets", () => {
     lamp: buildStreetLamp(),
     pole: buildPowerPole(),
     wire: buildWireSpan(),
-    post: buildSignPost(),
-    plate: buildSignPlate("round", 0.64),
     farm: buildFarmFence(),
     farmPost: buildFarmFencePost(),
     town: buildTownFence(),
