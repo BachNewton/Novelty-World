@@ -1,4 +1,4 @@
-import { drawCar, drawNames, drawRoads, drawRoute, type MapInk, type MapView } from "./draw";
+import { drawCar, drawNames, drawPlayers, drawRoads, drawRoute, type MapInk, type MapPlayer, type MapView } from "./draw";
 import type { MapTarget } from "../render/map-camera";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -36,6 +36,10 @@ const MAIN_NAMES = 18;
 const STREET_NAMES = 40;
 const ALL_NAMES = 60;
 const ROADS_THICKEN_FROM_SCALE = 0.02;
+/** Another player moving this far on screen redraws the map. */
+const PLAYER_REDRAW_PX = 2;
+/** Other players stay this far inside the canvas's edge. */
+const PLAYER_MARGIN_PX = 16;
 
 export class WorldMap {
   /** How far along the camera's flight things are, 0 at the car and 1 at the map, and which way it's going. */
@@ -53,6 +57,10 @@ export class WorldMap {
   private car = { x: 0, z: 0, heading: 0 };
   private route: Route | null = null;
   private along = 0;
+  private players: readonly MapPlayer[] = [];
+  private drawnPlayers: readonly MapPlayer[] = [];
+  /** How many other players the map last drew. */
+  playersDrawn = 0;
   private dragFrom: { x: number; y: number; moved: boolean } | null = null;
   private readonly pen: CanvasRenderingContext2D;
   private readonly abort = new AbortController();
@@ -149,6 +157,14 @@ export class WorldMap {
     this.canvas.height = this.canvas.clientHeight;
   }
 
+  /** Everyone else who's online, each frame: the map redraws once one has moved enough to see. */
+  setPlayers(players: readonly MapPlayer[]): void {
+    this.players = players;
+    const last = this.drawnPlayers;
+    const scale = this.view?.scale ?? 0;
+    if (players.length !== last.length || players.some((player, index) => player.name !== last[index].name || Math.hypot(player.x - last[index].x, player.z - last[index].z) * scale >= PLAYER_REDRAW_PX)) this.stale = true;
+  }
+
   setRoute(route: Route | null): void {
     this.route = route;
     this.along = 0;
@@ -203,6 +219,9 @@ export class WorldMap {
     drawRoads(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 1, ink, Math.min(1, 0.5 + ROADS_THICKEN_FROM_SCALE / view.scale));
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 0, zoomedIn ? ALL_NAMES : streets ? STREET_NAMES : MAIN_NAMES, ink);
+    drawPlayers(pen, view, this.players, 10, ink, { margin: PLAYER_MARGIN_PX }, true);
+    this.drawnPlayers = this.players;
+    this.playersDrawn = this.players.length;
     drawCar(pen, view, car.x, car.z, car.heading, 11, ink);
     if (cursor && this.flight === 1) {
       pen.strokeStyle = ink.accent;
