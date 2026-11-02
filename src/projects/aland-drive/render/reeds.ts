@@ -1,7 +1,7 @@
-import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
+import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { cos, dot, float, fract, If, int, mix, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
-import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -71,29 +71,6 @@ const MOST_CLUMPS = 0.1;
 /** The far clump is painted by height in these bands, each the near clump's own mean colour there. */
 const BAND_TOPS_M = [0.4, 0.9, 1.4, 1.9, 3.2];
 
-/** A shape's area-weighted mean paint in each height band, in the paint's own light. */
-function bandColours(shape: BufferGeometry, colours: Colour[]): Colour[] {
-  const position = shape.getAttribute("position");
-  const tint = shape.getAttribute("tint");
-  const order = shape.getIndex();
-  const corner = (at: number) => order?.getX(at) ?? at;
-  const triangle = new Triangle();
-  const middle = new Colour();
-  const sums = BAND_TOPS_M.map(() => ({ sum: new Colour(), area: 0 }));
-  for (let at = 0; at < (order?.count ?? position.count); at += 3) {
-    const first = corner(at);
-    triangle.setFromAttributeAndIndices(position, first, corner(at + 1), corner(at + 2));
-    triangle.getMidpoint(middle);
-    const band = sums[Math.max(0, BAND_TOPS_M.findIndex((top) => middle.y < top))];
-    const area = triangle.getArea();
-    band.sum.addScaledVector(colours[Math.round(tint.getX(first) * 255)], area * ((tint.getY(first) * 255) / 128));
-    band.area += area;
-  }
-  const filled = sums.filter(({ area }) => area > 0);
-  const top = filled[filled.length - 1];
-  return sums.map(({ sum, area }) => (area > 0 ? sum.divideScalar(area) : top.sum.clone().divideScalar(top.area)));
-}
-
 export interface ReedInputs {
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   landAt: LandAt;
@@ -124,7 +101,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
-  const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours)));
+  const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours, BAND_TOPS_M)));
 
   const far = Math.ceil(LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0) * MOST_CLUMPS);
   const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_CLUMP_M, stepM), 0);

@@ -1,4 +1,4 @@
-import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Vector2, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
+import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, fract, If, instanceIndex, mix, sin, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
 import { viewSides } from "./view-sides";
 
@@ -33,6 +33,34 @@ export interface Lattice {
   ends: Band;
   /** Moves the lattice's rolls, so its plants aren't another's. */
   salt: number;
+}
+
+/**
+ * A shape's area-weighted mean paint in each height band, in the paint's own light,
+ * by its tint's part and shade: what a far version is painted, band by band, so its
+ * swap with the near is of shape and never of colour. A band the shape doesn't reach
+ * takes the highest one it does.
+ */
+export function bandColours(shape: BufferGeometry, colours: Colour[], tops: readonly number[]): Colour[] {
+  const position = shape.getAttribute("position");
+  const tint = shape.getAttribute("tint");
+  const order = shape.getIndex();
+  const corner = (at: number) => order?.getX(at) ?? at;
+  const triangle = new Triangle();
+  const middle = new Colour();
+  const sums = tops.map(() => ({ sum: new Colour(), area: 0 }));
+  for (let at = 0; at < (order?.count ?? position.count); at += 3) {
+    const first = corner(at);
+    triangle.setFromAttributeAndIndices(position, first, corner(at + 1), corner(at + 2));
+    triangle.getMidpoint(middle);
+    const band = sums[Math.max(0, tops.findIndex((top) => middle.y < top))];
+    const area = triangle.getArea();
+    band.sum.addScaledVector(colours[Math.round(tint.getX(first) * 255)], area * ((tint.getY(first) * 255) / 128));
+    band.area += area;
+  }
+  const filled = sums.filter(({ area }) => area > 0);
+  const top = filled[filled.length - 1];
+  return sums.map(({ sum, area }) => (area > 0 ? sum.divideScalar(area) : top.sum.clone().divideScalar(top.area)));
 }
 
 export const reachOf = ({ ends }: Lattice) => ends[1] + ends[2];
