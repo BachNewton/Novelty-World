@@ -8,9 +8,11 @@ It lives at Games → 3D Games → Åland Drive. It is the whole main island, 54
 
 | | Keyboard | Controller |
 |---|---|---|
-| Accelerate | W or Up | RT |
-| Brake, then reverse | S or Down | LT |
-| Steer | A and D, or Left and Right | Left stick |
+| Accelerate | W | RT |
+| Brake, then reverse | S | LT |
+| Steer | A and D | Left stick |
+| Look left, right or behind, while held | Left, Right, Down | |
+| Look down on the car, while held | Up | |
 | Handbrake | Space | A |
 | Back to the nearest road | R | Y |
 | Free camera | F | View |
@@ -47,7 +49,7 @@ The scene is east +x, up +y and north -z. The renderer uses a reversed depth buf
 - **An engine and an automatic gearbox** (`sim/gearbox.ts`): six gears, and the pull at the road is the torque curve at the revs, through the gear, cut for the moment of a shift. A closed throttle brakes on the engine. Nothing caps the speed: the car stops gaining where drag meets the engine, about 260 km/h on the flat, and top gear's redline is past that. Shifting is automatic only, and manual shifting is an idea for later. The sound hears these same gears and revs, and speed, gear and revs share one dial at the bottom right.
 - **A fixed step of 120 Hz**, with no clock in the simulation: the same inputs play out the same. Each frame draws the car between its last two steps.
 - **The car's state** (`CarState`, `sim/car-state.ts`) is one small record that survives JSON, and the car is drawn from it and nothing else, ready to be sent to other players. The drawing is `art/cars` (`createCarView`, `PLAYER_CAR`), and a `sim/tuning.ts` change to the car's axles, track or wheels moves it, because the art takes those numbers from there. Its lamps aren't in `CarState`, so nothing lights them yet.
-- **The end of the world** is a wall with a low coloured band on it, on every side of a tile with no tile beyond. **Water** has no depth in the data, so a car in it is dragged to a stop and put back on the nearest road within a few seconds, as is a car left on its side or roof. A road over water doesn't count as water.
+- **The end of the world** is a wall with a low coloured band on it, on every side of a tile with no tile beyond. **Water** has no depth in the data, so a car in it is dragged to a stop. Nothing ever puts the car back by itself, in water or on its roof: a reset is always the player's, with R or Y. A road over water doesn't count as water.
 - **Buildings stop the car; trees don't.** A building's outline is a band of wall triangles in the same collision blocks, 6 m tall, from the pipeline's outlines, so the car never climbs a roof and a `sim/world.test.ts` case holds that it can't pass one at top speed. A building a motor road runs through gets no walls, which each tile's `solids.overRoads` counts. Trees have no collision: they are a shader's, with no list to collide with.
 - **What the car collides with is what's drawn** (`sim/ground.ts`): the same triangles of ground and road, in 120 m blocks on one lattice for the whole world, three by three round the car. A triangle mesh rather than Rapier's heightfield, so the diagonals are the render's by construction; `sim/drive.test.ts` holds the two copies together. A block doesn't know which tile its heights and roads came from, so the car feels nothing at a tile's edge, and `sim/world.test.ts` pins that.
 - **The world** (`sim/world.ts`) is all the land the game knows, with no GPU in it, for the simulation and the terrain alike. Every tile has far heights from the start, and those near the car have detail. Ground with no detail yet answers from the far heights, for what's drawn and what's driven on alike, so the car can't find a hole, only coarser ground with no roads.

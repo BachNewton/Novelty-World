@@ -899,7 +899,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     } else if (cameraMode === "free") {
       if (!devMenuOpen) freeCamera.update(now);
     } else {
-      chaseCamera.update(car, held ? STEP_S * 4 : seconds);
+      chaseCamera.update(car, held ? STEP_S * 4 : seconds, controls.look());
       hazeM.value = HAZE_M;
       paintedShare.value = 1;
     }

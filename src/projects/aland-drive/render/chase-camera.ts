@@ -25,7 +25,17 @@ const CHASE = {
   /** Below this the camera follows the nose: there's no direction of travel to follow. */
   slowMS: 3,
   aboveGroundM: 1,
+  /** Looking straight down on the car from this high. */
+  downAboveM: 16,
+  /** How quickly a look round turns, and comes back. */
+  lookPerS: 12,
 } as const;
+
+/** Where the driver is looking: the car turns the camera round it, or lifts it overhead. */
+export type ChaseLook = "ahead" | "left" | "right" | "behind" | "down";
+
+/** A look's turn from ahead: heading grows to the left. */
+const LOOK_TURN: Record<Exclude<ChaseLook, "down">, number> = { ahead: 0, left: Math.PI / 2, right: -Math.PI / 2, behind: Math.PI };
 
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
@@ -33,6 +43,8 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
   let swing: number | null = null;
   let height = 0;
   let fieldOfView: number = CHASE.fieldOfViewDeg;
+  let lookTurn = 0;
+  let downShare = 0;
 
   const setFieldOfView = (degrees: number) => {
     if (camera.fov === degrees) return;
@@ -44,9 +56,11 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
     /** Forgets where it was, for a car that's been put somewhere else. */
     snap() {
       swing = null;
+      lookTurn = 0;
+      downShare = 0;
     },
     /** Moves the camera after `seconds` of the car's motion. */
-    update(car: CarState, seconds: number) {
+    update(car: CarState, seconds: number, look: ChaseLook) {
       const heading = headingOf(car.rotation);
       const [x, y, z] = car.position;
       const speed = speedOf(car);
@@ -62,13 +76,19 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
       height += (y - height) * Math.min(1, CHASE.heightPerS * seconds);
       const fast = Math.min(speed / CHASE.topSpeedMS, 1);
       const behind = CHASE.behindM + CHASE.speedBackM * fast * fast;
-      const noseX = -Math.sin(swing);
-      const noseZ = -Math.cos(swing);
-      const cameraX = x - noseX * behind;
-      const cameraZ = z - noseZ * behind;
-      camera.position.set(cameraX, Math.max(height + CHASE.aboveM, groundAt(cameraX, cameraZ) + CHASE.aboveGroundM), cameraZ);
-      camera.up.set(0, 1, 0);
-      camera.lookAt(x + noseX * CHASE.lookAheadM, height + CHASE.lookAboveM, z + noseZ * CHASE.lookAheadM);
+      const easeLook = Math.min(1, CHASE.lookPerS * seconds);
+      lookTurn += ((look === "down" ? 0 : LOOK_TURN[look]) - lookTurn) * easeLook;
+      downShare += ((look === "down" ? 1 : 0) - downShare) * easeLook;
+      const viewX = -Math.sin(swing + lookTurn);
+      const viewZ = -Math.cos(swing + lookTurn);
+      const cameraX = x - viewX * behind;
+      const cameraZ = z - viewZ * behind;
+      const cameraY = Math.max(height + CHASE.aboveM, groundAt(cameraX, cameraZ) + CHASE.aboveGroundM);
+      const lerp = (from: number, to: number) => from + (to - from) * downShare;
+      camera.position.set(lerp(cameraX, x), lerp(cameraY, height + CHASE.downAboveM), lerp(cameraZ, z));
+      // Straight down, "up" on screen is the way the car is going; with world up there, lookAt has no answer.
+      camera.up.set(lerp(0, -Math.sin(swing)), 1 - downShare, lerp(0, -Math.cos(swing)));
+      camera.lookAt(lerp(x + viewX * CHASE.lookAheadM, x), lerp(height + CHASE.lookAboveM, height), lerp(z + viewZ * CHASE.lookAheadM, z));
       fieldOfView += (CHASE.fieldOfViewDeg + CHASE.speedFieldOfViewDeg * fast * fast - fieldOfView) * Math.min(1, CHASE.fieldOfViewPerS * seconds);
       setFieldOfView(fieldOfView);
     },
