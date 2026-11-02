@@ -17,6 +17,7 @@ import { BLOCK_M, SEA_HEIGHT_M, World, tileDetail } from "./world";
 const TILE_M = 6000;
 const NODES = 1501;
 const STEP_M = 4;
+const DRY_LEVEL_M = -300;
 const FAR_NODES = 376;
 
 const landHeight = (x: number, z: number) => 12 + 2 * Math.sin(x / 300) + Math.cos(z / 200);
@@ -30,6 +31,9 @@ const gridAt = (column: number, row: number, nodes: number, stepM: number): Heig
   }
   return { nodes, stepM, west, north: -top, heights };
 };
+
+/** Water levels with no water near. */
+const dryAt = (column: number, row: number, nodes: number, stepM: number): HeightGrid => ({ ...gridAt(column, row, nodes, stepM), heights: new Float32Array(nodes * nodes).fill(DRY_LEVEL_M) });
 
 const manifest = {
   version: "test",
@@ -47,7 +51,7 @@ const manifest = {
   ground: { file: "", pixels: 3000, farFile: "", farPixels: 750 },
   canopy: { file: "", pixels: 1500, unitM: 0.25 },
   stands: { file: "", pixels: 125 },
-  water: { nodesFile: "" },
+  water: { nodesFile: "", levelsFile: "", farLevelsFile: "", dryLevel: DRY_LEVEL_M },
   overview: { west: -TILE_M, north: TILE_M, columns: 2, rows: 2, stepM: 80, unitM: 0.01, heightsFile: "", imageFile: "", imageWidth: 1, imageHeight: 1 },
   map: { file: "" },
   sun: { azimuthDeg: 215, elevationDeg: 30 },
@@ -78,15 +82,15 @@ function tileManifest(name: string, west: number, sections: number): TileManifes
 
 function twoTiles(withEastDetail = true, walls?: Float32Array): World {
   const world = new World(manifest);
-  world.addFar("WEST", gridAt(-1, -1, FAR_NODES, 16));
-  world.addFar("EAST", gridAt(0, -1, FAR_NODES, 16));
+  world.addFar("WEST", gridAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16));
+  world.addFar("EAST", gridAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16));
   const nodesWet = new Uint8Array(NODES * NODES);
   const west = roadBytes(-TILE_M, 0);
-  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, nodesWet, TILE_M, walls));
+  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, nodesWet, dryAt(-1, -1, NODES, STEP_M), TILE_M, walls));
   if (withEastDetail) {
     // Its chain runs the other way, towards the seam, as a neighbour's may.
     const east = roadBytes(TILE_M, 0);
-    world.addDetail(tileDetail(tileManifest("EAST", 0, east.sections), gridAt(0, -1, NODES, STEP_M), east.bytes, nodesWet, TILE_M));
+    world.addDetail(tileDetail(tileManifest("EAST", 0, east.sections), gridAt(0, -1, NODES, STEP_M), east.bytes, nodesWet, dryAt(0, -1, NODES, STEP_M), TILE_M));
   }
   return world;
 }
@@ -179,7 +183,7 @@ describe("ground with no detail yet", () => {
     const farOnly = world.node(101, -700);
     const revision = world.revision;
     const east = roadBytes(TILE_M, 0);
-    world.addDetail(tileDetail(tileManifest("EAST", 0, east.sections), gridAt(0, -1, NODES, STEP_M), east.bytes, new Uint8Array(NODES * NODES), TILE_M));
+    world.addDetail(tileDetail(tileManifest("EAST", 0, east.sections), gridAt(0, -1, NODES, STEP_M), east.bytes, new Uint8Array(NODES * NODES), dryAt(0, -1, NODES, STEP_M), TILE_M));
     expect(world.revision).toBeGreaterThan(revision);
     expect(Math.abs(world.node(101, -700) - farOnly)).toBeLessThan(0.1);
     world.removeDetail("EAST");

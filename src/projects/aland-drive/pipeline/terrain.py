@@ -32,6 +32,23 @@ SKY_REACH_SAMPLES = (1, 2, 3, 5, 8, 12, 20, 35, 60, 100, 160)
 # A lake or the sea is written as one exact level, which real ground never is.
 WATER_FLATNESS_M = 0.002
 WATER_MIN_SAMPLES = 2500  # One hectare.
+# The drawn surface sits this far under the model's flat water, so the lowest shore stands
+# clear of it and the two never flicker through each other.
+WATERLINE_BELOW_FLAT_M = 0.15
+# The ground under water falls this much a metre out from the shore, to at most this.
+SEABED_SLOPE = 0.22
+DEEPEST_M = 3.5
+# The model's flat water stops a sample or two short of the shore, at ground within a few
+# centimetres of it that is shallow water in the photo: up to this far out and this high,
+# the seabed takes it too.
+SHALLOWS_GROW_SAMPLES = 3
+SHALLOWS_ABOVE_M = 0.06
+# Shore lines follow the samples in steps; this much blur turns the steps into a curve.
+SHORE_BLUR_SAMPLES = 1.0
+# How far beyond water a corner still carries its level: past a triangle of the coarsest ring that draws it.
+LEVEL_REACH_M = 40.0
+LEVEL_BLUR_SAMPLES = 4
+DRY_LEVEL_M = -300.0
 
 
 def read_with_rim(tile: Tile, nodata_is_sea: bool = False) -> np.ndarray:
@@ -127,13 +144,78 @@ def bake_shade(mosaic: np.ndarray) -> np.ndarray:
     return light[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES]
 
 
-def water_mask(mosaic: np.ndarray) -> np.ndarray:
-    """True on the mosaic's samples, rim included, that are lake or sea: large areas of one exact level."""
+def flat_water(mosaic: np.ndarray) -> np.ndarray:
+    """True on samples that are surely lake or sea: inside a large area of one exact level."""
     spread = ndimage.maximum_filter(mosaic, 3) - ndimage.minimum_filter(mosaic, 3)
     labels, _ = ndimage.label(spread <= WATER_FLATNESS_M)
     sizes = np.bincount(labels.ravel())
     sizes[0] = 0
-    water = sizes[labels] >= WATER_MIN_SAMPLES
+    return sizes[labels] >= WATER_MIN_SAMPLES
+
+
+def water_mask(mosaic: np.ndarray) -> np.ndarray:
+    """True on the mosaic's samples, rim included, that are lake or sea."""
+    return water_around(flat_water(mosaic))
+
+
+def water_around(flat: np.ndarray) -> np.ndarray:
+    """The flat water, with what the flatness test loses round it."""
     # The flatness test loses the cell next to every shore, and the line where two tiles'
     # water levels meet, a few centimetres apart: give both back.
-    return ndimage.binary_closing(ndimage.binary_dilation(water))
+    return ndimage.binary_closing(ndimage.binary_dilation(flat))
+
+
+def _on_corners(samples: np.ndarray) -> np.ndarray:
+    """A field on the samples, read at the tile's corners as the mean of the four samples round each."""
+    return tile_corners(sample_corners(samples))
+
+
+def flat_levels(mosaic: np.ndarray, flat: np.ndarray) -> np.ndarray:
+    """The level of the flat water nearest each sample of the mosaic. There must be some."""
+    # An average over the flat water nearby rather than the nearest sample, which ties where two levels meet and
+    # would break the tie one way from each side of a seam.
+    weight = ndimage.gaussian_filter(flat.astype(np.float64), LEVEL_BLUR_SAMPLES)
+    known = weight > 1e-3
+    blurred = ndimage.gaussian_filter(np.where(flat, mosaic, 0).astype(np.float64), LEVEL_BLUR_SAMPLES) / np.where(known, weight, 1)
+    _, (rows, columns) = ndimage.distance_transform_edt(~known, return_indices=True)
+    return blurred[rows, columns]
+
+
+def water_levels(mosaic: np.ndarray, flat: np.ndarray) -> np.ndarray:
+    """The drawn water surface at each of the tile's corners, or DRY_LEVEL_M beyond LEVEL_REACH_M of water.
+
+    A corner takes the level of the nearest water, so the surface runs on flat under the
+    shore's first metres and the land, not the surface, decides where the waterline falls.
+    """
+    if not flat.any():
+        return np.full(tile_corners(sample_corners(mosaic)).shape, DRY_LEVEL_M, dtype=np.float32)
+    to_water = ndimage.distance_transform_edt(~flat)
+    levels = np.where(to_water * SAMPLE_M <= LEVEL_REACH_M, flat_levels(mosaic, flat) - WATERLINE_BELOW_FLAT_M, np.nan)
+    # Every corner reads its four samples, and one of them in reach is enough: the surface must reach the land.
+    corners = np.fmax(np.fmax(levels[:-1, :-1], levels[1:, :-1]), np.fmax(levels[:-1, 1:], levels[1:, 1:]))
+    return np.nan_to_num(tile_corners(corners), nan=DRY_LEVEL_M)
+
+
+def shallows(mosaic: np.ndarray, flat: np.ndarray, water: np.ndarray) -> np.ndarray:
+    """The water with the ground just beyond it that is no higher than the water: the photo's shallows."""
+    low = mosaic <= flat_levels(mosaic, flat) + SHALLOWS_ABOVE_M
+    return ndimage.binary_dilation(water, iterations=SHALLOWS_GROW_SAMPLES, mask=low | water)
+
+
+def seabed(corners: np.ndarray, untouched: np.ndarray, mosaic: np.ndarray, flat: np.ndarray, water: np.ndarray, levels: np.ndarray) -> np.ndarray:
+    """The tile's corners with the ground under water falling away from the shore, below the drawn surface.
+
+    The model writes water as its flat surface, so without this the land meets the water
+    on a slope of nothing and the shore has no line. The seabed starts at the drawn surface
+    on a smooth line round the water, so the shore is a curve rather than the samples' steps.
+    Corners another rule shaped (`untouched` false: roads, culverts) keep their height.
+    """
+    if not flat.any():
+        return corners
+    wet = shallows(mosaic, flat, water)
+    # A sample's distance to the shore is from its middle, half a sample short of what the transform counts.
+    signed = (ndimage.distance_transform_edt(wet) - 0.5 * wet) - (ndimage.distance_transform_edt(~wet) - 0.5 * ~wet)
+    signed_m = _on_corners(ndimage.gaussian_filter(signed, SHORE_BLUR_SAMPLES) * SAMPLE_M)
+    depth = np.minimum(SEABED_SLOPE * signed_m, DEEPEST_M)
+    under = (signed_m > 0) & untouched & (levels > DRY_LEVEL_M)
+    return np.where(under, np.minimum(corners, levels - depth), corners)

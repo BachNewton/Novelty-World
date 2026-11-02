@@ -42,7 +42,7 @@ export interface WorldManifest {
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
   stands: { file: string; pixels: number };
-  water: { nodesFile: string };
+  water: { nodesFile: string; levelsFile: string; farLevelsFile: string; dryLevel: number };
   overview: OverviewFormat;
   map: { file: string };
   sun: { azimuthDeg: number; elevationDeg: number };

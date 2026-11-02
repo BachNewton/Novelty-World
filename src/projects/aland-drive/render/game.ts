@@ -9,7 +9,7 @@ import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
 import { createVerge, type VergeDrawn } from "./verge";
-import { createWater, WATER_SHORE_MIP } from "./water";
+import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
@@ -184,7 +184,11 @@ export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
 const SKY_REACH_M = CAMERA_FAR * 0.9;
-const SEA_BELOW_LAND_M = -1.2;
+/** Under the deepest seabed (`DEEPEST_M` in `pipeline/terrain.py`), so where the terrain reaches, it draws its own water. */
+const SEA_BELOW_LAND_M = -5;
+/** Land this little above the water is wet, and darker for it. */
+const WET_BAND_M = 0.35;
+const WET_SHADE = 0.62;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
@@ -397,9 +401,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
-  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, shoreAt: select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0)), skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
-  const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
-  const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
+  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))));
+  const pastTiles = select(inOverview, mix(openSea, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), openSea);
+  const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth));
+  const terrainColour = (depth: Node<"float">) => {
+    // The ground under water is drawn as the water above it, in a line as sharp as the pixel, so far off, where no
+    // water mesh is, the shore still has its edge.
+    const edge = fwidth(depth).max(0.001);
+    const under = smoothstep(edge.negate(), edge, depth);
+    const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
+    const near = mix(land.mul(mix(float(1), float(WET_SHADE), wet)), waterColour(depth), under);
+    return hazed(mix(pastTiles, near, farSeen));
+  };
 
   const linear = (name: string) => {
     const { r, g, b } = token(name);
@@ -408,7 +422,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const { canopyAt, standsAt, roadsAt, landAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt,
@@ -426,7 +440,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
   const seaMaterial = new MeshBasicNodeMaterial();
-  seaMaterial.colorNode = hazed(waterOf.color);
+  seaMaterial.colorNode = hazed(openSea);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
   scene.add(sea);

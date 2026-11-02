@@ -40,7 +40,7 @@ NOT_IN_VERSION = {"world.json", "routes.json"}
 HEIGHT_UNIT_M = 0.01
 SHADE_QUALITY = 90
 SHADE_GAMMA = 2.2
-FORMAT = 5
+FORMAT = 6
 # Far terrain: every fourth height node, so the nodes it shares with the 4 m grid, edges included, are the same numbers.
 FAR_NODE_STRIDE = 4
 FAR_SHADE_PIXELS = 750
@@ -108,7 +108,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     folder.mkdir(parents=True, exist_ok=True)
 
     mosaic = terrain.read_with_rim(tile)
-    water_with_rim = terrain.water_mask(mosaic)
+    flat_water = terrain.flat_water(mosaic)
+    water_with_rim = terrain.water_around(flat_water)
     water = water_with_rim[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES]
 
     west, south = to_local(tile.west, tile.south)
@@ -161,10 +162,15 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             **osm_licence,
         }
 
+    levels = terrain.water_levels(mosaic, flat_water)
+    conformed = terrain.seabed(conformed, conformed == raw, mosaic, flat_water, water_with_rim, levels)
     nodes = terrain.height_nodes(conformed)
+    level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
     (folder / "heights-far.bin.gz").write_bytes(encode_heights(nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
     (folder / "water-nodes.bin.gz").write_bytes(gzip.compress(water_nodes(water).tobytes(), 9, mtime=0))
+    (folder / "water-levels.bin.gz").write_bytes(encode_heights(level_nodes))
+    (folder / "water-levels-far.bin.gz").write_bytes(encode_heights(level_nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
     surface_mask(water, baked, west, north).save(folder / "mask.png", optimize=True)
 
     shade = terrain.bake_shade(terrain.with_ground_moved(mosaic, raw, conformed))
@@ -205,7 +211,13 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "stands": stands.MANIFEST,
         "solids": solids_manifest,
         "buildingSheets": building_sheets(tile),
-        "water": {"nodesFile": "water-nodes.bin.gz"},
+        "water": {
+            "nodesFile": "water-nodes.bin.gz",
+            "levelsFile": "water-levels.bin.gz",
+            "farLevelsFile": "water-levels-far.bin.gz",
+            "dryLevel": terrain.DRY_LEVEL_M,
+            "encoding": "the drawn water surface at each height node, coded as the heights are; dryLevel where no water is near",
+        },
         "roads": {"file": "roads.json", "count": len(roads)},
         "buildings": {"file": "buildings.json", "count": len(buildings)},
         "attribution": ATTRIBUTION,
