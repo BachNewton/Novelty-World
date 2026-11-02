@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, floor, ivec2, max, min, mix, mod, positionGeometry, round, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { abs, float, floor, If, ivec2, max, min, mix, mod, positionGeometry, round, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -91,6 +91,8 @@ export interface Clipmap {
   waterLevelAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** Metres from the shore at a place, out into the water and below zero on land, read between the ring's four nearest nodes as the waterline is drawn. */
   shoreAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches. */
+  shoreAround: (place: Node<"vec2">) => Node<"float">;
   dispose: () => void;
 }
 
@@ -230,6 +232,25 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     },
     shoreAt(level, place) {
       return rings[level].shoreAt(place);
+    },
+    shoreAround(place) {
+      const off = abs(place.sub(cameraSpot)).toVar();
+      const from = max(off.x, off.y);
+      // A ring's corner sits on its own lattice, so its middle can be a couple of cells off the camera.
+      const holds = (level: number) => from.lessThan((CELLS / 2 - 2) * rings[level].stepM);
+      const shore = float(0).toVar();
+      let chain = If(holds(0), () => {
+        shore.assign(rings[0].shoreAt(place));
+      });
+      for (let level = 1; level < DRIVING_LEVELS - 1; level++) {
+        chain = chain.ElseIf(holds(level), () => {
+          shore.assign(rings[level].shoreAt(place));
+        });
+      }
+      chain.Else(() => {
+        shore.assign(rings[DRIVING_LEVELS - 1].shoreAt(place));
+      });
+      return shore;
     },
     showWide(shown) {
       for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;

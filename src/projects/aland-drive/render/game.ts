@@ -444,9 +444,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     sun: manifest.sun,
   });
 
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
-  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), lightOf, linear, hazed });
-  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, sun: manifest.sun });
+  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
+  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, sun: manifest.sun });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
