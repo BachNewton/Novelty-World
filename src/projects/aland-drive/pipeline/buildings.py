@@ -29,6 +29,7 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import split, unary_union
 
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, Tile, neighbour, to_local
+from outbuildings import Placed, toward
 from sources import buildings3d_path, topographic_path
 
 CELL_M = 600
@@ -486,8 +487,8 @@ def _road_shapes(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> tuple[list[Pol
     return strips, lines
 
 
-def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path) -> tuple[dict, np.ndarray]:
-    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building."""
+def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None) -> tuple[dict, np.ndarray]:
+    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building. A footprint `placed` takes is a model of its own, not a shape here."""
     west, north = to_local(tile.west, tile.north)
     heights = Heights(corners, west, north)
     footprints = read_footprints(tile)
@@ -501,15 +502,16 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     cells: dict[tuple[int, int], Cell] = {}
     outlines: list[Polygon] = []
     through = 0
-    counts = {"modelled": 0, "generated": 0}
+    counts = {"modelled": 0, "generated": 0, "placed": 0}
 
-    def place(faces: list[Face], local: Polygon, kind: int, name: str, base: float) -> None:
+    def place(faces: list[Face] | None, local: Polygon, kind: int, name: str, base: float) -> None:
         nonlocal through
-        seed = _seed(name)
-        middle = np.array(local.representative_point().coords[0])
-        cell = cells.setdefault((math.floor(middle[0] / CELL_M), math.floor(-middle[1] / CELL_M)), Cell())
-        roof_colour = _roof_colour(local, photo, west, north)
-        _mesh_solid(cell, faces, base, _material(kind, local.area, seed), roof_colour, seed, middle, street, lines)
+        if faces is not None:
+            seed = _seed(name)
+            middle = np.array(local.representative_point().coords[0])
+            cell = cells.setdefault((math.floor(middle[0] / CELL_M), math.floor(-middle[1] / CELL_M)), Cell())
+            roof_colour = _roof_colour(local, photo, west, north)
+            _mesh_solid(cell, faces, base, _material(kind, local.area, seed), roof_colour, seed, middle, street, lines)
         beside = local.buffer(CAR_ROOM_M)
         on_road = sum(strips[index].intersection(beside).area for index in road_tree.query(beside)) if road_tree is not None else 0
         if on_road > TOUCHES_ROAD_M2:
@@ -528,10 +530,16 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         if not (tile.west <= middle.x < tile.east and tile.south <= middle.y < tile.north):
             continue
         hits = [index for index in tree.query(solid.footprint) if footprints[index].shape.intersects(solid.footprint)]
-        kind = footprints[max(hits, key=lambda index: footprints[index].shape.intersection(solid.footprint).area)].kind if hits else 0
+        best = max(hits, key=lambda index: footprints[index].shape.intersection(solid.footprint).area) if hits else None
+        kind = footprints[best].kind if best is not None else 0
         faces = [Face(face.kind, np.column_stack((*to_local(face.ring[:, 0], face.ring[:, 1]), face.ring[:, 2]))) for face in solid.faces]
         local = shapely.transform(solid.footprint, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1])))
-        base = float(np.median(heights.at(*np.array(local.exterior.coords).T)))
+        ground = heights.at(*np.array(local.exterior.coords).T)
+        base = float(np.median(ground))
+        if placed is not None and best is not None and placed.take_solid(kind, local, solid.footprint, footprints[best].shape, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(solid.name)):
+            place(None, local, kind, solid.name, base)
+            counts["placed"] += 1
+            continue
         place(_with_walls_to_ground(faces, heights), local, kind, solid.name, base)
         counts["modelled"] += 1
 
@@ -543,9 +551,15 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         local = shapely.transform(footprint.shape, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1]))).simplify(0.25)
         if local.geom_type != "Polygon" or local.area < 4:
             continue
-        base = float(np.median(heights.at(*np.array(local.exterior.coords).T)))
+        ground = heights.at(*np.array(local.exterior.coords).T)
+        base = float(np.median(ground))
+        name = f"{tile.name}-{index}"
+        if placed is not None and placed.take(footprint.kind, local, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(name)):
+            place(None, local, footprint.kind, name, base)
+            counts["placed"] += 1
+            continue
         faces, _ = _generated_shape(footprint, local, above, west, north, base)
-        place(faces, local, footprint.kind, f"{tile.name}-{index}", base)
+        place(faces, local, footprint.kind, name, base)
         counts["generated"] += 1
 
     walls = []
@@ -556,5 +570,5 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     wall_array = np.concatenate(walls) if walls else np.zeros((0, 4))
     (folder / "solids.bin.gz").write_bytes((data := _encode(cells, wall_array))[0])
     triangles = sum(entry["indices"] for entry in data[1]) // 3
-    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
+    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
     return {"file": "solids.bin.gz", "unitM": UNIT_M, "cells": data[1], "walls": len(wall_array), "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)", "overRoads": through, "modelled": counts["modelled"], "generated": counts["generated"]}, built

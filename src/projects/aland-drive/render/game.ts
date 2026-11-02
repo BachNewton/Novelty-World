@@ -5,6 +5,7 @@ import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, ROAD_TIERS, SHADE_SHARE, type RoadTier, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
+import { createRuralBuildings } from "./rural-buildings";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
@@ -23,6 +24,7 @@ import { createCarView } from "../art/cars/model";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, pulses } from "../art/surfaces";
+import { ruralMaterials } from "../art/rural/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -475,6 +477,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return new Vector3(r, g, b);
   };
   const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, manifest.sun);
+  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
+  // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
+  const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const bridges = new Map<string, Mesh>();
@@ -493,13 +498,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, models }, done) {
         const meshes = ribbonMeshes(detail, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
         const solids = buildingMeshes(cells, wallMaterial);
         scene.add(solids.group);
         buildings.set(detail.name, solids);
+        outbuildings.add(detail.name, models);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
@@ -530,6 +536,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.remove(solids.group);
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
+        outbuildings.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
           scene.remove(bridge);
@@ -587,11 +594,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     for (const { mesh } of cells) mesh.visible = true;
   }
   clipmap.showWide(true);
+  outbuildings.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
   cullCar(true);
   clipmap.showWide(false);
+  outbuildings.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -1053,6 +1062,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const { mesh } of cells) mesh.geometry.dispose();
       }
       wallMaterial.dispose();
+      outbuildings.dispose();
+      outbuildingMaterials.near.dispose();
+      outbuildingMaterials.far.dispose();
       grainTexture.dispose();
       for (const { cells } of ribbons.values()) {
         for (const { mesh } of cells) mesh.geometry.dispose();

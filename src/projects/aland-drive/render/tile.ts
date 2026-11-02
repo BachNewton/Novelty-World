@@ -25,6 +25,8 @@ export interface TileManifest {
   bounds: { west: number; south: number; east: number; north: number };
   roadSurface: { file: string; chains: RoadChain[]; aprons?: { points: number; triangles: number } };
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
+  /** Boathouses and sheds drawn by the rural kit on real footprints. A tile built before them has none. */
+  models?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */

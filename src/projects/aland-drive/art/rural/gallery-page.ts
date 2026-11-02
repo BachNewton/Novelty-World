@@ -244,6 +244,17 @@ for (const away of [230, 268, 290, 320]) look(`band-mill-${away}`, `mill dissolv
 for (const away of [40, 50, 60]) look(`band-sheep-${away}`, `sheep at ${away} m`, 24, [0, EYE_M, BAND_Z + away], [0, 2, BAND_Z], 12);
 for (const away of [380, 440, 490, 515]) look(`band-boulder-${away}`, `boulder grows at ${away} m`, 16, [0, EYE_M + 1, BAND_Z + away], [0, 1, BAND_Z], 1.6);
 
+// Near against far: each building twice, the left one always its far version and the right one always its near one, from
+// close and from where the two swap, so the far version's painted door, windows and trim can be held against the faces.
+const SWAP_Z = 1300;
+const swaps = [["shed", buildShed("red"), 3.5], ["boathouse", buildBoathouse("tarred"), 5.5]] as const;
+swaps.forEach(([name, model, apart], index) => {
+  const x = -200 + index * 40;
+  add({ ...model, swapM: 0 }, [{ x: x - apart, y: 0, z: SWAP_Z, yaw: 0.5 }]);
+  add({ ...model, swapM: 1e4, reachM: 1e4 }, [{ x: x + apart, y: 0, z: SWAP_Z, yaw: 0.5 }]);
+  for (const away of [12, model.swapM]) look(`swap-${name}-${away}`, `${name}, far and near, at ${away} m`, x, [0, EYE_M + 1, SWAP_Z + away], [0, 2, SWAP_Z], (2 * Math.atan((apart * 1.6) / away) * 180) / Math.PI);
+});
+
 // The stretch of country, for the cost.
 const COUNTRY_X = -3400;
 const COUNTRY_M = 2400;
