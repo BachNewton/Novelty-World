@@ -22,6 +22,14 @@ export interface WallsFile {
   walls: [number, number][][];
 }
 
+/** A tile's buildings' outlines and its stone walls' faces, as one list for the simulation. */
+export function withWalls(outlines: Float32Array, faces: Float32Array): Float32Array {
+  const all = new Float32Array(outlines.length + faces.length);
+  all.set(outlines);
+  all.set(faces, outlines.length);
+  return all;
+}
+
 /** Every wall's sections, each line cut into equal lengths near `SECTION_M` and stood on the grid's surface. */
 export function wallSections(file: WallsFile, grid: HeightGrid): WallSections {
   const ends: number[] = [];
@@ -49,19 +57,19 @@ export function wallSections(file: WallsFile, grid: HeightGrid): WallSections {
 }
 
 /**
- * What the car can't pass, as the simulation's walls (`WALL_FLOATS` to one): both faces of every section, standing on
- * the ground as a building's outline does, and as tall. The car's box rides 0.4 m off the ground, so a wall only as tall
+ * What the car can't pass, as a building's outline is (two ends to a wall, x and z): both faces of every section,
+ * standing on the ground as tall as an outline's walls. The car's box rides 0.4 m off the ground, so a wall only as tall
  * as its stones would overlap it by a hand's width, and at speed the solver lifts the car over it rather than stopping
  * it; a test drives into one flat out.
  */
 export function wallFaces(sections: WallSections): Float32Array {
   const count = sections.length / SECTION_FLOATS;
-  const faces = new Float32Array(count * 2 * 6).fill(Number.NaN);
+  const faces = new Float32Array(count * 2 * 4);
   for (let section = 0; section < count; section++) {
     const [x1, , z1, x2, , z2] = sections.subarray(section * SECTION_FLOATS, (section + 1) * SECTION_FLOATS);
     const length = Math.max(Math.hypot(x2 - x1, z2 - z1), 1e-6);
     const [acrossX, acrossZ] = [(-(z2 - z1) / length) * STONE_WALL_HALF_WIDE_M, ((x2 - x1) / length) * STONE_WALL_HALF_WIDE_M];
-    for (const [side, way] of [[0, 1], [1, -1]] as const) faces.set([x1 + acrossX * way, z1 + acrossZ * way, x2 + acrossX * way, z2 + acrossZ * way], (section * 2 + side) * 6);
+    for (const [side, way] of [[0, 1], [1, -1]] as const) faces.set([x1 + acrossX * way, z1 + acrossZ * way, x2 + acrossX * way, z2 + acrossZ * way], (section * 2 + side) * 4);
   }
   return faces;
 }

@@ -81,12 +81,12 @@ function tileManifest(name: string, west: number, sections: number): TileManifes
   return { tile: name, bounds: { west, east: west + TILE_M, south: 0, north: TILE_M }, roadSurface: { file: "", chains: [{ sections, kind: "primary", motor: true }] }, solids: { file: "", unitM: 0.02, cells: [], walls: 0 } };
 }
 
-function twoTiles(withEastDetail = true, walls?: Float32Array, standing?: Float32Array): World {
+function twoTiles(withEastDetail = true, walls?: Float32Array): World {
   const world = new World(manifest);
   world.addFar("WEST", gridAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16));
   world.addFar("EAST", gridAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16));
   const west = roadBytes(-TILE_M, 0);
-  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls, standing));
+  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls));
   if (withEastDetail) {
     // Its chain runs the other way, towards the seam, as a neighbour's may.
     const east = roadBytes(TILE_M, 0);
@@ -135,7 +135,7 @@ describe("a stone wall", () => {
     const wallX = -300;
     const grid = gridAt(-1, -1, NODES, STEP_M);
     const sections = wallSections({ walls: [[[wallX, ROAD_Z - 30], [wallX, ROAD_Z + 30]]] }, grid);
-    const { fastest, furthest } = flatOut(twoTiles(true, undefined, wallFaces(sections)));
+    const { fastest, furthest } = flatOut(twoTiles(true, wallFaces(sections)));
     expect(fastest).toBeGreaterThan(50);
     expect(furthest).toBeLessThan(wallX);
   });

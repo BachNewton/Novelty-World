@@ -1,7 +1,7 @@
 import { decodeHeights, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { decodeModels, type ModelsFile, type TileModels } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
-import { wallFaces, wallSections, type WallSections, type WallsFile } from "./tile-walls";
+import { wallFaces, wallSections, withWalls, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
 import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
 import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
@@ -176,7 +176,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   const grid = decodeHeights(new Int16Array(heights), world.heights, tile);
   const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
   const stoneWalls = wallSections(walls, grid);
-  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, outlines, wallFaces(stoneWalls));
+  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls)));
   return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: decodeModels(models), stoneWalls, bytes: reader.bytes };
 }
 
