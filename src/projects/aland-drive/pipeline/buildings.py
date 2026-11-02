@@ -34,6 +34,7 @@ from shapely.ops import split, unary_union
 
 import facades
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, Tile, neighbour, to_local
+from outbuildings import Placed, toward
 from sources import buildings3d_path, osm_xml, topographic_path
 
 CELL_M = 600
@@ -507,8 +508,8 @@ def _road_shapes(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> tuple[list[Pol
     return strips, lines
 
 
-def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path) -> tuple[dict, np.ndarray]:
-    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building."""
+def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None) -> tuple[dict, np.ndarray]:
+    """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building. A footprint `placed` takes is a model of its own, not a shape here."""
     west, north = to_local(tile.west, tile.north)
     heights = Heights(corners, west, north)
     footprints = read_footprints(tile)
@@ -522,10 +523,10 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     cells: dict[tuple[int, int], Cell] = {}
     outlines: list[Polygon] = []
     through = 0
-    counts = {"modelled": 0, "generated": 0}
+    counts = {"modelled": 0, "generated": 0, "placed": 0}
     built = np.zeros((SAMPLES, SAMPLES), dtype=bool)
-    # Every building is found first, so the facade rule can count each one's neighbours.
-    found: list[tuple[list[Face], Polygon, int, str, float]] = []
+    # Every building is found first, so the facade rule can count each one's neighbours. A placed model has no faces here.
+    found: list[tuple[list[Face] | None, Polygon, int, str, float]] = []
 
     for solid in solids:
         middle = solid.footprint.centroid
@@ -534,10 +535,16 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         if not (tile.west <= middle.x < tile.east and tile.south <= middle.y < tile.north):
             continue
         hits = [index for index in tree.query(solid.footprint) if footprints[index].shape.intersects(solid.footprint)]
-        kind = footprints[max(hits, key=lambda index: footprints[index].shape.intersection(solid.footprint).area)].kind if hits else 0
+        best = max(hits, key=lambda index: footprints[index].shape.intersection(solid.footprint).area) if hits else None
+        kind = footprints[best].kind if best is not None else 0
         faces = [Face(face.kind, np.column_stack((*to_local(face.ring[:, 0], face.ring[:, 1]), face.ring[:, 2]))) for face in solid.faces]
         local = shapely.transform(solid.footprint, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1])))
-        base = float(np.median(heights.at(*np.array(local.exterior.coords).T)))
+        ground = heights.at(*np.array(local.exterior.coords).T)
+        base = float(np.median(ground))
+        if placed is not None and best is not None and placed.take_solid(kind, local, solid.footprint, footprints[best].shape, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(solid.name)):
+            found.append((None, local, kind, solid.name, base))
+            counts["placed"] += 1
+            continue
         found.append((_with_walls_to_ground(faces, heights), local, kind, solid.name, base))
         counts["modelled"] += 1
 
@@ -549,26 +556,20 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         local = shapely.transform(footprint.shape, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1]))).simplify(0.25)
         if local.geom_type != "Polygon" or local.area < 4:
             continue
-        base = float(np.median(heights.at(*np.array(local.exterior.coords).T)))
+        ground = heights.at(*np.array(local.exterior.coords).T)
+        base = float(np.median(ground))
+        name = f"{tile.name}-{index}"
+        if placed is not None and placed.take(footprint.kind, local, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(name)):
+            found.append((None, local, footprint.kind, name, base))
+            counts["placed"] += 1
+            continue
         faces, _ = _generated_shape(footprint, local, above, west, north, base)
-        found.append((faces, local, footprint.kind, f"{tile.name}-{index}", base))
+        found.append((faces, local, footprint.kind, name, base))
         counts["generated"] += 1
 
-    osm = facades.read_osm(osm_xml(tile))
-    middles = [local.representative_point() for _, local, _, _, _ in found]
-    near = shapely.STRtree(middles)
-    looks: dict[str, int] = {}
-    for (faces, local, kind, name, base), point in zip(found, middles):
-        seed = _seed(name)
-        middle = np.array(point.coords[0])
-        cell = cells.setdefault((math.floor(middle[0] / CELL_M), math.floor(-middle[1] / CELL_M)), Cell())
-        frames = _facades([face for face in faces if face.kind == "wall"], base)
-        neighbours = len(near.query(point, predicate="dwithin", distance=facades.RURAL_REACH_M)) - 1
-        choice = facades.choose(_facts(faces, frames, local, kind, seed, osm, neighbours))
-        why = choice.why if choice is not None else "plain"
-        looks[why] = looks.get(why, 0) + 1
-        look = choice if choice is not None else _material(kind, local.area, seed)
-        _mesh_solid(cell, faces, frames, base, look, _roof_colour(local, photo, west, north), seed, middle, street, lines)
+    def collide(local: Polygon) -> None:
+        """The outline goes to the car as a wall, unless a road runs through it, and its ground is built on."""
+        nonlocal through
         beside = local.buffer(CAR_ROOM_M)
         on_road = sum(strips[index].intersection(beside).area for index in road_tree.query(beside)) if road_tree is not None else 0
         if on_road > TOUCHES_ROAD_M2:
@@ -579,6 +580,26 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         if canvas is not None:
             built[canvas[0], canvas[1]] |= canvas[2]
 
+    osm = facades.read_osm(osm_xml(tile))
+    middles = [local.representative_point() for _, local, _, _, _ in found]
+    near = shapely.STRtree(middles)
+    looks: dict[str, int] = {}
+    for (faces, local, kind, name, base), point in zip(found, middles):
+        if faces is None:
+            collide(local)
+            continue
+        seed = _seed(name)
+        middle = np.array(point.coords[0])
+        cell = cells.setdefault((math.floor(middle[0] / CELL_M), math.floor(-middle[1] / CELL_M)), Cell())
+        frames = _facades([face for face in faces if face.kind == "wall"], base)
+        neighbours = len(near.query(point, predicate="dwithin", distance=facades.RURAL_REACH_M)) - 1
+        choice = facades.choose(_facts(faces, frames, local, kind, seed, osm, neighbours))
+        why = choice.why if choice is not None else "plain"
+        looks[why] = looks.get(why, 0) + 1
+        look = choice if choice is not None else _material(kind, local.area, seed)
+        _mesh_solid(cell, faces, frames, base, look, _roof_colour(local, photo, west, north), seed, middle, street, lines)
+        collide(local)
+
     walls = []
     for outline in outlines:
         for ring in (outline.simplify(0.2).exterior, *outline.interiors):
@@ -587,6 +608,6 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     wall_array = np.concatenate(walls) if walls else np.zeros((0, 4))
     (folder / "solids.bin.gz").write_bytes((data := _encode(cells, wall_array))[0])
     triangles = sum(entry["indices"] for entry in data[1]) // 3
-    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
+    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {through} over a road and left without collision")
     print("  facades: " + ", ".join(f"{why} {count}" for why, count in sorted(looks.items(), key=lambda item: -item[1])))
     return {"file": "solids.bin.gz", "unitM": UNIT_M, "cells": data[1], "walls": len(wall_array), "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)", "overRoads": through, "modelled": counts["modelled"], "generated": counts["generated"]}, built
