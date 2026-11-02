@@ -75,7 +75,7 @@ export function AlandDrive() {
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [carName, setCarName] = useState("");
   useFrameStats();
@@ -203,7 +203,7 @@ export function AlandDrive() {
           </ul>
         </>
       )}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>

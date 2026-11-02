@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { Check, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, MapPin, X } from "lucide-react";
 import type { CarChoice } from "../render/game";
 
 /*
@@ -50,7 +50,22 @@ function CarList({ cars, car, onCar }: { cars: readonly CarChoice[]; car: string
   );
 }
 
-export function DevMenu({ cars, car, onCar, onClose }: { cars: readonly CarChoice[]; car: string; onCar: (name: string) => void; onClose: () => void }) {
+function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm"
+      style={{ borderColor: copied ? ACCENT : INK }}
+      onClick={() => { void navigator.clipboard.writeText(whereabouts()).then(() => { setCopied(true); }); }}
+    >
+      {copied ? <Check aria-hidden className="size-4" style={{ color: ACCENT }} /> : <MapPin aria-hidden className="size-4" />}
+      {copied ? "Copied" : "Copy where the car is"}
+    </button>
+  );
+}
+
+export function DevMenu({ cars, car, onCar, whereabouts, onClose }: { cars: readonly CarChoice[]; car: string; onCar: (name: string) => void; whereabouts: () => string; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -64,6 +79,9 @@ export function DevMenu({ cars, car, onCar, onClose }: { cars: readonly CarChoic
         <button type="button" aria-label="Close" title="Close" className="absolute top-2 right-2 cursor-pointer" onClick={onClose}>
           <X className="size-5" />
         </button>
+        <Section title="Place">
+          <CopyPlace whereabouts={whereabouts} />
+        </Section>
         <Section title="Cars">
           <CarList cars={cars} car={car} onCar={onCar} />
         </Section>

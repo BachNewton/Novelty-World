@@ -166,6 +166,8 @@ export interface Game {
   cars: readonly CarChoice[];
   setCar: (name: string) => void;
   setDevMenuOpen: (open: boolean) => void;
+  /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
+  whereabouts: () => string;
   dispose: () => void;
 }
 
@@ -754,6 +756,25 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onDevMenuOpen?.(open);
   };
 
+  const whereabouts = () => {
+    const car = drive.stateAt(1);
+    const [x, y, z] = car.position;
+    const headingDeg = (((headingClockwise(car) * 180) / Math.PI) % 360 + 360) % 360;
+    const direction = camera.getWorldDirection(new Vector3());
+    const look = [
+      camera.position.x + worldOrigin.east,
+      worldOrigin.north - camera.position.z,
+      camera.position.y - world.height(camera.position.x, camera.position.z),
+    ].map((value) => value.toFixed(1));
+    const turn = [Math.atan2(-direction.x, -direction.z), Math.asin(direction.y)].map((value) => value.toFixed(3));
+    return [
+      `Åland Drive, car in tile ${world.tileAt(x, z)?.name ?? "none"}`,
+      `scene x ${x.toFixed(1)}, y ${y.toFixed(1)}, z ${z.toFixed(1)}; ETRS-TM35FIN east ${(x + worldOrigin.east).toFixed(1)}, north ${(worldOrigin.north - z).toFixed(1)}`,
+      `heading ${headingDeg.toFixed(0)}° clockwise from grid north, ${(speedOf(car) * 3.6).toFixed(0)} km/h, ${cameraMode} camera`,
+      `the view on screen: tools/look.mjs <out.png> ${[...look, ...turn].join(" ")}`,
+    ].join("\n");
+  };
+
   const setCar = (name: string) => {
     const spec = CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`no car called ${name}`);
@@ -1017,6 +1038,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cars: CARS.map(({ name, paint }) => ({ name, paint })),
     setCar,
     setDevMenuOpen,
+    whereabouts,
     dispose() {
       void renderer.setAnimationLoop(null);
       document.removeEventListener("visibilitychange", hushWhenHidden);
