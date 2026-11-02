@@ -37,6 +37,10 @@ class Rule(unittest.TestCase):
     def test_a_church_keeps_its_own_look(self):
         self.assertIsNone(choose(Facts(42211, 500.0, 12.0, 6.0, 3, tags={"building": "church"})))
 
+    def test_an_untagged_rural_church_is_not_a_barn(self):
+        for seed in range(50):
+            self.assertIsNone(choose(Facts(42270, 500.0, 8.0, 6.0, seed, rural=True)))
+
     def test_a_cottage_stays_timber(self):
         self.assertIsNone(choose(Facts(42231, 60.0, 2.6, 2.0, 3, rural=True)))
 

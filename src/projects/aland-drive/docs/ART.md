@@ -71,7 +71,6 @@ Each has a real position, exported with its model. Replacing an NLS solid means 
 
 ## Cleanup found along the way
 
-- `pipeline/buildings.py` reads two Topographic Database classes wrongly: 42231 is a holiday home (6,500 of them, median 66 m²), not a public building, and 42270 is a church (11, median 500 m²), not an outbuilding. 42261 is the outbuilding class. `pipeline/outbuildings.py` uses the right ones.
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.

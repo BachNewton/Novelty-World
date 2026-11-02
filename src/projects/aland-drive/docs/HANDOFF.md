@@ -48,7 +48,6 @@ Road sign lettering is decided: the regulation letters stay. The credits page li
 - **Road corridors:** roads have a clearing 6–8 m wider than the carriageway, even on forest tracks, and 33 crowns still reach a carriageway.
 - **World map:** at the top of the zoom the island sits off-centre when the car is at its edge, until the player pans. Tiles using 2022 photos look brighter at the south-east, and faint square patches of sea tone show at the outer tiles.
 - **Coverage:** 7 outer tiles have no 2025 photo, and 10 have no laser sheets, so no trees.
-- **`pipeline/buildings.py`** calls class 42231 PUBLIC, but these are holiday cottages, so the constant should be renamed and they stay timber.
 - **Showcase spot 8** lands beside a house rather than at a view.
 - **Tools:** `tools/forest-pop.mjs` and `tools/tree-film.mjs` need private test patches (`window.__lodShift`, `window.__treeMark`) that were never committed, so they won't run as they stand.
 - **Shop names:** only HAVSBODEN was checked against real businesses. Check the rest before they ship. Real shop names from OSM are never shown.
