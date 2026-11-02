@@ -69,6 +69,17 @@ export interface WorldTileEntry {
   name: string;
   west: number;
   north: number;
+  /** The churches and landmarks standing in the tile (`pipeline/landmarks.py`). A tile built before them has none. */
+  landmarks?: LandmarkPlace[];
+}
+
+/** A site's model, and its origin in the scene: where its art's origin goes, and a turn about it that takes its +z to (sin yaw, cos yaw). */
+export interface LandmarkPlace {
+  model: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
 }
 
 interface HeightsFormat {
