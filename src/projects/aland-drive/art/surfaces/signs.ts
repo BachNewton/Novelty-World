@@ -3,6 +3,7 @@ import { float, frontFacing, normalWorld, select, texture, uniform, uv, vec3 } f
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Sun } from "./detail";
 import { GLYPHS, SIGN_ART, type SignInk } from "./sign-art";
+import IDS from "../facades/facade-ids.json";
 
 /*
  * The road signs, drawn once on a canvas when the game starts. A sign is one
@@ -16,17 +17,24 @@ import { GLYPHS, SIGN_ART, type SignInk } from "./sign-art";
  * and information signs below are the same regulation's numbers, and a direction
  * plate is laid out from its F13.
  *
- * The sheet also holds the words on shop signs (`shopfront.ts`).
+ * The sheet also holds the words on shop signs (`shopfront.ts`), the list the
+ * pipeline numbers them by (`art/facades/facade-ids.json`).
  */
 
 const SHEET_PIXELS = 2048;
+/** The signs' part of the sheet, its full width, with the shop words under it. */
+const SIGNS_TALL = 1872;
 /** Sheet pixels per millimetre of plate: a 900 mm triangle is 252 pixels, enough for 8 m, with mips for the rest. */
 const PIXELS_PER_MM = 0.28;
 const GUTTER = 8;
 const WORD_WIDE = 512;
 const WORD_TALL = 88;
 export const WORD_COLUMNS = 4;
-export const WORD_ROWS = 2;
+const WORD_ROWS = Math.ceil(IDS.words.length / WORD_COLUMNS);
+const SHEET_TALL = SIGNS_TALL + WORD_ROWS * WORD_TALL;
+/** A word cell's width in the sheet's pixels, and its width over its height. */
+export const WORD_PIXELS = WORD_WIDE;
+export const WORD_ASPECT = WORD_WIDE / WORD_TALL;
 const CIRCLE_SIDES = 96;
 const AMBIENT = 0.78;
 const SUN_SHARE = 0.42;
@@ -54,7 +62,6 @@ const WORD_SPACE = { advance: 70, path: "" };
 const SPEEDS = [30, 40, 50, 60, 70, 80, 90, 100, 120] as const;
 const AREA_SPEEDS = [30, 40, 50] as const;
 const PLACES = ["Mariehamn", "Jomala", "Godby", "Hammarland", "Eckerö", "Finström", "Sund", "Kastelholm", "Bomarsund", "Saltvik", "Geta", "Lemland", "Lumparland", "Vårdö", "Färjhamn"] as const;
-const SHOP_WORDS = ["BAGERI", "KIOSK", "KAFFE", "APOTEK", "BOKHANDEL", "BLOMMOR", "KLÄDER", "SKOR"] as const;
 
 type Pen = CanvasRenderingContext2D;
 type Ink = (name: string) => string;
@@ -292,11 +299,11 @@ function allSigns(extraPlaces: readonly string[]): Map<string, Drawn> {
   return signs;
 }
 
-/** Fills the sheet from its top, row by row, leaving the shop words the bottom of it. */
+/** Fills the sheet from its top, row by row, down to the shop words under it. */
 function drawSigns(pen: Pen, ink: Ink, extraPlaces: readonly string[]): Map<string, SignRecord> {
   const records = new Map<string, SignRecord>();
   const signInk = (name: SignInk) => ink(`sign-${name}`);
-  const room = SHEET_PIXELS - WORD_ROWS * WORD_TALL;
+  const room = SIGNS_TALL;
   let [x, y, rowTall] = [0, 0, 0];
   const all = [...allSigns(extraPlaces)].sort(([, a], [, b]) => b.height - a.height);
   for (const [name, sign] of all) {
@@ -323,7 +330,7 @@ function shopWords(pen: Pen, ink: Ink, top: number): void {
   pen.fillStyle = ink("sign-black");
   pen.fillRect(0, top, WORD_COLUMNS * WORD_WIDE, WORD_ROWS * WORD_TALL);
   pen.fillStyle = ink("sign-white");
-  SHOP_WORDS.forEach((word, at) => {
+  IDS.words.forEach((word, at) => {
     const x = (at % WORD_COLUMNS) * WORD_WIDE;
     const y = top + Math.floor(at / WORD_COLUMNS) * WORD_TALL;
     lettering(pen, word, x + WORD_WIDE / 2, y + WORD_TALL / 2, WORD_TALL * 0.7, undefined, WORD_WIDE * 0.9);
@@ -333,11 +340,12 @@ function shopWords(pen: Pen, ink: Ink, top: number): void {
 /** Draws the sheet. `ink` gives a token's colour as CSS, and `extraPlaces` adds direction plates to the usual ones. */
 export function createSignSheet(ink: Ink, extraPlaces: readonly string[] = []): SignSheet {
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = SHEET_PIXELS;
+  canvas.width = SHEET_PIXELS;
+  canvas.height = SHEET_TALL;
   const pen = canvas.getContext("2d");
   if (!pen) throw new Error("no 2D canvas for the sign sheet");
   const signs = drawSigns(pen, ink, extraPlaces);
-  const wordsTop = SHEET_PIXELS - WORD_ROWS * WORD_TALL;
+  const wordsTop = SIGNS_TALL;
   shopWords(pen, ink, wordsTop);
 
   const sheet = new CanvasTexture(canvas);
@@ -350,7 +358,7 @@ export function createSignSheet(ink: Ink, extraPlaces: readonly string[] = []): 
   return {
     texture: sheet,
     signs,
-    words: { u: 0, v: wordsTop / SHEET_PIXELS, width: WORD_WIDE / SHEET_PIXELS, height: WORD_TALL / SHEET_PIXELS },
+    words: { u: 0, v: wordsTop / SHEET_TALL, width: WORD_WIDE / SHEET_PIXELS, height: WORD_TALL / SHEET_TALL },
   };
 }
 
@@ -365,7 +373,7 @@ export function signPlate({ signs }: SignSheet, name: string): BufferGeometry {
   const put = (at: number, x: number, y: number) => {
     positions.set([x / 1000, -y / 1000, 0], at * 3);
     normals.set([0, 0, 1], at * 3);
-    uvs.set([(sign.x + x * PIXELS_PER_MM) / SHEET_PIXELS, (sign.y + y * PIXELS_PER_MM) / SHEET_PIXELS], at * 2);
+    uvs.set([(sign.x + x * PIXELS_PER_MM) / SHEET_PIXELS, (sign.y + y * PIXELS_PER_MM) / SHEET_TALL], at * 2);
   };
   put(corners, 0, 0);
   for (let at = 0; at < corners; at++) put(at, sign.outline[at * 2], sign.outline[at * 2 + 1]);

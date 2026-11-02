@@ -1,7 +1,9 @@
-import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, Fn, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside/index";
-import { PAINT, PATTERNS, RURAL_PARTS, type Pattern } from "./mesh";
+import { band } from "../surfaces";
+import { BRACES, GABLE_PAINTS, TRIM_WIDTHS } from "./buildings";
+import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPart } from "./mesh";
 
 /*
  * The rural kit's two materials, read by `placeModel` as the roadside kit's are: the
@@ -14,7 +16,9 @@ import { PAINT, PATTERNS, RURAL_PARTS, type Pattern } from "./mesh";
  * Both run on the GPU from the distance alone: nothing costs the CPU as the car moves.
  * The surface patterns are a branch in the near material's fragment shader, so a pixel
  * pays for its own pattern only, and each fades to its mean by a pixel's size so it
- * can't shimmer. The far material has none.
+ * can't shimmer. The far material has none of those: what it draws instead is a
+ * building's door, windows and trim on its plain walls, each as its share of the
+ * pixel, where the near version has them as faces, so the two match at the swap.
  */
 
 // As the roadside kit lights its own, which doesn't export them.
@@ -80,14 +84,20 @@ function rapakivi({ colour }: Pick<RoadsideInputs, "colour">, base: Node<"vec3">
   return mossed.mul(float(1).sub(crack.mul(0.62)));
 }
 
-/** Boards running up a wall that lies square to the model's axes, each its own tone. */
+/** The share of a wall the gaps between boards darken: the seam's profile averaged across a board. */
+const SEAM_SHARE = (0.02 + 0.07 / 2) / 0.5;
+const SEAM_DARK = 0.5;
+/** What boards come to far off, where each board's tone is the middle of its range and the seams are their share: the far version's walls wear this. */
+const BOARDS_MEAN = ((0.9 + 1.08) / 2) * (1 - SEAM_DARK * SEAM_SHARE);
+
+/** Boards running up a wall that lies square to the model's axes, each its own tone. Seams too fine to draw settle on their share, not on nothing. */
 function boards(base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">) {
   const size = 0.19;
   const along = at.x.add(at.z).div(size);
   const seam = float(1).sub(smoothstep(float(0.02), float(0.09), abs(fract(along).sub(0.5)).sub(0.5).abs()));
   const tone = hash(vec3(floor(along), 3, 9));
   const lit = mix(float(0.9), float(1.08), tone.mul(float(1).sub(gone(size, away))).add(gone(size, away).mul(0.5)));
-  return base.mul(lit).mul(float(1).sub(seam.mul(0.5).mul(float(1).sub(gone(0.035, away)))));
+  return base.mul(lit).mul(float(1).sub(mix(seam, float(SEAM_SHARE), gone(0.035, away)).mul(SEAM_DARK)));
 }
 
 /** Birch: dark lenses across the white, thick low down, on a black, fissured foot. */
@@ -114,6 +124,63 @@ function straw(base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">) {
   return base.mul(float(1).add(streak.mul(0.12).mul(float(1).sub(gone(0.03, away))))).mul(float(1).add(swell(at.mul(3)).mul(0.1)));
 }
 
+const RECORD_VEC4S = 5;
+
+/** `GABLE_PAINTS` as vec4s, `RECORD_VEC4S` to a building, in the order `gablePainted` reads them. */
+function paintRecords(): Vector4[] {
+  return GABLE_PAINTS.flatMap(({ gable, door, window, hatch, braces }) => [
+    new Vector4(gable.x, gable.z, gable.floor, gable.eaves),
+    new Vector4(gable.ridge, door.centre, door.wide / 2, door.bottom),
+    new Vector4(door.bottom + door.tall, door.leaves, window.y, window.z),
+    new Vector4(window.size / 2, window.bothSides ? 1 : 0, hatch?.half ?? 0, hatch?.bottom ?? 0),
+    new Vector4(hatch?.top ?? 0, braces ? 1 : 0, 0, 0),
+  ]);
+}
+
+/**
+ * A far wall with its building's paint: the near version's corner boards, barge boards
+ * and fascia, door and windows, at their places in the model's own metres, each as its
+ * share of the pixel (`art/surfaces/coverage.ts`), so it blurs into the wall's average
+ * with distance as the near version's faces do.
+ */
+function gablePainted(base: Node<"vec3">, paint: (part: RuralPart) => Node<"vec3">, read: (index: number) => Node<"vec4">): Node<"vec3"> {
+  const [shape, doorAt, doorTo, windowAt, hatchTo] = [read(0), read(1), read(2), read(3), read(4)];
+  const [halfX, halfZ, floorY, eaves] = [shape.x, shape.y, shape.z, shape.w];
+  const ridge = doorAt.x;
+  const at = positionGeometry;
+  const [wideX, tall, wideZ] = [fwidth(at.x), fwidth(at.y), fwidth(at.z)];
+  const y = at.y;
+  const yes = (on: Node<"bool">) => select(on, float(1), float(0));
+  const { corner, barge, fascia, doorFrame, windowFrame, mullion, bar } = TRIM_WIDTHS;
+
+  const onEnd = abs(at.z).div(halfZ).greaterThan(abs(at.x).div(halfX));
+  const along = select(onEnd, at.x, at.z);
+  const corners = band(abs(along), select(onEnd, halfX, halfZ).sub(corner), float(100), select(onEnd, wideX, wideZ)).mul(band(y, floorY, eaves, tall));
+  const roofLine = ridge.sub(ridge.sub(eaves).mul(abs(at.x)).div(halfX));
+  const edge = select(onEnd, band(y, roofLine.sub(barge), roofLine.add(1), tall), band(y, eaves.sub(fascia), eaves.add(1), tall));
+
+  const front = yes(onEnd.and(at.z.greaterThan(0)));
+  const fromDoor = at.x.sub(doorAt.y);
+  const [doorHalf, doorFoot, doorTop] = [doorAt.z, doorAt.w, doorTo.x];
+  const framed = band(fromDoor, doorHalf.add(doorFrame).negate(), doorHalf.add(doorFrame), wideX).mul(band(y, doorFoot, doorTop.add(doorFrame), tall)).mul(front);
+  const door = band(fromDoor, doorHalf.negate(), doorHalf, wideX).mul(band(y, doorFoot, doorTop, tall)).mul(front);
+  const middle = band(fromDoor, -mullion / 2, mullion / 2, wideX).mul(door).mul(yes(doorTo.y.greaterThan(1.5)));
+  const rail = (low: number) => band(y, doorFoot.add(low), doorFoot.add(low + BRACES.tall), tall);
+  const braced = band(abs(fromDoor), BRACES.from, BRACES.to, wideX).mul(rail(BRACES.low).add(rail(BRACES.high))).mul(door).mul(hatchTo.y);
+  const hatch = band(at.x, windowAt.z.negate(), windowAt.z, wideX).mul(band(y, windowAt.w, hatchTo.x, tall)).mul(front);
+
+  const onSide = yes(onEnd.not().and(at.x.greaterThan(0).or(windowAt.y.greaterThan(0.5))));
+  const [acrossPane, upPane, paneHalf] = [at.z.sub(doorTo.w), y.sub(doorTo.z), windowAt.x];
+  const pane = (grow: number) => band(acrossPane, paneHalf.add(grow).negate(), paneHalf.add(grow), wideZ).mul(band(upPane, paneHalf.add(grow).negate(), paneHalf.add(grow), tall)).mul(onSide);
+  const glass = pane(0);
+  const glazingBar = band(upPane, -bar / 2, bar / 2, tall).mul(glass);
+
+  const trim = paint("trim");
+  const trimmed = mix(base, trim, max(corners, edge).max(framed).max(pane(windowFrame)));
+  const doored = mix(mix(trimmed, paint("door"), door.max(hatch)), trim, max(middle, braced.mul(0.9)));
+  return mix(mix(doored, paint("glass"), glass), trim, glazingBar);
+}
+
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
   const { linear, colour, hazed, sun } = inputs;
   const place = attribute<"vec4">("place", "vec4");
@@ -133,12 +200,13 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
 
   const local = positionGeometry;
   const x = local.x.mul(fit.y);
+  const z = local.z.mul(fit.w);
   const up = local.y.add(x.mul(fit.z));
   const yawCos = cos(place.w);
   const yawSin = sin(place.w);
 
   const material = new MeshBasicNodeMaterial();
-  material.positionNode = vec3(place.x.add(x.mul(yawCos).add(local.z.mul(yawSin)).mul(scale)), place.y.add(up.mul(scale)), place.z.add(local.z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
+  material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(up.mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
 
   const blend = varying(smoothstep(dissolveFrom, swap, distance));
   const dither = fract(float(52.9829189).mul(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715)))));
@@ -152,7 +220,9 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
     const { from, to = from, share = 0, gain = 1 } = paint;
     return linear(from).lerp(linear(to), share).multiplyScalar(gain);
   }));
-  const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+  const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;
+  const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
+  const kind = round(tint.b.mul(255));
 
   const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
   const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
@@ -163,10 +233,9 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const surfaced = isNear
     ? Fn(() => {
         const painted = base.toVar();
-        const kind = round(tint.b.mul(255));
         // In metres on the model, offset per place, so no two rocks wear one pattern.
-        const at = vec3(x, local.y, local.z).mul(fit.x).add(roll.mul(37));
-        const metres = vec3(x, local.y, local.z).mul(fit.x);
+        const metres = vec3(x, local.y, z).mul(fit.x);
+        const at = metres.add(roll.mul(37));
         const away = positionWorld.sub(cameraPosition).length();
         If(kind.equal(pattern("rapakivi")), () => {
           painted.assign(rapakivi(inputs, base, at, away, abs(facing.y), foot));
@@ -188,7 +257,17 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
           });
         return painted;
       })()
-    : base;
+    : Fn(() => {
+        const painted = select(kind.equal(pattern("boards")).or(kind.greaterThanEqual(PAINTED_FROM)), base.mul(BOARDS_MEAN), base).toVar();
+        const records = uniformArray(paintRecords());
+        If(kind.greaterThanEqual(PAINTED_FROM), () => {
+          const record = int(kind.sub(PAINTED_FROM)).mul(RECORD_VEC4S);
+          const read = (index: number) => records.element(record.add(index)) as unknown as Node<"vec4">;
+          const boarded = (part: RuralPart) => paintOf(int(RURAL_PARTS.indexOf(part))).mul(part === "door" ? BOARDS_MEAN : 1);
+          painted.assign(gablePainted(painted, boarded, read));
+        });
+        return painted;
+      })();
 
   material.colorNode = hazed(surfaced.mul(lit).mul(grounded));
   material.side = DoubleSide;

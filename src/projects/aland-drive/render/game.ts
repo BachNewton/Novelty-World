@@ -1,13 +1,15 @@
-import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RedFormat, RepeatWrapping, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
-import { FLAT_LIGHT, ROAD_TIERS, SHADE_SHARE, type RoadTier, type WorldManifest } from "./tile";
+import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
+import { createRuralBuildings } from "./rural-buildings";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
+import { createVerge, type VergeDrawn } from "./verge";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
@@ -22,7 +24,8 @@ import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
-import { band, pulses } from "../art/surfaces";
+import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
+import { ruralMaterials } from "../art/rural/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -66,6 +69,9 @@ export interface GameProbe {
   /** What the last frame cost, counted, and how big it was drawn. */
   counts: () => { webGpu: boolean; drawCalls: number; triangles: number; gpuMs: number | null; width: number; height: number };
   forestDrawn: () => ForestDrawn;
+  vergeDrawn: () => VergeDrawn;
+  /** Shows the verge or leaves it out, to see what it does. */
+  showVerge: (shown: boolean) => void;
   car: () => CarState;
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
@@ -219,10 +225,6 @@ const MAP_DETAIL_FROM_M = 3500;
 const MAP_MARGIN = 1.05;
 const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
-const GRAIN_M = 7;
-const GRAIN_SECOND_SCALE = 0.31;
-const GRAIN_FADE_M = 160;
-const GRAIN_PIXELS = 256;
 
 export const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
 export const colorOf = (name: string) => {
@@ -231,23 +233,6 @@ export const colorOf = (name: string) => {
 };
 
 /** A square of tiling random values, mipped, so it turns to a flat grey with distance rather than sparkling. */
-function grainNoise() {
-  const noise = new DataTexture(new Uint8Array(GRAIN_PIXELS * GRAIN_PIXELS), GRAIN_PIXELS, GRAIN_PIXELS, RedFormat);
-  const values = noise.image.data as Uint8Array;
-  // A fixed sequence, so every run's ground is the same.
-  let state = 12345;
-  for (let at = 0; at < values.length; at++) {
-    state = (state * 1103515245 + 12345) & 0x7fffffff;
-    values[at] = 90 + ((state >> 16) % 76);
-  }
-  noise.wrapS = noise.wrapT = RepeatWrapping;
-  noise.magFilter = LinearFilter;
-  noise.minFilter = LinearMipmapLinearFilter;
-  noise.generateMipmaps = true;
-  noise.needsUpdate = true;
-  return noise;
-}
-
 /** A low band round the end of the world, so it reads as a barrier and not a mistake. */
 function edgeBand(world: World) {
   const { tileM } = world;
@@ -288,12 +273,14 @@ function bridgeMesh({ positions, parts }: TileDetail["bridges"], material: MeshB
 }
 
 /** Each tile's ribbon in the scene, a mesh per cell sharing its buffers, shown only within reach. */
-function ribbonMeshes(detail: TileDetail, material: MeshBasicNodeMaterial) {
+function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshBasicNodeMaterial) {
   const { ribbon } = detail;
   const position = new BufferAttribute(ribbon.positions, 3);
   const across = new BufferAttribute(ribbon.across, 1);
   const along = new BufferAttribute(ribbon.along, 1);
   const tier = new BufferAttribute(ribbon.tiers, 1);
+  const roadInfo = new BufferAttribute(dress.surface, 4);
+  const roadMark = new BufferAttribute(dress.mark, 2);
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z }) => {
     const geometry = new BufferGeometry();
@@ -301,6 +288,8 @@ function ribbonMeshes(detail: TileDetail, material: MeshBasicNodeMaterial) {
     geometry.setAttribute("across", across);
     geometry.setAttribute("along", along);
     geometry.setAttribute("tier", tier);
+    geometry.setAttribute("roadInfo", roadInfo);
+    geometry.setAttribute("roadMark", roadMark);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -363,7 +352,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   overviewTexture.wrapS = overviewTexture.wrapT = ClampToEdgeWrapping;
   overviewTexture.needsUpdate = true;
 
-  const grainTexture = grainNoise();
+  const detail = detailTexture(manifest.sun);
+  const signSheet = createSignSheet((name) => token(name).getStyle());
   const { tileM } = manifest;
   // A pixel's tile, and its place in that tile's images, which run from the north-west corner. The scene's -z is north,
   // so tile rows run with z. The image coordinates jump at a tile's edge, so the sampling's rate comes from the world's own.
@@ -387,13 +377,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const toCamera = positionWorld.sub(detailSpot).length();
   const nearShare = float(1).sub(smoothstep(float(DETAIL_SEEN_M - DETAIL_FADE_M), float(DETAIL_SEEN_M), toCamera)).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
   const shade = mix(sampled(layers.shadeFar, farLayer).r, sampled(layers.shadeNear, nearLayer).r, nearShare);
-  const light = mix(float(1), shade.pow(float(manifest.shade.gamma)).div(FLAT_LIGHT), SHADE_SHARE);
+  const lightOf = (baked: Node<"float">) => mix(float(1), baked.pow(float(manifest.shade.gamma)).div(FLAT_LIGHT), SHADE_SHARE);
+  const light = lightOf(shade);
   const mask = sampled(layers.mask, farLayer);
   const photo = mix(sampled(layers.groundFar, farLayer), sampled(layers.groundNear, nearLayer), nearShare);
-  // The photo's 2 m pixels are a smear from a car's height, so close up a tiling noise breaks them into something like grass and grit.
-  const grain = texture(grainTexture, positionWorld.xz.div(GRAIN_M)).r.mul(texture(grainTexture, positionWorld.xz.div(GRAIN_M * GRAIN_SECOND_SCALE)).r).mul(2.6).add(0.45);
-  const grainShare = float(1).sub(smoothstep(float(GRAIN_FADE_M * 0.3), float(GRAIN_FADE_M), toCamera));
-  const groundColor = photo.rgb.pow(vec3(2.2)).mul(mix(float(1), grain, grainShare));
+  const roadNearby = texture(layers.mask, imageUv).depth(farLayer).grad(gradientX.mul(8), gradientY.mul(8));
+  const groundColor = groundDetail({ place: positionWorld.xz, toCamera, photo: photo.rgb.pow(vec3(2.2)), roadNearby: roadNearby.g.add(roadNearby.b), litterColour: colorOf("surface-litter"), detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -414,7 +403,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
   const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
 
-  const { canopyAt, standsAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const linear = (name: string) => {
+    const { r, g, b } = token(name);
+    return new Vector3(r, g, b);
+  };
+  const { canopyAt, standsAt, roadsAt, landAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -429,6 +422,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     sun: manifest.sun,
   });
 
+  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
@@ -438,24 +433,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   sea.position.y = SEA_BELOW_LAND_M;
   scene.add(sea);
 
-  const tierColor = (name: RoadTier) => colorOf(`road-${name}`);
   const tier = attribute<"float">("tier", "float");
   const across = attribute<"float">("across", "float").abs();
+  const roadInfo = attribute<"vec4">("roadInfo", "vec4");
+  const roadMark = attribute<"vec2">("roadMark", "vec2");
   const along = attribute<"float">("along", "float");
   const isMain = float(1).sub(smoothstep(float(0.4), float(0.6), tier));
-  const carriageway = mix(tierColor(ROAD_TIERS[1]), tierColor(ROAD_TIERS[2]), smoothstep(float(1.4), float(1.6), tier));
-  const surfaceColor = mix(carriageway, tierColor(ROAD_TIERS[0]), isMain);
   const signedAcross = attribute<"float">("across", "float");
   // Each line is its share of the pixel, so far off it thins to its share of the road instead of sparkling.
   const edgeLine = band(across, LINE_INSET - LINE_WIDTH, LINE_INSET + LINE_WIDTH, fwidth(across));
   // Centred on every whole dash, so the pattern reads the same from both tiles at a seam, whichever way their chains run.
   const dash = pulses(along, DASH_LENGTH_M, (DASH_SHARE / 2) * DASH_LENGTH_M, fwidth(along));
   const centreLine = band(signedAcross, -CENTRE_LINE_WIDTH, CENTRE_LINE_WIDTH, fwidth(signedAcross)).mul(dash);
-  const painted = mix(surfaceColor, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain));
-  const onShoulder = smoothstep(float(1), float(1.08), across);
-  const shoulderColor = mix(colorOf("road-shoulder"), groundColor, smoothstep(float(1.05), float(1.6), across));
+  const dressed = dressRoad({ place: positionWorld.xz, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
+  const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
+  const painted = mix(dressed.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft));
   const roadMaterial = new MeshBasicNodeMaterial();
-  roadMaterial.colorNode = hazed(mix(painted, shoulderColor, onShoulder).mul(light));
+  roadMaterial.colorNode = hazed(mix(painted, dressed.shoulder, dressed.shoulderShare).mul(light));
 
   const bridgeMaterial = new MeshBasicNodeMaterial();
   const part = attribute<"float">("part", "float");
@@ -470,17 +464,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   compiledBridge.frustumCulled = false;
   scene.add(compiledBridge);
 
-  const linear = (name: string) => {
-    const { r, g, b } = token(name);
-    return new Vector3(r, g, b);
-  };
-  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, manifest.sun);
+  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, manifest.sun, { detail, sheet: signSheet });
+  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
+  // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
+  const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const bridges = new Map<string, Mesh>();
   let meshBytes = 0;
-  const meshBytesOf = (detail: TileDetail, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
-    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.indices.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
+  const meshBytesOf = (detail: TileDetail, dress: RoadAttributes, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
+    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
   const meshBytesByTile = new Map<string, number>();
   let failed = false;
   const fail = (error: Error) => {
@@ -493,19 +486,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells }, done) {
-        const meshes = ribbonMeshes(detail, roadMaterial);
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models }, done) {
+        const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
         const solids = buildingMeshes(cells, wallMaterial);
         scene.add(solids.group);
         buildings.set(detail.name, solids);
+        outbuildings.add(detail.name, models);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
           bridges.set(detail.name, mesh);
         }
-        const bytes = meshBytesOf(detail, cells);
+        const bytes = meshBytesOf(detail, roadDress, cells);
         meshBytesByTile.set(detail.name, bytes);
         meshBytes += bytes;
         layers.placeNear(world.named(detail.name), mips, ground, manifest, done);
@@ -530,6 +524,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.remove(solids.group);
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
+        outbuildings.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
           scene.remove(bridge);
@@ -587,11 +582,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     for (const { mesh } of cells) mesh.visible = true;
   }
   clipmap.showWide(true);
+  outbuildings.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
+  await verge.compile();
   cullCar(true);
   clipmap.showWide(false);
+  outbuildings.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -926,6 +924,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.update(spot);
     cameraSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
+    verge.update(spot, camera, seconds);
     showRibbons(spot);
     sky.update(camera.position, seconds);
     renderer.render(scene, camera);
@@ -951,12 +950,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         webGpu: "isWebGPUBackend" in renderer.backend,
         drawCalls: renderer.info.render.drawCalls,
         // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
-        triangles: renderer.info.render.triangles + forest.drawn().triangles,
+        triangles: renderer.info.render.triangles + forest.drawn().triangles + verge.drawn().triangles,
         gpuMs,
         width: renderer.domElement.width,
         height: renderer.domElement.height,
       }),
       forestDrawn: forest.drawn,
+      vergeDrawn: verge.drawn,
+      showVerge: verge.show,
       car: () => drive.stateAt(1),
       log: () => drive.log,
       hold: (next) => {
@@ -1048,12 +1049,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       stream.dispose();
       fetcher.dispose();
       forest.dispose();
+      verge.dispose();
       clipmap.dispose();
       for (const { cells } of buildings.values()) {
         for (const { mesh } of cells) mesh.geometry.dispose();
       }
       wallMaterial.dispose();
-      grainTexture.dispose();
+      outbuildings.dispose();
+      outbuildingMaterials.near.dispose();
+      outbuildingMaterials.far.dispose();
+      detail.dispose();
       for (const { cells } of ribbons.values()) {
         for (const { mesh } of cells) mesh.geometry.dispose();
       }

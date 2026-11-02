@@ -17,8 +17,6 @@ export const FAR_FROM_MARK_M = 9999;
 
 const PAVED_KINDS = new Set(["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "residential", "living_street"]);
 const PAVED_IN_TOWN = new Set(["unclassified", "service", "cycleway", "footway", "pedestrian"]);
-
-export const isPaved = (kind: string, town: number) => PAVED_KINDS.has(kind) || (town > 0.5 && PAVED_IN_TOWN.has(kind));
 /** Vertices of building in a 600 m cell that make it town. */
 const TOWN_VERTICES = [2500, 6000] as const;
 const CELL_M = 600;
@@ -26,6 +24,8 @@ const GRID_M = 24;
 const TOUCHING_M = 2.5;
 const SHORTEST_MARKED_M = 25;
 const STOP_EVERY = 5;
+const APRON_SHOULDER_M = 1;
+const NARROWEST_HALF_M = 0.1;
 
 export interface BuiltCell {
   x: number;
@@ -57,7 +57,8 @@ const centreOf = (rings: Float32Array, section: number) => {
 const halfWidthOf = (rings: Float32Array, section: number) => {
   const left = (section * RING_POINTS + 1) * 3;
   const right = (section * RING_POINTS + 3) * 3;
-  return Math.hypot(rings[left] - rings[right], rings[left + 2] - rings[right + 2]) / 2;
+  // A ring's points can land together where a lesser road slides along a greater one's edge, and the shader divides by this.
+  return Math.max(NARROWEST_HALF_M, Math.hypot(rings[left] - rings[right], rings[left + 2] - rings[right + 2]) / 2);
 };
 
 const shoulderOf = (rings: Float32Array, section: number) => {
@@ -107,6 +108,27 @@ function roadEndedOn(cells: Map<string, Segment[]>, chain: number, x: number, z:
   }
   return found;
 }
+
+function nearestSegment(cells: Map<string, Segment[]>, x: number, z: number): Segment | null {
+  let found: Segment | null = null;
+  let nearest = Infinity;
+  const column = Math.floor(x / GRID_M);
+  const row = Math.floor(z / GRID_M);
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (const segment of cells.get(`${column + dx},${row + dz}`) ?? []) {
+        const distance = distanceToSegment(x, z, segment);
+        if (distance < nearest) {
+          nearest = distance;
+          found = segment;
+        }
+      }
+    }
+  }
+  return found;
+}
+
+export const isPaved = (kind: string, town: number) => PAVED_KINDS.has(kind) || (town > 0.5 && PAVED_IN_TOWN.has(kind));
 
 /** How built up a place is, 0 to 1, read smoothly across the 600 m cells so a kerb doesn't start on a cell's edge. */
 function townReader(built: BuiltCell[]) {
@@ -169,5 +191,19 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
       }
     }
   });
+  dressAprons(surface, grid, townAt, shaded, marks);
   return { surface: shaded, mark: marks };
+}
+
+/** An apron has no chain of its own: it's the road it joins, bare, with no mark to reach. */
+function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt: (x: number, z: number) => number, shaded: Float32Array, marks: Float32Array) {
+  const vertices = surface.rings.length / 3;
+  for (let vertex = surface.aprons.firstPoint; vertex < vertices; vertex++) {
+    const [x, z] = [surface.rings[vertex * 3], surface.rings[vertex * 3 + 2]];
+    const town = townAt(x, z);
+    const road = nearestSegment(grid, x, z);
+    if (!road) throw new Error(`an apron point at ${x}, ${z} has no road within ${GRID_M} m`);
+    shaded.set([isPaved(surface.chains[road.chain].kind, town) ? 1 : 0, town, road.halfWidth, FAR_FROM_MARK_M], vertex * 4);
+    marks.set([APRON_SHOULDER_M, NO_MARK], vertex * 2);
+  }
 }

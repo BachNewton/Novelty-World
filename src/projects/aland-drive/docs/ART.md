@@ -14,8 +14,8 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 |---|---|---|---|---|---|---|
 | **Player's car** | `art/cars` | Built | The car the game starts in, drawn from `CarState` | [x] | [x] | [ ] |
 | **Other cars** | `art/cars` | Built | By purchase and traffic | [ ] | [ ] | [ ] |
-| **Ground, roads, paint** | `art/surfaces` | Built | Shader, from photo colour and road kinds | [ ] | [ ] | [ ] |
-| **Roofs and shopfronts** | `art/surfaces` | Built | Shader, by building | [ ] | [ ] | [ ] |
+| **Ground, roads, paint** | `art/surfaces` | Built | Shader, from photo colour and road kinds | [x] | [x] | [ ] |
+| **Roofs and shopfronts** | `art/surfaces` | Built | Shader, by building; a shop where OSM has `shop=*` | [x] | [x] | [ ] |
 | **Road signs** | `art/surfaces` | Built | OSM `traffic_sign`, stop and give way; junction rules | [ ] | [ ] | [ ] |
 | **Sky and clouds** | `art/sky` | Built | One dome | [x] | [x] | [ ] |
 | **Water** | `render/water.ts` | In the game, reflecting the sky; hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
@@ -24,14 +24,14 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Better pine** | `art/roadside` | Built | Replaces the forest's pine, once measured | [ ] | [ ] | [ ] |
 | **Piers, pontoons** | `art/roadside` | Built | OSM `man_made=pier`, `floating=yes` | [ ] | [ ] | [ ] |
 | **Guard rails, reflectors, speed cameras** | `art/street` | Built | OSM `barrier=guard_rail`, `highway=speed_camera`; rule along unlit roads | [ ] | [ ] | [ ] |
-| **Verges and wildflowers** | `art/street` | Built | Rule along road chains | [ ] | [ ] | [ ] |
+| **Verges and wildflowers** | `art/street`, `render/verge.ts` | In the game | A shader's rule, from the road mask and the photo | [x] | [x] | [x] |
 | **Linden trees** | `art/street` | Built | OSM `natural=tree_row`; esplanades by name | [ ] | [ ] | [ ] |
 | **Street furniture** | `art/street` | Built | OSM benches, bins, bike racks, cafés | [ ] | [ ] | [ ] |
 | **Flags, midsummer poles** | `art/street` | Built | OSM flagpoles; a hand list of poles | [ ] | [ ] | [ ] |
 | **Harbour fittings** | `art/street` | Built | Rules along quays; OSM cranes, marinas | [ ] | [ ] | [ ] |
 | **Parked cars** | `art/street` | Built | OSM `amenity=parking`, kerb lines | [ ] | [ ] | [ ] |
 | **Windmills** | `art/rural` | Built | OSM `man_made=windmill` (123, needs a hand check) | [ ] | [ ] | [ ] |
-| **Boathouses, sheds** | `art/rural` | Built | OSM `building=boathouse` (269), `building=shed` (245) | [ ] | [ ] | [ ] |
+| **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
 | **Granite** | `art/rural` | Built | OSM `natural=bare_rock` (2,286), MTK rock classes | [ ] | [ ] | [ ] |
 | **Bushes, juniper, birch** | `art/rural` | Built | OSM `natural=scrub` (619), edges by rule | [ ] | [ ] | [ ] |
 | **Reeds** | `art/rural` | Built | OSM `wetland=reedbed` (386) | [ ] | [ ] | [ ] |
@@ -39,7 +39,8 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
-| **Facades, wooden houses, shops, churches** | `art/facades` | Built | By building class and location; OSM `shop=*`, `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
+| **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
+| **Villas' porches, fuel stations, supermarket entrances, churches** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
 | **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
@@ -69,6 +70,9 @@ Each has a real position, exported with its model. Replacing an NLS solid means 
 | Ferry | `art/town-kit` (replaces the one in `art/landmarks`) | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
+
+- `pipeline/buildings.py` reads two Topographic Database classes wrongly: 42231 is a holiday home (6,500 of them, median 66 m²), not a public building, and 42270 is a church (11, median 500 m²), not an outbuilding. 42261 is the outbuilding class. `pipeline/outbuildings.py` uses the right ones.
+- A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
 - Make `art/roadside`'s lamps and poles grow and dissolve, as `art/street` and `art/rural` do.

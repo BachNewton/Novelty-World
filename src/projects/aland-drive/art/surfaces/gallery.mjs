@@ -1,6 +1,6 @@
-// The surfaces' gallery: the real game, on the real tiles, renderer and lighting, with the surfaces wired in by the same
-// few replacements `integration.mjs` lists, so these pictures are what the integration gives. Each look is a camera at a
-// place; `--measure` swaps the art in and out at each place and reads the GPU's timestamps in alternated pairs.
+// The surfaces' gallery: the real game, on the real tiles, renderer and lighting. Each look is a camera at a place;
+// `--measure` swaps the art in and out at each place, by the plain materials `integration.mjs` adds, and reads the GPU's
+// timestamps in alternated pairs.
 // The full Chromium is asked for by name: the default headless shell falls back to WebGL2 here.
 //
 //   node src/projects/aland-drive/art/surfaces/gallery.mjs --out=<folder> [--tiles=<tiles folder>] [--base=<folder>] [--size=3440x1440] [--only=a,b] [--measure] [--shimmer] [--plates]
@@ -33,7 +33,6 @@ const ONLY = option("only")?.split(",");
 const MEASURE = flags.includes("--measure");
 const SHIMMER = flags.includes("--shimmer");
 const SHIMMER_STEP_M = 0.03;
-const PLAIN = flags.includes("--plain");
 const PAIRS = Number(option("pairs") ?? 12);
 const READINGS_A_SIDE = 15;
 const SETTLE_FRAMES = 8;
@@ -44,8 +43,8 @@ async function bundle(folder) {
   const gameParts = {
     name: "game-parts",
     setup(on) {
-      on.onLoad({ filter: /render[\\/]game\.ts$/ }, ({ path }) => ({ contents: PLAIN ? readFileSync(path, "utf8") : patchSource(readFileSync(path, "utf8"), "game"), loader: "ts" }));
-      on.onLoad({ filter: /render[\\/]buildings\.ts$/ }, ({ path }) => ({ contents: PLAIN ? readFileSync(path, "utf8") : patchSource(readFileSync(path, "utf8"), "buildings"), loader: "ts" }));
+      on.onLoad({ filter: /render[\\/]game\.ts$/ }, ({ path }) => ({ contents: patchSource(readFileSync(path, "utf8"), "game"), loader: "ts" }));
+      on.onLoad({ filter: /render[\\/]buildings\.ts$/ }, ({ path }) => ({ contents: patchSource(readFileSync(path, "utf8"), "buildings"), loader: "ts" }));
       on.onLoad({ filter: /render[\\/]stream\.ts$/ }, ({ path }) => ({
         contents: readFileSync(path, "utf8").replace('new URL("./tile.worker.ts", import.meta.url)', '"/tile.worker.js"'),
         loader: "ts",
@@ -72,8 +71,7 @@ async function bundle(folder) {
 function pageHtml() {
   const globals = readFileSync(join(REPO, "src/app/globals.css"), "utf8");
   const tokens = [...globals.matchAll(/--color-aland-drive-[\w-]+:\s*[^;]+;/g)].map(([line]) => line).join("");
-  const surfaces = readFileSync(join(HERE, "tokens.css"), "utf8");
-  return `<!doctype html><meta charset="utf-8"><style>:root{${tokens}}${surfaces}html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#000}</style><div id="game"></div><script type="module" src="/page.js"></script>`;
+  return `<!doctype html><meta charset="utf-8"><style>:root{${tokens}}html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#000}</style><div id="game"></div><script type="module" src="/page.js"></script>`;
 }
 
 function serveBundle(folder, html) {
