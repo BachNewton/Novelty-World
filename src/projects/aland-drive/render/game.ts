@@ -9,6 +9,7 @@ import { createRuralBuildings } from "./rural-buildings";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
+import { createReeds, type ReedsDrawn } from "./reeds";
 import { createVerge, type VergeDrawn } from "./verge";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
@@ -72,6 +73,9 @@ export interface GameProbe {
   vergeDrawn: () => VergeDrawn;
   /** Shows the verge or leaves it out, to see what it does. */
   showVerge: (shown: boolean) => void;
+  reedsDrawn: () => ReedsDrawn;
+  /** Shows the reed beds or leaves them out, to see what they do. */
+  showReeds: (shown: boolean) => void;
   car: () => CarState;
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
@@ -407,7 +411,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { r, g, b } = token(name);
     return new Vector3(r, g, b);
   };
-  const { canopyAt, standsAt, roadsAt, landAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, landAt, waterAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -423,6 +427,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
@@ -587,6 +592,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   await renderer.compileAsync(scene, camera);
   await forest.compile();
   await verge.compile();
+  await reeds.compile();
   cullCar(true);
   clipmap.showWide(false);
   outbuildings.showAll(false);
@@ -925,6 +931,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cameraSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
     verge.update(spot, camera, seconds);
+    reeds.update(spot, camera);
     showRibbons(spot);
     sky.update(camera.position, seconds);
     renderer.render(scene, camera);
@@ -950,7 +957,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         webGpu: "isWebGPUBackend" in renderer.backend,
         drawCalls: renderer.info.render.drawCalls,
         // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
-        triangles: renderer.info.render.triangles + forest.drawn().triangles + verge.drawn().triangles,
+        triangles: renderer.info.render.triangles + forest.drawn().triangles + verge.drawn().triangles + reeds.drawn().triangles,
         gpuMs,
         width: renderer.domElement.width,
         height: renderer.domElement.height,
@@ -958,6 +965,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       forestDrawn: forest.drawn,
       vergeDrawn: verge.drawn,
       showVerge: verge.show,
+      reedsDrawn: reeds.drawn,
+      showReeds: reeds.show,
       car: () => drive.stateAt(1),
       log: () => drive.log,
       hold: (next) => {
@@ -1050,6 +1059,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       fetcher.dispose();
       forest.dispose();
       verge.dispose();
+      reeds.dispose();
       clipmap.dispose();
       for (const { cells } of buildings.values()) {
         for (const { mesh } of cells) mesh.geometry.dispose();

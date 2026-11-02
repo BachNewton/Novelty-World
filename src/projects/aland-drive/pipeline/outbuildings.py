@@ -37,6 +37,9 @@ TAGGED_SHED_M2 = 50.0
 SAME_BUILDING = 0.7
 # A longer outbuilding is a row of stalls or a barn, not a shed.
 LONGEST_SHED = 2.2
+# How far the kit's shed walls reach below its foot (`SHED.floor` in `art/rural/buildings.ts`): on ground that falls
+# further than that a shed would float, so it keeps its generated shape, whose walls run down to the ground.
+SHED_SINK_M = 0.5
 # Variants by chance, as the generated walls' colours are.
 # The places come from OSM's tags as much as NLS's footprints, so the list is ODbL, as the footprints and roads are.
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
@@ -138,7 +141,10 @@ class Placed:
             if toward_road is None and seed & 1:
                 front = -front
             across = short_half
-            model, y = _pick(seed, SHEDS), float(np.median(ground))
+            y = float(np.median(ground))
+            if y - float(ground.min()) > SHED_SINK_M:
+                return False
+            model = _pick(seed, SHEDS)
         length, width = 2 * float(np.hypot(*front)), 2 * float(np.hypot(*across))
         # The model's +z turns to (sin yaw, cos yaw) in the scene, whose z is south.
         yaw = math.atan2(front[0], -front[1])

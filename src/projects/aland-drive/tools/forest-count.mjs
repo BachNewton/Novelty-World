@@ -1,4 +1,4 @@
-// What the forest and the verge draw, counted by the GPU, at the showcase's views: trees on each list, triangles, draw calls, and any
+// What the forest, the verge and the reeds draw, counted by the GPU, at the showcase's views: trees on each list, triangles, draw calls, and any
 // shader or validation error. Counts decide; the screenshots are only to see that nothing went wrong.
 //
 // Prereq: a dev server. Usage: node src/projects/aland-drive/tools/forest-count.mjs [--folder=<tiles>] [--size=3440x1440] [--keys=2,4] [--shots=<folder>]
@@ -43,7 +43,7 @@ const settle = () =>
       probe.counts();
       await new Promise(requestAnimationFrame);
     }
-    return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn() };
+    return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn(), reeds: probe.reedsDrawn() };
   }, SETTLE_FRAMES);
 
 for (const key of KEYS) {
