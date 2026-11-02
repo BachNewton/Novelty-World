@@ -1419,3 +1419,16 @@ All 64 combinations of `execute`, `kinds`, `feed`, `threat`, `hoard` and `margin
 The main effects alone fit the 64 tables to their luck (χ² 47 on 57 degrees of freedom), and all 15 pairwise interactions together add nothing (χ² down 11.7 for 15 more terms; none of them past two standard errors). So the switches add up: no pair helps or hurts together beyond its parts, and the best combination is the good switches on and the bad ones off.
 
 Win Elo a seat, one-in among v6.1s: the baseline +159, `execute` +195, `execute` + `kinds` +209 (the top, tied with + `margin`), down to `feed` + `hoard` + `threat` at +61. Each is about ±15 of luck. `kinds` on `execute` gains 14 here, inside its luck, as in the head-to-head at 5 players.
+
+## native-v2's execute beats rule-v7.1 at every table, train seeds (2026-10-30)
+
+Run 40921799068, the gauntlet whose first run played no games: `risk:gauntlet -- 'native-v2~{"execute":1}' --base rule-v7.1 --field rule-v7.1`, train seeds, on Actions from f734bace (128 machines, 7 rounds, 6,439 games). **Better** in all eight pairings, worse in none:
+
+| Players | Lone `execute` (par) | Lone rule-v7.1, `execute`'s share (par) | Capped (one-in / one-out) |
+|---|---|---|---|
+| 3 | 36.6% [34.1, 39.1] (33.3%) | 72.2% [68.0, 76.0] (66.7%) | 0.0% / 0.0% |
+| 4 | 32.5% [27.5, 37.9] (25.0%) | 77.7% [75.6, 79.7] (75.0%) | 1.0% / 6.9% |
+| 5 | 23.9% [20.9, 27.2] (20.0%) | 86.1% [82.2, 89.3] (80.0%) | 0.8% / 3.4% |
+| 6 | 23.1% [18.9, 27.9] (16.7%) | 89.2% [85.6, 92.0] (83.3%) | 1.7% / 6.6% |
+
+Win Elo +42 a seat over rule-v7.1, finishing-order Elo +24. The gauntlet's verdict is accept: this is bar 1's train half passed. The capped share climbs with the tables that seat several `execute`s (6.9% at 4 players, 6.6% at 6), the same failure to close games the mirror stall check found, so bar 5 still stands between it and a seat.
