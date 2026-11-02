@@ -190,7 +190,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     docks_manifest = None
     if with_vectors:
         land = docks.Land(mosaic[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES], water, west, north)
-        moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places])
+        moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places], roads)
         moored.place(piers, marinas, quay_piers)
         docks_manifest = moored.write(folder)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)

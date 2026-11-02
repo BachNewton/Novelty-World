@@ -59,6 +59,8 @@ NARROWEST_RUN_M = 1.0
 BURIED_M = 0.1
 WATER_NEAR_M = (15.0, 60.0)
 SHORTEST_RUN_M = 1.5
+# A dock stays this far from a motor road's line, so no dock or wall stands on a road.
+ROAD_CLEAR_M = 4.0
 # A jetty this near a boathouse is run on to its wall.
 BOATHOUSE_REACH_M = 8.0
 
@@ -274,11 +276,13 @@ class Land:
 class Docks:
     """A tile's docks and boats, as the game reads them: per model, (x, y, z, yaw, width, length) in the scene."""
 
-    def __init__(self, tile: Tile, land: Land, boathouses: list[list[float]]):
+    def __init__(self, tile: Tile, land: Land, boathouses: list[list[float]], roads: list[dict]):
         self.west, self.south = to_local(tile.west, tile.south)
         self.east, self.north = to_local(tile.east, tile.north)
         self.land = land
         self.boathouses = [_boathouse_outline(place) for place in boathouses]
+        motor = [LineString(road["line"]) for road in roads if road["motor"] and len(road["line"]) >= 2]
+        self.roads = shapely.union_all(motor).buffer(ROAD_CLEAR_M) if motor else None
         self.models: dict[str, list[list[float]]] = {}
         self.walls: list[list[float]] = []
         self.taken: list[shapely.Geometry] = []
@@ -341,7 +345,7 @@ class Docks:
             self._berths(pier, start, end, width, level)
 
     def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, level: float) -> tuple[np.ndarray, np.ndarray] | None:
-        """A run cut back to where its deck stands clear of the ground, or for a pontoon to where it floats."""
+        """A run cut back to its longest stretch where its deck stands clear of the ground and of every motor road, or for a pontoon where it floats."""
         length = float(np.hypot(*(end - start)))
         if length < 1e-3:
             return None
@@ -351,9 +355,12 @@ class Docks:
             clear = self.land.wet(points) | (self.land.height(points) <= level + BURIED_M)
         else:
             clear = self.land.height(points) < level + DECK_M[kind] - BURIED_M
-        if not clear.any():
+        if self.roads is not None:
+            clear &= ~shapely.contains_xy(self.roads, points[:, 0], points[:, 1])
+        edges = np.flatnonzero(np.diff(np.concatenate(([0], clear.astype(np.int8), [0]))))
+        if len(edges) == 0:
             return None
-        first, last = int(np.argmax(clear)), len(clear) - 1 - int(np.argmax(clear[::-1]))
+        first, last = max(((int(a), int(b) - 1) for a, b in zip(edges[::2], edges[1::2])), key=lambda run: run[1] - run[0])
         start, end = points[first], points[last]
         return (start, end) if np.hypot(*(end - start)) >= SHORTEST_RUN_M else None
 

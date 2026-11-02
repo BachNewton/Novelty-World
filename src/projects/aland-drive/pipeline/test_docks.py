@@ -40,14 +40,14 @@ class Roads(unittest.TestCase):
         roads = [road([(100, 90), (100, 12)], "service", motor=True)]
         self.assertEqual(quays(roads, [quay]), [quay])
         self.assertEqual(off_piers(roads, []), roads)
-        docks = Docks(TILE, land(), [])
+        docks = Docks(TILE, land(), [], [])
         docks.place([quay], [], [quay])
         self.assertEqual(docks.models, {})
 
 
 class Placing(unittest.TestCase):
     def test_a_jetty_starts_where_its_deck_clears_the_land_and_sits_on_the_water(self):
-        docks = Docks(TILE, land(), [])
+        docks = Docks(TILE, land(), [], [])
         docks.place([pier([(100, 55), (100, 20)])], [], [])
         (x, y, z, _, width, length), = docks.models["jetty"]
         self.assertEqual(y, 0)
@@ -55,8 +55,15 @@ class Placing(unittest.TestCase):
         self.assertAlmostEqual(length, 20, delta=2.5)
         self.assertEqual(len(docks.walls), 4)
 
+    def test_a_dock_stops_short_of_a_motor_road(self):
+        shore_road = road([(0, 30), (200, 30)], "residential", motor=True)
+        docks = Docks(TILE, land(), [], [shore_road])
+        docks.place([pier([(100, 55), (100, 18)])], [], [])
+        (_, _, z, _, _, length), = docks.models["jetty"]
+        self.assertTrue(-z <= 26 or -z - length >= 34)
+
     def test_berthed_boats_are_wholly_on_water_and_clear_of_docks_and_each_other(self):
-        docks = Docks(TILE, land(), [])
+        docks = Docks(TILE, land(), [], [])
         pontoon = pier([(100, 40), (100, 0)], floating="yes")
         docks.place([pontoon], [], [])
         boats = [(model, place) for model, places in docks.models.items() if model in HULLS for place in places]
