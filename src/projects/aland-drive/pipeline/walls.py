@@ -29,6 +29,7 @@ import gzip
 import io
 import json
 import math
+import urllib.error
 import xml.etree.ElementTree as ElementTree
 import zipfile
 from collections import Counter
@@ -93,11 +94,17 @@ def _to_scene(line: LineString) -> list[list[float]]:
 
 
 def _sheets(tile: Tile) -> list[Path]:
-    """The half sheets of the tile and every neighbour, once each: fields near an edge come whole."""
+    """The half sheets of the tile and every neighbour, once each: fields near an edge come whole. A neighbour's
+    sheet the mirror doesn't have is open sea, and only a 404 means that."""
     paths = {}
     for east in (-1, 0, 1):
         for north in (-1, 0, 1):
-            path = topographic_path(neighbour(tile, east, north))
+            try:
+                path = topographic_path(neighbour(tile, east, north))
+            except urllib.error.HTTPError as error:
+                if error.code != 404 or (east, north) == (0, 0):
+                    raise
+                continue
             paths[path.name] = path
     return [paths[name] for name in sorted(paths)]
 
