@@ -34,7 +34,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
 | **Granite** | `art/rural` | Built | OSM `natural=bare_rock` (2,286), MTK rock classes | [ ] | [ ] | [ ] |
 | **Bushes, juniper, birch** | `art/rural` | Built | OSM `natural=scrub` (619), edges by rule | [ ] | [ ] | [ ] |
-| **Reeds** | `art/rural` | Built | OSM `wetland=reedbed` (386) | [ ] | [ ] | [ ] |
+| **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
 | **Stone walls** | `art/rural` | Built | OSM `barrier=wall`; field edges by rule | [ ] | [ ] | [ ] |
 | **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
@@ -71,7 +71,6 @@ Each has a real position, exported with its model. Replacing an NLS solid means 
 
 ## Cleanup found along the way
 
-- `pipeline/buildings.py` reads two Topographic Database classes wrongly: 42231 is a holiday home (6,500 of them, median 66 m²), not a public building, and 42270 is a church (11, median 500 m²), not an outbuilding. 42261 is the outbuilding class. `pipeline/outbuildings.py` uses the right ones.
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.

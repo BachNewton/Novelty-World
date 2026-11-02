@@ -124,6 +124,21 @@ function straw(base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">) {
   return base.mul(float(1).add(streak.mul(0.12).mul(float(1).sub(gone(0.03, away))))).mul(float(1).add(swell(at.mul(3)).mul(0.1)));
 }
 
+/** Every part's paint in linear light, by its place in `RURAL_PARTS`. */
+export function ruralColours(linear: RoadsideInputs["linear"]): Vector3[] {
+  return RURAL_PARTS.map((part) => {
+    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
+    const { from, to = from, share = 0, gain = 1 } = paint;
+    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
+  });
+}
+
+/** A vertex's paint from the kit's palette, before any light. */
+export function ruralPaint(palette: ReturnType<typeof uniformArray>): Node<"vec3"> {
+  const tint = attribute<"vec4">("tint", "vec4");
+  return (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+}
+
 const RECORD_VEC4S = 5;
 
 /** `GABLE_PAINTS` as vec4s, `RECORD_VEC4S` to a building, in the order `gablePainted` reads them. */
@@ -215,11 +230,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const azimuth = (sun.azimuthDeg * Math.PI) / 180;
   const elevation = (sun.elevationDeg * Math.PI) / 180;
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const palette = uniformArray(RURAL_PARTS.map((part) => {
-    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
-    const { from, to = from, share = 0, gain = 1 } = paint;
-    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
-  }));
+  const palette = uniformArray(ruralColours(linear));
   const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;
   const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
