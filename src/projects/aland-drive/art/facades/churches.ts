@@ -65,7 +65,7 @@ export const CHURCHES: ChurchSpec[] = [
     stone: "red",
     nave: { from: -14, to: 14, halfWide: 7.4, eaves: 9.6, ridge: 20 },
     // Built into the nave's west bay. The solid stops at the ridge; the laser sees the spire 34.5 m up.
-    tower: { x: -10, z: 0, halfX: 4, halfZ: 4.2, stone: 23, top: 34.5, roof: "crown" },
+    tower: { x: -10.35, z: 0, halfX: 4, halfZ: 4.2, stone: 23, top: 34.5, roof: "crown" },
     annexes: [
       { x: 0, z: -10.6, halfX: 3.6, halfZ: 3.4, eaves: 5.2, ridge: 9.2 },
       { x: 0, z: 10.6, halfX: 2.8, halfZ: 3.4, eaves: 4.4, ridge: 8 },
@@ -83,7 +83,7 @@ export const CHURCHES: ChurchSpec[] = [
     nave: { from: -10.35, to: 10.35, halfWide: 7.1, eaves: 7.4, ridge: 15.8 },
     chancel: { from: 10.35, to: 18.4, halfWide: 5, eaves: 5.9, ridge: 12.8 },
     // Against the south wall in line with the west gable: the one Åland tower that stands beside its nave.
-    tower: { x: -6.6, z: 11.3, halfX: 3.9, halfZ: 3.9, stone: 15, top: 27.8, roof: "pyramid" },
+    tower: { x: -6.8, z: 10.95, halfX: 3.9, halfZ: 3.9, stone: 15, top: 27.8, roof: "pyramid" },
     annexes: [{ x: -4, z: -9.3, halfX: 3, halfZ: 2.2, eaves: 4.2, ridge: 7.2 }],
   },
   {

@@ -1,5 +1,5 @@
 {
-  "format": 5,
+  "format": 6,
   "tile": "L2343C",
   "crs": "EPSG:3067",
   "worldOrigin": {
@@ -18,7 +18,7 @@
     "stepM": 4.0,
     "unitM": 0.01,
     "encoding": "gzip of int16le; rows north to south, west to east; each value the difference from the one to its west",
-    "min": -0.02,
+    "min": -3.6,
     "max": 51.34
   },
   "far": {
@@ -58,6 +58,11 @@
     "pixels": 1500,
     "unitM": 0.25
   },
+  "stands": {
+    "file": "stands.bin.gz",
+    "pixels": 125,
+    "encoding": "gzip of bytes, 4 a pixel, rows north to south, west to east: the shares of pine, spruce and birch, 0 to 255, what's left being other broadleaf, then the share of lattice places holding a tree"
+  },
   "solids": {
     "file": "solids.bin.gz",
     "unitM": 0.02,
@@ -65,8 +70,8 @@
       {
         "x": -11700.0,
         "z": -5700.0,
-        "vertices": 1912,
-        "indices": 3120
+        "vertices": 1856,
+        "indices": 3036
       },
       {
         "x": -11700.0,
@@ -77,8 +82,8 @@
       {
         "x": -11700.0,
         "z": -2700.0,
-        "vertices": 1146,
-        "indices": 1782
+        "vertices": 872,
+        "indices": 1368
       },
       {
         "x": -11700.0,
@@ -89,62 +94,56 @@
       {
         "x": -11700.0,
         "z": -1500.0,
-        "vertices": 162,
-        "indices": 246
+        "vertices": 50,
+        "indices": 78
       },
       {
         "x": -11700.0,
         "z": -900.0,
-        "vertices": 4016,
-        "indices": 6354
+        "vertices": 3432,
+        "indices": 5472
       },
       {
         "x": -11700.0,
         "z": -300.0,
-        "vertices": 1580,
-        "indices": 2502
-      },
-      {
-        "x": -11100.0,
-        "z": -5700.0,
-        "vertices": 56,
-        "indices": 84
+        "vertices": 1368,
+        "indices": 2178
       },
       {
         "x": -11100.0,
         "z": -5100.0,
-        "vertices": 1498,
-        "indices": 2400
+        "vertices": 1392,
+        "indices": 2238
       },
       {
         "x": -11100.0,
         "z": -4500.0,
-        "vertices": 868,
-        "indices": 1368
+        "vertices": 756,
+        "indices": 1200
       },
       {
         "x": -11100.0,
         "z": -900.0,
-        "vertices": 692,
-        "indices": 1098
+        "vertices": 636,
+        "indices": 1014
       },
       {
         "x": -11100.0,
         "z": -300.0,
-        "vertices": 2728,
-        "indices": 4326
+        "vertices": 2132,
+        "indices": 3432
       },
       {
         "x": -10500.0,
         "z": -5700.0,
-        "vertices": 1674,
-        "indices": 2688
+        "vertices": 1506,
+        "indices": 2436
       },
       {
         "x": -10500.0,
         "z": -5100.0,
-        "vertices": 1033,
-        "indices": 1638
+        "vertices": 941,
+        "indices": 1500
       },
       {
         "x": -10500.0,
@@ -155,8 +154,8 @@
       {
         "x": -10500.0,
         "z": -2700.0,
-        "vertices": 1805,
-        "indices": 2835
+        "vertices": 1599,
+        "indices": 2517
       },
       {
         "x": -10500.0,
@@ -167,32 +166,32 @@
       {
         "x": -10500.0,
         "z": -900.0,
-        "vertices": 2134,
-        "indices": 3378
+        "vertices": 1762,
+        "indices": 2820
       },
       {
         "x": -10500.0,
         "z": -300.0,
-        "vertices": 2892,
-        "indices": 4842
+        "vertices": 2724,
+        "indices": 4590
       },
       {
         "x": -9900.0,
         "z": -5700.0,
-        "vertices": 3871,
-        "indices": 6129
+        "vertices": 3185,
+        "indices": 5097
       },
       {
         "x": -9900.0,
         "z": -5100.0,
-        "vertices": 3913,
-        "indices": 6177
+        "vertices": 3709,
+        "indices": 5871
       },
       {
         "x": -9900.0,
         "z": -4500.0,
-        "vertices": 276,
-        "indices": 438
+        "vertices": 220,
+        "indices": 354
       },
       {
         "x": -9900.0,
@@ -208,21 +207,15 @@
       },
       {
         "x": -9900.0,
-        "z": -900.0,
-        "vertices": 56,
-        "indices": 84
-      },
-      {
-        "x": -9900.0,
         "z": -300.0,
-        "vertices": 580,
-        "indices": 906
+        "vertices": 394,
+        "indices": 624
       },
       {
         "x": -9300.0,
         "z": -5700.0,
-        "vertices": 254,
-        "indices": 402
+        "vertices": 198,
+        "indices": 318
       },
       {
         "x": -9300.0,
@@ -233,56 +226,56 @@
       {
         "x": -9300.0,
         "z": -4500.0,
-        "vertices": 76,
-        "indices": 114
+        "vertices": 20,
+        "indices": 30
       },
       {
         "x": -9300.0,
         "z": -3900.0,
-        "vertices": 956,
-        "indices": 1524
+        "vertices": 850,
+        "indices": 1362
       },
       {
         "x": -9300.0,
         "z": -3300.0,
-        "vertices": 934,
-        "indices": 1506
+        "vertices": 898,
+        "indices": 1452
       },
       {
         "x": -9300.0,
         "z": -900.0,
-        "vertices": 870,
-        "indices": 1374
+        "vertices": 764,
+        "indices": 1212
       },
       {
         "x": -9300.0,
         "z": -300.0,
-        "vertices": 2692,
-        "indices": 4242
+        "vertices": 2452,
+        "indices": 3882
       },
       {
         "x": -8700.0,
         "z": -5700.0,
-        "vertices": 538,
-        "indices": 852
+        "vertices": 370,
+        "indices": 600
       },
       {
         "x": -8700.0,
         "z": -5100.0,
-        "vertices": 654,
-        "indices": 1038
+        "vertices": 562,
+        "indices": 900
       },
       {
         "x": -8700.0,
         "z": -4500.0,
-        "vertices": 788,
-        "indices": 1248
+        "vertices": 732,
+        "indices": 1164
       },
       {
         "x": -8700.0,
         "z": -3900.0,
-        "vertices": 1118,
-        "indices": 1764
+        "vertices": 1062,
+        "indices": 1680
       },
       {
         "x": -8700.0,
@@ -299,20 +292,20 @@
       {
         "x": -8700.0,
         "z": -300.0,
-        "vertices": 352,
-        "indices": 546
+        "vertices": 296,
+        "indices": 462
       },
       {
         "x": -8100.0,
         "z": -5700.0,
-        "vertices": 520,
-        "indices": 828
+        "vertices": 414,
+        "indices": 666
       },
       {
         "x": -8100.0,
         "z": -5100.0,
-        "vertices": 1522,
-        "indices": 2364
+        "vertices": 898,
+        "indices": 1422
       },
       {
         "x": -8100.0,
@@ -323,44 +316,44 @@
       {
         "x": -8100.0,
         "z": -3900.0,
-        "vertices": 648,
-        "indices": 1020
+        "vertices": 592,
+        "indices": 936
       },
       {
         "x": -8100.0,
         "z": -3300.0,
-        "vertices": 432,
-        "indices": 678
+        "vertices": 306,
+        "indices": 486
       },
       {
         "x": -8100.0,
         "z": -2700.0,
-        "vertices": 290,
-        "indices": 438
+        "vertices": 86,
+        "indices": 132
       },
       {
         "x": -8100.0,
         "z": -1500.0,
-        "vertices": 178,
-        "indices": 276
+        "vertices": 120,
+        "indices": 186
       },
       {
         "x": -7500.0,
         "z": -5700.0,
-        "vertices": 766,
-        "indices": 1170
+        "vertices": 268,
+        "indices": 420
       },
       {
         "x": -7500.0,
         "z": -5100.0,
-        "vertices": 2006,
-        "indices": 3150
+        "vertices": 1596,
+        "indices": 2532
       },
       {
         "x": -7500.0,
         "z": -4500.0,
-        "vertices": 1612,
-        "indices": 2592
+        "vertices": 1520,
+        "indices": 2448
       },
       {
         "x": -7500.0,
@@ -371,104 +364,92 @@
       {
         "x": -7500.0,
         "z": -3300.0,
-        "vertices": 674,
-        "indices": 1056
+        "vertices": 618,
+        "indices": 972
       },
       {
         "x": -7500.0,
         "z": -300.0,
-        "vertices": 616,
-        "indices": 960
+        "vertices": 504,
+        "indices": 792
       },
       {
         "x": -6900.0,
         "z": -5700.0,
-        "vertices": 750,
-        "indices": 1206
+        "vertices": 694,
+        "indices": 1122
       },
       {
         "x": -6900.0,
         "z": -5100.0,
-        "vertices": 2434,
-        "indices": 3834
+        "vertices": 1986,
+        "indices": 3162
       },
       {
         "x": -6900.0,
         "z": -4500.0,
-        "vertices": 212,
-        "indices": 324
+        "vertices": 156,
+        "indices": 240
       },
       {
         "x": -6900.0,
         "z": -3900.0,
-        "vertices": 1476,
-        "indices": 2364
+        "vertices": 1140,
+        "indices": 1860
       },
       {
         "x": -6900.0,
         "z": -3300.0,
-        "vertices": 1016,
-        "indices": 1602
+        "vertices": 748,
+        "indices": 1194
       },
       {
         "x": -6900.0,
         "z": -1500.0,
-        "vertices": 632,
-        "indices": 1002
+        "vertices": 476,
+        "indices": 762
       },
       {
         "x": -6900.0,
         "z": -900.0,
-        "vertices": 1440,
-        "indices": 2286
+        "vertices": 1138,
+        "indices": 1824
       },
       {
         "x": -6900.0,
         "z": -300.0,
-        "vertices": 5404,
-        "indices": 8628
+        "vertices": 5038,
+        "indices": 8076
       },
       {
         "x": -6300.0,
         "z": -5700.0,
-        "vertices": 3127,
-        "indices": 4896
+        "vertices": 2287,
+        "indices": 3636
       },
       {
         "x": -6300.0,
         "z": -5100.0,
-        "vertices": 760,
-        "indices": 1158
+        "vertices": 298,
+        "indices": 462
       },
       {
         "x": -6300.0,
         "z": -4500.0,
-        "vertices": 156,
-        "indices": 240
+        "vertices": 100,
+        "indices": 156
       },
       {
         "x": -6300.0,
         "z": -3300.0,
-        "vertices": 366,
-        "indices": 582
-      },
-      {
-        "x": -6300.0,
-        "z": -2700.0,
-        "vertices": 156,
-        "indices": 240
-      },
-      {
-        "x": -6300.0,
-        "z": -2100.0,
-        "vertices": 106,
-        "indices": 162
+        "vertices": 310,
+        "indices": 498
       },
       {
         "x": -6300.0,
         "z": -900.0,
-        "vertices": 1172,
-        "indices": 1860
+        "vertices": 1116,
+        "indices": 1776
       },
       {
         "x": -6300.0,
@@ -477,11 +458,32 @@
         "indices": 438
       }
     ],
-    "walls": 3985,
+    "walls": 3989,
     "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)",
-    "overRoads": 23,
-    "modelled": 641,
-    "generated": 239
+    "overRoads": 22,
+    "modelled": 596,
+    "generated": 73
+  },
+  "models": {
+    "file": "models.json",
+    "count": {
+      "boathouse-red": 3,
+      "boathouse-tarred": 2,
+      "boulder-11": 9,
+      "boulder-24": 6,
+      "boulder-3": 8,
+      "boulder-37": 10,
+      "shed-grey": 94,
+      "shed-red": 112
+    },
+    "place": [
+      "x",
+      "y",
+      "z",
+      "yaw",
+      "width",
+      "length"
+    ]
   },
   "buildingSheets": [
     "L2334B",
@@ -495,7 +497,12 @@
     "L2343F"
   ],
   "water": {
-    "nodesFile": "water-nodes.bin.gz"
+    "levelsFile": "water-levels.bin.gz",
+    "farLevelsFile": "water-levels-far.bin.gz",
+    "shoreFile": "shore.bin.gz",
+    "farShoreFile": "shore-far.bin.gz",
+    "dryLevel": -300.0,
+    "encoding": "coded as the heights are: the drawn water surface at each height node, dryLevel where no water is near; and the metres from the shore, out into the water and below zero on land"
   },
   "roads": {
     "file": "roads.json",
@@ -507,11 +514,12 @@
   },
   "attribution": [
     "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
+    "Forest stands: ©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023, CC BY 4.0",
     "Roads: © OpenStreetMap contributors, ODbL 1.0"
   ],
   "roadSurface": {
     "file": "road-surface.bin.gz",
-    "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order",
+    "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the aprons: float32le points of (east, north, height, across, tier), then uint32le triangles",
     "ring": [
       "outer left",
       "edge left",
@@ -526,14 +534,14 @@
     ],
     "chains": [
       {
-        "sections": 549,
+        "sections": 582,
         "kind": "primary",
         "ref": "1",
         "name": "Hammarlandsvägen",
         "motor": true
       },
       {
-        "sections": 394,
+        "sections": 519,
         "kind": "secondary",
         "ref": "40",
         "name": "Emkarbyvägen",
@@ -547,26 +555,26 @@
         "motor": true
       },
       {
-        "sections": 371,
+        "sections": 383,
         "kind": "tertiary",
         "name": "Vestmyravägen",
         "motor": true
       },
       {
-        "sections": 242,
+        "sections": 249,
         "kind": "tertiary",
         "name": "Byttbölevägen",
         "motor": true
       },
       {
-        "sections": 400,
+        "sections": 432,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
         "motor": true
       },
       {
-        "sections": 369,
+        "sections": 382,
         "kind": "tertiary",
         "ref": "270",
         "name": "Vestansundabyaväg",
@@ -580,14 +588,14 @@
         "motor": true
       },
       {
-        "sections": 566,
+        "sections": 592,
         "kind": "tertiary",
         "ref": "187",
         "name": "Östanträskvägen",
         "motor": true
       },
       {
-        "sections": 41,
+        "sections": 38,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
@@ -601,255 +609,255 @@
         "motor": true
       },
       {
-        "sections": 23,
+        "sections": 20,
         "kind": "tertiary",
         "ref": "267",
         "name": "Brobackavägen",
         "motor": true
       },
       {
-        "sections": 28,
+        "sections": 20,
         "kind": "tertiary",
         "ref": "183",
         "name": "Tellholmsvägen",
         "motor": true
       },
       {
-        "sections": 19,
+        "sections": 22,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
         "motor": true
       },
       {
-        "sections": 206,
+        "sections": 204,
         "kind": "unclassified",
         "name": "Djekenbölsnäsvägen",
         "motor": true
       },
       {
-        "sections": 107,
+        "sections": 109,
         "kind": "unclassified",
         "name": "Råskärsvägen",
         "motor": true
       },
       {
-        "sections": 700,
+        "sections": 704,
         "kind": "residential",
         "name": "Vidmansvägen",
         "motor": true
       },
       {
-        "sections": 175,
+        "sections": 174,
         "kind": "unclassified",
         "name": "Övergårdsvägen",
         "motor": true
       },
       {
-        "sections": 202,
+        "sections": 205,
         "kind": "unclassified",
         "name": "Boda Tingsvägen",
         "motor": true
       },
       {
-        "sections": 689,
+        "sections": 707,
         "kind": "unclassified",
         "name": "Ridstigen",
         "motor": true
       },
       {
-        "sections": 101,
+        "sections": 97,
         "kind": "unclassified",
         "name": "Vargsundsvägen",
         "motor": true
       },
       {
-        "sections": 358,
+        "sections": 376,
         "kind": "unclassified",
         "name": "Djeknevägen",
         "motor": true
       },
       {
-        "sections": 166,
+        "sections": 167,
         "kind": "residential",
         "name": "Storhagskroken",
         "motor": true
       },
       {
-        "sections": 140,
+        "sections": 137,
         "kind": "unclassified",
         "name": "Berghagsvägen",
         "motor": true
       },
       {
-        "sections": 180,
+        "sections": 183,
         "kind": "unclassified",
         "name": "Storhagskroken",
         "motor": true
       },
       {
-        "sections": 95,
+        "sections": 94,
         "kind": "unclassified",
         "name": "Gunnarsvägen",
         "motor": true
       },
       {
-        "sections": 95,
+        "sections": 91,
         "kind": "unclassified",
         "name": "Varggropsvägen",
         "motor": true
       },
       {
-        "sections": 226,
+        "sections": 228,
         "kind": "unclassified",
         "name": "Drygsbölevägen",
         "motor": true
       },
       {
-        "sections": 134,
+        "sections": 132,
         "kind": "unclassified",
         "name": "Marvägen",
         "motor": true
       },
       {
-        "sections": 127,
+        "sections": 125,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 90,
+        "sections": 93,
         "kind": "unclassified",
         "name": "Östergårds",
         "motor": true
       },
       {
-        "sections": 93,
+        "sections": 91,
         "kind": "residential",
         "name": "Lingonstigen",
         "motor": true
       },
       {
-        "sections": 269,
+        "sections": 275,
         "kind": "residential",
         "name": "Östergårds",
         "motor": true
       },
       {
-        "sections": 72,
+        "sections": 71,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 54,
+        "sections": 50,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 291,
+        "sections": 292,
         "kind": "residential",
         "name": "Dalenvägen",
         "motor": true
       },
       {
-        "sections": 63,
+        "sections": 61,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 140,
+        "sections": 156,
         "kind": "residential",
         "name": "Krokgränd",
         "motor": true
       },
       {
-        "sections": 523,
+        "sections": 527,
         "kind": "residential",
         "name": "Färgarsgatan",
         "motor": true
       },
       {
-        "sections": 85,
+        "sections": 82,
         "kind": "unclassified",
         "name": "Axellundsväg",
         "motor": true
       },
       {
-        "sections": 105,
+        "sections": 104,
         "kind": "residential",
-        "motor": true
-      },
-      {
-        "sections": 99,
-        "kind": "residential",
-        "name": "Lillåkersgränd",
         "motor": true
       },
       {
         "sections": 93,
         "kind": "residential",
+        "name": "Lillåkersgränd",
+        "motor": true
+      },
+      {
+        "sections": 97,
+        "kind": "residential",
         "name": "Vestansundabyaväg",
         "motor": true
       },
       {
-        "sections": 73,
+        "sections": 71,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 163,
+        "sections": 162,
         "kind": "unclassified",
         "name": "Hosterslättsvägen",
         "motor": true
       },
       {
-        "sections": 245,
+        "sections": 250,
         "kind": "residential",
         "name": "Östergårdsvägen",
         "motor": true
       },
       {
-        "sections": 77,
+        "sections": 81,
         "kind": "unclassified",
         "name": "Söderskogsvägen",
         "motor": true
       },
       {
-        "sections": 72,
+        "sections": 73,
         "kind": "residential",
         "name": "Brinkgränd",
         "motor": true
       },
       {
-        "sections": 49,
+        "sections": 47,
         "kind": "residential",
         "name": "Brinkgränd",
         "motor": true
       },
       {
-        "sections": 46,
+        "sections": 43,
         "kind": "residential",
         "name": "Storhagskroken",
         "motor": true
       },
       {
-        "sections": 124,
+        "sections": 125,
         "kind": "residential",
         "name": "Furubogränd",
         "motor": true
       },
       {
-        "sections": 31,
+        "sections": 24,
         "kind": "residential",
         "name": "Lillåkersgränd",
         "motor": true
       },
       {
-        "sections": 63,
+        "sections": 60,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 66,
+        "sections": 56,
         "kind": "residential",
         "motor": true
       },
@@ -859,18 +867,18 @@
         "motor": true
       },
       {
-        "sections": 57,
+        "sections": 50,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 76,
+        "sections": 77,
         "kind": "unclassified",
         "name": "Björknäsuddsvägen",
         "motor": true
       },
       {
-        "sections": 92,
+        "sections": 86,
         "kind": "residential",
         "name": "Övrevägen",
         "motor": true
@@ -882,82 +890,60 @@
         "motor": true
       },
       {
-        "sections": 47,
+        "sections": 40,
         "kind": "residential",
         "name": "Myrvägen",
         "motor": true
       },
       {
-        "sections": 170,
+        "sections": 172,
         "kind": "unclassified",
         "name": "Fridhemsslingan",
         "motor": true
       },
       {
-        "sections": 38,
+        "sections": 37,
         "kind": "residential",
         "name": "Erlandsbacken",
         "motor": true
       },
       {
-        "sections": 55,
+        "sections": 53,
         "kind": "residential",
         "name": "Skomakargränd",
         "motor": true
       },
       {
-        "sections": 44,
+        "sections": 48,
         "kind": "unclassified",
         "name": "Västra Näsvägen",
         "motor": true
       },
       {
-        "sections": 17,
+        "sections": 14,
         "kind": "residential",
         "name": "Östergårdsvägen",
         "motor": true
       },
       {
-        "sections": 75,
+        "sections": 73,
         "kind": "residential",
         "name": "Dalenvägen",
         "motor": true
       },
       {
-        "sections": 34,
+        "sections": 32,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 47,
+        "sections": 45,
         "kind": "residential",
         "name": "Brinkgränd",
         "motor": true
       },
       {
-        "sections": 70,
-        "kind": "residential",
-        "name": "Bondtorpsvägen",
-        "motor": true
-      },
-      {
-        "sections": 37,
-        "kind": "residential",
-        "motor": true
-      },
-      {
-        "sections": 23,
-        "kind": "residential",
-        "motor": true
-      },
-      {
-        "sections": 56,
-        "kind": "residential",
-        "name": "Myrvägen",
-        "motor": true
-      },
-      {
-        "sections": 131,
+        "sections": 69,
         "kind": "residential",
         "name": "Bondtorpsvägen",
         "motor": true
@@ -965,17 +951,39 @@
       {
         "sections": 34,
         "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 54,
+        "kind": "residential",
+        "name": "Myrvägen",
+        "motor": true
+      },
+      {
+        "sections": 129,
+        "kind": "residential",
+        "name": "Bondtorpsvägen",
+        "motor": true
+      },
+      {
+        "sections": 27,
+        "kind": "residential",
         "name": "Östergårdsvägen",
         "motor": true
       },
       {
-        "sections": 35,
+        "sections": 32,
         "kind": "residential",
         "name": "Kallesgatan",
         "motor": true
       },
       {
-        "sections": 45,
+        "sections": 42,
         "kind": "residential",
         "motor": true
       },
@@ -985,41 +993,71 @@
         "motor": true,
         "spans": [
           [
-            53,
-            56
+            55,
+            58
           ]
         ]
       },
       {
-        "sections": 12,
+        "sections": 10,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 8,
+        "sections": 10,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 16,
+        "sections": 9,
         "kind": "residential",
         "name": "Kallesgatan",
         "motor": true
       },
       {
-        "sections": 99,
+        "sections": 98,
         "kind": "unclassified",
         "motor": true
       },
       {
-        "sections": 12,
+        "sections": 9,
         "kind": "residential",
         "motor": true
       },
       {
-        "sections": 7,
-        "kind": "unclassified",
-        "name": "Söderskogsvägen",
+        "sections": 391,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 274,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 153,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 217,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 344,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 182,
+        "kind": "service",
+        "name": "Snigelstigen",
+        "motor": true
+      },
+      {
+        "sections": 66,
+        "kind": "service",
         "motor": true
       },
       {
@@ -1028,115 +1066,7 @@
         "motor": true
       },
       {
-        "sections": 279,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 151,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 220,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 341,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 183,
-        "kind": "service",
-        "name": "Snigelstigen",
-        "motor": true
-      },
-      {
-        "sections": 72,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 384,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 37,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 69,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 69,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 445,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 107,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 281,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 93,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 97,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 234,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 82,
-        "kind": "service",
-        "name": "Djäkenböle gårdsväg",
-        "motor": true
-      },
-      {
-        "sections": 91,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 47,
-        "kind": "service",
-        "name": "Fågelvägen",
-        "motor": true
-      },
-      {
-        "sections": 73,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 65,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 52,
+        "sections": 33,
         "kind": "service",
         "motor": true
       },
@@ -1146,63 +1076,74 @@
         "motor": true
       },
       {
+        "sections": 67,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 441,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 104,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 278,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 93,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 98,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 233,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 80,
+        "kind": "service",
+        "name": "Djäkenböle gårdsväg",
+        "motor": true
+      },
+      {
+        "sections": 88,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 44,
+        "kind": "service",
+        "name": "Fågelvägen",
+        "motor": true
+      },
+      {
+        "sections": 65,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 63,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 48,
+        "kind": "service",
+        "motor": true
+      },
+      {
         "sections": 62,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 56,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 55,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 51,
-        "kind": "service",
-        "name": "Lergropsvägen",
-        "motor": true
-      },
-      {
-        "sections": 61,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 68,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 49,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 41,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 61,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 109,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 24,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 29,
         "kind": "service",
         "motor": true
       },
@@ -1212,62 +1153,33 @@
         "motor": true
       },
       {
-        "sections": 56,
+        "sections": 53,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 41,
+        "sections": 54,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 21,
+        "sections": 49,
+        "kind": "service",
+        "name": "Lergropsvägen",
+        "motor": true
+      },
+      {
+        "sections": 57,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 55,
+        "sections": 65,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 224,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 41,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 27,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 45,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 35,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 24,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 96,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 43,
+        "sections": 49,
         "kind": "service",
         "motor": true
       },
@@ -1277,162 +1189,12 @@
         "motor": true
       },
       {
-        "sections": 35,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 44,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 41,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 49,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 43,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 18,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 49,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 32,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 33,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 34,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 50,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 33,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 25,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 30,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 18,
+        "sections": 59,
         "kind": "service",
         "motor": true
       },
       {
         "sections": 108,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 32,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 33,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 20,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 25,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 50,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 22,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 67,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 26,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 24,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 18,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 15,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 26,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 24,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 21,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 17,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 21,
         "kind": "service",
         "motor": true
       },
@@ -1447,27 +1209,17 @@
         "motor": true
       },
       {
-        "sections": 26,
+        "sections": 61,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 14,
+        "sections": 56,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 14,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 13,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 14,
+        "sections": 40,
         "kind": "service",
         "motor": true
       },
@@ -1477,7 +1229,142 @@
         "motor": true
       },
       {
-        "sections": 10,
+        "sections": 54,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 220,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 39,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 45,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 32,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 94,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 38,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 38,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 33,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 42,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 36,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 44,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 38,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 48,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 27,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 31,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 29,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 104,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 32,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 33,
         "kind": "service",
         "motor": true
       },
@@ -1487,42 +1374,12 @@
         "motor": true
       },
       {
-        "sections": 52,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 16,
-        "kind": "service",
-        "motor": true
-      },
-      {
         "sections": 22,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 19,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 19,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 15,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 17,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 15,
+        "sections": 48,
         "kind": "service",
         "motor": true
       },
@@ -1532,12 +1389,12 @@
         "motor": true
       },
       {
-        "sections": 23,
+        "sections": 66,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 172,
+        "sections": 24,
         "kind": "service",
         "motor": true
       },
@@ -1547,37 +1404,7 @@
         "motor": true
       },
       {
-        "sections": 23,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 28,
-        "kind": "service",
-        "motor": true
-      },
-      {
         "sections": 15,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 9,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 9,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 23,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 11,
         "kind": "service",
         "motor": true
       },
@@ -1587,7 +1414,17 @@
         "motor": true
       },
       {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
         "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
         "kind": "service",
         "motor": true
       },
@@ -1597,12 +1434,67 @@
         "motor": true
       },
       {
-        "sections": 19,
+        "sections": 20,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 14,
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 51,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 13,
         "kind": "service",
         "motor": true
       },
@@ -1612,17 +1504,117 @@
         "motor": true
       },
       {
+        "sections": 17,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 17,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 170,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 20,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
         "sections": 16,
         "kind": "service",
         "motor": true
       },
       {
-        "sections": 15,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 15,
+        "sections": 14,
         "kind": "service",
         "motor": true
       },
@@ -1632,7 +1624,17 @@
         "motor": true
       },
       {
-        "sections": 35,
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 4,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 32,
         "kind": "service",
         "motor": true
       },
@@ -1642,12 +1644,102 @@
         "motor": true
       },
       {
-        "sections": 11,
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
         "kind": "service",
         "motor": true
       },
       {
         "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 6,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 6,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 6,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
         "kind": "service",
         "motor": true
       },
@@ -1657,117 +1749,17 @@
         "motor": true
       },
       {
-        "sections": 16,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 14,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 10,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 11,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 11,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 9,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 10,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 9,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 9,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 7,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 7,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 6,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 7,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 8,
-        "kind": "service",
-        "motor": true
-      },
-      {
-        "sections": 6,
-        "kind": "service",
-        "motor": true
-      },
-      {
         "sections": 4,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 5,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 3,
         "kind": "service",
         "motor": true
       },
@@ -1817,7 +1809,7 @@
         "motor": true
       },
       {
-        "sections": 61,
+        "sections": 60,
         "kind": "track",
         "motor": true
       },
@@ -1892,7 +1884,7 @@
         "motor": true
       },
       {
-        "sections": 74,
+        "sections": 75,
         "kind": "track",
         "motor": true
       },
@@ -1922,7 +1914,7 @@
         "motor": true
       },
       {
-        "sections": 66,
+        "sections": 65,
         "kind": "track",
         "motor": true
       },
@@ -1962,7 +1954,7 @@
         "motor": true
       },
       {
-        "sections": 51,
+        "sections": 50,
         "kind": "track",
         "motor": true
       },
@@ -2017,7 +2009,7 @@
         "motor": true
       },
       {
-        "sections": 37,
+        "sections": 38,
         "kind": "track",
         "motor": true
       },
@@ -2027,7 +2019,7 @@
         "motor": true
       },
       {
-        "sections": 49,
+        "sections": 50,
         "kind": "track",
         "motor": true
       },
@@ -2107,7 +2099,7 @@
         "motor": true
       },
       {
-        "sections": 19,
+        "sections": 22,
         "kind": "track",
         "motor": true
       },
@@ -2127,7 +2119,7 @@
         "motor": true
       },
       {
-        "sections": 23,
+        "sections": 25,
         "kind": "track",
         "motor": true
       },
@@ -2172,7 +2164,7 @@
         "motor": true
       },
       {
-        "sections": 13,
+        "sections": 17,
         "kind": "track",
         "motor": true
       },
@@ -2247,7 +2239,7 @@
         "motor": true
       },
       {
-        "sections": 240,
+        "sections": 238,
         "kind": "cycleway",
         "motor": false
       },
@@ -2272,17 +2264,17 @@
         "motor": false
       },
       {
-        "sections": 66,
+        "sections": 65,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 68,
+        "sections": 67,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 53,
+        "sections": 50,
         "kind": "cycleway",
         "motor": false
       },
@@ -2292,12 +2284,12 @@
         "motor": false
       },
       {
-        "sections": 62,
+        "sections": 61,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 49,
+        "sections": 47,
         "kind": "cycleway",
         "motor": false
       },
@@ -2312,12 +2304,12 @@
         "motor": false
       },
       {
-        "sections": 48,
+        "sections": 49,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 26,
+        "sections": 25,
         "kind": "cycleway",
         "motor": false
       },
@@ -2337,17 +2329,17 @@
         "motor": false
       },
       {
-        "sections": 22,
-        "kind": "cycleway",
-        "motor": false
-      },
-      {
-        "sections": 38,
-        "kind": "cycleway",
-        "motor": false
-      },
-      {
         "sections": 21,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 37,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 22,
         "kind": "cycleway",
         "motor": false
       },
@@ -2362,7 +2354,7 @@
         "motor": false
       },
       {
-        "sections": 36,
+        "sections": 38,
         "kind": "cycleway",
         "motor": false
       },
@@ -2372,7 +2364,7 @@
         "motor": false
       },
       {
-        "sections": 29,
+        "sections": 27,
         "kind": "cycleway",
         "motor": false
       },
@@ -2387,7 +2379,7 @@
         "motor": false
       },
       {
-        "sections": 16,
+        "sections": 17,
         "kind": "cycleway",
         "motor": false
       },
@@ -2407,17 +2399,17 @@
         "motor": false
       },
       {
-        "sections": 7,
+        "sections": 6,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 6,
+        "sections": 4,
         "kind": "path",
         "motor": false
       },
       {
-        "sections": 4,
+        "sections": 5,
         "kind": "cycleway",
         "motor": false
       },
@@ -2437,35 +2429,17 @@
         "motor": false
       }
     ],
+    "aprons": {
+      "points": 56590,
+      "triangles": 45665
+    },
     "license": "ODbL-1.0",
     "attribution": "© OpenStreetMap contributors",
     "asOf": "2026-10-30T18:29:51Z"
-  },
-  "stands": {
-    "file": "stands.bin.gz",
-    "pixels": 125,
-    "encoding": "gzip of bytes, 4 a pixel, rows north to south, west to east: the shares of pine, spruce and birch, 0 to 255, what's left being other broadleaf, then the share of lattice places holding a tree"
   },
   "rock": {
     "file": "rock.bin.gz",
     "pixels": 1500,
     "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255"
-  },
-  "models": {
-    "file": "models.json",
-    "count": {
-      "boulder-11": 9,
-      "boulder-24": 6,
-      "boulder-3": 8,
-      "boulder-37": 10
-    },
-    "place": [
-      "x",
-      "y",
-      "z",
-      "yaw",
-      "width",
-      "length"
-    ]
   }
 }

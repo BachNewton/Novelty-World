@@ -253,7 +253,7 @@ export class TileStream {
               return;
             }
             this.target.placeFar(tile, () => {
-              this.world.addFar(name, tile.grid);
+              this.world.addFar(name, tile.grid, tile.waterLevels, tile.shore);
               this.onLanded();
               resolve();
             });
