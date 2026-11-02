@@ -97,6 +97,6 @@ describe("the data", () => {
   it("a resting car's wheels stand on the floor it's given", () => {
     const spec = carNamed("Holm");
     const state = restingCar(spec, [1, 0.5, 2], 0);
-    expect(state.position[1] + groundY(spec.wheel.radiusM)).toBeCloseTo(0.5);
+    expect(state.position[1] + groundY(spec)).toBeCloseTo(0.5);
   });
 });

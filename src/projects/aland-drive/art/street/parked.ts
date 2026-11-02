@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, 
 import { attribute, cameraPosition, cos, float, mix, normalGeometry, normalize, positionGeometry, positionWorld, reflect, select, sin, smoothstep, uniform, vec3 } from "three/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { AXLE_Y, groundY, type CarSpec } from "../cars/build";
+import { axleY, groundY, type CarSpec } from "../cars/build";
 import { buildCarArt } from "../cars/model";
 import { CARS } from "../cars/specs";
 import { seeded } from "../roadside/mesh";
@@ -32,14 +32,14 @@ const SHADOW_INSET_M = 0.14;
 /** One car's far model as a single geometry, its origin on the road under the car's middle, with a dark patch beneath so it sits on the ground. */
 function parkedGeometry(spec: CarSpec): BufferGeometry {
   const { body, wheel } = buildCarArt(spec, "far");
-  const road = groundY(spec.wheel.radiusM);
+  const road = groundY(spec);
   const pieces = [body.clone()];
   const [frontZ, rearZ] = spec.body.axleZ;
   for (const z of [frontZ, rearZ]) {
     for (const side of [-1, 1]) {
       const placed = wheel.clone();
       const turn = new Matrix4().makeRotationY(side < 0 ? Math.PI : 0);
-      placed.applyMatrix4(new Matrix4().makeTranslation((side * spec.body.trackM) / 2, AXLE_Y, z).multiply(turn));
+      placed.applyMatrix4(new Matrix4().makeTranslation((side * spec.body.trackM) / 2, axleY(spec), z).multiply(turn));
       pieces.push(placed);
     }
   }

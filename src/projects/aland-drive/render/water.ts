@@ -9,8 +9,9 @@ import { cameraPosition, dot, float, max, mix, normalize, positionWorld, pow, re
  * low angle mostly the sky. Three reads of one tiling slope texture at different
  * scales drift across each other for ripples. The texture's mips average its slopes
  * away with distance, so far water is flat rather than shimmering. There's no
- * geometry in it, no reflection of the world, and no depth data: how near land is
- * comes from the overview's image, blurred by its own mips.
+ * reflection of the world. How shallow it is comes from whoever draws it: the
+ * water's depth over the tiles' seabed, or past them, how near land is in the
+ * overview's image, blurred by its own mips.
  */
 
 const SLOPE_PIXELS = 256;
@@ -48,6 +49,8 @@ const SUN_FAR_M = 2500;
 const SHALLOW_FROM = 0.03;
 const SHALLOW_TO = 0.85;
 const SHORE_MIRRORS_TO = 0.75;
+/** Water this deep over the seabed is as dark as open water. */
+const SHALLOWS_DEPTH_M = 2.2;
 
 /** The overview's mip level the shallows are read at: 160 m a texel, blurred, so a shore's tint needs no seams or detail. */
 export const WATER_SHORE_MIP = 2;
@@ -95,8 +98,6 @@ export function slopePixels(size: number): Uint8Array {
 export interface WaterInputs {
   colour: (name: string) => Node<"vec3">;
   sun: { azimuthDeg: number; elevationDeg: number };
-  /** How much land is about this pixel, 0 in open water, blurred. */
-  shoreAt: Node<"float">;
   /** The sky along a direction, to reflect: `sky.clearAlong`, or `sky.colourAlong` for clouds at five more reads. Without one, the sky's flat colour. */
   skyAlong?: (direction: Node<"vec3">) => Node<"vec3">;
   /** Melts a colour into the sky's foot along a direction from the eye: `sky.seaToSky`. Open water takes it, so the sea has no line at the horizon, and shores don't. */
@@ -104,11 +105,22 @@ export interface WaterInputs {
 }
 
 export interface Water {
-  color: Node<"vec3">;
+  /** The water at this pixel, given how much land is about it: 0 in open water, 1 at the shore. */
+  colorFor: (shore: Node<"float">) => Node<"vec3">;
   dispose: () => void;
 }
 
-export function createWater({ colour, sun, shoreAt, skyAlong, meltAlong }: WaterInputs): Water {
+/** How near the shore water of this depth over the seabed is, for `colorFor`. */
+export function shoreOfDepth(depthM: Node<"float">): Node<"float"> {
+  return float(1).sub(smoothstep(float(0), float(SHALLOWS_DEPTH_M), depthM));
+}
+
+/** How near the shore a pixel past the tiles is, from the land in the overview's blurred image, for `colorFor`. */
+export function shoreOfLand(landShare: Node<"float">): Node<"float"> {
+  return smoothstep(float(SHALLOW_FROM), float(SHALLOW_TO), landShare);
+}
+
+export function createWater({ colour, sun, skyAlong, meltAlong }: WaterInputs): Water {
   const map = new DataTexture(slopePixels(SLOPE_PIXELS), SLOPE_PIXELS, SLOPE_PIXELS, RGBAFormat);
   map.colorSpace = NoColorSpace;
   map.wrapS = map.wrapT = RepeatWrapping;
@@ -141,10 +153,6 @@ export function createWater({ colour, sun, shoreAt, skyAlong, meltAlong }: Water
   // A ripple can tip a low ray under the horizon, where the sky has nothing to give.
   const upward = vec3(bounced.x, max(bounced.y, 0.002), bounced.z);
   const sky = skyAlong ? skyAlong(upward) : colour("sky");
-  const shore = smoothstep(float(SHALLOW_FROM), float(SHALLOW_TO), shoreAt);
-  // Beside land the low reflection is the trees and rocks, not the sky.
-  const mirrored = mix(sky, colour("tree-spruce"), shore.mul(SHORE_MIRRORS_TO));
-  const body = mix(colour("water-deep"), colour("water-shallow"), shore);
 
   const farShare = smoothstep(float(0), float(SUN_FAR_M), distance);
   const brokenTilt = tilt.add(layers[0].mul(SLOPE_GAIN * GLINT_RIPPLE_GAIN).mul(float(1).sub(farShare)));
@@ -152,10 +160,14 @@ export function createWater({ colour, sun, shoreAt, skyAlong, meltAlong }: Water
   const glint = pow(max(dot(glintWay, toSun), 0), mix(float(SUN_SHARP_NEAR), float(SUN_SHARP_FAR), farShare));
   const sunlight = colour("sun").mul(glint).mul(mix(float(SUN_BRIGHT_NEAR), float(SUN_BRIGHT_FAR), farShare));
 
-  const seen = mix(body, mirrored, fresnel).add(sunlight);
-
   return {
-    color: meltAlong ? mix(meltAlong(seen, toEye.negate()), seen, shore) : seen,
+    colorFor(shore) {
+      // Beside land the low reflection is the trees and rocks, not the sky.
+      const mirrored = mix(sky, colour("tree-spruce"), shore.mul(SHORE_MIRRORS_TO));
+      const body = mix(colour("water-deep"), colour("water-shallow"), shore);
+      const seen = mix(body, mirrored, fresnel).add(sunlight);
+      return meltAlong ? mix(meltAlong(seen, toEye.negate()), seen, shore) : seen;
+    },
     dispose() {
       map.dispose();
     },

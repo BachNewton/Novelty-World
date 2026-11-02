@@ -29,38 +29,52 @@ type Height = (east: number, north: number) => number;
  */
 function stoneMason(frame: ReturnType<typeof onBearing>, tint: Paint, flat: Paint) {
   const mesh = createBuilder(frame);
-  const faces: { width: number; height: number; apex: boolean }[] = [];
+  const faces: { corners: Vec2[]; width: number; height: number }[] = [];
+  /** A triangle or quad of a wall that starts at `origin` in plan and `base` in height, so the pieces of one wall share its courses. */
+  const face = (points: readonly Vec3[], origin: Vec2, base: number, width: number, height: number) => {
+    if (points.length === 3) mesh.tri(points[0], points[1], points[2], flat);
+    else mesh.quad(points[0], points[1], points[2], points[3], flat);
+    faces.push({ corners: points.map(([x, y, z]): Vec2 => [Math.hypot(x - origin[0], z - origin[1]), y - base]), width, height });
+  };
   return {
-    wall(a: Vec2, b: Vec2, bottom: number, top: number) {
-      mesh.wall(a, b, bottom, top, flat);
-      faces.push({ width: Math.hypot(b[0] - a[0], b[1] - a[1]), height: top - bottom, apex: false });
+    face,
+    wall(a: Vec2, b: Vec2, bottom: number, top: number, origin: Vec2 = a, width = Math.hypot(b[0] - a[0], b[1] - a[1])) {
+      face(
+        [
+          [a[0], bottom, a[1]],
+          [b[0], bottom, b[1]],
+          [b[0], top, b[1]],
+          [a[0], top, a[1]],
+        ],
+        origin,
+        bottom,
+        width,
+        top - bottom,
+      );
     },
     /** A quad whose foot and head follow the ground. */
     run(a: Vec3, b: Vec3, c: Vec3, d: Vec3) {
       mesh.quad(a, b, c, d, flat);
-      faces.push({ width: Math.hypot(b[0] - a[0], b[2] - a[2]), height: d[1] - a[1], apex: false });
+      const [width, height] = [Math.hypot(b[0] - a[0], b[2] - a[2]), d[1] - a[1]];
+      faces.push({
+        corners: [
+          [0, 0],
+          [width, 0],
+          [width, height],
+          [0, height],
+        ],
+        width,
+        height,
+      });
     },
     gable(a: Vec3, b: Vec3, apex: Vec3) {
-      mesh.tri(a, b, apex, flat);
-      faces.push({ width: Math.hypot(b[0] - a[0], b[2] - a[2]), height: apex[1] - a[1], apex: true });
+      face([a, b, apex], [a[0], a[2]], a[1], Math.hypot(b[0] - a[0], b[2] - a[2]), apex[1] - a[1]);
     },
     done() {
       const built = mesh.done();
       let at = 0;
-      for (const { width, height, apex } of faces) {
+      for (const { corners, width, height } of faces) {
         if (tint[3] !== 0) {
-          const corners = apex
-            ? [
-                [0, 0],
-                [width, 0],
-                [width / 2, height],
-              ]
-            : [
-                [0, 0],
-                [width, 0],
-                [width, height],
-                [0, height],
-              ];
           corners.forEach(([along, up]) => {
             built.facades.set([along, up, width, height], at * 4);
             built.tints.set(tint, at * 4);
@@ -91,22 +105,19 @@ function shingled(mesh: MeshBuilder, paint: Painter, eavesA: Vec3, eavesB: Vec3,
   }
 }
 
+/**
+ * What stands against one end of a hall. `closed`: nothing that hides it, so it's built whole. `covered`: a bigger body's
+ * end stands in its plane and closes it. A tower: the niches behind it are left out, and where it reaches the end's plane
+ * (`through`) the end is built only round it, so no two faces share a plane.
+ */
+type HallEnd = "closed" | "covered" | { halfZ: number; top: number; through: boolean };
+
 /** A long gabled body with stone walls, white niches in its gables, and a shingled roof. */
-function hall(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: { from: number; to: number; halfWide: number; eaves: number; ridge: number }, seed: number, closed: { west: boolean; east: boolean }, windows: number) {
+function hall(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: { from: number; to: number; halfWide: number; eaves: number; ridge: number }, seed: number, ends: { west: HallEnd; east: HallEnd }, windows: number, hidden: (x: number, z: number) => boolean) {
   const { from, to, halfWide, eaves, ridge } = spec;
-  const [nw, ne, se, sw]: Vec2[] = [
-    [from, -halfWide],
-    [to, -halfWide],
-    [to, halfWide],
-    [from, halfWide],
-  ];
-  const wall = (a: Vec2, b: Vec2) => {
-    mason.wall(a, b, -SINK_M, eaves);
-  };
-  wall(nw, ne);
-  wall(se, sw);
-  wall(ne, se);
-  wall(sw, nw);
+  const pitch = (ridge - eaves) / halfWide;
+  mason.wall([from, -halfWide], [to, -halfWide], -SINK_M, eaves);
+  mason.wall([to, halfWide], [from, halfWide], -SINK_M, eaves);
   const lime = paint("church-limewash");
   const dark = paint("wall-glass", 1.2);
   // Deep windows on the south wall and a few on the north, each a white reveal round dark glass.
@@ -116,7 +127,7 @@ function hall(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: { from: num
       [halfWide + 0.03, 2],
       [-halfWide - 0.03, 1],
     ] as const) {
-      if (z < 0 && at % 2 === count) continue;
+      if ((z < 0 && at % 2 === count) || hidden(x, z)) continue;
       const tall = Math.min(eaves * 0.46, 3.2);
       mesh.wall([x - 0.72, z], [x + 0.72, z], eaves * 0.3 - 0.2, eaves * 0.3 + tall + 0.25, lime);
       const inner = z + Math.sign(z) * 0.02;
@@ -124,24 +135,71 @@ function hall(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: { from: num
     }
   }
   const overhang = 0.35;
-  const low = eaves - 0.2;
+  // The roof's plane runs through the tops of the walls, so no slit opens under the eaves or along the gables.
+  const low = eaves - pitch * overhang;
   shingled(mesh, paint, [from - overhang, low, -halfWide - overhang], [to + overhang, low, -halfWide - overhang], [to + overhang, ridge, 0], [from - overhang, ridge, 0], "church-shingle", seed);
   shingled(mesh, paint, [from - overhang, low, halfWide + overhang], [to + overhang, low, halfWide + overhang], [to + overhang, ridge, 0], [from - overhang, ridge, 0], "church-shingle", seed + 7);
   // Gables of the same stone in a single sweep, with a row of white blind niches stepping to the peak.
-  const gable = (x: number, push: number) => {
-    mason.gable([x, eaves, -halfWide], [x, eaves, halfWide], [x, ridge, 0]);
+  const end = (x: number, push: number, against: HallEnd) => {
+    if (against === "covered") return;
+    const tower = against === "closed" ? undefined : against;
+    const gap = tower?.through ? Math.min(tower.halfZ, halfWide) : 0;
+    const origin: Vec2 = [x, -halfWide];
+    const piece = (points: Vec3[]) => {
+      mason.face(points, origin, eaves, halfWide * 2, ridge - eaves);
+    };
+    if (!tower || gap === 0) {
+      mason.wall([x, -halfWide], [x, halfWide], -SINK_M, eaves);
+      piece([
+        [x, eaves, -halfWide],
+        [x, eaves, halfWide],
+        [x, ridge, 0],
+      ]);
+    } else {
+      if (tower.top < eaves) throw new Error(`church: a tower ${String(tower.top)} m tall can't close a wall ${String(eaves)} m tall`);
+      const beside = ridge - pitch * gap;
+      for (const side of gap < halfWide ? [-1, 1] : []) {
+        mason.wall([x, side * gap], [x, side * halfWide], -SINK_M, eaves, origin, halfWide * 2);
+        piece([
+          [x, eaves, side * gap],
+          [x, eaves, side * halfWide],
+          [x, beside, side * gap],
+        ]);
+      }
+      const reach = (ridge - tower.top) / pitch;
+      if (reach > gap) {
+        piece([
+          [x, tower.top, -gap],
+          [x, tower.top, gap],
+          [x, beside, gap],
+          [x, beside, -gap],
+        ]);
+        piece([
+          [x, beside, -gap],
+          [x, beside, gap],
+          [x, ridge, 0],
+        ]);
+      } else if (reach > 0) {
+        piece([
+          [x, tower.top, -reach],
+          [x, tower.top, reach],
+          [x, ridge, 0],
+        ]);
+      }
+    }
     const niches = 3;
     const mid = eaves + (ridge - eaves) * 0.34;
     for (let niche = 0; niche < niches; niche++) {
       const z = (niche - (niches - 1) / 2) * halfWide * 0.46;
       const height = (ridge - eaves) * (niche === 1 ? 0.5 : 0.28);
       const bottom = mid - (ridge - eaves) * 0.1;
+      if (tower && Math.abs(z) - 0.42 < tower.halfZ && bottom + height + 0.5 < tower.top) continue;
       mesh.quad([x + push, bottom, z - 0.42], [x + push, bottom, z + 0.42], [x + push, bottom + height, z + 0.42], [x + push, bottom + height, z - 0.42], lime);
       mesh.tri([x + push, bottom + height, z - 0.42], [x + push, bottom + height, z + 0.42], [x + push, bottom + height + 0.5, z], lime);
     }
   };
-  if (closed.west) gable(from, -0.05);
-  if (closed.east) gable(to, 0.05);
+  end(from, -0.05, ends.west);
+  end(to, 0.05, ends.east);
 }
 
 function towerRoof(mesh: MeshBuilder, paint: Painter, kind: TowerRoof, centre: Vec2, halfX: number, halfZ: number, from: number, top: number, seed: number) {
@@ -247,6 +305,8 @@ function tower(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: ChurchSpec
   });
   const lime = paint("church-limewash");
   const dark = paint("church-tar");
+  // A Baroque bell is round, so without a lid the square's corners would show into the tower.
+  mesh.cap(outline, stoneTop, paint("church-shingle", 0.9));
   const belfry = stoneTop - 2.2;
   // A slit on each face high up, a white surround round a dark opening, and a portal in the west face.
   for (const [a, b] of [
@@ -269,8 +329,11 @@ function tower(mesh: MeshBuilder, paint: Painter, mason: Mason, spec: ChurchSpec
   towerRoof(mesh, paint, roof === "belfry" ? "hood" : roof, [x, z], halfX, halfZ, stoneTop, top, seed);
 }
 
-/** A low room against a wall, with its roof at right angles to it, or running with it. */
-function annex(mesh: MeshBuilder, paint: Painter, mason: Mason, room: { x: number; z: number; halfX: number; halfZ: number; eaves: number; ridge: number }, seed: number) {
+/**
+ * A low room against a wall, with its roof at right angles to it. Where its ridge stands above the nave's eaves, its roof
+ * runs `reach` on towards the nave, into the nave's roof, rather than ending in the air over it.
+ */
+function annex(mesh: MeshBuilder, paint: Painter, mason: Mason, room: { x: number; z: number; halfX: number; halfZ: number; eaves: number; ridge: number }, seed: number, reach: number) {
   const { x, z, halfX, halfZ, eaves, ridge } = room;
   const outline: Vec2[] = [
     [x - halfX, z - halfZ],
@@ -281,9 +344,12 @@ function annex(mesh: MeshBuilder, paint: Painter, mason: Mason, room: { x: numbe
   outline.forEach((corner, at) => {
     mason.wall(corner, outline[(at + 1) % 4], -SINK_M, eaves);
   });
-  shingled(mesh, paint, [x - halfX - 0.25, eaves, z - halfZ], [x - halfX - 0.25, eaves, z + halfZ], [x, ridge, z + halfZ], [x, ridge, z - halfZ], "church-shingle-pale", seed, 3, 2);
-  shingled(mesh, paint, [x + halfX + 0.25, eaves, z - halfZ], [x + halfX + 0.25, eaves, z + halfZ], [x, ridge, z + halfZ], [x, ridge, z - halfZ], "church-shingle-pale", seed + 3, 3, 2);
-  for (const end of [z - halfZ, z + halfZ]) mesh.tri([x - halfX, eaves, end], [x + halfX, eaves, end], [x, ridge, end], paint("church-limewash"));
+  const [north, south] = z < 0 ? [z - halfZ, z + halfZ + reach] : [z - halfZ - reach, z + halfZ];
+  const overhang = 0.25;
+  const low = eaves - ((ridge - eaves) / halfX) * overhang;
+  shingled(mesh, paint, [x - halfX - overhang, low, north], [x - halfX - overhang, low, south], [x, ridge, south], [x, ridge, north], "church-shingle-pale", seed, 3, 2);
+  shingled(mesh, paint, [x + halfX + overhang, low, north], [x + halfX + overhang, low, south], [x, ridge, south], [x, ridge, north], "church-shingle-pale", seed + 3, 3, 2);
+  for (const end of [north, south]) mesh.tri([x - halfX, eaves, end], [x + halfX, eaves, end], [x, ridge, end], paint("church-limewash"));
 }
 
 function apse(mesh: MeshBuilder, paint: Painter, from: number, halfWide: number, eaves: number, ridge: number) {
@@ -333,9 +399,15 @@ function nearModel(spec: ChurchSpec, paint: Painter, heightAt: Height) {
   const paintAt = IDS.paints.indexOf(spec.stone === "grey" ? "church-granite-grey" : "church-granite");
   const mason = stoneMason(onBearing(spec.bearing), lime ? [0, 0, 0, 0] : [paintAt, 0, Math.round(seed) % 251, IDS.styles.granite], lime ? paint("church-limewash") : paint("church-granite"));
   const { nave, chancel, tower: towerSpec, annexes, transept, plasteredApse } = spec;
-  const towerAbuts = towerSpec.z === 0;
-  hall(mesh, paint, mason, nave, seed + 1, { west: !towerAbuts, east: !chancel && !plasteredApse }, Math.max(2, Math.round((nave.to - nave.from) / 6)));
-  if (chancel) hall(mesh, paint, mason, chancel, seed + 2, { west: true, east: true }, 1);
+  const towerAt = (x: number): HallEnd => {
+    const [west, east] = [towerSpec.x - towerSpec.halfX, towerSpec.x + towerSpec.halfX];
+    if (towerSpec.z !== 0 || west > x + 0.5 || east < x - 0.5) return "closed";
+    return { halfZ: towerSpec.halfZ, top: towerSpec.stone, through: west < x + 0.02 && east > x - 0.02 };
+  };
+  // A window that would open into a tower or an annex isn't made.
+  const hidden = (x: number, z: number) => [towerSpec, ...annexes].some((part) => Math.abs(x - part.x) < part.halfX + 0.72 && Math.abs(z - part.z) <= part.halfZ + 0.1);
+  hall(mesh, paint, mason, nave, seed + 1, { west: towerAt(nave.from), east: towerAt(nave.to) }, Math.max(2, Math.round((nave.to - nave.from) / 6)), hidden);
+  if (chancel) hall(mesh, paint, mason, chancel, seed + 2, { west: "covered", east: "closed" }, 1, hidden);
   if (plasteredApse) apse(mesh, paint, nave.to, nave.halfWide - 0.4, nave.eaves * 0.8, nave.ridge * 0.72);
   if (transept) {
     const { x, halfX, halfZ, eaves, ridge } = transept;
@@ -348,13 +420,17 @@ function nearModel(spec: ChurchSpec, paint: Painter, heightAt: Height) {
     ends.forEach((corner, at) => {
       mason.wall(corner, ends[(at + 1) % 4], -SINK_M, eaves);
     });
-    shingled(mesh, paint, [x - halfX - 0.3, eaves, -halfZ - 0.3], [x - halfX - 0.3, eaves, halfZ + 0.3], [x, ridge, halfZ + 0.3], [x, ridge, -halfZ - 0.3], "church-shingle", seed + 5);
-    shingled(mesh, paint, [x + halfX + 0.3, eaves, -halfZ - 0.3], [x + halfX + 0.3, eaves, halfZ + 0.3], [x, ridge, halfZ + 0.3], [x, ridge, -halfZ - 0.3], "church-shingle", seed + 6);
+    const low = eaves - ((ridge - eaves) / halfX) * 0.3;
+    shingled(mesh, paint, [x - halfX - 0.3, low, -halfZ - 0.3], [x - halfX - 0.3, low, halfZ + 0.3], [x, ridge, halfZ + 0.3], [x, ridge, -halfZ - 0.3], "church-shingle", seed + 5);
+    shingled(mesh, paint, [x + halfX + 0.3, low, -halfZ - 0.3], [x + halfX + 0.3, low, halfZ + 0.3], [x, ridge, halfZ + 0.3], [x, ridge, -halfZ - 0.3], "church-shingle", seed + 6);
     for (const end of [-halfZ, halfZ]) mason.gable([x - halfX, eaves, end], [x + halfX, eaves, end], [x, ridge, end]);
   }
   tower(mesh, paint, mason, towerSpec, seed + 3);
+  const navePitch = (nave.ridge - nave.eaves) / nave.halfWide;
   annexes.forEach((room, at) => {
-    annex(mesh, paint, mason, room, seed + 20 + at);
+    const inner = Math.abs(room.z) - room.halfZ;
+    const against = room.z !== 0 && inner <= nave.halfWide + 0.05 && room.ridge > nave.eaves;
+    annex(mesh, paint, mason, room, seed + 20 + at, against ? inner - nave.halfWide + (room.ridge - nave.eaves) / navePitch + 0.1 : 0);
   });
   const ring = (YARDS as Record<string, number[][] | null>)[spec.id];
   if (ring) {
@@ -396,18 +472,10 @@ function farModel(spec: ChurchSpec, paint: Painter) {
   if (transept) {
     mesh.box([transept.x, (transept.eaves - SINK_M) / 2, 0], [transept.halfX * 2, transept.eaves + SINK_M, transept.halfZ * 2], wall, 0, roof);
   }
-  const { x, z, halfX, halfZ, stone: stoneTop, top } = towerSpec;
+  const { x, z, halfX, halfZ, stone: stoneTop, top, roof: roofKind } = towerSpec;
   mesh.box([x, (stoneTop - SINK_M) / 2, z], [halfX * 2, stoneTop + SINK_M, halfZ * 2], wall, 0, roof);
-  mesh.lathe(
-    [x, z],
-    [
-      [Math.max(halfX, halfZ) * Math.SQRT2, stoneTop],
-      [0, top],
-    ],
-    4,
-    roof,
-    Math.PI / 4,
-  );
+  // The near version's own roof: a spire is a church's outline on the skyline, so the swap mustn't change it.
+  towerRoof(mesh, paint, roofKind === "belfry" ? "hood" : roofKind, [x, z], halfX, halfZ, stoneTop, top, spec.east + 3);
   return mesh.done();
 }
 

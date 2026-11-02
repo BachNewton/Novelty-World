@@ -91,7 +91,7 @@ Everything, end to end.
 - Road discovery percentage and odometer.
 - Races and time trials on real roads.
 - Earning money, buying cars and a house.
-- Online free-roam on the relay: other players on the road and challenges on the spot. This needs far more frequent position updates than any game on the relay today, so its capacity is tested early in the phase.
+- **Online free roam is in:** one shared world on the relay with no code, every player's car on the road, colliding for real, and on both maps (`CLAUDE.md`, Multiplayer). Still to come on it: challenges on the spot.
 
 **Exit test:** a reason to keep driving, and two players meeting on a road.
 
@@ -125,4 +125,4 @@ In priority order. The priority is what fills the view most, and the source is o
 - **Generated buildings.** Footprints give shapes, not character. Mariehamn will need hand-made work, while the countryside can stay simple.
 - **Cars.** They are invented and made in code, so there is no licensing problem. They hold up at chase distance; a close-up shows their stylised build.
 - **Data volume and download cost.** Measured at phase 3: a built tile is 5–8 MB on land, and a player's download is bounded by the map because the browser keeps what it fetched, 313 MB for one person to see the whole main island. `CLAUDE.md` holds the numbers and the hosting recommendation.
-- **Relay load.** Fast car positions are a new kind of traffic for it. Phase 6 tests this before building on it.
+- **Relay load.** Car positions are a new kind of traffic for it: about 6.4 kB a second for each car each player sees, the relay fanning out the host's frames. It needed no change, and it hasn't yet carried a crowd: ten players is about 4.6 Mbit/s out of the relay.

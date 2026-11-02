@@ -1,4 +1,4 @@
-import { buildCarParts, groundY, SAG_M, type CarSpec } from "../cars/build";
+import { buildCarParts, groundY, type CarSpec } from "../cars/build";
 import { CARS } from "../cars/specs";
 import type { CarState } from "../../sim/car-state";
 
@@ -65,12 +65,13 @@ export function fitCars(wide: number, deep: number, backM: number): GarageFit {
 /** A car at rest in a slot, to give `createCarModel`'s `draw`. `floorY` is the floor's height where the room stands. */
 export function parkedState(spec: CarSpec, { x, z, yaw }: CarSlot, floorY = 0): CarState {
   return {
-    position: [x, floorY - groundY(spec.wheel.radiusM), z],
+    position: [x, floorY - groundY(spec), z],
     rotation: [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)],
     velocity: [0, 0, 0],
     spin: [0, 0, 0],
     steer: 0,
-    suspension: [SAG_M, SAG_M, SAG_M, SAG_M],
+    car: spec.id ?? "skerry-gt",
+    suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
     roll: 0,
   };
 }

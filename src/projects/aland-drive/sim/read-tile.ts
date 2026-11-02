@@ -37,12 +37,15 @@ export function readWorld(folder: string, only?: Set<string>): World {
     const { west, north } = tile.bounds;
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const read = (file: string) => inflated(readFileSync(join(folder, name, file)));
-    world.addFar(name, decodeHeights(new Int16Array(read(manifest.far.heightsFile)), { ...manifest.far, unitM: manifest.heights.unitM }, { west, north }));
+    const farFormat = { ...manifest.far, unitM: manifest.heights.unitM };
+    world.addFar(name, decodeHeights(new Int16Array(read(manifest.far.heightsFile)), farFormat, { west, north }), decodeHeights(new Int16Array(read(manifest.water.farLevelsFile)), farFormat, { west, north }), decodeHeights(new Int16Array(read(manifest.water.farShoreFile)), farFormat, { west, north }));
     const grid = decodeHeights(new Int16Array(read(manifest.heights.file)), manifest.heights, { west, north });
+    const levels = decodeHeights(new Int16Array(read(manifest.water.levelsFile)), manifest.heights, { west, north });
+    const shore = decodeHeights(new Int16Array(read(manifest.water.shoreFile)), manifest.heights, { west, north });
     const { walls } = decodeSolids(read(tile.solids.file), tile.solids);
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const roadside = tile.roadside ? decodeRoadside(JSON.parse(readFileSync(join(folder, name, tile.roadside.file), "utf8")) as RoadsideFile) : null;
-    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), new Uint8Array(read(manifest.water.nodesFile)), manifest.tileM, roadside ? withRoadsideWalls(walls, roadside) : walls));
+    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, roadside ? withRoadsideWalls(walls, roadside) : walls));
   }
   return world;
 }
