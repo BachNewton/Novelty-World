@@ -124,6 +124,21 @@ function straw(base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">) {
   return base.mul(float(1).add(streak.mul(0.12).mul(float(1).sub(gone(0.03, away))))).mul(float(1).add(swell(at.mul(3)).mul(0.1)));
 }
 
+/** Every part's paint in linear light, by its place in `RURAL_PARTS`. */
+export function ruralColours(linear: RoadsideInputs["linear"]): Vector3[] {
+  return RURAL_PARTS.map((part) => {
+    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
+    const { from, to = from, share = 0, gain = 1 } = paint;
+    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
+  });
+}
+
+/** A vertex's paint from the kit's palette, before any light. */
+export function ruralPaint(palette: ReturnType<typeof uniformArray>): Node<"vec3"> {
+  const tint = attribute<"vec4">("tint", "vec4");
+  return (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+}
+
 const RECORD_VEC4S = 5;
 
 /** `GABLE_PAINTS` as vec4s, `RECORD_VEC4S` to a building, in the order `gablePainted` reads them. */
@@ -181,6 +196,16 @@ function gablePainted(base: Node<"vec3">, paint: (part: RuralPart) => Node<"vec3
   return mix(mix(doored, paint("glass"), glass), trim, glazingBar);
 }
 
+/** The kit's light on a flat-shaded face: the sky's, and the sun's on a face turned to it. */
+function ruralLight(sun: RoadsideInputs["sun"]) {
+  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
+  const elevation = (sun.elevationDeg * Math.PI) / 180;
+  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
+  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  return { facing, lit: float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)) };
+}
+
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
   const { linear, colour, hazed, sun } = inputs;
   const place = attribute<"vec4">("place", "vec4");
@@ -212,21 +237,12 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const dither = fract(float(52.9829189).mul(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715)))));
   material.maskNode = isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend);
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const palette = uniformArray(RURAL_PARTS.map((part) => {
-    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
-    const { from, to = from, share = 0, gain = 1 } = paint;
-    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
-  }));
+  const palette = uniformArray(ruralColours(linear));
   const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;
   const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
 
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
+  const { facing, lit } = ruralLight(sun);
   const foot = up.mul(fit.x);
   const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot)), float(1), tint.a);
 

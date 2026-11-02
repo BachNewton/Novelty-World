@@ -49,6 +49,11 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const roads = texture(layers.mask, uv).depth(layer).level(float(mip));
       return select(held, roads.g.add(roads.b), float(0));
     },
+    /** How much of the land round a place is water, at a level of the mask's mips. Over a tile not held, none. */
+    waterAt(place: Node<"vec2">, mip: number) {
+      const { uv, layer, held } = slotOf(place);
+      return select(held, texture(layers.mask, uv).depth(layer).level(float(mip)).r, float(0));
+    },
     /** What's on the ground at a place: its colour at 8 m, its colour over a whole patch of land, its baked shade, and whether it's dry land with a tile under it. */
     landAt(place: Node<"vec2">) {
       const { uv, layer, nearLayer, held, nearHeld } = slotOf(place);

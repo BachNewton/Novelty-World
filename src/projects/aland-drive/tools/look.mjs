@@ -78,7 +78,11 @@ for (const { out, place } of looks) {
     const probe = window.__alandDrive;
     const framesPass = async (count) => {
       const target = probe.frames() + count;
-      while (probe.frames() < target) await new Promise(requestAnimationFrame);
+      while (probe.frames() < target) {
+        // A count comes back from the GPU frames after it's asked for, so it's asked for every frame.
+        probe.counts();
+        await new Promise(requestAnimationFrame);
+      }
     };
     await framesPass(settle);
     while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
@@ -86,7 +90,7 @@ for (const { out, place } of looks) {
   }, FRAMES_TO_SETTLE);
   const report = await page.evaluate(async () => {
     const adapter = await navigator.gpu.requestAdapter();
-    return { counts: window.__alandDrive.counts(), gpu: adapter?.info?.description || adapter?.info?.vendor };
+    return { counts: window.__alandDrive.counts(), reeds: window.__alandDrive.reedsDrawn(), shrubs: window.__alandDrive.shrubsDrawn(), gpu: adapter?.info?.description || adapter?.info?.vendor };
   });
   await page.screenshot({ path: out });
   console.log(out, JSON.stringify(report));

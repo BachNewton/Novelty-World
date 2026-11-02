@@ -449,7 +449,7 @@ def _facts(faces: list[Face], frames: dict[tuple, tuple], local: Polygon, kind: 
 
 
 def _with_walls_to_ground(faces: list[Face], heights: Heights) -> list[Face]:
-    """A wall's foot goes down past the ground under it, for the few that float."""
+    """A wall's foot goes down past the ground under it: a few solids float, and a generated shape on a slope would."""
     lowest = min(float(face.ring[:, 2].min()) for face in faces if face.kind == "wall")
     moved = []
     for face in faces:
@@ -572,7 +572,7 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
             counts["placed"] += 1
             continue
         faces, _ = _generated_shape(footprint, local, above, west, north, base)
-        found.append((faces, local, footprint.kind, name, base))
+        found.append((_with_walls_to_ground(faces, heights), local, footprint.kind, name, base))
         counts["generated"] += 1
 
     def collide(local: Polygon) -> None:

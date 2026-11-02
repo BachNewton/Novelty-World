@@ -110,10 +110,12 @@ export function buildBirch(seed = 1, form: BirchForm = "silver"): RoadsideModel 
     const share = (up - foot[1]) / (top[1] - foot[1]);
     return [foot[0] + (top[0] - foot[0]) * share, up, foot[2] + (top[2] - foot[2]) * share];
   };
-  for (const [index, { foot, top, radius }] of stems.entries()) {
-    const middle = stemAt(index, 0.5);
+  for (const [index, { foot, radius }] of stems.entries()) {
+    // A stem ends inside its own crown, or its white tip pokes out of the leaves.
+    const inCrown = Math.max(...crown.filter(([, , , , , stem]) => stem === index).map(([up, , , , tall]) => up + tall * 0.3));
+    const middle = stemAt(index, Math.min(0.5, inCrown / 2));
     near.tube(foot, middle, radius, 3, { radiusTo: radius * 0.68 }, "birch-bark");
-    near.tube(middle, top, radius * 0.68, 3, { radiusTo: 0.002 }, "birch-bark");
+    near.tube(middle, stemAt(index, inCrown), radius * 0.68, 3, { radiusTo: 0.002 }, "birch-bark");
   }
   for (const [up, out, turn, wide, tall, stem] of crown) {
     const leader = stemAt(stem, up);
@@ -123,6 +125,65 @@ export function buildBirch(seed = 1, form: BirchForm = "silver"): RoadsideModel 
   const far = new RuralMesh().tube([0, -0.03, 0], [0, lowest, 0], 0.02, 3, { radiusTo: 0.012 }, "birch-bark");
   blob(far, [0, (lowest + 1) / 2, 0], 0.16, 1 - lowest, 3, random, "birch-leaf");
   return finished(near, far, 150, 1100);
+}
+
+const CLUMP_STEMS = 22;
+const CLUMP_LEAVES = 10;
+const CLUMP_FOOT_M = 0.45;
+const UNDER_WATER_M = 0.3;
+
+/**
+ * A clump of common reed about a metre across, standing in water: last year's straw
+ * stems with this year's green among them, leaves out from the stems, and plumes on
+ * the tallest. Every stem and leaf is one opaque triangle turned its own way, as a
+ * verge's blades are, so the clump is round from any side, never a card. Its y 0 is
+ * the water. Its far version is three points of a clump, as tall as the near's, for
+ * a renderer to paint in the near's own colours.
+ */
+export function buildReedClump(seed = 1): RoadsideModel {
+  const random = seeded(seed * 7919 + 23);
+  const near = new RuralMesh({ grounded: false });
+  const wind = random() * 6.283;
+  const tops: V3[] = [];
+  for (let stem = 0; stem < CLUMP_STEMS; stem++) {
+    const turn = random() * 6.283;
+    const out = Math.sqrt(random()) * CLUMP_FOOT_M;
+    const foot: V3 = [Math.cos(turn) * out, -UNDER_WATER_M, Math.sin(turn) * out];
+    const tall = 1.5 + random() * 1;
+    const lean = 0.04 + random() * 0.1;
+    const leanTurn = wind + (random() - 0.5) * 1.2;
+    const tip: V3 = [foot[0] + Math.cos(leanTurn) * lean * tall, tall, foot[2] + Math.sin(leanTurn) * lean * tall];
+    const wide = 0.025 + random() * 0.02;
+    const face = random() * 6.283;
+    const [sideX, sideZ] = [Math.cos(face) * wide, Math.sin(face) * wide];
+    const part: RuralPart = random() < 0.35 ? "reed-green" : "reed-straw";
+    near.solid([[foot[0] - sideX, foot[1], foot[2] - sideZ], [foot[0] + sideX, foot[1], foot[2] + sideZ], tip], [[0, 1, 2]], part, ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+    if (part === "reed-straw" && tall > 2) tops.push(tip);
+  }
+  for (let leaf = 0; leaf < CLUMP_LEAVES; leaf++) {
+    const turn = random() * 6.283;
+    const at = Math.sqrt(random()) * CLUMP_FOOT_M;
+    const up = 0.25 + random() * 1.1;
+    const root: V3 = [Math.cos(turn) * at, up, Math.sin(turn) * at];
+    const reach = 0.4 + random() * 0.35;
+    const tip: V3 = [root[0] + Math.cos(turn) * reach, up + 0.15 + random() * 0.25, root[2] + Math.sin(turn) * reach];
+    const [sideX, sideZ] = [-Math.sin(turn) * 0.04, Math.cos(turn) * 0.04];
+    near.solid([[root[0] - sideX, root[1] - 0.06, root[2] - sideZ], [root[0] + sideX, root[1] + 0.06, root[2] + sideZ], tip], [[0, 1, 2]], random() < 0.6 ? "reed-green" : "reed-straw", () => 0.85 + random() * 0.2);
+  }
+  // A plume is a slim spindle from the stem's top, nodding away from the wind.
+  for (const top of tops) {
+    const [alongX, alongZ] = [Math.cos(wind), Math.sin(wind)];
+    const [sideX, sideZ] = [-alongZ * 0.035, alongX * 0.035];
+    const middle: V3 = [top[0] + alongX * 0.12, top[1] + 0.02, top[2] + alongZ * 0.12];
+    const tip: V3 = [top[0] + alongX * 0.28, top[1] - 0.06, top[2] + alongZ * 0.28];
+    near.solid([top, [middle[0] - sideX, middle[1], middle[2] - sideZ], [middle[0] + sideX, middle[1], middle[2] + sideZ], tip], [[0, 1, 2], [1, 3, 2]], "reed-plume", () => 1);
+  }
+
+  const far = new RuralMesh({ grounded: false });
+  for (const [x, tall, lean] of [[-0.24, 1.8, -0.12], [0, 2.2, 0.05], [0.26, 1.95, 0.14]]) {
+    far.solid([[x - 0.17, -UNDER_WATER_M, 0], [x + 0.17, -UNDER_WATER_M, 0], [x + lean, tall, 0]], [[0, 1, 2]], "reed-straw", ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+  }
+  return finished(near, far, 60, 900);
 }
 
 const REED_ROWS = 4;

@@ -1,5 +1,5 @@
-import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Vector2, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { atomicAdd, atomicStore, dot, float, Fn, fract, If, instanceIndex, mix, sin, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
+import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, fract, If, instanceIndex, mix, sin, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
 import { viewSides } from "./view-sides";
 
 /*
@@ -11,7 +11,11 @@ import { viewSides } from "./view-sides";
  * no tile changes, and the cost follows what's in view.
  *
  * Each lattice ends by its plants dissolving one at a time, each at a distance of its
- * own (`leftAt`), so nothing ever shrinks or grows in: the forest's rule for detail.
+ * own (`left`), so nothing ever shrinks or grows in: the forest's rule for detail.
+ *
+ * A list holds what a planting says it can, not every place in reach, so a planting
+ * that's rare on the ground reserves memory for what it can really draw. A list that
+ * fills keeps its first plants and draws no more.
  */
 
 /** The world's tallest and lowest ground. */
@@ -29,6 +33,34 @@ export interface Lattice {
   ends: Band;
   /** Moves the lattice's rolls, so its plants aren't another's. */
   salt: number;
+}
+
+/**
+ * A shape's area-weighted mean paint in each height band, in the paint's own light,
+ * by its tint's part and shade: what a far version is painted, band by band, so its
+ * swap with the near is of shape and never of colour. A band the shape doesn't reach
+ * takes the highest one it does.
+ */
+export function bandColours(shape: BufferGeometry, colours: Colour[], tops: readonly number[]): Colour[] {
+  const position = shape.getAttribute("position");
+  const tint = shape.getAttribute("tint");
+  const order = shape.getIndex();
+  const corner = (at: number) => order?.getX(at) ?? at;
+  const triangle = new Triangle();
+  const middle = new Colour();
+  const sums = tops.map(() => ({ sum: new Colour(), area: 0 }));
+  for (let at = 0; at < (order?.count ?? position.count); at += 3) {
+    const first = corner(at);
+    triangle.setFromAttributeAndIndices(position, first, corner(at + 1), corner(at + 2));
+    triangle.getMidpoint(middle);
+    const band = sums[Math.max(0, tops.findIndex((top) => middle.y < top))];
+    const area = triangle.getArea();
+    band.sum.addScaledVector(colours[Math.round(tint.getX(first) * 255)], area * ((tint.getY(first) * 255) / 128));
+    band.area += area;
+  }
+  const filled = sums.filter(({ area }) => area > 0);
+  const top = filled[filled.length - 1];
+  return sums.map(({ sum, area }) => (area > 0 ? sum.divideScalar(area) : top.sum.clone().divideScalar(top.area)));
 }
 
 export const reachOf = ({ ends }: Lattice) => ends[1] + ends[2];
@@ -54,7 +86,7 @@ export interface PlantingSpec {
   /** The most a plant stands out from its place. */
   widestM: number;
   shapes: BufferGeometry[];
-  /** The most plants each shape's list holds. */
+  /** The most plants each shape's list holds; past that a frame draws no more of it. */
   capacities: number[];
   /** How many rows of four floats a plant carries. */
   rows: number;
@@ -120,8 +152,11 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
             return float(1).sub(smoothstep(dissolves, dissolves.add(ends[2]), distance));
           },
           write: (shape, carried) => {
-            const row = atomicAdd(counters.element(countOf(shape)), uint(1)).mul(rows).add(firsts[shape]).toVar();
-            carried.forEach((value, at) => listed.element(row.add(at)).assign(value));
+            const index = atomicAdd(counters.element(countOf(shape)), uint(1)).toVar();
+            If(index.lessThan(capacities[shape]), () => {
+              const row = index.mul(rows).add(firsts[shape]).toVar();
+              carried.forEach((value, at) => listed.element(row.add(at)).assign(value));
+            });
           },
         });
       });
@@ -135,7 +170,12 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
     };
     return { cull, aim };
   });
-  const computes = [reset, ...passes.map(({ cull }) => cull)];
+  const cap = Fn(() => {
+    capacities.forEach((items, shape) => {
+      atomicMin(counters.element(countOf(shape)), uint(items));
+    });
+  })().compute(1);
+  const computes = [reset, ...passes.map(({ cull }) => cull), cap];
 
   const meshes = shapes.map((shape, index) => {
     const geometry = shape.clone();
@@ -192,6 +232,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
       for (const shape of shapes) shape.dispose();
       reset.dispose();
       for (const { cull } of passes) cull.dispose();
+      cap.dispose();
       draws.dispose();
       list.dispose();
     },
