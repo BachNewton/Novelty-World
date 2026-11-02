@@ -10,7 +10,7 @@ v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is 
 
 The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). v6.1's pick, found on the native map and screened in TS (`rule-bot-v6.1.md`), ends it: 0 and 1 capped games in 300 holdout mirrors at 5 and 6 players, against v6's 10% and 15%. It failed its bar all the same: better than v6 at 5 players, worse at 6 in both mixtures by about 15 Elo a seat (`bot-log.md`, "v6.1's holdout"), A table of v6.1s still hands a lone v6, holding back, more than its share of wins at 6 players, and pricing a rival's hoard higher didn't change that enough. v4.1 and v5.1, the same fix on v4 and v5, fell short at 6 players the same way. The owner seated all three anyway, retiring v4, v5 and v6: ending the stall, which slowed every measuring run that seated them, was worth a few Elo at one table size.
 
-**Next:** nothing on the stall. Winning back the 6-player edge without the hoard needs a new idea, not another setting.
+**Next:** nothing on the rule bots' stall. Winning back the 6-player edge without the hoard needs a new idea, not another setting. native-v2's `execute` stalls in a different way, and that is the native line's next step (below).
 
 ## Distilling v7 (student-v1): the pipeline works; the student is a research bot
 
@@ -18,11 +18,13 @@ A small network ranks v7's candidate placements in v6's place (`distilled-v7.md`
 
 **Next:** its holdout suite says whether the edge is real. The 16,000-game recording (`distill-v7-big2`) roughly triples the training data. A sweep over it says whether the student keeps gaining about 5 points of v7's edge per doubling. Label noise is the other limit: v7 agrees with itself 0.65 at 8 replies and 0.88 at 32. A faster v7 (native, below) affords cleaner labels, and a stall-free v7 wastes fewer recorded games.
 
-## Native Rust (native-v1): the fast engine and bots
+## Native Rust (native-v1, native-v2): the fast engine and bots
 
 The Rust engine is exact against the reference engine and plays about a hundred times more games a second (`native-port.md`, `native-v1.md`). native-v1 is a planner in v6's class. With `smallTableSeats:4` it makes v6's decision on 99.9% of decisions, and it is the instrument that made the v6.1 map possible.
 
-**Next:** native-v2, v7's search on native replies, so v7-strength play is cheap enough to record cleanly and to sweep.
+native-v2 is v7's search on native replies, with switches (`native-v2.md`). The factorial chose `execute` alone, and `native-v2~{"execute":1}` is better than rule-v7.1 at every table on train seeds: the first bot to beat the one to beat (`bot-log.md`, "native-v2's execute beats rule-v7.1 at every table"). But it stalls: its mirrors cap 7% of games at 5 players and 14% at 6, against the 1% bar, because it keeps attacking without ever closing a game out (`bot-log.md`, "native-v2: execute fails the stall bar").
+
+**Next:** find why `execute` doesn't close games, and fix it. The fix changes the bot, so the train gauntlet is played again on the fixed version before its holdout gauntlet, the suite's field and the ladder. Seating it also needs a way for a Rust bot to play real games, decided before then.
 
 ## Self-play (net-v1): learning from scratch on the GPU
 
