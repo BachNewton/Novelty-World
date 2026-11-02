@@ -123,7 +123,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     if with_vectors:
-        roads, buildings, osm_timestamp = vectors.build(osm_path(tile, refresh_osm), tile)
+        osm_file = osm_path(tile, refresh_osm)
+        roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
         compact = {"ensure_ascii": False, "separators": (",", ":")}
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
@@ -133,7 +134,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         ribbons = []
         aprons = []
         if roads:
-            surface = road_surface.lay_roads(roads, ground)
+            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile))
             conformed = surface.conformed
             if not all(np.array_equal(conformed[edge], raw[edge]) for edge in ((0, ...), (-1, ...), (..., 0), (..., -1))):
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")

@@ -10,6 +10,7 @@ import gzip
 import unittest
 
 import numpy as np
+import shapely
 
 import road_map
 import roads
@@ -284,6 +285,85 @@ class Junctions(unittest.TestCase):
     def test_a_road_cut_into_ways_runs_on_as_one_chain(self):
         ways = [road([(0, 500), (800, 520)]), road([(800, 520), (1500, 480)]), road([(1500, 480), (2600, 500)], "secondary")]
         self.assertEqual(len(roads.chains_from(roads.split_at_junctions(ways))), 1)
+
+
+def paved_between(surface, west, east, south, north):
+    """The aprons' carriageway points inside a box."""
+    points = np.concatenate([apron.points[apron.across == roads.APRON_ACROSS] for apron in surface.aprons]) if surface.aprons else np.zeros((0, 3))
+    inside = (points[:, 0] > west) & (points[:, 0] < east) & (points[:, 1] > south) & (points[:, 1] < north)
+    return points[inside]
+
+
+class PavedGround(unittest.TestCase):
+    street = road([(0, 1500), (3000, 1500)], "residential")
+
+    def test_a_car_park_is_one_surface_on_the_land_and_its_aisles_are_not_roads(self):
+        lot = shapely.box(1450, 1503, 1550, 1560)
+        aisles = [road([(1500, 1500), (1500, 1555)], "service"), road([(1455, 1530), (1545, 1530)], "service", service="parking_aisle")]
+        # A bay that runs out of the outline to the street, and a walkway across the lot.
+        bay = road([(1520, 1500), (1520, 1508)], "service")
+        walkway = {**road([(1460, 1510), (1540, 1550)], "footway"), "motor": False}
+        ground = land(height=lambda east, north: 10 + 0.01 * east)
+        surface = lay_roads([self.street, *aisles, bay, walkway], ground, [lot])
+        # Only the entrances from the street stay roads: what lies on the car park is the car park.
+        self.assertEqual(sorted(chain.kind_name for chain in surface.chains), ["residential", "service", "service"])
+        for chain in surface.chains[1:]:
+            self.assertLess(roads._kept_strip(chain).intersection(lot).area, 1.0)
+        paved = paved_between(surface, 1450, 1550, 1505, 1560)
+        self.assertGreater(len(paved), 100)
+        self.assertLess(np.abs(paved[:, 2] - (10 + 0.01 * paved[:, 0])).max(), 0.05)
+        self.assertAlmostEqual(sum(apron_area(apron) for apron in surface.aprons), lot.area, delta=lot.area * 0.05)
+
+    def test_a_road_through_a_car_park_stays_a_road(self):
+        lot = shapely.box(1450, 1450, 1550, 1550)
+        surface = lay_roads([self.street], land(), [lot])
+        self.assertEqual(len(surface.chains), 1)
+        self.assertEqual(len(paved_between(surface, 1490, 1510, 1499, 1501)), 0)
+
+    def test_the_narrow_land_between_a_street_and_its_sidewalk_is_paved(self):
+        sidewalk = {**road([(0, 1504.5), (3000, 1504.5)], "footway"), "motor": False}
+        surface = lay_roads([self.street, sidewalk], land())
+        gap = paved_between(surface, 1000, 2000, 1502.1, 1503.6)
+        self.assertGreater(len(gap), 400)
+        self.assertLess(np.abs(gap[:, 2] - 10).max(), 0.1)
+
+    def test_roads_far_apart_or_at_different_heights_keep_the_land_between(self):
+        far = road([(0, 1508), (3000, 1508)], "residential")
+        self.assertEqual(len(paved_between(lay_roads([self.street, far], land()), 1000, 2000, 1502, 1506)), 0)
+
+        def embankment(east, north):
+            return 10 + 1.5 * (north > 1503)
+
+        sidewalk = {**road([(0, 1505), (3000, 1505)], "footway"), "motor": False}
+        self.assertEqual(len(paved_between(lay_roads([self.street, sidewalk], land(height=embankment)), 1000, 2000, 1502.3, 1504)), 0)
+
+
+    def test_a_sidewalk_along_a_car_park_stays_and_the_land_between_them_and_the_street_is_paved(self):
+        lot = shapely.box(1450, 1506, 1550, 1560)
+        sidewalk = {**road([(1400, 1505), (1600, 1505)], "footway"), "motor": False}
+        surface = lay_roads([self.street, sidewalk], land(), [lot])
+        self.assertIn("footway", [chain.kind_name for chain in surface.chains])
+        self.assertGreater(len(paved_between(surface, 1460, 1540, 1502.1, 1504.1)), 20)
+
+    def test_no_shoulder_lies_on_another_surface(self):
+        sidewalk = {**road([(0, 1504.5), (3000, 1504.5)], "footway"), "motor": False}
+        side = road([(1500, 1500), (1500, 1600)], "service")
+        lot = shapely.box(1503, 1506, 1560, 1560)
+        surface = lay_roads([self.street, sidewalk, side], land(), [lot])
+        cover = roads.ApronCover(surface.aprons)
+        carriageways = shapely.union_all([roads._kept_strip(chain) for chain in surface.chains])
+        for apron in surface.aprons:
+            shoulder = apron.triangles[apron.across[apron.triangles].max(1) == roads.APRON_SHOULDER_OUTER]
+            middle = apron.points[shoulder][:, :, :2].mean(axis=1)
+            self.assertTrue(np.isnan(cover.height(middle)).all())
+            self.assertFalse(shapely.intersects(shapely.points(middle), carriageways).any())
+
+
+def apron_area(apron):
+    road = apron.triangles[apron.across[apron.triangles].max(1) == roads.APRON_ACROSS]
+    a, b, c = (apron.points[road[:, index], :2] for index in range(3))
+    u, v = b - a, c - a
+    return float(np.abs(u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]).sum() / 2)
 
 
 class RoadMap(unittest.TestCase):

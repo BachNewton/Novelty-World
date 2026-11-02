@@ -77,6 +77,27 @@ APRON_ACROSS = 0.5
 APRON_SHOULDER_INNER = 1.1
 APRON_SHOULDER_OUTER = 2.0
 
+# A car park or bus station is one paved surface, and a service way or path with this share of its length on one is an
+# aisle, a bay or a walkway of it, not a road of its own: laid as roads, they're a comb of strips each fading to grass.
+PAVED_SHARE_INSIDE = 0.6
+# A service way's share is measured on the area grown this far, since a bay or an aisle runs on out of the outline to meet
+# the street. A path's isn't: a sidewalk runs along the outline, beside the area rather than on it.
+PAVED_REACH_M = 2.0
+# What such a way has outside the outline stays a road, joining the area to the street, unless it's shorter than this:
+# a gap that narrow is paved anyway.
+PAVED_STUB_M = 2.0
+# A paved area is cut into cells this size, so its surface follows the land across it.
+PAVED_CELL_M = 4.0
+# Its height is the land's, averaged this far each way, so the 2 m model's bumps don't show.
+PAVED_GROUND_READ_M = 2.0
+# Where it meets a road it takes the road's height, easing back to the land over this far, as a road eases on to another.
+PAVED_EASE_M = 12.0
+# A strip of land narrower than this between two roads is paved: that thin, it's a kerb or a gap in the map, never a verge.
+GAP_PAVED_M = 3.0
+GAP_CELL_M = 4.0
+# Roads further apart in height than this keep the land between them: one is on an embankment, or passes over the other.
+GAP_MOST_STEP_M = 0.4
+
 # A span is a stretch of road held up over a gap rather than laid on the land: a bridge, or a road the elevation model
 # has over water. Shorter than this it's a culvert, and the land under it is filled as for any road.
 SPAN_SHORTEST_M = 12.0
@@ -226,6 +247,8 @@ class Chain:
     landings: list = field(default_factory=list)  # (the chain landed on, the station of the cut, whether it's the chain's start).
     seam_stations: list = field(default_factory=list)  # Those ending on a tile's edge, which a junction nearby can't move.
     tree: cKDTree = field(default=None)
+    kept_shape: shapely.Geometry = field(default=None)  # What its kept sections cover, made once it's asked for.
+    centre_tree: cKDTree = field(default=None)
 
     @property
     def kind(self) -> RoadClass:
@@ -694,12 +717,16 @@ def _strip(left: np.ndarray, right: np.ndarray) -> shapely.Geometry:
 
 
 def _kept_strip(chain: Chain) -> shapely.Geometry:
-    return _strip(chain.left[:, :2], chain.right[:, :2]) if len(chain.kept) >= 2 else shapely.Polygon()
+    if chain.kept_shape is None:
+        chain.kept_shape = _strip(chain.left[:, :2], chain.right[:, :2]) if len(chain.kept) >= 2 else shapely.Polygon()
+    return chain.kept_shape
 
 
 def _surface_at(chain: Chain, points: np.ndarray) -> np.ndarray:
     """A chain's kept surface at points, flat beyond its edges."""
-    _, nearest = cKDTree(chain.centre[:, :2]).query(points[:, :2])
+    if chain.centre_tree is None:
+        chain.centre_tree = cKDTree(chain.centre[:, :2])
+    _, nearest = chain.centre_tree.query(points[:, :2])
     centre = chain.centre[nearest]
     towards_left = chain.left[nearest] - centre
     towards_right = chain.right[nearest] - centre
@@ -743,33 +770,46 @@ def _flat(shape: shapely.Geometry) -> list[shapely.Polygon]:
     return [part for part in shapely.get_parts(shape) if isinstance(part, shapely.Polygon) and part.area >= APRON_LEAST_AREA_M2]
 
 
-def _shoulders(shape: shapely.Polygon, points: np.ndarray, height: np.ndarray, free: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """A strip outward from each free stretch of an outline: four points and two triangles an edge, numbered after `points`."""
-    vertex = {tuple(point): index for index, point in enumerate(points)}
-    facing = shapely.geometry.polygon.orient(shape, 1.0)
+def _shoulders(points: np.ndarray, height: np.ndarray, indices: np.ndarray, free: np.ndarray, tile: shapely.Polygon) -> tuple[np.ndarray, np.ndarray]:
+    """A strip outward from each free stretch of the triangles' outline: four points and two triangles an edge, numbered after `points`.
+
+    The outline is the edges only one triangle has, so a shoulder meets the surface vertex for vertex however finely it's cut.
+    """
+    edges = np.sort(np.concatenate((indices[:, [0, 1]], indices[:, [1, 2]], indices[:, [2, 0]])), axis=1)
+    third = np.concatenate((indices[:, 2], indices[:, 0], indices[:, 1]))
+    _, first_seen, counts = np.unique(edges, axis=0, return_index=True, return_counts=True)
+    outline = first_seen[counts == 1]
+    on_tile_edge = shapely.distance(shapely.points(points), tile.exterior) < 1e-3
     laid: list[tuple[float, float, float]] = []
     triangles: list[tuple[int, int, int]] = []
-    for ring in (facing.exterior, *facing.interiors):
-        outline = np.round(shapely.get_coordinates(ring), 3)
-        for a, b in zip(outline[:-1], outline[1:]):
-            at_a, at_b = vertex.get(tuple(a)), vertex.get(tuple(b))
-            step = b - a
-            length = float(np.hypot(*step))
-            # Where the outline leaves a ribbon counts too: its shoulder ends at its last section, and the land shows in the notch.
-            if at_a is None or at_b is None or length < 1e-6 or not (free[at_a] or free[at_b]):
-                continue
-            out = np.array((step[1], -step[0])) / length * APRON_SHOULDER_M
-            first = len(points) + len(laid)
-            laid += [(*a, height[at_a]), (*b, height[at_b]), (*(b + out), height[at_b]), (*(a + out), height[at_a])]
-            triangles += [(first, first + 1, first + 2), (first, first + 2, first + 3)]
+    for (at_a, at_b), inside in zip(edges[outline], third[outline]):
+        a, b = points[at_a], points[at_b]
+        step = b - a
+        length = float(np.hypot(*step))
+        # Where the outline leaves a ribbon counts too: its shoulder ends at its last section, and the land shows in the notch.
+        # Along the tile's edge the neighbour carries on, so no shoulder.
+        if length < 1e-6 or not (free[at_a] or free[at_b]) or on_tile_edge[at_a] and on_tile_edge[at_b]:
+            continue
+        out = np.array((step[1], -step[0])) / length * APRON_SHOULDER_M
+        if out @ (points[inside] - a) > 0:
+            out = -out
+        first = len(points) + len(laid)
+        laid += [(*a, height[at_a]), (*b, height[at_b]), (*(b + out), height[at_b]), (*(a + out), height[at_a])]
+        triangles += [(first, first + 1, first + 2), (first, first + 2, first + 3)]
     return np.array(laid).reshape(-1, 3), np.array(triangles, dtype=int).reshape(-1, 3)
 
 
-def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int) -> Apron:
-    triangles = shapely.get_parts(shapely.constrained_delaunay_triangles(shape))
-    corners = shapely.get_coordinates(triangles).reshape(-1, 4, 2)[:, :3]
+def _triangulated(pieces: list[shapely.Polygon]) -> tuple[np.ndarray, np.ndarray]:
+    """The pieces' triangles as points shared to the millimetre, and each triangle's three of them."""
+    triangles = [triangle for piece in pieces for triangle in shapely.get_parts(shapely.constrained_delaunay_triangles(piece))]
+    corners = shapely.get_coordinates(np.array(triangles)).reshape(-1, 4, 2)[:, :3]
     points, indices = np.unique(np.round(corners.reshape(-1, 2), 3), axis=0, return_inverse=True)
-    indices = indices.reshape(-1, 3)
+    return points, indices.reshape(-1, 3)
+
+
+def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int, tile: shapely.Polygon, cells_m: float | None = None, land: Ground | None = None, cover: "ApronCover | None" = None) -> Apron:
+    """A paved shape joined to the roads it meets. Points off them hang between those that are on them, or with `land`, lie on the land."""
+    points, indices = _triangulated(_cells(shape, cells_m) if cells_m else [shape])
 
     laid = [chain for chain in sorted(members, key=lambda chain: chain.index) if len(chain.kept) >= 2]
     height = np.full(len(points), np.nan)
@@ -782,8 +822,19 @@ def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int) -> Apron:
             height[pinned] = _surface_at(chain, points[pinned])
             tucked = pinned & (shapely.distance(located, strip.buffer(-APRON_TUCK_M / 2)) == 0)
             height[tucked] -= APRON_TUCK_DROP_M
+    if cover is not None:
+        free = np.isnan(height)
+        height[free] = cover.height(points[free])
     free = np.isnan(height)
-    if free.any():
+    if land is not None:
+        height[free] = _land_under(land, points[free])
+        if (~free).any():
+            # Off the land by as much as the nearest point it shares with a road, less with distance from it.
+            distance, nearest = cKDTree(points[~free]).query(points[free])
+            joined = np.flatnonzero(~free)[nearest]
+            off = height[joined] - _land_under(land, points[joined])
+            height[free] += off * (1 - _smoothstep(distance / PAVED_EASE_M))
+    elif free.any():
         # The rest hang between the pinned points like a soap film, so an apron has no ridge of its own.
         pairs = np.concatenate((indices[:, [0, 1]], indices[:, [1, 2]], indices[:, [2, 0]]))
         pairs = np.concatenate((pairs, pairs[:, ::-1]))
@@ -791,11 +842,11 @@ def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int) -> Apron:
         links.data[:] = 1
         system = sparse.diags(np.asarray(links.sum(1)).ravel()) - links
         known = np.where(free, 0.0, height)
-        guess = _surface_at(laid[0], points[free])
+        guess = _surface_at(laid[0], points[free]) if laid else np.full(int(free.sum()), np.nanmean(height))
         floating = APRON_FLOATING_WEIGHT * sparse.identity(int(free.sum()))
         height[free] = spsolve((system[free][:, free] + floating).tocsc(), (links @ known)[free] + APRON_FLOATING_WEIGHT * guess)
 
-    shoulder, shoulder_triangles = _shoulders(shape, points, height, free)
+    shoulder, shoulder_triangles = _shoulders(points, height, indices, free, tile)
     surface = np.concatenate((np.column_stack((points, height)), shoulder))
     indices = np.concatenate((indices, shoulder_triangles))
     across = np.full(len(surface), APRON_ACROSS)
@@ -820,15 +871,139 @@ def lay_aprons(chains: list[Chain], ground: Ground) -> list[Apron]:
                 members.append({chain.index, parent.index})
     if not shapes:
         return []
-    tile = shapely.box(ground.west, ground.north - ground.size_m, ground.west + ground.size_m, ground.north)
+    tile = _tile_box(ground)
     aprons = []
     for merged in _flat(shapely.intersection(shapely.union_all(shapes), tile)):
         indices = sorted(set().union(*(member for shape, member in zip(shapes, members) if shape.intersects(merged))))
         joined = [chains[index] for index in indices]
         kept = shapely.union_all([_kept_strip(chain).buffer(-APRON_TUCK_M) for chain in joined])
         for part in _flat(merged.difference(kept)):
-            aprons.append(_apron_of(part, joined, min(int(chain.tier.min()) for chain in joined)))
+            aprons.append(_apron_of(part, joined, min(int(chain.tier.min()) for chain in joined), tile))
     return aprons
+
+
+def _tile_box(ground: Ground) -> shapely.Polygon:
+    return shapely.box(ground.west, ground.north - ground.size_m, ground.west + ground.size_m, ground.north)
+
+
+def _cells(shape: shapely.Geometry, size: float) -> list[shapely.Polygon]:
+    """A shape cut on a lattice of the world, so two tiles cut a shape they share alike."""
+    west, south, east, north = shape.bounds
+    columns = np.arange(np.floor(west / size), np.ceil(east / size)) * size
+    rows = np.arange(np.floor(south / size), np.ceil(north / size)) * size
+    corner_east, corner_north = (axis.ravel() for axis in np.meshgrid(columns, rows))
+    boxes = shapely.box(corner_east, corner_north, corner_east + size, corner_north + size)
+    near = boxes[shapely.intersects(boxes, shape)]
+    return [part for cut in shapely.intersection(near, shape) for part in _flat(cut)]
+
+
+def _land_under(ground: Ground, xy: np.ndarray) -> np.ndarray:
+    """The land at points, averaged over a few metres round each."""
+    steps = np.array([(east, north) for east in (-1, 0, 1) for north in (-1, 0, 1)]) * PAVED_GROUND_READ_M
+    return ground.sample(xy[:, None, :] + steps[None]).mean(axis=1)
+
+
+def _footprint(aprons: list[Apron]) -> shapely.Geometry:
+    """Where the aprons' carriageways lie."""
+    triangles = ApronCover(aprons).triangles[:, :, :2]
+    return shapely.union_all(shapely.polygons(np.concatenate((triangles, triangles[:, :1]), axis=1)))
+
+
+def _laid_strips(chains: list[Chain]) -> list[tuple[Chain, shapely.Geometry]]:
+    """Each laid chain's carriageway on the land: a span's stretch is held up over whatever lies beneath it."""
+    strips = []
+    for chain in chains:
+        if len(chain.kept) < 2:
+            continue
+        on_land = [_strip(chain.left[first : last + 1, :2], chain.right[first : last + 1, :2]) for first, last in _runs(~chain.span[chain.kept]) if last > first]
+        if on_land:
+            strips.append((chain, shapely.union_all(on_land)))
+    return strips
+
+
+def on_paved_area(road: dict, areas: shapely.Geometry, reached: shapely.Geometry) -> bool:
+    """A service way or path lying mostly on a car park or bus station: part of it. `reached` is `areas` grown by PAVED_REACH_M."""
+    if road["motor"] and road["kind"] != "service" or areas.is_empty:
+        return False
+    line = shapely.LineString(road["line"])
+    return line.length > 0 and shapely.intersection(line, reached if road["motor"] else areas).length >= PAVED_SHARE_INSIDE * line.length
+
+
+def _off_paved(road: dict, areas: shapely.Geometry, reached: shapely.Geometry) -> list[dict]:
+    """A road as laid: whole, or for one that's part of a paved area, only the stubs outside it that join it to the street."""
+    if not on_paved_area(road, areas, reached):
+        return [road]
+    outside = shapely.difference(shapely.LineString(road["line"]), areas)
+    return [{**road, "line": shapely.get_coordinates(part).tolist()} for part in shapely.get_parts(outside) if part.length >= PAVED_STUB_M]
+
+
+def lay_paved(areas: list[shapely.Polygon], chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[Apron]:
+    """Car parks and bus stations as surfaces of their own, on the land, joined to the roads and aprons that meet them."""
+    if not areas:
+        return []
+    tile = _tile_box(ground)
+    strips = _laid_strips(chains)
+    taken = shapely.union_all([strip.buffer(-APRON_TUCK_M) for _, strip in strips] + ([_footprint(aprons)] if aprons else []))
+    cover = ApronCover(aprons) if aprons else None
+    paved = []
+    for part in _flat(shapely.intersection(shapely.union_all(areas), tile).difference(taken)):
+        members = [chain for chain, strip in strips if strip.distance(part) < APRON_PIN_M]
+        paved.append(_apron_of(part, members, TIERS.index("minor"), tile, cells_m=PAVED_CELL_M, land=ground, cover=cover))
+    return paved
+
+
+def _shoulders_on_land(aprons: list[Apron], chains: list[Chain]) -> list[Apron]:
+    """A shoulder fades its surface into the land. Laid over another road or apron it shows as a pale plate, so there it goes."""
+    if not aprons:
+        return aprons
+    cover = ApronCover(aprons)
+    tree = shapely.STRtree([_kept_strip(chain) for chain in chains if len(chain.kept) >= 2])
+    cleared = []
+    for apron in aprons:
+        shoulder = np.flatnonzero(apron.across[apron.triangles].max(1) == APRON_SHOULDER_OUTER)
+        middle = apron.points[apron.triangles[shoulder]][:, :, :2].mean(axis=1)
+        covered = ~np.isnan(cover.height(middle))
+        covered[np.unique(tree.query(shapely.points(middle), predicate="intersects")[0])] = True
+        keep = np.ones(len(apron.triangles), dtype=bool)
+        keep[shoulder[covered]] = False
+        cleared.append(replace(apron, triangles=apron.triangles[keep]))
+    return cleared
+
+
+def lay_gaps(chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[Apron]:
+    """The narrow strips of land between roads, car parks and aprons that lie close, paved, so they meet as one surface."""
+    strips = _laid_strips(chains)
+    if not strips:
+        return []
+    tile = _tile_box(ground)
+    cover = ApronCover(aprons) if aprons else None
+    surfaced = shapely.union_all([strip for _, strip in strips] + ([_footprint(aprons)] if aprons else []))
+    reach = GAP_PAVED_M / 2
+    gaps = shapely.intersection(surfaced.buffer(reach).buffer(-reach).difference(surfaced), tile)
+    if gaps.is_empty:
+        return []
+    tree = shapely.STRtree([strip for _, strip in strips])
+    kept = []
+    for cell in (cell for part in _flat(gaps) for cell in _cells(part, GAP_CELL_M)):
+        beside = [strips[index][0] for index in tree.query(cell, predicate="dwithin", distance=APRON_PIN_M)]
+        middle = np.array(cell.representative_point().coords)
+        heights = [float(_surface_at(chain, middle)[0]) for chain in beside]
+        if cover is not None:
+            # An apron's height is read where the cell's outline touches it.
+            touching = cover.height(shapely.get_coordinates(cell))
+            heights += touching[~np.isnan(touching)].tolist()
+        if heights and max(heights) - min(heights) <= GAP_MOST_STEP_M:
+            kept.append(cell)
+    paved = []
+    for part in _flat(shapely.union_all(kept)):
+        # Tucked under the roads either side, so no crack shows along them.
+        grown = _flat(shapely.intersection(part.buffer(APRON_TUCK_M, join_style="mitre"), tile))
+        for piece in grown:
+            members = [strips[index][0] for index in tree.query(piece, predicate="dwithin", distance=APRON_PIN_M)]
+            if members or cover is not None:
+                tier = min((int(chain.tier.min()) for chain in members), default=TIERS.index("minor"))
+                paved.append(_apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover))
+    return paved
 
 
 def under_every_apron(conformed: np.ndarray, aprons: list[Apron], ground: Ground, node_stride: int) -> np.ndarray:
@@ -1134,12 +1309,17 @@ def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north
     return made
 
 
-def lay_roads(roads: list[dict], ground: Ground) -> Surface:
-    """Every road on the tile as a surface, and the ground fitted to them."""
-    chains = chains_from(split_at_junctions(roads))
+def lay_roads(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = ()) -> Surface:
+    """Every road on the tile as a surface, with its car parks and bus stations, and the ground fitted to them."""
+    areas = shapely.union_all(list(paved))
+    reached = areas.buffer(PAVED_REACH_M)
+    chains = chains_from(split_at_junctions([part for road in roads for part in _off_paved(road, areas, reached)]))
     for chain in chains:
         lay_chain(chain, chains, ground)
     aprons = lay_aprons(chains, ground)
+    aprons += lay_paved(list(paved), chains, aprons, ground)
+    aprons += lay_gaps(chains, aprons, ground)
+    aprons = _shoulders_on_land(aprons, chains)
     fields = road_fields(chains, ground, aprons)
     conformed = under_every_ribbon(conform_ground(ground.tile_corners(), fields, ground.spacing), chains, ground, NODE_STRIDE)
     conformed = under_every_apron(conformed, aprons, ground, NODE_STRIDE)
