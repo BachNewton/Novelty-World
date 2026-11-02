@@ -2,6 +2,7 @@ import { readPad, subscribeGamepads, type PadReading, type StandardButton } from
 import type { InputKind } from "@/shared/lib/input";
 import type { Binding } from "@/shared/components/prompts";
 import type { DriveInput } from "../sim/car";
+import type { ChaseLook } from "../render/chase-camera";
 
 /*
  * What each key and pad button means. The keyboard and a controller are read
@@ -116,9 +117,9 @@ export function startControls({ onAction, onMapAction, onDigit, onDevMenu, onInp
   return {
     read(): DriveInput {
       const fromKeys: DriveInput = {
-        throttle: axis([], ["KeyW", "ArrowUp"]),
-        brake: axis([], ["KeyS", "ArrowDown"]),
-        steer: axis(["KeyA", "ArrowLeft"], ["KeyD", "ArrowRight"]),
+        throttle: axis([], ["KeyW"]),
+        brake: axis([], ["KeyS"]),
+        steer: axis(["KeyA"], ["KeyD"]),
         handbrake: held.has("Space"),
       };
       const controls = pad?.controls;
@@ -129,6 +130,13 @@ export function startControls({ onAction, onMapAction, onDigit, onDevMenu, onInp
         steer: fromKeys.steer !== 0 ? fromKeys.steer : controls.leftStick.x,
         handbrake: fromKeys.handbrake || controls.buttons.A.pressed,
       };
+    },
+    /** Where the chase camera looks while an arrow key is held. */
+    look(): ChaseLook {
+      if (held.has("ArrowUp")) return "down";
+      if (held.has("ArrowDown")) return "behind";
+      const sideways = axis(["ArrowLeft"], ["ArrowRight"]);
+      return sideways < 0 ? "left" : sideways > 0 ? "right" : "ahead";
     },
     kind: () => kind,
     setMapOpen(open: boolean) {

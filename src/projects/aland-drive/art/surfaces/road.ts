@@ -12,6 +12,9 @@ import { COARSE_M, FINE_M } from "./ground";
 
 const FADE = [40, 170] as const;
 const PATCH_EVERY_M = 19;
+// Repairs come in runs: a worn stretch has several, and a sound one none.
+const PATCH_ZONES_M = 173;
+const PATCH_WOBBLE_M = 0.45;
 const LANE_FROM_M = 2.6;
 const WHEEL_FROM_LANE_M = 0.8;
 const KERB_M = 0.16;
@@ -69,12 +72,17 @@ export function dressRoad({ place, toCamera, across, signedAcross, along, paved,
   const patchRoll = hash(patchCell.add(0.5));
   const patchStart = patchRoll.mul(0.5).mul(PATCH_EVERY_M);
   const inCell = along.sub(patchCell.mul(PATCH_EVERY_M));
-  const patchLength = hash(patchCell.add(3.1)).mul(6).add(2.5);
+  const patchLength = hash(patchCell.add(3.1)).mul(6).add(1.5);
+  const patchHalfWidth = hash(patchCell.add(5.3)).mul(0.7).add(0.85);
+  const patchDepth = hash(patchCell.add(7.9)).mul(0.35).add(0.25);
+  const patchWobble = coarse.a.sub(0.5).add(fine.g.sub(0.5).mul(0.3)).mul(PATCH_WOBBLE_M * 2);
   const patchSoft = fwidth(metres).max(0.01);
   const patchLane = laneMiddle.mul(select(hash(patchCell.add(9.7)).greaterThan(0.5), float(1), float(-1)));
-  const patchSide = float(1).sub(smoothstep(float(1.25).sub(patchSoft), float(1.25).add(patchSoft), abs(signedAcross.mul(halfWidth).sub(patchLane))));
-  const patchEnds = smoothstep(float(0), float(0.06), inCell.sub(patchStart)).mul(float(1).sub(smoothstep(float(0), float(0.06), inCell.sub(patchStart).sub(patchLength))));
-  const patched = patchEnds.mul(patchSide).mul(smoothstep(float(0.8), float(0.82), patchRoll)).mul(0.6);
+  const patchSide = float(1).sub(smoothstep(patchHalfWidth.sub(patchSoft), patchHalfWidth.add(patchSoft), abs(signedAcross.mul(halfWidth).sub(patchLane)).add(patchWobble)));
+  const intoPatch = inCell.sub(patchStart).add(patchWobble);
+  const patchEnds = smoothstep(float(0), float(0.1), intoPatch).mul(float(1).sub(smoothstep(float(0), float(0.1), intoPatch.sub(patchLength))));
+  const patchZone = smoothstep(float(0.5), float(0.53), texture(detail, place.div(PATCH_ZONES_M).add(vec2(0.61, 0.29))).a);
+  const patched = patchEnds.mul(patchSide).mul(smoothstep(float(0.72), float(0.74), patchRoll)).mul(patchZone).mul(patchDepth).mul(shown);
   const crackLine = float(1).sub(smoothstep(float(0.05), float(0.12), coarse.b)).mul(smoothstep(float(0.46), float(0.56), texture(detail, place.div(CRACK_ZONES_M)).a));
   const asphaltBase = mix(colour("surface-asphalt"), colour("surface-asphalt-patch"), patched);
   const asphalt = asphaltBase.mul(float(1).add(aggregate.add(blotch).mul(shown))).mul(float(1).sub(wheelTrack.mul(0.1))).mul(float(1).sub(crackLine.mul(0.4).mul(shown)));
@@ -88,12 +96,12 @@ export function dressRoad({ place, toCamera, across, signedAcross, along, paved,
   const carriageway = mix(gravel, asphalt, paved);
 
   // The edge of the seal is broken a little by the stone beside it.
-  const edgeNoise = coarse.a.sub(0.5).mul(0.14).add(fine.g.sub(0.5).mul(0.05)).div(halfWidth);
-  const shoulderShare = smoothstep(float(0.99), float(1.05), across.add(edgeNoise.mul(paved)));
+  const edgeNoise = coarse.a.sub(0.5).mul(0.14).mul(shown).div(halfWidth);
+  const shoulderShare = smoothstep(float(0.985), float(1.06), across.add(edgeNoise.mul(paved)));
 
   const beyond = across.sub(1).max(0).mul(shoulderM);
   const stone = float(1).add(fine.g.sub(0.5).mul(1.1).add(coarse.g.sub(0.5).mul(0.6)).mul(shown));
-  const looseShoulder = mix(colour("road-shoulder").mul(stone), ground, smoothstep(float(0.05), float(0.7), across.sub(1).add(coarse.r.sub(0.5).mul(0.5))));
+  const looseShoulder = mix(colour("road-shoulder").mul(stone), ground, smoothstep(float(0.05), float(0.7), across.sub(1).add(coarse.r.sub(0.5).mul(0.5).mul(shown))));
 
   // In town: a gutter's shadow, a kerbstone with its joints, then paving.
   const kerbed = town.mul(paved).mul(smoothstep(float(2), float(2.6), halfWidth));
@@ -109,7 +117,9 @@ export function dressRoad({ place, toCamera, across, signedAcross, along, paved,
   const paving = colour("surface-paving").mul(float(1).add(coarse.a.sub(0.5).mul(0.3)).add(fine.g.sub(0.5).mul(0.2))).mul(float(1).sub(paverJoints.mul(0.3)));
   const gutter = float(1).sub(smoothstep(float(0), float(GUTTER_M), beyond));
   const urbanSide = mix(mix(paving, kerb, onKerb), colour("surface-asphalt-patch").mul(0.5), gutter.mul(0.8));
-  const shoulder = mix(looseShoulder, urbanSide, kerbed);
+  // The ribbon's outer edge steps with its sections, so paving gives way to the land before it gets there.
+  const pavingEnds = smoothstep(float(1.65), float(1.95), across.add(coarse.a.sub(0.5).mul(0.3)));
+  const shoulder = mix(looseShoulder, mix(urbanSide, ground, pavingEnds), kerbed);
 
   const paintLeft = min(float(1), smoothstep(float(0.28), float(0.5), fine.g.mul(0.5).add(coarse.a.mul(0.5))).mul(0.45).add(0.6));
 

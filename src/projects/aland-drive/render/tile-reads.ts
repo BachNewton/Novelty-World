@@ -15,6 +15,12 @@ import { MEAN_HEIGHT, ROAD_MASK_MIP } from "./tree-place";
 const CANOPY_RISE_FROM_M = 300;
 const CANOPY_RISE_FULL_M = 40;
 
+/** The far photo's level that says what a whole patch is, past a narrow verge's own colour: 32 m. */
+const WIDE_LAND_MIP = 2;
+
+/** What `tileReads` says of the ground at a place. */
+export type LandAt = (place: Node<"vec2">) => { broad: Node<"vec3">; wide: Node<"vec3">; shade: Node<"float">; dry: Node<"float"> };
+
 export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number) {
   const slotOf = (place: Node<"vec2">) => {
     const inTiles = place.div(tileM);
@@ -23,7 +29,8 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
     const within = all(greaterThanEqual(spot, vec2(0, 0))).and(all(lessThan(spot, vec2(layers.mapColumns, layers.mapRows))));
     const row = textureLoad(layers.slots, ivec2(spot.clamp(vec2(0, 0), vec2(layers.mapColumns - 1, layers.mapRows - 1))));
     const layer = int(row.r.mul(255).round().sub(1).max(0));
-    return { uv: inTiles.sub(tile), layer, held: within.and(row.r.greaterThan(0.001)) };
+    const nearLayer = int(row.g.mul(255).round().sub(1).max(0));
+    return { uv: inTiles.sub(tile), layer, nearLayer, held: within.and(row.r.greaterThan(0.001)), nearHeld: within.and(row.g.greaterThan(0.001)) };
   };
   return {
     /** A tree's height at a place anywhere, off the image of whichever tile holds it, at a level of its mips. */
@@ -37,10 +44,23 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const { uv, layer, held } = slotOf(place);
       return select(held, texture(layers.stands, uv).depth(layer).level(float(0)), vec4(0));
     },
-    roadsAt(place: Node<"vec2">) {
+    roadsAt(place: Node<"vec2">, mip: number = ROAD_MASK_MIP) {
       const { uv, layer, held } = slotOf(place);
-      const roads = texture(layers.mask, uv).depth(layer).level(float(ROAD_MASK_MIP));
+      const roads = texture(layers.mask, uv).depth(layer).level(float(mip));
       return select(held, roads.g.add(roads.b), float(0));
+    },
+    /** What's on the ground at a place: its colour at 8 m, its colour over a whole patch of land, its baked shade, and whether it's dry land with a tile under it. */
+    landAt(place: Node<"vec2">) {
+      const { uv, layer, nearLayer, held, nearHeld } = slotOf(place);
+      const broad = texture(layers.groundFar, uv).depth(layer).level(float(0));
+      const sharpAlpha = texture(layers.groundNear, uv).depth(nearLayer).level(float(0)).a;
+      const water = texture(layers.mask, uv).depth(layer).level(float(0)).r;
+      return {
+        broad: broad.rgb,
+        wide: texture(layers.groundFar, uv).depth(layer).level(float(WIDE_LAND_MIP)).rgb,
+        shade: texture(layers.shadeFar, uv).depth(layer).level(float(0)).r,
+        dry: select(held, float(1).sub(water).mul(select(nearHeld, sharpAlpha, broad.a)), float(0)),
+      };
     },
   };
 }

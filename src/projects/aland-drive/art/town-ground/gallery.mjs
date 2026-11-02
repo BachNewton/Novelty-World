@@ -35,7 +35,7 @@ const PAIRS = Number(option("pairs") ?? 10);
 const READINGS_A_SIDE = 12;
 const SETTLE_FRAMES = 8;
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm" };
-const CSS = ["../surfaces/tokens.css", "../street/tokens.css", "../cars/tokens.css", "./tokens.css"];
+const CSS = ["../cars/tokens.css", "./tokens.css"];
 
 async function bundle(folder) {
   const gameParts = {

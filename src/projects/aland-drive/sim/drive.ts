@@ -46,8 +46,6 @@ export class Drive {
   private readonly car: Car;
   private before!: CarState;
   private after!: CarState;
-  private wetSteps = 0;
-  private flippedSteps = 0;
   private readonly recentVerticalSpeeds: number[] = [];
   private touching = [true, true, true, true];
   /** Times the car has been put somewhere rather than driven there. */
@@ -89,8 +87,6 @@ export class Drive {
     this.car.place([road.x, road.y, road.z], road.heading);
     this.rapier.step();
     this.before = this.after = this.car.state();
-    this.wetSteps = 0;
-    this.flippedSteps = 0;
     this.recentVerticalSpeeds.length = 0;
     this.placements++;
   }
@@ -121,17 +117,10 @@ export class Drive {
     const { position } = this.before;
     this.ground.around(position[0], position[2]);
     this.car.step(input);
-    if (this.overWater(position[0], position[2])) {
-      this.car.addDrag(PHYSICS.waterDrag);
-      this.wetSteps++;
-    } else {
-      this.wetSteps = 0;
-    }
-    this.flippedSteps = this.car.uprightness() < 0.2 ? this.flippedSteps + 1 : 0;
+    if (this.overWater(position[0], position[2])) this.car.addDrag(PHYSICS.waterDrag);
     this.rapier.step();
     this.after = this.car.state();
     this.record();
-    if (this.wetSteps > PHYSICS.waterStepsToRespawn || this.flippedSteps > PHYSICS.flippedStepsToRespawn) this.respawn();
   }
 
   private record(): void {

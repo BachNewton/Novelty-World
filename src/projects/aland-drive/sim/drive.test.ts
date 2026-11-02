@@ -154,7 +154,7 @@ describe("the car", () => {
     drive.dispose();
   });
 
-  it("is put back on a road soon after driving into water", () => {
+  it("is dragged to a stop in water, and left there until the player respawns", () => {
     const drive = newDrive();
     const { grid, waterNodes } = tile;
     const node = waterNodes.findIndex((wet, index) => wet === 1 && index % grid.nodes > 400 && index % grid.nodes < 1100 && index > 400 * grid.nodes);
@@ -162,9 +162,12 @@ describe("the car", () => {
     const north = grid.north - Math.floor(node / grid.nodes) * grid.stepM;
     expect(world.roads.nearest(x, -north)?.distance).toBeGreaterThan(6);
     drive.placeAt({ ...route1.at(500), x, z: -north, y: surfaceHeight(grid, x, north) });
-    const state = drove(drive, 200, {});
-    expect(drive.log.respawns).toBe(1);
-    expect(world.roads.nearest(state.position[0], state.position[2])?.distance).toBeLessThan(2);
+    const state = drove(drive, 120 * 4, {});
+    expect(drive.log.respawns).toBe(0);
+    expect(speedOf(state)).toBeLessThan(0.5);
+    drive.respawn();
+    const back = drove(drive, 1, {});
+    expect(world.roads.nearest(back.position[0], back.position[2])?.distance).toBeLessThan(2);
     drive.dispose();
   });
 });

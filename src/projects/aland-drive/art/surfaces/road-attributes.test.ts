@@ -33,6 +33,17 @@ function junction(kind: string, tier: number): RoadSurface {
 const lastVertex = (surface: RoadSurface) => surface.rings.length / 3 - RING_POINTS + 2;
 
 describe("road attributes", () => {
+  it("dresses an apron as the road it joins, with nothing to reach and a real width", () => {
+    const road = junction("residential", 1);
+    const apron = { ...road, rings: Float32Array.from([...road.rings, 0, 0, 1]) };
+    const { surface: info, mark } = roadAttributes(apron, []);
+    const vertex = road.rings.length / 3;
+    expect(info[vertex * 4]).toBe(1);
+    expect(info[vertex * 4 + 2]).toBeCloseTo(HALF_WIDTH);
+    expect(info[vertex * 4 + 3]).toBe(FAR_FROM_MARK_M);
+    expect(mark[vertex * 2 + 1]).toBe(0);
+  });
+
   it("marks the end of a lesser road on a main road, and not the main road", () => {
     const surface = junction("residential", 1);
     const { surface: info, mark } = roadAttributes(surface, []);

@@ -40,6 +40,9 @@ export const LOOKS = [
   look("signs", -7640, -4819, 1.3, 20, { eye: 1.6, pitch: 0.05, add: "signs" }),
   look("signs", -7640, -4819, 1.3, 40, { eye: 1.6, pitch: 0.03, add: "signs" }),
   look("signs-back", -7640, -4819, 1.3, 8, { eye: 1.6, pitch: 0.1, add: "signs-back" }),
+  look("shore-town", -3644, 7508, -1.89, 30, { eye: 2.6, pitch: -0.1 }),
+  look("shore-country", -9696, -1836, -1.57, 30, { eye: 2.6, pitch: -0.1 }),
+  look("shore-bay", -4924, 5136, 1.57, 30, { eye: 2.6, pitch: -0.1 }),
   look("chase", -9749, -3084, -0.05, 30, { eye: 2.6, pitch: -0.12, measure: ["ground", "road"] }),
   look("town-chase", -1686, 4094, 0.12, 30, { eye: 2.6, pitch: -0.1, measure: ["ground", "road", "walls"] }),
 ];

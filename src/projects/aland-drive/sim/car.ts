@@ -222,11 +222,6 @@ export class Car {
     return [x, y, z, w];
   }
 
-  /** Below 0 the car is past its side. */
-  uprightness(): number {
-    return rotate(this.rotation(), [0, 1, 0])[1];
-  }
-
   addDrag(strength: number): void {
     const velocity = point(this.body.linvel());
     const impulse = scale(velocity, -strength * STEP_S);

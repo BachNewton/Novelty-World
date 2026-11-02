@@ -38,13 +38,8 @@ export interface GroundInput {
   detail: Texture;
 }
 
-export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, detail }: GroundInput): Node<"vec3"> {
-  const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
-  const coarse = texture(detail, place.div(COARSE_M));
-  const fine = texture(detail, place.div(FINE_M).add(vec2(0.37, 0.11)));
-  const drift = texture(detail, place.div(DRIFT_M)).a.sub(0.5).mul(0.05);
-  const mottled = texture(detail, place.div(MOTTLE_M));
-
+/** What the photo's colour says a place is made of, as shares; `drift` moves the edges between kinds. */
+export function groundKinds(photo: Node<"vec3">, drift: Node<"float"> = float(0)) {
   const [red, green, blue] = [photo.r, photo.g, photo.b];
   const brightest = max(max(red, green), blue).max(0.001);
   const greenLean = green.sub(max(red, blue).mul(0.92)).div(brightest).add(drift);
@@ -55,6 +50,29 @@ export function groundDetail({ place, toCamera, photo, roadNearby, litterColour,
   const grassShare = smoothstep(float(0.03), float(0.14), greenLean).mul(smoothstep(float(0.04), float(0.08), paleness));
   const greyShare = float(1).sub(smoothstep(float(0.09), float(0.15), warmth)).mul(smoothstep(float(0.14), float(0.22), paleness));
   const stoneShare = min(float(1).sub(grassShare), greyShare);
+  return { warmth, paleness, grassShare, stoneShare };
+}
+
+/** The ground's colour with no relief on it, which is all there is of it from afar. */
+export function groundFloor(photo: Node<"vec3">, litterColour: Node<"vec3">, { warmth, paleness, grassShare }: Pick<ReturnType<typeof groundKinds>, "warmth" | "paleness" | "grassShare">): Node<"vec3"> {
+  // The photo's spring haze leaves grass a blue-green no tree here is, so it's warmed at every distance, not just close up.
+  const grassColour = mix(vec3(1), GRASS_WARMTH, grassShare);
+  // Blue is the sky lighting the photo's shadows, and under trees the photo is nearly black: neither is what's on the ground there.
+  const skyShade = float(1).sub(smoothstep(float(-0.16), float(-0.02), warmth));
+  const litter = float(1).sub(smoothstep(float(0.05), float(0.13), paleness));
+  const relit = mix(photo.mul(grassColour), photo.mul(SHADE_WARMTH), skyShade);
+  return mix(relit, mix(relit, litterColour, LITTER_SHARE), litter);
+}
+
+export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, detail }: GroundInput): Node<"vec3"> {
+  const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
+  const coarse = texture(detail, place.div(COARSE_M));
+  const fine = texture(detail, place.div(FINE_M).add(vec2(0.37, 0.11)));
+  const drift = texture(detail, place.div(DRIFT_M)).a.sub(0.5).mul(0.05);
+  const mottled = texture(detail, place.div(MOTTLE_M));
+
+  const kinds = groundKinds(photo, drift);
+  const { grassShare, stoneShare } = kinds;
   const earthShare = float(1).sub(grassShare).sub(stoneShare).max(0);
   const gravelShare = smoothstep(float(0.04), float(0.2), roadNearby);
 
@@ -67,14 +85,7 @@ export function groundDetail({ place, toCamera, photo, roadNearby, litterColour,
   const stoneRelief = mix(rockRelief, gravelRelief, gravelShare);
 
   const relief = grassRelief.mul(grassShare).add(earthRelief.mul(earthShare)).add(stoneRelief.mul(stoneShare)).mul(shown);
-  // The photo's spring haze leaves grass a blue-green no tree here is, so it's warmed at every distance, not just close up.
   // Close up, tips take yellow and roots blue-green from the same relief, so the colour isn't one flat wash.
-  const grassColour = mix(vec3(1), GRASS_WARMTH, grassShare);
-  // Blue is the sky lighting the photo's shadows, and under trees the photo is nearly black: neither is what's on the ground there.
-  const skyShade = float(1).sub(smoothstep(float(-0.16), float(-0.02), warmth));
-  const litter = float(1).sub(smoothstep(float(0.05), float(0.13), paleness));
   const bladeTint = mix(vec3(1), vec3(1).add(vec3(0.2, 0.12, -0.3).mul(relief)), grassShare);
-  const relit = mix(photo.mul(grassColour), photo.mul(SHADE_WARMTH), skyShade);
-  const onFloor = mix(relit, mix(relit, litterColour, LITTER_SHARE), litter);
-  return onFloor.mul(relief.add(1).max(0.05)).mul(bladeTint);
+  return groundFloor(photo, litterColour, kinds).mul(relief.add(1).max(0.05)).mul(bladeTint);
 }

@@ -4,4 +4,3 @@ export { CHURCHES, type ChurchSpec } from "./churches";
 export { facadeArt, type FacadeInput } from "./facade";
 export { painter, type Inks } from "./paint";
 export { fuelOrigin, fuelStation, supermarketEntrance, type FuelStation } from "./roadside-shops";
-export { createWordSheet, type WordSheet } from "./word-sheet";

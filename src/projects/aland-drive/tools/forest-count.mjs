@@ -1,4 +1,4 @@
-// What the forest draws, counted by the GPU, at the showcase's views: trees on each list, triangles, draw calls, and any
+// What the forest and the verge draw, counted by the GPU, at the showcase's views: trees on each list, triangles, draw calls, and any
 // shader or validation error. Counts decide; the screenshots are only to see that nothing went wrong.
 //
 // Prereq: a dev server. Usage: node src/projects/aland-drive/tools/forest-count.mjs [--folder=<tiles>] [--size=3440x1440] [--keys=2,4] [--shots=<folder>]
@@ -43,13 +43,16 @@ const settle = () =>
       probe.counts();
       await new Promise(requestAnimationFrame);
     }
-    return { ...probe.counts(), forest: probe.forestDrawn() };
+    return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn() };
   }, SETTLE_FRAMES);
 
 for (const key of KEYS) {
   await page.keyboard.press(`Digit${key}`);
   const counts = await settle();
-  console.log(`view ${key}:`, JSON.stringify(counts));
+  await page.evaluate(() => window.__alandDrive.showVerge(false));
+  const plain = await settle();
+  await page.evaluate(() => window.__alandDrive.showVerge(true));
+  console.log(`view ${key}:`, JSON.stringify(counts), `without the verge: ${plain.drawCalls} draws, ${plain.triangles} triangles`);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/view-${key}.png` });
 }
 console.log([...new Set(problems)].slice(0, 12).join("\n") || "no errors or warnings");

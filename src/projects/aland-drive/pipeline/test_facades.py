@@ -1,9 +1,9 @@
-"""The rule's fiddly cases: python art/facades/test_assign.py, from the project folder, with the pipeline's venv."""
+"""The facade rule's fiddly cases."""
 
 import unittest
 
-import assign
-from assign import Facts, choose, sign_word
+import facades as assign
+from facades import Facts, choose, sign_word
 
 VILLA = assign.STYLES["villa"]
 

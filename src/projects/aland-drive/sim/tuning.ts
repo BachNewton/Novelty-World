@@ -104,11 +104,8 @@ export const STEERING = {
 
 export const WORLD = {
   gravity: 9.81,
-  /** Water stops a car in a couple of seconds, and it's put back on the road soon after. */
+  /** Water stops a car in a couple of seconds. */
   waterDrag: 1800,
-  waterStepsToRespawn: 150,
-  /** A car on its roof or side for this long goes back to the road. */
-  flippedStepsToRespawn: 240,
   /** The tile's edge is a wall: no road or ground exists beyond it yet. */
   wallHeightM: 400,
   wallThicknessM: 8,

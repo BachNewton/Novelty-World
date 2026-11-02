@@ -1,11 +1,11 @@
-import { Group, Mesh, MeshBasicNodeMaterial, type Node, type Object3D, type Scene, type Vector3 } from "three/webgpu";
+import { Group, type MeshBasicNodeMaterial, type Node, type Scene, type Vector3 } from "three/webgpu";
 import { startGame, type Place } from "../../render/game";
 import type { SolidsCell } from "../../render/solids";
 import type { World } from "../../sim/world";
 import { doorFacades } from "./add-ons";
 import { placeModels, type ModelStage, type StagedModels } from "./gallery-models";
 
-/* The gallery's page: the real game on real tiles, with the facades wired in and a way to swap them out to measure them. */
+/* The gallery's page: the real game on real tiles, with a way to find a style's doors and to stand the models in it. */
 
 interface Hook {
   scene: Scene;
@@ -30,7 +30,6 @@ declare global {
     __facadeCells?: SolidsCell[];
     __facadesFailure?: string;
     __facadesGallery?: {
-      setArt: (on: boolean) => void;
       models: () => void;
       doorLook: (wanted: DoorWanted) => Place;
       counts: () => unknown;
@@ -52,20 +51,11 @@ startGame(element, {
 })
   .then((game) => {
     const hook = window.__facadesHook;
-    if (!hook) throw new Error("no hook: the integration did not apply");
-    const on = hook.wallMaterial;
-    const off = new MeshBasicNodeMaterial();
-    off.colorNode = on.userData.plainColorNode as Node<"vec3">;
-    off.side = on.side;
+    if (!hook) throw new Error("no hook: the gallery's patch did not apply");
     const group = new Group();
     hook.scene.add(group);
     let staged: StagedModels | null = null;
     window.__facadesGallery = {
-      setArt(art) {
-        hook.scene.traverse((object: Object3D) => {
-          if (object instanceof Mesh && (object.material === on || object.material === off)) object.material = art ? on : off;
-        });
-      },
       doorLook({ style, front, index }) {
         const doors = doorFacades(window.__facadeCells ?? []).filter((door) => (style === undefined || door.style === style) && (front === undefined || door.front === front));
         if (doors.length === 0) throw new Error(`no door of ${style} ${front}`);

@@ -1,3 +1,4 @@
+import type { BufferGeometry } from "three/webgpu";
 import { seeded, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { Painted, streetModel, type Motion, type StreetPart } from "./paint";
@@ -28,15 +29,20 @@ function blade(into: Painted, random: () => number, reach: number, tall: number,
   return into.face([[foot[0] - sideX, foot[1], foot[2] - sideZ], [foot[0] + sideX, foot[1], foot[2] + sideZ], tip], part, 0.82 + random() * 0.36);
 }
 
-/** A clump's outline from afar: three points, never a solid block, each tipped with `tip` if it has a flower. */
-function farCard(tall: number, wide: number, part: StreetPart, tip?: StreetPart): Painted {
+/** A clump's outline from afar: three points, never a solid block, each tipped with `tip` if it has a flower; the middle one may take a paint of its own. */
+function farCard(tall: number, wide: number, part: StreetPart, tip?: StreetPart, tipShare = 0.3, middle = part): Painted {
   const card = new Painted();
   for (const [x, height, lean] of [[-wide * 0.6, 0.78, -0.4], [0, 1, 0.1], [wide * 0.6, 0.86, 0.5]]) {
     const top: V3 = [x + lean * wide, tall * height, 0];
-    card.face([[x - wide * 0.55, -SINK_M, 0], [x + wide * 0.55, -SINK_M, 0], top], part, 0.92);
-    if (tip !== undefined) card.face([[top[0] - wide * 0.3, top[1] - tall * 0.12, 0], [top[0] + wide * 0.3, top[1] - tall * 0.12, 0], [top[0], top[1] + tall * 0.1, 0]], tip);
+    card.face([[x - wide * 0.55, -SINK_M, 0], [x + wide * 0.55, -SINK_M, 0], top], x === 0 ? middle : part, 0.92);
+    if (tip !== undefined) card.face([[top[0] - wide * tipShare, top[1] - tall * 0.12, 0], [top[0] + wide * tipShare, top[1] - tall * 0.12, 0], [top[0], top[1] + tall * 0.1, 0]], tip);
   }
   return card;
+}
+
+/** One far clump for a whole verge, a metre tall: grass with a straw blade in the middle, and for a flower, tips in a petal paint for whatever a place's flower is. */
+export function buildVergeCard(flower: boolean): BufferGeometry {
+  return farCard(1, 0.4, "grass", flower ? "petal-white" : undefined, 0.14, "grass-pale").build();
 }
 
 const GRASS_BLADES = 16;

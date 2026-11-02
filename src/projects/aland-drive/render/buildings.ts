@@ -1,17 +1,23 @@
-import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, fract, fwidth, int, max, mix, normalize, positionWorld, round, select, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Texture } from "three/webgpu";
+import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, Fn, fract, fwidth, If, int, max, mix, normalize, positionWorld, round, select, smoothstep, step, uniform, uniformArray, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
-import { band, pulses } from "../art/surfaces";
+import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
+import { facadeArt } from "../art/facades/facade";
+import IDS from "../art/facades/facade-ids.json";
 
 /*
  * Buildings, a mesh per 600 m cell. Their walls have no art of their own: boards,
- * windows, a door and white trim are all drawn here, laid out from each facade's
- * real width and eaves, so they fit whatever size the wall is, and blur into the
- * wall's average far off rather than fading, so they neither shimmer nor pop.
+ * windows, doors, trim and shops are all drawn in the shader, laid out from each
+ * facade's real width and eaves, so they fit whatever size the wall is, and blur
+ * into the wall's average far off rather than fading, so they neither shimmer nor
+ * pop. The pipeline's tint says which look a wall has: one of the three plain
+ * styles here, or one of `art/facades`, with a shop from `art/surfaces`.
  */
 
-/** Styles and palette as the pipeline numbers them. */
+/** Styles and palette as the pipeline numbers them. Styles from the villa on are `art/facades`. */
 const STYLE = { roof: 0, timber: 1, plaster: 2, boards: 3 } as const;
+const FACADE_STYLES_FROM = IDS.styles.villa;
+const FRONT_PLATE = IDS.fronts.plate;
 const WALL_COLOURS = ["wall-red", "wall-white", "wall-yellow", "wall-cream", "wall-grey", "wall-pale"];
 
 const AMBIENT = 0.68;
@@ -38,24 +44,22 @@ export interface BuildingPalette {
   hazed: (color: Node<"vec3">) => Node<"vec3">;
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: { azimuthDeg: number; elevationDeg: number }): MeshBasicNodeMaterial {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+interface WallInput {
+  along: Node<"float">;
+  up: Node<"float">;
+  width: Node<"float">;
+  eaves: Node<"float">;
+  tint: Node<"vec4">;
+  wide: Node<"float">;
+  tall: Node<"float">;
+  colour: (name: string) => Node<"vec3">;
+  linear: (name: string) => Vector3;
+}
 
-  const facade = attribute<"vec4">("facade", "vec4");
-  const tint = attribute<"vec4">("tint", "vec4");
-  const along = facade.x;
-  const up = facade.y;
-  const width = facade.z;
-  const eaves = facade.w;
+/** The pipeline's own three styles: timber, plaster and boards. */
+function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }: WallInput): Node<"vec3"> {
   const style = round(tint.a.mul(255));
   const isStyle = (name: keyof typeof STYLE) => abs(style.sub(STYLE[name])).lessThan(0.5);
-
-  // Every shape below is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
-  // average rather than fading out: only lines too fine to draw fade, and they fade to their own average.
-  const wide = fwidth(along);
-  const tall = fwidth(up);
   const pixel = wide.add(tall);
   const boardsShow = float(1).sub(smoothstep(float(BOARDS_GONE[0]), float(BOARDS_GONE[1]), pixel));
   const box = (x: Node<"float">, halfX: number, y: Node<"float">, halfY: number) =>
@@ -105,16 +109,54 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   const glazed = max(pane.mul(onFacade), gablePane.mul(gable)).mul(hasWindows);
   const withWindows = mix(mix(trimmed, trim, framed), skyInGlass, glazed);
   const withDoor = mix(mix(withWindows, trim, doorFrame), colour("wall-door"), doorHere);
-  const faded = mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall));
+  return mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall));
+}
+
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: { azimuthDeg: number; elevationDeg: number }, art: { detail: Texture; sheet: SignSheet }): MeshBasicNodeMaterial {
+  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
+  const elevation = (sun.elevationDeg * Math.PI) / 180;
+  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+
+  const facade = attribute<"vec4">("facade", "vec4");
+  const tint = attribute<"vec4">("tint", "vec4");
+  const along = facade.x;
+  const up = facade.y;
+  const width = facade.z;
+  const eaves = facade.w;
+  const style = round(tint.a.mul(255));
 
   const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
   const towardsCamera = cameraPosition.sub(positionWorld);
   const normal = select(facing.dot(towardsCamera).lessThan(0), facing.negate(), facing);
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
-  const roof = vec3(tint.r, tint.g, tint.b).pow(vec3(2.2)).mul(1.15);
+  const photoRoof = vec3(tint.r, tint.g, tint.b).pow(vec3(2.2)).mul(1.15);
+  const roof = roofDetail({ base: photoRoof, position: positionWorld, normal, toSun, moss: colour("surface-roof-moss"), detail: art.detail });
+
+  // Every shape on a wall is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
+  // average rather than fading out: only lines too fine to draw fade, and they fade to their own average. A wall pays
+  // only for its own style, so the derivatives that measure the pixel are read before the styles branch.
+  const walls = Fn(() => {
+    const wide = fwidth(along).toVar();
+    const tall = fwidth(up).toVar();
+    const reads = select(dFdx(along).lessThan(0), float(-1), float(1)).toVar();
+    const drawn = vec3(0).toVar();
+    If(style.greaterThan(FACADE_STYLES_FROM - 0.5), () => {
+      const red = round(tint.r.mul(255));
+      const green = round(tint.g.mul(255));
+      const front = floor(red.div(32));
+      const door = step(127.5, green);
+      const shown = select(front.greaterThan(FRONT_PLATE - 0.5), front, front.mul(door));
+      const wall = facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear });
+      drawn.assign(shopfront({ along, up, width, eaves, fromDoor: along.sub(width.mul(0.5)), front: shown, word: green.mod(128), wide, tall, reads, wall, colour, sky: colour("sky"), sheet: art.sheet }));
+    }).ElseIf(style.greaterThan(0.5), () => {
+      drawn.assign(plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }));
+    });
+    return drawn;
+  })();
+
   const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
   const material = new MeshBasicNodeMaterial();
-  material.colorNode = hazed(select(isStyle("roof"), roof, faded.mul(nearGround)).mul(lit));
+  material.colorNode = hazed(select(style.lessThan(0.5), roof, walls.mul(nearGround)).mul(lit));
   material.side = 2;
   return material;
 }
