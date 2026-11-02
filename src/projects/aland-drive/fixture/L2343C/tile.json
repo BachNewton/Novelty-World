@@ -2445,5 +2445,27 @@
     "file": "stands.bin.gz",
     "pixels": 125,
     "encoding": "gzip of bytes, 4 a pixel, rows north to south, west to east: the shares of pine, spruce and birch, 0 to 255, what's left being other broadleaf, then the share of lattice places holding a tree"
+  },
+  "rock": {
+    "file": "rock.bin.gz",
+    "pixels": 1500,
+    "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255"
+  },
+  "models": {
+    "file": "models.json",
+    "count": {
+      "boulder-11": 9,
+      "boulder-24": 6,
+      "boulder-3": 8,
+      "boulder-37": 10
+    },
+    "place": [
+      "x",
+      "y",
+      "z",
+      "yaw",
+      "width",
+      "length"
+    ]
   }
 }

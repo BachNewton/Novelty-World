@@ -32,7 +32,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Parked cars** | `art/street` | Built | OSM `amenity=parking`, kerb lines | [ ] | [ ] | [ ] |
 | **Windmills** | `art/rural` | Built | OSM `man_made=windmill` (123, needs a hand check) | [ ] | [ ] | [ ] |
 | **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
-| **Granite** | `art/rural` | Built | OSM `natural=bare_rock` (2,286), MTK rock classes | [ ] | [ ] | [ ] |
+| **Granite** | `art/rural`, `render/granite.ts` | In the game, on tiles rebuilt since; not yet published | Topographic Database rock areas (34100) as a 4 m image, outcrops laid on the mesh by a shader's rule; mapped boulders (34600) and boulder fields (34700) as places (`pipeline/rocks.py`). OSM's `natural=bare_rock` lies 87–94% inside the rock areas and adds nothing | [x] | [x] | [x] |
 | **Bushes, juniper, birch** | `art/rural`, `render/shrubs.ts` | In the game | A shader's rule: forest edges from the canopy, rock among trees from the photo | [x] | [x] | [x] |
 | **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
 | **Stone walls** | `art/rural` | Built | OSM `barrier=wall`; field edges by rule | [ ] | [ ] | [ ] |

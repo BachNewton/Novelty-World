@@ -89,5 +89,10 @@
   "attribution": [
     "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
     "Roads: © OpenStreetMap contributors, ODbL 1.0"
-  ]
+  ],
+  "rock": {
+    "file": "rock.bin.gz",
+    "pixels": 1500,
+    "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255"
+  }
 }

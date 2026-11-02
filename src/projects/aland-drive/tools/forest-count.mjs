@@ -43,7 +43,7 @@ const settle = () =>
       probe.counts();
       await new Promise(requestAnimationFrame);
     }
-    return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn(), reeds: probe.reedsDrawn(), shrubs: probe.shrubsDrawn() };
+    return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn(), reeds: probe.reedsDrawn(), shrubs: probe.shrubsDrawn(), granite: probe.graniteDrawn() };
   }, SETTLE_FRAMES);
 
 for (const key of KEYS) {

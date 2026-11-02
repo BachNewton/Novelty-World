@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { nextToLoad, isPastUnload } from "../render/stream";
 import { paintAlong, DASH_LENGTH_M } from "../render/roads";
 import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
+import { boulderWalls } from "../render/tile-models";
 import { NO_INPUT } from "./car";
 import { Drive, initPhysics } from "./drive";
 import { RoadLine } from "./road-net";
@@ -117,6 +118,22 @@ describe("a building", () => {
     }
     expect(fastest).toBeGreaterThan(50);
     expect(furthest).toBeLessThan(wallX);
+    drive.dispose();
+  });
+});
+
+describe("a boulder", () => {
+  it("stops the car at top speed: its ring of walls is as closed as a building's", () => {
+    const boulderX = -300;
+    const world = twoTiles(true, boulderWalls({ "boulder-3": Float32Array.of(boulderX, 0, ROAD_Z, 0.4, 2, 2) }));
+    const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
+    const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
+    let furthest = -Infinity;
+    for (let step = 0; step < 120 * 45; step++) {
+      drive.step({ ...NO_INPUT, throttle: 1 });
+      furthest = Math.max(furthest, drive.stateAt(1).position[0]);
+    }
+    expect(furthest).toBeLessThan(boulderX);
     drive.dispose();
   });
 });

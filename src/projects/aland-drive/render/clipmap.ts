@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, floor, ivec2, max, mix, mod, positionGeometry, round, smoothstep, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { abs, float, floor, ivec2, max, mix, mod, positionGeometry, round, select, smoothstep, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -51,6 +51,7 @@ interface Ring {
   stepM: number;
   groundAt: (place: Node<"vec2">) => Node<"float">;
   groundBlendedAt: (place: Node<"vec2">) => Node<"float">;
+  groundOnMeshAt: (place: Node<"vec2">) => Node<"float">;
   heights: Float32Array;
   texture: DataTexture;
   origin: { value: Vector2 };
@@ -71,6 +72,8 @@ export interface Clipmap {
   groundAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** The same ground read between the ring's four nearest nodes, so it follows a slope. */
   groundBlendedAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** The ground on the ring's own triangles, as drawn where the ring isn't folding: for what has to lie on it, not just stand on it. */
+  groundOnMeshAt: (level: number, place: Node<"vec2">) => Node<"float">;
   dispose: () => void;
 }
 
@@ -138,7 +141,18 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
       const at = (column: number, row: number) => textureLoad(texture, ivec2(corner.add(vec2(column, row)))).r;
       return mix(mix(at(0, 0), at(1, 0), share.x), mix(at(0, 1), at(1, 1), share.x), share.y);
     };
-    return { stepM: ringStep, groundAt, groundBlendedAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh };
+    // The cell's diagonal runs north-east to south-west, as `patchIndices` lays it.
+    const groundOnMeshAt = (spot: Node<"vec2">) => {
+      const inRing = spot.sub(origin).div(ringStep);
+      const corner = floor(inRing);
+      const share = inRing.sub(corner);
+      const at = (column: number, row: number) => textureLoad(texture, ivec2(corner.add(vec2(column, row)))).r;
+      const [northWest, northEast, southWest, southEast] = [at(0, 0), at(1, 0), at(0, 1), at(1, 1)];
+      const upper = northWest.add(share.x.mul(northEast.sub(northWest))).add(share.y.mul(southWest.sub(northWest)));
+      const lower = southEast.add(float(1).sub(share.x).mul(southWest.sub(southEast))).add(float(1).sub(share.y).mul(northEast.sub(southEast)));
+      return select(share.x.add(share.y).lessThanEqual(1), upper, lower);
+    };
+    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -158,6 +172,9 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     },
     groundBlendedAt(level, place) {
       return rings[level].groundBlendedAt(place);
+    },
+    groundOnMeshAt(level, place) {
+      return rings[level].groundOnMeshAt(place);
     },
     showWide(shown) {
       for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;

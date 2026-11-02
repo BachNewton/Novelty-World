@@ -11,6 +11,7 @@ import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from
 import { canopyLift, tileReads } from "./tile-reads";
 import { createReeds, type ReedsDrawn } from "./reeds";
 import { createShrubs, type ShrubsDrawn } from "./shrubs";
+import { createGranite, type GraniteDrawn } from "./granite";
 import { createVerge, type VergeDrawn } from "./verge";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
@@ -78,8 +79,10 @@ export interface GameProbe {
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
   shrubsDrawn: () => ShrubsDrawn;
+  graniteDrawn: () => GraniteDrawn;
   /** Shows the bushes, junipers and young birches or leaves them out, to see what they do. */
   showShrubs: (shown: boolean) => void;
+  showGranite: (shown: boolean) => void;
   car: () => CarState;
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
@@ -390,7 +393,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const mask = sampled(layers.mask, farLayer);
   const photo = mix(sampled(layers.groundFar, farLayer), sampled(layers.groundNear, nearLayer), nearShare);
   const roadNearby = texture(layers.mask, imageUv).depth(farLayer).grad(gradientX.mul(8), gradientY.mul(8));
-  const groundColor = groundDetail({ place: positionWorld.xz, toCamera, photo: photo.rgb.pow(vec3(2.2)), roadNearby: roadNearby.g.add(roadNearby.b), litterColour: colorOf("surface-litter"), detail });
+  const groundColor = groundDetail({ place: positionWorld.xz, toCamera, photo: photo.rgb.pow(vec3(2.2)), roadNearby: roadNearby.g.add(roadNearby.b), litterColour: colorOf("surface-litter"), rock: mask.a, detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -415,7 +418,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { r, g, b } = token(name);
     return new Vector3(r, g, b);
   };
-  const { canopyAt, standsAt, roadsAt, landAt, waterAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, landAt, waterAt, rockAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -433,6 +436,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, sun: manifest.sun });
+  const granite = createGranite(scene, renderer, {
+    rockAt,
+    canopyAt,
+    waterAt,
+    roadsAt,
+    landAt,
+    closeLandAt,
+    groundAt: (place) => clipmap.groundBlendedAt(0, place),
+    groundOnMeshAt: (place) => clipmap.groundOnMeshAt(0, place),
+    lightOf,
+    linear,
+    colour: colorOf,
+    hazed,
+    litterColour: colorOf("surface-litter"),
+    sun: manifest.sun,
+  });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
@@ -599,6 +618,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   await verge.compile();
   await reeds.compile();
   await shrubs.compile();
+  await granite.compile();
   cullCar(true);
   clipmap.showWide(false);
   outbuildings.showAll(false);
@@ -939,6 +959,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     verge.update(spot, camera, seconds);
     reeds.update(spot, camera);
     shrubs.update(spot, camera);
+    granite.update(spot, camera);
     showRibbons(spot);
     sky.update(camera.position, seconds);
     renderer.render(scene, camera);
@@ -964,7 +985,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         webGpu: "isWebGPUBackend" in renderer.backend,
         drawCalls: renderer.info.render.drawCalls,
         // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
-        triangles: renderer.info.render.triangles + forest.drawn().triangles + verge.drawn().triangles + reeds.drawn().triangles + shrubs.drawn().triangles,
+        triangles: renderer.info.render.triangles + forest.drawn().triangles + verge.drawn().triangles + reeds.drawn().triangles + shrubs.drawn().triangles + granite.drawn().triangles,
         gpuMs,
         width: renderer.domElement.width,
         height: renderer.domElement.height,
@@ -975,7 +996,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
+      graniteDrawn: granite.drawn,
       showShrubs: shrubs.show,
+      showGranite: granite.show,
       car: () => drive.stateAt(1),
       log: () => drive.log,
       hold: (next) => {
@@ -1070,6 +1093,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       verge.dispose();
       reeds.dispose();
       shrubs.dispose();
+      granite.dispose();
       clipmap.dispose();
       for (const { cells } of buildings.values()) {
         for (const { mesh } of cells) mesh.geometry.dispose();

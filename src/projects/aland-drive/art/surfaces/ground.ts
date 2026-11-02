@@ -23,6 +23,8 @@ const FADE = [45, 150] as const;
 const GRASS_WARMTH = vec3(1.04, 1.02, 0.66);
 const SHADE_WARMTH = vec3(1.1, 1.02, 0.62);
 const LITTER_SHARE = 0.75;
+/** How much of a place's relief is rock's where it's mapped as rock and the photo shows no grass: under trees, rock's relief through the litter. */
+const MAPPED_ROCK = 0.7;
 const STRENGTH = { grass: 0.72, soil: 0.62, gravel: 0.8, rock: 0.75 } as const;
 
 export interface GroundInput {
@@ -35,6 +37,8 @@ export interface GroundInput {
   roadNearby: Node<"float">;
   /** Needles and leaf litter, where the photo is lost in shade. */
   litterColour: Node<"vec3">;
+  /** How much of the place is mapped rock, 0 to 1: rock's relief there wherever the photo doesn't show grass. */
+  rock: Node<"float">;
   detail: Texture;
 }
 
@@ -64,7 +68,7 @@ export function groundFloor(photo: Node<"vec3">, litterColour: Node<"vec3">, { w
   return mix(relit, mix(relit, litterColour, LITTER_SHARE), litter);
 }
 
-export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, detail }: GroundInput): Node<"vec3"> {
+export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, rock, detail }: GroundInput): Node<"vec3"> {
   const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
   const coarse = texture(detail, place.div(COARSE_M));
   const fine = texture(detail, place.div(FINE_M).add(vec2(0.37, 0.11)));
@@ -72,7 +76,8 @@ export function groundDetail({ place, toCamera, photo, roadNearby, litterColour,
   const mottled = texture(detail, place.div(MOTTLE_M));
 
   const kinds = groundKinds(photo, drift);
-  const { grassShare, stoneShare } = kinds;
+  const { grassShare } = kinds;
+  const stoneShare = max(kinds.stoneShare, rock.mul(float(1).sub(grassShare)).mul(MAPPED_ROCK));
   const earthShare = float(1).sub(grassShare).sub(stoneShare).max(0);
   const gravelShare = smoothstep(float(0.04), float(0.2), roadNearby);
 

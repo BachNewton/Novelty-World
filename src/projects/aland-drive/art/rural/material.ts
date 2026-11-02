@@ -58,7 +58,7 @@ function ovoids(at: Node<"vec3">, size: number): Node<"vec2"> {
 }
 
 /** Rapakivi: pale-rimmed ovoids of pink feldspar crowded in a darker ground, rounded joints, a little lichen on what faces up, moss at the foot. */
-function rapakivi({ colour }: Pick<RoadsideInputs, "colour">, base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">, upward: Node<"float">, foot: Node<"float">) {
+export function rapakivi({ colour }: Pick<RoadsideInputs, "colour">, base: Node<"vec3">, at: Node<"vec3">, away: Node<"float">, upward: Node<"float">, foot: Node<"float">) {
   const size = 0.1;
   const warped = at.add(vec3(swell(at.mul(3.1)), swell(at.zxy.mul(3.7)), swell(at.yzx.mul(2.9))).mul(0.05));
   const first = ovoids(warped, size);

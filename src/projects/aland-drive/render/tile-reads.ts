@@ -49,6 +49,19 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const roads = texture(layers.mask, uv).depth(layer).level(float(mip));
       return select(held, roads.g.add(roads.b), float(0));
     },
+    /** How much of the land round a place is rock (`pipeline/rocks.py`), at a level of the mask's mips. Over a tile not held, none. */
+    rockAt(place: Node<"vec2">, mip: number) {
+      const { uv, layer, held } = slotOf(place);
+      return select(held, texture(layers.mask, uv).depth(layer).level(float(mip)).a, float(0));
+    },
+    /** The photo's colour and the baked shade at a place, as the terrain has them close up: 2 m where the tile's detail is held, else 8 m. */
+    closeLandAt(place: Node<"vec2">) {
+      const { uv, layer, nearLayer, nearHeld } = slotOf(place);
+      return {
+        photo: select(nearHeld, texture(layers.groundNear, uv).depth(nearLayer).level(float(0)).rgb, texture(layers.groundFar, uv).depth(layer).level(float(0)).rgb),
+        shade: select(nearHeld, texture(layers.shadeNear, uv).depth(nearLayer).level(float(0)).r, texture(layers.shadeFar, uv).depth(layer).level(float(0)).r),
+      };
+    },
     /** How much of the land round a place is water, at a level of the mask's mips. Over a tile not held, none. */
     waterAt(place: Node<"vec2">, mip: number) {
       const { uv, layer, held } = slotOf(place);

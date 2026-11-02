@@ -90,7 +90,7 @@ for (const { out, place } of looks) {
   }, FRAMES_TO_SETTLE);
   const report = await page.evaluate(async () => {
     const adapter = await navigator.gpu.requestAdapter();
-    return { counts: window.__alandDrive.counts(), reeds: window.__alandDrive.reedsDrawn(), shrubs: window.__alandDrive.shrubsDrawn(), gpu: adapter?.info?.description || adapter?.info?.vendor };
+    return { counts: window.__alandDrive.counts(), reeds: window.__alandDrive.reedsDrawn(), shrubs: window.__alandDrive.shrubsDrawn(), granite: window.__alandDrive.graniteDrawn(), gpu: adapter?.info?.description || adapter?.info?.vendor };
   });
   await page.screenshot({ path: out });
   console.log(out, JSON.stringify(report));

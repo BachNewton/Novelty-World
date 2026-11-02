@@ -28,6 +28,7 @@ import outbuildings
 import overview
 import road_map
 import roads as road_surface
+import rocks
 import stands
 import terrain
 import vectors
@@ -212,6 +213,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "stands": stands.MANIFEST,
         "solids": solids_manifest,
         "models": placed.write(folder),
+        "rock": rocks.MANIFEST,
         "buildingSheets": building_sheets(tile),
         "water": {"nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
@@ -220,6 +222,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     }
     if surface_manifest is not None:
         manifest["roadSurface"] = surface_manifest
+    (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Rock reads the mask and heights just written, and adds its boulders to the models.
+    _, manifest["models"] = rocks.bake(tile, folder)
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}
@@ -251,6 +256,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "ground": first["ground"],
         "canopy": first["canopy"],
         "stands": stands.MANIFEST,
+        "rock": rocks.MANIFEST,
         "water": first["water"],
         "overview": overview_manifest,
         "map": map_manifest,

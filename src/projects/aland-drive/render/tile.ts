@@ -44,6 +44,8 @@ export interface WorldManifest {
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
   stands: { file: string; pixels: number };
+  /** Each 4 m pixel's share of rock (`pipeline/rocks.py`), on every tile or none. */
+  rock?: { file: string; pixels: number };
   water: { nodesFile: string };
   overview: OverviewFormat;
   map: { file: string };

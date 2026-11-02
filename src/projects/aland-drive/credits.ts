@@ -30,7 +30,7 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "Contains data from the National Land Survey of Finland Buildings 3D, licensed under CC BY 4.0",
   },
   {
-    work: "Topographic Database of Åland (building footprints and classes)",
+    work: "Topographic Database of Åland (building footprints and classes, rock areas, boulders)",
     author: "National Land Survey of Finland",
     license: LICENSES["cc-by-4.0"],
     source: "https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/datasets-and-interfaces/product-descriptions/topographic-database",
