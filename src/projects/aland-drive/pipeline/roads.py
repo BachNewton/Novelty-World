@@ -1007,7 +1007,10 @@ def lay_gaps(chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[A
                 tier = min((int(chain.tier.min()) for chain in members), default=TIERS.index("minor"))
                 # Between two car parks there may be no road at all: paving that joins one is part of its paving.
                 joins_area = piece.distance(area_footprint) < APRON_PIN_M if areas else False
-                paved.append(replace(_apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover), area=joins_area))
+                apron = _apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover)
+                # A sliver beside an apron that lies over none of it and touches no road joins nothing, and has no height to take.
+                if members or not np.isnan(apron.points[:, 2]).all():
+                    paved.append(replace(apron, area=joins_area))
     return paved
 
 

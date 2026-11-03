@@ -64,6 +64,8 @@ ATTRIBUTION = [
 
 def encode_heights(nodes: np.ndarray) -> bytes:
     """Whole units as int16, each row as differences along itself, gzipped."""
+    if not np.isfinite(nodes).all():
+        raise ValueError(f"{int((~np.isfinite(nodes)).sum())} heights aren't numbers, first at node (row, column) {np.argwhere(~np.isfinite(nodes))[0].tolist()}")
     # In double precision whatever the array's type: two tiles round their shared row alike only if they divide alike.
     units = np.round(np.asarray(nodes, dtype=np.float64) / HEIGHT_UNIT_M).astype(np.int32)
     if units.min() < -32768 or units.max() > 32767:
