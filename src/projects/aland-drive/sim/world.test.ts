@@ -124,6 +124,27 @@ describe("a building", () => {
   });
 });
 
+describe("a power pole", () => {
+  it("stops the car at top speed: its square of walls is far thinner than a step", () => {
+    const [poleX, half] = [-300, 0.18];
+    const [west, east, north, south] = [poleX - half, poleX + half, ROAD_Z - half, ROAD_Z + half];
+    const square = Float32Array.of(west, north, east, north, east, north, east, south, east, south, west, south, west, south, west, north);
+    const world = twoTiles(true, square);
+    const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
+    const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
+    let [fastest, furthest] = [0, -Infinity];
+    for (let step = 0; step < 120 * 45; step++) {
+      drive.step({ ...NO_INPUT, throttle: 1 });
+      const { position, velocity } = drive.stateAt(1);
+      fastest = Math.max(fastest, velocity[0]);
+      furthest = Math.max(furthest, position[0]);
+    }
+    expect(fastest).toBeGreaterThan(50);
+    expect(furthest).toBeLessThan(poleX);
+    drive.dispose();
+  });
+});
+
 describe("a tile's edge", () => {
   it("is nothing to the height lattice: the node on it is one height from either side", () => {
     const world = twoTiles();

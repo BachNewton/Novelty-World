@@ -7,6 +7,7 @@ import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
+import { createRoadside } from "./roadside";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
@@ -35,6 +36,8 @@ import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
 import { ruralMaterials } from "../art/rural/index";
+import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
+import { streetMaterials } from "../art/street/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -82,6 +85,10 @@ export interface GameProbe {
   vergeDrawn: () => VergeDrawn;
   /** Shows the verge or leaves it out, to see what it does. */
   showVerge: (shown: boolean) => void;
+  /** How many of each roadside object stand across the loaded tiles. */
+  roadsideCounts: () => Record<string, number>;
+  /** Shows the lamps, poles, signs, rails and the rest beside the roads, or leaves them out, to see what they do. */
+  showRoadside: (shown: boolean) => void;
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -521,6 +528,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const viewHeight = uniform(1);
+  const roadside = createRoadside(scene, {
+    roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
+    // Rails and edge posts hold still, so the street kit's clock can.
+    street: streetMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }),
+    wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
+    signs: createSignKit(signSheet, { colour: colorOf, hazed }, manifest.sun),
+  });
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
@@ -540,7 +555,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, roadside: placed }, done) {
         const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
@@ -548,6 +563,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.add(solids.group);
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
+        roadside.add(detail.name, placed);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
@@ -582,6 +598,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
+        roadside.remove(detail.name);
         landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
@@ -643,6 +660,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   }
   clipmap.showWide(true);
   outbuildings.showAll(true);
+  roadside.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
@@ -652,6 +670,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   cullCar(true);
   clipmap.showWide(false);
   outbuildings.showAll(false);
+  roadside.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -866,6 +885,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const resize = () => {
     const { clientWidth, clientHeight } = container;
     renderer.setSize(clientWidth, clientHeight, false);
+    viewHeight.value = renderer.domElement.height;
     camera.aspect = clientWidth / Math.max(1, clientHeight);
     camera.updateProjectionMatrix();
   };
@@ -1071,6 +1091,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       forestDrawn: forest.drawn,
       vergeDrawn: verge.drawn,
       showVerge: verge.show,
+      roadsideCounts: roadside.counts,
+      showRoadside: roadside.show,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -1191,6 +1213,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       wallMaterial.dispose();
       outbuildings.dispose();
+      roadside.dispose();
       landmarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();
