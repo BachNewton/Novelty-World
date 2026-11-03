@@ -33,6 +33,8 @@ export interface TileManifest {
   walls?: { file: string };
   /** Lamps, poles, signs, rails, edge posts, mailboxes and shelters beside the roads. A tile built before them has none. */
   roadside?: { file: string };
+  /** People, a file for each pipeline module that places them (`pipeline/people.py`). A tile with none has none. */
+  people?: Record<string, { file: string }>;
 }
 
 /** What `world.json` says about the whole of what's been built. */
