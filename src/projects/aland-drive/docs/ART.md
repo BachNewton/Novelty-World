@@ -29,14 +29,14 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Flags, midsummer poles** | `art/street` | Built | OSM flagpoles; a hand list of poles | [ ] | [ ] | [ ] |
 | **Harbour fittings** | `art/street` | Built | Rules along quays; OSM cranes, marinas | [ ] | [ ] | [ ] |
 | **Parked cars** | `art/cars` (`fleet.ts`), `render/parked-cars.ts` | In the game, on tiles baked since; not yet published | OSM car parks in rows along their mapped aisles, or along their longest side; kerbs where OSM's `parking:*` allows, and sparsely on a town's untagged lesser streets (`pipeline/parking.py`) | [x] | [x] | [x] |
-| **Windmills** | `art/rural` | Built | OSM `man_made=windmill` (123, needs a hand check) | [ ] | [ ] | [ ] |
+| **Windmills** | `art/rural`, `render/windmills.ts` | In the game, on tiles rebuilt since; not yet published. One list for the island, so a mill stands to 12 km | OSM `man_made=windmill` outlines, checked by hand against the laser and the 2025 photo: 92 of the 93 on the island's tiles are post mills, and none of its 3 points has a mill at it; a mill replaces what the data has under it (`pipeline/farm.py`) | [x] | [x] | [ ] |
 | **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
 | **Granite** | `art/rural`, `render/granite.ts` | In the game, on tiles rebuilt since; not yet published | Topographic Database rock areas (34100) as a 4 m image, outcrops laid on the mesh by a shader's rule; mapped boulders (34600) and the biggest of a field's as places, and boulder fields (34700) as an 8 m image the ground and a planting of small stones cover (`pipeline/rocks.py`). OSM's `natural=bare_rock` lies 87–94% inside the rock areas and adds nothing | [x] | [x] | [x] |
 | **Bushes, juniper, birch** | `art/rural`, `render/shrubs.ts` | In the game | A shader's rule: forest edges from the canopy, rock among trees from the photo | [x] | [x] | [x] |
 | **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
 | **Stone walls** | `art/rural`, `render/stone-walls.ts` | In the game, on tiles baked since; not yet published | OSM `barrier=wall` in the country; by rule along the Topographic Database's field and meadow edges, gapped at every road (`pipeline/walls.py`) | [x] | [x] | [x] |
 | **Jetties, boats** | `art/rural` | In the game, on tiles rebuilt since; not yet published | OSM piers that aren't a harbour's (1,290 runs); a head, and a rowing boat or sloop by rule (`pipeline/docks.py`) | [x] | [x] | [x] |
-| **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
+| **Bales, tractor, sheep** | `art/rural`, `render/rural-buildings.ts` | In the game, on tiles rebuilt since; not yet published | By rule on the Topographic Database's fields and meadows (`pipeline/farm.py`): bales on a seventh of the grass fields, stacked by the edge nearest a road or where the baler dropped them; a tractor by a third of those and outside one barn in fourteen; sheep on a fifth of the meadows, nearly half of the shore's | [x] | [x] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
 | **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
@@ -84,7 +84,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
 - Fold the remaining kits' `tokens.css` into `globals.css` as each kit goes in (`art/roadside`, `art/street` and `art/rural` have none left).
-- `art/street` and `art/rural` grow their objects out of the ground at their reach; `art/roadside` dissolves its own instead, which suits the rule that a change of detail isn't noticed. Bring the other two in line once someone checks them in motion.
+- `art/street` and `art/rural` grow their objects out of the ground at their reach; `art/roadside` dissolves its own instead, which suits the rule that a change of detail isn't noticed. The farm's props and the windmills end where they are a pixel and a half tall, where the growing can't be seen; bring the rest in line once someone checks them in motion.
 - Bus shelters stand in the verge's grass, which grows inside them: the verge reads only images, so it can't know they're there.
 - Power lines cross the forest with trees standing under the wires, where a real line has a cleared corridor.
 - Check real shopfronts on central Mariehamn, and the 11 solids holding OSM roads.

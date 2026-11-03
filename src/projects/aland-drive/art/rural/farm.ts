@@ -4,6 +4,14 @@ import { finished, ringed, RuralMesh, type RuralPart } from "./mesh";
 
 /* The working fields: bales, walls, a tractor and sheep. All in metres, standing on their origin. */
 
+/*
+ * Each ends where it's about a pixel and a half tall on the floor's screen, so shrinking into the ground over the last
+ * of its reach can't be seen: a tractor stops a little short of that, inside the reach every tile's detail is sure of.
+ */
+const BALE_REACH_M = 1200;
+const TRACTOR_REACH_M = 2100;
+const SHEEP_REACH_M = 750;
+
 const BALE_RADIUS_M = 0.72;
 const BALE_WIDE_M = 1.2;
 const BALE_SIDES = 10;
@@ -32,12 +40,12 @@ function bale(mesh: RuralMesh, sides: number, roundM: number, body: RuralPart, e
 export function buildWrappedBale(): RoadsideModel {
   const near = bale(new RuralMesh(), BALE_SIDES, BALE_ROUND_M, "bale-wrap", "bale-wrap", "bale-seam");
   for (const x of [-0.2, 0.26]) near.tube([x, BALE_RADIUS_M - 0.03, 0], [x + 0.03, BALE_RADIUS_M - 0.03, 0], BALE_RADIUS_M + 0.004, BALE_SIDES, {}, "bale-seam");
-  return finished(near, bale(new RuralMesh(), 5, 0, "bale-wrap", "bale-wrap", null), 90, 620);
+  return finished(near, bale(new RuralMesh(), 5, 0, "bale-wrap", "bale-wrap", null), 90, BALE_REACH_M);
 }
 
 /** A round bale of plain hay, lying on its side, axis along x. */
 export function buildHayBale(): RoadsideModel {
-  return finished(bale(new RuralMesh(), BALE_SIDES, BALE_ROUND_M, "hay", "hay", "hay-end"), bale(new RuralMesh(), 5, 0, "hay", "hay", null), 90, 620);
+  return finished(bale(new RuralMesh(), BALE_SIDES, BALE_ROUND_M, "hay", "hay", "hay-end"), bale(new RuralMesh(), 5, 0, "hay", "hay", null), 90, BALE_REACH_M);
 }
 
 /** A section of field-stone wall to knee height, running along +x. Lay one after another, and stretch or shear it to fit. */
@@ -162,7 +170,7 @@ export function buildTractor(): RoadsideModel {
   far.face([[-cabHalf, 1, cabBack], [-cabHalf, 1, cabFront], [-cabHalf, cabHigh, cabFront], [-cabHalf, cabHigh, cabBack]], "tractor-glass", 0.9);
   far.face([[cabHalf, 1, cabBack], [cabHalf, 1, cabFront], [cabHalf, cabHigh, cabFront], [cabHalf, cabHigh, cabBack]], "tractor-glass", 0.9);
   far.face([[-cabHalf, cabHigh + 0.1, cabBack], [cabHalf, cabHigh + 0.1, cabBack], [cabHalf, cabHigh + 0.1, cabFront], [-cabHalf, cabHigh + 0.1, cabFront]], "trim");
-  return finished(near, far, 130, 800);
+  return finished(near, far, 130, TRACTOR_REACH_M);
 }
 
 export type SheepPose = "standing" | "grazing";
@@ -199,5 +207,5 @@ export function buildSheep(pose: SheepPose = "grazing", coat: SheepCoat = "white
   far.face([[-0.16, 0, -0.3], [0.16, 0, -0.3], [0.16, 0.4, -0.3], [-0.16, 0.4, -0.3]], "sheep-face");
   far.face([[-0.16, 0, 0.28], [0.16, 0, 0.28], [0.16, 0.4, 0.28], [-0.16, 0.4, 0.28]], "sheep-face");
   far.face([[-0.08, head[1], head[2]], [0.08, head[1], head[2]], [0, neck[1], neck[2]]], "sheep-face");
-  return finished(near, far, 60, 280);
+  return finished(near, far, 60, SHEEP_REACH_M);
 }

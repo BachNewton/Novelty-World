@@ -1,8 +1,8 @@
 import type { Scene } from "three/webgpu";
 import type { Placement, RoadsideMaterials } from "../art/roadside/index";
-import { BOATHOUSE, buildBoathouse, buildBoulder, buildShed, SHED } from "../art/rural/index";
+import { BOATHOUSE, buildBoathouse, buildBoulder, buildHayBale, buildSheep, buildShed, buildTractor, buildWrappedBale, SHED, type SheepCoat, type SheepPose } from "../art/rural/index";
 import { createPlacedModels, type PlacedKind } from "./placed-models";
-import { BOULDER_MODELS, PLACE_FLOATS } from "./tile-models";
+import { BOULDER_MODELS, FARM_MODELS, PLACE_FLOATS } from "./tile-models";
 
 /*
  * The boathouses and sheds the pipeline placed on real footprints
@@ -13,7 +13,8 @@ import { BOULDER_MODELS, PLACE_FLOATS } from "./tile-models";
  * walls to the outline, and the height in proportion to the width, within reason,
  * so a long boathouse stays a boathouse rather than a barn. A boulder is scaled whole
  * to its width, and keeps the kit's own reach: it's no building, and a big one on a
- * field is seen from further than a shed.
+ * field is seen from further than a shed. So do the farm's bales, tractors and sheep
+ * (`pipeline/farm.py`), each at the scale its place carries.
  */
 
 /** How far a model is scaled up or down with its footprint's width; the rest is stretch. */
@@ -37,6 +38,15 @@ const building =
     return { x, y, z, yaw, scale, stretch: width / (2 * walls.x * scale), depth: length / (2 * walls.z * scale) };
   };
 const boulder = ([x, y, z, yaw, width]: Float32Array): Placement => ({ x, y, z, yaw, scale: width / BOULDER_WIDTH_M });
+const prop = ([x, y, z, yaw, scale]: Float32Array): Placement => ({ x, y, z, yaw, scale });
+
+function farmModel(name: (typeof FARM_MODELS)[number]) {
+  if (name === "bale-wrapped") return buildWrappedBale();
+  if (name === "bale-hay") return buildHayBale();
+  if (name === "tractor") return buildTractor();
+  const [, pose, coat = "white"] = name.split("-") as [string, SheepPose, SheepCoat?];
+  return buildSheep(pose, coat);
+}
 
 export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials, reachM: number) {
   const kind = (build: PlacedKind["build"], walls: { x: number; z: number }): PlacedKind => ({ build, materials, fit: fitted(building(walls)) });
@@ -48,6 +58,7 @@ export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials,
       "boathouse-red": kind(() => buildBoathouse("red"), BOATHOUSE),
       "boathouse-tarred": kind(() => buildBoathouse("tarred"), BOATHOUSE),
       ...Object.fromEntries(BOULDER_MODELS.map((name): [string, PlacedKind] => [name, { build: () => buildBoulder(Number(name.split("-")[1])), materials, fit: fitted(boulder), ownReach: true }])),
+      ...Object.fromEntries(FARM_MODELS.map((name): [string, PlacedKind] => [name, { build: () => farmModel(name), materials, fit: fitted(prop), ownReach: true }])),
     },
     reachM,
     "a rural building",

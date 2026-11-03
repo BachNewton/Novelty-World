@@ -28,6 +28,7 @@ import ground as ground_colour
 import landmarks as landmark_sites
 import laser
 import docks
+import farm
 import outbuildings
 import overview
 import parking
@@ -172,6 +173,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     openings = []
     lifts = None
     sites = landmark_sites.Landmarks(tile)
+    sites.replace_also(farm.windmill_sites(tile))
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
@@ -348,7 +350,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "version": digest.hexdigest()[:12],
         "worldOrigin": first["worldOrigin"],
         "tileM": TILE_SIZE_M,
-        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"], **({"landmarks": manifest["landmarks"]} if manifest.get("landmarks") else {})} for manifest in manifests],
+        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"], **({"landmarks": manifest["landmarks"]} if manifest.get("landmarks") else {}), **({"windmills": manifest["windmills"]} if manifest.get("windmills") else {})} for manifest in manifests],
         "start": {"tile": START_TILE if any(manifest["tile"] == START_TILE for manifest in manifests) else first["tile"], "chain": 0},
         "heights": first["heights"],
         "far": first["far"],
@@ -427,6 +429,8 @@ def main() -> None:
     waterfront.bake_tiles(names, OUTPUT)
     # After the roadside, whose lamps and signs the cars keep clear of.
     parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    # After the roadside too, whose poles and walls the bales, tractors and sheep keep clear of.
+    farm.bake_tiles(names, OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 
