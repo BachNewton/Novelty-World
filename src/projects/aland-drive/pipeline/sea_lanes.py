@@ -222,11 +222,13 @@ def _along(line: np.ndarray, step_m: float) -> np.ndarray:
     return np.array(out)
 
 
-def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guides: list[np.ndarray], berths: tuple[bool, bool], pull: float, frame: list[np.ndarray] | None = None) -> np.ndarray | None:
+def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guides: list[np.ndarray], berths: tuple[bool, bool], pull: float, frame: list[np.ndarray] | None = None, kept_off: list[np.ndarray] | None = None) -> np.ndarray | None:
     """The cheapest line from `start` to `goal` over the water, keeping `vessel.clear_m` off land except near a
     berth, drawn towards `guides` by `pull` (the share of its cost a cell on a guide saves), with its corners
     cut to the fewest that keep every stretch on that water; or None where the water doesn't join them. It
-    looks for one within the box round its ends and `frame` (by default the guides) and a margin."""
+    looks for one within the box round its ends and `frame` (by default the guides) and a margin. An end that
+    isn't a berth starts from the nearest water clear enough, and `ANCHOR_APART_M` from each of `kept_off`, the
+    places other lanes' boats already lie."""
     margin = 1500 + vessel.turn_m
     points = np.vstack([start, goal, *(guides if frame is None else frame)])
     low, high = points.min(axis=0) - margin, points.max(axis=0) + margin
@@ -255,9 +257,11 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
         off = ndimage.distance_transform_edt(~on_guide) * CELL_M
         cost = cost * (1 - pull * np.clip(1 - off / (vessel.clear_m + 40), 0, 1))
     cells = []
-    for at in (start, goal):
+    for at, is_berth in zip((start, goal), berths):
         distance = np.hypot(xs - at[0], ys - at[1])
         distance[~allowed] = np.inf
+        for other in [] if is_berth else kept_off or []:
+            distance[np.hypot(xs - other[0], ys - other[1]) < ANCHOR_APART_M] = np.inf
         cell = np.unravel_index(int(distance.argmin()), distance.shape)
         if distance[cell] > 300:
             return None
@@ -519,6 +523,8 @@ SAME_HARBOUR_M = 500
 # A small boat's trip: to another harbour or an anchorage this far off, in a straight line.
 TRIP_M = (1500, 9000)
 TRIPS_PER_HARBOUR = 2
+# Two boats lying at their ends are never nearer than this, whichever trips they're on.
+ANCHOR_APART_M = 30
 
 
 def harbours() -> list[np.ndarray]:
@@ -537,7 +543,7 @@ def boat_lanes(water: Water, osm: Osm) -> list[dict]:
     vessel = VESSELS["boat"]
     places = harbours()
     targets = places + [np.asarray(point) for point in osm.anchorages]
-    lanes, taken = [], set()
+    lanes, taken, lying = [], set(), []
     for at, harbour in enumerate(places):
         distances = [(float(np.hypot(*(target - harbour))), index) for index, target in enumerate(targets) if index != at]
         made = 0
@@ -549,7 +555,7 @@ def boat_lanes(water: Water, osm: Osm) -> list[dict]:
             target = targets[index]
             low, high = np.minimum(harbour, target) - 2000, np.maximum(harbour, target) + 2000
             guides = [line for line in osm.fairways if np.any(np.all((line >= low) & (line <= high), axis=1))]
-            line = lane(water, harbour, target, vessel, guides, (False, False), pull=0.5)
+            line = lane(water, harbour, target, vessel, guides, (False, False), pull=0.5, kept_off=lying)
             if line is None:
                 continue
             name = f"trip-{len(lanes)}"
@@ -559,6 +565,7 @@ def boat_lanes(water: Water, osm: Osm) -> list[dict]:
                 print(f"  left out: {error}")
                 continue
             taken.add((min(at, index), max(at, index)))
+            lying += [line[0], line[-1]]
             ends = [{"kind": "anchor"}, {"kind": "anchor"}]
             lanes.append({"name": name, "vessel": "boat", "line": _scene_line(line), "ends": ends, **keeping_right(water, line, vessel, ends, name)})
             made += 1

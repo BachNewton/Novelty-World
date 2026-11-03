@@ -139,6 +139,13 @@ describe("the island's timetable", () => {
     for (const { vessel } of data.boats) expect(vessel).toBe("boat");
   });
 
+  it("never lies two small boats in one place: every trip ends where no other boat waits", () => {
+    const ends = data.boats.flatMap(({ line }) => [[line[0], line[1]], [line[line.length - 2], line[line.length - 1]]]);
+    for (let a = 0; a < ends.length; a++) {
+      for (let b = a + 1; b < ends.length; b++) expect(Math.hypot(ends[a][0] - ends[b][0], ends[a][1] - ends[b][1])).toBeGreaterThanOrEqual(29);
+    }
+  });
+
   it("berths Mariehamn's ships at the ferry art's berth, slid off the quay as the water is drawn", () => {
     const { x, z } = ferryPlace();
     const berths = data.ferries.filter(({ name }) => name.startsWith("mariehamn-")).map(({ line }) => [line[0], line[1]]);
