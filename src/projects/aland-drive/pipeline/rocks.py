@@ -4,8 +4,10 @@ The Topographic Database maps rock areas (34100) wherever bedrock is at or near 
 surface, bare or under thin pine, and single boulders big enough to steer by (34600)
 and fields of them (34700). The rock areas go in `rock.bin.gz`, each 4 m pixel's
 share of rock, clear of water, carriageways and buildings: the game lays its slabs
-and its rock relief from that. The boulders go in `models.json` beside the
-boathouses and sheds, each a seed of the rural kit's boulder and its width across.
+and its rock relief from that. The boulder fields follow them in the same file, each
+8 m pixel's share of field: the game covers those in stones. The mapped boulders,
+and the biggest of a field's, go in `models.json` beside the boathouses and sheds,
+each a seed of the rural kit's boulder and its width across: those stop the car.
 
 The rock's own shape needs nothing here: bare rock has no vegetation for the
 elevation model to remove, so its domes and steps are already the ground.
@@ -34,11 +36,13 @@ from sources import topographic_path
 
 PIXELS = 1500
 PIXEL_M = TILE_SIZE_M // PIXELS
+FIELD_PIXELS = 750
 FILE = "rock.bin.gz"
 MANIFEST = {
     "file": FILE,
     "pixels": PIXELS,
-    "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255",
+    "fieldPixels": FIELD_PIXELS,
+    "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255, then at fieldPixels each pixel's share of boulder field",
 }
 
 ROCK_AREA = 34100
@@ -117,12 +121,27 @@ def rock_cover(tile: Tile, mask: np.ndarray) -> np.ndarray:
     return cover * (1 - water) * (1 - roads)
 
 
-def encode(cover: np.ndarray) -> bytes:
-    return gzip.compress(np.round(np.clip(cover, 0, 1) * 255).astype(np.uint8).tobytes(), 9, mtime=0)
+def field_cover(tile: Tile, mask: np.ndarray) -> np.ndarray:
+    """Each 8 m pixel's share of boulder field, drawn at 2 m, off water and carriageways."""
+    per_m = SAMPLES / TILE_SIZE_M
+    fields = Image.new("L", (SAMPLES, SAMPLES), 0)
+    pen = ImageDraw.Draw(fields)
+    for _, field in _features(tile, "m", "p", {BOULDER_FIELD}):
+        _fill(pen, field, tile, per_m)
+    cover = np.asarray(fields.reduce(SAMPLES // FIELD_PIXELS), dtype=np.float32) / 255
+    water, roads = (np.asarray(Image.fromarray(np.uint8(channel * 255)).resize((FIELD_PIXELS, FIELD_PIXELS), Image.BOX), dtype=np.float32) / 255 for channel in (mask[..., 0], np.maximum(mask[..., 1], mask[..., 2])))
+    return cover * (1 - water) * (1 - roads)
 
 
-def decode(data: bytes) -> np.ndarray:
-    return np.frombuffer(gzip.decompress(data), dtype=np.uint8).reshape(PIXELS, PIXELS) / 255
+def encode(cover: np.ndarray, fields: np.ndarray) -> bytes:
+    planes = (np.round(np.clip(plane, 0, 1) * 255).astype(np.uint8).tobytes() for plane in (cover, fields))
+    return gzip.compress(b"".join(planes), 9, mtime=0)
+
+
+def decode(data: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """The rock's share at 4 m and the boulder fields' at 8 m."""
+    raw = np.frombuffer(gzip.decompress(data), dtype=np.uint8)
+    return raw[: PIXELS * PIXELS].reshape(PIXELS, PIXELS) / 255, raw[PIXELS * PIXELS :].reshape(FIELD_PIXELS, FIELD_PIXELS) / 255
 
 
 class Heights:
@@ -200,7 +219,7 @@ def bake(tile: Tile, folder: Path) -> tuple[dict, dict]:
     """Writes `rock.bin.gz`, and the boulders into `models.json` in place of any it held: the rock's manifest and the models'."""
     manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
     mask = _mask(folder)
-    (folder / FILE).write_bytes(encode(rock_cover(tile, mask)))
+    (folder / FILE).write_bytes(encode(rock_cover(tile, mask), field_cover(tile, mask)))
     models_file = folder / "models.json"
     kept = json.loads(models_file.read_text(encoding="utf-8"))["models"] if models_file.exists() else {}
     models = {name: places for name, places in kept.items() if name not in BOULDER_MODELS} | boulders(tile, mask, Heights.of_tile(folder, manifest))
@@ -219,7 +238,7 @@ def main() -> None:
         manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
         (folder / "tile.json").write_text(json.dumps({**manifest, "rock": rock, "models": models}, ensure_ascii=False, indent=2), encoding="utf-8")
         boulder_count = sum(count for model, count in models["count"].items() if model in BOULDER_MODELS)
-        print(name, f"{(folder / FILE).stat().st_size / 1000:.1f} kB, {decode((folder / FILE).read_bytes()).mean():.1%} rock, {boulder_count} boulders")
+        print(name, f"{(folder / FILE).stat().st_size / 1000:.1f} kB, {decode((folder / FILE).read_bytes())[0].mean():.1%} rock, {decode((folder / FILE).read_bytes())[1].mean():.2%} boulder field, {boulder_count} boulders")
     # The world says every tile has rock, so it's added only once they all do.
     world_file = arguments.folder / "world.json"
     world = json.loads(world_file.read_text(encoding="utf-8"))

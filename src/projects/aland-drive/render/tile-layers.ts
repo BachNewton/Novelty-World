@@ -1,6 +1,6 @@
 import { DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NearestFilter, NoColorSpace, RedFormat, RGBAFormat, RGFormat, type Texture, type WebGPURenderer } from "three/webgpu";
 import { MOST_DETAIL_TILES, MOST_FAR_TILES } from "./stream";
-import type { WorldManifest } from "./tile";
+import { fieldPixelsOf, type WorldManifest } from "./tile";
 import type { FarTile, Mips } from "./tile.worker";
 import type { World, WorldTile } from "../sim/world";
 
@@ -52,6 +52,7 @@ export class TileLayers {
   readonly groundFar: DataArrayTexture;
   readonly canopy: DataArrayTexture;
   readonly stands: DataArrayTexture;
+  readonly fields: DataArrayTexture;
   readonly slots: DataTexture;
   /** The lattice place of the map's first texel, and how many tiles it spans. */
   readonly mapColumn: number;
@@ -81,8 +82,9 @@ export class TileLayers {
       [manifest.ground.farPixels, farLayers, 4],
       [manifest.canopy.pixels, farLayers, 1],
       [manifest.stands.pixels, farLayers, 4],
+      [fieldPixelsOf(manifest), farLayers, 1],
     ];
-    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
+    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands, this.fields] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
     this.textureBytes = Math.round(held.reduce((sum, [size, depth, channels]) => sum + size * size * depth * channels, 0) * (4 / 3));
     this.freeNear = Array.from({ length: NEAR_LAYERS }, (_, layer) => layer);
     this.freeFar = Array.from({ length: farLayers }, (_, layer) => layer);
@@ -146,11 +148,11 @@ export class TileLayers {
   }
 
   /** A tile's far images. */
-  placeFar(tile: WorldTile, { shade, mask, ground, canopy, stands }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy" | "stands">, manifest: WorldManifest, done: () => void): void {
+  placeFar(tile: WorldTile, { shade, mask, ground, canopy, stands, fields }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy" | "stands" | "fields">, manifest: WorldManifest, done: () => void): void {
     const layer = this.freeFar.pop();
     if (layer === undefined) throw new Error(`no free far layer for ${tile.name}: more tiles with far data than the stream allows`);
     this.farOf.set(tile.name, layer);
-    let waiting = 5;
+    let waiting = 6;
     const landed = () => {
       if (--waiting > 0) return;
       this.setSlot(tile, 0, layer + 1);
@@ -161,6 +163,7 @@ export class TileLayers {
     this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
     this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
     this.enqueue(this.stands, layer, stands, manifest.stands.pixels, 4, landed);
+    this.enqueue(this.fields, layer, fields, fieldPixelsOf(manifest), 1, landed);
   }
 
   releaseFar(tile: WorldTile): void {
@@ -203,6 +206,7 @@ export class TileLayers {
     this.groundFar.dispose();
     this.canopy.dispose();
     this.stands.dispose();
+    this.fields.dispose();
     this.slots.dispose();
   }
 }

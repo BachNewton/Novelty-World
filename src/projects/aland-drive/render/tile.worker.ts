@@ -1,4 +1,4 @@
-import { decodeHeights, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
+import { decodeHeights, fieldPixelsOf, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { boulderWalls, decodeModels, type ModelsFile, type TileModels } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
@@ -24,6 +24,8 @@ export interface FarTile {
   ground: Mips;
   canopy: Mips;
   stands: Mips;
+  /** Each 8 m pixel's share of boulder field. */
+  fields: Mips;
   /** The far photo with its light in it, for the mini map. */
   land: ImageBitmap;
   /** Compressed bytes this load read, whether from the network or the browser's cache. */
@@ -120,6 +122,11 @@ function withRock(mask: Uint8Array, rock: Uint8Array | null): void {
   for (let at = 0; at * 4 < mask.length; at++) mask[at * 4 + 3] = rock?.[at] ?? 0;
 }
 
+/** The boulder fields, which follow the rock in its file; none where the world has no rock. */
+function fieldsOf(rock: Uint8Array | null, rockPixels: number, fieldPixels: number): Uint8Array {
+  return rock === null ? new Uint8Array(fieldPixels * fieldPixels) : rock.slice(rockPixels * rockPixels);
+}
+
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const { far: format, heights, mask, ground, canopy, stands, water, rock } = world;
@@ -146,6 +153,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     ground: mipChain(groundPixels, ground.farPixels, 4),
     canopy: mipChain(canopyPixels, canopy.pixels, 1),
     stands: mipChain(new Uint8Array(standPixels), stands.pixels, 4),
+    fields: mipChain(fieldsOf(rockPixels === null ? null : new Uint8Array(rockPixels), mask.pixels, fieldPixelsOf(world)), fieldPixelsOf(world), 1),
     land,
     bytes: reader.bytes,
   };
@@ -184,7 +192,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: placed, bytes: reader.bytes };
 }
 
-const transfersOf = ({ grid, waterLevels, shore, shade, mask, ground, canopy, stands, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, waterLevels.heights.buffer as ArrayBuffer, shore.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands].map((mip) => mip.buffer as ArrayBuffer)];
+const transfersOf = ({ grid, waterLevels, shore, shade, mask, ground, canopy, stands, fields, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, waterLevels.heights.buffer as ArrayBuffer, shore.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands, ...fields].map((mip) => mip.buffer as ArrayBuffer)];
 
 function detailTransfers({ detail, roadDress, shade, ground, buildings, models }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;

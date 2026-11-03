@@ -35,7 +35,7 @@ import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
-import { ruralMaterials } from "../art/rural/index";
+import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -426,7 +426,26 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const mask = sampled(layers.mask, farLayer);
   const photo = mix(sampled(layers.groundFar, farLayer), sampled(layers.groundNear, nearLayer), nearShare);
   const roadNearby = texture(layers.mask, imageUv).depth(farLayer).grad(gradientX.mul(8), gradientY.mul(8));
-  const groundColor = groundDetail({ place: positionWorld.xz, toCamera, photo: photo.rgb.pow(vec3(2.2)), roadNearby: roadNearby.g.add(roadNearby.b), litterColour: colorOf("surface-litter"), rock: mask.a, detail });
+  const linear = (name: string) => {
+    const { r, g, b } = token(name);
+    return new Vector3(r, g, b);
+  };
+  const ruralColour = (part: RuralPart) => {
+    const { x, y, z } = ruralColours(linear)[RURAL_PARTS.indexOf(part)];
+    return vec3(x, y, z);
+  };
+  const groundColor = groundDetail({
+    place: positionWorld.xz,
+    toCamera,
+    photo: photo.rgb.pow(vec3(2.2)),
+    roadNearby: roadNearby.g.add(roadNearby.b),
+    litterColour: colorOf("surface-litter"),
+    rock: mask.a,
+    fields: sampled(layers.fields, farLayer).r,
+    rockColour: ruralColour("rapakivi"),
+    stonesColour: ruralColour("field-stone"),
+    detail,
+  });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -457,11 +476,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return hazed(mix(pastTiles, near, farSeen));
   };
 
-  const linear = (name: string) => {
-    const { r, g, b } = token(name);
-    return new Vector3(r, g, b);
-  };
-  const { canopyAt, standsAt, roadsAt, landAt, waterAt, rockAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -476,11 +491,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     sun: manifest.sun,
   });
 
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const verge = createVerge(scene, renderer, { landAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, sun: manifest.sun });
   const granite = createGranite(scene, renderer, {
     rockAt,
+    fieldsAt,
     canopyAt,
     waterAt,
     roadsAt,

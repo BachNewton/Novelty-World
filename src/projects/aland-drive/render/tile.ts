@@ -44,8 +44,8 @@ export interface WorldManifest {
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
   stands: { file: string; pixels: number };
-  /** Each 4 m pixel's share of rock (`pipeline/rocks.py`), on every tile or none. */
-  rock?: { file: string; pixels: number };
+  /** Each 4 m pixel's share of rock, then each 8 m pixel's share of boulder field (`pipeline/rocks.py`), on every tile or none. */
+  rock?: { file: string; pixels: number; fieldPixels: number };
   water: { levelsFile: string; farLevelsFile: string; shoreFile: string; farShoreFile: string; dryLevel: number };
   overview: OverviewFormat;
   map: { file: string };
@@ -102,6 +102,9 @@ export interface RoadChain {
 }
 
 /** Cross-sections across a road, in rings of five points: outer left, edge left, centre, edge right, outer right. */
+/** How many pixels across a tile's boulder fields are: one, holding none, where the world has no rock. */
+export const fieldPixelsOf = (world: WorldManifest) => world.rock?.fieldPixels ?? 1;
+
 export const RING_POINTS = 5;
 const RING_FLOATS = RING_POINTS * 3;
 const APRON_POINT_FLOATS = 5;

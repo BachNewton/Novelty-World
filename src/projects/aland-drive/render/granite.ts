@@ -1,8 +1,8 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { abs, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
-import { buildOutcrop, rapakivi, RURAL_PARTS, ruralColours } from "../art/rural";
+import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
-import { groundFloor, groundKinds } from "../art/surfaces";
+import { groundFloor, groundKinds, rockFloor } from "../art/surfaces";
 import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
@@ -22,8 +22,9 @@ import type { LandAt } from "./tile-reads";
  * so the outcrop's outline is the map's and a shore slab slides under the sea.
  *
  * It wears the ground's own colour, the photo and its baked shade as the terrain
- * has them, with the kit's crystals and cracks over it, a little of the kit's pink
- * near, and the grass a spring photo shows on thin turf turned rock-grey. Its light
+ * has them and its granite red over the photo's bleached pale (`rockFloor`), with
+ * the kit's crystals and cracks over it, and the grass a spring photo shows on thin
+ * turf turned to rock. Its light
  * is the ground's, times how much more or less its own facets face the sun than the
  * ground under them. So from afar an outcrop is the photo, and it ends by
  * dissolving one place at a time where it is a few pixels high and the photo
@@ -32,6 +33,12 @@ import type { LandAt } from "./tile-reads";
  *
  * Outcrops don't stop the car: they lift the drivable ground by a few decimetres at
  * most, where the rock under them is already the ground the car drives on.
+ *
+ * A boulder field (the mapped fields, `fieldsAt`) is a carpet of stones the ice
+ * dumped, too many to list: the ground's relief carries them from afar, and close
+ * up they stand on it as a second planting of the kit's boulder, small and many.
+ * They don't stop the car either: a field's biggest stones are listed as boulders,
+ * which do.
  */
 
 const LATTICE: Lattice = { stepM: 7, ends: [180, 230, 30], salt: 517.3 };
@@ -59,9 +66,7 @@ const SIZES = [0.5, 1.1] as const;
 const LIFTS_M = [0.12, 0.35] as const;
 const SINK_M = 0.4;
 
-/** The kit's pink on an outcrop, near, and how much of the photo's thin turf on rock turns grey. */
-const PINK = 0.15;
-const PINK_GONE = [40, 140] as const;
+/** How much of the photo's thin turf on rock turns to rock. */
 const TURF_GREYED = 0.7;
 /** How much of the kit's crystals, cracks and lichen an outcrop wears over the photo's colour, and how much lichen takes to a face that looks up. */
 const SURFACE = 0.55;
@@ -76,7 +81,18 @@ const SUN_SHARE = 0.5;
 /** Outcrops lie on a share of rock's places, and rock is a share of what's in reach. */
 const MOST_OUTCROPS = 0.3;
 const SEEDS = [3, 24] as const;
-const LUMINANCE = vec3(0.2126, 0.7152, 0.0722);
+
+const STONES: Lattice = { stepM: 0.9, ends: [16, 26, 8], salt: 911.7 };
+/** The field's share at a place, from no stones to its most. */
+const FIELD_HERE = [0.25, 0.75] as const;
+const MOST_STONES = 0.85;
+/** How big a field's stones are, as shares of the kit's boulder, about a metre and a half across: from a third of a metre to three quarters. */
+const STONE_SIZES = [0.2, 0.5] as const;
+const STONE_PARTS: RuralPart[] = ["field-stone", "field-stone-pink", "rapakivi"];
+/** Stones sit a little into the ground, as a share of their size. */
+const STONE_SINK = 0.05;
+/** Where a stone's rounded version hands over to its few-sided one. */
+const STONE_SWAP_M = 12;
 
 function tallest(shape: BufferGeometry): number {
   const position = shape.getAttribute("position");
@@ -87,6 +103,7 @@ function tallest(shape: BufferGeometry): number {
 
 export interface GraniteInputs {
   rockAt: (place: Node<"vec2">, mip: number) => Node<"float">;
+  fieldsAt: (place: Node<"vec2">) => Node<"float">;
   canopyAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
@@ -107,11 +124,12 @@ export interface GraniteInputs {
 export interface GraniteDrawn {
   near: number;
   far: number;
+  stones: number;
   triangles: number;
 }
 
 export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: GraniteInputs) {
-  const { rockAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun } = inputs;
+  const { rockAt, fieldsAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun } = inputs;
   const models = SEEDS.map((seed) => buildOutcrop(seed));
   const fars = models.map(({ far }) => {
     if (far === null) throw new Error("The kit's outcrop has no far version");
@@ -126,6 +144,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const graniteColour = ruralColours(linear)[RURAL_PARTS.indexOf("rapakivi")];
   const granite = vec3(graniteColour.x, graniteColour.y, graniteColour.z);
+  const stoneColours = uniformArray(STONE_PARTS.map((part) => ruralColours(linear)[RURAL_PARTS.indexOf(part)]), "vec3");
 
   const capacity = Math.ceil(placesWithin(reachOf(LATTICE), LATTICE.stepM) * MOST_OUTCROPS);
   const nearCapacity = placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_M, LATTICE.stepM);
@@ -191,15 +210,11 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const close = closeLandAt(positionWorld.xz);
       const photo = close.photo.pow(vec3(2.2));
       const kinds = groundKinds(photo);
-      const floor = groundFloor(photo, litterColour, kinds);
-      const brightness = dot(floor, LUMINANCE).max(1e-4);
-      // A spring photo shows thin turf on rock as grass; the rock itself is as bright, and grey.
-      const rocky = mix(floor, vec3(brightness), kinds.grassShare.mul(TURF_GREYED));
+      // A spring photo shows thin turf on rock as grass: under an outcrop it's rock.
+      const floor = rockFloor(groundFloor(photo, litterColour, kinds), granite, float(1), kinds.grassShare.mul(float(1).sub(TURF_GREYED)));
       const away = positionWorld.sub(cameraPosition).length();
-      const pink = granite.mul(brightness.div(dot(granite, LUMINANCE)));
-      const tinted = mix(rocky, pink, float(1).sub(smoothstep(float(PINK_GONE[0]), float(PINK_GONE[1]), away)).mul(PINK));
       const crystals = mix(vec3(1), rapakivi({ colour }, granite, positionWorld, away, abs(upward.y).mul(LICHEN_UPWARD), foot).div(granite), SURFACE);
-      material.colorNode = hazed(tinted.mul(crystals).mul(lightOf(close.shade)).mul(relit));
+      material.colorNode = hazed(floor.mul(crystals).mul(lightOf(close.shade)).mul(relit));
 
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
@@ -208,16 +223,96 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     },
   });
 
+  const boulders = ROCK_SEEDS.map((seed) => buildBoulder(seed));
+  const stoneShapes = [
+    ...boulders.map(({ far }) => {
+      if (far === null) throw new Error("The kit's boulder has no far version");
+      return far;
+    }),
+    ...boulders.map(({ near }) => near),
+  ];
+  const stoneCapacity = Math.ceil((placesWithin(reachOf(STONES), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
+  const nearStoneCapacity = Math.ceil((placesWithin(STONE_SWAP_M * (1 + SWAP_BAND), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
+  const stones = createPlanting(scene, renderer, {
+    lattices: [STONES],
+    widestM: STONE_SIZES[1],
+    shapes: stoneShapes,
+    capacities: [...boulders.map(() => stoneCapacity), ...boulders.map(() => nearStoneCapacity)],
+    rows: 2,
+    visit({ seed, place, distance, seenOn, left, write }) {
+      const chance = roll(seed, 23.9, 71.3).toVar();
+      If(landAt(place).dry.greaterThan(LEAST_DRY).and(roadsAt(place, 0).lessThan(ROAD_CLEAR)), () => {
+        const field = smoothstep(float(FIELD_HERE[0]), float(FIELD_HERE[1]), fieldsAt(place));
+        If(chance.lessThan(field.mul(MOST_STONES)), () => {
+          const size = mix(float(STONE_SIZES[0]), float(STONE_SIZES[1]), roll(seed, 37.7, 5.9));
+          const ground = groundOnMeshAt(place).sub(size.mul(STONE_SINK)).toVar();
+          If(seenOn(ground), () => {
+            const kind = roll(seed, 63.1, 44.7).mul(boulders.length).floor().toVar();
+            const part = roll(seed, 8.3, 91.1).mul(STONE_PARTS.length).floor();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+            const swap = smoothstep(float(STONE_SWAP_M * (1 - SWAP_BAND)), float(STONE_SWAP_M * (1 + SWAP_BAND)), distance).toVar();
+            const remaining = left().toVar();
+            boulders.forEach((_, index) => {
+              If(kind.equal(index), () => {
+                If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
+                  write(index, [standing, vec4(float(1).sub(swap), remaining, size, part)]);
+                });
+                If(swap.lessThan(1), () => {
+                  write(boulders.length + index, [standing, vec4(0, float(1).sub(swap), size, part)]);
+                });
+              });
+            });
+          });
+        });
+      });
+    },
+    materialOf(_, [standing, live]) {
+      const local = positionGeometry;
+      const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
+      const turned = vec3(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.y, local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(live.z);
+      const material = new MeshBasicNodeMaterial();
+      material.positionNode = standing.xyz.add(turned);
+
+      const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
+      const upward = select(facing.y.lessThan(0), facing.negate(), facing);
+      const close = closeLandAt(positionWorld.xz);
+      const base = stoneColours.element(int(varying(live.w))) as unknown as Node<"vec3">;
+      const away = positionWorld.sub(cameraPosition).length();
+      const foot = varying(local.y.mul(live.z).add(0.05).max(0).mul(MOSS_FOOT));
+      const painted = rapakivi({ colour }, base, positionWorld, away, abs(upward.y), foot);
+      material.colorNode = hazed(painted.mul(lightOf(close.shade)).mul(lightOn(upward)));
+
+      const pixels = varying(vec2(live.x, live.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      return material;
+    },
+  });
+
   return {
     update: (spot: Vector3, camera: PerspectiveCamera) => {
       planting.update(spot, camera);
+      stones.update(spot, camera);
     },
-    compile: planting.compile,
-    show: planting.show,
+    compile: async () => {
+      await Promise.all([planting.compile(), stones.compile()]);
+    },
+    show: (shown: boolean) => {
+      planting.show(shown);
+      stones.show(shown);
+    },
     drawn(): GraniteDrawn {
       const counts = planting.counts();
-      return { far: counts.slice(0, models.length).reduce((sum, count) => sum + count, 0), near: counts.slice(models.length).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(counts) };
+      const stoneCounts = stones.counts();
+      return {
+        far: counts.slice(0, models.length).reduce((sum, count) => sum + count, 0),
+        near: counts.slice(models.length).reduce((sum, count) => sum + count, 0),
+        stones: stoneCounts.reduce((sum, count) => sum + count, 0),
+        triangles: planting.triangles(counts) + stones.triangles(stoneCounts),
+      };
     },
-    dispose: planting.dispose,
+    dispose: () => {
+      planting.dispose();
+      stones.dispose();
+    },
   };
 }

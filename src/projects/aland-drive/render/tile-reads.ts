@@ -54,6 +54,11 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const { uv, layer, held } = slotOf(place);
       return select(held, texture(layers.mask, uv).depth(layer).level(float(mip)).a, float(0));
     },
+    /** How much of the land round a place is boulder field (`pipeline/rocks.py`), at 8 m. Over a tile not held, none. */
+    fieldsAt(place: Node<"vec2">) {
+      const { uv, layer, held } = slotOf(place);
+      return select(held, texture(layers.fields, uv).depth(layer).level(float(0)).r, float(0));
+    },
     /** The photo's colour and the baked shade at a place, as the terrain has them close up: 2 m where the tile's detail is held, else 8 m. */
     closeLandAt(place: Node<"vec2">) {
       const { uv, layer, nearLayer, nearHeld } = slotOf(place);

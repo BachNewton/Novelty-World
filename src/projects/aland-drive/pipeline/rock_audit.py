@@ -61,7 +61,7 @@ def bare_rock(tile) -> np.ndarray:
 
 def audit(name: str, folder: Path) -> dict:
     tile = tile_from_name(name)
-    rock = rocks.decode((folder / rocks.FILE).read_bytes()) > 0.5
+    rock = rocks.decode((folder / rocks.FILE).read_bytes())[0] > 0.5
     water = np.asarray(Image.open(folder / "mask.png").convert("RGB"))[..., 0] > 127
     canopy_unit = 0.25
     trees = np.asarray(Image.open(folder / "canopy.webp").convert("L"), dtype=np.float32) * canopy_unit > TREE_M
