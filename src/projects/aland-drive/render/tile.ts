@@ -27,6 +27,10 @@ export interface TileManifest {
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
   /** Boathouses and sheds drawn by the rural kit on real footprints. A tile built before them has none. */
   models?: { file: string };
+  /** Dry-stone walls, as lines on the ground. A tile built before them has none. */
+  walls?: { file: string };
+  /** Lamps, poles, signs, rails, edge posts, mailboxes and shelters beside the roads. A tile built before them has none. */
+  roadside?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */
@@ -97,6 +101,8 @@ export interface RoadChain {
   ref?: string;
   name?: string;
   motor: boolean;
+  /** Sealed or loose, where OSM's surface says: otherwise its class and how built up it is decide. */
+  sealed?: boolean;
   /** The first and last section of each stretch held up over a gap. */
   spans?: [number, number][];
 }

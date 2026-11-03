@@ -132,7 +132,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
     if (!chain.motor || chain.sections < 2) return;
     chainFirst[index] = next;
     chainPoints[index] = chain.sections;
-    paved.fill(isPaved(chain.kind, 0) ? 1 : 0, next, next + chain.sections);
+    paved.fill(isPaved(chain, 0) ? 1 : 0, next, next + chain.sections);
     for (let section = 0; section < chain.sections; section++) {
       const at = ((chain.first + section) * RING_POINTS + CENTRE) * 3;
       const point = next + section;

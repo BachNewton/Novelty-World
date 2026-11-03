@@ -31,11 +31,13 @@ import outbuildings
 import overview
 import road_map
 import roads as road_surface
+import roadside
 import rocks
 import stands
 import terrain
 import vectors
 import raised
+import walls
 from give_way import give_way
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
@@ -60,7 +62,7 @@ START_TILE = "L2343C"
 ATTRIBUTION = [
     "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
     "Forest stands: ©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023, CC BY 4.0",
-    "Roads: © OpenStreetMap contributors, ODbL 1.0",
+    "Roads and stone walls: © OpenStreetMap contributors, ODbL 1.0",
 ]
 
 
@@ -192,7 +194,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
             "tiers": road_surface.TIERS,
             "chains": [
-                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
+                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "sealed": chain.sealed, "spans": spans or None}.items() if value is not None}
                 for chain, ring, _, spans in ribbons
             ],
             "aprons": {
@@ -285,6 +287,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     }
     if surface_manifest is not None:
         manifest["roadSurface"] = surface_manifest
+    if with_vectors:
+        manifest["walls"] = walls.bake(tile, folder, manifest)
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # Rock reads the mask and heights just written, and adds its boulders to the models.
     _, manifest["models"] = rocks.bake(tile, folder)
@@ -393,6 +397,7 @@ def main() -> None:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm)
+    roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

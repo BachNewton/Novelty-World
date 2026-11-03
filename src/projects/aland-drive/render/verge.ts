@@ -6,7 +6,9 @@ import { buildGrassTuft, buildSeedGrass, buildVergeCard, buildWildflowers } from
 import type { RoadsideModel } from "../art/roadside/models";
 import { groundFloor, groundKinds } from "../art/surfaces";
 import type { LandAt } from "./tile-reads";
-import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
+import type { WallDistance } from "./wall-clearing";
 
 /*
  * The grass and flowers of the verges, with no list of tufts anywhere, as the forest
@@ -124,6 +126,8 @@ export interface VergeInputs {
   groundAt: (place: Node<"vec2">) => Node<"float">;
   /** Metres from the drawn waterline, out into the water and below zero on land. */
   shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the nearest stone wall's line, for no tuft to stand up through one. */
+  wallDistanceAt: WallDistance;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -147,7 +151,7 @@ export interface Verge {
   dispose: () => void;
 }
 
-export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, roadsAt, fieldsAt, groundAt, shoreAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
+export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
@@ -166,6 +170,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, ro
   const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + 1, stepM), 0);
 
   const tallOf = uniformArray(kinds.map(({ tallM }) => tallM), "float");
+  const spreadOfKind = uniformArray(kinds.map(({ model }) => spreadOf(model.near) * WIDE), "float");
   const tipOf = uniformArray(kinds.map(({ tip }) => (tip === undefined ? -1 : STREET_PARTS.indexOf(tip))), "float");
   const colours = streetColours(linear);
   const tufts = kinds.map(({ model }) => tuftColours(model.near, colours));
@@ -205,12 +210,13 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, ro
               // Thinner towards the edge of a verge, by the place and never by the distance.
               const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47)).mul(float(1).sub(smoothstep(float(0.75), float(1), turn))).toVar();
               const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
+              const clearOfWalls = wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M));
               const remaining = left().toVar();
               const standing = vec4(place.x, ground.sub(SINK_M), place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
               const photo = land.broad.pow(vec3(2.2)).toVar();
               const colour = vec4(groundFloor(photo, litterColour, groundKinds(photo)), lightOf(land.shade)).toVar();
 
-              If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
+              If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                 const card = vec4(size.mul(tallOf.element(int(kind)) as unknown as Node<"float">), float(1).sub(swap), remaining, kind).toVar();
                 If(isFlower, () => {
                   write(FAR_FLOWER_DRAW, [standing, colour, card]);
@@ -218,7 +224,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, ro
                   write(FAR_DRAW, [standing, colour, card]);
                 });
               });
-              If(swap.lessThan(1), () => {
+              If(clearOfWalls.and(swap.lessThan(1)), () => {
                 kinds.forEach((_, index) => {
                   If(kind.equal(index), () => {
                     write(index + FAR_DRAWS, [standing, colour, vec4(size, float(0), float(1).sub(swap), 0)]);

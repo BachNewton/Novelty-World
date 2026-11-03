@@ -6,4 +6,4 @@ export { junctionMarks } from "./paint";
 export { roadAttributes, type RoadAttributes } from "./road-attributes";
 export { roofDetail } from "./roof";
 export { shopfront } from "./shopfront";
-export { createSignSheet, signMaterial, signNames, signPlate, signPost, signPostMaterial, type SignSheet } from "./signs";
+export { createSignSheet, signMaterial, signNames, signOutlineKey, signPlate, signPost, signPostMaterial, signShift, type SignLook, type SignPlacing, type SignSheet } from "./signs";

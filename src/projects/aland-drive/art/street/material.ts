@@ -1,8 +1,7 @@
-import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
-import type { RoadsideInputs } from "../roadside/material";
+import { DoubleSide, MeshBasicNodeMaterial, type Node, type Vector3 } from "three/webgpu";
+import { attribute, cameraPosition, cos, float, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
+import { facetLight, footShade, rollOf, screenPattern, type RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
-import { flatNormal } from "../flat-normal";
 
 /*
  * The same instance layout as the roadside kit, so `placeModel` places these
@@ -83,11 +82,6 @@ const PAINT: Record<StreetPart, { from: string; to?: string; share?: number; gai
   rigging: { from: "wall-plinth", gain: 0.85 },
 };
 
-const AMBIENT = 0.68;
-const SUN_SHARE = 0.5;
-const FOOT_SHADE = 0.72;
-const FOOT_M = 1.1;
-
 /** The share of an object's reach it takes to grow from nothing. */
 const GROW_SHARE = 0.14;
 /** The band two versions trade pixels over, as a share either side of the swap. */
@@ -105,10 +99,6 @@ const RIPPLE_SHARE = 0.35;
 const RIPPLE_RATE = 1.73;
 
 const kindIs = (kind: Node<"float">, wanted: MotionKind) => kind.equal(MOTION_KINDS.indexOf(wanted));
-const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
-
-/** Interleaved gradient noise: an even spread of thresholds over the screen, the same every frame for a still pixel. */
-const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
 /** How far along its two versions a place's distance has come: 0 is all near, 1 all far. */
 const swapShare = (reach: Node<"vec2">, distance: Node<"float">) => smoothstep(reach.x.mul(1 - SWAP_BAND), reach.x.mul(1 + SWAP_BAND), distance);
@@ -133,16 +123,10 @@ export function streetPaint(palette: ReturnType<typeof streetPalette>): Node<"ve
 }
 
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: Node<"float">, roll: Node<"float">, kind: Node<"float">) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
   const painted = streetPaint(streetPalette(linear));
   // No two trees or tufts are quite the one green.
   const base = select(kindIs(kind, "leaf"), painted.mul(mix(float(0.88), float(1.1), roll)), painted);
-
-  const normal = flatNormal();
-  const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
-  return base.mul(lit.mul(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot))));
+  return base.mul(facetLight(sun).lit.mul(footShade(foot)));
 }
 
 /** The way a vertex is out of true: towards the model's +z, as the wind or the swell has it. */
