@@ -8,14 +8,7 @@ Phase 5's core is done and live at `https://novelty-world.vercel.app/games/3d-ga
 
 A large library of art is built and pushed under `art/`, and almost none of it is in the game. There is no gameplay yet. The car on screen is the real player's car from `art/cars`, waiting for the owner's look. Its brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
-Older tile versions remain in the bucket, which now holds about 538 MB and shares its 1 GB with `audiobooks`. Superseded versions can go once the live one has proved itself.
-
-## Waiting for the next tile publish
-
-Two pipeline steps are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish runs them over every tile (a full `build.py` runs both):
-
-- **The roadside** (`pipeline/roadside.py`): lamps, poles and wires, rails, edge posts, mailboxes, shelters and signs.
-- **Stone walls** (`pipeline/walls.py`): the field walls, about 364 km across the island. `walls.py` alone adds them to tiles already built.
+The bucket holds two tile versions, about 780 MB of the 1 GB it shares with `audiobooks` (105 MB): `864b209e5ae8`, which main points at, and `738f4a7480ea`, which the deployed site served before it. The older one can go once the newer has proved itself live. An island is about 400 MB, so a third won't fit: clear one before the next publish.
 
 ## What's next, in order
 
