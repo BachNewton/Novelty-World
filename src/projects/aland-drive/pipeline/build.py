@@ -249,7 +249,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         under = np.where(levels > terrain.DRY_LEVEL_M, np.maximum(levels - conformed, 0), 0)
         depth = (under[:-1, :-1] + under[1:, :-1] + under[:-1, 1:] + under[1:, 1:]) / 4
         land = docks.Land(mosaic[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES], water, depth, west, north)
-        moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places], roads)
+        moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places], roads, sites.footprints())
         moored.place(piers, marinas, quay_piers)
         docks_manifest = moored.write(folder)
         kept_clear = moored.kept_clear

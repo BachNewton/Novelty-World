@@ -61,8 +61,12 @@ export const PONTOON_SECTION = { lengthM: 4, wideM: 2.4, deckM: 0.42 } as const;
 export const JETTY_SECTION = { lengthM: JETTY_SECTION_M, wideM: JETTY_WIDE_M, deckM: JETTY_DECK_M } as const;
 const HARBOUR_REACH_M = 1400;
 
+/** An edge beam's top stands this far under the deck it carries, or the two flicker where they meet. */
+const BEAM_UNDER_DECK_M = 0.02;
+
 function edgeBeams(mesh: RuralMesh, lengthM: number, wideM: number, y: number, deep: number, part: RuralPart): RuralMesh {
-  for (const z of [-wideM / 2, wideM / 2]) mesh.beam([0, y - deep / 2, z], [lengthM, y - deep / 2, z], 0.12, deep, part, 0.72, 0.9);
+  const middle = y - BEAM_UNDER_DECK_M - deep / 2;
+  for (const z of [-wideM / 2, wideM / 2]) mesh.beam([0, middle, z], [lengthM, middle, z], 0.12, deep, part, 0.72, 0.9);
   return mesh;
 }
 

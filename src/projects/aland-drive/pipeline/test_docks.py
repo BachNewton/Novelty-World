@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from docks import DRAFT_M, HULLS, UNDER_KEEL_M, Docks, Land, Pier, boardwalks, off_piers, quays
 from terrain import DEEPEST_M, SEABED_SLOPE, WATERLINE_BELOW_FLAT_M
@@ -96,6 +96,25 @@ class Placing(unittest.TestCase):
         decks = [LineString([(x, y), (x + math.cos(yaw) * length, y + math.sin(yaw) * length)]).buffer(width / 2, cap_style="flat") for x, y, yaw, width, length in runs]
         self.assertTrue(all(a.intersection(b).area < 0.5 for index, a in enumerate(decks) for b in decks[index + 1 :]))
         self.assertTrue(any(abs(x - 100) < 0.1 and abs(y - 28.5) < 0.6 for x, y, _, _, _ in runs) or any(abs(x + math.cos(yaw) * length - 100) < 0.1 and abs(y + math.sin(yaw) * length - 28.5) < 0.6 for x, y, yaw, _, length in runs))
+
+    def test_a_bent_line_closes_its_bends_and_its_runs_over_each_other_stand_apart(self):
+        docks = Docks(TILE, land(), [], [])
+        line = [(40.0, 30.0), (80.0, 30.0), (100.0, 15.0), (140.0, 15.0)]
+        docks.place([Pier(1, {"man_made": "pier", "width": "2.4"}, np.array(line), None)], [], [])
+        runs = [(LineString([(x, -z), (x + math.cos(yaw) * length, -z + math.sin(yaw) * length)]).buffer(width / 2, cap_style="flat"), y) for x, y, z, yaw, width, length in docks.models["pier"]]
+        self.assertGreater(shapely.union_all([deck for deck, _ in runs]).area, LineString(line).buffer(1.2, cap_style="flat", join_style="mitre").area - 0.5)
+        for index, (a, height_a) in enumerate(runs):
+            for b, height_b in runs[index + 1 :]:
+                if a.intersection(b).area > 0.01:
+                    self.assertNotAlmostEqual(height_a, height_b)
+
+    def test_no_boat_lies_in_a_landmark(self):
+        ship = LineString([(70, 20), (130, 20)]).buffer(6)
+        docks = Docks(TILE, land(), [], [], [ship])
+        docks.place([pier([(100, 40), (100, 0)], floating="yes")], [], [])
+        boats = [(model, x, -z) for model, places in docks.models.items() if model in HULLS for x, _, z, *_ in places]
+        self.assertTrue(boats)
+        self.assertFalse(any(ship.intersects(Point(x, y).buffer(HULLS[model][1] / 2)) for model, x, y in boats))
 
     def test_a_dock_stops_short_of_a_motor_road(self):
         shore_road = road([(0, 30), (200, 30)], "residential", motor=True)

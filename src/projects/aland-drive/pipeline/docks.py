@@ -18,7 +18,7 @@ Every place's height is the water's as drawn: the level of the flat water round
 it in the elevation model, less the drop the drawn surface sits under it. A jetty within reach
 of a boathouse is run on to its wall. Boats are by rule: berths down both sides of
 a marina's piers and of every pontoon, each bow to the pier, where the whole hull is on
-open water clear of every dock and other boat, and its keel clears the seabed as the
+open water clear of every dock, landmark and other boat, and its keel clears the seabed as the
 game draws it. That seabed shelves from the shore, so a pier's inner berths take the
 small boats and only its outer ones the deep-keeled yachts.
 
@@ -70,8 +70,10 @@ BURIED_M = 0.1
 WATER_NEAR_M = (15.0, 60.0)
 SHORTEST_RUN_M = 1.5
 TRIM_STEP_M = 0.5
-# Two decks may meet this far over each other, no more.
+# Two piers' decks may meet this far over each other, no more; decks that lie over each other at all, such as a line's
+# two runs round a bend, stand this far apart in height, or the two would flicker.
 DECK_SLIVER_M = 0.1
+DECK_STEP_M = 0.02
 # A dock's edge stays this far from a motor road's line, so no dock or wall stands on a road.
 ROAD_CLEAR_M = 4.0
 # A jetty this near a boathouse is run on to its wall.
@@ -222,6 +224,32 @@ def off_piers(roads: list[dict], piers: list[Pier]) -> list[dict]:
     return kept
 
 
+def _segments_of_line(line: np.ndarray, width: float) -> list[tuple[np.ndarray, np.ndarray, float]]:
+    """A line as straight runs, each carried past a bend far enough to close the bend's outer corner."""
+    segments = []
+    for index in range(len(line) - 1):
+        start, end = line[index].astype(float), line[index + 1].astype(float)
+        length = float(np.hypot(*(end - start)))
+        if length < 1e-3:
+            continue
+        direction = (end - start) / length
+
+        def past(neighbour: np.ndarray, joint: np.ndarray, outward: np.ndarray) -> np.ndarray:
+            turn = np.hypot(*(neighbour - joint))
+            if turn < 1e-3:
+                return joint
+            cosine = float(np.clip(np.dot(outward, (neighbour - joint) / turn), -1, 1))
+            # The outer corner lies past the joint by half the width times the tangent of half the bend.
+            return joint + outward * min(width / 2 * math.tan(math.acos(cosine) / 2), width)
+
+        if index > 0:
+            start = past(line[index - 1], start, -direction)
+        if index < len(line) - 2:
+            end = past(line[index + 2], end, direction)
+        segments.append((start, end, width))
+    return segments
+
+
 def _runs_of_outline(outline: shapely.Geometry) -> list[tuple[np.ndarray, np.ndarray, float]]:
     """An outline as straight runs: (start, end, width). Each is the largest rectangle left in it along any of its own edges'
     directions, so a finger at an angle to its walkway is a run of its own rather than a staircase on the walkway's grid."""
@@ -330,7 +358,7 @@ class Land:
 class Docks:
     """A tile's docks and boats, as the game reads them: per model, (x, y, z, yaw, width, length) in the scene."""
 
-    def __init__(self, tile: Tile, land: Land, boathouses: list[list[float]], roads: list[dict]):
+    def __init__(self, tile: Tile, land: Land, boathouses: list[list[float]], roads: list[dict], landmarks: list[shapely.Geometry] = ()):
         self.west, self.south = to_local(tile.west, tile.south)
         self.east, self.north = to_local(tile.east, tile.north)
         self.land = land
@@ -339,9 +367,12 @@ class Docks:
         self.roads = shapely.union_all(motor) if motor else None
         self.models: dict[str, list[list[float]]] = {}
         self.walls: list[list[float]] = []
-        self.taken: list[shapely.Geometry] = []
+        # No boat lies in a landmark, such as a ship moored at a quay. A deck may run under one, which hides it, as the
+        # walkway round Pommern's bow does where her drawn hull is a little off the mapped one.
+        self.taken: list[shapely.Geometry] = list(landmarks)
         self.kept_clear: list[shapely.Geometry] = []
         self.decks: shapely.Geometry | None = None
+        self.steps: list[tuple[shapely.Geometry, int]] = []
 
     def _owns(self, shape: shapely.Geometry) -> bool:
         middle = shape.centroid
@@ -375,20 +406,13 @@ class Docks:
                 continue
             kind = self._kind(pier, marina)
             if pier.line is not None:
-                width = pier.width or WIDE_M[kind]
-                segments = [(pier.line[index], pier.line[index + 1], width) for index in range(len(pier.line) - 1)]
+                segments = _segments_of_line(pier.line, pier.width or WIDE_M[kind])
             else:
                 segments = _runs_of_outline(pier.outline)
             level = self.land.level_near(np.array([point for start, end, _ in segments for point in (start, end)]))
             if level is None:
                 continue
-            laid = []
-            for index, (start, end, width) in enumerate(segments):
-                run = self._trimmed(kind, start, end, width, level)
-                if run is not None:
-                    laid.append((*run, width))
-                    # Its next run, round a bend, stops at this one's edge too.
-                    self._lay(LineString(run).buffer(width / 2, cap_style="flat"))
+            laid = [(*run, width) for start, end, width in segments if (run := self._trimmed(kind, start, end, width, level)) is not None]
             if not laid:
                 continue
             if kind == "jetty" and pier.line is not None:
@@ -403,8 +427,8 @@ class Docks:
             self._berths(pier, start, end, width, level)
 
     def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, width: float, level: float) -> tuple[np.ndarray, np.ndarray] | None:
-        """A run cut back to its longest stretch where its deck stands clear of the ground, of every motor road and of the decks
-        already laid, or for a pontoon where it floats. Two decks at one height over each other would flicker."""
+        """A run cut back to its longest stretch where its deck stands clear of the ground, of every motor road and of the
+        other piers' decks already laid, or for a pontoon where it floats."""
         length = float(np.hypot(*(end - start)))
         if length < 1e-3:
             return None
@@ -454,8 +478,11 @@ class Docks:
         length = float(np.hypot(*along))
         # The model's +x runs from its place to the run's end; in the scene, whose z is south, that's (cos yaw, -sin yaw).
         yaw = math.atan2(along[1], along[0])
-        self._place(kind, float(start[0]), level, float(-start[1]), yaw, width, length)
         outline = LineString([start, end]).buffer(width / 2, cap_style="flat")
+        under = {step for deck, step in self.steps if deck.intersects(outline) and deck.intersection(outline).area > DECK_SLIVER_M**2}
+        step = min(set(range(len(under) + 1)) - under)
+        self.steps.append((outline, step))
+        self._place(kind, float(start[0]), level + step * DECK_STEP_M, float(-start[1]), yaw, width, length)
         self.taken.append(outline)
         self._lay(outline)
         self.kept_clear.append(outline.buffer(REEDS_CLEAR_M))
