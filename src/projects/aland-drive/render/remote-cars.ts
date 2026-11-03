@@ -1,7 +1,8 @@
 import type { Scene } from "three/webgpu";
 import { buildCarArt, carOnRoad, type CarArt } from "../art/cars/model";
-import { CARS, PLAYER_CAR } from "../art/cars/specs";
+import { CARS } from "../art/cars/specs";
 import type { CarState } from "../sim/car-state";
+import type { CarId } from "../sim/cars";
 
 /*
  * Other players' cars, drawn with the same art as the car being driven, one
@@ -14,16 +15,15 @@ import type { CarState } from "../sim/car-state";
 type View = ReturnType<typeof carOnRoad>;
 
 export function createRemoteCarViews(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }) {
-  const arts = new Map<string, CarArt>();
-  const views = new Map<string, { car: string; view: View }>();
+  const arts = new Map<CarId, CarArt>();
+  const views = new Map<string, { car: CarId; view: View }>();
 
-  const artFor = (car: string) => {
+  const artFor = (car: CarId) => {
     let art = arts.get(car);
     if (!art) {
-      const spec = CARS.find((candidate) => candidate.name === car);
-      // Another version of the game may have a car this one doesn't.
-      if (!spec) console.warn(`aland-drive online: no car called ${car}; drawing ${PLAYER_CAR.name}`);
-      art = buildCarArt(spec ?? PLAYER_CAR);
+      const spec = CARS.find((candidate) => candidate.id === car);
+      if (!spec) throw new Error(`no art for the car ${car}`);
+      art = buildCarArt(spec);
       arts.set(car, art);
     }
     return art;
@@ -36,7 +36,8 @@ export function createRemoteCarViews(scene: Scene, sun: { azimuthDeg: number; el
 
   return {
     /** Draws a car this frame, or leaves it out when its ground isn't here. */
-    draw(id: string, car: string, state: CarState, grounded: boolean) {
+    draw(id: string, state: CarState, grounded: boolean) {
+      const { car } = state;
       let shown = views.get(id);
       if (shown && shown.car !== car) {
         forget(id);

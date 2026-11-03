@@ -156,8 +156,8 @@ describe("the car", () => {
 
   it("is dragged to a stop in water, and left there until the player respawns", () => {
     const drive = newDrive();
-    const { grid, waterNodes } = tile;
-    const node = waterNodes.findIndex((wet, index) => wet === 1 && index % grid.nodes > 400 && index % grid.nodes < 1100 && index > 400 * grid.nodes);
+    const { grid, shore } = tile;
+    const node = shore.heights.findIndex((out, index) => out > 10 && index % grid.nodes > 400 && index % grid.nodes < 1100 && index > 400 * grid.nodes);
     const x = grid.west + (node % grid.nodes) * grid.stepM;
     const north = grid.north - Math.floor(node / grid.nodes) * grid.stepM;
     expect(world.roads.nearest(x, -north)?.distance).toBeGreaterThan(6);

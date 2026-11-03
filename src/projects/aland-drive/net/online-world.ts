@@ -20,7 +20,7 @@ export const SEND_EVERY_STEPS = 6;
 
 export interface OnlineEvents {
   /** Another player's car, as their client last had it. */
-  onCar: (peerId: string, car: string, state: CarState) => void;
+  onCar: (peerId: string, state: CarState) => void;
   /** A player has left, or we have. */
   onGone: (peerId: string) => void;
   /** Everyone else in the world, whenever that changes. */
@@ -33,7 +33,7 @@ export interface OnlineWorld {
   start: () => void;
   stop: () => void;
   /** Each frame, with the steps the simulation took in it and the car as it stands. */
-  send: (steps: number, car: string, state: CarState) => void;
+  send: (steps: number, state: CarState) => void;
   state: () => RoomState;
 }
 
@@ -55,11 +55,11 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     }
   }
 
-  function hear(peerId: string, car: string, carState: CarState): void {
+  function hear(peerId: string, carState: CarState): void {
     // A state can outlive its sender by a moment on the wire.
     if (peerId === state.selfId || !state.players.some((player) => player.peerId === peerId)) return;
     known.add(peerId);
-    events.onCar(peerId, car, carState);
+    events.onCar(peerId, carState);
   }
 
   const room = createRoom({
@@ -79,8 +79,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         console.warn("aland-drive online: dropping a malformed guest message", from.peerId, data);
         return;
       }
-      hear(from.peerId, message.car, message.state);
-      room.broadcast({ kind: "car", from: from.peerId, car: message.car, state: message.state }, from.peerId);
+      hear(from.peerId, message.state);
+      room.broadcast({ kind: "car", from: from.peerId, state: message.state }, from.peerId);
     },
     onHostMessage(data) {
       const message = parseHostMessage(data);
@@ -88,24 +88,24 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         console.warn("aland-drive online: dropping a malformed host message", data);
         return;
       }
-      hear(message.from, message.car, message.state);
+      hear(message.from, message.state);
     },
   });
 
-  function transmit(car: string, carState: CarState): void {
+  function transmit(carState: CarState): void {
     const wire = wireState(carState);
-    if (state.role === "host" && state.selfId !== null) room.broadcast({ kind: "car", from: state.selfId, car, state: wire });
-    else if (state.role === "guest") room.sendToHost({ kind: "car", car, state: wire });
+    if (state.role === "host" && state.selfId !== null) room.broadcast({ kind: "car", from: state.selfId, state: wire });
+    else if (state.role === "guest") room.sendToHost({ kind: "car", state: wire });
   }
 
   return {
     start: () => room.start(),
     stop: () => room.stop(),
-    send(steps, car, carState) {
+    send(steps, carState) {
       if (state.status !== "connected") return;
       if (steps === 0) {
         if (sentStill && !owed) return;
-        transmit(car, still(carState));
+        transmit(still(carState));
         sentStill = true;
         owed = false;
         return;
@@ -115,7 +115,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       if (owedSteps < SEND_EVERY_STEPS && !owed) return;
       owedSteps = 0;
       owed = false;
-      transmit(car, carState);
+      transmit(carState);
     },
     state: () => state,
   };

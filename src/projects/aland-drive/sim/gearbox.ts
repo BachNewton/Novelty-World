@@ -1,4 +1,4 @@
-import { ENGINE, GEARBOX } from "./tuning";
+import type { CarTuning } from "./tuning";
 
 /*
  * The engine and its automatic gearbox, with no physics in them: the gear, the
@@ -42,6 +42,15 @@ const LOAD_FOLLOW_S = 0.06;
 
 const revsIn = (box: Gearbox, gear: number, speed: number) => (speed / box.gearTopMS[gear]) * box.redlineRpm;
 
+/** The engine already running at a speed, in the gear a gentle drive would be in: for a car swapped in mid-drive. */
+export function runningEngine(box: Gearbox, speed: number): EngineRead {
+  const upAt = lerp(box.gentleShift, 0.97, 0.5) * box.redlineRpm;
+  const last = box.gearTopMS.length - 1;
+  let gear = 0;
+  while (gear < last && revsIn(box, gear, speed) > upAt) gear++;
+  return { gear, rpm: Math.min(Math.max(revsIn(box, gear, speed), box.idleRpm), box.redlineRpm), load: 0, shiftLeftS: 0 };
+}
+
 /** One step of the revs, the gear and the load. `shifted` says a change happened in this step. */
 export function stepEngine(box: Gearbox, read: EngineRead, speed: number, throttle: number, dt: number): { read: EngineRead; shifted: boolean } {
   let { gear, shiftLeftS } = read;
@@ -72,20 +81,41 @@ export function stepEngine(box: Gearbox, read: EngineRead, speed: number, thrott
   return { read: { gear, rpm, load, shiftLeftS }, shifted };
 }
 
-/** The engine's torque at some revs, in newton metres. At the redline the fuel is cut. */
-export function torqueAt(rpm: number): number {
-  const revs = rpm / GEARBOX.redlineRpm;
+/** A car's torque at some revs, in newton metres. At the redline the fuel is cut. */
+export function torqueAt({ engine, gearbox }: CarTuning, rpm: number): number {
+  const revs = rpm / gearbox.redlineRpm;
   if (revs >= 1) return 0;
-  const curve = ENGINE.torqueCurve;
+  const curve = engine.torqueCurve;
   const above = curve.findIndex(([at]) => at > revs);
-  if (above <= 0) return ENGINE.peakTorqueNm * curve[0][1];
+  if (above <= 0) return engine.peakTorqueNm * curve[0][1];
   const [lowAt, low] = curve[above - 1];
   const [highAt, high] = curve[above];
-  return ENGINE.peakTorqueNm * lerp(low, high, (revs - lowAt) / (highAt - lowAt));
+  return engine.peakTorqueNm * lerp(low, high, (revs - lowAt) / (highAt - lowAt));
 }
 
 /** How many radians the engine turns for each metre the car rolls, in a gear: a torque times this is a force at the road. */
-export const radiansPerMetre = (gear: number) => (GEARBOX.redlineRpm * Math.PI) / 30 / GEARBOX.gearTopMS[gear];
+export const radiansPerMetre = ({ gearbox }: CarTuning, gear: number) => (gearbox.redlineRpm * Math.PI) / 30 / gearbox.gearTopMS[gear];
 
 /** How hard the closed throttle holds the car back at some revs, in newton metres. */
-export const engineBrakeAt = (rpm: number) => (ENGINE.engineBrakeNm * Math.max(0, rpm - GEARBOX.idleRpm)) / (GEARBOX.redlineRpm - GEARBOX.idleRpm);
+export const engineBrakeAt = ({ engine, gearbox }: CarTuning, rpm: number) => (engine.engineBrakeNm * Math.max(0, rpm - gearbox.idleRpm)) / (gearbox.redlineRpm - gearbox.idleRpm);
+
+/** The drive at the road for a throttle, with the engine where it is: what the car pulls with, before the tyres have their say. */
+export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead, throttle: number): number {
+  if (shiftLeftS > 0) return 0;
+  const toRoad = radiansPerMetre(tuning, gear);
+  const pull = Math.min(tuning.power.launchN, torqueAt(tuning, rpm) * toRoad);
+  return throttle * pull - (1 - throttle) * engineBrakeAt(tuning, rpm) * toRoad;
+}
+
+/** What holds a car back on the flat at a speed: the air and the tyres' rolling. */
+export const resistanceAt = ({ power }: CarTuning, speed: number) => power.dragPerMS2 * speed * speed + power.rollingN;
+
+/** The car's top speed on the flat: where its best pull in any gear meets the air, or the last gear's redline if that comes first. */
+export function topSpeedMS(tuning: CarTuning): number {
+  const { gearbox } = tuning;
+  const best = (speed: number) =>
+    Math.max(...gearbox.gearTopMS.map((_, gear) => Math.min(tuning.power.launchN, torqueAt(tuning, (speed / gearbox.gearTopMS[gear]) * gearbox.redlineRpm) * radiansPerMetre(tuning, gear))));
+  let speed = 1;
+  while (best(speed) > resistanceAt(tuning, speed)) speed += 0.05;
+  return speed;
+}

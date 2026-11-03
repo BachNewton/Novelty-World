@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Car, type DriveInput } from "./car";
+import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState } from "./car-state";
 import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
@@ -45,7 +46,7 @@ export async function initPhysics(): Promise<void> {
 export class Drive {
   readonly rapier: RAPIER.World;
   readonly ground: GroundBlocks;
-  private readonly car: Car;
+  private car: Car;
   /** Other players' cars, which this one can hit. */
   readonly remotes: RemoteCars;
   private before!: CarState;
@@ -59,12 +60,13 @@ export class Drive {
   constructor(
     private readonly world: World,
     start: RoadPoint,
+    car: CarId = DEFAULT_CAR,
   ) {
     this.rapier = new RAPIER.World({ x: 0, y: -PHYSICS.gravity, z: 0 });
     this.rapier.timestep = STEP_S;
     this.ground = new GroundBlocks(this.rapier, world);
     this.addWalls();
-    this.car = new Car(this.rapier);
+    this.car = new Car(this.rapier, car);
     this.remotes = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
@@ -94,6 +96,22 @@ export class Drive {
     this.before = this.after = this.car.state();
     this.recentVerticalSpeeds.length = 0;
     this.placements++;
+  }
+
+  /** The car being driven. */
+  get carId(): CarId {
+    return this.car.id;
+  }
+
+  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
+  setCar(id: CarId): void {
+    if (id === this.car.id) return;
+    const next = new Car(this.rapier, id);
+    next.takeOver(this.car);
+    this.car.remove();
+    this.car = next;
+    this.after = this.car.state();
+    this.before = { ...this.before, car: id };
   }
 
   /** The engine as it stands after the last step, and whether the car is in reverse. */

@@ -1,17 +1,18 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { blendCarStates, type CarState, type Rotation, type Vector3 } from "./car-state";
 import { GHOST_GROUPS, REMOTE_GROUPS } from "./groups";
-import { CAR, STEP_S } from "./tuning";
+import { CARS } from "./cars";
+import { STEP_S } from "./tuning";
 
 /*
  * Other players' cars, in this player's own Rapier world. Each player's client
  * is the authority over its own car and sends its `CarState` round; here each
- * of the others is a stand-in body with the car's own box, mass and inertia,
+ * of the others is a stand-in body with its own car's box, mass and inertia,
  * steered every step towards where that car is now: its last state carried on
  * by its own velocity and spin since it arrived, for a short while. The stand-in
  * is dynamic, not kinematic, so in a step where the two touch the solver trades
- * momentum between two cars of equal weight, and the car being driven is shoved
- * as hard as it shoves; the next step the stand-in is steered back on its way.
+ * momentum between the two by their weights, so a van shoves a roadster aside
+ * and is barely moved itself; the next step the stand-in is steered back on its way.
  * The other car feels the same contact on its own client, against this car's
  * stand-in there, so both drivers see the hit and each reacts with its own car.
  *
@@ -30,8 +31,8 @@ const MOST_CORRECTION_MS = 4;
 const MOST_TURN_CORRECTION = 3;
 /** Further than this from where it should be, a stand-in is put there instead. */
 const SNAP_M = 6;
-/** Apart by more than this, two cars' boxes can't touch: a ghost becomes solid. */
-const CLEAR_M = 2 * Math.hypot(...CAR.halfSize) + 0.2;
+/** Apart by more than this, no two cars' boxes can touch: a ghost becomes solid. */
+const CLEAR_M = 2 * Math.max(...Object.values(CARS).map(({ car }) => Math.hypot(...car.halfSize))) + 0.2;
 
 const add = (a: Vector3, b: Vector3, by = 1): Vector3 => [a[0] + b[0] * by, a[1] + b[1] * by, a[2] + b[2] * by];
 const difference = (a: Vector3, b: Vector3): Vector3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -81,7 +82,7 @@ export function carriedOn(state: CarState, steps: number): CarState {
     ...state,
     position: add(state.position, state.velocity, seconds),
     rotation: turned(state.rotation, state.spin, seconds),
-    roll: state.roll + (forward / CAR.wheelRadiusM) * seconds,
+    roll: state.roll + (forward / CARS[state.car].car.wheelRadiusM) * seconds,
   };
 }
 
@@ -98,16 +99,17 @@ class RemoteCar {
   after: CarState;
 
   constructor(rapier: RAPIER.World, state: CarState) {
-    const [wide, tall, long] = CAR.inertia;
+    const { car } = CARS[state.car];
+    const [wide, tall, long] = car.inertia;
     this.body = rapier.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
-        .setAdditionalMassProperties(CAR.massKg, { x: 0, y: CAR.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
+        .setAdditionalMassProperties(car.massKg, { x: 0, y: car.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
         .setGravityScale(0)
         .setCanSleep(false),
     );
-    const [x, y, z] = CAR.halfSize;
+    const [x, y, z] = car.halfSize;
     this.collider = rapier.createCollider(
-      RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, CAR.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GHOST_GROUPS),
+      RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, car.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GHOST_GROUPS),
       this.body,
     );
     this.heard = this.target = state;
@@ -157,7 +159,9 @@ export class RemoteCars {
   /** A car's state as its own client sent it. */
   hear(id: string, state: CarState): void {
     const car = this.cars.get(id);
-    if (car) {
+    // A player who swaps car needs a stand-in of the new one's size and weight, put where it is.
+    if (car && car.heard.car !== state.car) this.forget(id);
+    else if (car) {
       car.heard = state;
       car.since = 0;
       return;

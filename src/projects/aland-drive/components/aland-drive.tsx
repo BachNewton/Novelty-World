@@ -10,6 +10,7 @@ import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import { DEFAULT_CAR, type CarId } from "../sim/cars";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -81,7 +82,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
   const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
-  const [carName, setCarName] = useState("");
+  const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   const [others, setOthers] = useState<string[]>([]);
   useFrameStats();
 
@@ -126,7 +127,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
-          onCarChange: setCarName,
+          onCarChange: setCarId,
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
@@ -136,7 +137,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
         }
         window.__alandDrive = game.probe;
         setDev(game);
-        setCarName(game.probe.carName());
+        setCarId(game.probe.carId());
         setStarted(true);
         stop = () => {
           game.dispose();
@@ -218,7 +219,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           </ul>
         </>
       )}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>
