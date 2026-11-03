@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
@@ -13,7 +13,7 @@ import { canopyLift, tileReads } from "./tile-reads";
 import { createReeds, type ReedsDrawn } from "./reeds";
 import { createShrubs, type ShrubsDrawn } from "./shrubs";
 import { createVerge, type VergeDrawn } from "./verge";
-import { createWater, WATER_SHORE_MIP } from "./water";
+import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
@@ -26,12 +26,17 @@ import { stateFromCar } from "../audio/model";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
+import { createRemoteCarViews } from "./remote-cars";
+import { createOnlineWorld } from "../net/online-world";
+import { GAME } from "../net/protocol";
+import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
+import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
 import { ruralMaterials } from "../art/rural/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
+import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
@@ -41,7 +46,8 @@ import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround, surfaceUnder } from "../sim/surroundings";
-import { GEARBOX, STEP_S } from "../sim/tuning";
+import { STEP_S } from "../sim/tuning";
+import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 
@@ -125,10 +131,16 @@ export interface GameProbe {
   memory: () => { jsMB: number; meshMB: number; texturesMB: number };
   /** The renderer's own counts of what it holds, to show nothing is left behind. */
   rendererMemory: () => Record<string, number>;
-  /** Draws a different car, by name. The drive carries on: nothing in the simulation changes. */
-  setCar: (name: string) => void;
-  /** The name of the car being drawn. */
-  carName: () => string;
+  /** Swaps the car for another, its looks, handling and sound. The drive carries on from where it was. */
+  setCar: (id: CarId) => void;
+  /** The car being driven. */
+  carId: () => CarId;
+  /** Where the online world stands. */
+  online: () => Pick<RoomState, "status" | "role">;
+  /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
+  players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
+  /** How many other players each map drew last. */
+  mapPlayers: () => { mini: number; world: number };
 }
 
 export interface HudReading {
@@ -158,10 +170,19 @@ export interface GameEvents {
   onMapReady?: () => void;
   onMapOpen?: (open: boolean) => void;
   onDevMenuOpen?: (open: boolean) => void;
-  /** Another car is being drawn. */
-  onCarChange?: (name: string) => void;
+  /** Another car is being driven. */
+  onCarChange?: (id: CarId) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
+  /** Everyone else in the online world, by name, whenever that changes. */
+  onPlayers?: (names: string[]) => void;
+}
+
+/** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
+export interface OnlineOptions {
+  relayUrl: string;
+  code: string;
+  profile: PlayerProfile;
 }
 
 /** The canvases the page keeps for the maps. */
@@ -172,6 +193,7 @@ export interface MapCanvases {
 
 /** A car the dev menu can offer. */
 export interface CarChoice {
+  id: CarId;
   name: string;
   /** A paint token, without the `--color-aland-drive-` prefix. */
   paint: string;
@@ -181,7 +203,7 @@ export interface Game {
   probe: GameProbe;
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
-  setCar: (name: string) => void;
+  setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
@@ -196,7 +218,11 @@ export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
 const SKY_REACH_M = CAMERA_FAR * 0.9;
-const SEA_BELOW_LAND_M = -1.2;
+/** Under the deepest seabed (`DEEPEST_M` in `pipeline/terrain.py`), so where the terrain reaches, it draws its own water. */
+const SEA_BELOW_LAND_M = -5;
+/** Land this little above the water is wet, and darker for it. */
+const WET_BAND_M = 0.2;
+const WET_SHADE = 0.75;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
@@ -311,7 +337,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
 }
 
 /** A page with no `canvases` gets the drive with no maps. */
-export async function startGame(container: HTMLElement, events: GameEvents, canvases?: MapCanvases): Promise<Game> {
+export async function startGame(container: HTMLElement, events: GameEvents, canvases?: MapCanvases, online?: OnlineOptions): Promise<Game> {
   const base = tileBase(window.location.search);
   const [manifest] = await Promise.all([
     fetch(`${base}/world.json`).then((response) => {
@@ -414,9 +440,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
-  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, shoreAt: select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0)), skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
-  const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
-  const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
+  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))));
+  const pastTiles = select(inOverview, mix(openSea, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), openSea);
+  const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth));
+  const terrainColour = (depth: Node<"float">, shore: Node<"float">) => {
+    // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
+    // line rather than where the mesh's corners cross the water.
+    const edge = fwidth(shore).max(0.001);
+    const under = smoothstep(edge.negate(), edge, shore);
+    const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
+    const near = mix(land.mul(mix(float(1), float(WET_SHADE), wet)), waterColour(depth), under);
+    return hazed(mix(pastTiles, near, farSeen));
+  };
 
   const linear = (name: string) => {
     const { r, g, b } = token(name);
@@ -425,7 +461,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const { canopyAt, standsAt, roadsAt, landAt, waterAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt,
@@ -437,15 +473,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     sun: manifest.sun,
   });
 
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
-  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed });
-  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), lightOf, linear, hazed, sun: manifest.sun });
+  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
+  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, sun: manifest.sun });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
   const seaMaterial = new MeshBasicNodeMaterial();
-  seaMaterial.colorNode = hazed(waterOf.color);
+  seaMaterial.colorNode = hazed(openSea);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
   scene.add(sea);
@@ -800,14 +836,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     ].join("\n");
   };
 
-  const setCar = (name: string) => {
-    const spec = CARS.find((car) => car.name === name);
-    if (!spec) throw new Error(`no car called ${name}`);
+  const setCar = (id: CarId) => {
+    const spec = CARS.find((car) => car.id === id);
+    if (!spec) throw new Error(`no car's art for ${id}`);
     if (spec === carSpec) return;
+    drive.setCar(id);
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, manifest.sun, spec);
-    events.onCarChange?.(name);
+    events.onCarChange?.(id);
   };
 
   const onAction = (action: GameAction) => {
@@ -871,6 +908,44 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return lastInput;
   };
 
+  // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
+  const remoteViews = createRemoteCarViews(scene, manifest.sun);
+  const others = new Map<string, { name: string; heard: boolean }>();
+  const onlineWorld = online
+    ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
+        onCar: (peerId, state) => {
+          const other = others.get(peerId);
+          if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
+          other.heard = true;
+          drive.remotes.hear(peerId, state);
+        },
+        onGone: (peerId) => {
+          drive.remotes.forget(peerId);
+          remoteViews.forget(peerId);
+        },
+        onPlayers: (players) => {
+          const before = new Map(others);
+          others.clear();
+          for (const { peerId, name } of players) others.set(peerId, { name, heard: before.get(peerId)?.heard ?? false });
+          events.onPlayers?.(players.map(({ name }) => name));
+        },
+      })
+    : null;
+  onlineWorld?.start();
+  const unbindPageHide = onlineWorld ? stopOnPageHide(onlineWorld) : () => undefined;
+  /** Draws everyone else's car where it's on ground of ours, and says where they all are for the maps. */
+  const drawRemotes = (share: number): MapPlayer[] => {
+    const shown: MapPlayer[] = [];
+    for (const [peerId, { name, heard }] of others) {
+      if (!heard) continue;
+      const state = drive.remotes.stateAt(peerId, share);
+      const [x, , z] = state.position;
+      remoteViews.draw(peerId, state, world.tileAt(x, z)?.detail != null);
+      shown.push({ x, z, headingClockwise: headingClockwise(state), name });
+    }
+    return shown;
+  };
+
   const detailSpotAt = new Vector3();
   /** This frame's camera as a view of the ground, for what's drawn over the render. */
   const mapViewOf = (height: number, turn: number): MapView => {
@@ -899,16 +974,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const seconds = Math.min(lastFrame === null ? 0 : (now - lastFrame) / 1000, LONGEST_FRAME_S);
     lastFrame = now;
     let share = 1;
+    let stepped = 0;
     if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
     if (!held && !mapFrom && !jumping && !devMenuOpen) {
       owedSeconds += seconds;
-      const steps = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
-      for (let step = 0; step < steps; step++) drive.step(nextInput());
-      owedSeconds = Math.min(owedSeconds - steps * STEP_S, STEP_S);
+      stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
+      for (let step = 0; step < stepped; step++) drive.step(nextInput());
+      owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
     }
     const car = drive.stateAt(share);
     carView.draw(car);
+    onlineWorld?.send(stepped, drive.stateAt(1));
+    const players = drawRemotes(share);
+    worldMap?.setPlayers(players);
     if (mapFrom && worldMap) {
       const carNow = mapFrom.car;
       const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(worldMap), groundAt);
@@ -940,15 +1019,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     edgeMesh.visible = !lifted;
     clipmap.showWide(lifted);
     const speed = speedOf(car);
-    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed) ?? null;
+    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
     const engine = drive.engine();
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / GEARBOX.redlineRpm, 1), cue });
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: "skerry-gt", engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1068,9 +1147,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       rendererMemory: () => ({ ...renderer.info.memory }),
       setCar,
-      carName: () => carSpec.name,
+      carId: () => drive.carId,
+      online: () => {
+        const state = onlineWorld?.state();
+        return { status: state?.status ?? "idle", role: state?.role ?? null };
+      },
+      players: () =>
+        [...others].map(([peerId, { name, heard }]) => ({
+          peerId,
+          name,
+          position: !heard ? null : drive.remotes.stateAt(peerId, 1).position,
+          drawn: remoteViews.drawn(peerId),
+          ghost: drive.remotes.ghost(peerId),
+        })),
+      mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
     },
-    cars: CARS.map(({ name, paint }) => ({ name, paint })),
+    cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
     whereabouts,
@@ -1083,6 +1175,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       controls.dispose();
       worldMap?.dispose();
       carView.dispose();
+      unbindPageHide();
+      onlineWorld?.stop();
+      remoteViews.dispose();
       drive.dispose();
       stream.dispose();
       fetcher.dispose();

@@ -4,6 +4,8 @@
  * heard over the network will draw the same as the one being driven.
  */
 
+import type { CarId } from "./cars";
+
 export type Vector3 = [x: number, y: number, z: number];
 export type Rotation = [x: number, y: number, z: number, w: number];
 type PerWheel = [frontLeft: number, frontRight: number, rearLeft: number, rearRight: number];
@@ -13,6 +15,8 @@ export interface CarState {
   rotation: Rotation;
   velocity: Vector3;
   spin: Vector3;
+  /** Which car this is: its looks, wheels and sound follow from the id. */
+  car: CarId;
   /** The front wheels' angle, positive to the right. */
   steer: number;
   /** How far each wheel has risen into its arch. */
@@ -33,6 +37,7 @@ export function blendCarStates(from: CarState, to: CarState, share: number): Car
     rotation: [mixed[0] / length, mixed[1] / length, mixed[2] / length, mixed[3] / length],
     velocity: to.velocity,
     spin: to.spin,
+    car: to.car,
     steer: lerp(from.steer, to.steer, share),
     suspension: [
       lerp(from.suspension[0], to.suspension[0], share),

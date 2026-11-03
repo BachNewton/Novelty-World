@@ -96,6 +96,8 @@ export interface ShrubInputs {
   landAt: LandAt;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the drawn waterline, out into the water and below zero on land. */
+  shoreAt: (place: Node<"vec2">) => Node<"float">;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -117,7 +119,7 @@ export interface Shrubs {
   dispose: () => void;
 }
 
-export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
+export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
   const kinds: Kind[] = [
     { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
     { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
@@ -156,7 +158,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const isBushes = lattice === LATTICES[BUSHES];
       const chance = roll(seed, 93.989, 67.345).toVar();
       const land = landAt(place);
-      If(land.dry.greaterThan(LEAST_DRY).and(roadsAt(place, 1).lessThan(ROAD_CLEAR)), () => {
+      If(land.dry.greaterThan(LEAST_DRY).and(roadsAt(place, 1).lessThan(ROAD_CLEAR)).and(shoreAt(place).lessThanEqual(0)), () => {
         const here = canopyAt(place, 0);
         const edge = smoothstep(float(EDGE[0]), float(EDGE[1]), canopyAt(place, AROUND_MIP)).mul(float(1).sub(smoothstep(float(OPEN_HERE[0]), float(OPEN_HERE[1]), here))).toVar();
         const bushes = edge.mul(isBushes ? EDGE_BUSHES : EDGE_BIRCHES).toVar();
