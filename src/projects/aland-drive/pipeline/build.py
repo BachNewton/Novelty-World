@@ -36,6 +36,7 @@ import stands
 import terrain
 import vectors
 import raised
+import walls
 from give_way import give_way
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
@@ -60,7 +61,7 @@ START_TILE = "L2343C"
 ATTRIBUTION = [
     "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
     "Forest stands: ©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023, CC BY 4.0",
-    "Roads: © OpenStreetMap contributors, ODbL 1.0",
+    "Roads and stone walls: © OpenStreetMap contributors, ODbL 1.0",
 ]
 
 
@@ -284,6 +285,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     }
     if surface_manifest is not None:
         manifest["roadSurface"] = surface_manifest
+    if with_vectors:
+        manifest["walls"] = walls.bake(tile, folder, manifest)
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}

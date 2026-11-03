@@ -44,11 +44,3 @@ const columns = (lists: Record<string, number[][]>) => Object.fromEntries(Object
 export function decodeRoadside(file: RoadsideFile): TileRoadside {
   return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()) };
 }
-
-/** The solids' walls and the roadside's, as one list. */
-export function withRoadsideWalls(solids: Float32Array, roadside: TileRoadside): Float32Array {
-  const walls = new Float32Array(solids.length + roadside.walls.length);
-  walls.set(solids);
-  walls.set(roadside.walls, solids.length);
-  return walls;
-}

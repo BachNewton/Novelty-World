@@ -6,6 +6,7 @@ import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
 import { NO_INPUT } from "./car";
 import { Drive, initPhysics } from "./drive";
 import { RoadLine } from "./road-net";
+import { wallFaces, wallSections } from "../render/tile-walls";
 import { BLOCK_M, SEA_HEIGHT_M, World, tileDetail } from "./world";
 
 /*
@@ -104,23 +105,39 @@ const downOn = (drive: Drive, x: number, z: number) => {
   return 300 - hit.timeOfImpact;
 };
 
+/** Drives flat out east along the road from x = -2400, and says how fast the car got and how far east it came. */
+function flatOut(world: World): { fastest: number; furthest: number } {
+  const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
+  const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
+  let fastest = 0;
+  let furthest = -Infinity;
+  for (let step = 0; step < 120 * 45; step++) {
+    drive.step({ ...NO_INPUT, throttle: 1 });
+    const { position, velocity } = drive.stateAt(1);
+    fastest = Math.max(fastest, velocity[0]);
+    furthest = Math.max(furthest, position[0]);
+  }
+  drive.dispose();
+  return { fastest, furthest };
+}
+
 describe("a building", () => {
   it("stops the car at top speed: the wall is thinner than a step, and the car mustn't come out the far side", () => {
     const wallX = -300;
-    const world = twoTiles(true, Float32Array.of(wallX, ROAD_Z - 30, wallX, ROAD_Z + 30));
-    const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
-    const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
-    let fastest = 0;
-    let furthest = -Infinity;
-    for (let step = 0; step < 120 * 45; step++) {
-      drive.step({ ...NO_INPUT, throttle: 1 });
-      const { position, velocity } = drive.stateAt(1);
-      fastest = Math.max(fastest, velocity[0]);
-      furthest = Math.max(furthest, position[0]);
-    }
+    const { fastest, furthest } = flatOut(twoTiles(true, Float32Array.of(wallX, ROAD_Z - 30, wallX, ROAD_Z + 30)));
     expect(fastest).toBeGreaterThan(50);
     expect(furthest).toBeLessThan(wallX);
-    drive.dispose();
+  });
+});
+
+describe("a stone wall", () => {
+  it("stops the car at top speed, though it's only knee-high", () => {
+    const wallX = -300;
+    const grid = gridAt(-1, -1, NODES, STEP_M);
+    const sections = wallSections({ walls: [[[wallX, ROAD_Z - 30], [wallX, ROAD_Z + 30]]] }, grid);
+    const { fastest, furthest } = flatOut(twoTiles(true, wallFaces(sections)));
+    expect(fastest).toBeGreaterThan(50);
+    expect(furthest).toBeLessThan(wallX);
   });
 });
 
