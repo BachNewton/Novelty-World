@@ -17,8 +17,6 @@ import { geometryOf, worldCarMaterial } from "./material";
 /** Past this a car is its stand-in, and past `REACH_M` it's gone. */
 export const SWAP_M = 120;
 export const REACH_M = 900;
-const SHADOW_LIFT_M = 0.02;
-const SHADOW_INSET_M = 0.14;
 
 /** What cars on a Nordic road are painted, by how many of them: greys, whites and blacks, then the rest. */
 const NORDIC_PAINTS = [
@@ -70,20 +68,6 @@ function withOptions(soup: Soup): BufferGeometry {
   return geometry;
 }
 
-/** A dark patch under a car, so it sits on the ground with no transparent draw. */
-function patchUnder(spec: CarSpec, road: number): BufferGeometry {
-  const [wide, long] = spec.shadowHalf;
-  const [x, z, y] = [wide - SHADOW_INSET_M, long - SHADOW_INSET_M, road + SHADOW_LIFT_M];
-  const { r, g, b } = themeColor("--color-aland-drive-car-under");
-  const patch = new BufferGeometry();
-  patch.setAttribute("position", new BufferAttribute(Float32Array.from([-x, y, -z, -x, y, z, x, y, z, -x, y, -z, x, y, z, x, y, -z]), 3));
-  patch.setAttribute("normal", new BufferAttribute(Float32Array.from(Array.from({ length: 6 }, () => [0, 1, 0]).flat()), 3));
-  patch.setAttribute("carColour", new BufferAttribute(Float32Array.from(Array.from({ length: 6 }, () => [r, g, b]).flat()), 3));
-  patch.setAttribute("carFinish", new BufferAttribute(new Float32Array(24), 4));
-  patch.setAttribute("carOption", new BufferAttribute(new Float32Array(6), 1));
-  return patch;
-}
-
 /** One car's world model, its origin on the road under its middle. */
 export function worldGeometry(spec: CarSpec): BufferGeometry {
   const parts = buildCarParts(spec, "far", true);
@@ -97,7 +81,6 @@ export function worldGeometry(spec: CarSpec): BufferGeometry {
       pieces.push(placed);
     }
   }
-  pieces.push(patchUnder(spec, road));
   const joined = mergeGeometries(pieces);
   joined.translate(0, -road, 0);
   return joined;
