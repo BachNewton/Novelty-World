@@ -8,7 +8,8 @@ import { seaSeconds } from "../sea/clock";
  * Västerhamn, where the town's sailing club races, and across Lumparn, the wide
  * water in the middle of the island. Each course runs into the summer's
  * south-westerly, so a fleet beats up it and runs back. A fleet is drawn only
- * past 1.5 km, from the shore roads round it.
+ * past 1.5 km, so every course keeps 1.6 km from any land joined to a road: no
+ * car can come near enough to see a fleet vanish.
  *
  * Every fleet sails by the sea's clock (`sea/clock.ts`), UTC, wrapped at a day, not
  * by the game's own time: every player sees the same boats in the same places, and
@@ -20,8 +21,8 @@ const DAY_S = 86_400;
 const SEA_Y = -0.05;
 
 export const COURSES: readonly RegattaCourse[] = [
-  { from: { x: -7900, z: 10600 }, to: { x: -5300, z: 8700 }, y: SEA_Y, wideM: 500, count: 14, seed: 11, periodS: DAY_S },
-  { from: { x: 7200, z: 3900 }, to: { x: 10900, z: 300 }, y: SEA_Y, wideM: 700, count: 20, seed: 23, periodS: DAY_S },
+  { from: { x: -7404, z: 10958 }, to: { x: -5796, z: 9042 }, y: SEA_Y, wideM: 500, count: 14, seed: 11, periodS: DAY_S },
+  { from: { x: 7763, z: 3237 }, to: { x: 10237, z: 763 }, y: SEA_Y, wideM: 700, count: 20, seed: 23, periodS: DAY_S },
 ];
 
 
