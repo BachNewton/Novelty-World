@@ -1,6 +1,6 @@
 import type { Scene } from "three/webgpu";
 import type { Placement, RoadsideMaterials } from "../art/roadside/index";
-import { BOATHOUSE, buildBoathouse, buildBoulder, buildHayBale, buildSheep, buildShed, buildTractor, buildWrappedBale, SHED, type SheepCoat, type SheepPose } from "../art/rural/index";
+import { BOATHOUSE, buildBoathouse, buildBoulder, buildCow, buildHayBale, buildSheep, buildShed, buildTractor, buildWrappedBale, SHED, type CowPose, type SheepPose } from "../art/rural/index";
 import { createPlacedModels, type PlacedKind } from "./placed-models";
 import { BOULDER_MODELS, FARM_MODELS, PLACE_FLOATS } from "./tile-models";
 
@@ -44,8 +44,8 @@ function farmModel(name: (typeof FARM_MODELS)[number]) {
   if (name === "bale-wrapped") return buildWrappedBale();
   if (name === "bale-hay") return buildHayBale();
   if (name === "tractor") return buildTractor();
-  const [, pose, coat = "white"] = name.split("-") as [string, SheepPose, SheepCoat?];
-  return buildSheep(pose, coat);
+  const [animal, pose] = name.split("-");
+  return animal === "cow" ? buildCow(pose as CowPose) : buildSheep(pose as SheepPose);
 }
 
 export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials, reachM: number) {

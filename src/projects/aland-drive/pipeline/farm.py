@@ -1,4 +1,4 @@
-"""The countryside: Åland's post mills where they stand, and the bales, tractors and sheep of a summer's farmland.
+"""The countryside: Åland's post mills where they stand, and the bales, tractors, sheep and cows of a summer's farmland.
 
 Windmills are OSM's (`man_made=windmill`): 93 outlines and 3 points on the island's
 tiles, checked by hand against the laser and the 2025 photo. Nearly every outline has
@@ -21,11 +21,14 @@ same countryside:
   road, where they're fetched from; half lie where the baler dropped them, hay or
   wrapped, in lines across the field.
 - **Sheep** on a share of the open meadows, more often on a shore meadow, in a flock
-  that grazes round one spot, a few of them lambs or grey.
+  that grazes round one spot, a few of them lambs: Åland sheep, whose coat and horns the
+  game rolls per place.
+- **Dairy cows** in a herd on an open inland meadow or a grass ley near a barn, fewer
+  than the sheep: grazing, standing or lying, now and then a calf.
 - **A tractor** by a third of the fields with bales, and outside an odd barn near the
   fields, in its yard.
 
-Each keeps clear of roads, buildings, water, stone walls, boulders, the roadside and
+Each keeps clear of roads, buildings, water, trees, stone walls, boulders, the roadside and
 each other, so it runs after the roadside. The props go in `models.json` beside the
 boathouses and boulders, as `[x, y, z, yaw, scale, scale]` in the scene.
 
@@ -39,6 +42,7 @@ import argparse
 import json
 import math
 import xml.etree.ElementTree as ElementTree
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -106,18 +110,34 @@ FLOCK = (5, 24)
 FLOCK_SPREAD_M = (8, 28)
 SHEEP_INSIDE_M = 2
 LAMB, LAMB_SCALE = 0.22, 0.6
-GREY = 0.15
 GRAZING = 0.7
 
+# Dairy cows graze nearer the farms than the sheep: an open inland meadow or a grass ley within reach of a barn, and
+# fewer of them. A shore meadow is the sheep's.
+FARM_REACH_M = 200
+PASTURE_HA = 0.5
+HERDED = {"meadow": 0.35, "ley": 0.06}
+COWS_PER_HA = 3
+HERD = (4, 12)
+HERD_SPREAD_M = (8, 20)
+COW_POSES = (("grazing", 0.55), ("standing", 0.25), ("lying", 0.2))
+COW_SCALE = (0.92, 1.04)
+CALF, CALF_SCALE = 0.1, 0.62
+
 # How much room each needs round its middle, and what it keeps from a road's laid surface beyond that.
-ROOM_M = {"bale": 0.9, "tractor": 2.0, "sheep": 0.6}
+ROOM_M = {"bale": 0.9, "tractor": 2.0, "sheep": 0.6, "cow": 1.3}
 ROAD_GAP_M = 1.5
 BUILDING_GAP_M = 1.0
 WATER_GAP_M = 3
 OBSTACLE_GAP_M = 0.5
 TAKEN_CELL_M = 10
 
-FARM_MODELS = ("bale-wrapped", "bale-hay", "tractor", "sheep-grazing", "sheep-standing", "sheep-grazing-grey", "sheep-standing-grey")
+# The farm's models are its kinds, by the first word of their names: a tile baked before holds them under whatever names they had then.
+FARM_KINDS = ("bale", "tractor", "sheep", "cow")
+
+
+def is_farm(model: str) -> bool:
+    return model.split("-")[0] in FARM_KINDS
 
 
 def _osm_mills(tile: Tile) -> list[tuple[str, Polygon]]:
@@ -258,7 +278,7 @@ def _obstacles(folder: Path, manifest: dict) -> list[shapely.Geometry]:
             found.append(LineString([to_etrs(x, z) for x, z in line]))
     if manifest.get("models"):
         for name, places in json.loads((folder / manifest["models"]["file"]).read_text(encoding="utf-8"))["models"].items():
-            if name not in FARM_MODELS:
+            if not is_farm(name):
                 found += [Point(to_etrs(x, z)).buffer(width / 2) for x, _, z, _, width, _ in places]
     if manifest.get("roadside"):
         for x0, z0, x1, z1 in json.loads((folder / manifest["roadside"]["file"]).read_text(encoding="utf-8"))["walls"]:
@@ -368,7 +388,8 @@ def _bales(field: Polygon, key: tuple[int, int], placer: Placer) -> tuple[np.nda
     return here, yaw_of(_scene_dir(*ahead)) if np.any(ahead) else 0.0
 
 
-def _flock(field: Polygon, key: tuple[int, int], placer: Placer, shore: bool) -> None:
+def _herd(field: Polygon, key: tuple[int, int], placer: Placer, wanted: int, spread_m: tuple[float, float], one: Callable[[int], tuple[str, float]]) -> None:
+    """Animals grazing round one spot of a field, `one` giving each its model and scale."""
     inner = field.buffer(-SHEEP_INSIDE_M)
     if inner.is_empty:
         return
@@ -379,21 +400,35 @@ def _flock(field: Polygon, key: tuple[int, int], placer: Placer, shore: bool) ->
             break
     else:
         return
-    hectares = field.area / 1e4
-    wanted = int(np.clip(round(hectares * SHEEP_PER_HA * (0.6 + 0.6 * roll(*key, 22))), *FLOCK)) + (2 if shore else 0)
-    spread = float(np.clip(math.sqrt(field.area) / 3, *FLOCK_SPREAD_M))
+    spread = float(np.clip(math.sqrt(field.area) / 3, *spread_m))
     laid = 0
-    for sheep in range(wanted * 4):
+    for animal in range(wanted * 4):
         if laid >= wanted:
             break
-        east, north = centre.x + _gauss(*key, sheep, 23) * spread, centre.y + _gauss(*key, sheep, 24) * spread
+        east, north = centre.x + _gauss(*key, animal, 23) * spread, centre.y + _gauss(*key, animal, 24) * spread
         if not inner.contains(Point(east, north)):
             continue
-        pose = "grazing" if roll(*key, sheep, 25) < GRAZING else "standing"
-        coat = "-grey" if roll(*key, sheep, 26) < GREY else ""
-        scale = LAMB_SCALE if roll(*key, sheep, 27) < LAMB else 1.0
-        if placer.put(f"sheep-{pose}{coat}", east, north, roll(*key, sheep, 28) * 2 * math.pi, scale):
+        model, scale = one(animal)
+        if placer.put(model, east, north, roll(*key, animal, 28) * 2 * math.pi, scale):
             laid += 1
+
+
+def _flock(field: Polygon, key: tuple[int, int], placer: Placer, shore: bool) -> None:
+    wanted = int(np.clip(round(field.area / 1e4 * SHEEP_PER_HA * (0.6 + 0.6 * roll(*key, 22))), *FLOCK)) + (2 if shore else 0)
+    sheep = lambda animal: (f"sheep-{'grazing' if roll(*key, animal, 25) < GRAZING else 'standing'}", LAMB_SCALE if roll(*key, animal, 27) < LAMB else 1.0)
+    _herd(field, key, placer, wanted, FLOCK_SPREAD_M, sheep)
+
+
+def _cattle(field: Polygon, key: tuple[int, int], placer: Placer) -> None:
+    wanted = int(np.clip(round(field.area / 1e4 * COWS_PER_HA * (0.6 + 0.6 * roll(*key, 40))), *HERD))
+
+    def cow(animal: int) -> tuple[str, float]:
+        share = roll(*key, animal, 41)
+        pose = next(pose for pose, upto in zip([pose for pose, _ in COW_POSES], np.cumsum([odds for _, odds in COW_POSES])) if share < upto or pose == COW_POSES[-1][0])
+        scale = CALF_SCALE if roll(*key, animal, 42) < CALF else COW_SCALE[0] + roll(*key, animal, 43) * (COW_SCALE[1] - COW_SCALE[0])
+        return f"cow-{pose}", round(scale, 3)
+
+    _herd(field, key, placer, wanted, HERD_SPREAD_M, cow)
 
 
 def _yard_tractor(barn: Polygon, key: tuple[int, int], placer: Placer) -> None:
@@ -409,9 +444,11 @@ def _yard_tractor(barn: Polygon, key: tuple[int, int], placer: Placer) -> None:
 
 
 def place(tile: Tile, folder: Path, manifest: dict) -> dict[str, list[list[float]]]:
-    """The tile's bales, tractors and sheep by model."""
+    """The tile's bales, tractors, sheep and cattle by model."""
     land = Farmland(tile, folder, manifest)
     placer = Placer(land)
+    barns = shapely.STRtree([barn for barn, kind in land.buildings if kind in OUTBUILDINGS and barn.area >= BARN_M2])
+    by_farm = lambda field: len(barns.query(field, predicate="dwithin", distance=FARM_REACH_M)) > 0
     for index, (field, kind) in enumerate(land.fields):
         middle = field.centroid
         key = (round(middle.x), round(middle.y))
@@ -427,6 +464,10 @@ def place(tile: Tile, folder: Path, manifest: dict) -> dict[str, list[list[float
             shore = land.by_shore(field)
             if roll(*key, 3) < GRAZED["shore" if shore else "inland"]:
                 _flock(field, key, placer, shore)
+            elif not shore and hectares >= PASTURE_HA and roll(*key, 5) < HERDED["meadow"] and by_farm(field):
+                _cattle(field, key, placer)
+        elif kind == FIELD and hectares >= PASTURE_HA and roll(*key, 6) < HERDED["ley"] and by_farm(field) and land.green_share(index) >= GREEN and land.open_share(field) >= MEADOW_OPEN:
+            _cattle(field, key, placer)
     farmland = shapely.STRtree([field for field, _ in land.fields])
     for barn, kind in land.buildings:
         middle = barn.centroid
@@ -441,7 +482,7 @@ def bake(tile: Tile, folder: Path) -> tuple[dict, list[list[float]]]:
     manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
     models_file = folder / "models.json"
     kept = json.loads(models_file.read_text(encoding="utf-8"))["models"] if models_file.exists() else {}
-    models = {name: places for name, places in kept.items() if name not in FARM_MODELS} | place(tile, folder, manifest)
+    models = {name: places for name, places in kept.items() if not is_farm(name)} | place(tile, folder, manifest)
     models_file.write_text(json.dumps({**LICENCE, "models": models}, separators=(",", ":")), encoding="utf-8")
     listed = {"file": "models.json", "count": {model: len(places) for model, places in sorted(models.items())}, "place": ["x", "y", "z", "yaw", "width", "length"]}
     return listed, windmills(tile, Heights.of_tile(folder, manifest))
@@ -458,7 +499,7 @@ def bake_tiles(names: list[str], tiles: Path) -> None:
         if mills:
             manifest["windmills"] = mills
         (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        counts = {model: count for model, count in listed["count"].items() if model in FARM_MODELS}
+        counts = {model: count for model, count in listed["count"].items() if is_farm(model)}
         print(name, len(mills), "windmills", json.dumps(counts))
 
 

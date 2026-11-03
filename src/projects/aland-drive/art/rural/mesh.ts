@@ -13,7 +13,7 @@ import { Model, PARTS, type BoxOptions, type Part, type TubeOptions, type V3 } f
  */
 
 /** What the near material draws on a part, in the shader. A far version shows none of them. */
-export const PATTERNS = ["plain", "rapakivi", "boards", "birch", "fleece", "leaf", "straw"] as const;
+export const PATTERNS = ["plain", "rapakivi", "boards", "birch", "fleece", "leaf", "straw", "hide"] as const;
 export type Pattern = (typeof PATTERNS)[number];
 
 /** Each part's paint: a token, or two mixed, then a brightness, and the pattern it wears. All colour comes from the game's tokens. */
@@ -64,9 +64,19 @@ export const PAINT = {
   "tractor-glass": { from: "car-glass", to: "sky", share: 0.3 },
   lamp: { from: "car-lamp" },
   tyre: { from: "car-tyre", gain: 1.2 },
-  wool: { from: "wall-cream", to: "wall-trim", share: 0.5, gain: 0.92, pattern: "fleece" },
-  "wool-dark": { from: "wall-grey", to: "wall-plinth", share: 0.6, gain: 0.85, pattern: "fleece" },
+  // An Åland sheep's coat runs from the first to the second by a roll per place (`coatOf`, `material.ts`).
+  wool: { from: "wall-pale", to: "wall-trim", share: 0.45, gain: 0.95, pattern: "fleece" },
+  "wool-dark": { from: "wall-plinth", to: "wall-grey", share: 0.15, gain: 0.42, pattern: "fleece" },
   "sheep-face": { from: "wall-plinth", to: "wall-door", share: 0.4, gain: 0.7 },
+  horn: { from: "wall-cream", to: "wall-door", share: 0.45, gain: 0.8 },
+  // A dairy cow's hide is white with patches the material lays per place, red-brown or black by its roll (`hideOf`, `material.ts`).
+  hide: { from: "wall-trim", to: "wall-cream", share: 0.25, gain: 0.9, pattern: "hide" },
+  "hide-white": { from: "wall-trim", to: "wall-cream", share: 0.25, gain: 0.9 },
+  "hide-red": { from: "brick-red", to: "wall-door", share: 0.35, gain: 0.85 },
+  "hide-black": { from: "wall-plinth", to: "car-tyre", share: 0.5, gain: 0.55 },
+  muzzle: { from: "villa-rose", to: "wall-plinth", share: 0.45, gain: 0.8 },
+  udder: { from: "villa-rose", to: "render-salmon", share: 0.3, gain: 0.95 },
+  hoof: { from: "wall-plinth", to: "car-tyre", share: 0.4, gain: 0.7 },
   log: { from: "wall-cream", to: "wall-door", share: 0.3, gain: 1.05 },
   "log-end": { from: "wall-cream", to: "wall-yellow", share: 0.3, gain: 1.05 },
 } as const satisfies Record<string, { from: string; to?: string; share?: number; gain?: number; pattern?: Pattern }>;

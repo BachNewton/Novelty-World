@@ -27,12 +27,17 @@ export function decodeModels(file: ModelsFile): TileModels {
  * stops no car: nothing in the game can knock one over or shove it aside, and one stopping the car dead at speed
  * would read worse than one passed through, as a mailbox would. It grazes away from the roads in any case.
  */
-export const FARM_MODELS = ["bale-wrapped", "bale-hay", "tractor", "sheep-grazing", "sheep-standing", "sheep-grazing-grey", "sheep-standing-grey"] as const;
+export const FARM_MODELS = ["bale-wrapped", "bale-hay", "tractor", "sheep-grazing", "sheep-standing", "cow-grazing", "cow-standing", "cow-lying"] as const;
+/** A cow's foot, as the kit's `COW` has it (the worker has no art, so a test holds the two equal). A cow is the size and weight of a small car, so like a parked car it stops the car. */
+export const COW_BOX = [-0.36, -0.95, 0.36, 1.52] as const;
 /** What the car can't pass of each prop that stops it: its foot as a box in the kit's metres, x and z from and to. */
 const PROP_BOXES: Record<string, readonly [number, number, number, number]> = {
   "bale-wrapped": [-0.6, -0.72, 0.6, 0.72],
   "bale-hay": [-0.6, -0.72, 0.6, 0.72],
   tractor: [-1.12, -1.75, 1.12, 1.62],
+  "cow-grazing": COW_BOX,
+  "cow-standing": COW_BOX,
+  "cow-lying": COW_BOX,
 };
 
 /** A windmill's place in `tile.json` (`pipeline/farm.py`): x, y, z, yaw, then its body's outline across and along. */
