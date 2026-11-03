@@ -141,7 +141,7 @@ function turned(rings: number, sides: number, pointed: boolean): BufferGeometry 
     for (let side = 0; side < across; side++) {
       // Each ring turns a little from the last and swells unevenly, so a tree isn't a lathe's.
       const angle = ((side % sides) + level * 0.37) * ((2 * Math.PI) / sides);
-      const swell = 1 + SWELL * Math.sin(side * 2.4 + level * 1.7);
+      const swell = 1 + SWELL * Math.sin((side % sides) * 2.4 + level * 1.7);
       positions.push(Math.sin(angle) * swell, level, Math.cos(angle) * swell);
       if (level > 0 && side < sides) {
         const here = level * across + side;
