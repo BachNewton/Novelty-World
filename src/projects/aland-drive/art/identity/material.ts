@@ -1,10 +1,11 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, fract, int, mix, mod, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, vec2, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, cos, dot, float, floor, fract, int, mix, mod, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, vec2, vec3 } from "three/tsl";
 import type { RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
 import type { StreetInputs } from "../street/index";
 import { AFLOAT_UNIT, IDENTITY_PARTS, PAINT, PATTERNS, type Pattern } from "./mesh";
 import "./tokens.css";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The street kit's two materials with this kit's palette: the same instance layout,
@@ -66,8 +67,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   }));
   const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
 
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), up.mul(fit.x))), float(1), afloat);
 

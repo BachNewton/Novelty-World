@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import os
+import time
 from multiprocessing import get_context
 from pathlib import Path
 
@@ -34,6 +35,8 @@ import rocks
 import stands
 import terrain
 import vectors
+import raised
+from give_way import give_way
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
 from sources import buildings3d_path, dem_path, osm_path
@@ -63,6 +66,8 @@ ATTRIBUTION = [
 
 def encode_heights(nodes: np.ndarray) -> bytes:
     """Whole units as int16, each row as differences along itself, gzipped."""
+    if not np.isfinite(nodes).all():
+        raise ValueError(f"{int((~np.isfinite(nodes)).sum())} heights aren't numbers, first at node (row, column) {np.argwhere(~np.isfinite(nodes))[0].tolist()}")
     # In double precision whatever the array's type: two tiles round their shared row alike only if they divide alike.
     units = np.round(np.asarray(nodes, dtype=np.float64) / HEIGHT_UNIT_M).astype(np.int32)
     if units.min() < -32768 or units.max() > 32767:
@@ -147,9 +152,16 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     surface_manifest = None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
+    openings = []
+    lifts = None
+    sites = landmark_sites.Landmarks(tile)
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
+        lifts = raised.Lookup(raised.read(osm_file))
+        meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
+        roads, openings = meetings.roads, meetings.openings
+        print(f"  {meetings.stopped} road parts stop at a building, {len(openings)} pass through one, {meetings.pushed} pushed clear of one beside them")
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
         compact = {"ensure_ascii": False, "separators": (",", ":")}
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
@@ -159,7 +171,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         ribbons = []
         aprons = []
         if roads:
-            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile))
+            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile), vectors.whole_lines(osm_file))
             conformed = surface.conformed
             if not all(np.array_equal(conformed[edge], raw[edge]) for edge in ((0, ...), (-1, ...), (..., 0), (..., -1))):
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
@@ -226,8 +238,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     photo = ground_colour.graded(raw_photo)
     above = laser.above_ground(tile)
     placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
-    sites = landmark_sites.Landmarks(tile)
-    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites)
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites, openings, lifts, roads)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
@@ -329,12 +340,41 @@ def tiles_with_new_sheets() -> list[str]:
     return stale
 
 
-def build_named(name: str, refresh_osm: bool = False) -> None:
+def build_named(name: str, refresh_osm: bool = False) -> str:
     tile = tile_from_name(name)
     if dem_path(tile) is None:
         print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
-        return
+        return name
     build_tile(tile, refresh_osm)
+    return name
+
+
+def _build_named(job: tuple[str, bool]) -> str:
+    return build_named(*job)
+
+
+def _clock(seconds: float) -> str:
+    return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
+
+
+def build_all(names: list[str], jobs: int, refresh_osm: bool) -> None:
+    """Every tile named, a line saying how far the build is as each one finishes. The time left is the pace so far, and the
+    island's road tiles come first and build slowest, so early on it overestimates."""
+    started = time.monotonic()
+    work = [(name, refresh_osm) for name in names]
+
+    def finished(done: int, name: str) -> None:
+        spent = time.monotonic() - started
+        left = spent / done * (len(names) - done)
+        print(f"[{done}/{len(names)}] {name} done, {_clock(spent)} in, about {_clock(left)} left", flush=True)
+
+    if jobs > 1:
+        with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+            for done, name in enumerate(pool.imap_unordered(_build_named, work), start=1):
+                finished(done, name)
+    else:
+        for done, job in enumerate(work, start=1):
+            finished(done, _build_named(job))
 
 
 def main() -> None:
@@ -352,12 +392,7 @@ def main() -> None:
     if arguments.new_building_sheets:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
-    if arguments.jobs > 1:
-        with get_context("spawn").Pool(arguments.jobs, maxtasksperchild=1) as pool:
-            pool.starmap(build_named, [(name, arguments.refresh_osm) for name in names], chunksize=1)
-    else:
-        for name in names:
-            build_named(name, arguments.refresh_osm)
+    build_all(names, arguments.jobs, arguments.refresh_osm)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

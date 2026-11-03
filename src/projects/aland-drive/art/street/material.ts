@@ -1,7 +1,8 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The same instance layout as the roadside kit, so `placeModel` places these
@@ -139,8 +140,7 @@ function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: 
   // No two trees or tufts are quite the one green.
   const base = select(kindIs(kind, "leaf"), painted.mul(mix(float(0.88), float(1.1), roll)), painted);
 
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   return base.mul(lit.mul(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot))));
 }

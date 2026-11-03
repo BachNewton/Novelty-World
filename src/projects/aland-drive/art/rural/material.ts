@@ -1,9 +1,10 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside/index";
 import { band } from "../surfaces";
 import { BRACES, GABLE_PAINTS, TRIM_WIDTHS } from "./buildings";
 import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPart } from "./mesh";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The rural kit's two materials, read by `placeModel` as the roadside kit's are: the
@@ -201,9 +202,8 @@ function ruralLight(sun: RoadsideInputs["sun"]) {
   const azimuth = (sun.azimuthDeg * Math.PI) / 180;
   const elevation = (sun.elevationDeg * Math.PI) / 180;
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  return { facing, lit: float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)) };
+  const normal = flatNormal();
+  return { normal, lit: float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)) };
 }
 
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
@@ -242,7 +242,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
 
-  const { facing, lit } = ruralLight(sun);
+  const { normal, lit } = ruralLight(sun);
   const foot = up.mul(fit.x);
   const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot)), float(1), tint.a);
 
@@ -254,7 +254,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
         const at = metres.add(roll.mul(37));
         const away = positionWorld.sub(cameraPosition).length();
         If(kind.equal(pattern("rapakivi")), () => {
-          painted.assign(rapakivi(inputs, base, at, away, abs(facing.y), foot));
+          painted.assign(rapakivi(inputs, base, at, away, abs(normal.y), foot));
         })
           .ElseIf(kind.equal(pattern("boards")), () => {
             painted.assign(boards(base, metres, away));
