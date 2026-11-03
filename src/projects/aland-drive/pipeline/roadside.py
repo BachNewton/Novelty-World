@@ -29,6 +29,7 @@ import json
 import math
 import os
 from dataclasses import dataclass
+from multiprocessing import get_context
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,7 @@ from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES
+from progress import Progress
 from sources import osm_path, osm_roadside_path
 from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 
@@ -762,14 +764,28 @@ def replace_text(path: Path, text: str) -> None:
     os.replace(temporary, path)
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
-    """Adds the roadside to built tiles. Run once every tile is built: a pole by an edge stands on its neighbour's ground."""
-    for name in names:
-        folder = tiles / name
-        entry = bake(tile_from_name(name), folder, tiles)
-        manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-        replace_text(folder / "tile.json", json.dumps({**manifest, "roadside": entry}, ensure_ascii=False, indent=2))
-        print(name, entry["count"])
+def bake_named(job: tuple[str, Path]) -> str:
+    """Adds the roadside to one built tile, reading its neighbours' ground and writing only its own files."""
+    name, tiles = job
+    folder = tiles / name
+    entry = bake(tile_from_name(name), folder, tiles)
+    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
+    replace_text(folder / "tile.json", json.dumps({**manifest, "roadside": entry}, ensure_ascii=False, indent=2))
+    return name
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
+    """Adds the roadside to built tiles. Run once every tile is built: a pole by an edge stands on its neighbour's ground.
+    A tile writes only its own files, so tiles go side by side, a core each."""
+    progress = Progress("roadside", len(names))
+    work = [(name, tiles) for name in names]
+    if jobs > 1:
+        with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+            for name in pool.imap_unordered(bake_named, work):
+                progress.finished(name)
+    else:
+        for job in work:
+            progress.finished(bake_named(job))
 
 
 def with_neighbours(names: list[str], tiles: Path) -> list[str]:
@@ -782,8 +798,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("tiles", nargs="*", help="NLS sheet names, such as L2343C; every built tile if none")
     parser.add_argument("--folder", type=Path, default=Path(__file__).resolve().parent.parent / ".data" / "tiles", help="where the built tiles are")
+    parser.add_argument("--jobs", type=int, default=1, help="tiles placed side by side, on a core each")
     arguments = parser.parse_args()
-    bake_tiles(arguments.tiles or sorted(path.parent.name for path in arguments.folder.glob("*/tile.json")), arguments.folder)
+    bake_tiles(arguments.tiles or sorted(path.parent.name for path in arguments.folder.glob("*/tile.json")), arguments.folder, arguments.jobs)
 
 
 if __name__ == "__main__":

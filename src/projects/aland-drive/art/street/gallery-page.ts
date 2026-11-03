@@ -363,8 +363,6 @@ window.__streetGallery = {
     bin: triangles(bin),
     "bike rack": triangles(rack),
     "café set": triangles(cafe),
-    "café table": triangles(cafeTable),
-    "café chair": triangles(cafeChair),
     parasol: triangles(parasol),
     planter: triangles(planter),
     "planter, round": triangles(round),

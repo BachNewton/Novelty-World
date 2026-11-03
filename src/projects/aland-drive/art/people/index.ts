@@ -1,4 +1,4 @@
-export { bakeCrowd, specOf, WALK_SPEED_M_S, type Crowd, type PlacedFigure } from "./crowd";
+export { bakeCrowd, bakeCrowdArrays, crowdBuffers, crowdOf, specOf, WALK_SPEED_M_S, type Crowd, type CrowdArrays, type PlacedFigure } from "./crowd";
 export { buildFar, buildNear } from "./body";
 export { cyclist, rollFigure, sailor, worker, type FigureSpec, type HairStyle, type Hat, type Outfit } from "./figure";
 export { crowdMeshes, PEOPLE_REACH_M, PEOPLE_SWAP_M, peopleMaterials, type PeopleInputs, type PeopleMaterials } from "./material";

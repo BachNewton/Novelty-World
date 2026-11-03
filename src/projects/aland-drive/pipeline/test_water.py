@@ -28,7 +28,7 @@ class Seabed(unittest.TestCase):
     def setUp(self):
         self.mosaic = coast()
         self.flat = terrain.flat_water(self.mosaic)
-        self.water = terrain.water_around(self.flat)
+        self.water = terrain.water_around(self.flat, self.mosaic)
         self.corners = terrain.tile_corners(terrain.sample_corners(self.mosaic))
         self.levels = terrain.water_levels(self.mosaic, self.flat)
         self.untouched = np.ones(self.corners.shape, bool)
@@ -65,6 +65,37 @@ class Seabed(unittest.TestCase):
         # The flat water itself stops a sample short of the shore: the flatness test loses the cell next to it.
         np.testing.assert_allclose(row[: self.shore_column + reach - 2], drawn, atol=1e-6)
         self.assertTrue((row[self.shore_column + reach + 1 :] == terrain.DRY_LEVEL_M).all())
+
+
+class SeaLevels(unittest.TestCase):
+    """The model writes patches of the sea a few centimetres apart in level; none of the seams between them is land."""
+
+    def setUp(self):
+        size = 200
+        rows, columns = self.rows, self.columns = np.mgrid[:size, :size]
+        self.mosaic = np.where(rows > columns, SEA_M, SEA_M + 0.02).astype(np.float32)
+        # Where two levels meet the model leaves a line flat to neither, here on the diagonal.
+        self.mosaic[rows == columns] = SEA_M + 0.011
+        # A thin strip of the sea at a level of its own, as a map sheet's edge leaves one: under a hectare.
+        self.wedge = (abs(rows - 160) < 3) & (abs(columns - 120) < 40)
+        self.mosaic[(abs(rows - 160) < 4) & (abs(columns - 120) < 41)] = SEA_M - 0.01
+        self.mosaic[self.wedge] = SEA_M - 0.03
+        # A low skerry: real ground, never flat, a little above the sea.
+        self.skerry = (abs(rows - 40) < 5) & (abs(columns - 150) < 5)
+        self.mosaic[self.skerry] = SEA_M + 0.25 + 0.01 * (rows[self.skerry] % 3)
+        self.water = terrain.water_mask(self.mosaic)
+
+    def test_the_line_between_two_levels_is_water_even_on_a_diagonal(self):
+        inner = np.eye(200, dtype=bool)
+        inner[:10], inner[-10:] = False, False
+        self.assertTrue(self.water[inner].all())
+
+    def test_a_patch_too_small_to_count_alone_is_water_beside_the_sea(self):
+        self.assertTrue(self.water[self.wedge].all())
+
+    def test_a_low_skerry_stays_land(self):
+        within_its_shore = (abs(self.rows - 40) < 4) & (abs(self.columns - 150) < 4)
+        self.assertFalse(self.water[within_its_shore].any())
 
 
 if __name__ == "__main__":

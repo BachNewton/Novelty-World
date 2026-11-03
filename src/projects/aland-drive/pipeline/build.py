@@ -10,7 +10,6 @@ import gzip
 import hashlib
 import json
 import os
-import time
 from multiprocessing import get_context
 from pathlib import Path
 
@@ -40,7 +39,10 @@ import terrain
 import vectors
 import raised
 import walls
+import seated
+import waterfront
 from give_way import give_way
+from progress import Progress, stage
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
 from sources import buildings3d_path, dem_path, osm_path
@@ -153,7 +155,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
 
     mosaic = terrain.read_with_rim(tile)
     flat_water = terrain.flat_water(mosaic)
-    water_with_rim = terrain.water_around(flat_water)
+    water_with_rim = terrain.water_around(flat_water, mosaic)
     water = water_with_rim[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES]
 
     west, south = to_local(tile.west, tile.south)
@@ -333,8 +335,11 @@ def write_world(output: Path = OUTPUT) -> dict:
     manifests = [json.loads((folder / "tile.json").read_text(encoding="utf-8")) for folder in sorted(output.iterdir()) if (folder / "tile.json").exists()]
     digest = hashlib.sha256()
     first = manifests[0]
+    stage("world: the overview")
     overview_manifest = overview.build(output, manifests, TILE_SIZE_M, HEIGHT_UNIT_M)
+    stage("world: the road map")
     map_manifest = road_map.build(output, [manifest["tile"] for manifest in manifests])
+    stage(f"world: the version, from every file of {len(manifests)} tiles")
     for path in sorted(path for path in output.rglob("*") if path.is_file() and path.name not in NOT_IN_VERSION):
         digest.update(path.relative_to(output).as_posix().encode())
         digest.update(path.read_bytes())
@@ -386,28 +391,20 @@ def _build_named(job: tuple[str, bool]) -> str:
     return build_named(*job)
 
 
-def _clock(seconds: float) -> str:
-    return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
-
-
 def build_all(names: list[str], jobs: int, refresh_osm: bool) -> None:
     """Every tile named, a line saying how far the build is as each one finishes. The time left is the pace so far, and the
-    island's road tiles come first and build slowest, so early on it overestimates."""
-    started = time.monotonic()
+    island's road tiles come first and build slowest, so early on it overestimates. It counts the tiles only: the roadside
+    and the world come after, each with lines of its own."""
+    progress = Progress("tiles", len(names))
     work = [(name, refresh_osm) for name in names]
-
-    def finished(done: int, name: str) -> None:
-        spent = time.monotonic() - started
-        left = spent / done * (len(names) - done)
-        print(f"[{done}/{len(names)}] {name} done, {_clock(spent)} in, about {_clock(left)} left", flush=True)
 
     if jobs > 1:
         with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
-            for done, name in enumerate(pool.imap_unordered(_build_named, work), start=1):
-                finished(done, name)
+            for name in pool.imap_unordered(_build_named, work):
+                progress.finished(name)
     else:
-        for done, job in enumerate(work, start=1):
-            finished(done, _build_named(job))
+        for job in work:
+            progress.finished(_build_named(job))
 
 
 def main() -> None:
@@ -426,7 +423,9 @@ def main() -> None:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm)
-    roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
+    waterfront.bake_tiles(names, OUTPUT)
+    seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 
