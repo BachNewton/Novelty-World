@@ -1,10 +1,11 @@
 import { DoubleSide, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4 } from "three/tsl";
 import type { RoadsideInputs } from "../roadside/material";
 import type { Crowd } from "./crowd";
 import { PARTS } from "./parts";
 import { DRIVES, ROCK_MAX_DEGREES, ROCK_MAX_RATE, type Drive } from "./soup";
 import "./tokens.css";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The light and haze of every other object, on a body that moves in the shader: a
@@ -120,8 +121,7 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMat
 
   const palette = uniformArray(PARTS.map((part) => inputs.linear(part)));
   const painted = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(uniform(toSunOf(inputs.sun))).max(0).mul(SUN_SHARE));
   const grounded = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), positionWorld.y.sub(place.y)));
   material.colorNode = inputs.hazed(painted.mul(lit.mul(grounded)));

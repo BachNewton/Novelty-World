@@ -84,7 +84,11 @@ class Landmarks:
 
     def plans(self) -> list[Polygon]:
         """The own sites' plans, part by part: walls for the car."""
-        return [part for site in self.own for part in shapely.get_parts(site.plan) if part.geom_type == "Polygon"]
+        return _parts(self.own)
+
+    def plans_near(self) -> list[Polygon]:
+        """Every plan within reach of the tile, its neighbours' too, for what a road meets."""
+        return _parts(self.near)
 
     def places(self, ground) -> list[dict]:
         """The own sites as the game reads them: the model, and its origin in the scene. `ground.at` reads heights in scene metres."""
@@ -97,3 +101,7 @@ class Landmarks:
 
     def report(self) -> str:
         return ", ".join(f"{site} {len(names)} ({' '.join(names)})" if names else f"{site} nothing" for site, names in self.replaced.items())
+
+
+def _parts(sites: list[Site]) -> list[Polygon]:
+    return [part for site in sites for part in shapely.get_parts(site.plan) if part.geom_type == "Polygon"]

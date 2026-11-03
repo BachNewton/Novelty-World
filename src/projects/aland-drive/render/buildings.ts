@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Texture } from "three/webgpu";
-import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, Fn, fract, fwidth, If, int, max, mix, normalize, positionWorld, round, select, smoothstep, step, uniform, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniform, uniformArray, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
+import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
 import { facadeArt } from "../art/facades/facade";
 import { PAINT_STYLE } from "../art/landmarks/kit";
@@ -126,12 +127,10 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   const eaves = facade.w;
   const style = round(tint.a.mul(255));
 
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const towardsCamera = cameraPosition.sub(positionWorld);
-  const normal = select(facing.dot(towardsCamera).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const photoRoof = vec3(tint.r, tint.g, tint.b).pow(vec3(2.2)).mul(1.15);
-  const roof = roofDetail({ base: photoRoof, position: positionWorld, normal, toSun, moss: colour("surface-roof-moss"), detail: art.detail });
+  const roof = roofDetail({ base: photoRoof, across: facade.x, upSlope: facade.y, position: positionWorld, normal, toSun, moss: colour("surface-roof-moss"), detail: art.detail });
 
   // Every shape on a wall is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
   // average rather than fading out: only lines too fine to draw fade, and they fade to their own average. A wall pays
