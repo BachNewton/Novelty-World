@@ -1,7 +1,8 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { atomicAdd, atomicStore, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, normalize, positionWorld, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
+import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 import { FAR_RINGS, FAR_TABLE, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, type TreeKind } from "./tree-shapes";
+import { foliageLight, towardsSun } from "./foliage-light";
 import { viewSides } from "./view-sides";
 
 /*
@@ -100,20 +101,12 @@ const ROLL_STEPS = 256;
 const AMONG_KEPT = 0.98;
 
 /*
- * A tree's light. Each face is lit by which way it points: the sun, wrapped a little
- * round so a crown's shaded side still has form, and the sky, brightest on a face
- * looking up. Then the crown shades itself: dark at its base and between its tiers,
- * lit at its top, and darker still among other trees than standing alone. A tree's
- * own brightness and a touch of its hue are rolled, so no two in a stand are alike.
+ * A tree's light is its leaves' (`foliage-light.ts`), from the crown's direction as a
+ * whole: out from its middle. Then the crown shades itself: dark at its base and
+ * between its tiers, lit at its top, and darker still among other trees than standing
+ * alone. A tree's own brightness and a touch of its hue are rolled, so no two in a
+ * stand are alike.
  */
-const SUN_SHARE = 0.95;
-const SUN_WRAP = 0.3;
-const SKY_SHARE: [down: number, up: number] = [0.42, 0.92];
-/** Broadleaf crowns let the sun through: looking towards it, their edges glow. */
-const BACKLIGHT = 0.4;
-const BACKLIGHT_FOCUS = 3;
-/** A face's own direction, against a crown's as a whole: from its middle out, so a low-poly crown is still lit as one round mass. */
-const FACET_SHARE = 0.5;
 const CROWN_MIDDLE = 0.4;
 const ROUNDNESS = 1.6;
 const CROWN_BASE_LIGHT = 0.72;
@@ -256,9 +249,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   const placesAcross = uniform(1, "uint");
   const view = viewSides(WORLD_HEIGHTS_M, WIDEST_CROWN_M);
   const { sides } = view;
-  const sunWay = (sun.azimuthDeg * Math.PI) / 180;
-  const sunUp = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = vec3(Math.sin(sunWay) * Math.cos(sunUp), Math.sin(sunUp), -Math.cos(sunWay) * Math.cos(sunUp));
+  const toSun = towardsSun(sun);
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
@@ -404,20 +395,13 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const bark = ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") });
     const hue = varying(fract(treeRoll.mul(7.31)).sub(0.5).mul(2 * HUE_ROLL));
     const natural = mix(bark, leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), leafy);
-    const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-    const facet = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
     const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
     const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
-    const normal = normalize(mix(normalize(rounded), facet, FACET_SHARE));
-    const sunLight = normal.dot(toSun).add(SUN_WRAP).div(1 + SUN_WRAP).max(0).mul(SUN_SHARE);
-    const skyLight = mix(float(SKY_SHARE[0]), float(SKY_SHARE[1]), normal.y.mul(0.5).add(0.5));
-    const fromCamera = normalize(positionWorld.sub(cameraPosition));
-    const edgeOn = float(1).sub(normal.dot(fromCamera).abs());
+    // Birch and broadleaf let the sun through; conifers don't.
     const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy, float(0));
-    const backlight = fromCamera.dot(toSun).max(0).pow(BACKLIGHT_FOCUS).mul(mix(float(0.4), float(1), edgeOn)).mul(seeThrough).mul(BACKLIGHT);
     const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
     const ownShade = varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
-    const shaded = sunLight.add(skyLight).add(backlight).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
+    const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
     material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y));

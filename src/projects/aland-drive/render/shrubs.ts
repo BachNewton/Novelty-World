@@ -3,6 +3,7 @@ import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, scre
 import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
+import { foliageLight, towardsSun } from "./foliage-light";
 import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
@@ -55,8 +56,20 @@ const GROUND_SHARE = 0.1;
 /** A plant turns from its own colour towards the photo's between these. */
 const MATCHES = [250, 700] as const;
 
-/** How much brighter a plant's sunny side is than its middle, and its shaded side darker. */
-const SUN_SIDE = 0.2;
+/*
+ * A plant's light is the forest's (`foliage-light.ts`), from its direction as a whole:
+ * out from its middle, so a bush turns from light to shade as one mass. Then it shades
+ * itself, darker at its foot than its top, as a tree standing alone does, and each
+ * rolls its own brightness and a touch of its hue. Leaves that let the sun through glow
+ * at their edges looking towards it; a juniper's needles don't. On the whole a plant is
+ * as bright as under the old flat shading, so it still meets the photo it turns to far off.
+ */
+const MIDDLE = 0.45;
+const ROUNDNESS = 1.4;
+const FOOT_LIGHT = 0.87;
+const TOP_LIGHT = 1.05;
+const BRIGHTNESS_ROLL = [0.86, 1.12] as const;
+const HUE_ROLL = 0.07;
 
 const ROWS = 3;
 const BANDS = 5;
@@ -116,8 +129,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   ];
   const [HAZEL, , SALLOW, JUNIPER, , BIRCH] = [0, 1, 2, 3, 4, 5];
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const toSun = vec2(Math.sin(azimuth), -Math.cos(azimuth));
+  const toSun = towardsSun(sun);
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
@@ -192,10 +204,15 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
       const painted = isFar ? (bandsOf.element(int(live.w.mul(BANDS).add(band))) as unknown as Node<"vec3">) : paint;
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
-      // As the forest lights a tree: its own shade by height, and its sunny side a little brighter, smooth across each vertex.
-      const radial = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin)));
-      const lit = varying(dot(normalize(radial.add(vec2(1e-4, 0))), toSun).mul(SUN_SIDE).add(1));
-      const coloured = mix(painted.mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
+      const radial = normalize(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).add(vec2(1e-4, 0)));
+      const up = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).clamp(0, 1);
+      const rounded = varying(vec3(radial.x, up.sub(MIDDLE).mul(ROUNDNESS), radial.y));
+      const seeThrough = select(kind.equal(JUNIPER).or(kind.equal(JUNIPER + 1)), float(0), float(1));
+      const plantRoll = fract(standing.w.mul(7.31));
+      const ownShade = varying(mix(float(FOOT_LIGHT), float(TOP_LIGHT), up).mul(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), plantRoll)));
+      const hue = varying(fract(plantRoll.mul(3.17)).sub(0.5).mul(2 * HUE_ROLL));
+      const lit = foliageLight(toSun, rounded, seeThrough).mul(ownShade);
+      const coloured = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))).mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
