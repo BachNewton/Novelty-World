@@ -3,7 +3,7 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildPier, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
-import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeChair, buildCafeSet, buildCafeTable, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, parkedCarMaterial, parkingBays, placeParkedCars, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
+import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeChair, buildCafeSet, buildCafeTable, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
 
 /*
  * The gallery's scene, built as the roadside gallery's is (its page has no exports:
@@ -56,7 +56,6 @@ const scene = new Scene();
 const camera = new PerspectiveCamera(FIELD_OF_VIEW, WIDTH / HEIGHT, 0.25, 40000);
 const materials = streetMaterials(inputs);
 const roadside = roadsideMaterials(inputs);
-const parkedMaterial = parkedCarMaterial(inputs);
 const add = (model: RoadsideModel, places: Placement[]) => {
   const meshes = placeModel(model, places, materials);
   scene.add(...meshes);
@@ -210,14 +209,6 @@ look("midsummer", "midsummer pole", station(9), [-14, 1.5, 1.5], [0, 8.4, VERGE_
 look("midsummer-top", "its crossbar and rings", station(9), [-10, 1.5, 6], [0, 11, VERGE_Z - 6], 32);
 look("midsummer-far", "far version, 170 m", station(9), [-165, 1.5, 2], [0, 7, VERGE_Z - 6], 9);
 
-// 10: parked cars, a car park and a kerb.
-const parkingCars = [
-  ...parkingBays({ x: station(10) - 30, y: 0, z: -12 }, { x: station(10) + 30, y: 0, z: -12 }, { bayM: 2.7, fill: 0.72, seed: 3, nose: "in" }),
-  ...parkingBays({ x: station(10) - 30, y: 0, z: 4.6 }, { x: station(10) + 30, y: 0, z: 4.6 }, { bayM: 6.2, fill: 0.7, seed: 8, nose: "kerbside" }),
-];
-scene.add(...placeParkedCars(parkingCars, parkedMaterial));
-look("parked", "parked cars, seeded", station(10), [-34, 1.4, 1.2], [8, 0.9, -7], 44);
-
 // 12: harbour, on a pier and the water past the land's end.
 const harbourX = LAND_END_X + 24;
 const quayZ = -10;
@@ -256,16 +247,9 @@ town.flag = [buildFlagpole("aland"), rowAlong(streetLine, 90, 12).map((spot) => 
 const streetLamps = rowAlong(streetLine, 32, kerb + 1.6);
 const townMeshes: Mesh[] = [];
 for (const [model, places] of Object.values(town)) townMeshes.push(...add(model, places));
-const streetCars = [
-  ...parkingBays({ x: streetX, y: 0, z: 4.5 }, { x: streetX + STREET_M, y: 0, z: 4.5 }, { bayM: 6.2, fill: 0.8, seed: 18, nose: "kerbside" }),
-  ...parkingBays({ x: streetX + STREET_M, y: 0, z: -4.5 }, { x: streetX, y: 0, z: -4.5 }, { bayM: 6.2, fill: 0.8, seed: 19, nose: "kerbside" }),
-];
-const carMeshes = placeParkedCars(streetCars, parkedMaterial);
-scene.add(...carMeshes);
-townMeshes.push(...carMeshes);
 const lampMeshes = placeModel(buildStreetLamp(), streetLamps, roadside);
 scene.add(...lampMeshes);
-const counted = Object.values(town).reduce((sum, [, places]) => sum + places.length, 0) + streetCars.length;
+const counted = Object.values(town).reduce((sum, [, places]) => sum + places.length, 0);
 const streetEye = { x: streetX + 200, z: 0.6 };
 look("street", `town street, ${counted} objects`, streetX, [200, 1.3, 0.6], [320, 3.4, 0.2], 60);
 look("street-high", "the same, from a chase height", streetX, [150, 2.15, 1.2], [230, 2.8, 2], 62);
@@ -344,7 +328,6 @@ declare global {
   }
 }
 
-const parkedTriangles = (carMeshes as Mesh[]).map((mesh) => mesh.geometry.getAttribute("position").count / 3);
 window.__streetGallery = {
   shots,
   budget,
@@ -379,6 +362,6 @@ window.__streetGallery = {
     "harbour crane": triangles(crane),
     sailboat: triangles(boat),
   },
-  street: { objects: counted, ...Object.fromEntries(Object.entries(town).map(([name, [, places]]) => [name, places.length])), cars: streetCars.length, lamps: streetLamps.length, ...Object.fromEntries(parkedTriangles.map((value, index) => [`car model ${index} triangles`, value])) },
+  street: { objects: counted, ...Object.fromEntries(Object.entries(town).map(([name, [, places]]) => [name, places.length])), lamps: streetLamps.length },
   ready: true,
 };

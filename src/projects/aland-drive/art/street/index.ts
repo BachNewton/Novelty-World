@@ -4,7 +4,6 @@ export { buildBollard, buildHarbourCrane, buildSailboat } from "./harbour";
 export { buildLinden } from "./linden";
 export { streetColours, streetMaterials, streetPaint, streetPalette, type StreetInputs, type StreetMaterials } from "./material";
 export { buildMidsummerPole } from "./midsummer";
-export { parkedCarMaterial, parkingBays, placeParkedCars, type ParkedCar } from "./parked";
 export { STREET_PARTS, type StreetPart } from "./paint";
 export { rowAlong, runSections, scatterVerge, shareOut, treeRow, yawAlong, type HeightAt, type LinePoint, type TreeRow, type VergeScatter } from "./place";
 export { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, buildSpeedCamera, GUARD_RAIL_M } from "./road";

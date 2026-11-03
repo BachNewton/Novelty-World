@@ -30,6 +30,7 @@ import laser
 import docks
 import outbuildings
 import overview
+import parking
 import road_map
 import roads as road_surface
 import roadside
@@ -424,6 +425,8 @@ def main() -> None:
     build_all(names, arguments.jobs, arguments.refresh_osm)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     waterfront.bake_tiles(names, OUTPUT)
+    # After the roadside, whose lamps and signs the cars keep clear of.
+    parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

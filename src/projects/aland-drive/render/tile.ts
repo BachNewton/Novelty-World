@@ -35,6 +35,8 @@ export interface TileManifest {
   roadside?: { file: string };
   /** People, a file for each pipeline module that places them (`pipeline/people.py`). A tile with none has none. */
   people?: Record<string, { file: string }>;
+  /** Cars parked in car parks and at kerbs. A tile built before them has none. */
+  parked?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */

@@ -229,7 +229,8 @@ export interface WorldTierOptions extends Pick<CarMaterialOptions, "sun" | "haze
  * `paint`, and `look` (height, whether it has the rack, whether the plate's band)
  * are per instance. Nothing is on the CPU: the world tier folds away past the
  * swap, the distant one before it and past the reach, and they meet in a dither
- * where each keeps the pixels the other drops, so a car never pops.
+ * where each keeps the pixels the other drops, so a car never pops. The distant
+ * one dissolves the same way over the last of its reach.
  */
 export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierOptions) {
   const sky = skyOf(sun);
@@ -241,6 +242,7 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   const distance = place.xz.sub(cameraPosition.xz).length();
   const dissolveFrom = swapM * (1 - DISSOLVE_SHARE);
   const fade = smoothstep(float(dissolveFrom), float(swapM), distance);
+  const gone = smoothstep(float(reachM * (1 - DISSOLVE_SHARE)), float(reachM), distance);
   const noise = fract(fract(screenCoordinate.xy.dot(vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const isWorld = tier === "world";
@@ -257,7 +259,7 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(y.mul(look.x).mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
   material.colorNode = hazed ? hazed(finished) : finished;
-  material.opacityNode = select(isWorld ? fade.lessThanEqual(noise) : fade.greaterThan(noise), float(1), float(0));
+  material.opacityNode = select(isWorld ? fade.lessThanEqual(noise) : fade.greaterThan(noise).and(gone.lessThanEqual(noise)), float(1), float(0));
   material.alphaTestNode = float(0.5);
   return material;
 }
