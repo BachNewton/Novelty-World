@@ -341,6 +341,15 @@ class Land:
     def deep(self, points: np.ndarray) -> np.ndarray:
         return self.depth[self._index(points)]
 
+    def ground_over(self, shape: shapely.Geometry, top: float) -> shapely.Geometry:
+        """The 2 m cells under a shape whose ground stands at `top` or higher."""
+        west, south, east, north = shape.bounds
+        last = self.water.shape[0] - 1
+        c0, c1 = (int(np.clip((x - self.west) // SAMPLE_M, 0, last)) for x in (west, east))
+        r0, r1 = (int(np.clip((self.north - y) // SAMPLE_M, 0, last)) for y in (north, south))
+        rows, columns = np.nonzero(self.ground[r0 : r1 + 1, c0 : c1 + 1] >= top)
+        return shapely.union_all(shapely.box(self.west + (c0 + columns) * SAMPLE_M, self.north - (r0 + rows + 1) * SAMPLE_M, self.west + (c0 + columns + 1) * SAMPLE_M, self.north - (r0 + rows) * SAMPLE_M))
+
     def level_near(self, points: np.ndarray) -> float | None:
         """The drawn water's level round some points: from the median of the water samples within reach, the nearer reach first."""
         for reach in WATER_NEAR_M:
@@ -405,13 +414,15 @@ class Docks:
             if id(pier) in skipped or not self._owns(pier.shape):
                 continue
             kind = self._kind(pier, marina)
+            level = self.land.level_near(shapely.get_coordinates(pier.shape))
+            if level is None:
+                continue
             if pier.line is not None:
                 segments = _segments_of_line(pier.line, pier.width or WIDE_M[kind])
             else:
-                segments = _runs_of_outline(pier.outline)
-            level = self.land.level_near(np.array([point for start, end, _ in segments for point in (start, end)]))
-            if level is None:
-                continue
+                # Where a mapped quay is solid, the laser took its deck for ground: the ground draws that part, and a deck there would flicker through it.
+                outline = pier.outline if kind == "pontoon" else shapely.difference(pier.outline, self.land.ground_over(pier.outline, level + DECK_M[kind] - BURIED_M))
+                segments = _runs_of_outline(outline) if not outline.is_empty else []
             laid = [(*run, width) for start, end, width in segments if (run := self._trimmed(kind, start, end, width, level)) is not None]
             if not laid:
                 continue
@@ -437,7 +448,10 @@ class Docks:
         if kind == "pontoon":
             clear = self.land.wet(points) | (self.land.height(points) <= level + BURIED_M)
         else:
-            clear = self.land.height(points) < level + DECK_M[kind] - BURIED_M
+            # Across the deck's whole width: a wide quay's middle may be over the water and its edge on the ground.
+            side = np.array([-(end - start)[1], (end - start)[0]]) / length
+            offsets = np.linspace(-1, 1, max(2, int(math.ceil(width / SAMPLE_M)) + 1)) * (width / 2 - DECK_SLIVER_M)
+            clear = np.all([self.land.height(points + side * offset) < level + DECK_M[kind] - BURIED_M for offset in offsets], axis=0)
         if self.roads is not None:
             clear &= ~shapely.dwithin(self.roads, shapely.points(points), ROAD_CLEAR_M + width / 2)
         if self.decks is not None:

@@ -69,6 +69,16 @@ class Placing(unittest.TestCase):
         self.assertTrue(any(abs(abs(math.sin(yaw)) - math.sqrt(0.5)) < 0.05 for yaw, _ in long_runs))
         self.assertLess(len(docks.models["pier"]), 6)
 
+    def test_no_deck_lies_where_the_ground_stands_as_high(self):
+        # A quay mapped half over its own solid fill: the laser took the fill for ground, at the deck's height or above.
+        docks = Docks(TILE, land(), [], [])
+        docks.place([Pier(1, {"man_made": "pier"}, None, shapely.box(80, 20, 120, 50))], [], [])
+        runs = docks.models["pier"]
+        self.assertTrue(runs)
+        for x, _, z, yaw, width, length in runs:
+            deck = LineString([(x, -z), (x + math.cos(yaw) * length, -z + math.sin(yaw) * length)]).buffer(width / 2 - 0.2, cap_style="flat")
+            self.assertLess(deck.bounds[3], 40)
+
     def test_a_jetty_starts_where_its_deck_clears_the_land_and_sits_on_the_water(self):
         docks = Docks(TILE, land(), [], [])
         docks.place([pier([(100, 55), (100, 20)])], [], [])
