@@ -9,7 +9,9 @@ import type { Soup } from "./soup";
  * Every person placed is baked once into one buffer: a pose, a place, a seed, and the
  * shader does the rest. No two people need share a shape, and a crowd is three draws
  * however many are in it, with nothing on the CPU per figure, frame or walk cycle.
- * Nothing here needs a GPU or a page, so a tile's worker can bake its own.
+ * Nothing here needs a GPU or a page, so a tile's worker can bake its own: the bake is
+ * plain arrays (`bakeCrowdArrays`), which a worker hands over whole, and the meshes'
+ * geometry is only those arrays wrapped (`crowdOf`).
  */
 
 export interface PlacedFigure {
@@ -41,7 +43,13 @@ function gaitOf({ pose, seed, phase }: PlacedFigure, spec: FigureSpec): [number,
   return [at, STRIDE_RATE[spec.age] * (0.94 + roll * 0.12), stride];
 }
 
-function merged(soups: readonly Soup[], figures: readonly PlacedFigure[], specs: readonly FigureSpec[]): BufferGeometry {
+/** A mesh's attributes by name, each with its item size, and its triangles. */
+export interface CrowdPart {
+  attributes: Record<string, { array: Float32Array | Uint8Array; itemSize: number; normalized?: boolean }>;
+  index: Uint32Array;
+}
+
+function merged(soups: readonly Soup[], figures: readonly PlacedFigure[], specs: readonly FigureSpec[]): CrowdPart {
   const vertices = soups.reduce((sum, soup) => sum + soup.vertexCount, 0);
   const triangles = soups.reduce((sum, soup) => sum + soup.triangleCount, 0);
   const position = new Float32Array(vertices * 3);
@@ -74,20 +82,22 @@ function merged(soups: readonly Soup[], figures: readonly PlacedFigure[], specs:
     vertexAt += soup.vertexCount;
     indexAt += soup.indices.length;
   });
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(position, 3));
-  geometry.setAttribute("inner", new BufferAttribute(inner, 3));
-  geometry.setAttribute("outer", new BufferAttribute(outer, 3));
-  geometry.setAttribute("rig", new BufferAttribute(rig, 4, true));
-  geometry.setAttribute("tint", new BufferAttribute(tint, 4, true));
-  geometry.setAttribute("place", new BufferAttribute(place, 4));
-  geometry.setAttribute("gait", new BufferAttribute(gait, 3));
-  geometry.setIndex(new BufferAttribute(index, 1));
-  return geometry;
+  return {
+    attributes: {
+      position: { array: position, itemSize: 3 },
+      inner: { array: inner, itemSize: 3 },
+      outer: { array: outer, itemSize: 3 },
+      rig: { array: rig, itemSize: 4, normalized: true },
+      tint: { array: tint, itemSize: 4, normalized: true },
+      place: { array: place, itemSize: 4 },
+      gait: { array: gait, itemSize: 3 },
+    },
+    index,
+  };
 }
 
 /** A soft patch of shade on the ground under each person: two triangles, stretched along the body when they lie down. */
-function shadows(figures: readonly PlacedFigure[], specs: readonly FigureSpec[]): BufferGeometry {
+function shadows(figures: readonly PlacedFigure[], specs: readonly FigureSpec[]): CrowdPart {
   const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
   const position = new Float32Array(figures.length * 12);
   const corner = new Float32Array(figures.length * 8);
@@ -110,13 +120,15 @@ function shadows(figures: readonly PlacedFigure[], specs: readonly FigureSpec[])
     const first = which * 4;
     index.set([first, first + 1, first + 2, first, first + 2, first + 3], which * 6);
   });
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(position, 3));
-  geometry.setAttribute("corner", new BufferAttribute(corner, 2));
-  geometry.setAttribute("spread", new BufferAttribute(spread, 4));
-  geometry.setAttribute("place", new BufferAttribute(place, 4));
-  geometry.setIndex(new BufferAttribute(index, 1));
-  return geometry;
+  return {
+    attributes: {
+      position: { array: position, itemSize: 3 },
+      corner: { array: corner, itemSize: 2 },
+      spread: { array: spread, itemSize: 4 },
+      place: { array: place, itemSize: 4 },
+    },
+    index,
+  };
 }
 
 export interface Crowd {
@@ -125,14 +137,20 @@ export interface Crowd {
   shadow: BufferGeometry;
 }
 
+export interface CrowdArrays {
+  near: CrowdPart;
+  far: CrowdPart;
+  shadow: CrowdPart;
+}
+
 export function specOf(figure: PlacedFigure): FigureSpec {
   const spec = rollFigure(figure.seed, figure.spec);
   if (spec.age === "child" && !CHILD_POSES.includes(figure.pose)) throw new Error(`a child is never placed in ${figure.pose}`);
   return spec;
 }
 
-/** Everyone in a crowd as one mesh's worth of data. A crowd lives as long as its tile; nothing in it changes. */
-export function bakeCrowd(figures: readonly PlacedFigure[]): Crowd {
+/** Everyone in a crowd as one mesh's worth of plain arrays. A crowd lives as long as its tile; nothing in it changes. */
+export function bakeCrowdArrays(figures: readonly PlacedFigure[]): CrowdArrays {
   const specs = figures.map(specOf);
   return {
     near: merged(figures.map((figure, which) => buildNear(specs[which], figure.pose)), figures, specs),
@@ -140,3 +158,22 @@ export function bakeCrowd(figures: readonly PlacedFigure[]): Crowd {
     shadow: shadows(figures, specs),
   };
 }
+
+function geometryOf({ attributes, index }: CrowdPart): BufferGeometry {
+  const geometry = new BufferGeometry();
+  for (const [name, { array, itemSize, normalized = false }] of Object.entries(attributes)) geometry.setAttribute(name, new BufferAttribute(array, itemSize, normalized));
+  geometry.setIndex(new BufferAttribute(index, 1));
+  return geometry;
+}
+
+/** A baked crowd's arrays as the geometry its meshes draw, sharing the arrays rather than copying them. */
+export function crowdOf({ near, far, shadow }: CrowdArrays): Crowd {
+  return { near: geometryOf(near), far: geometryOf(far), shadow: geometryOf(shadow) };
+}
+
+/** Every array a crowd holds, for handing it from a worker without a copy. */
+export function crowdBuffers({ near, far, shadow }: CrowdArrays): ArrayBuffer[] {
+  return [near, far, shadow].flatMap(({ attributes, index }) => [...Object.values(attributes).map(({ array }) => array.buffer as ArrayBuffer), index.buffer as ArrayBuffer]);
+}
+
+export const bakeCrowd = (figures: readonly PlacedFigure[]): Crowd => crowdOf(bakeCrowdArrays(figures));

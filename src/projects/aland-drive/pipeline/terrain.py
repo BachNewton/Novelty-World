@@ -32,6 +32,10 @@ SKY_REACH_SAMPLES = (1, 2, 3, 5, 8, 12, 20, 35, 60, 100, 160)
 # A lake or the sea is written as one exact level, which real ground never is.
 WATER_FLATNESS_M = 0.002
 WATER_MIN_SAMPLES = 2500  # One hectare.
+# Neighbouring patches of the sea are written up to about this far apart in level, with a line of samples between
+# them that are flat to neither: the closest real ground stands well clear of both.
+SEA_LEVELS_APART_M = 0.1
+SEA_GAP_SAMPLES = 4
 # The drawn surface sits this far under the model's flat water, so the lowest shore stands
 # clear of it and the two never flicker through each other.
 WATERLINE_BELOW_FLAT_M = 0.15
@@ -147,24 +151,44 @@ def bake_shade(mosaic: np.ndarray) -> np.ndarray:
 
 
 def flat_water(mosaic: np.ndarray) -> np.ndarray:
-    """True on samples that are surely lake or sea: inside a large area of one exact level."""
+    """True on samples that are surely lake or sea: inside a large area of one exact level, or a small one beside it.
+
+    The model writes each patch of the sea at its own level, a few centimetres from its neighbours'. A patch cut
+    small, by a map sheet's edge or between two others, is the sea all the same: a flat patch counts when it lies
+    within a few samples of the large water and as high as it to within a few centimetres, patch after patch.
+    """
     spread = ndimage.maximum_filter(mosaic, 3) - ndimage.minimum_filter(mosaic, 3)
-    labels, _ = ndimage.label(spread <= WATER_FLATNESS_M)
-    sizes = np.bincount(labels.ravel())
-    sizes[0] = 0
-    return sizes[labels] >= WATER_MIN_SAMPLES
+    labels, count = ndimage.label(spread <= WATER_FLATNESS_M)
+    sizes = np.bincount(labels.ravel(), minlength=count + 1)
+    is_water = sizes >= WATER_MIN_SAMPLES
+    is_water[0] = False
+    while is_water.any():
+        water = is_water[labels]
+        near = ndimage.binary_dilation(water, iterations=SEA_GAP_SAMPLES) & ~water & (labels > 0)
+        level = flat_levels(mosaic, water)
+        joining = np.unique(labels[near & (np.abs(mosaic - level) <= SEA_LEVELS_APART_M)])
+        if not len(joining):
+            break
+        is_water[joining] = True
+    return is_water[labels]
 
 
 def water_mask(mosaic: np.ndarray) -> np.ndarray:
     """True on the mosaic's samples, rim included, that are lake or sea."""
-    return water_around(flat_water(mosaic))
+    return water_around(flat_water(mosaic), mosaic)
 
 
-def water_around(flat: np.ndarray) -> np.ndarray:
-    """The flat water, with what the flatness test loses round it."""
-    # The flatness test loses the cell next to every shore, and the line where two tiles'
-    # water levels meet, a few centimetres apart: give both back.
-    return ndimage.binary_closing(ndimage.binary_dilation(flat))
+def water_around(flat: np.ndarray, mosaic: np.ndarray) -> np.ndarray:
+    """The flat water, with what the flatness test loses round it.
+
+    The flatness test loses the sample next to every shore, and the line where two of the sea's levels meet, which
+    runs any way, diagonals included: water closes over a gap a few samples wide that lies as low as the water round it.
+    """
+    if not flat.any():
+        return flat
+    grown = ndimage.binary_closing(ndimage.binary_dilation(flat))
+    bridged = ndimage.binary_closing(flat, structure=np.ones((3, 3)), iterations=SEA_GAP_SAMPLES)
+    return grown | (bridged & (np.abs(mosaic - flat_levels(mosaic, flat)) <= SEA_LEVELS_APART_M))
 
 
 def _on_corners(samples: np.ndarray) -> np.ndarray:

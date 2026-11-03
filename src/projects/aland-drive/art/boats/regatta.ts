@@ -23,6 +23,8 @@ export interface RegattaCourse {
   seed: number;
   /** Speed along the line. About 2.5 m/s is a fleet going to windward in a breeze. */
   speedMs?: number;
+  /** Where the clock wraps, in seconds: each boat then sails whole laps in it, so the wrap shows no jump. */
+  periodS?: number;
 }
 
 export interface RegattaInputs {
@@ -52,7 +54,7 @@ const TALL_M = 13;
 const TACK_SHARPNESS = 10;
 
 /** The fleet: one mesh, ready to add to the scene. */
-export function buildRegatta({ linear, hazed, colour, time }: RegattaInputs, { from, to, y, wideM, count, seed, speedMs = 2.5 }: RegattaCourse): Mesh {
+export function buildRegatta({ linear, hazed, colour, time }: RegattaInputs, { from, to, y, wideM, count, seed, speedMs = 2.5, periodS }: RegattaCourse): Mesh {
   const random = seeded(seed);
   const length = Math.hypot(to.x - from.x, to.z - from.z);
   const [dx, dz] = [(to.x - from.x) / length, (to.z - from.z) / length];
@@ -61,7 +63,9 @@ export function buildRegatta({ linear, hazed, colour, time }: RegattaInputs, { f
   const sailColours = new Float32Array(count * 3);
   for (let boat = 0; boat < count; boat++) {
     // Most of a fleet keeps together; a few straggle.
-    lane.set([(random() - 0.5) * wideM, lerp(random(), 0.5, 0.55) * 2 * Math.PI, 0.9 + random() * 0.2], boat * 3);
+    const pace = 0.9 + random() * 0.2;
+    const lapsInPeriod = periodS === undefined ? 0 : Math.max(1, Math.round((periodS * speedMs * pace) / (Math.PI * length)));
+    lane.set([(random() - 0.5) * wideM, lerp(random(), 0.5, 0.55) * 2 * Math.PI, periodS === undefined ? pace : (lapsInPeriod * Math.PI * length) / (periodS * speedMs)], boat * 3);
     const { x, y: g, z } = linear(SAILS[Math.floor(random() * SAILS.length)]);
     sailColours.set([x, g, z], boat * 3);
   }

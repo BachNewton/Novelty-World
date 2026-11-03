@@ -28,7 +28,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Street furniture** | `art/street` | Built | OSM benches, bins, bike racks, cafés | [ ] | [ ] | [ ] |
 | **Flags, midsummer poles** | `art/street` | Built | OSM flagpoles; a hand list of poles | [ ] | [ ] | [ ] |
 | **Harbour fittings** | `art/street` | Built | Rules along quays; OSM cranes, marinas | [ ] | [ ] | [ ] |
-| **Parked cars** | `art/street` | Built | OSM `amenity=parking`, kerb lines | [ ] | [ ] | [ ] |
+| **Parked cars** | `art/cars` (`fleet.ts`), `render/parked-cars.ts` | In the game, on tiles baked since; not yet published | OSM car parks in rows along their mapped aisles, or along their longest side; kerbs where OSM's `parking:*` allows, and sparsely on a town's untagged lesser streets (`pipeline/parking.py`) | [x] | [x] | [x] |
 | **Windmills** | `art/rural` | Built | OSM `man_made=windmill` (123, needs a hand check) | [ ] | [ ] | [ ] |
 | **Boathouses, sheds** | `art/rural` | In the game, on tiles rebuilt since; not yet published | NLS outbuildings (42260, 42261) at the water's edge, or small ones inland; OSM `building=boathouse`, `building=shed` (`pipeline/outbuildings.py`) | [x] | [x] | [x] |
 | **Granite** | `art/rural`, `render/granite.ts` | In the game, on tiles rebuilt since; not yet published | Topographic Database rock areas (34100) as a 4 m image, outcrops laid on the mesh by a shader's rule; mapped boulders (34600) and the biggest of a field's as places, and boulder fields (34700) as an 8 m image the ground and a planting of small stones cover (`pipeline/rocks.py`). OSM's `natural=bare_rock` lies 87–94% inside the rock areas and adds nothing | [x] | [x] | [x] |
@@ -48,13 +48,13 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
 | **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
 | **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
-| **Boats** | `art/boats` | Berths in the game, on tiles rebuilt since; not yet published. Moorings off the piers and the regatta still to place | Berths down a marina's piers and every pontoon, by rule (`pipeline/docks.py`); a distant regatta | [x] | [x] | [x] |
+| **Boats** | `art/boats` | Berths and moorings in the game, on tiles rebuilt since; not yet published. The regatta in the game | Berths down a marina's piers and every pontoon, and boats on buoys off harbours and the jetties of sheltered bays, by rule (`pipeline/docks.py`); two regatta fleets, off Västerhamn and on Lumparn (`render/regatta.ts`) | [x] | [x] | [x] |
 | **Boats under way** | `art/boats`, `render/boats-under-way.ts` | In the game, nothing to publish | The passenger boat on the excursion lines; sailing yachts and traditional boats (keeled, kept out of charted water too shallow for them), launches, RIBs and fishing boats on trips between harbours and out to OSM anchorages, along the official fairways where they help (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
 | **Sea marks** | `art/marina` (spars, pillar buoys, fixed marks, leading marks in the register's four stripe patterns, skerry lights, and `daymarks.ts`' radar marks), `art/identity` (whitewashed cairns, lighthouses), `render/sea-marks.ts` | In the game, nothing to publish: `sea/marks.json` is a file in the code | Väylävirasto's aids to navigation, 1,925 of them, each by its kind, IALA side or cardinal and daymark colours; OSM `seamark:*` only where the chart has no mark within 60 m (500 m for a lighthouse), 60 of them (`pipeline/sea_marks.py`) | [x] | [x] | [ ] |
 | **Marinas, boatyards** | `art/marina` | Built | OSM marinas, boatyards and boat storage | [ ] | [ ] | [ ] |
-| **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
+| **People** | `art/people`, `render/people.ts` | In the game, on tiles baked since; not yet published: the waterfront and the landmarks. Terraces, parks and seats still to place | By rule, sparse, from the docks and landmarks a tile already has (`pipeline/waterfront.py`): fishing, sitting on the edge, on the bench or sunbathing on about a quarter of jetty heads; someone tending one rowing boat in seven and one berthed boat in twenty; now and then along a marina's piers and pontoons a pair chatting, someone standing, a parent and child, someone sitting on the edge or fishing; two or three groups round each landmark. 588 across the 94 tiles: 129 on edges, 121 standing, 106 chatting, 89 fishing, 56 tending boats, 50 on benches, 23 sunbathing, 14 children waving; 120 on Mariehamn's L2334E | [x] | [x] | [x] |
 | **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
-| **Sound** | `audio` | Built, not yet heard | Driven by the car, the surface and the place | [ ] | [ ] | [ ] |
+| **Sound** | `audio` | In the game and heard: good enough for now, with room to improve | Driven by the car, the surface and the place | [x] | [x] | [x] |
 
 ## Landmarks
 
@@ -84,9 +84,13 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 
 ## Cleanup found along the way
 
+- Parked cars are `art/cars`' world cars (`fleet.ts`), not `art/street`'s old parked-cars kit (`parked.ts`): the kit drew the fourteen drivable cars' far models with no lighter version, grew them from the ground at 300 m, and had nothing for traffic. The world cars are eighteen ordinary cars (hatchbacks, estates, vans, a taxi, a post van), each a near model of under 2,000 triangles to 120 m and a stand-in of about thirty to 900 m, handing over by a screen-door dissolve, with a paint, a roof rack and a height per car, and a `move` for traffic to reuse. So `parked.ts` is deleted: its car park and kerb left the street gallery, whose 400 m street no longer counts cars, and the people and town-kit galleries' cars, the town kit's delivery van among them (now the post van), are world cars.
+- The verge, bushes and birches grow under and through a kerb's parked cars, as in a bus shelter: a planting reads only images, and a car is in none.
+
 - Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
 - Boats under way have no wake. A boat at speed reads as moving mostly by its bow wave and wake; a wake strip behind each, in one more draw, would be the next step if they look parked.
 - A sailing yacht under way heels to one side whichever way the wind is, since the kit's heel is baked into the model and the game has no wind.
+- Moorings follow the pipeline's own seabed and shelter rule, not real mooring fields, which no open data maps.
 - The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. The real depths are in the pipeline's raw sources now (see Data), used so far only to route boats.
 - Leading marks stand at the model's own heights (7 m front, 11 m rear), where the register's median is 3.4 m above the ground, and the tall rear marks are timber trestles where some real ones are steel lattices. Triangular and plain boards take the nearest striped pattern, and the register's four tube-shaped radar marks take the pillar.
 - The sea marks' lists are rebuilt round the camera's kilometre cell, but a mark on land takes the ground's height as the world has it then, which far off is the 16 m far heights: a cairn on a small skerry can stand a little off its rock until the list is rebuilt nearer.
@@ -96,7 +100,6 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
-- Give parked cars a very simple stand-in past about 120 m, because they're most of a town street's cost.
 - Fold the remaining kits' `tokens.css` into `globals.css` as each kit goes in (`art/roadside`, `art/street` and `art/rural` have none left).
 - `art/street` and `art/rural` grow their objects out of the ground at their reach; `art/roadside` dissolves its own instead, which suits the rule that a change of detail isn't noticed. Bring the other two in line once someone checks them in motion.
 - Bus shelters stand in the verge's grass, which grows inside them: the verge reads only images, so it can't know they're there.
