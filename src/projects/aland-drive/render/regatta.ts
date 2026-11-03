@@ -1,6 +1,7 @@
 import type { Scene } from "three/webgpu";
 import { uniform } from "three/tsl";
 import { buildRegatta, type RegattaCourse, type RegattaInputs } from "../art/boats/index";
+import { seaSeconds } from "../sea/clock";
 
 /*
  * The fleets racing out on open water where Åland sails: off Mariehamn's
@@ -9,9 +10,9 @@ import { buildRegatta, type RegattaCourse, type RegattaInputs } from "../art/boa
  * south-westerly, so a fleet beats up it and runs back. A fleet is drawn only
  * past 1.5 km, from the shore roads round it.
  *
- * Every fleet sails by the wall clock in UTC, wrapped at a day, not by the game's own
- * time: every player sees the same boats in the same places, and pausing the
- * game doesn't stop the race.
+ * Every fleet sails by the sea's clock (`sea/clock.ts`), UTC, wrapped at a day, not
+ * by the game's own time: every player sees the same boats in the same places, and
+ * pausing the game doesn't stop the race.
  */
 
 const DAY_S = 86_400;
@@ -23,16 +24,15 @@ export const COURSES: readonly RegattaCourse[] = [
   { from: { x: 7200, z: 3900 }, to: { x: 10900, z: 300 }, y: SEA_Y, wideM: 700, count: 20, seed: 23, periodS: DAY_S },
 ];
 
-/** Seconds since midnight UTC, the clock every moving boat sails by. */
-const clockSeconds = () => (Date.now() / 1000) % DAY_S;
 
 export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">) {
-  const time = uniform(clockSeconds());
+  const time = uniform(seaSeconds() % DAY_S);
   const fleets = COURSES.map((course) => buildRegatta({ ...inputs, time }, course));
   for (const fleet of fleets) scene.add(fleet);
   return {
-    update() {
-      time.value = clockSeconds();
+    /** The sea's clock, which a tool may hold. */
+    update(seconds = seaSeconds()) {
+      time.value = seconds % DAY_S;
     },
     dispose() {
       for (const fleet of fleets) {
