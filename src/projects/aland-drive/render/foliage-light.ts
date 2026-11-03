@@ -1,5 +1,6 @@
 import { type Node } from "three/webgpu";
-import { cameraPosition, cross, dFdx, dFdy, float, mix, normalize, positionWorld, select, vec3 } from "three/tsl";
+import { cameraPosition, float, mix, normalize, positionWorld, vec3 } from "three/tsl";
+import { flatNormal } from "../art/flat-normal";
 
 /*
  * How a plant's leaves take the light, for trees and shrubs alike, so a bush at a
@@ -25,9 +26,7 @@ export const towardsSun = ({ azimuthDeg, elevationDeg }: { azimuthDeg: number; e
 
 /** The light on a pixel of leaves, from the plant's rounded direction there (a varying, out from its middle) and how much of it lets the sun through. */
 export function foliageLight(toSun: Node<"vec3">, rounded: Node<"vec3">, seeThrough: Node<"float">): Node<"float"> {
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const facet = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  const normal = normalize(mix(normalize(rounded), facet, FACET_SHARE));
+  const normal = normalize(mix(normalize(rounded), flatNormal(), FACET_SHARE));
   const sun = normal.dot(toSun).add(SUN_WRAP).div(1 + SUN_WRAP).max(0).mul(SUN_SHARE);
   const sky = mix(float(SKY_SHARE[0]), float(SKY_SHARE[1]), normal.y.mul(0.5).add(0.5));
   const fromCamera = normalize(positionWorld.sub(cameraPosition));
