@@ -5,11 +5,11 @@ no rebuild, only the roadside first. Every bench and café table writes its two 
 after the other, so a seat's partner is the one beside it in the list. Each bench or table
 rolls from where it stands whether anyone is there, and whether it's one or a pair:
 
-- **A café table** is busier in town (the roadside's own test: 20 buildings within 120 m)
-  than in the country, and a taken table is as often a pair, facing each other across it,
-  as someone alone.
-- **A bench** is quieter, more so in the country, now and then a pair side by side, and
-  its sitters lean older.
+- **A café table** is busy anywhere, since its terrace is out because the place is open,
+  and busier in town (the roadside's own test: 20 buildings within 120 m). A taken table
+  is as often a pair, facing each other across it, as someone alone.
+- **A bench** is quieter, much more so out of town, a park's included, now and then a
+  pair side by side, and its sitters lean older.
 
 A sitter's seed comes from their seat, so a rebuild seats the same people. No child sits:
 the kit has no sitting child.
@@ -33,7 +33,7 @@ SOURCE = "seated"
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 
 # Of the benches and café tables, the share with anyone at them, in town and in the country; and of those, the share that are two.
-TAKEN = {"sit-cafe": {"town": 0.32, "country": 0.16}, "sit-bench": {"town": 0.1, "country": 0.04}}
+TAKEN = {"sit-cafe": {"town": 0.35, "country": 0.25}, "sit-bench": {"town": 0.12, "country": 0.05}}
 PAIR = {"sit-cafe": 0.45, "sit-bench": 0.25}
 # On a bench, the share of sitters fixed as older, on top of the kit's own roll.
 BENCH_OLDER = 0.25

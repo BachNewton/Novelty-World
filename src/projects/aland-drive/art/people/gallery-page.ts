@@ -3,7 +3,9 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildPier, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
 import { buildRowingBoat, buildShoreSlab, ruralMaterials } from "../rural";
-import { buildBench, buildCafeSet, buildParasol, parkedCarMaterial, placeParkedCars, streetMaterials } from "../street";
+import { createCarFleet } from "../cars/fleet";
+import { WORLD_CARS } from "../cars/specs";
+import { buildBench, buildCafeSet, buildParasol, streetMaterials } from "../street";
 import { bakeCrowd, CAFE_TABLE_Z_M, crowdMeshes, cyclist, peopleMaterials, sailor, worker, type PlacedFigure } from "./index";
 import { buildFar, buildNear } from "./body";
 import { rollFigure } from "./figure";
@@ -197,8 +199,7 @@ look("wave", "a wave, an adult and a child", [waveX + 0.5, 1.3, 5], [waveX + 0.5
 
 // A small scene by a car.
 const CAR_X = -160;
-const carMaterial = parkedCarMaterial(inputs);
-scene.add(...placeParkedCars([{ car: 2, x: CAR_X, y: 0, z: -56, yaw: Math.PI / 2, paint: "car-paint-navy" }, { car: 1, x: CAR_X + 7, y: 0, z: -56, yaw: Math.PI / 2, paint: "car-paint-silver" }], carMaterial));
+scene.add(...createCarFleet([{ spec: WORLD_CARS[12], x: CAR_X, y: 0, z: -56, yaw: Math.PI / 2, seed: 5 }, { spec: WORLD_CARS[8], x: CAR_X + 7, y: 0, z: -56, yaw: Math.PI / 2, seed: 6 }], SUN, hazed).meshes);
 add(buildBench(), [{ x: CAR_X + 3.5, y: 0, z: -51, yaw: Math.PI }]);
 figures.push(
   { seed: 90, pose: "stand", x: CAR_X - 0.8, y: 0, z: -54.4, yaw: 2.6 },

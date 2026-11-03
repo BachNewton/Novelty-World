@@ -33,7 +33,7 @@ export interface CarSpec {
   wheel: WheelSpec;
   /** Its paint is its livery, so a seeded world car keeps it and stays plain. */
   livery?: boolean;
-  /** Half the length and width of the shadow on the road. */
+  /** Half the width and length of the car's footprint on the road. */
   shadowHalf: readonly [wide: number, long: number];
   ride: Ride;
 }
