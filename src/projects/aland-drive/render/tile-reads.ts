@@ -67,6 +67,11 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
         shade: select(nearHeld, texture(layers.shadeNear, uv).depth(nearLayer).level(float(0)).r, texture(layers.shadeFar, uv).depth(layer).level(float(0)).r),
       };
     },
+    /** How open a place is to reeds: 1, or 0 where a dock keeps the water clear (`pipeline/docks.py`), at 8 m. Over a tile not held, open. */
+    openToReedsAt(place: Node<"vec2">) {
+      const { uv, layer, held } = slotOf(place);
+      return select(held, texture(layers.fields, uv).depth(layer).level(float(0)).g.sub(0.5).mul(2).clamp(0, 1), float(1));
+    },
     /** How much of the land round a place is water, at a level of the mask's mips. Over a tile not held, none. */
     waterAt(place: Node<"vec2">, mip: number) {
       const { uv, layer, held } = slotOf(place);

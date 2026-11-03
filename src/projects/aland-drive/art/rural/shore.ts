@@ -15,10 +15,10 @@ const JETTY_DECK_M = 0.7;
 const JETTY_PLANKS = 8;
 const JETTY_REACH_M = 700;
 
-function deck(mesh: RuralMesh, lengthM: number, wideM: number, planks: number): RuralMesh {
+function deck(mesh: RuralMesh, lengthM: number, wideM: number, planks: number, y = JETTY_DECK_M): RuralMesh {
   for (let plank = 0; plank < planks; plank++) {
     const [from, to] = [(plank / planks) * lengthM + 0.012, ((plank + 1) / planks) * lengthM - 0.012];
-    mesh.face([[from, JETTY_DECK_M, wideM / 2], [to, JETTY_DECK_M, wideM / 2], [to, JETTY_DECK_M, -wideM / 2], [from, JETTY_DECK_M, -wideM / 2]], plank % 3 === 1 ? "deck" : "deck-pale", 0.97 + ((plank * 5) % 7) * 0.012);
+    mesh.face([[from, y, wideM / 2], [to, y, wideM / 2], [to, y, -wideM / 2], [from, y, -wideM / 2]], plank % 3 === 1 ? "deck" : "deck-pale", 0.97 + ((plank * 5) % 7) * 0.012);
   }
   return mesh;
 }
@@ -52,6 +52,48 @@ export function buildJettyHead(): RoadsideModel {
     .face([[0, JETTY_DECK_M, wideM / 2], [lengthM, JETTY_DECK_M, wideM / 2], [lengthM, -0.2, wideM / 2], [0, -0.2, wideM / 2]], "pile", 0.6)
     .face([[lengthM, JETTY_DECK_M, wideM / 2], [lengthM, JETTY_DECK_M, -wideM / 2], [lengthM, -0.2, -wideM / 2], [lengthM, -0.2, wideM / 2]], "pile", 0.6);
   return finished(near, far, 120, JETTY_REACH_M);
+}
+
+/** One bay of a harbour pier, run end to end along +x as a jetty's sections are: wider and higher, on a pair of piles at its middle so a pier's two ends each overhang by half a bay. */
+export const PIER_SECTION = { lengthM: 3.2, wideM: 2.4, deckM: 0.95 } as const;
+/** One float of a pontoon, likewise: its deck a hand's width above the water. */
+export const PONTOON_SECTION = { lengthM: 4, wideM: 2.4, deckM: 0.42 } as const;
+export const JETTY_SECTION = { lengthM: JETTY_SECTION_M, wideM: JETTY_WIDE_M, deckM: JETTY_DECK_M } as const;
+const HARBOUR_REACH_M = 1400;
+
+/** An edge beam's top stands this far under the deck it carries, or the two flicker where they meet. */
+const BEAM_UNDER_DECK_M = 0.02;
+
+function edgeBeams(mesh: RuralMesh, lengthM: number, wideM: number, y: number, deep: number, part: RuralPart): RuralMesh {
+  const middle = y - BEAM_UNDER_DECK_M - deep / 2;
+  for (const z of [-wideM / 2, wideM / 2]) mesh.beam([0, middle, z], [lengthM, middle, z], 0.12, deep, part, 0.72, 0.9);
+  return mesh;
+}
+
+export function buildPierSection(): RoadsideModel {
+  const { lengthM, wideM, deckM } = PIER_SECTION;
+  const middle = lengthM / 2;
+  const near = edgeBeams(deck(new RuralMesh({ grounded: false }), lengthM, wideM, 6, deckM), lengthM, wideM, deckM, 0.24, "pile");
+  near.beam([middle, deckM - 0.3, -wideM / 2], [middle, deckM - 0.3, wideM / 2], 0.16, 0.16, "pile", 0.7);
+  for (const z of [-wideM / 2, wideM / 2]) near.tube([middle, -1.2, z], [middle, deckM - 0.1, z], 0.13, 4, { shadeFrom: 0.5, shadeTo: 1 }, "pile");
+  const far = new RuralMesh({ grounded: false })
+    .face([[0, deckM, wideM / 2], [lengthM, deckM, wideM / 2], [lengthM, deckM, -wideM / 2], [0, deckM, -wideM / 2]], "deck-pale")
+    .face([[0, deckM, wideM / 2], [lengthM, deckM, wideM / 2], [lengthM, deckM - 0.24, wideM / 2], [0, deckM - 0.24, wideM / 2]], "pile", 0.72)
+    .face([[0, deckM, -wideM / 2], [lengthM, deckM, -wideM / 2], [lengthM, deckM - 0.24, -wideM / 2], [0, deckM - 0.24, -wideM / 2]], "pile", 0.72)
+    .face([[middle, -0.2, -wideM / 2], [middle, -0.2, wideM / 2], [middle, deckM - 0.24, wideM / 2], [middle, deckM - 0.24, -wideM / 2]], "pile", 0.6);
+  return finished(near, far, 160, HARBOUR_REACH_M);
+}
+
+export function buildPontoonSection(): RoadsideModel {
+  const { lengthM, wideM, deckM } = PONTOON_SECTION;
+  const hull = (mesh: RuralMesh) => mesh.box([0, -0.25, -wideM / 2], [lengthM, deckM - 0.04, wideM / 2], "roof-dark", { open: true, shade: 0.9 });
+  const near = edgeBeams(deck(hull(new RuralMesh({ grounded: false })), lengthM, wideM, 7, deckM), lengthM, wideM, deckM, 0.1, "pile");
+  for (const z of [-wideM / 2 + 0.14, wideM / 2 - 0.14]) near.beam([lengthM / 2 - 0.13, deckM + 0.06, z], [lengthM / 2 + 0.13, deckM + 0.06, z], 0.06, 0.05, "tractor-steel", 1, 1.2);
+  const far = new RuralMesh({ grounded: false })
+    .face([[0, deckM, wideM / 2], [lengthM, deckM, wideM / 2], [lengthM, deckM, -wideM / 2], [0, deckM, -wideM / 2]], "deck-pale")
+    .face([[0, deckM, wideM / 2], [lengthM, deckM, wideM / 2], [lengthM, -0.1, wideM / 2], [0, -0.1, wideM / 2]], "roof-dark", 0.85)
+    .face([[0, deckM, -wideM / 2], [lengthM, deckM, -wideM / 2], [lengthM, -0.1, -wideM / 2], [0, -0.1, -wideM / 2]], "roof-dark", 0.85);
+  return finished(near, far, 160, HARBOUR_REACH_M);
 }
 
 interface Station {

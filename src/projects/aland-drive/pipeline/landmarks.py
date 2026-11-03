@@ -90,6 +90,10 @@ class Landmarks:
         """Every plan within reach of the tile, its neighbours' too, for what a road meets."""
         return _parts(self.near)
 
+    def footprints(self) -> list[shapely.Geometry]:
+        """The plans of the sites in reach, in the scene's metres: what a dock or a moored boat keeps out of."""
+        return [shapely.transform(site.plan, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1]))) for site in self.near]
+
     def places(self, ground) -> list[dict]:
         """The own sites as the game reads them: the model, and its origin in the scene. `ground.at` reads heights in scene metres."""
         places = []

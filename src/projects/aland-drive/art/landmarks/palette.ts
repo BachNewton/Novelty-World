@@ -42,10 +42,6 @@ export const LANDMARK_COLOURS = {
   "castle-lime-foot": "#a9a296",
   "castle-roof": "#6d6a66",
   "castle-window": "#2c2a28",
-  ferry: "#f0f1ee",
-  "ferry-red": "#b3262c",
-  "ferry-blue": "#1c3f6e",
-  "ferry-funnel": "#c22a2e",
 } as const;
 
 export type LandmarkColour = keyof typeof LANDMARK_COLOURS;

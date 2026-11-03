@@ -1,5 +1,5 @@
 import { decodeHeights, fieldPixelsOf, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
-import { boulderWalls, decodeModels, decodeRoadside, NO_ROADSIDE, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
+import { boulderWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
 import { wallFaces, wallSections, withWalls, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
@@ -40,6 +40,7 @@ export interface DetailTile {
   ground: Mips;
   buildings: SolidsCell[];
   models: TileModels;
+  docks: TileModels;
   stoneWalls: WallSections;
   roadside: TileRoadside;
   bytes: number;
@@ -125,9 +126,24 @@ function withRock(mask: Uint8Array, rock: Uint8Array | null): void {
   for (let at = 0; at * 4 < mask.length; at++) mask[at * 4 + 3] = rock?.[at] ?? 0;
 }
 
-/** The boulder fields, which follow the rock in its file; none where the world has no rock. */
-function fieldsOf(rock: Uint8Array | null, rockPixels: number, fieldPixels: number): Uint8Array {
-  return rock === null ? new Uint8Array(fieldPixels * fieldPixels) : rock.slice(rockPixels * rockPixels);
+/**
+ * The 8 m layer: in red the boulder fields, which follow the rock in its file (none where the world has no rock), and
+ * in green where reeds may grow, which the image's alpha brought before the rock took it: a 2 m pixel kept clear of
+ * reeds keeps its whole 8 m pixel clear.
+ */
+function fieldsOf(mask: Uint8Array, maskPixels: number, rock: Uint8Array | null, fieldPixels: number): Uint8Array {
+  const fields = new Uint8Array(fieldPixels * fieldPixels * 2);
+  const ratio = maskPixels / fieldPixels;
+  for (let row = 0; row < fieldPixels; row++) {
+    for (let column = 0; column < fieldPixels; column++) {
+      const at = row * fieldPixels + column;
+      let open = 255;
+      for (let down = 0; down < ratio; down++) for (let across = 0; across < ratio; across++) open = Math.min(open, mask[((row * ratio + down) * maskPixels + column * ratio + across) * 4 + 3]);
+      fields[at * 2] = rock?.[maskPixels * maskPixels + at] ?? 0;
+      fields[at * 2 + 1] = open;
+    }
+  }
+  return fields;
 }
 
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
@@ -144,7 +160,9 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     reader.inflated(stands.file),
     rock ? reader.inflated(rock.file) : null,
   ]);
-  withRock(maskPixels, rockPixels === null ? null : new Uint8Array(rockPixels));
+  const rockBytes = rockPixels === null ? null : new Uint8Array(rockPixels);
+  const fields = fieldsOf(maskPixels, mask.pixels, rockBytes, fieldPixelsOf(world));
+  withRock(maskPixels, rockBytes);
   const land = await createImageBitmap(new ImageData(litPhoto(groundPixels, shade, world.shade.gamma), ground.farPixels, ground.farPixels));
   return {
     name: tile.name,
@@ -156,7 +174,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     ground: mipChain(groundPixels, ground.farPixels, 4),
     canopy: mipChain(canopyPixels, canopy.pixels, 1),
     stands: mipChain(new Uint8Array(standPixels), stands.pixels, 4),
-    fields: mipChain(fieldsOf(rockPixels === null ? null : new Uint8Array(rockPixels), mask.pixels, fieldPixelsOf(world)), fieldPixelsOf(world), 1),
+    fields: mipChain(fields, fieldPixelsOf(world), 2),
     land,
     bytes: reader.bytes,
   };
@@ -178,7 +196,7 @@ async function roadMap(base: string, world: WorldManifest): Promise<RoadGraphDat
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
-  const [heights, surface, waterLevels, shore, shade, ground, solids, models, walls, roadsideFile] = await Promise.all([
+  const [heights, surface, waterLevels, shore, shade, ground, solids, models, docks, walls, roadsideFile] = await Promise.all([
     reader.inflated(world.heights.file),
     reader.inflated(manifest.roadSurface.file),
     reader.inflated(world.water.levelsFile),
@@ -187,6 +205,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
     reader.pixels(world.ground.file, world.ground.pixels, 4),
     reader.inflated(manifest.solids.file),
     manifest.models ? reader.json<ModelsFile>(manifest.models.file) : { models: {} },
+    manifest.docks ? reader.json<DocksFile>(manifest.docks.file) : null,
     manifest.walls ? reader.json<WallsFile>(manifest.walls.file) : { walls: [] },
     manifest.roadside ? reader.json<RoadsideFile>(manifest.roadside.file) : NO_ROADSIDE,
   ]);
@@ -195,13 +214,13 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
   const stoneWalls = wallSections(walls, grid);
   const placed = decodeModels(models);
-  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, boulderWalls(placed)));
-  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: placed, stoneWalls, roadside, bytes: reader.bytes };
+  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, boulderWalls(placed), dockWalls(docks)));
+  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, bytes: reader.bytes };
 }
 
 const transfersOf = ({ grid, waterLevels, shore, shade, mask, ground, canopy, stands, fields, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, waterLevels.heights.buffer as ArrayBuffer, shore.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands, ...fields].map((mip) => mip.buffer as ArrayBuffer)];
 
-function detailTransfers({ detail, roadDress, shade, ground, buildings, models, stoneWalls, roadside }: DetailTile): Transferable[] {
+function detailTransfers({ detail, roadDress, shade, ground, buildings, models, docks, stoneWalls, roadside }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
@@ -235,6 +254,7 @@ function detailTransfers({ detail, roadDress, shade, ground, buildings, models, 
     ...ground,
     ...buildings.flatMap((cell) => [cell.positions, cell.facades, cell.tints, cell.indices]),
     ...Object.values(models),
+    ...Object.values(docks),
     stoneWalls,
     ...Object.values(roadside.models),
     ...Object.values(roadside.signs),

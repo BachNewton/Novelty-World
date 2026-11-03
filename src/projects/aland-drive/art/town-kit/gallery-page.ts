@@ -3,11 +3,11 @@ import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "t
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildBusShelter, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
 import { buildBench, buildBikeRack, buildPlanter, parkedCarMaterial, parkingBays, placeParkedCars, rowAlong, streetMaterials, type LinePoint } from "../street";
-import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildMarinaDeck, buildMooredLaunch, buildMooredYacht, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, marinaRow, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
+import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
 
 /*
  * The gallery's scene on the game's renderer, camera, haze and sun, with the harbour at its real place: the same
- * scene coordinates as the world, a quay traced from the 2025 photo, and the real pier lines of ÅSS Marina. A town
+ * scene coordinates as the world, and a quay traced from the 2025 photo. A town
  * street stands inland of it for the small things and their cost. The grey block is the terminal building, a stand-in
  * for the NLS solid that stays in the world.
  */
@@ -148,28 +148,6 @@ look("ferry-stern", "ferry's stern door, from the north-west", atEN(107010, 6683
 look("ferry-quay", "ferry from the quay at car height", atEN(107155, 6682900, 3.6), atEN(107096, 6682860, 20), 72);
 look("ferry-far", "ferry far version, 1.3 km", atEN(105800, 6682720, 4), atEN(107096, 6682850, 18), 10);
 look("ferry-swap", "ferry mid-dissolve, 900 m", atEN(106200, 6682760, 4), atEN(107096, 6682850, 18), 11);
-
-// ÅSS Marina's real piers.
-const PIERS: readonly (readonly [number, number])[][] = [
-  [[106924, 6683581], [106995, 6683588]],
-  [[106929, 6683643], [106979, 6683644], [106989, 6683645]],
-  [[106922, 6683510], [107005, 6683522]],
-  [[106932, 6683443], [107028, 6683456]],
-  [[106956, 6683371], [107046, 6683397]],
-];
-const asLine = (pier: readonly (readonly [number, number])[]): LinePoint[] => pier.map(([east, north]) => ({ ...sceneOf(east, north), y: 0 }));
-const rows = PIERS.map((pier, index) => marinaRow(asLine(pier), { berthM: 3.2, fill: 0.56, seaY: SEA_Y, deck: true, seed: 11 + index }));
-const collect = (key: "deck" | "yachts" | "navyYachts" | "launches") => rows.flatMap((row) => row[key]);
-const [deckModel, yachtModel, navyModel, launchModel] = [buildMarinaDeck(), buildMooredYacht(), buildMooredYacht("boat-navy"), buildMooredLaunch()];
-add(deckModel, collect("deck"), harbourKit);
-add(yachtModel, collect("yachts"), harbourKit);
-add(navyModel, collect("navyYachts"), harbourKit);
-add(launchModel, collect("launches"), harbourKit);
-const boats = collect("yachts").length + collect("navyYachts").length + collect("launches").length;
-look("marina-air", `ÅSS Marina, ${boats} boats on real piers`, atEN(106790, 6683410, 34), atEN(106975, 6683520, 2), 46);
-look("marina-shore", "masts from the shore road", atEN(107085, 6683530, 3.4), atEN(106960, 6683530, 6), 56);
-look("marina-close", "pontoon among the boats", atEN(106990, 6683530, 2.4), atEN(106950, 6683505, 3), 60);
-look("marina-far", "masts from across the bay, 900 m", atEN(106080, 6683330, 4), atEN(106970, 6683520, 5), 14);
 
 // A town street, 1.5 km inland, 300 m long with a junction in the middle.
 const STREET_X = 500;
@@ -353,7 +331,7 @@ scene.add(...placeModel(buildStreetLamp(), [{ ...ground(-11, 7.4), yaw: Math.PI 
 
 window.__townKitGallery = {
   shots,
-  budget: async () => ({ street: await timed("street-town", streetKit), harbour: await timed("terminal-sea", harbourKit), marina: await timed("marina-shore", harbourKit) }),
+  budget: async () => ({ street: await timed("street-town", streetKit), harbour: await timed("terminal-sea", harbourKit) }),
   frame: (name) => {
     const shot = shots.find((candidate) => candidate.name === name);
     if (shot === undefined) throw new Error(`no shot ${name}`);
@@ -372,9 +350,6 @@ window.__townKitGallery = {
     "window box": triangles(boxModels[0]),
     "village sign": triangles(villageFrame),
     "village plate": triangles(villagePlate),
-    "marina deck section": triangles(deckModel),
-    yacht: triangles(yachtModel),
-    launch: triangles(launchModel),
     terminal: triangles(terminalModel),
     ferry: triangles(ferryModel),
   },

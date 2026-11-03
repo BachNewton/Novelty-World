@@ -32,7 +32,7 @@ REQUEST_TIMEOUT_S = 90
 # Roads are clipped at the tile's edge, so a little past it catches every way that crosses.
 OSM_MARGIN_M = 200
 # What a kept copy of a tile's OSM holds. Raising it remakes every copy from the API's answers, which stay as they came.
-OSM_KEPT_VERSION = 2
+OSM_KEPT_VERSION = 3
 # Areas laid as one paved surface (see vectors.paved_areas).
 PAVED_AMENITIES = {"parking", "bus_station"}
 ORTHO_YEARS = (2025, 2024, 2023, 2022)
@@ -215,11 +215,11 @@ def _roads_and_buildings(xml_files: list[Path]) -> dict:
     elements: list[dict] = []
     for id, way in ways.items():
         tags = tags_of(way)
-        if "highway" in tags or "building" in tags or tags.get("amenity") in PAVED_AMENITIES:
+        if "highway" in tags or "building" in tags or tags.get("amenity") in PAVED_AMENITIES or tags.get("man_made") == "pier" or tags.get("leisure") == "marina":
             elements.append({"type": "way", "id": int(id), "tags": tags, "geometry": lines[id]})
     for id, relation in relations.items():
         tags = tags_of(relation)
-        if "building" in tags or (tags.get("type") == "multipolygon" and tags.get("amenity") in PAVED_AMENITIES):
+        if "building" in tags or (tags.get("type") == "multipolygon" and (tags.get("amenity") in PAVED_AMENITIES or tags.get("man_made") == "pier" or tags.get("leisure") == "marina")):
             members = [
                 {"role": member.get("role"), "geometry": lines[member.get("ref")]}
                 for member in relation.findall("member")

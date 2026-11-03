@@ -74,7 +74,7 @@ export class TileLayers {
     const tiles = [...world.all()];
     this.backend = renderer.backend as unknown as TextureBackend;
     const farLayers = Math.min(FAR_LAYERS, tiles.length);
-    const held: [size: number, depth: number, channels: 1 | 4][] = [
+    const held: [size: number, depth: number, channels: 1 | 2 | 4][] = [
       [manifest.shade.pixels, NEAR_LAYERS, 1],
       [manifest.far.shadePixels, farLayers, 1],
       [manifest.mask.pixels, farLayers, 4],
@@ -82,7 +82,7 @@ export class TileLayers {
       [manifest.ground.farPixels, farLayers, 4],
       [manifest.canopy.pixels, farLayers, 1],
       [manifest.stands.pixels, farLayers, 4],
-      [fieldPixelsOf(manifest), farLayers, 1],
+      [fieldPixelsOf(manifest), farLayers, 2],
     ];
     [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands, this.fields] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
     this.textureBytes = Math.round(held.reduce((sum, [size, depth, channels]) => sum + size * size * depth * channels, 0) * (4 / 3));
@@ -99,9 +99,9 @@ export class TileLayers {
     this.slots.needsUpdate = true;
   }
 
-  private layers(renderer: WebGPURenderer, size: number, depth: number, channels: 1 | 4): DataArrayTexture {
+  private layers(renderer: WebGPURenderer, size: number, depth: number, channels: 1 | 2 | 4): DataArrayTexture {
     const texture = new DataArrayTexture(new Uint8Array(size * size * depth * channels), size, size, depth);
-    texture.format = channels === 1 ? RedFormat : RGBAFormat;
+    texture.format = channels === 1 ? RedFormat : channels === 2 ? RGFormat : RGBAFormat;
     texture.colorSpace = NoColorSpace;
     texture.generateMipmaps = true;
     texture.minFilter = LinearMipmapLinearFilter;
@@ -163,7 +163,7 @@ export class TileLayers {
     this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
     this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
     this.enqueue(this.stands, layer, stands, manifest.stands.pixels, 4, landed);
-    this.enqueue(this.fields, layer, fields, fieldPixelsOf(manifest), 1, landed);
+    this.enqueue(this.fields, layer, fields, fieldPixelsOf(manifest), 2, landed);
   }
 
   releaseFar(tile: WorldTile): void {

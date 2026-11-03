@@ -5,6 +5,7 @@ import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
+import { createDocks } from "./docks";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
@@ -486,7 +487,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return hazed(mix(pastTiles, near, farSeen));
   };
 
-  const { canopyAt, standsAt, roadsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -503,7 +504,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
   const verge = createVerge(scene, renderer, { landAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
-  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, lightOf, linear, hazed, sun: manifest.sun });
   const granite = createGranite(scene, renderer, {
     rockAt,
@@ -567,6 +568,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
   const viewHeight = uniform(1);
   const roadside = createRoadside(scene, {
@@ -595,7 +597,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, stoneWalls: walls, roadside: placed }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed }, done) {
         const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
@@ -603,6 +605,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.add(solids.group);
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
+        docks.add(detail.name, moored);
         stoneWalls.add(detail.name, walls);
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, walls);
         roadside.add(detail.name, placed);
@@ -640,6 +643,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
+        docks.remove(detail.name);
         stoneWalls.remove(detail.name);
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
@@ -704,6 +708,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   }
   clipmap.showWide(true);
   outbuildings.showAll(true);
+  docks.showAll(true);
   stoneWalls.showAll(true);
   roadside.showAll(true);
   cullCar(false);
@@ -716,6 +721,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   cullCar(true);
   clipmap.showWide(false);
   outbuildings.showAll(false);
+  docks.showAll(false);
   stoneWalls.showAll(false);
   roadside.showAll(false);
   scene.remove(compiledBridge);
@@ -1106,6 +1112,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     reeds.update(spot, camera);
     shrubs.update(spot, camera);
     granite.update(spot, camera);
+    docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     stoneWalls.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1267,6 +1274,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       wallMaterial.dispose();
       outbuildings.dispose();
+      docks.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();

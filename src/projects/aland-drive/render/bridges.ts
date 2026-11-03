@@ -2,7 +2,8 @@ import { RING_POINTS, surfaceHeight, type HeightGrid, type RoadSurface } from ".
 
 /*
  * What holds a span up: a kerb, a parapet, a fascia, the deck's underside and a
- * pier now and then, all flat strips built from the road's own cross-sections.
+ * pier now and then, all flat strips built from the road's own cross-sections. A
+ * quay, a pier the road runs out along, has its kerb and fascia and no parapet.
  * The road surface itself is the ribbon, as anywhere. `bridgeKit` is the one
  * function that says what a bridge looks like: replacing the kit is replacing it.
  */
@@ -52,7 +53,8 @@ export function bridgeKit(surface: RoadSurface, grid: HeightGrid): BridgeKit {
   const lifted = ([x, y, z]: Point, by: number): Point => [x, y + by, z];
 
   for (const chain of surface.chains) {
-    for (const [first, last] of chain.spans ?? []) {
+    for (const [index, [first, last]] of (chain.spans ?? []).entries()) {
+      const quay = chain.quays?.includes(index) ?? false;
       const ringPoint = (section: number, point: number): Point => {
         const at = ((chain.first + section) * RING_POINTS + point) * 3;
         return [surface.rings[at], surface.rings[at + 1], surface.rings[at + 2]];
@@ -64,8 +66,8 @@ export function bridgeKit(surface: RoadSurface, grid: HeightGrid): BridgeKit {
           const [in0, in1] = [ringPoint(section, edge), ringPoint(section + 1, edge)];
           quad(lifted(in0, KERB_M), lifted(in1, KERB_M), lifted(out1, KERB_M), lifted(out0, KERB_M), CONCRETE);
           quad(in0, in1, lifted(in1, KERB_M), lifted(in0, KERB_M), CONCRETE);
-          quad(lifted(out0, -DECK_DEPTH_M), lifted(out1, -DECK_DEPTH_M), lifted(out1, PARAPET_M), lifted(out0, PARAPET_M), CONCRETE);
-          quad(lifted(out0, PARAPET_M), lifted(out1, PARAPET_M), lifted(out1, RAIL_TOP_M), lifted(out0, RAIL_TOP_M), RAIL);
+          quad(lifted(out0, -DECK_DEPTH_M), lifted(out1, -DECK_DEPTH_M), lifted(out1, quay ? KERB_M : PARAPET_M), lifted(out0, quay ? KERB_M : PARAPET_M), CONCRETE);
+          if (!quay) quad(lifted(out0, PARAPET_M), lifted(out1, PARAPET_M), lifted(out1, RAIL_TOP_M), lifted(out0, RAIL_TOP_M), RAIL);
           // At a chain's ends a road flares into the one it meets, and a wall there would stand across the junction.
           if (section >= JUNCTION_SECTIONS && section < chain.sections - 1 - JUNCTION_SECTIONS) rails.push(out0[0], out0[2], out1[0], out1[2], out0[1] - RAIL_BELOW_M, out1[1] - RAIL_BELOW_M);
         }

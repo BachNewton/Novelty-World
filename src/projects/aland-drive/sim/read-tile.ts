@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { decodeHeights, type TileManifest, type WorldManifest } from "../render/tile";
 import { decodeSolids } from "../render/solids";
-import { boulderWalls, decodeModels, decodeRoadside, NO_ROADSIDE, type ModelsFile, type RoadsideFile } from "../render/tile-models";
+import { boulderWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile } from "../render/tile-models";
 import { wallFaces, wallSections, withWalls, type WallsFile } from "../render/tile-walls";
 import { decodeOverview, tileDetail, World } from "./world";
 
@@ -50,7 +50,9 @@ export function readWorld(folder: string, only?: Set<string>): World {
     const roadside = decodeRoadside(tile.roadside ? (JSON.parse(readFileSync(join(folder, name, tile.roadside.file), "utf8")) as RoadsideFile) : NO_ROADSIDE);
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const models = tile.models ? decodeModels(JSON.parse(readFileSync(join(folder, name, tile.models.file), "utf8")) as ModelsFile) : {};
-    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, boulderWalls(models))));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
+    const docks = tile.docks ? (JSON.parse(readFileSync(join(folder, name, tile.docks.file), "utf8")) as DocksFile) : null;
+    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, boulderWalls(models), dockWalls(docks))));
   }
   return world;
 }

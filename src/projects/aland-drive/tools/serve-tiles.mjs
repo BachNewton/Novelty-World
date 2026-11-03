@@ -4,6 +4,8 @@
 //
 // As a command, for tools: node src/projects/aland-drive/tools/serve-tiles.mjs [--port=8123] [--folder=<tiles>] [--kbps=<limit>]
 // Without --kbps it serves as fast as it can. With it, each response is held to that rate, to stand in for a slow connection.
+// Run as a command, it serves a folder someone rebuilds while a browser has it open, so it lets the browser keep each file
+// but ask whether it changed: at one address, the real host's long cache would show a rebuilt tile's old self for a year.
 
 // The paths below come from a request, checked to stay inside the folder served, on a localhost-only tool.
 /* eslint-disable security/detect-non-literal-fs-filename -- see above */
@@ -15,7 +17,7 @@ import { fileURLToPath } from "node:url";
 const TYPES = { ".json": "application/json", ".webp": "image/webp", ".png": "image/png", ".gz": "application/octet-stream" };
 const SLICE_BYTES = 16 * 1024;
 
-export function serveTiles(folder, kbps = null, listenPort = 0) {
+export function serveTiles(folder, kbps = null, listenPort = 0, { revalidate = false } = {}) {
   let served = 0;
   const requests = [];
   const server = createServer((request, response) => {
@@ -38,7 +40,13 @@ export function serveTiles(folder, kbps = null, listenPort = 0) {
       return;
     }
     const type = TYPES[extname(path)] ?? "application/octet-stream";
-    response.writeHead(200, { "Content-Type": type, "Content-Length": stat.size, "Cache-Control": "public, max-age=31536000, immutable" });
+    const tag = `"${stat.size}-${stat.mtimeMs}"`;
+    if (revalidate && request.headers["if-none-match"] === tag) {
+      response.writeHead(304, { ETag: tag, "Cache-Control": "no-cache" }).end();
+      return;
+    }
+    const caching = revalidate ? { ETag: tag, "Cache-Control": "no-cache" } : { "Cache-Control": "public, max-age=31536000, immutable" };
+    response.writeHead(200, { "Content-Type": type, "Content-Length": stat.size, ...caching });
     served += stat.size;
     requests.push(url.pathname);
     if (kbps === null) {
@@ -69,6 +77,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const option = (name, otherwise) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;
   const folder = option("folder", "src/projects/aland-drive/.data/tiles");
   const kbps = option("kbps", null);
-  const { port } = await serveTiles(folder, kbps === null ? null : Number(kbps), Number(option("port", "0")));
+  const { port } = await serveTiles(folder, kbps === null ? null : Number(kbps), Number(option("port", "0")), { revalidate: true });
   console.log(`http://localhost:${port}`);
 }

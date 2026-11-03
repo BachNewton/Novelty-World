@@ -26,6 +26,4 @@ export const VIEWS = [
   { id: "notvikstornet", name: "behind", version: "near", from: [-40, 40, 29.6], at: [-8, 8, 33], groundM: 28.2 },
   { id: "von-knorring", name: "north", version: "near", from: [-16, 44, 1.6], at: [0, 0, 5], groundM: 1.6, slab: [-100, -200, 100, -20] },
   { id: "von-knorring", name: "quay", version: "near", from: [-58, -14, 2.9], at: [0, 0, 5], groundM: 1.6, slab: [-200, -200, -24, 200] },
-  { id: "ferry", name: "quay", version: "near", from: [105, -170, 3.3], at: [0, 0, 22], groundM: 2, slab: [17, -600, 800, 600] },
-  { id: "ferry", name: "water", version: "near", from: [-240, -120, 2], at: [0, 0, 22], groundM: 2, slab: [17, -600, 800, 600] },
 ];

@@ -21,7 +21,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Water** | `render/water.ts` | In the game, reflecting the sky; hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
 | **Forest fixes** | `render/forest.ts` | In the game | Existing forest | [x] | [x] | [x] |
 | **Roadside kit** | `art/roadside`, `render/roadside.ts` | In the game: lamps, poles and wires, mailboxes, bus shelters; fences not yet placed | OSM lamps, poles and minor power lines, sheltered bus stops; lamps along roads tagged lit; mailboxes at country drives leading to a house (`pipeline/roadside.py`) | [x] | [x] | [x] |
-| **Piers, pontoons** | `art/roadside` | Built | OSM `man_made=pier`, `floating=yes` | [ ] | [ ] | [ ] |
+| **Piers, pontoons** | `art/rural` (sections), `render/docks.ts` | In the game, on tiles rebuilt since; not yet published. `art/roadside`'s built-to-length pier, pontoon and gangway stay as gallery props | OSM `man_made=pier`: harbour piers by marinas, wide or long; pontoons where `floating=yes` (`pipeline/docks.py`) | [x] | [x] | [x] |
 | **Guard rails, reflectors, speed cameras** | `art/street`, `render/roadside.ts` | In the game: guard rails and edge posts; speed cameras not yet placed | OSM `barrier=guard_rail`; rails on embankments and either side of a bridge; edge posts along unlit main roads (`pipeline/roadside.py`) | [x] | [x] | [x] |
 | **Verges and wildflowers** | `art/street`, `render/verge.ts` | In the game | A shader's rule, from the road mask and the photo | [x] | [x] | [x] |
 | **Linden trees** | `art/street` | Built | OSM `natural=tree_row`; esplanades by name | [ ] | [ ] | [ ] |
@@ -35,7 +35,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Bushes, juniper, birch** | `art/rural`, `render/shrubs.ts` | In the game | A shader's rule: forest edges from the canopy, rock among trees from the photo | [x] | [x] | [x] |
 | **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
 | **Stone walls** | `art/rural`, `render/stone-walls.ts` | In the game, on tiles baked since; not yet published | OSM `barrier=wall` in the country; by rule along the Topographic Database's field and meadow edges, gapped at every road (`pipeline/walls.py`) | [x] | [x] | [x] |
-| **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
+| **Jetties, boats** | `art/rural` | In the game, on tiles rebuilt since; not yet published | OSM piers that aren't a harbour's (1,290 runs); a head, and a rowing boat or sloop by rule (`pipeline/docks.py`) | [x] | [x] | [x] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
@@ -47,7 +47,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
 | **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
 | **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
-| **Boats** | `art/boats` | Built | OSM marinas and moorings; a distant regatta | [ ] | [ ] | [ ] |
+| **Boats** | `art/boats` | Berths in the game, on tiles rebuilt since; not yet published. Moorings off the piers and the regatta still to place | Berths down a marina's piers and every pontoon, by rule (`pipeline/docks.py`); a distant regatta | [x] | [x] | [x] |
 | **Marinas, sea marks, boatyards** | `art/marina` | Built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
 | **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
 | **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
@@ -67,13 +67,16 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
-| Ferry | `art/town-kit` (replaces the one in `art/landmarks`) | Nothing | [ ] | [ ] |
+| Ferry | `art/town-kit` | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
 
+- Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
+- Every placed boat is moored. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state and the regatta, and a still boat out on open water would look stranded.
+- The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
+- A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
 - Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.
 - From close above, a church tower's roof shows a thin light line along its lower rim, which starts just outside the wall (seen on Sund).
-- Marinas are drawn as bridges. The owner saw many places in the game that should read as a marina, a pier or pontoons, drawn instead with `bridgeKit`'s parapets, rails and piers: probably OSM paths along piers and pontoons (`man_made=pier`, `floating=yes`), which `pipeline/roads.py` holds up as spans because they run over water. They want the marina kit (`art/marina`, `art/roadside`'s piers and pontoons) instead, and no bridge where there's no road across the water. To come back to.
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.

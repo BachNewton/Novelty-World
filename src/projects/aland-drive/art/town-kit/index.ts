@@ -1,7 +1,6 @@
 export { buildBicycle, type BikeFrame } from "./bicycle";
 export { buildBalticFerry, FERRY_BERTH, ferryPlace, sceneOf, yawForBearing } from "./ferry";
 export { buildHangingLamp, buildTownLamp, buildWindowBox } from "./lamps";
-export { buildMarinaDeck, buildMooredLaunch, buildMooredYacht, lineLengthM, MARINA_SECTION_M, marinaRow, type MarinaRow, type MarinaRowSpec } from "./marina";
 export { namePlateMaterial, placeTrafficLights, townMaterials, trafficLightMaterials, type SignalPlacement, type TownMaterials } from "./material";
 export { TOWN_PARTS, type TownPart } from "./paint";
 export { alongWall, bikeRow, deliveryVan, signalsAtJunction, type JunctionArm, type SignalLayout } from "./place";

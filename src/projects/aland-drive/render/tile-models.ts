@@ -1,6 +1,7 @@
 /*
- * A tile's placed models (`pipeline/outbuildings.py` and `pipeline/rocks.py` write them in `models.json`) and roadside
- * objects: kept apart from what draws them, so the tile worker reads them without the art.
+ * A tile's placed models (`pipeline/outbuildings.py` and `pipeline/rocks.py` write them in `models.json`,
+ * `pipeline/docks.py` in `docks.json`) and roadside objects:
+ * kept apart from what draws them, so the tile worker reads them without the art.
  */
 
 /** A tile's places by model: x, y, z, yaw, width, length, `PLACE_FLOATS` to a place, in the scene. */
@@ -35,6 +36,16 @@ export function boulderWalls(models: TileModels): Float32Array {
     }
   }
   return Float32Array.from(walls);
+}
+
+export interface DocksFile extends ModelsFile {
+  /** Each dock's outline, as walls the car can't pass: x and z at both ends. */
+  walls: number[][];
+}
+
+/** A tile's docks' outlines, as walls: four numbers each. */
+export function dockWalls(docks: DocksFile | null): Float32Array {
+  return Float32Array.from(docks?.walls.flat() ?? []);
 }
 
 /** A tile's roadside objects (`pipeline/roadside.py` writes them in `roadside.json`), in the scene. */
