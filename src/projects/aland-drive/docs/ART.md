@@ -88,6 +88,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - The verge, bushes and birches grow under and through a kerb's parked cars, as in a bus shelter: a planting reads only images, and a car is in none.
 
 - Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
+- At Västerhamn the water mask draws the quay's edge 6–9 m further out than the 2025 photo, so a berthed ship lies 35 m west of `FERRY_BERTH`, with its hull on the water as drawn, and about 40 m short of the terminal's boarding fingers, which stand at the photo's places. The fix is the quay's edge in the shore and mask, not the ship or the terminal.
 - Boats under way have no wake. A boat at speed reads as moving mostly by its bow wave and wake; a wake strip behind each, in one more draw, would be the next step if they look parked.
 - A sailing yacht under way heels to one side whichever way the wind is, since the kit's heel is baked into the model and the game has no wind.
 - Moorings follow the pipeline's own seabed and shelter rule, not real mooring fields, which no open data maps.
