@@ -55,6 +55,9 @@ export const PAINT = {
   "cover-grey": { from: "boat-cover-grey" },
   "fender-white": { from: "boat-sail-white", gain: 0.96 },
   "fender-blue": { from: "boat-fender-blue" },
+  "flag-ax-blue": { from: "flag-ax-blue" },
+  "flag-ax-yellow": { from: "flag-ax-yellow" },
+  "flag-ax-red": { from: "flag-ax-red" },
 } as const satisfies Record<string, { from: string; to?: string; share?: number; gain?: number }>;
 
 export type BoatPart = keyof typeof PAINT;

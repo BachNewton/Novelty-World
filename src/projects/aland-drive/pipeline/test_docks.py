@@ -8,7 +8,9 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point, Polygon
 
-from docks import DRAFT_M, HULLS, UNDER_KEEL_M, Docks, Land, Pier, boardwalks, off_piers, quays
+from scipy import ndimage
+
+from docks import DRAFT_M, HULLS, MOORED, PENNANT_M, UNDER_KEEL_M, WIND_FROM_DEG, WIND_SWING_DEG, Docks, Land, Pier, boardwalks, off_piers, quays
 from terrain import DEEPEST_M, SEABED_SLOPE, WATERLINE_BELOW_FLAT_M
 from grid import WORLD_ORIGIN
 
@@ -167,6 +169,76 @@ class Placing(unittest.TestCase):
                 for along in (-0.25, 0.25):
                     keel = np.array([x, -z]) + bow * along * HULLS[model][0]
                     self.assertGreaterEqual(min(SEABED_SLOPE * (40 - keel[1]), DEEPEST_M), DRAFT_M[model] + UNDER_KEEL_M - SEABED_SLOPE * 2)
+
+
+# 1.2 km square at 2 m, for the moorings, which need room and shelter.
+WIDE_TILE = SimpleNamespace(west=WORLD_ORIGIN[0], south=WORLD_ORIGIN[1], east=WORLD_ORIGIN[0] + 1200, north=WORLD_ORIGIN[1] + 1200)
+
+
+def coast(water: np.ndarray) -> Land:
+    from_shore = ndimage.distance_transform_edt(water) * 2
+    return Land(np.where(water, 0.0, 2.0), water, np.minimum(SEABED_SLOPE * from_shore, DEEPEST_M), 0.0, 1200.0)
+
+
+def bay() -> Land:
+    """A bay 600 m across, its head to the north and its mouth on the tile's south edge."""
+    water = np.zeros((600, 600), dtype=bool)
+    water[150:, 150:450] = True
+    return coast(water)
+
+
+def open_coast() -> Land:
+    """A straight shore, with the open sea to the south."""
+    water = np.zeros((600, 600), dtype=bool)
+    water[150:, :] = True
+    return coast(water)
+
+
+def moorings(docks: Docks) -> list[tuple[str, np.ndarray, np.ndarray]]:
+    """Each moored boat: its model, its buoy and its bow."""
+    found = []
+    for model, places in docks.models.items():
+        if model not in MOORED:
+            continue
+        for x, _, z, yaw, _, _ in places:
+            bow = np.array([math.sin(yaw), -math.cos(yaw)])
+            found.append((model, np.array([x, -z]) + bow * (MOORED[model][0] / 2 + PENNANT_M), bow))
+    return found
+
+
+class Moorings(unittest.TestCase):
+    HARBOUR = [(600, 900), (600, 840)]
+
+    def test_a_sheltered_harbour_has_a_field_of_buoys_each_swinging_clear_on_water_deep_enough(self):
+        docks = Docks(WIDE_TILE, bay(), [], [])
+        docks.place([pier(self.HARBOUR, floating="yes")], [], [])
+        moored = moorings(docks)
+        self.assertGreaterEqual(len(moored), 3)
+        deck = LineString(self.HARBOUR).buffer(1.2)
+        for index, (model, buoy, _) in enumerate(moored):
+            length, _, draft = MOORED[model]
+            reach = PENNANT_M + length
+            circle = Point(buoy).buffer(reach)
+            self.assertTrue(shapely.box(300, 0, 900, 900).contains(circle), f"{model} at {buoy} swings ashore")
+            # Its keel clears the seabed wherever it swings: the seabed shelves from the shore.
+            shore = min(buoy[0] - 300, 900 - buoy[0], 900 - buoy[1]) - reach
+            self.assertGreaterEqual(min(SEABED_SLOPE * shore, DEEPEST_M), draft + UNDER_KEEL_M - SEABED_SLOPE * 2)
+            self.assertGreater(circle.distance(deck), 25)
+            for other_model, other, _ in moored[index + 1 :]:
+                self.assertGreaterEqual(np.hypot(*(buoy - other)), reach + PENNANT_M + MOORED[other_model][0])
+
+    def test_every_boat_on_a_buoy_lies_head_to_wind(self):
+        docks = Docks(WIDE_TILE, bay(), [], [])
+        docks.place([pier(self.HARBOUR, floating="yes")], [], [])
+        wind = np.array([math.sin(math.radians(WIND_FROM_DEG)), math.cos(math.radians(WIND_FROM_DEG))])
+        for _, _, bow in moorings(docks):
+            self.assertGreaterEqual(float(np.dot(bow, wind)), math.cos(math.radians(WIND_SWING_DEG)) - 1e-6)
+
+    def test_no_boat_lies_on_a_buoy_off_an_open_shore(self):
+        docks = Docks(WIDE_TILE, open_coast(), [], [])
+        docks.place([pier(self.HARBOUR, floating="yes")], [], [])
+        self.assertTrue(any(model in HULLS for model in docks.models))
+        self.assertEqual(moorings(docks), [])
 
 
 if __name__ == "__main__":

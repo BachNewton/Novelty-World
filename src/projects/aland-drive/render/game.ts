@@ -7,6 +7,7 @@ import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
 import { createPeople } from "./people";
+import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
@@ -579,6 +580,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const regattas = createRegattas(scene, { colour: colorOf, linear, hazed });
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
   const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
@@ -1134,6 +1136,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    regattas.update();
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     showRibbons(spot);
@@ -1302,6 +1305,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       outbuildings.dispose();
       docks.dispose();
       people.dispose();
+      regattas.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();

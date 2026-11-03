@@ -36,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 import shapely
+from scipy import ndimage
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import SAMPLE_M, Tile, lonlat_to_grid, to_local
@@ -122,6 +123,40 @@ BOW_GAP_M = 0.8
 FIRST_BERTH_M = 4.0
 # The water kept clear of reeds round a dock and a boat; a harbour pier's slips are kept clear out to its longest boat.
 REEDS_CLEAR_M = 3.0
+
+# Boats on mooring buoys, by the kit that draws them: length, beam and draft. A buoy lies off the bow by the pennant
+# (`art/boats`' "buoy" mooring), so a boat swings round its buoy as far as its pennant and its length reach.
+MOORED = {
+    "cruiser-buoy": (10.0, 3.3, 1.7),
+    "folkboat-buoy": (7.7, 2.2, 1.2),
+    "double-ender": (12.5, 4.2, 1.8),
+    "launch-buoy": (7.25, 2.1, 0.7),
+    "allmogebat": (6.2, 2.0, 0.5),
+}
+PENNANT_M = 7.0
+# Off a harbour, the mix of a guest harbour's moorings; off a bay's jetties, a cottage shore's boats.
+HARBOUR_MOORINGS = (("cruiser-buoy", 0.36), ("folkboat-buoy", 0.26), ("double-ender", 0.1), ("launch-buoy", 0.18), ("allmogebat", 0.1))
+BAY_MOORINGS = (("launch-buoy", 0.34), ("allmogebat", 0.26), ("folkboat-buoy", 0.26), ("cruiser-buoy", 0.14))
+# A mooring lies this far out from the shore, so no boat swings on to it and none lies out in the open.
+MOORING_SHORE_M = (30.0, 260.0)
+# Sheltered water has more land than water within this reach: a bay or a sound, where off a straight shore it is under half.
+SHELTER_M = 500.0
+SHELTER_LAND = 0.5
+SHELTER_PIXEL_M = 20.0
+# A harbour's field reaches this far from its berths, a bay's from its piers and jetties, with this many boats a hectare
+# at the docks, falling to none at the reach: a field off a marina, and now and then a boat off a cottage's jetty.
+HARBOUR_FIELD_M = 300.0
+BAY_FIELD_M = 150.0
+HARBOUR_PER_HECTARE = 3.0
+BAY_PER_HECTARE = 2.5
+# The way in to every dock stays open: no swing reaches this near a harbour's berths, or any other pier or jetty.
+HARBOUR_WAY_IN_M = 30.0
+JETTY_WAY_IN_M = 12.0
+MOORING_LATTICE_M = 6.0
+MOORING_MARGIN_M = 2.0
+# Åland's summer wind is a south-westerly, and a boat on a buoy lies head to wind, each a little off it.
+WIND_FROM_DEG = 225.0
+WIND_SWING_DEG = 14.0
 
 
 def _roll(*key) -> float:
@@ -382,6 +417,9 @@ class Docks:
         self.kept_clear: list[shapely.Geometry] = []
         self.decks: shapely.Geometry | None = None
         self.steps: list[tuple[shapely.Geometry, int]] = []
+        # Every run laid, a harbour's with berths or any other, for the moorings off them.
+        self.harbour_runs: list[shapely.Geometry] = []
+        self.jetty_runs: list[shapely.Geometry] = []
 
     def _owns(self, shape: shapely.Geometry) -> bool:
         middle = shape.centroid
@@ -411,9 +449,16 @@ class Docks:
         skipped = {id(pier) for pier in quay_piers}
         berthed: list[tuple[Pier, np.ndarray, np.ndarray, float, float]] = []
         for pier in piers:
-            if id(pier) in skipped or not self._owns(pier.shape):
+            if id(pier) in skipped:
                 continue
             kind = self._kind(pier, marina)
+            # A harbour's piers and every pontoon have berths; a walkway has none and moors nothing.
+            harbour = "boardwalk" not in pier.tags and (pier.floating or (kind == "pier" and self._at_marina(pier, marina)))
+            runs = self.harbour_runs if harbour else self.jetty_runs if "boardwalk" not in pier.tags else []
+            if not self._owns(pier.shape):
+                # A neighbour lays it, but the moorings here keep off it and its way in all the same.
+                runs.append(pier.shape)
+                continue
             level = self.land.level_near(shapely.get_coordinates(pier.shape))
             if level is None:
                 continue
@@ -430,12 +475,14 @@ class Docks:
                 laid = self._to_boathouse(laid)
             for start, end, width in laid:
                 self._run(kind, start, end, width, level)
-                if "boardwalk" not in pier.tags and (pier.floating or (kind == "pier" and self._at_marina(pier, marina))):
+                if harbour:
                     berthed.append((pier, start, end, width, level))
+                runs.append(LineString([start, end]).buffer(width / 2, cap_style="flat"))
             if kind == "jetty" and pier.line is not None:
                 self._jetty_end(pier, min(laid, key=lambda run: self.land.height(np.array(run[:2])).min()), level)
         for pier, start, end, width, level in berthed:
             self._berths(pier, start, end, width, level)
+        self._moorings()
 
     def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, width: float, level: float) -> tuple[np.ndarray, np.ndarray] | None:
         """A run cut back to its longest stretch where its deck stands clear of the ground, of every motor road and of the
@@ -573,6 +620,82 @@ class Docks:
                     self._boat(model, centre(model), -outward, level)
                 at += beam + BERTH_GAP_M
                 berth += 1
+
+    def _moorings(self) -> None:
+        """Boats on buoys off the harbours and the jetties of sheltered bays, each lying head to wind, where its whole swing
+        round its buoy is water deep enough for its keel and clear of every dock, the way in to each, and the other buoys."""
+        if not self.harbour_runs and not self.jetty_runs:
+            return
+        swing = {model: PENNANT_M + length + MOORING_MARGIN_M for model, (length, _, _) in MOORED.items()}
+        widest = max(swing.values())
+        xs = np.arange(self.west + widest, self.east - widest, MOORING_LATTICE_M)
+        ys = np.arange(self.south + widest, self.north - widest, MOORING_LATTICE_M)
+        if len(xs) == 0 or len(ys) == 0:
+            return
+        grid_x, grid_y = np.meshgrid(xs, ys)
+        points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
+        rows, columns = self.land._index(points)
+        from_shore = ndimage.distance_transform_edt(self.land.water) * SAMPLE_M
+        block = max(1, int(SHELTER_PIXEL_M / SAMPLE_M))
+        side = self.land.water.shape[0] // block * block
+        land_share = 1 - self.land.water[:side, :side].reshape(side // block, block, side // block, block).mean(axis=(1, 3))
+        shelter = ndimage.uniform_filter(land_share, size=int(2 * SHELTER_M / SHELTER_PIXEL_M), mode="nearest")
+        sheltered = shelter[np.minimum(rows // block, shelter.shape[0] - 1), np.minimum(columns // block, shelter.shape[1] - 1)]
+        keep = self.land.water[rows, columns] & (from_shore[rows, columns] >= MOORING_SHORE_M[0]) & (from_shore[rows, columns] <= MOORING_SHORE_M[1]) & (sheltered >= SHELTER_LAND)
+        points = points[keep]
+        if len(points) == 0:
+            return
+
+        def falloff(runs: list[shapely.Geometry], reach: float) -> np.ndarray:
+            if not runs:
+                return np.zeros(len(points))
+            near, far = shapely.STRtree(runs).query_nearest(shapely.points(points), max_distance=reach, return_distance=True, all_matches=False)
+            share = np.zeros(len(points))
+            share[near[0]] = 1 - far / reach
+            return share
+
+        harbour, bay = falloff(self.harbour_runs, HARBOUR_FIELD_M), falloff(self.jetty_runs, BAY_FIELD_M)
+        per_point = MOORING_LATTICE_M**2 / 10_000
+        chance = np.minimum(1, (HARBOUR_PER_HECTARE * harbour + BAY_PER_HECTARE * bay) * per_point)
+        rolls = np.array([_roll("mooring", round(float(x)), round(float(y))) for x, y in points])
+        blocked = shapely.union_all(
+            [run.buffer(HARBOUR_WAY_IN_M) for run in self.harbour_runs] + [run.buffer(JETTY_WAY_IN_M) for run in self.jetty_runs] + self.taken
+        )
+        shapely.prepare(blocked)
+        buoys: list[tuple[np.ndarray, float]] = []
+        ring = np.array([(math.cos(angle), math.sin(angle)) for angle in np.linspace(0, 2 * math.pi, 16, endpoint=False)])
+        for index in np.argsort(rolls):
+            if rolls[index] >= chance[index]:
+                continue
+            buoy = points[index]
+            key = (round(float(buoy[0])), round(float(buoy[1])))
+            mix = HARBOUR_MOORINGS if HARBOUR_PER_HECTARE * harbour[index] >= BAY_PER_HECTARE * bay[index] else BAY_MOORINGS
+            fits = [(model, share) for model, share in mix if self._swings_afloat(buoy, model, ring)]
+            if not fits:
+                continue
+            model = _pick(_roll(*key, "kind") * sum(share for _, share in fits), tuple(fits))
+            room = swing[model]
+            if any(np.hypot(*(buoy - other)) < room + reach for other, reach in buoys) or blocked.intersects(Point(buoy).buffer(room)):
+                continue
+            level = self.land.level_near(buoy[None])
+            if level is None:
+                continue
+            buoys.append((buoy, room))
+            length = MOORED[model][0]
+            bearing = math.radians(WIND_FROM_DEG + (_roll(*key, "swing") - 0.5) * 2 * WIND_SWING_DEG)
+            bow = np.array([math.sin(bearing), math.cos(bearing)])
+            centre = buoy - bow * (length / 2 + PENNANT_M)
+            self.taken.append(Point(buoy).buffer(room))
+            self.kept_clear.append(Point(buoy).buffer(room))
+            # A boat's bow is its +z, which turns to (sin yaw, cos yaw) in the scene, whose z is south.
+            self._place(model, float(centre[0]), level, float(-centre[1]), math.atan2(bow[0], -bow[1]))
+
+    def _swings_afloat(self, buoy: np.ndarray, model: str, ring: np.ndarray) -> bool:
+        """Whether a boat on a buoy floats wherever it swings: its keel, from its bow round to its stern, clears the seabed all the way round."""
+        length, _, draft = MOORED[model]
+        reaches = np.array((PENNANT_M, PENNANT_M + length / 2, PENNANT_M + length))
+        probes = (buoy + ring[:, None, :] * reaches[None, :, None]).reshape(-1, 2)
+        return bool(self.land.wet(probes).all() and self.land.deep(probes).min() >= draft + UNDER_KEEL_M)
 
     def write(self, folder: Path) -> dict:
         (folder / "docks.json").write_text(json.dumps({**LICENCE, "models": self.models, "walls": self.walls}, separators=(",", ":")), encoding="utf-8")
