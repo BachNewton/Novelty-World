@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import os
+import time
 from multiprocessing import get_context
 from pathlib import Path
 
@@ -328,12 +329,41 @@ def tiles_with_new_sheets() -> list[str]:
     return stale
 
 
-def build_named(name: str, refresh_osm: bool = False) -> None:
+def build_named(name: str, refresh_osm: bool = False) -> str:
     tile = tile_from_name(name)
     if dem_path(tile) is None:
         print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
-        return
+        return name
     build_tile(tile, refresh_osm)
+    return name
+
+
+def _build_named(job: tuple[str, bool]) -> str:
+    return build_named(*job)
+
+
+def _clock(seconds: float) -> str:
+    return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
+
+
+def build_all(names: list[str], jobs: int, refresh_osm: bool) -> None:
+    """Every tile named, a line saying how far the build is as each one finishes. The time left is the pace so far, and the
+    island's road tiles come first and build slowest, so early on it overestimates."""
+    started = time.monotonic()
+    work = [(name, refresh_osm) for name in names]
+
+    def finished(done: int, name: str) -> None:
+        spent = time.monotonic() - started
+        left = spent / done * (len(names) - done)
+        print(f"[{done}/{len(names)}] {name} done, {_clock(spent)} in, about {_clock(left)} left", flush=True)
+
+    if jobs > 1:
+        with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+            for done, name in enumerate(pool.imap_unordered(_build_named, work), start=1):
+                finished(done, name)
+    else:
+        for done, job in enumerate(work, start=1):
+            finished(done, _build_named(job))
 
 
 def main() -> None:
@@ -351,12 +381,7 @@ def main() -> None:
     if arguments.new_building_sheets:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
-    if arguments.jobs > 1:
-        with get_context("spawn").Pool(arguments.jobs, maxtasksperchild=1) as pool:
-            pool.starmap(build_named, [(name, arguments.refresh_osm) for name in names], chunksize=1)
-    else:
-        for name in names:
-            build_named(name, arguments.refresh_osm)
+    build_all(names, arguments.jobs, arguments.refresh_osm)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 
