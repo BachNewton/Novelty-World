@@ -72,6 +72,14 @@ class Signs(unittest.TestCase):
         self.assertGreater(-z50, 0)
         self.assertAlmostEqual(scene_facing(yaw50)[0], 1, places=3)
 
+    def test_a_crossing_roads_limit_read_where_it_crosses_puts_up_no_signs(self):
+        side, road = roadside(), east_road()
+        # The road is 50 throughout, but where a 40 side road crosses it, at 100 m, OSM's nearest way is the side road's.
+        side.ways = type("Ways", (), {"at": lambda self, point: {"maxspeed": "40" if point[0] == 100 else "50"}})()
+        side.chains = [road]
+        side.speed_signs()
+        self.assertEqual(side.signs, {})
+
 
 class Rails(unittest.TestCase):
     def test_a_rail_turns_its_road_side_to_the_road_whichever_way_its_points_run(self):

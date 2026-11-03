@@ -87,6 +87,8 @@ SIGN_APART_M = 2.0
 SPEEDS = (30, 40, 50, 60, 70, 80, 90, 100, 120)
 # A speed change this near a road's end belongs to the junction, whose own signs aren't drawn.
 SPEED_CHANGE_FROM_END_M = 30.0
+# A limit read for less than this is a crossing road's, read where it crosses: a real zone runs far longer.
+SHORTEST_LIMIT_M = 50.0
 # A node this near a road's end is that junction's sign.
 MAPPED_SIGN_M = 50.0
 NOT_MARKED = {"no", "unmarked", "informal", "traffic_signals"}
@@ -612,7 +614,7 @@ class Roadside:
             if not chain.motor or chain.rank > STREET_RANK:
                 continue
             speeds = [speed_of(self.ways.at(ring[CENTRE, :2])) for ring in chain.rings]
-            known = [(index, speed) for index, speed in enumerate(speeds) if speed is not None]
+            known = limit_changes(chain.along, speeds)
             for (_, before), (index, after) in zip(known, known[1:]):
                 along = float(chain.along[index])
                 if before == after or along < SPEED_CHANGE_FROM_END_M or along > chain.length - SPEED_CHANGE_FROM_END_M:
@@ -688,6 +690,20 @@ class Roadside:
         placed = [np.array([place[0], -place[2]]) for name in ("rail", "rail-end", "mailbox", "bus-shelter") for place in self.models.get(name, [])]
         self.edge_posts(placed + self.posts)
         return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls}
+
+
+def limit_changes(along: np.ndarray, speeds: list[int | None]) -> list[tuple[int, int]]:
+    """Where each limit along a road starts, leaving out any that holds for less than the shortest a limit runs."""
+    runs: list[tuple[int, int]] = []
+    for index, speed in enumerate(speeds):
+        if speed is not None and (not runs or runs[-1][1] != speed):
+            runs.append((index, speed))
+    ends = [float(along[start]) for start, _ in runs[1:]] + [float(along[-1])]
+    kept: list[tuple[int, int]] = []
+    for (start, speed), end in zip(runs, ends):
+        if end - float(along[start]) >= SHORTEST_LIMIT_M and (not kept or kept[-1][1] != speed):
+            kept.append((start, speed))
+    return kept
 
 
 def other_than_seam(point: np.ndarray, box: tuple[float, float, float, float]) -> bool:
