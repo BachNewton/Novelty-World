@@ -294,6 +294,19 @@ def paved_between(surface, west, east, south, north):
     return points[inside]
 
 
+class Surface(unittest.TestCase):
+    def test_osm_says_whether_a_road_is_sealed_by_most_of_its_length_and_otherwise_says_nothing(self):
+        def sealed(*parts):
+            # One line, cut where its surface changes.
+            pieces = [{**road([(start, 1500), (end, 1500)], "service", **({"surface": surface} if surface else {})), "id": index} for index, (start, end, surface) in enumerate(parts)]
+            return lay_roads(pieces, land()).chains[0].sealed
+
+        self.assertTrue(sealed((1000, 1200, "asphalt"), (1200, 1250, "gravel")))
+        self.assertFalse(sealed((1000, 1050, "asphalt"), (1050, 1250, "compacted")))
+        self.assertIsNone(sealed((1000, 1250, None)))
+        self.assertIsNone(sealed((1000, 1250, "something_new")))
+
+
 class PavedGround(unittest.TestCase):
     street = road([(0, 1500), (3000, 1500)], "residential")
 

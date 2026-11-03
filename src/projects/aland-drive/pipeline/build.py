@@ -191,7 +191,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
             "tiers": road_surface.TIERS,
             "chains": [
-                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
+                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "sealed": chain.sealed, "spans": spans or None}.items() if value is not None}
                 for chain, ring, _, spans in ribbons
             ],
             "aprons": {

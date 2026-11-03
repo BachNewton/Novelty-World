@@ -216,6 +216,11 @@ class Edge:
         return float(np.hypot(*np.diff(self.points, axis=0).T).sum())
 
 
+# OSM's surfaces, as the two a car feels: sealed, or loose. Any other value says nothing, and the road's class decides.
+SEALED_SURFACES = {"paved", "asphalt", "concrete", "concrete:plates", "concrete:lanes", "paving_stones", "sett", "cobblestone", "unhewn_cobblestone", "chipseal", "metal"}
+LOOSE_SURFACES = {"unpaved", "gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "grass", "sand", "mud", "pebblestone", "rock", "woodchips", "grass_paver"}
+
+
 def class_of(kind: str) -> RoadClass:
     return CLASSES.get(kind, _PATH)
 
@@ -261,6 +266,13 @@ class Chain:
     @property
     def motor(self) -> bool:
         return any(edge.road["motor"] for edge in self.edges)
+
+    @property
+    def sealed(self) -> bool | None:
+        """Whether OSM says the chain is sealed, going by the most of its length that says either; None where none of it does."""
+        sealed = sum(edge.length for edge in self.edges if edge.road.get("surface") in SEALED_SURFACES)
+        loose = sum(edge.length for edge in self.edges if edge.road.get("surface") in LOOSE_SURFACES)
+        return None if sealed == loose == 0 else sealed >= loose
 
     def tag(self, key: str):
         return next((edge.road[key] for edge in self.edges if key in edge.road), None)

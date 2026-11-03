@@ -1,4 +1,4 @@
-import { RING_POINTS, ROAD_TIERS, type RoadSurface } from "../../render/tile";
+import { RING_POINTS, ROAD_TIERS, type RoadChain, type RoadSurface } from "../../render/tile";
 
 /*
  * What a road's shader needs to know that its ribbon doesn't carry: whether it's
@@ -130,7 +130,8 @@ function nearestSegment(cells: Map<string, Segment[]>, x: number, z: number): Se
   return found;
 }
 
-export const isPaved = (kind: string, town: number) => PAVED_KINDS.has(kind) || (town > 0.5 && PAVED_IN_TOWN.has(kind));
+/** OSM's surface where it gives one; otherwise a road's class and how built up the place is say whether it's sealed. */
+export const isPaved = (chain: RoadChain, town: number) => chain.sealed ?? (PAVED_KINDS.has(chain.kind) || (town > 0.5 && PAVED_IN_TOWN.has(chain.kind)));
 
 /** How built up a place is, 0 to 1, read smoothly across the 600 m cells so a kerb doesn't start on a cell's edge. */
 function townReader(built: BuiltCell[]) {
@@ -161,7 +162,8 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
   const marks = new Float32Array(vertices * 2);
   const townAt = townReader(built);
   const grid = segmentGrid(surface);
-  surface.chains.forEach(({ first, sections, kind, motor }, chain) => {
+  surface.chains.forEach((road, chain) => {
+    const { first, sections, kind, motor } = road;
     const last = first + sections - 1;
     const start = centreOf(surface.rings, first);
     const end = centreOf(surface.rings, last);
@@ -180,7 +182,7 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
     for (let section = 0; section < sections; section++) {
       const { x, z } = centreOf(surface.rings, first + section);
       const town = townAt(x, z);
-      const paved = isPaved(kind, town) ? 1 : 0;
+      const paved = isPaved(road, town) ? 1 : 0;
       const halfWidth = halfWidthOf(surface.rings, first + section);
       const shoulder = shoulderOf(surface.rings, first + section);
       const toStart = startMark === NO_MARK ? FAR_FROM_MARK_M : distances[section];
@@ -213,6 +215,6 @@ function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt:
     }
     const road = nearestSegment(grid, x, z);
     if (!road) throw new Error(`an apron point at ${x}, ${z} has no road within ${GRID_M} m`);
-    shaded.set([isPaved(surface.chains[road.chain].kind, town) ? 1 : 0, town, road.halfWidth, FAR_FROM_MARK_M], vertex * 4);
+    shaded.set([isPaved(surface.chains[road.chain], town) ? 1 : 0, town, road.halfWidth, FAR_FROM_MARK_M], vertex * 4);
   }
 }

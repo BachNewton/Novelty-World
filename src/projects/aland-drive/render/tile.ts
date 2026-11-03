@@ -95,6 +95,8 @@ export interface RoadChain {
   ref?: string;
   name?: string;
   motor: boolean;
+  /** Sealed or loose, where OSM's surface says: otherwise its class and how built up it is decide. */
+  sealed?: boolean;
   /** The first and last section of each stretch held up over a gap. */
   spans?: [number, number][];
 }
