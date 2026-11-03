@@ -29,6 +29,8 @@ export interface TileManifest {
   models?: { file: string };
   /** Dry-stone walls, as lines on the ground. A tile built before them has none. */
   walls?: { file: string };
+  /** Lamps, poles, signs, rails, edge posts, mailboxes and shelters beside the roads. A tile built before them has none. */
+  roadside?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */

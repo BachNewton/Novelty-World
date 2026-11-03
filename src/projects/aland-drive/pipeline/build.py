@@ -31,6 +31,7 @@ import outbuildings
 import overview
 import road_map
 import roads as road_surface
+import roadside
 import stands
 import terrain
 import vectors
@@ -390,6 +391,7 @@ def main() -> None:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm)
+    roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

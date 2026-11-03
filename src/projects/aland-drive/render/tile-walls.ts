@@ -22,11 +22,13 @@ export interface WallsFile {
   walls: [number, number][][];
 }
 
-/** A tile's buildings' outlines and its stone walls' faces, as one list for the simulation. */
-export function withWalls(outlines: Float32Array, faces: Float32Array): Float32Array {
-  const all = new Float32Array(outlines.length + faces.length);
-  all.set(outlines);
-  all.set(faces, outlines.length);
+/** A tile's walls of every kind (buildings' outlines, stone walls' faces, roadside rails), as one list for the simulation. */
+export function withWalls(...lists: Float32Array[]): Float32Array {
+  const all = new Float32Array(lists.reduce((sum, list) => sum + list.length, 0));
+  lists.reduce((at, list) => {
+    all.set(list, at);
+    return at + list.length;
+  }, 0);
   return all;
 }
 
