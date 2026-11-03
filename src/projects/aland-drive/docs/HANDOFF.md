@@ -8,7 +8,7 @@ Phase 5's core is done and live at `https://novelty-world.vercel.app/games/3d-ga
 
 A large library of art is built and pushed under `art/`, and almost none of it is in the game. There is no gameplay yet. The car on screen is the real player's car from `art/cars`, waiting for the owner's look. Its brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
-The bucket holds two tile versions, about 780 MB of the 1 GB it shares with `audiobooks` (105 MB): `864b209e5ae8`, which main points at, and `738f4a7480ea`, which the deployed site served before it. The older one can go once the newer has proved itself live. An island is about 400 MB, so a third won't fit: clear one before the next publish.
+The bucket holds one tile version, `864b209e5ae8` (about 400 MB of the 1 GB it shares with `audiobooks`, 105 MB). An island is about 400 MB, so one more fits beside it: clear the older once the newer has proved itself live.
 
 ## What's next, in order
 
