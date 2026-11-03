@@ -37,6 +37,8 @@ export interface TileManifest {
   people?: Record<string, { file: string }>;
   /** Cars parked in car parks and at kerbs. A tile built before them has none. */
   parked?: { file: string };
+  /** The ground of town (`pipeline/town.py`): its surface image, and a class byte per road section. A tile built before it has none. */
+  town?: { file: string; pixels: number; ribbons: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */
@@ -51,6 +53,8 @@ export interface WorldManifest {
   far: { nodes: number; stepM: number; heightsFile: string; shadeFile: string; shadePixels: number };
   shade: { file: string; pixels: number; gamma: number };
   mask: { file: string; pixels: number };
+  /** The size of every tile's town image, which sizes its layers; absent while no tile has one. */
+  town?: { pixels: number };
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
   stands: { file: string; pixels: number };

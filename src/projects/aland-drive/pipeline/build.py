@@ -37,6 +37,7 @@ import roadside
 import rocks
 import stands
 import terrain
+import town
 import vectors
 import raised
 import walls
@@ -323,6 +324,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # Rock reads the mask and heights just written, and adds its boulders to the models.
     _, manifest["models"] = rocks.bake(tile, folder)
+    # The town ground reads the photo, mask, buildings and road surface just written.
+    if with_vectors:
+        manifest["town"] = town.bake(tile, folder)
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}
@@ -358,6 +362,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "canopy": first["canopy"],
         "stands": stands.MANIFEST,
         "rock": rocks.MANIFEST,
+        **next(({"town": town.world_town(manifest["town"])} for manifest in manifests if "town" in manifest), {}),
         "water": first["water"],
         "overview": overview_manifest,
         "map": map_manifest,

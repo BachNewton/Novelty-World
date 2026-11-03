@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Grou
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
-import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
+import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
@@ -41,6 +41,7 @@ import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
+import { townGround, townRibbon, townRibbonBits } from "../art/town-ground";
 import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
 import { streetMaterials } from "../art/street/index";
@@ -333,7 +334,7 @@ function bridgeMesh({ positions, parts }: TileDetail["bridges"], material: MeshB
 }
 
 /** Each tile's ribbon in the scene, a mesh per cell sharing its buffers, shown only within reach. */
-function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshBasicNodeMaterial) {
+function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Uint8Array, material: MeshBasicNodeMaterial) {
   const { ribbon } = detail;
   const position = new BufferAttribute(ribbon.positions, 3);
   const across = new BufferAttribute(ribbon.across, 1);
@@ -341,6 +342,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
   const tier = new BufferAttribute(ribbon.tiers, 1);
   const roadInfo = new BufferAttribute(dress.surface, 4);
   const roadMark = new BufferAttribute(dress.mark, 2);
+  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3), 3);
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z }) => {
     const geometry = new BufferGeometry();
@@ -350,6 +352,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
     geometry.setAttribute("tier", tier);
     geometry.setAttribute("roadInfo", roadInfo);
     geometry.setAttribute("roadMark", roadMark);
+    geometry.setAttribute("townBits", townBits);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -455,7 +458,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { x, y, z } = ruralColours(linear)[RURAL_PARTS.indexOf(part)];
     return vec3(x, y, z);
   };
-  const groundColor = groundDetail({
+  const surfaceGround = groundDetail({
     place: positionWorld.xz,
     toCamera,
     photo: photo.rgb.pow(vec3(2.2)),
@@ -467,6 +470,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     stonesColour: ruralColour("field-stone"),
     detail,
   });
+  // The town's ground over that, from the near tile's surface image: nothing where a tile has none (`art/town-ground`).
+  const townPixels = manifest.town?.pixels ?? 1;
+  const townMask = sampled(layers.townNear, nearLayer).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
+  // A direction can't be filtered, so it's the nearest texel's.
+  const townAngle = textureLoad(layers.townNear, ivec2(imageUv.mul(townPixels).floor().clamp(0, townPixels - 1))).depth(nearLayer).a;
+  const townClassed = max(smoothstep(float(0.49), float(0.51), townMask.r), smoothstep(float(0.49), float(0.51), townMask.g));
+  const photoSoft = texture(layers.groundNear, imageUv).depth(nearLayer).level(float(3)).rgb.pow(vec3(2.2));
+  const groundColor = townGround({ place: positionWorld.xz, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -497,7 +508,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return hazed(mix(pastTiles, near, farSeen));
   };
 
-  const { canopyAt, standsAt, roadsAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, townAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -513,7 +524,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const verge = createVerge(scene, renderer, { landAt, townAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, lightOf, linear, hazed, sun: manifest.sun });
   const granite = createGranite(scene, renderer, {
@@ -557,9 +568,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const centreLine = band(signedAcross, -CENTRE_LINE_WIDTH, CENTRE_LINE_WIDTH, fwidth(signedAcross)).mul(dash);
   const dressed = dressRoad({ place: positionWorld.xz, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
-  const painted = mix(dressed.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft));
+  // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
+  const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
+  // Where the town's ground is classed, a street's shoulder is that ground, save a paved town street's kerb.
+  const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
+  const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept.mul(townClassed)));
+  const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), max(townRoad.claimed, townClassed));
   const roadMaterial = new MeshBasicNodeMaterial();
-  roadMaterial.colorNode = hazed(mix(painted, dressed.shoulder, dressed.shoulderShare).mul(light));
+  roadMaterial.colorNode = hazed(mix(painted, shoulderColour, shoulderShare).mul(light));
 
   const bridgeMaterial = new MeshBasicNodeMaterial();
   const part = attribute<"float">("part", "float");
@@ -609,8 +626,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked }, done) {
-        const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
+      place({ detail, shade: mips, ground, town, townRibbons, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked }, done) {
+        const meshes = ribbonMeshes(detail, roadDress, townRibbons, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
         const solids = buildingMeshes(cells, wallMaterial);
@@ -631,7 +648,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const bytes = meshBytesOf(detail, roadDress, cells);
         meshBytesByTile.set(detail.name, bytes);
         meshBytes += bytes;
-        layers.placeNear(world.named(detail.name), mips, ground, manifest, () => {
+        layers.placeNear(world.named(detail.name), mips, ground, town, manifest, () => {
           done();
           landmarks.add(detail.name);
         });

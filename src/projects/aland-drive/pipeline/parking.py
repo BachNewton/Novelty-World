@@ -28,7 +28,7 @@ import shapely
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import Tile, tile_from_name
-from roadside import CENTRE, EDGE_LEFT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
+from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
 from sources import osm_path
 from vectors import tagged_paved_areas
 
