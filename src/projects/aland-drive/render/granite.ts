@@ -1,8 +1,9 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { abs, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
-import { groundFloor, groundKinds, rockFloor } from "../art/surfaces";
+import { flatNormal } from "../art/flat-normal";
+import { groundFloor, groundKinds, groundTone, rockFloor } from "../art/surfaces";
 import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
@@ -26,9 +27,9 @@ import type { LandAt } from "./tile-reads";
  * the kit's crystals and cracks over it, and the grass a spring photo shows on thin
  * turf turned to rock. Its light
  * is the ground's, times how much more or less its own facets face the sun than the
- * ground under them. So from afar an outcrop is the photo, and it ends by
- * dissolving one place at a time where it is a few pixels high and the photo
- * already carries the rock. It ends inside the innermost ring of terrain, which is
+ * ground under them. Before it ends it turns to exactly the terrain's own colour
+ * there (`groundTone`), crystals, facets and all, so when it dissolves, one place
+ * at a time where it is a few pixels high, nothing on screen changes. It ends inside the innermost ring of terrain, which is
  * exactly the mesh it lies on.
  *
  * Outcrops don't stop the car: they lift the drivable ground by a few decimetres at
@@ -36,15 +37,17 @@ import type { LandAt } from "./tile-reads";
  *
  * A boulder field (the mapped fields, `fieldsAt`) is a carpet of stones the ice
  * dumped, too many to list: the ground's relief carries them from afar, and close
- * up they stand on it as a second planting of the kit's boulder, small and many.
+ * up they stand on it as a second planting of the kit's boulder, small and many,
+ * which turn to the ground's own colour and light before they dissolve, as an
+ * outcrop does.
  * They don't stop the car either: a field's biggest stones are listed as boulders,
  * which do.
  */
 
-const LATTICE: Lattice = { stepM: 7, ends: [180, 230, 30], salt: 517.3 };
+const LATTICE: Lattice = { stepM: 7, ends: [120, 150, 30], salt: 517.3 };
 /** The widest an outcrop reaches from its place: the kit's longest dome at its largest size. */
 const WIDEST_M = 9;
-const SWAP_M = 90;
+const SWAP_M = 100;
 const SWAP_BAND = 0.15;
 
 /** The mapped rock's share at a place, from none to all, and at a corner, from where it sinks to where it lifts fully. */
@@ -81,8 +84,12 @@ const SUN_SHARE = 0.5;
 /** Outcrops lie on a share of rock's places, and rock is a share of what's in reach. */
 const MOST_OUTCROPS = 0.3;
 const SEEDS = [3, 24] as const;
+/** Over these metres an outcrop turns to the terrain's own colour, before it swaps to its far version and before its lattice ends. */
+const MATCHED_M = [40, 80] as const;
 
-const STONES: Lattice = { stepM: 0.9, ends: [16, 26, 8], salt: 911.7 };
+const STONES: Lattice = { stepM: 0.9, ends: [28, 40, 8], salt: 911.7 };
+/** Over these metres a stone turns to the ground's own colour and light, before it swaps to its far version and before its lattice ends. */
+const STONES_MATCHED_M = [6, 22] as const;
 /** The field's share at a place, from no stones to its most. */
 const FIELD_HERE = [0.25, 0.75] as const;
 const MOST_STONES = 0.85;
@@ -92,7 +99,7 @@ const STONE_PARTS: RuralPart[] = ["field-stone", "field-stone-pink", "rapakivi"]
 /** Stones sit a little into the ground, as a share of their size. */
 const STONE_SINK = 0.05;
 /** Where a stone's rounded version hands over to its few-sided one. */
-const STONE_SWAP_M = 12;
+const STONE_SWAP_M = 24;
 
 function tallest(shape: BufferGeometry): number {
   const position = shape.getAttribute("position");
@@ -144,6 +151,10 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const graniteColour = ruralColours(linear)[RURAL_PARTS.indexOf("rapakivi")];
   const granite = vec3(graniteColour.x, graniteColour.y, graniteColour.z);
+  const fieldStone = ruralColours(linear)[RURAL_PARTS.indexOf("field-stone")];
+  // The terrain's own colour at a pixel, with no relief: what a rock turns to before it goes.
+  const groundToneAt = (place: Node<"vec2">, photo: Node<"vec3">) =>
+    groundTone({ photo, litterColour, rock: rockAt(place, 0), fields: fieldsAt(place), rockColour: granite, stonesColour: vec3(fieldStone.x, fieldStone.y, fieldStone.z) }, groundKinds(photo));
   const stoneColours = uniformArray(STONE_PARTS.map((part) => ruralColours(linear)[RURAL_PARTS.indexOf(part)]), "vec3");
 
   const capacity = Math.ceil(placesWithin(reachOf(LATTICE), LATTICE.stepM) * MOST_OUTCROPS);
@@ -188,7 +199,8 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const local = positionGeometry;
       const size = live.z;
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
-      const spot = standing.xz.add(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(size)).toVar();
+      const offset = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(size).toVar();
+      const spot = standing.xz.add(offset).toVar();
       const ground = groundOnMeshAt(spot).toVar();
       const profile = local.y.div(tallsOf.element(int(live.w)) as unknown as Node<"float">);
       const reaches = smoothstep(float(ROCK_EDGE[0]), float(ROCK_EDGE[1]), rockAt(spot, 0))
@@ -200,11 +212,13 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const south = groundOnMeshAt(spot.add(vec2(0, 1)));
       const groundNormal = varying(normalize(vec3(ground.sub(east), 1, ground.sub(south))));
       const foot = varying(lift.max(0).mul(MOSS_FOOT));
+      // The crystals are laid in the outcrop's own metres: the world's are too coarse for them out here.
+      const metres = varying(vec3(offset.x, ground.add(lift).sub(standing.y), offset.y).add(standing.w.mul(37)));
 
       const material = new MeshBasicNodeMaterial();
       material.positionNode = vec3(spot.x, ground.add(lift), spot.y);
 
-      const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
+      const facing = flatNormal();
       const upward = select(facing.y.lessThan(0), facing.negate(), facing);
       const relit = lightOn(upward).div(lightOn(groundNormal));
       const close = closeLandAt(positionWorld.xz);
@@ -213,8 +227,9 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       // A spring photo shows thin turf on rock as grass: under an outcrop it's rock.
       const floor = rockFloor(groundFloor(photo, litterColour, kinds), granite, float(1), kinds.grassShare.mul(float(1).sub(TURF_GREYED)));
       const away = positionWorld.sub(cameraPosition).length();
-      const crystals = mix(vec3(1), rapakivi({ colour }, granite, positionWorld, away, abs(upward.y).mul(LICHEN_UPWARD), foot).div(granite), SURFACE);
-      material.colorNode = hazed(floor.mul(crystals).mul(lightOf(close.shade)).mul(relit));
+      const crystals = mix(vec3(1), rapakivi({ colour }, granite, metres, away, abs(upward.y).mul(LICHEN_UPWARD), foot).div(granite), SURFACE);
+      const matched = smoothstep(float(MATCHED_M[0]), float(MATCHED_M[1]), away);
+      material.colorNode = hazed(mix(floor.mul(crystals).mul(relit), groundToneAt(positionWorld.xz, photo), matched).mul(lightOf(close.shade)));
 
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
@@ -273,14 +288,16 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const material = new MeshBasicNodeMaterial();
       material.positionNode = standing.xyz.add(turned);
 
-      const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
+      const facing = flatNormal();
       const upward = select(facing.y.lessThan(0), facing.negate(), facing);
       const close = closeLandAt(positionWorld.xz);
       const base = stoneColours.element(int(varying(live.w))) as unknown as Node<"vec3">;
       const away = positionWorld.sub(cameraPosition).length();
       const foot = varying(local.y.mul(live.z).add(0.05).max(0).mul(MOSS_FOOT));
-      const painted = rapakivi({ colour }, base, positionWorld, away, abs(upward.y), foot);
-      material.colorNode = hazed(painted.mul(lightOf(close.shade)).mul(lightOn(upward)));
+      const painted = rapakivi({ colour }, base, varying(turned.add(standing.w.mul(37))), away, abs(upward.y), foot);
+      const matched = smoothstep(float(STONES_MATCHED_M[0]), float(STONES_MATCHED_M[1]), away);
+      const ground = groundToneAt(positionWorld.xz, close.photo.pow(vec3(2.2)));
+      material.colorNode = hazed(mix(painted.mul(lightOn(upward)), ground, matched).mul(lightOf(close.shade)));
 
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));

@@ -1,6 +1,6 @@
 export { band, pulses } from "./coverage";
 export { detailTexture, type Sun } from "./detail";
-export { groundDetail, groundFloor, groundKinds, rockFloor } from "./ground";
+export { groundDetail, groundFloor, groundKinds, groundTone, rockFloor } from "./ground";
 export { dressRoad } from "./road";
 export { junctionMarks } from "./paint";
 export { roadAttributes, type RoadAttributes } from "./road-attributes";
