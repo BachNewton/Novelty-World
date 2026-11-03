@@ -10,6 +10,13 @@ A large library of art is built and pushed under `art/`, and almost none of it i
 
 Older tile versions remain in the bucket, which now holds about 538 MB and shares its 1 GB with `audiobooks`. Superseded versions can go once the live one has proved itself.
 
+## Waiting for the next tile publish
+
+Two pipeline steps are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish runs them over every tile (a full `build.py` runs both):
+
+- **The roadside** (`pipeline/roadside.py`): lamps, poles and wires, rails, edge posts, mailboxes, shelters and signs.
+- **Stone walls** (`pipeline/walls.py`): the field walls, about 364 km across the island. `walls.py` alone adds them to tiles already built.
+
 ## What's next, in order
 
 1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement. Take a baseline before any art goes in, using `tools/drive.mjs --clock` on a production build. Average cost is level with Phase 4, but the worst frames are not: frame p99 39.8 ms and max 185 ms, against 20.5 and 54.5 ms. The long frames cluster round Mariehamn with nothing loading, possibly first-time building meshes, which is a guess.
