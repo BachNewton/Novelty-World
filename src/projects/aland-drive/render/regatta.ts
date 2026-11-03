@@ -9,7 +9,7 @@ import { buildRegatta, type RegattaCourse, type RegattaInputs } from "../art/boa
  * south-westerly, so a fleet beats up it and runs back. A fleet is drawn only
  * past 1.5 km, from the shore roads round it.
  *
- * Every fleet sails by the wall clock, wrapped at a day, not by the game's own
+ * Every fleet sails by the wall clock in UTC, wrapped at a day, not by the game's own
  * time: every player sees the same boats in the same places, and pausing the
  * game doesn't stop the race.
  */
@@ -23,7 +23,7 @@ export const COURSES: readonly RegattaCourse[] = [
   { from: { x: 7200, z: 3900 }, to: { x: 10900, z: 300 }, y: SEA_Y, wideM: 700, count: 20, seed: 23, periodS: DAY_S },
 ];
 
-/** Seconds into today, by the wall clock. */
+/** Seconds since midnight UTC, the clock every moving boat sails by. */
 const clockSeconds = () => (Date.now() / 1000) % DAY_S;
 
 export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">) {
