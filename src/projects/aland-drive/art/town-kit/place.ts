@@ -1,6 +1,6 @@
 import type { Placement } from "../roadside/material";
-import { CARS } from "../cars/specs";
-import type { ParkedCar } from "../street/parked";
+import type { FleetCar } from "../cars/fleet";
+import { WORLD_CARS } from "../cars/specs";
 import type { LinePoint } from "../street/place";
 import type { SignalPlacement } from "./material";
 
@@ -55,9 +55,9 @@ export function bikeRow({ x, y, z }: LinePoint, { yaw, count, spacingM }: { yaw:
   return Array.from({ length: count }, (_, index) => ({ x: x + alongX * index * spacingM, y, z: z + alongZ * index * spacingM, yaw: yaw + Math.PI / 2 + ((index * 7) % 5) * 0.012 }));
 }
 
-/** The cars kit's van, its far model joined and parked as any car is: a white one at a loading spot, for `placeParkedCars`. */
-export function deliveryVan({ x, y, z }: LinePoint, yaw: number): ParkedCar {
-  const car = CARS.findIndex(({ name }) => name === "Kobb");
-  if (car < 0) throw new Error("the cars kit has no van");
-  return { x, y, z, yaw, car, paint: "car-paint-white" };
+/** The world cars' post van at a loading spot, for `createCarFleet`: its livery is its paint, so it keeps it. */
+export function deliveryVan({ x, y, z }: LinePoint, yaw: number): FleetCar {
+  const spec = WORLD_CARS.find(({ name }) => name === "Brev");
+  if (!spec) throw new Error("the world cars have no post van");
+  return { spec, x, y, z, yaw, seed: 1 };
 }

@@ -33,6 +33,8 @@ export interface TileManifest {
   walls?: { file: string };
   /** Lamps, poles, signs, rails, edge posts, mailboxes and shelters beside the roads. A tile built before them has none. */
   roadside?: { file: string };
+  /** Cars parked in car parks and at kerbs. A tile built before them has none. */
+  parked?: { file: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */

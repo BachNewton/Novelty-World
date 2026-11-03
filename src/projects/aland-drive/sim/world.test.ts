@@ -4,6 +4,7 @@ import { nextToLoad, isPastUnload } from "../render/stream";
 import { paintAlong, DASH_LENGTH_M } from "../render/roads";
 import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
 import { boulderWalls } from "../render/tile-models";
+import { parkedWalls } from "../render/parked-places";
 import { NO_INPUT } from "./car";
 import { Drive, initPhysics } from "./drive";
 import { RoadLine } from "./road-net";
@@ -176,6 +177,16 @@ describe("a boulder", () => {
     }
     expect(furthest).toBeLessThan(boulderX);
     drive.dispose();
+  });
+});
+
+describe("a parked car", () => {
+  it("stops the car at top speed: its outline is walls, as a building's is", () => {
+    const carX = -300;
+    // Parked askew across the road, as the worker stands it, whichever world car rolls for the place.
+    const { fastest, furthest } = flatOut(twoTiles(true, parkedWalls(Float32Array.of(carX, 0, ROAD_Z, 1.2))));
+    expect(fastest).toBeGreaterThan(50);
+    expect(furthest).toBeLessThan(carX);
   });
 });
 

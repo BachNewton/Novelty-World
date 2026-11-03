@@ -10,6 +10,7 @@ import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
+import { createParkedCars } from "./parked-cars";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
@@ -93,6 +94,10 @@ export interface GameProbe {
   roadsideCounts: () => Record<string, number>;
   /** Shows the lamps, poles, signs, rails and the rest beside the roads, or leaves them out, to see what they do. */
   showRoadside: (shown: boolean) => void;
+  /** How many cars are parked across the loaded tiles, and how many are near enough to be on the near and the stand-in lists. */
+  parkedCounts: () => { parked: number; near: number; distant: number };
+  /** Shows the parked cars or leaves them out, to see what they do. */
+  showParked: (shown: boolean) => void;
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -578,6 +583,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, manifest.sun),
   });
+  const parkedCars = createParkedCars(scene, manifest.sun, hazed);
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
@@ -597,7 +603,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, parked }, done) {
         const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
@@ -609,6 +615,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         stoneWalls.add(detail.name, walls);
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, walls);
         roadside.add(detail.name, placed);
+        parkedCars.add(detail.name, parked);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
@@ -647,6 +654,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         stoneWalls.remove(detail.name);
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
+        parkedCars.remove(detail.name);
         landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
@@ -711,6 +719,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   docks.showAll(true);
   stoneWalls.showAll(true);
   roadside.showAll(true);
+  parkedCars.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
@@ -724,6 +733,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   docks.showAll(false);
   stoneWalls.showAll(false);
   roadside.showAll(false);
+  parkedCars.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -1114,6 +1124,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     stoneWalls.update(camera.position);
+    parkedCars.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
     sky.update(camera.position, seconds);
@@ -1150,6 +1161,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showVerge: verge.show,
       roadsideCounts: roadside.counts,
       showRoadside: roadside.show,
+      parkedCounts: parkedCars.counts,
+      showParked: parkedCars.show,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -1278,6 +1291,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();
+      parkedCars.dispose();
       landmarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();

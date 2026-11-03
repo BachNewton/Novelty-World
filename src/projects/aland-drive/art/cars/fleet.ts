@@ -15,8 +15,8 @@ import { geometryOf, worldCarMaterial } from "./material";
  */
 
 /** Past this a car is its stand-in, and past `REACH_M` it's gone. */
-const SWAP_M = 120;
-const REACH_M = 900;
+export const SWAP_M = 120;
+export const REACH_M = 900;
 const SHADOW_LIFT_M = 0.02;
 const SHADOW_INSET_M = 0.14;
 

@@ -2,7 +2,9 @@ import { Color, DoubleSide, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, Plan
 import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildBusShelter, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
-import { buildBench, buildBikeRack, buildPlanter, parkedCarMaterial, parkingBays, placeParkedCars, rowAlong, streetMaterials, type LinePoint } from "../street";
+import { createCarFleet } from "../cars/fleet";
+import { WORLD_CARS } from "../cars/specs";
+import { buildBench, buildBikeRack, buildPlanter, rowAlong, streetMaterials, type LinePoint } from "../street";
 import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
 
 /*
@@ -57,7 +59,6 @@ const town = townMaterials(inputs);
 const signals = trafficLightMaterials(inputs);
 const street = streetMaterials(inputs);
 const roadside = roadsideMaterials(inputs);
-const parked = parkedCarMaterial(inputs);
 
 const streetKit: Mesh[] = [];
 const harbourKit: Mesh[] = [];
@@ -230,8 +231,9 @@ add(hangingModel, alongWall(ground(-80, -10.98), ground(-44, -10.98), { spacingM
 add(boxModels[0], alongWall(ground(-80, -10.98), ground(-44, -10.98), { spacingM: 3, heightM: 1.25, outward: 1 }));
 add(boxModels[1], alongWall(ground(-34, 10.98), ground(2, 10.98), { spacingM: 3, heightM: 1.25, outward: -1 }));
 
-const vans = [deliveryVan(ground(-40, 2.8), Math.PI / 2 + Math.PI), ...parkingBays(ground(-140, 4.6), ground(-60, 4.6), { bayM: 6.2, fill: 0.7, seed: 4, nose: "kerbside" })];
-const vanMeshes = placeParkedCars(vans, parked);
+// A kerb's parked cars along the street, as the game parks them, and the van at its loading spot.
+const kerbCars = Array.from({ length: 13 }, (_, bay) => ({ spec: WORLD_CARS[(bay * 7) % WORLD_CARS.length], ...ground(-137 + bay * 6.2, 4.6), yaw: -Math.PI / 2, seed: bay + 4 })).filter((_, bay) => bay % 4 !== 2);
+const vanMeshes = createCarFleet([deliveryVan(ground(-40, 2.8), Math.PI / 2 + Math.PI), ...kerbCars], SUN, hazed).meshes;
 scene.add(...vanMeshes);
 streetKit.push(...vanMeshes);
 

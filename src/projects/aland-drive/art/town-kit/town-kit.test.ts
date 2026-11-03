@@ -67,6 +67,6 @@ describe("traffic signals", () => {
   });
 });
 
-it("parks the cars kit's van as a white delivery van", () => {
-  expect(deliveryVan({ x: 1, y: 0, z: 2 }, 0).paint).toBe("car-paint-white");
+it("parks a van in its livery as the delivery van", () => {
+  expect(deliveryVan({ x: 1, y: 0, z: 2 }, 0).spec.livery).toBe(true);
 });
