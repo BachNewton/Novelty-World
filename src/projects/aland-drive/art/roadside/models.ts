@@ -168,17 +168,21 @@ export function buildMailbox(): RoadsideModel {
   return model(near, null, 170, 170);
 }
 
+const BOARD_M = 0.03;
+
 /** A rural bus shelter: red boards and white trim like the houses, open to the road, with a bench. */
 export function buildBusShelter(): RoadsideModel {
   const [wide, deep, front, back] = [1.6, 0.8, 2.5, 2.2];
   const near = new Model();
-  const wall = (corners: V3[], part: Part) => near.face(corners, part).face([...corners].reverse(), "shelter-inside", 0.85);
+  // The material draws both sides of a face, so the boards' inside stands a board's thickness in from their outside, or the two would fight.
+  const wall = (corners: V3[], part: Part, inward: V3) =>
+    near.face(corners, part).face([...corners].reverse().map(([x, y, z]): V3 => [x + inward[0] * BOARD_M, y, z + inward[2] * BOARD_M]), "shelter-inside", 0.85);
   const heightAt = (z: number) => back + ((z + deep) / (2 * deep)) * (front - back);
   const low = 0.08;
   const sideEnd = deep * 0.15;
-  wall([[wide, low, -deep], [-wide, low, -deep], [-wide, back, -deep], [wide, back, -deep]], "shelter-red");
+  wall([[wide, low, -deep], [-wide, low, -deep], [-wide, back, -deep], [wide, back, -deep]], "shelter-red", [0, 0, 1]);
   for (const x of [-wide, wide]) {
-    wall([[x, low, -deep], [x, low, sideEnd], [x, heightAt(sideEnd), sideEnd], [x, back, -deep]], "shelter-red");
+    wall([[x, low, -deep], [x, low, sideEnd], [x, heightAt(sideEnd), sideEnd], [x, back, -deep]], "shelter-red", [-Math.sign(x), 0, 0]);
     near.box([x - 0.06, -SINK_M, deep - 0.12], [x + 0.06, front, deep], "shelter-trim", { open: true });
     near.box([x - 0.06, -SINK_M, -deep - 0.06], [x + 0.06, back, -deep + 0.06], "shelter-trim", { open: true });
     near.box([x - 0.05, 0, sideEnd - 0.06], [x + 0.05, heightAt(sideEnd), sideEnd + 0.06], "shelter-trim", { open: true, shade: 0.95 });
