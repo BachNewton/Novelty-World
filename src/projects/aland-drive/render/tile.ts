@@ -37,6 +37,8 @@ export interface TileManifest {
   people?: Record<string, { file: string }>;
   /** Cars parked in car parks and at kerbs. A tile built before them has none. */
   parked?: { file: string };
+  /** The Västerhamn terminal and the fuel stations standing in the tile, drawn with its detail. A tile built before them has none. */
+  nearSites?: LandmarkPlace[];
 }
 
 /** What `world.json` says about the whole of what's been built. */

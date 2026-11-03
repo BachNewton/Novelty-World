@@ -39,7 +39,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
-| **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
+| **Villas' porches, fuel stations, supermarket entrances** | `art/facades`, `render/building-add-ons.ts` | In the game, on tiles rebuilt since; not yet published. 106 villa add-ons and 11 entrances on Mariehamn's two tiles | A villa's door facade and a big shop's, read from the building cells, off the road surface (`render/tile-add-ons.ts`); the six fuel stations with a canopy in the 2025 photo, surveyed there (`fuel-stations.json`), in place of what lies under their canopies (`pipeline/landmarks.py`) | [x] | [x] | [x] |
 | **Stone churches** | `art/facades` | In the game, on tiles rebuilt since; not yet published | Their real sites, in place of their NLS solids (`pipeline/landmarks.py`) | [x] | [x] | [x] |
 | **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
@@ -67,6 +67,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
+| Västerhamn terminal | `art/town-kit` | `ahvenanmaa_2022_13485`, the walkways NLS ran to the ground; drawn with its tile's detail, and its raised ways are off the road surface | [x] | [x] |
 | Ferry | `art/town-kit` | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
@@ -74,7 +75,10 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - Parked cars are `art/cars`' world cars (`fleet.ts`), not `art/street`'s old parked-cars kit (`parked.ts`): the kit drew the fourteen drivable cars' far models with no lighter version, grew them from the ground at 300 m, and had nothing for traffic. The world cars are eighteen ordinary cars (hatchbacks, estates, vans, a taxi, a post van), each a near model of under 2,000 triangles to 120 m and a stand-in of about thirty to 900 m, handing over by a screen-door dissolve, with a paint, a roof rack and a height per car, and a `move` for traffic to reuse. So `parked.ts` is deleted: its car park and kerb left the street gallery, whose 400 m street no longer counts cars, and the people and town-kit galleries' cars, the town kit's delivery van among them (now the post van), are world cars.
 - The verge, bushes and birches grow under and through a kerb's parked cars, as in a bus shelter: a planting reads only images, and a car is in none.
 
-- Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
+- Footbridges that OSM tags `bridge=yes` without `surface=wood` (some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now, and the terminal's are its model's.
+- The terminal's two car ramps are drawn, not driven: with no ferry berthed a raised ramp leads nowhere, and laying them as roads would put a ribbon through the model's decks. Driving them is a span with the decks' own profile (`TERMINAL_DECKS`), when berthed ferries need it.
+- A fuel station is its canopy, pumps and pylon only. OSM's 20 `amenity=fuel` across the island were read against the 2025 photo: 14 are a pump or two with no canopy, boat fuel at a marina or a depot, and each of the six with a canopy has its shop in an NLS building beside it, so the model's own kiosk would have stood beside or through it and was deleted. The canopy takes each station's surveyed length and depth.
+- A supermarket entrance's canopy sat across the big shop's name on the wall; it stands under it now, at 2.55–2.9 m.
 - Every placed boat is moored. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state and the regatta, and a still boat out on open water would look stranded.
 - The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.

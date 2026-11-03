@@ -58,6 +58,17 @@ export interface TileRoadside {
   wires: Float32Array;
   /** What the car can't pass, as the solids' walls are: x and z at either end. */
   walls: Float32Array;
+  /** Each traffic light's start in its cycle, 0 to 1, in the order of the `traffic-light` places. */
+  signalPhases: Float32Array;
+  /** Each street-name post's two blades, in the order of the `name-post` places. */
+  streetNames: StreetBlade[][];
+  /** Each village sign's name, in the order of the `village-sign` places. */
+  villageNames: string[];
+}
+/** A street's blade on a name post: the yaw that lays it along its street, and the street's name. */
+export interface StreetBlade {
+  yaw: number;
+  name: string;
 }
 export const ROADSIDE_FLOATS = 6;
 export const SIGN_FLOATS = 4;
@@ -68,12 +79,42 @@ export interface RoadsideFile {
   signs: Record<string, number[][]>;
   wires: number[][];
   walls: number[][];
+  /** A tile baked before the town's signals and names were placed has none of them. */
+  signalPhases?: number[];
+  /** A post's blades as yaw and name, then yaw and name. */
+  streetNames?: [number, string, number, string][];
+  villageNames?: string[];
 }
 
 export const NO_ROADSIDE: RoadsideFile = { models: {}, signs: {}, wires: [], walls: [] };
 
+/** A list of places by model: x, y, z, yaw, stretch, shear. */
+export function roadsidePlaces(floats: Float32Array) {
+  const places: { x: number; y: number; z: number; yaw: number; stretch: number; shear: number }[] = [];
+  for (let at = 0; at < floats.length; at += ROADSIDE_FLOATS) {
+    const [x, y, z, yaw, stretch, shear] = floats.subarray(at, at + ROADSIDE_FLOATS);
+    places.push({ x, y, z, yaw, stretch, shear });
+  }
+  return places;
+}
+
 const columns = (lists: Record<string, number[][]>) => Object.fromEntries(Object.entries(lists).map(([name, places]) => [name, Float32Array.from(places.flat())]));
 
+/** The town's lists beside their places, one for one: a file whose two disagree is broken. */
+function alongside<T>(file: RoadsideFile, model: string, values: readonly T[]): readonly T[] {
+  const places = model in file.models ? file.models[model].length : 0;
+  if (values.length !== places) throw new Error(`the roadside has ${places} ${model} places and ${values.length} to go with them`);
+  return values;
+}
+
 export function decodeRoadside(file: RoadsideFile): TileRoadside {
-  return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()) };
+  return {
+    models: columns(file.models),
+    signs: columns(file.signs),
+    wires: Float32Array.from(file.wires.flat()),
+    walls: Float32Array.from(file.walls.flat()),
+    signalPhases: Float32Array.from(alongside(file, "traffic-light", file.signalPhases ?? [])),
+    streetNames: alongside(file, "name-post", file.streetNames ?? []).map(([yaw, name, crossingYaw, crossing]) => [{ yaw, name }, { yaw: crossingYaw, name: crossing }]),
+    villageNames: [...alongside(file, "village-sign", file.villageNames ?? [])],
+  };
 }

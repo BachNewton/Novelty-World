@@ -41,16 +41,16 @@ const CHURCH_LOOKS = [
 
 function fuelLook(index) {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- this folder's own data file, by a URL fixed here
-  const { east, north, bearing, roadM } = JSON.parse(readFileSync(new URL("./fuel-stations.json", import.meta.url), "utf8"))[index];
+  const { east, north, bearing, deepM } = JSON.parse(readFileSync(new URL("./fuel-stations.json", import.meta.url), "utf8"))[index];
   const turn = (bearing * Math.PI) / 180;
-  // Across the road from the forecourt, looking back at it a little along the road.
+  // Out on the street side of the canopy, looking back at it a little along its length.
   const [rightEast, rightNorth] = [Math.cos(turn), -Math.sin(turn)];
-  const [fromEast, fromNorth] = [east + rightEast * (roadM + 9) + Math.sin(turn) * 16, north + rightNorth * (roadM + 9) + Math.cos(turn) * 16];
+  const [fromEast, fromNorth] = [east + rightEast * (deepM / 2 + 18) + Math.sin(turn) * 16, north + rightNorth * (deepM / 2 + 18) + Math.cos(turn) * 16];
   const look = Math.atan2(east - fromEast, north - fromNorth);
   return { name: `fuel-${index}`, stage: { fuel: index }, at: { east: fromEast, north: fromNorth, height: 1.8, yaw: -look, pitch: 0.07 } };
 }
 
-const FUEL_LOOKS = [fuelLook(2), fuelLook(10), fuelLook(13)];
+const FUEL_LOOKS = [fuelLook(0), fuelLook(3), fuelLook(5)];
 
 /** Somewhere in town to load the tiles round before a door is looked for. */
 const TOWN = { east: 107800, north: 6683300, height: 1.6, yaw: 0, pitch: 0.12 };

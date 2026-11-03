@@ -319,12 +319,13 @@ class Waterfront:
 
     def landmarks(self) -> None:
         sites = Landmarks(self.tile)
-        if not sites.own:
+        own = [site for site in sites.own if not site.near_only]
+        if not own:
             return
         paved = Paved(*read_surface(self.folder, self.manifest))
         buildings = self._buildings()
         west, south, east, north = self.bounds["west"], self.bounds["south"], self.bounds["east"], self.bounds["north"]
-        for site in sites.own:
+        for site in own:
             plan = shapely.transform(site.plan, lambda points: np.column_stack(to_local(points[:, 0], points[:, 1])))
             middle = np.array(plan.centroid.coords[0])
             places = []

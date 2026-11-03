@@ -240,13 +240,13 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
 
 
 # What a kept copy of a tile's roadside objects holds: kept apart from the roads and buildings, so it can change alone.
-ROADSIDE_KEPT_VERSION = 1
-ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing"}, "power": {"pole"}}
+ROADSIDE_KEPT_VERSION = 2
+ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing", "traffic_signals"}, "power": {"pole"}, "place": {"village", "hamlet"}}
 ROADSIDE_WAYS = {"power": {"minor_line"}, "barrier": {"guard_rail"}}
 
 
 def _roadside(xml_files: list[Path]) -> dict:
-    """The API's lamps, poles, signs and stops as points, and its power lines and guard rails as lines, pole by pole."""
+    """The API's lamps, poles, signs, signals, stops and villages as points, and its power lines and guard rails as lines, pole by pole."""
     roots = [ElementTree.parse(path).getroot() for path in xml_files]
     tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
     wanted = lambda tags, kinds: any(tags.get(key) in values for key, values in kinds.items())

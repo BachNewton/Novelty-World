@@ -1,11 +1,14 @@
 """What a church or landmark takes the place of, and which tile lists it: the rules a site near an edge or a wrong plan breaks."""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 from shapely.geometry import box
 
-from grid import Tile
+from grid import Tile, to_local
 from landmarks import Landmarks, Site, read_sites
 
 TILE = Tile("TEST01", 100000, 6680000)
@@ -36,6 +39,35 @@ class Replacing(unittest.TestCase):
         sites = Landmarks(TILE, [site("tower", 103000, 6683000)])
         self.assertTrue(sites.covers("footprint", box(102998, 6682998, 103002, 6683002)))
         self.assertFalse(sites.covers("next door", box(103020, 6683000, 103030, 6683010)))
+
+
+class OverRoads(unittest.TestCase):
+    """The terminal and the fuel stations stand over roads: only their own walls stop the car, and the terminal's raised
+    ways are its own to draw."""
+
+    def near_site(self) -> Site:
+        legs = [box(102990, 6682990, 102991, 6682991), box(103009, 6682990, 103010, 6682991)]
+        return Site("terminal", 103000, 6683000, 0.0, frozenset(), False, box(102985, 6682985, 103015, 6683015), legs, True)
+
+    def test_the_car_meets_its_legs_not_its_plan(self):
+        sites = Landmarks(TILE, [self.near_site()])
+        self.assertEqual([wall.area for wall in sites.plans()], [1.0, 1.0])
+
+    def test_it_is_listed_apart_from_the_landmarks(self):
+        sites = Landmarks(TILE, [self.near_site(), site("church", 104000, 6684000)])
+        self.assertEqual([place["model"] for place in sites.places(Flat())], ["church"])
+        self.assertEqual([place["model"] for place in sites.places(Flat(), near_only=True)], ["terminal"])
+
+    def test_its_raised_ways_leave_the_road_surface_and_the_quay_under_them_stays(self):
+        sites = Landmarks(TILE, [self.near_site()])
+        x, y = to_local(103000, 6683000)
+        along = [[x - 10, y], [x + 10, y]]
+        roads = [{"id": 1, "line": along}, {"id": 2, "line": along}, {"id": 3, "line": [[x + 100, y], [x + 120, y]]}]
+        tags = {"elements": [{"type": "way", "id": 1, "tags": {"highway": "footway", "bridge": "yes", "layer": "1"}}, {"type": "way", "id": 2, "tags": {"highway": "service"}}, {"type": "way", "id": 3, "tags": {"highway": "footway", "bridge": "yes"}}]}
+        with tempfile.TemporaryDirectory() as folder:
+            osm = Path(folder) / "osm.json"
+            osm.write_text(json.dumps(tags), encoding="utf-8")
+            self.assertEqual([road["id"] for road in sites.off_raised(roads, osm)], [2, 3])
 
 
 class Listing(unittest.TestCase):

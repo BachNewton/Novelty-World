@@ -1,23 +1,17 @@
 import { BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshBasicNodeMaterial, Quaternion, Vector3 } from "three/webgpu";
-import { attribute, cameraPosition, dot, float, positionLocal, smoothstep } from "three/tsl";
-import type { SolidsCell } from "../../render/solids";
+import { attribute, cameraPosition, dot, float, positionLocal, select, smoothstep } from "three/tsl";
 import { createBuilder, type LandmarkMesh } from "../landmarks/kit";
-import IDS from "./facade-ids.json";
+import type { AddOn, AddOnKind } from "./add-on-places";
 import type { Painter } from "./paint";
 
 /*
  * What a shader can't do for a villa: things that stand off the wall. Each is a small model, its +x along the wall, +z out
  * of it and its origin at the foot of the wall, instanced. They need nothing from the pipeline: a villa's door facade is
- * read from the vertices themselves, and its seed picks what stands there. Past a few hundred metres each folds flat
+ * read from the vertices themselves, and its seed picks what stands there (`add-on-places.ts`). Past a few hundred metres each folds flat
  * against its wall, in the vertex shader, so none of them pops.
  */
 
-export type AddOnKind = "veranda" | "porch" | "bay" | "fronton";
-
 const FOLD_M = [260, 380] as const;
-const STYLE_VILLA = IDS.styles.villa;
-const NARROWEST_FACADE_M = 6;
-const VERANDA_WIDE_M = 6.4;
 
 function post(mesh: ReturnType<typeof createBuilder>, x: number, z: number, height: number, paint: readonly [number, number, number, number]) {
   const half = 0.07;
@@ -159,106 +153,6 @@ function fronton(paint: Painter): LandmarkMesh {
 
 export const ADD_ON_MODELS: Record<AddOnKind, (paint: Painter) => LandmarkMesh> = { veranda, porch, bay, fronton };
 
-export interface AddOn {
-  kind: AddOnKind;
-  /** The foot of the wall, scene space. */
-  x: number;
-  y: number;
-  z: number;
-  /** The way out of the wall. */
-  outX: number;
-  outZ: number;
-  /** Across the wall. */
-  scale: number;
-}
-
-export interface DoorFacade {
-  style: number;
-  front: number;
-  word: number;
-  seed: number;
-  /** The wall's foot, in the middle of the facade, scene space. */
-  x: number;
-  y: number;
-  z: number;
-  outX: number;
-  outZ: number;
-  alongX: number;
-  alongZ: number;
-  width: number;
-  eaves: number;
-}
-
-/** Each building's facade with the door, read from the vertices. */
-export function doorFacades(cells: SolidsCell[]): DoorFacade[] {
-  const found: DoorFacade[] = [];
-  for (const { positions, facades, tints } of cells) {
-    const vertices = positions.length / 3;
-    let first = 0;
-    for (let at = 1; at <= vertices; at++) {
-      const buildingEnds = at === vertices || (tints[at * 4 + 3] !== 0 && tints[(at - 1) * 4 + 3] === 0);
-      if (!buildingEnds) continue;
-      let [sumX, sumZ, count] = [0, 0, 0];
-      let door = -1;
-      let other = -1;
-      for (let vertex = first; vertex < at; vertex++) {
-        sumX += positions[vertex * 3];
-        sumZ += positions[vertex * 3 + 2];
-        count++;
-        if (tints[vertex * 4 + 3] >= STYLE_VILLA && tints[vertex * 4 + 1] >= 128) {
-          if (door < 0) door = vertex;
-          else if (other < 0 && Math.abs(facades[vertex * 4] - facades[door * 4]) > 1) other = vertex;
-        }
-      }
-      if (door >= 0 && other >= 0) {
-        const span = facades[other * 4] - facades[door * 4];
-        const [alongX, alongZ] = [(positions[other * 3] - positions[door * 3]) / span, (positions[other * 3 + 2] - positions[door * 3 + 2]) / span];
-        const width = facades[door * 4 + 2];
-        const toMiddle = width / 2 - facades[door * 4];
-        const [x, z] = [positions[door * 3] + alongX * toMiddle, positions[door * 3 + 2] + alongZ * toMiddle];
-        const [middleX, middleZ] = [sumX / count, sumZ / count];
-        const facing = -alongZ * (x - middleX) + alongX * (z - middleZ) > 0 ? 1 : -1;
-        found.push({
-          style: tints[door * 4 + 3],
-          front: tints[door * 4] >> 5,
-          word: tints[door * 4 + 1] & 127,
-          seed: tints[door * 4 + 2],
-          x,
-          y: positions[door * 3 + 1] - facades[door * 4 + 1],
-          z,
-          outX: -alongZ * facing,
-          outZ: alongX * facing,
-          alongX,
-          alongZ,
-          width,
-          eaves: facades[door * 4 + 3],
-        });
-      }
-      first = at;
-    }
-  }
-  return found;
-}
-
-/** What stands on each villa, chosen by its seed: one thing at the door, and on a broad front sometimes more. */
-export function villaAddOns(cells: SolidsCell[]): AddOn[] {
-  const addOns: AddOn[] = [];
-  for (const door of doorFacades(cells)) {
-    if (door.style !== STYLE_VILLA || door.width < NARROWEST_FACADE_M) continue;
-    const { seed, width, eaves, x, y, z, outX, outZ, alongX, alongZ } = door;
-    const place = (kind: AddOnKind, offset: number, up: number, scale: number) => addOns.push({ kind, x: x + alongX * offset, y: y + up, z: z + alongZ * offset, outX, outZ, scale });
-    const roll = (seed * 37) % 100;
-    if (roll < 48 && width > 9) place("veranda", 0, 0, Math.min(1, (width * 0.56) / VERANDA_WIDE_M));
-    else place("porch", 0, 0, 1);
-    if (eaves > 4.6 && width > 11 && roll % 3 !== 2) {
-      const side = roll % 2 === 0 ? 1 : -1;
-      place("bay", side * width * 0.32, 0, 1);
-    }
-    if (eaves > 4 && width > 8 && (roll + 11) % 5 < 3) place("fronton", 0, eaves, Math.min(1.15, width / 13));
-  }
-  return addOns;
-}
-
 function geometryOf(mesh: LandmarkMesh): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(mesh.positions, 3));
@@ -268,34 +162,38 @@ function geometryOf(mesh: LandmarkMesh): BufferGeometry {
   return geometry;
 }
 
-/** The wall material, with the fold: everything of an instance slides into the plane of its wall as the camera leaves. */
-export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial): MeshBasicNodeMaterial {
+/**
+ * The wall material, with the fold: everything of an instance slides into the plane of its wall as the camera leaves,
+ * and past `reachM`, where its building is no longer drawn, folds to a point.
+ */
+export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
   material.colorNode = wallMaterial.colorNode;
   material.side = wallMaterial.side;
   const anchor = attribute<"vec3">("anchor", "vec3");
   const outward = attribute<"vec3">("outward", "vec3");
-  const folded = smoothstep(float(FOLD_M[0]), float(FOLD_M[1]), cameraPosition.sub(anchor).length());
-  material.positionNode = positionLocal.sub(outward.mul(dot(positionLocal.sub(anchor), outward).mul(folded)));
+  const distance = cameraPosition.sub(anchor).length();
+  const folded = smoothstep(float(FOLD_M[0]), float(FOLD_M[1]), distance);
+  material.positionNode = select(distance.lessThan(reachM), positionLocal.sub(outward.mul(dot(positionLocal.sub(anchor), outward).mul(folded))), anchor);
   return material;
 }
 
-/** One instanced mesh per kind in use, for one tile's add-ons. */
+/** One instanced mesh per kind, for these add-ons: a kind with none has one folded to nothing, so it can still be compiled. */
 export function addOnMeshes(addOns: AddOn[], paint: Painter, material: MeshBasicNodeMaterial): InstancedMesh[] {
   const meshes: InstancedMesh[] = [];
   const matrix = new Matrix4();
   const up = new Vector3(0, 1, 0);
   const turn = new Quaternion();
   for (const [kind, build] of Object.entries(ADD_ON_MODELS) as [AddOnKind, (paint: Painter) => LandmarkMesh][]) {
-    const own = addOns.filter((addOn) => addOn.kind === kind);
-    if (own.length === 0) continue;
+    const placed = addOns.filter((addOn) => addOn.kind === kind);
+    const own = placed.length > 0 ? placed : [{ kind, x: 0, y: 0, z: 0, outX: 0, outZ: 1, scale: 0 }];
     const geometry = geometryOf(build(paint));
     const anchors = new Float32Array(own.length * 3);
     const outwards = new Float32Array(own.length * 3);
     const instanced = new InstancedMesh(geometry, material, own.length);
     own.forEach(({ x, y, z, outX, outZ, scale }, at) => {
       turn.setFromAxisAngle(up, Math.atan2(outX, outZ));
-      matrix.compose(new Vector3(x, y, z), turn, new Vector3(scale, 1, 1));
+      matrix.compose(new Vector3(x, y, z), turn, scale === 0 ? new Vector3(0, 0, 0) : new Vector3(scale, 1, 1));
       instanced.setMatrixAt(at, matrix);
       anchors.set([x, y, z], at * 3);
       outwards.set([outX, 0, outZ], at * 3);
