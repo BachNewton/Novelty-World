@@ -54,8 +54,9 @@ function streetGeometry(x: number, z: number, ground: number, yaw: number): Buff
   for (const { width, eaves, colour, roof } of STREET) {
     const right = left + width;
     quad([[left, 0, 0], [right, 0, 0], [right, eaves, 0], [left, eaves, 0]], [[0, 0, width, eaves], [width, 0, width, eaves], [width, eaves, width, eaves], [0, eaves, width, eaves]], [colour, 255, 128, PLASTER]);
-    const none = [0, 0, 0, 0];
-    quad([[left, eaves, 0], [right, eaves, 0], [right, eaves + ROOF_RISE_M, ROOF_RUN_M], [left, eaves + ROOF_RISE_M, ROOF_RUN_M]], [none, none, none, none], [...roof, ROOF_STYLE]);
+    // A roof's facade is its own metres, across the slope and up it, counted downhill as the pipeline counts them.
+    const slope = Math.hypot(ROOF_RUN_M, ROOF_RISE_M);
+    quad([[left, eaves, 0], [right, eaves, 0], [right, eaves + ROOF_RISE_M, ROOF_RUN_M], [left, eaves + ROOF_RISE_M, ROOF_RUN_M]], [[left, slope, 0, 0], [right, slope, 0, 0], [right, 0, 0, 0], [left, 0, 0, 0]], [...roof, ROOF_STYLE]);
     left = right;
   }
   const geometry = new BufferGeometry();

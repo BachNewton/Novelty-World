@@ -116,7 +116,7 @@ In priority order. The priority is what fills the view most, and the source is o
 
 **Textures and surfaces:** close-up ground detail (grass, field, gravel, rock, pavement), asphalt and gravel roads, kerbs, road paint at crossings and junctions, a sheet of Finnish road signs, roof detail up close, shopfronts for town, and landmark surfaces.
 
-**3D models:** the player's car, then further invented cars to buy; a roadside kit of about five objects (street lamp, power pole, sign set, fence, mailbox); a better pine; a generic bridge kit; piers and pontoons; landmarks (the water tower, Pommern, the towers of S:t Görans and the town hall, Kastelholm, Bomarsund, von Knorring); later, ferries and traffic.
+**3D models:** the player's car, then further invented cars to buy; a roadside kit of about five objects (street lamp, power pole, sign set, fence, mailbox); a generic bridge kit; piers and pontoons; landmarks (the water tower, Pommern, the towers of S:t Görans and the town hall, Kastelholm, Bomarsund, von Knorring); later, ferries and traffic.
 
 **Backlog beyond that:** windmills, granite outcrops and boulders, bushes, reeds, stone walls, boathouses and small boats, hay bales, tractors and sheep; guard rails, reflector posts, speed cameras, verges and wildflowers; linden trees, street furniture, parked cars and harbour fittings; flags, midsummer poles, and a cloud sky. For Mariehamn and the villages: town ground surfaces and parks, esplanade wooden houses, facade variety, invented shop brands, a petrol station, town lamps and traffic lights, the terminal's walkways, and a parametric stone church. For phase 6's ownership: dealerships and homes to buy, inside and out, with a garage for each home.
 

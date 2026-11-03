@@ -2,7 +2,7 @@ import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, S
 import { cameraPosition, exp, float, max, mix, positionWorld, sin, smoothstep, step, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
-import { buildFarmFence, buildPine, FARM_FENCE_M, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside/index";
+import { buildFarmFence, FARM_FENCE_M, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside/index";
 import { catalogue } from "./catalogue";
 import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, PIER_SECTION, PONTOON_SECTION, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M } from "./index";
 
@@ -201,7 +201,6 @@ add(buildBoulder(24), [{ x: farmX - 2, y: 0, z: -13, scale: 1.4 }]);
 add(buildWrappedBale(), [{ x: farmX + 10, y: 0, z: -17 }, { x: farmX + 12, y: 0, z: -19.5, yaw: 0.6 }]);
 add(buildSheep("grazing"), [{ x: farmX + 21, y: 0, z: -13, yaw: 1 }, { x: farmX + 24, y: 0, z: -15, yaw: 4 }]);
 add(buildStoneWall(1), Array.from({ length: 30 }, (_, index) => ({ x: farmX - 26 + index * STONE_WALL_M, y: 0, z: -10 })));
-scene.add(...placeModel(buildPine(), [{ x: farmX - 12, y: 0, z: -26, scale: 19 }, { x: farmX + 34, y: 0, z: -24, scale: 20, yaw: 2 }], roadside));
 look("farm-corner", "a corner of farm", farmX, [-22, EYE_M, 1.5], [16, 3, -14], 60);
 
 // The shore, along x = SHORE_X, seen from the bank.

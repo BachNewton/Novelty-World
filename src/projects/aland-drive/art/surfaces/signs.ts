@@ -428,20 +428,55 @@ const lightFrom = ({ azimuthDeg, elevationDeg }: Sun) => {
   return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
 };
 
+/**
+ * Where an instanced plate or post goes, for whoever places many: the vertex's
+ * position, its normal turned with it, the uv it reads the sheet at, and which of
+ * its pixels show. Without one, a mesh stands where its own matrix puts it.
+ */
+export interface SignPlacing {
+  position: Node<"vec3">;
+  normal: Node<"vec3">;
+  uv: Node<"vec2">;
+  mask: Node<"bool">;
+}
+
+function placed(material: MeshBasicNodeMaterial, placing: SignPlacing | undefined): Node<"vec3"> {
+  if (placing === undefined) return normalWorld;
+  material.positionNode = placing.position;
+  material.maskNode = placing.mask;
+  return placing.normal;
+}
+
 /** The plates' material: the sheet on the front, bare grey metal behind, lit as the walls are. */
-export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: SignLook, sun: Sun): MeshBasicNodeMaterial {
-  const toSun = lightFrom(sun);
-  const facing = select(frontFacing, normalWorld, normalWorld.negate());
-  const light = float(AMBIENT).add(facing.dot(toSun).max(0).mul(SUN_SHARE));
+export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: SignLook, sun: Sun, placing?: SignPlacing): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
-  material.colorNode = hazed(select(frontFacing, vec3(texture(sheet, uv()).rgb), colour("sign-back")).mul(light));
+  const normal = placed(material, placing);
+  const facing = select(frontFacing, normal, normal.negate());
+  const light = float(AMBIENT).add(facing.dot(lightFrom(sun)).max(0).mul(SUN_SHARE));
+  material.colorNode = hazed(select(frontFacing, vec3(texture(sheet, placing?.uv ?? uv()).rgb), colour("sign-back")).mul(light));
   material.side = DoubleSide;
   return material;
 }
 
 /** Galvanised steel, lit the same way. */
-export function signPostMaterial({ colour, hazed }: SignLook, sun: Sun): MeshBasicNodeMaterial {
+export function signPostMaterial({ colour, hazed }: SignLook, sun: Sun, placing?: SignPlacing): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
-  material.colorNode = hazed(colour("sign-post").mul(float(AMBIENT).add(normalWorld.dot(lightFrom(sun)).max(0).mul(SUN_SHARE))));
+  const normal = placed(material, placing);
+  material.colorNode = hazed(colour("sign-post").mul(float(AMBIENT).add(normal.dot(lightFrom(sun)).max(0).mul(SUN_SHARE))));
   return material;
+}
+
+/** How far one sign's cell lies from another's on the sheet, in its uv: plates of one outline share a mesh and shift to their own. */
+export function signShift({ signs, texture: sheet }: SignSheet, from: string, to: string): [number, number] {
+  const [a, b] = [signs.get(from), signs.get(to)];
+  if (!a || !b) throw new Error(`no sign called ${a ? to : from}`);
+  const { width, height } = sheet.image as { width: number; height: number };
+  return [(b.x - a.x) / width, (b.y - a.y) / height];
+}
+
+/** A key that two signs share when their plates are cut alike, and so can share a mesh. */
+export function signOutlineKey({ signs }: SignSheet, name: string): string {
+  const sign = signs.get(name);
+  if (!sign) throw new Error(`no sign called ${name}`);
+  return sign.outline.map((value) => value.toFixed(1)).join(",");
 }

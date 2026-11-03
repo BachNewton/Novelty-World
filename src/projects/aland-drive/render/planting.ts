@@ -67,6 +67,14 @@ export const reachOf = ({ ends }: Lattice) => ends[1] + ends[2];
 export const placesWithin = (metres: number, stepM: number) => Math.ceil(Math.PI * (metres / stepM + 2) ** 2);
 export const roll = (cell: Node<"vec2">, a: number, b: number) => fract(sin(dot(cell, vec2(a, b))).mul(43758.5453));
 
+/** How far a shape spreads from its foot, across the ground. */
+export function spreadOf(shape: BufferGeometry): number {
+  const position = shape.getAttribute("position");
+  let widest = 0;
+  for (let at = 0; at < position.count; at++) widest = Math.max(widest, Math.hypot(position.getX(at), position.getZ(at)));
+  return widest;
+}
+
 /** A place within a lattice's reach that may be in view. */
 export interface PlaceAt {
   seed: Node<"vec2">;

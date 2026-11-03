@@ -5,7 +5,7 @@
  */
 
 /** Names the built tiles' folder in the bucket: a rebuild goes up beside the old one, so nothing can be served stale. */
-const TILES_VERSION = "738f4a7480ea";
+const TILES_VERSION = "864b209e5ae8";
 const BUCKET = "aland-drive-tiles";
 
 function published(): string {

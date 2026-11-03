@@ -3,7 +3,10 @@ import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, scre
 import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
-import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { foliageLight, towardsSun } from "./foliage-light";
+import { bandColours, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
+import { FAR_CLEARING, onLineReading, type WallDistance } from "./wall-clearing";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -49,14 +52,28 @@ const EDGE_BUSHES = 0.3;
 const ROCK_JUNIPERS = 0.25;
 const EDGE_BIRCHES = 0.3;
 const SALLOW_NEAR_WATER = 0.6;
+/** How far a birch's trunk stands off a wall's line, past what the far clearing can read on the line itself. */
+const BIRCH_OFF_WALL_M = onLineReading(FAR_CLEARING) + STONE_WALL_HALF_WIDE_M;
 
 /** How much of a plant is the photo's own colour, near. */
 const GROUND_SHARE = 0.1;
 /** A plant turns from its own colour towards the photo's between these. */
 const MATCHES = [250, 700] as const;
 
-/** How much brighter a plant's sunny side is than its middle, and its shaded side darker. */
-const SUN_SIDE = 0.2;
+/*
+ * A plant's light is the forest's (`foliage-light.ts`), from its direction as a whole:
+ * out from its middle, so a bush turns from light to shade as one mass. Then it shades
+ * itself, darker at its foot than its top, as a tree standing alone does, and each
+ * rolls its own brightness and a touch of its hue. Leaves that let the sun through glow
+ * at their edges looking towards it; a juniper's needles don't. On the whole a plant is
+ * as bright as under the old flat shading, so it still meets the photo it turns to far off.
+ */
+const MIDDLE = 0.45;
+const ROUNDNESS = 1.4;
+const FOOT_LIGHT = 0.87;
+const TOP_LIGHT = 1.05;
+const BRIGHTNESS_ROLL = [0.86, 1.12] as const;
+const HUE_ROLL = 0.07;
 
 const ROWS = 3;
 const BANDS = 5;
@@ -85,6 +102,9 @@ export interface ShrubInputs {
   groundAt: (place: Node<"vec2">) => Node<"float">;
   /** Metres from the drawn waterline, out into the water and below zero on land. */
   shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the nearest stone wall's line, to the bushes' reach and to the birches', for none to stand up through one. */
+  wallDistanceAt: WallDistance;
+  wallDistanceFarAt: WallDistance;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -106,7 +126,7 @@ export interface Shrubs {
   dispose: () => void;
 }
 
-export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
+export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
   const kinds: Kind[] = [
     { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
     { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
@@ -118,8 +138,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   ];
   const [HAZEL, , SALLOW, JUNIPER, , BIRCH] = [0, 1, 2, 3, 4, 5];
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const toSun = vec2(Math.sin(azimuth), -Math.cos(azimuth));
+  const toSun = towardsSun(sun);
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
@@ -128,6 +147,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   const tallsOf = uniformArray(tallOf, "float");
   const lowOf = uniformArray(kinds.map(({ sizes }) => sizes[0]), "float");
   const highOf = uniformArray(kinds.map(({ sizes }) => sizes[1]), "float");
+  const spreadOfKind = uniformArray(kinds.map(({ model }) => spreadOf(model.near)), "float");
 
   const fars = kinds.map(({ model }) => {
     if (model.far === null) throw new Error("A shrub kit model has no far version");
@@ -164,16 +184,19 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
             const size = mix(lowOf.element(int(kind)) as unknown as Node<"float">, highOf.element(int(kind)) as unknown as Node<"float">, roll(seed, 73.31, 29.47)).toVar();
             const swapM = SWAPS_M[isBushes ? BUSHES : BIRCHES];
             const swap = smoothstep(float(swapM * (1 - SWAP_BAND)), float(swapM * (1 + SWAP_BAND)), distance).toVar();
+            const clearOfWalls = isBushes
+              ? wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M))
+              : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M);
             const remaining = left().toVar();
             const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
             const look = vec4(land.broad.pow(vec3(2.2)), lightOf(land.shade)).toVar();
             kinds.forEach((each, index) => {
               if (LATTICES[each.lattice] !== lattice) return;
               If(kind.equal(index), () => {
-                If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
+                If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
                 });
-                If(swap.lessThan(1), () => {
+                If(clearOfWalls.and(swap.lessThan(1)), () => {
                   write(kinds.length + index, [standing, look, vec4(0, float(1).sub(swap), size, kind)]);
                 });
               });
@@ -194,10 +217,15 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
       const painted = isFar ? (bandsOf.element(int(live.w.mul(BANDS).add(band))) as unknown as Node<"vec3">) : paint;
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
-      // As the forest lights a tree: its own shade by height, and its sunny side a little brighter, smooth across each vertex.
-      const radial = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin)));
-      const lit = varying(dot(normalize(radial.add(vec2(1e-4, 0))), toSun).mul(SUN_SIDE).add(1));
-      const coloured = mix(painted.mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
+      const radial = normalize(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).add(vec2(1e-4, 0)));
+      const up = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).clamp(0, 1);
+      const rounded = varying(vec3(radial.x, up.sub(MIDDLE).mul(ROUNDNESS), radial.y));
+      const seeThrough = select(kind.equal(JUNIPER).or(kind.equal(JUNIPER + 1)), float(0), float(1));
+      const plantRoll = fract(standing.w.mul(7.31));
+      const ownShade = varying(mix(float(FOOT_LIGHT), float(TOP_LIGHT), up).mul(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), plantRoll)));
+      const hue = varying(fract(plantRoll.mul(3.17)).sub(0.5).mul(2 * HUE_ROLL));
+      const lit = foliageLight(toSun, rounded, seeThrough).mul(ownShade);
+      const coloured = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))).mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));

@@ -1,7 +1,8 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
+import { flatNormal } from "../flat-normal";
 
 /*
  * Every roadside object draws through the same two materials (near and far) and
@@ -9,6 +10,14 @@ import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
  * and the shader shows each one at the version its distance calls for, or folds
  * it to a point. So nothing runs on the CPU as the car moves, and no material or
  * draw call is added for a new object beyond its near mesh and its far one.
+ *
+ * Nothing switches on a line. Round its swap the two versions trade pixels by a
+ * fixed screen pattern, and towards its reach the last version dissolves the same
+ * way, never shrinking or growing: a pixel or two thinning out isn't seen, a lamp
+ * rising out of the ground would be. The pattern means a `discard`, so these
+ * materials keep to objects, never to anything that covers the screen.
+ *
+ * Its light is the street and rural kits' too, so the three kits sit together.
  */
 
 export interface RoadsideInputs {
@@ -61,63 +70,91 @@ const PAINT: Record<Part, { from: string; to?: string; share?: number; gain?: nu
   "bark-upper": { from: "tree-bark", to: "edge", share: 0.12, gain: 1.3 },
   needles: { from: "tree-pine", gain: 1.05 },
   "needles-lit": { from: "tree-pine", to: "tree-birch", share: 0.3, gain: 1.15 },
-  "sign-back": { from: "wall-pale", to: "wall-grey", share: 0.45 },
-  "sign-face": { from: "wall-trim" },
 };
 
-const AMBIENT = 0.68;
-const SUN_SHARE = 0.5;
-/** Grounded the way the buildings are: darker in the last metre to the ground. */
-const FOOT_SHADE = 0.72;
-const FOOT_M = 1.1;
-/** Each place swaps to its far version somewhere in this share of the distance, so they don't all go on one line. */
-const SWAP_SPREAD = 0.2;
+/** The light every placed kit shares: the sky's, the sun's on a face turned to it, and a darker last metre to the ground, as the buildings have. */
+export const KIT_LIGHT = { ambient: 0.68, sunShare: 0.5, footShade: 0.72, footM: 1.1 } as const;
+/** Each place swaps somewhere in this share of the distance, so they don't all go on one line. */
+export const SWAP_SPREAD = 0.2;
+/** The band two versions trade pixels over, as a share either side of the swap. */
+const SWAP_BAND = 0.1;
+/** The share of its reach over which the last version dissolves. */
+const LEAVE_SHARE = 0.15;
 
-const SIGN_FACE = PARTS.indexOf("sign-face");
+/** The way to the sun, for a shader. */
+export function toSunOf({ azimuthDeg, elevationDeg }: RoadsideInputs["sun"]) {
+  const azimuth = (azimuthDeg * Math.PI) / 180;
+  const elevation = (elevationDeg * Math.PI) / 180;
+  return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+}
 
-/** How a vertex of this kit is coloured and lit, for anything that draws it: a material here, or the forest's. */
+/** A flat-shaded face's own normal, and the kit's light on it. */
+export function facetLight(sun: RoadsideInputs["sun"]) {
+  const normal = flatNormal();
+  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(toSunOf(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
+}
+
+/** Darker in the last metre to the ground: 1 above it. */
+export const footShade = (foot: Node<"float">) => mix(float(KIT_LIGHT.footShade), float(1), smoothstep(float(0), float(KIT_LIGHT.footM), foot));
+
+/** A place's pseudo-random share, the same every time it's asked. */
+export const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+
+/** Interleaved gradient noise: an even spread of thresholds over the screen, the same every frame for a still pixel. */
+export const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
+
+/** How a vertex of this kit is coloured and lit. */
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: Node<"float">) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
   const colours = PARTS.map((part) => {
     const { from, to, share = 0, gain = 1 } = PAINT[part];
     return linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
   });
   const palette = uniformArray(colours);
   const tint = attribute<"vec4">("tint", "vec4");
-  const part = round(tint.r.mul(255));
-  const base = (palette.element(int(part)) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
-
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
-  const grounded = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot));
-  return { base, lit: lit.mul(grounded), part };
+  const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+  return base.mul(facetLight(sun).lit.mul(footShade(foot)));
 }
 
-/** A place's pseudo-random share, the same every time it's asked. */
-const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
-
-function placedMaterial(inputs: RoadsideInputs, isNear: boolean, signFace?: Node<"vec3">): MeshBasicNodeMaterial {
+/**
+ * Where a place's vertex goes, its normal turned with it, and which of its pixels
+ * show: `isNear` picks the version. A model with no far version has its swap at
+ * its reach, so its near version dissolves there.
+ */
+function placing(isNear: boolean) {
   const place = attribute<"vec4">("place", "vec4");
   const fit = attribute<"vec4">("fit", "vec4");
   const reach = attribute<"vec2">("reach", "vec2");
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const swap = reach.x.mul(float(1).sub(rollOf(place.xz).mul(SWAP_SPREAD)));
-  const shown = isNear ? distance.lessThan(swap) : distance.greaterThanEqual(swap).and(distance.lessThan(reach.y));
+  const roll = rollOf(place.xz);
+  const swap = reach.x.mul(float(1).sub(roll.mul(SWAP_SPREAD)));
+  const end = reach.y.mul(float(1).sub(roll.mul(SWAP_SPREAD * 0.5)));
+  const shown = isNear ? distance.lessThan(swap.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(swap.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const scale = select(shown, fit.x, float(0));
-  const local = positionGeometry;
-  const x = local.x.mul(fit.y);
-  const up = local.y.add(x.mul(fit.z));
+  const x = positionGeometry.x.mul(fit.y);
+  const up = positionGeometry.y.add(x.mul(fit.z));
   const yawCos = cos(place.w);
   const yawSin = sin(place.w);
+  const turned = (along: Node<"float">, across: Node<"float">) => vec2(along.mul(yawCos).add(across.mul(yawSin)), across.mul(yawCos).sub(along.mul(yawSin)));
+  const flat = turned(x, positionGeometry.z).mul(scale);
+  const normalFlat = turned(normalGeometry.x, normalGeometry.z);
 
+  const pattern = screenPattern();
+  const swapped = smoothstep(swap.mul(1 - SWAP_BAND), swap.mul(1 + SWAP_BAND), distance);
+  const leaving = smoothstep(end.mul(1 - LEAVE_SHARE), end, distance);
+  return {
+    position: vec3(place.x.add(flat.x), place.y.add(up.mul(scale)), place.z.add(flat.y)),
+    normal: vec3(normalFlat.x, normalGeometry.y, normalFlat.y),
+    mask: isNear ? pattern.greaterThanEqual(swapped) : pattern.lessThan(swapped).and(pattern.greaterThanEqual(leaving)),
+    foot: up.mul(fit.x),
+  };
+}
+
+function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
+  const { position, mask, foot } = placing(isNear);
   const material = new MeshBasicNodeMaterial();
-  material.positionNode = vec3(place.x.add(x.mul(yawCos).add(local.z.mul(yawSin)).mul(scale)), place.y.add(up.mul(scale)), place.z.add(local.z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
-  const { base, lit, part } = paintOf(inputs, up.mul(fit.x));
-  const painted = signFace === undefined ? base : select(part.equal(SIGN_FACE), signFace, base);
-  material.colorNode = inputs.hazed(painted.mul(lit));
+  material.positionNode = position;
+  material.maskNode = mask;
+  material.colorNode = inputs.hazed(paintOf(inputs, foot));
   material.side = DoubleSide;
   return material;
 }
@@ -130,11 +167,22 @@ export function roadsideMaterials(inputs: RoadsideInputs) {
 export type RoadsideMaterials = ReturnType<typeof roadsideMaterials>;
 
 /**
- * A sign plate's material. `face` colours its front, typically the sign sheet
- * sampled at `signSheetUv()`.
+ * Where a road sign's plate or post goes (`art/surfaces`' `signPlate` and
+ * `signPost`, drawn by its `signMaterial` and `signPostMaterial`), placed as this
+ * kit's models are and dissolving at its reach. Plates of one outline share a
+ * mesh, and each reads its own sign by `signShift`: its cell's offset on the sheet
+ * from the cell the mesh was cut for.
  */
-export function signMaterial(inputs: RoadsideInputs, face: Node<"vec3">): MeshBasicNodeMaterial {
-  return placedMaterial(inputs, true, face);
+export function signPlacing() {
+  const { position, normal, mask } = placing(true);
+  return { position, normal, mask, uv: uv().add(attribute<"vec2">("signShift", "vec2")) };
+}
+
+/** Plates of one outline at their places, each shifted on the sheet to its own sign. */
+export function placeSignPlates(model: RoadsideModel, places: readonly Placement[], shifts: readonly (readonly [number, number])[], material: MeshBasicNodeMaterial): Mesh {
+  const mesh = new Mesh(instanced(model.near, { ...instanceBuffers(model, places), signShift: new InstancedBufferAttribute(Float32Array.from(shifts.flat()), 2) }, places.length), material);
+  mesh.frustumCulled = false;
+  return mesh;
 }
 
 /** Where a sign's front reads the sheet: its plate's own 0 to 1 within the instance's `cell`. */
@@ -220,8 +268,10 @@ export function wireMaterial({ colour, hazed }: Pick<RoadsideInputs, "colour" | 
   const width = metresPerPixel.mul(WIRE_MIN_PIXELS / 2).max(float(WIRE_RADIUS_M));
 
   const material = new MeshBasicNodeMaterial();
-  // A span goes as one, so a long one can't fan out to a point from half inside the reach.
-  material.positionNode = select(middle.sub(cameraPosition).length().lessThan(WIRE_REACH_M), point.add(side.mul(positionGeometry.y).mul(width)), middle);
+  // A span goes as one, so a long one can't fan out to a point from half inside the reach, and it dissolves as the poles do.
+  const away = middle.sub(cameraPosition).length();
+  material.positionNode = select(away.lessThan(WIRE_REACH_M), point.add(side.mul(positionGeometry.y).mul(width)), middle);
+  material.maskNode = screenPattern().greaterThanEqual(smoothstep(float(WIRE_REACH_M * (1 - LEAVE_SHARE)), float(WIRE_REACH_M), away));
   material.colorNode = hazed(mix(colour("car-tyre"), colour("sky"), 0.25));
   material.side = DoubleSide;
   return material;
