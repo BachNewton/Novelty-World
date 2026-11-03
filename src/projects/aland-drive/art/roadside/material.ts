@@ -1,7 +1,8 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
+import { flatNormal } from "../flat-normal";
 
 /*
  * Every roadside object draws through the same two materials (near and far) and
@@ -89,9 +90,8 @@ export function toSunOf({ azimuthDeg, elevationDeg }: RoadsideInputs["sun"]) {
 
 /** A flat-shaded face's own normal, and the kit's light on it. */
 export function facetLight(sun: RoadsideInputs["sun"]) {
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  return { facing, lit: float(KIT_LIGHT.ambient).add(normal.dot(toSunOf(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
+  const normal = flatNormal();
+  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(toSunOf(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
 }
 
 /** Darker in the last metre to the ground: 1 above it. */

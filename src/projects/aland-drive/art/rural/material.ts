@@ -225,7 +225,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
 
-  const { facing, lit } = facetLight(sun);
+  const { normal, lit } = facetLight(sun);
   const foot = up.mul(fit.x);
   const grounded = mix(footShade(foot), float(1), tint.a);
 
@@ -237,7 +237,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
         const at = metres.add(roll.mul(37));
         const away = positionWorld.sub(cameraPosition).length();
         If(kind.equal(pattern("rapakivi")), () => {
-          painted.assign(rapakivi(inputs, base, at, away, abs(facing.y), foot));
+          painted.assign(rapakivi(inputs, base, at, away, abs(normal.y), foot));
         })
           .ElseIf(kind.equal(pattern("boards")), () => {
             painted.assign(boards(base, metres, away));
