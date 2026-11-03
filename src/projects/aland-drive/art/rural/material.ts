@@ -1,6 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
-import type { RoadsideInputs, RoadsideMaterials } from "../roadside/index";
+import { abs, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { facetLight, footShade, rollOf, screenPattern, SWAP_SPREAD, type RoadsideInputs, type RoadsideMaterials } from "../roadside/index";
 import { band } from "../surfaces";
 import { BRACES, GABLE_PAINTS, TRIM_WIDTHS } from "./buildings";
 import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPart } from "./mesh";
@@ -21,12 +21,6 @@ import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPar
  * pixel, where the near version has them as faces, so the two match at the swap.
  */
 
-// As the roadside kit lights its own, which doesn't export them.
-const AMBIENT = 0.68;
-const SUN_SHARE = 0.5;
-const FOOT_SHADE = 0.72;
-const FOOT_M = 1.1;
-const SWAP_SPREAD = 0.2;
 
 /** How much of the distance to the swap the two versions take to dissolve across. */
 const DISSOLVE_SHARE = 0.18;
@@ -38,7 +32,6 @@ const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
 
 const pattern = (name: Pattern) => PATTERNS.indexOf(name);
 
-const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
 const hash = (cell: Node<"vec3">) => fract(sin(dot(cell, vec3(127.1, 311.7, 74.7))).mul(43758.5453));
 /** A smooth lump of noise from -1 to 1, cheap and with no lattice to see. */
 const swell = (at: Node<"vec3">) => sin(at.x.add(sin(at.z.mul(1.7)).mul(1.3))).mul(sin(at.z.add(at.y.mul(0.8)).add(sin(at.x.mul(1.3)).mul(1.1))));
@@ -196,16 +189,6 @@ function gablePainted(base: Node<"vec3">, paint: (part: RuralPart) => Node<"vec3
   return mix(mix(doored, paint("glass"), glass), trim, glazingBar);
 }
 
-/** The kit's light on a flat-shaded face: the sky's, and the sun's on a face turned to it. */
-function ruralLight(sun: RoadsideInputs["sun"]) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
-  return { facing, lit: float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)) };
-}
-
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
   const { linear, colour, hazed, sun } = inputs;
   const place = attribute<"vec4">("place", "vec4");
@@ -234,7 +217,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(up.mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
 
   const blend = varying(smoothstep(dissolveFrom, swap, distance));
-  const dither = fract(float(52.9829189).mul(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715)))));
+  const dither = screenPattern();
   material.maskNode = isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend);
 
   const palette = uniformArray(ruralColours(linear));
@@ -242,9 +225,9 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const base = paintOf(int(round(tint.r.mul(255)))).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
 
-  const { facing, lit } = ruralLight(sun);
+  const { normal, lit } = facetLight(sun);
   const foot = up.mul(fit.x);
-  const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), foot)), float(1), tint.a);
+  const grounded = mix(footShade(foot), float(1), tint.a);
 
   const surfaced = isNear
     ? Fn(() => {
@@ -254,7 +237,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
         const at = metres.add(roll.mul(37));
         const away = positionWorld.sub(cameraPosition).length();
         If(kind.equal(pattern("rapakivi")), () => {
-          painted.assign(rapakivi(inputs, base, at, away, abs(facing.y), foot));
+          painted.assign(rapakivi(inputs, base, at, away, abs(normal.y), foot));
         })
           .ElseIf(kind.equal(pattern("boards")), () => {
             painted.assign(boards(base, metres, away));

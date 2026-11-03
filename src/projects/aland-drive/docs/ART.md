@@ -16,14 +16,13 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Other cars** | `art/cars` | Built | By purchase and traffic | [ ] | [ ] | [ ] |
 | **Ground, roads, paint** | `art/surfaces` | Built | Shader, from photo colour and road kinds | [x] | [x] | [ ] |
 | **Roofs and shopfronts** | `art/surfaces` | Built | Shader, by building; a shop where OSM has `shop=*` | [x] | [x] | [ ] |
-| **Road signs** | `art/surfaces` | Built | OSM `traffic_sign`, stop and give way; junction rules | [ ] | [ ] | [ ] |
+| **Road signs** | `art/surfaces`, `render/roadside.ts` | In the game: give way, stop, speed limits, bus stops, crossings | OSM stop, give way, bus stops and marked crossings; give way where a lesser road meets a main one; a speed sign where OSM's limit changes (`pipeline/roadside.py`) | [x] | [x] | [x] |
 | **Sky and clouds** | `art/sky` | Built | One dome | [x] | [x] | [ ] |
 | **Water** | `render/water.ts` | In the game, reflecting the sky; hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
 | **Forest fixes** | `render/forest.ts` | In the game | Existing forest | [x] | [x] | [x] |
-| **Roadside kit** | `art/roadside` | Built | Lamps, poles, stops, fences from OSM; mailboxes at drives by rule | [ ] | [ ] | [ ] |
-| **Better pine** | `art/roadside` | Built | Replaces the forest's pine, once measured | [ ] | [ ] | [ ] |
+| **Roadside kit** | `art/roadside`, `render/roadside.ts` | In the game: lamps, poles and wires, mailboxes, bus shelters; fences not yet placed | OSM lamps, poles and minor power lines, sheltered bus stops; lamps along roads tagged lit; mailboxes at country drives leading to a house (`pipeline/roadside.py`) | [x] | [x] | [x] |
 | **Piers, pontoons** | `art/roadside` | Built | OSM `man_made=pier`, `floating=yes` | [ ] | [ ] | [ ] |
-| **Guard rails, reflectors, speed cameras** | `art/street` | Built | OSM `barrier=guard_rail`, `highway=speed_camera`; rule along unlit roads | [ ] | [ ] | [ ] |
+| **Guard rails, reflectors, speed cameras** | `art/street`, `render/roadside.ts` | In the game: guard rails and edge posts; speed cameras not yet placed | OSM `barrier=guard_rail`; rails on embankments and either side of a bridge; edge posts along unlit main roads (`pipeline/roadside.py`) | [x] | [x] | [x] |
 | **Verges and wildflowers** | `art/street`, `render/verge.ts` | In the game | A shader's rule, from the road mask and the photo | [x] | [x] | [x] |
 | **Linden trees** | `art/street` | Built | OSM `natural=tree_row`; esplanades by name | [ ] | [ ] | [ ] |
 | **Street furniture** | `art/street` | Built | OSM benches, bins, bike racks, cafés | [ ] | [ ] | [ ] |
@@ -35,7 +34,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Granite** | `art/rural` | Built | OSM `natural=bare_rock` (2,286), MTK rock classes | [ ] | [ ] | [ ] |
 | **Bushes, juniper, birch** | `art/rural`, `render/shrubs.ts` | In the game | A shader's rule: forest edges from the canopy, rock among trees from the photo | [x] | [x] | [x] |
 | **Reeds** | `art/rural`, `render/reeds.ts` | In the game | A shader's rule: sheltered shallows near land, from the water mask and the photo | [x] | [x] | [x] |
-| **Stone walls** | `art/rural` | Built | OSM `barrier=wall`; field edges by rule | [ ] | [ ] | [ ] |
+| **Stone walls** | `art/rural`, `render/stone-walls.ts` | In the game, on tiles baked since; not yet published | OSM `barrier=wall` in the country; by rule along the Topographic Database's field and meadow edges, gapped at every road (`pipeline/walls.py`) | [x] | [x] | [x] |
 | **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
 | **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
@@ -78,7 +77,9 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
-- Make `art/roadside`'s lamps and poles grow and dissolve, as `art/street` and `art/rural` do.
 - Give parked cars a very simple stand-in past about 120 m, because they're most of a town street's cost.
-- Share `art/rural`'s and `art/street`'s repeated lighting with `art/roadside`, and fold each kit's `tokens.css` into `globals.css`.
+- Fold the remaining kits' `tokens.css` into `globals.css` as each kit goes in (`art/roadside`, `art/street` and `art/rural` have none left).
+- `art/street` and `art/rural` grow their objects out of the ground at their reach; `art/roadside` dissolves its own instead, which suits the rule that a change of detail isn't noticed. Bring the other two in line once someone checks them in motion.
+- Bus shelters stand in the verge's grass, which grows inside them: the verge reads only images, so it can't know they're there.
+- Power lines cross the forest with trees standing under the wires, where a real line has a cleared corridor.
 - Check real shopfronts on central Mariehamn, and the 11 solids holding OSM roads.

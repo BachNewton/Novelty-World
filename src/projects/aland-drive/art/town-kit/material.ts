@@ -1,10 +1,11 @@
 import { InstancedBufferAttribute, Vector3, type Mesh, type MeshBasicNodeMaterial, type Node, type Texture } from "three/webgpu";
-import { attribute, cameraPosition, cross, dFdx, dFdy, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, select, smoothstep, texture, uniform, uniformArray } from "three/tsl";
+import { attribute, float, fract, int, mix, positionGeometry, round, select, smoothstep, texture, uniform, uniformArray } from "three/tsl";
 import { placeModel, signSheetUv, type Placement } from "../roadside/material";
 import type { RoadsideModel } from "../roadside/models";
 import { streetMaterials, type StreetInputs } from "../street/material";
 import { TOWN_PARTS, type TownPart } from "./paint";
 import "./tokens.css";
+import { flatNormal } from "../flat-normal";
 
 /*
  * The street kit's two materials, kept for where a vertex goes (the same instance layout, grow-in and near/far
@@ -112,8 +113,7 @@ function lightOf({ sun }: Pick<StreetInputs, "sun">) {
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
   const fit = attribute<"vec4">("fit", "vec4");
   const up = positionGeometry.y.add(positionGeometry.x.mul(fit.y).mul(fit.z)).mul(fit.x);
-  const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
-  const normal = select(facing.dot(cameraPosition.sub(positionWorld)).lessThan(0), facing.negate(), facing);
+  const normal = flatNormal();
   return float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)).mul(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), up)));
 }
 

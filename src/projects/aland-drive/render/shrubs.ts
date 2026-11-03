@@ -4,7 +4,9 @@ import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from ".
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
 import { foliageLight, towardsSun } from "./foliage-light";
-import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { bandColours, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
+import { FAR_CLEARING, onLineReading, type WallDistance } from "./wall-clearing";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -50,6 +52,8 @@ const EDGE_BUSHES = 0.3;
 const ROCK_JUNIPERS = 0.25;
 const EDGE_BIRCHES = 0.3;
 const SALLOW_NEAR_WATER = 0.6;
+/** How far a birch's trunk stands off a wall's line, past what the far clearing can read on the line itself. */
+const BIRCH_OFF_WALL_M = onLineReading(FAR_CLEARING) + STONE_WALL_HALF_WIDE_M;
 
 /** How much of a plant is the photo's own colour, near. */
 const GROUND_SHARE = 0.1;
@@ -98,6 +102,9 @@ export interface ShrubInputs {
   groundAt: (place: Node<"vec2">) => Node<"float">;
   /** Metres from the drawn waterline, out into the water and below zero on land. */
   shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the nearest stone wall's line, to the bushes' reach and to the birches', for none to stand up through one. */
+  wallDistanceAt: WallDistance;
+  wallDistanceFarAt: WallDistance;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -119,7 +126,7 @@ export interface Shrubs {
   dispose: () => void;
 }
 
-export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
+export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
   const kinds: Kind[] = [
     { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
     { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
@@ -140,6 +147,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   const tallsOf = uniformArray(tallOf, "float");
   const lowOf = uniformArray(kinds.map(({ sizes }) => sizes[0]), "float");
   const highOf = uniformArray(kinds.map(({ sizes }) => sizes[1]), "float");
+  const spreadOfKind = uniformArray(kinds.map(({ model }) => spreadOf(model.near)), "float");
 
   const fars = kinds.map(({ model }) => {
     if (model.far === null) throw new Error("A shrub kit model has no far version");
@@ -176,16 +184,19 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
             const size = mix(lowOf.element(int(kind)) as unknown as Node<"float">, highOf.element(int(kind)) as unknown as Node<"float">, roll(seed, 73.31, 29.47)).toVar();
             const swapM = SWAPS_M[isBushes ? BUSHES : BIRCHES];
             const swap = smoothstep(float(swapM * (1 - SWAP_BAND)), float(swapM * (1 + SWAP_BAND)), distance).toVar();
+            const clearOfWalls = isBushes
+              ? wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M))
+              : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M);
             const remaining = left().toVar();
             const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
             const look = vec4(land.broad.pow(vec3(2.2)), lightOf(land.shade)).toVar();
             kinds.forEach((each, index) => {
               if (LATTICES[each.lattice] !== lattice) return;
               If(kind.equal(index), () => {
-                If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
+                If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
                 });
-                If(swap.lessThan(1), () => {
+                If(clearOfWalls.and(swap.lessThan(1)), () => {
                   write(kinds.length + index, [standing, look, vec4(0, float(1).sub(swap), size, kind)]);
                 });
               });

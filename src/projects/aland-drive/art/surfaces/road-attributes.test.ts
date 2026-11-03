@@ -16,7 +16,7 @@ function straight(fromX: number, fromZ: number, stepX: number, stepZ: number, se
 }
 
 /** A main road along x, and a lesser one running up to its edge from the south. */
-function junction(kind: string, tier: number): RoadSurface {
+function junction(kind: string, tier: number, sealed?: boolean): RoadSurface {
   const main = straight(-100, 0, 10, 0, 21);
   const lesser = straight(0, 54, 0, -10, 6);
   return {
@@ -25,7 +25,7 @@ function junction(kind: string, tier: number): RoadSurface {
     aprons: { firstPoint: 27 * 5, firstAreaPoint: Infinity, across: new Float32Array(), tiers: new Float32Array(), indices: new Uint32Array() },
     chains: [
       { sections: 21, kind: "primary", motor: true, first: 0 },
-      { sections: 6, kind, motor: true, first: 21 },
+      { sections: 6, kind, motor: true, first: 21, sealed },
     ],
   };
 }
@@ -79,5 +79,10 @@ describe("road attributes", () => {
     const { surface: info, mark } = roadAttributes(track, []);
     expect(mark[lastVertex(track) * 2 + 1]).toBe(0);
     expect(info[lastVertex(track) * 4]).toBe(0);
+  });
+
+  it("takes OSM's surface over what a road's class would make it, either way", () => {
+    expect(roadAttributes(junction("track", 2, true), []).surface[lastVertex(junction("track", 2)) * 4]).toBe(1);
+    expect(roadAttributes(junction("residential", 1, false), []).surface[lastVertex(junction("residential", 1)) * 4]).toBe(0);
   });
 });

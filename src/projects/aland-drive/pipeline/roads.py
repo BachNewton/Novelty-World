@@ -216,6 +216,11 @@ class Edge:
         return float(np.hypot(*np.diff(self.points, axis=0).T).sum())
 
 
+# OSM's surfaces, as the two a car feels: sealed, or loose. Any other value says nothing, and the road's class decides.
+SEALED_SURFACES = {"paved", "asphalt", "concrete", "concrete:plates", "concrete:lanes", "paving_stones", "sett", "cobblestone", "unhewn_cobblestone", "chipseal", "metal"}
+LOOSE_SURFACES = {"unpaved", "gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "grass", "sand", "mud", "pebblestone", "rock", "woodchips", "grass_paver"}
+
+
 def class_of(kind: str) -> RoadClass:
     return CLASSES.get(kind, _PATH)
 
@@ -261,6 +266,13 @@ class Chain:
     @property
     def motor(self) -> bool:
         return any(edge.road["motor"] for edge in self.edges)
+
+    @property
+    def sealed(self) -> bool | None:
+        """Whether OSM says the chain is sealed, going by the most of its length that says either; None where none of it does."""
+        sealed = sum(edge.length for edge in self.edges if edge.road.get("surface") in SEALED_SURFACES)
+        loose = sum(edge.length for edge in self.edges if edge.road.get("surface") in LOOSE_SURFACES)
+        return None if sealed == loose == 0 else sealed >= loose
 
     def tag(self, key: str):
         return next((edge.road[key] for edge in self.edges if key in edge.road), None)
@@ -835,6 +847,11 @@ def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int, tile: sha
             joined = np.flatnonzero(~free)[nearest]
             off = height[joined] - _land_under(land, points[joined])
             height[free] += off * (1 - _smoothstep(distance / PAVED_EASE_M))
+        # The row of heights on a tile's edge never moves, so paving can't press the land down there as it does inside:
+        # near the edge it lies just over the land itself, as a road's end does, or the land shows through.
+        near_edge = 1 - _smoothstep(shapely.distance(shapely.points(points[free]), tile.exterior) / PAVED_CELL_M)
+        under = land.sample(points[free]) + EDGE_PIN_LIFT_M - height[free]
+        height[free] += near_edge * np.maximum(under, 0)
     elif free.any():
         # The rest hang between the pinned points like a soap film, so an apron has no ridge of its own.
         pairs = np.concatenate((indices[:, [0, 1]], indices[:, [1, 2]], indices[:, [2, 0]]))
@@ -930,9 +947,10 @@ def on_paved_area(road: dict, areas: shapely.Geometry, reached: shapely.Geometry
     return line.length > 0 and shapely.intersection(line, reached if road["motor"] else areas).length >= PAVED_SHARE_INSIDE * line.length
 
 
-def _off_paved(road: dict, areas: shapely.Geometry, reached: shapely.Geometry) -> list[dict]:
-    """A road as laid: whole, or for one that's part of a paved area, only the stubs outside it that join it to the street."""
-    if not on_paved_area(road, areas, reached):
+def _off_paved(road: dict, areas: shapely.Geometry, reached: shapely.Geometry, whole: dict[int, list]) -> list[dict]:
+    """A road as laid: whole, or for one that's part of a paved area, only the stubs outside it that join it to the street.
+    Which it is goes by the whole way where `whole` has it, so both tiles a way crosses decide alike."""
+    if not on_paved_area({**road, "line": whole.get(road["id"], road["line"])}, areas, reached):
         return [road]
     outside = shapely.difference(shapely.LineString(road["line"]), areas)
     return [{**road, "line": shapely.get_coordinates(part).tolist()} for part in shapely.get_parts(outside) if part.length >= PAVED_STUB_M]
@@ -949,7 +967,10 @@ def lay_paved(areas: list[shapely.Polygon], chains: list[Chain], aprons: list[Ap
     paved = []
     for part in _flat(shapely.intersection(shapely.union_all(areas), tile).difference(taken)):
         members = [chain for chain, strip in strips if strip.distance(part) < APRON_PIN_M]
-        paved.append(replace(_apron_of(part, members, TIERS.index("minor"), tile, cells_m=PAVED_CELL_M, land=ground, cover=cover), area=True))
+        apron = _apron_of(part, members, TIERS.index("minor"), tile, cells_m=PAVED_CELL_M, land=ground, cover=cover)
+        # A sliver left between the roads can be too thin to make a single triangle: there's nothing there to pave.
+        if len(apron.points):
+            paved.append(replace(apron, area=True))
     return paved
 
 
@@ -1007,7 +1028,10 @@ def lay_gaps(chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[A
                 tier = min((int(chain.tier.min()) for chain in members), default=TIERS.index("minor"))
                 # Between two car parks there may be no road at all: paving that joins one is part of its paving.
                 joins_area = piece.distance(area_footprint) < APRON_PIN_M if areas else False
-                paved.append(replace(_apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover), area=joins_area))
+                apron = _apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover)
+                # A sliver beside an apron that lies over none of it and touches no road joins nothing, and has no height to take.
+                if members or not np.isnan(apron.points[:, 2]).all():
+                    paved.append(replace(apron, area=joins_area))
     return paved
 
 
@@ -1314,11 +1338,12 @@ def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north
     return made
 
 
-def lay_roads(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = ()) -> Surface:
-    """Every road on the tile as a surface, with its car parks and bus stations, and the ground fitted to them."""
+def lay_roads(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), whole: dict[int, list] | None = None) -> Surface:
+    """Every road on the tile as a surface, with its car parks and bus stations, and the ground fitted to them. `whole` is each
+    OSM way's line before it was clipped to the tile."""
     areas = shapely.union_all(list(paved))
     reached = areas.buffer(PAVED_REACH_M)
-    chains = chains_from(split_at_junctions([part for road in roads for part in _off_paved(road, areas, reached)]))
+    chains = chains_from(split_at_junctions([part for road in roads for part in _off_paved(road, areas, reached, whole or {})]))
     for chain in chains:
         lay_chain(chain, chains, ground)
     aprons = lay_aprons(chains, ground)

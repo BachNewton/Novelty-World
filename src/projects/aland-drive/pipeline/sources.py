@@ -120,8 +120,17 @@ def laser_paths(tile: Tile) -> list[Path]:
 
 def topographic_path(tile: Tile) -> Path:
     """The half sheet holding a tile: its first four tiles are the left half."""
+    return _mirrored("mtk", *_topographic(tile))
+
+
+def topographic_path_or_none(tile: Tile) -> Path | None:
+    """A neighbour's half sheet, or None out at sea, where the mirror has none."""
+    return _mirrored_or_none("mtk", *_topographic(tile))
+
+
+def _topographic(tile: Tile) -> tuple[str, str]:
     half = f"{tile.name[:5]}{'L' if tile.name[5] in 'ABCD' else 'R'}"
-    return _mirrored("mtk", f"{MIRROR}maastotietokanta/2025/shp/L2/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip")
+    return f"{MIRROR}maastotietokanta/2025/shp/L2/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip"
 
 
 def msnfi_path(tile: Tile) -> Path:
@@ -227,4 +236,43 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_roads_and_buildings(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+# What a kept copy of a tile's roadside objects holds: kept apart from the roads and buildings, so it can change alone.
+ROADSIDE_KEPT_VERSION = 1
+ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing"}, "power": {"pole"}}
+ROADSIDE_WAYS = {"power": {"minor_line"}, "barrier": {"guard_rail"}}
+
+
+def _roadside(xml_files: list[Path]) -> dict:
+    """The API's lamps, poles, signs and stops as points, and its power lines and guard rails as lines, pole by pole."""
+    roots = [ElementTree.parse(path).getroot() for path in xml_files]
+    tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+    wanted = lambda tags, kinds: any(tags.get(key) in values for key, values in kinds.items())
+    nodes: dict[str, dict] = {}
+    for root in roots:
+        for node in root.iter("node"):
+            nodes[node.get("id")] = {"lat": float(node.get("lat")), "lon": float(node.get("lon")), "tags": tags_of(node)}
+    elements = [{"type": "node", "id": int(id), "lat": node["lat"], "lon": node["lon"], "tags": node["tags"]} for id, node in nodes.items() if wanted(node["tags"], ROADSIDE_NODES)]
+    seen = set()
+    for root in roots:
+        for way in root.iter("way"):
+            tags = tags_of(way)
+            if way.get("id") in seen or not wanted(tags, ROADSIDE_WAYS):
+                continue
+            seen.add(way.get("id"))
+            refs = [nd.get("ref") for nd in way.findall("nd") if nd.get("ref") in nodes]
+            geometry = [{"lat": nodes[ref]["lat"], "lon": nodes[ref]["lon"], "pole": nodes[ref]["tags"].get("power") == "pole"} for ref in refs]
+            elements.append({"type": "way", "id": int(way.get("id")), "tags": tags, "geometry": geometry})
+    fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"version": ROADSIDE_KEPT_VERSION, "asOf": fetched, "elements": elements}
+
+
+def osm_roadside_path(tile: Tile) -> Path:
+    path = RAW / "osm-roadside" / f"{tile.name}.json"
+    if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("version") == ROADSIDE_KEPT_VERSION:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_roadside(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
     return path

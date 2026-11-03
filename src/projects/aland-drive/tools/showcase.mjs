@@ -32,7 +32,7 @@ for (const key of KEYS) {
     while (probe.frames() < frame) await new Promise(requestAnimationFrame);
   }, [key, FRAMES_TO_SETTLE]);
   await page.screenshot({ path: `${OUT}/showcase-${key}.png` });
-  console.log(key, JSON.stringify(await page.evaluate(() => ({ ...window.__alandDrive.counts(), car: window.__alandDrive.car().position.map(Math.round), log: window.__alandDrive.log().farGroundSteps }))));
+  console.log(key, JSON.stringify(await page.evaluate(() => ({ ...window.__alandDrive.counts(), walls: window.__alandDrive.stoneWallsDrawn(), car: window.__alandDrive.car().position.map(Math.round), log: window.__alandDrive.log().farGroundSteps }))));
 }
 
 await browser.close();
