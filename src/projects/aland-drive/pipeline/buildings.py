@@ -35,8 +35,9 @@ from shapely.ops import split, unary_union
 import facades
 from facades import APARTMENTS, CHURCH, COMMERCIAL, COTTAGE, HOUSE, INDUSTRIAL, OUTBUILDINGS
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, Tile, neighbour, to_local
-from give_way import open_walls
+from give_way import half_width, open_walls
 from landmarks import Landmarks
+from raised import Lookup, Raised
 from outbuildings import Placed, toward
 from sources import buildings3d_path, osm_xml, topographic_path, topographic_path_or_none
 
@@ -69,6 +70,14 @@ OUTLINE_REACH_M = 20.0
 # (eaves, ridge) when the laser saw nothing there, and the tallest ridge believed when it did, by class: it sees trees too.
 SHAPE = {HOUSE: (3.0, 6.5, 10.0), APARTMENTS: (9.0, 11.0, 28.0), **dict.fromkeys(COTTAGE, (2.5, 4.8, 6.5)), **dict.fromkeys(INDUSTRIAL, (6.0, 8.0, 16.0))}
 SMALL_SHAPE = (2.3, 4.2, 7.0)
+# Posts under a canopy and pillars under a raised building: how wide, and at most how far apart round its edge.
+POST_M, POST_SPACING_M = 0.3, 6.0
+PILLAR_M, PILLAR_SPACING_M = 0.8, 12.0
+# A post keeps this clear of a road's edge beside it.
+POST_CLEAR_M = 0.5
+# The render's style for a face drawn in its own colour (`PAINT_STYLE`, `art/landmarks/kit.ts`): posts and a floor are concrete.
+PAINT_STYLE = 255
+CONCRETE = (150, 148, 142)
 OTHER_SHAPE = (3.5, 6.0, 14.0)
 
 
@@ -204,17 +213,18 @@ def _generated_outline(footprint: Polygon) -> Polygon | None:
     return local if local.geom_type == "Polygon" and local.area >= 4 else None
 
 
-def outlines_near(tile: Tile, landmarks: Landmarks) -> list[Polygon]:
+def outlines_near(tile: Tile, landmarks: Landmarks, raised: Lookup) -> list[Polygon]:
     """Every outline that stands as a wall on the tile or within reach of it, in the tile's own metres, whichever tile builds it.
-    Read from the tile's and its neighbours' sources alike, so both tiles at an edge see the same."""
+    Read from the tile's and its neighbours' sources alike, so both tiles at an edge see the same. A raised building stands
+    on posts that keep clear of the roads, so it's no wall to them."""
     reach = shapely.box(tile.west, tile.south, tile.east, tile.north).buffer(OUTLINE_REACH_M)
     solids = _true_solids(tile)
     solid_tree = shapely.STRtree([solid.footprint for solid in solids]) if solids else None
-    outlines = [_local(solid.footprint) for solid in solids if solid.footprint.intersects(reach)]
+    outlines = [_local(solid.footprint) for solid in solids if solid.footprint.intersects(reach) and raised.of(solid.footprint, modelled=True) is None]
     sheets = {path for steps_north in (-1, 0, 1) for steps_east in (-1, 0, 1) if (path := topographic_path_or_none(neighbour(tile, steps_east, steps_north))) is not None}
     for path in sorted(sheets):
         for footprint in _sheet_footprints(path):
-            if footprint.shape.intersects(reach) and _uncovered(footprint.shape, solids, solid_tree) and (outline := _generated_outline(footprint.shape)) is not None:
+            if footprint.shape.intersects(reach) and _uncovered(footprint.shape, solids, solid_tree) and raised.of(footprint.shape) is None and (outline := _generated_outline(footprint.shape)) is not None:
                 outlines.append(outline)
     return outlines + [_local(plan) for plan in landmarks.plans_near()]
 
@@ -507,6 +517,51 @@ def _mesh_solid(cell: Cell, solid_faces: list[Face], frames: dict[tuple, tuple],
     _overhang(cell, roofs, tint, middle)
 
 
+def _raised_faces(local: Polygon, lift: Raised) -> list[Face]:
+    """A canopy's roof slab, or a raised building's box with a floor under it."""
+    ring = np.array(local.simplify(0.2).exterior.coords)[:-1]
+    under, over = lift.under, lift.top
+    level = lambda z: np.column_stack((ring, np.full(len(ring), z)))
+    sides = [Face("wall", np.array([[*a, under], [*b, under], [*b, over], [*a, over]])) for a, b in zip(ring, np.roll(ring, -1, axis=0))]
+    return [Face("roof", level(over)), Face("floor", level(under)[::-1]), *sides]
+
+
+def _posts(local: Polygon, lift: Raised, clear: shapely.Geometry | None) -> list[Polygon]:
+    """Posts round the inside of the edge, evenly, leaving out any that would stand on a road."""
+    size, spacing = (POST_M, POST_SPACING_M) if lift.canopy else (PILLAR_M, PILLAR_SPACING_M)
+    inner = max(shapely.get_parts(local.buffer(-size)), key=lambda part: part.area, default=None)
+    if inner is None or inner.is_empty:
+        middles = [local.representative_point()]
+    else:
+        edge = inner.exterior
+        count = max(4, math.ceil(edge.length / spacing))
+        middles = [edge.interpolate(edge.length * step / count) for step in range(count)]
+    posts = [shapely.box(point.x - size / 2, point.y - size / 2, point.x + size / 2, point.y + size / 2) for point in middles]
+    return [post for post in posts if clear is None or not post.intersects(clear)]
+
+
+def _mesh_raised(cell: Cell, faces: list[Face], posts: list[Polygon], base: float, lift: Raised, roof_colour: tuple[int, int, int], middle: np.ndarray, seed: int) -> None:
+    concrete = (*CONCRETE, PAINT_STYLE)
+    walls = [face for face in faces if face.kind == "wall"]
+    if lift.canopy:
+        for face in walls:
+            _add(cell, face.ring, None, concrete)
+    else:
+        frames = _facades(walls, base)
+        for origin, axis, width, eaves, framed in frames.values():
+            for face in framed:
+                _add(cell, face.ring, (origin, axis, base, width, eaves), (PALE, 0, (seed >> 8) % 256, PLASTER))
+    for face in faces:
+        if face.kind == "roof":
+            _add(cell, face.ring, None, (*roof_colour, ROOF), RoofFrame.of(face, middle))
+        elif face.kind == "floor":
+            _add(cell, face.ring, None, concrete)
+    for post in posts:
+        ring = np.array(post.exterior.coords)[:-1]
+        for a, b in zip(ring, np.roll(ring, -1, axis=0)):
+            _add(cell, np.array([[*a, base - SINK_M], [*b, base - SINK_M], [*b, lift.under], [*a, lift.under]]), None, concrete)
+
+
 def _facts(faces: list[Face], frames: dict[tuple, tuple], local: Polygon, kind: int, seed: int, osm: facades.Osm, neighbours: int) -> facades.Facts:
     """What the facade rule reads about one building."""
     roof_heights = np.concatenate([face.ring[:, 2] for face in faces if face.kind == "roof"] or [np.zeros(1)])
@@ -575,9 +630,10 @@ def _road_lines(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> list[LineString
     return [LineString(rings[:, 2, :2]) for rings, _ in ribbons if len(rings) >= 2]
 
 
-def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None, landmarks: Landmarks | None = None, openings: list[Polygon] = ()) -> tuple[dict, np.ndarray]:
+def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], folder: Path, placed: Placed | None = None, landmarks: Landmarks | None = None, openings: list[Polygon] = (), raised: Lookup | None = None, roads: list[dict] = ()) -> tuple[dict, np.ndarray]:
     """Writes `solids.bin.gz`. Returns its manifest, and which of the tile's 2 m cells lie under a building. A footprint `placed` takes, or one a
-    landmark replaces, is a model of its own, not a shape here. `openings` are where a wall gives way to a road (`give_way.py`)."""
+    landmark replaces, is a model of its own, not a shape here. `openings` are where a wall gives way to a road (`give_way.py`). A building
+    `raised` lifts stands on posts, kept off `roads`."""
     west, north = to_local(tile.west, tile.north)
     heights = Heights(corners, west, north)
     footprints = read_footprints(tile)
@@ -590,10 +646,13 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     cells: dict[tuple[int, int], Cell] = {}
     walls: list[LineString] = []
     opened = 0
-    counts = {"modelled": 0, "generated": 0, "placed": 0, "replaced": 0}
+    counts = {"modelled": 0, "generated": 0, "placed": 0, "replaced": 0, "raised": 0}
+    lifted = lambda shape, modelled=False: raised.of(shape, modelled) if raised is not None else None
+    strips = [LineString(road["line"]).buffer(half_width(road) + POST_CLEAR_M) for road in roads if len(road["line"]) >= 2]
+    clear = shapely.union_all(strips) if strips else None
     built = np.zeros((SAMPLES, SAMPLES), dtype=bool)
     # Every building is found first, so the facade rule can count each one's neighbours. A placed model has no faces here.
-    found: list[tuple[list[Face] | None, Polygon, int, str, float]] = []
+    found: list[tuple[list[Face] | None, Polygon, int, str, float, Raised | None]] = []
 
     for solid in solids:
         if not _middle_in(solid.footprint, tile):
@@ -606,14 +665,18 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         ground = heights.at(*np.array(local.exterior.coords).T)
         base = float(np.median(ground))
         if landmarks is not None and landmarks.replaces_solid(solid.name, solid.footprint):
-            found.append((None, local, kind, solid.name, base))
+            found.append((None, local, kind, solid.name, base, None))
             counts["replaced"] += 1
             continue
+        if (lift := lifted(solid.footprint, True)) is not None:
+            found.append((faces, local, kind, solid.name, base, lift))
+            counts["raised"] += 1
+            continue
         if placed is not None and best is not None and placed.take_solid(kind, local, solid.footprint, footprints[best].shape, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(solid.name)):
-            found.append((None, local, kind, solid.name, base))
+            found.append((None, local, kind, solid.name, base, None))
             counts["placed"] += 1
             continue
-        found.append((_with_walls_to_ground(faces, heights), local, kind, solid.name, base))
+        found.append((_with_walls_to_ground(faces, heights), local, kind, solid.name, base, None))
         counts["modelled"] += 1
 
     for index, footprint in enumerate(footprints):
@@ -623,38 +686,52 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
         base = float(np.median(ground))
         name = f"{tile.name}-{index}"
         if landmarks is not None and landmarks.covers(name, footprint.shape):
-            found.append((None, local, footprint.kind, name, base))
+            found.append((None, local, footprint.kind, name, base, None))
             counts["replaced"] += 1
             continue
+        if (lift := lifted(footprint.shape)) is not None:
+            found.append((_generated_shape(footprint, local, above, west, north, base)[0], local, footprint.kind, name, base, lift))
+            counts["raised"] += 1
+            continue
         if placed is not None and placed.take(footprint.kind, local, ground, toward(np.array(local.centroid.coords[0]), street, lines), _seed(name)):
-            found.append((None, local, footprint.kind, name, base))
+            found.append((None, local, footprint.kind, name, base, None))
             counts["placed"] += 1
             continue
         faces, _ = _generated_shape(footprint, local, above, west, north, base)
-        found.append((_with_walls_to_ground(faces, heights), local, footprint.kind, name, base))
+        found.append((_with_walls_to_ground(faces, heights), local, footprint.kind, name, base, None))
         counts["generated"] += 1
 
-    def collide(local: Polygon) -> None:
-        """The outline goes to the car as a wall, open only where a road goes through, and its ground is built on."""
+    def collide(local: Polygon, posts: list[Polygon] | None = None) -> None:
+        """The outline goes to the car as a wall, open only where a road goes through, or only its posts do; its ground is built on."""
         nonlocal opened
-        standing = open_walls(local.simplify(0.2), openings)
-        opened += sum(standing_part.length for standing_part in standing) < local.simplify(0.2).length - 1e-6
-        walls.extend(standing)
+        if posts is not None:
+            walls.extend(LineString(post.exterior.coords) for post in posts)
+        else:
+            standing = open_walls(local.simplify(0.2), openings)
+            opened += sum(standing_part.length for standing_part in standing) < local.simplify(0.2).length - 1e-6
+            walls.extend(standing)
         canvas = _cells_of(local, west, north)
         if canvas is not None:
             built[canvas[0], canvas[1]] |= canvas[2]
 
     osm = facades.read_osm(osm_xml(tile))
-    middles = [local.representative_point() for _, local, _, _, _ in found]
+    middles = [local.representative_point() for _, local, _, _, _, _ in found]
     near = shapely.STRtree(middles)
     looks: dict[str, int] = {}
-    for (faces, local, kind, name, base), point in zip(found, middles):
+    for (faces, local, kind, name, base, lift), point in zip(found, middles):
         if faces is None:
             collide(local)
             continue
         seed = _seed(name)
         middle = np.array(point.coords[0])
         cell = cells.setdefault((math.floor(middle[0] / CELL_M), math.floor(-middle[1] / CELL_M)), Cell())
+        if lift is not None:
+            posts = _posts(local, lift, clear)
+            _mesh_raised(cell, _raised_faces(local, lift), posts, base, lift, _roof_colour(local, photo, west, north), middle, seed)
+            collide(local, posts)
+            why = "canopy" if lift.canopy else "raised"
+            looks[why] = looks.get(why, 0) + 1
+            continue
         frames = _facades([face for face in faces if face.kind == "wall"], base)
         neighbours = len(near.query(point, predicate="dwithin", distance=facades.RURAL_REACH_M)) - 1
         choice = facades.choose(_facts(faces, frames, local, kind, seed, osm, neighbours))
@@ -675,6 +752,6 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     wall_array = np.concatenate(segments) if segments else np.zeros((0, 4))
     (folder / "solids.bin.gz").write_bytes((data := _encode(cells, wall_array))[0])
     triangles = sum(entry["indices"] for entry in data[1]) // 3
-    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {counts['replaced']} under landmarks, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {opened} with a road through")
+    print(f"  {counts['modelled']} modelled, {counts['generated']} generated, {counts['placed']} placed models, {counts['replaced']} under landmarks, {counts['raised']} raised, {triangles} triangles, {len(data[0]) / 1e6:.2f} MB, {opened} with a road through")
     print("  facades: " + ", ".join(f"{why} {count}" for why, count in sorted(looks.items(), key=lambda item: -item[1])))
     return {"file": "solids.bin.gz", "unitM": UNIT_M, "cells": data[1], "walls": len(wall_array), "encoding": "gzip; per cell: x, y, z, along, up, width, eaves (on a roof: across, up its slope, 0, 0) as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)", "roadsThrough": opened, "modelled": counts["modelled"], "generated": counts["generated"]}, built

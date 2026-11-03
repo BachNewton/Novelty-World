@@ -87,7 +87,7 @@ def give_way(roads: list[dict], outlines: list[Polygon]) -> Meetings:
             kept.append((road, set()))
             continue
         seam_ends = [Point(seam[0], seam[1]) for seam in road.get("seams", ())]
-        half = _half_width(road)
+        half = half_width(road)
         blocking, through = [], set()
         for index in inside:
             if _wins(road, line, outlines[index], seam_ends):
@@ -122,7 +122,7 @@ def give_way(roads: list[dict], outlines: list[Polygon]) -> Meetings:
     return Meetings(cleared, openings, stopped, pushed)
 
 
-def _half_width(road: dict) -> float:
+def half_width(road: dict) -> float:
     return CLASSES[road["kind"]].width_m / 2 if road["kind"] in CLASSES else 1.0
 
 
@@ -134,7 +134,7 @@ def _joined_points(roads: list[dict]) -> set[tuple[float, float]]:
 
 def _clear_of(road: dict, outlines: list[Polygon], tree: shapely.STRtree, through: set[int], joined: set[tuple[float, float]]) -> list[list[float]] | None:
     """The road's line pushed clear of the buildings beside it, or None if it's clear already."""
-    reach = _half_width(road) + CLEARANCE_M
+    reach = half_width(road) + CLEARANCE_M
     line = LineString(road["line"])
     beside = [int(index) for index in tree.query(line.buffer(reach), predicate="intersects") if int(index) not in through]
     if not beside:

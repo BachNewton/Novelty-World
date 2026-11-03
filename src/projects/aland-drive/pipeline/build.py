@@ -34,6 +34,7 @@ import roads as road_surface
 import stands
 import terrain
 import vectors
+import raised
 from give_way import give_way
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
@@ -151,11 +152,13 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     openings = []
+    lifts = None
     sites = landmark_sites.Landmarks(tile)
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
-        meetings = give_way(roads, solids.outlines_near(tile, sites))
+        lifts = raised.Lookup(raised.read(osm_file))
+        meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
         roads, openings = meetings.roads, meetings.openings
         print(f"  {meetings.stopped} road parts stop at a building, {len(openings)} pass through one, {meetings.pushed} pushed clear of one beside them")
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
@@ -167,7 +170,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         ribbons = []
         aprons = []
         if roads:
-            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile))
+            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile), vectors.whole_lines(osm_file))
             conformed = surface.conformed
             if not all(np.array_equal(conformed[edge], raw[edge]) for edge in ((0, ...), (-1, ...), (..., 0), (..., -1))):
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
@@ -234,7 +237,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     photo = ground_colour.graded(raw_photo)
     above = laser.above_ground(tile)
     placed = outbuildings.Placed(outbuildings.Shores(water, west, north), outbuildings.Tags(buildings))
-    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites, openings)
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites, openings, lifts, roads)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)

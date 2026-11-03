@@ -7,6 +7,7 @@ import numpy as np
 import shapely
 
 from grid import Tile, lonlat_to_grid, to_local
+from roads import CLASSES, GAP_PAVED_M
 from sources import PAVED_AMENITIES
 
 # Highway tags that aren't a surface anyone can use.
@@ -148,6 +149,51 @@ def paved_areas(osm_file: Path, tile: Tile) -> list[shapely.Polygon]:
         area = shapely.difference(filled[0], filled[1]).buffer(0)
         areas += [part for part in shapely.get_parts(area) if isinstance(part, shapely.Polygon) and part.intersects(box)]
     return areas
+
+
+# Service ways side by side for at least this far are lanes of one paved yard (a ferry's queue, a depot), not roads apart.
+LANES_ALONGSIDE_M = 15.0
+# A yard of lanes smaller than this is two drives that happen to meet.
+SMALLEST_YARD_M2 = 150.0
+
+
+def lane_yards(osm_file: Path, tile: Tile) -> list[shapely.Polygon]:
+    """Where service ways run side by side, with no wider strip between them than GAP_PAVED_M: one paved surface, as a car park is,
+    though OSM maps no area round them. Read from whole ways, so both tiles at an edge find the same yard."""
+    osm = json.loads(osm_file.read_text(encoding="utf-8"))
+    half = CLASSES["service"].width_m / 2
+    reach = half + GAP_PAVED_M / 2
+    lines = [
+        _local_line(element["geometry"])
+        for element in osm["elements"]
+        if element["type"] == "way" and element.get("tags", {}).get("highway") == "service" and not {"bridge", "tunnel"} & element["tags"].keys() and len(element["geometry"]) >= 2
+    ]
+    if len(lines) < 2:
+        return []
+    grown = [line.buffer(reach) for line in lines]
+    tree = shapely.STRtree(grown)
+    alongside, lanes = [], set()
+    for first, second in tree.query(grown, predicate="intersects").T:
+        if first >= second:
+            continue
+        # Two ways that only meet or cross share a patch about as long as they're wide; lanes share it along their length.
+        shared = grown[first].intersection(grown[second])
+        if shared.area >= LANES_ALONGSIDE_M * 2 * half:
+            alongside.append(shared)
+            lanes |= {int(first), int(second)}
+    if not alongside:
+        return []
+    between = shapely.union_all(alongside)
+    carriageways = shapely.union_all([lines[index].buffer(half) for index in lanes]).intersection(between.buffer(half))
+    yard = shapely.union_all([between, carriageways]).buffer(GAP_PAVED_M / 2).buffer(-GAP_PAVED_M / 2)
+    box = shapely.box(*to_local(tile.west, tile.south), *to_local(tile.east, tile.north))
+    return [part for part in shapely.get_parts(yard) if isinstance(part, shapely.Polygon) and part.area >= SMALLEST_YARD_M2 and part.intersects(box)]
+
+
+def whole_lines(osm_file: Path) -> dict[int, list]:
+    """Every way's whole line, unclipped, in the game's metric space."""
+    osm = json.loads(osm_file.read_text(encoding="utf-8"))
+    return {element["id"]: shapely.get_coordinates(_local_line(element["geometry"])).tolist() for element in osm["elements"] if element["type"] == "way" and "highway" in element.get("tags", {}) and len(element["geometry"]) >= 2}
 
 
 def _local_line(geometry: list[dict]) -> shapely.LineString:
