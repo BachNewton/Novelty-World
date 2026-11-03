@@ -1,6 +1,6 @@
 import type { Scene } from "three/webgpu";
 import { uniform } from "three/tsl";
-import { boatMaterials, buildCruiser, buildFolkboat, buildLargeCruiser, buildLaunch, buildRib } from "../art/boats/index";
+import { boatMaterials, buildAllmogebat, buildCruiser, buildDoubleEnder, buildFolkboat, buildLargeCruiser, buildLaunch, buildRib } from "../art/boats/index";
 import type { Placement, RoadsideInputs, RoadsideMaterials } from "../art/roadside/index";
 import { buildJettyHead, buildJettySection, buildPierSection, buildPontoonSection, buildRowingBoat, buildSailboat, JETTY_SECTION, PIER_SECTION, PONTOON_SECTION } from "../art/rural/index";
 import { createPlacedModels, type PlacedKind } from "./placed-models";
@@ -10,7 +10,8 @@ import { PLACE_FLOATS } from "./tile-models";
  * Jetties, piers and pontoons, and the boats at them, as the pipeline placed them
  * (`pipeline/docks.py`). A dock is a run from its place along the model's +x, and
  * is drawn as the shore kit's sections end to end, each stretched a little to fill
- * the run whole and widened to its width. Boats stand as placed.
+ * the run whole and widened to its width. Boats stand as placed, at a berth or on a
+ * buoy out in the water.
  */
 
 type Section = { readonly lengthM: number; readonly wideM: number };
@@ -60,6 +61,11 @@ export function createDocks(scene: Scene, rural: RoadsideMaterials, inputs: Road
       folkboat: at(() => buildFolkboat({ mooring: "bow-to" }), boats),
       launch: at(() => buildLaunch({ mooring: "bow-to" }), boats),
       rib: at(() => buildRib({ mooring: "bow-to" }), boats),
+      "cruiser-buoy": at(() => buildCruiser({ cover: "green", mooring: "buoy" }), boats),
+      "folkboat-buoy": at(() => buildFolkboat({ mooring: "buoy" }), boats),
+      "double-ender": at(() => buildDoubleEnder(), boats),
+      "launch-buoy": at(() => buildLaunch({ mooring: "buoy" }), boats),
+      allmogebat: at(() => buildAllmogebat({ mooring: "buoy" }), boats),
     },
     reachM,
     "a dock or boat",

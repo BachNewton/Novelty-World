@@ -47,8 +47,8 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
 | **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
 | **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
-| **Boats** | `art/boats` | Berths in the game, on tiles rebuilt since; not yet published. Moorings off the piers and the regatta still to place | Berths down a marina's piers and every pontoon, by rule (`pipeline/docks.py`); a distant regatta | [x] | [x] | [x] |
-| **Marinas, sea marks, boatyards** | `art/marina` | Built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
+| **Boats** | `art/boats` | Berths and moorings in the game, on tiles rebuilt since; not yet published. The regatta in the game | Berths down a marina's piers and every pontoon, and boats on buoys off harbours and the jetties of sheltered bays, by rule (`pipeline/docks.py`); two regatta fleets, off Västerhamn and on Lumparn (`render/regatta.ts`) | [x] | [x] | [x] |
+| **Marinas, sea marks, boatyards** | `art/marina` | Built; `places.json` holds every mark's real place, not yet placed in the game | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
 | **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
 | **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
 | **Sound** | `audio` | Built, not yet heard | Driven by the car, the surface and the place | [ ] | [ ] | [ ] |
@@ -72,7 +72,8 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 ## Cleanup found along the way
 
 - Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
-- Every placed boat is moored. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state and the regatta, and a still boat out on open water would look stranded.
+- Every placed boat near enough to see in detail is moored, at a berth or on a buoy; only the distant regatta sails. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state, and a still boat out on open water would look stranded.
+- Moorings follow the pipeline's own seabed and shelter rule, not real mooring fields, which no open data maps.
 - The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
 - Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.
