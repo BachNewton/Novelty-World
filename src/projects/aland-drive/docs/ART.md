@@ -41,13 +41,15 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Facades** | `art/facades` | Built | Shader, by building: OSM material, class, size, roof and street (`pipeline/facades.py`) | [x] | [x] | [ ] |
 | **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
 | **Stone churches** | `art/facades` | In the game, on tiles rebuilt since; not yet published | Their real sites, in place of their NLS solids (`pipeline/landmarks.py`) | [x] | [x] | [x] |
-| **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
+| **Town detail, terminal** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
+| **Ferries under way** | `art/town-kit` (the Baltic ferry; `road-ferry.ts`, a double-ended car ferry in two sizes), `render/boats-under-way.ts` | In the game, nothing to publish: the lanes are a file in the code | The ships on OSM's `route=ferry` lines into Mariehamn, Långnäs and Eckerö, the archipelago and road ferries on theirs, on an invented timetable by the sea's clock (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
 | **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
 | **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
 | **Boats** | `art/boats` | Berths in the game, on tiles rebuilt since; not yet published. Moorings off the piers and the regatta still to place | Berths down a marina's piers and every pontoon, by rule (`pipeline/docks.py`); a distant regatta | [x] | [x] | [x] |
+| **Boats under way** | `art/boats`, `render/boats-under-way.ts` | In the game, nothing to publish | The passenger boat on the excursion lines; sailing yachts, traditional boats, launches, RIBs and fishing boats on trips between harbours and out to OSM anchorages, along OSM fairways (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
 | **Marinas, sea marks, boatyards** | `art/marina` | Built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
 | **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
 | **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
@@ -67,12 +69,13 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
-| Ferry | `art/town-kit` | Nothing | [ ] | [ ] |
+| Ferry | `art/town-kit` | Nothing: it sails, and lies at Västerhamn's berth only between its calls (see Ferries under way) | [x] | [ ] |
 
 ## Cleanup found along the way
 
 - Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
-- Every placed boat is moored. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state and the regatta, and a still boat out on open water would look stranded.
+- Boats under way have no wake. A boat at speed reads as moving mostly by its bow wave and wake; a wake strip behind each, in one more draw, would be the next step if they look parked.
+- A sailing yacht under way heels to one side whichever way the wind is, since the kit's heel is baked into the model and the game has no wind.
 - The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
 - Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.

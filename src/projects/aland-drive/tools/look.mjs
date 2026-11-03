@@ -7,6 +7,9 @@
 //   node src/projects/aland-drive/tools/look.mjs --shots=<folder> [--size=WxH] <name>:<east>,<north>,<height>,<yaw>,<pitch> or <name>:<metres along Route 1> or <name>:<x1>,<y1>,<z1>,<x2>,<y2>,<z2> for a chase view along that line ...
 // Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
+// --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
+// says when one passes). --pair saves each look twice from the one camera, as <out> and <out>-without, the second with
+// the boats under way left out: a before and after of them.
 
 import { chromium } from "playwright";
 
@@ -17,6 +20,8 @@ const [WIDTH, HEIGHT] = (option("size") ?? "1600x900").split("x").map(Number);
 const URL = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const FRAMES_TO_SETTLE = 3;
 const SHOTS = option("shots");
+const SEA = option("sea");
+const PAIR = flags.includes("--pair");
 
 const looks = SHOTS
   ? positional.map((look) => {
@@ -44,6 +49,8 @@ await page.waitForFunction(() => window.__alandDrive !== undefined, null, { time
   await browser.close();
   process.exit(1);
 });
+
+if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), Date.parse(SEA) / 1000);
 
 for (const { out, place } of looks) {
   if (place.length === 5) {
@@ -94,6 +101,22 @@ for (const { out, place } of looks) {
   });
   await page.screenshot({ path: out });
   console.log(out, JSON.stringify(report));
+  if (PAIR) {
+    const without = out.replace(/\.png$/, "-without.png");
+    const counts = await page.evaluate(async () => {
+      const probe = window.__alandDrive;
+      probe.showBoatsUnderWay(false);
+      const target = probe.frames() + 3;
+      while (probe.frames() < target) {
+        probe.counts();
+        await new Promise(requestAnimationFrame);
+      }
+      return probe.counts();
+    });
+    await page.screenshot({ path: without });
+    await page.evaluate(() => window.__alandDrive.showBoatsUnderWay(true));
+    console.log(without, JSON.stringify({ counts }));
+  }
 }
 if (problems.length > 0) console.log(`The page reported:\n${[...new Set(problems)].slice(0, 20).join("\n")}`);
 await browser.close();

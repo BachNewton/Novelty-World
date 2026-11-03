@@ -6,6 +6,8 @@ import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
+import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
+import { seaSeconds } from "../sea/clock";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
@@ -155,6 +157,11 @@ export interface GameProbe {
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
   /** How many other players each map drew last. */
   mapPlayers: () => { mini: number; world: number };
+  /** Pins the sea's clock (UTC seconds) so every boat under way stands where it is then, or lets it run with null. `hold` pins it too, and `advance` steps it. */
+  holdSea: (seconds: number | null) => void;
+  /** Every boat under way, where it was last drawn. */
+  boatsUnderWay: () => UnderWay[];
+  showBoatsUnderWay: (shown: boolean) => void;
 }
 
 export interface HudReading {
@@ -570,6 +577,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
+  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
@@ -947,6 +955,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   resize();
 
   let held = false;
+  let seaHeldAt: number | null = null;
   let autopilot: Autopilot | null = null;
   let owedSeconds = 0;
   let lastFrame: number | null = null;
@@ -1113,6 +1122,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    boatsUnderWay.update(seaHeldAt ?? seaSeconds(), lifted || held || jumping || devMenuOpen ? 0 : seconds);
     stoneWalls.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1161,9 +1171,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       log: () => drive.log,
       hold: (next) => {
         held = next;
+        seaHeldAt = next ? (seaHeldAt ?? seaSeconds()) : null;
       },
       advance: (steps, input) => {
         for (let step = 0; step < steps; step++) drive.step(input ?? nextInput());
+        if (seaHeldAt !== null) seaHeldAt += steps * STEP_S;
       },
       startRoute: (chain, cruiseMS, from) => {
         const line = startLine(chain);
@@ -1243,6 +1255,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           ghost: drive.remotes.ghost(peerId),
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
+      holdSea: (seconds) => {
+        seaHeldAt = seconds;
+      },
+      boatsUnderWay: () => boatsUnderWay.fleet(),
+      showBoatsUnderWay: boatsUnderWay.show,
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
@@ -1275,6 +1292,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       wallMaterial.dispose();
       outbuildings.dispose();
       docks.dispose();
+      boatsUnderWay.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();
