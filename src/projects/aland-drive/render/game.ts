@@ -7,6 +7,7 @@ import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
+import { createSeaMarks } from "./sea-marks";
 import { seaSeconds } from "../sea/clock";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
@@ -162,6 +163,9 @@ export interface GameProbe {
   /** Every boat under way, where it was last drawn. */
   boatsUnderWay: () => UnderWay[];
   showBoatsUnderWay: (shown: boolean) => void;
+  /** How many of each sea mark are drawn round the camera. */
+  seaMarksCounts: () => Record<string, number>;
+  showSeaMarks: (shown: boolean) => void;
 }
 
 export interface HudReading {
@@ -578,6 +582,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
   const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
+  const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun: manifest.sun }, (x, z) => world.height(x, z));
   const viewHeight = uniform(1);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
@@ -717,6 +722,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(true);
   outbuildings.showAll(true);
   docks.showAll(true);
+  seaMarks.showAll(true);
   stoneWalls.showAll(true);
   roadside.showAll(true);
   cullCar(false);
@@ -730,6 +736,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(false);
   outbuildings.showAll(false);
   docks.showAll(false);
+  seaMarks.showAll(false);
   stoneWalls.showAll(false);
   roadside.showAll(false);
   scene.remove(compiledBridge);
@@ -1123,6 +1130,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     boatsUnderWay.update(seaHeldAt ?? seaSeconds(), lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    seaMarks.update(spot.x, spot.z);
     stoneWalls.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1260,6 +1268,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       boatsUnderWay: () => boatsUnderWay.fleet(),
       showBoatsUnderWay: boatsUnderWay.show,
+      seaMarksCounts: seaMarks.counts,
+      showSeaMarks: seaMarks.show,
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
@@ -1293,6 +1303,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       outbuildings.dispose();
       docks.dispose();
       boatsUnderWay.dispose();
+      seaMarks.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();

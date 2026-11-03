@@ -42,15 +42,16 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Villas' porches, fuel stations, supermarket entrances** | `art/facades` | Built | Villas and big shops from the facades; OSM `amenity=fuel` | [ ] | [ ] | [ ] |
 | **Stone churches** | `art/facades` | In the game, on tiles rebuilt since; not yet published | Their real sites, in place of their NLS solids (`pipeline/landmarks.py`) | [x] | [x] | [x] |
 | **Town detail, terminal** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
-| **Ferries under way** | `art/town-kit` (the Baltic ferry; `road-ferry.ts`, a double-ended car ferry in two sizes), `render/boats-under-way.ts` | In the game, nothing to publish: the lanes are a file in the code | The ships on OSM's `route=ferry` lines into Mariehamn, Långnäs and Eckerö, the archipelago and road ferries on theirs, on an invented timetable by the sea's clock (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
+| **Ferries under way** | `art/town-kit` (the Baltic ferry; `road-ferry.ts`, the archipelago's double-ended car ferry), `art/identity` (the cable ferry, on the four road ferries' wires), `render/boats-under-way.ts` | In the game, nothing to publish: the lanes are a file in the code | The ships into Mariehamn, Långnäs and Eckerö, the archipelago and road ferries, along the official fairways' navigation lines and OSM's `route=ferry` lines where the chart has none, on an invented timetable by the sea's clock (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
 | **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
 | **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
 | **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
 | **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
 | **Boats** | `art/boats` | Berths in the game, on tiles rebuilt since; not yet published. Moorings off the piers and the regatta still to place | Berths down a marina's piers and every pontoon, by rule (`pipeline/docks.py`); a distant regatta | [x] | [x] | [x] |
-| **Boats under way** | `art/boats`, `render/boats-under-way.ts` | In the game, nothing to publish | The passenger boat on the excursion lines; sailing yachts, traditional boats, launches, RIBs and fishing boats on trips between harbours and out to OSM anchorages, along OSM fairways (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
-| **Marinas, sea marks, boatyards** | `art/marina` | Built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
+| **Boats under way** | `art/boats`, `render/boats-under-way.ts` | In the game, nothing to publish | The passenger boat on the excursion lines; sailing yachts and traditional boats (keeled, kept out of charted water too shallow for them), launches, RIBs and fishing boats on trips between harbours and out to OSM anchorages, along the official fairways where they help (`pipeline/sea_lanes.py`, `sea/`) | [x] | [x] | [ ] |
+| **Sea marks** | `art/marina` (spars, pillar buoys, fixed marks, leading marks in the register's four stripe patterns, skerry lights, and `daymarks.ts`' radar marks), `art/identity` (whitewashed cairns, lighthouses), `render/sea-marks.ts` | In the game, nothing to publish: `sea/marks.json` is a file in the code | Väylävirasto's aids to navigation, 1,925 of them, each by its kind, IALA side or cardinal and daymark colours; OSM `seamark:*` only where the chart has no mark within 60 m (500 m for a lighthouse), 60 of them (`pipeline/sea_marks.py`) | [x] | [x] | [ ] |
+| **Marinas, boatyards** | `art/marina` | Built | OSM marinas, boatyards and boat storage | [ ] | [ ] | [ ] |
 | **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
 | **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
 | **Sound** | `audio` | Built, not yet heard | Driven by the car, the surface and the place | [ ] | [ ] | [ ] |
@@ -71,12 +72,24 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Ferry | `art/town-kit` | Nothing: it sails, and lies at Västerhamn's berth only between its calls (see Ferries under way) | [x] | [ ] |
 
+## Data
+
+- **Väylävirasto's fairway register** (CC BY 4.0), from its open WFS (`avoinapi.vaylapilvi.fi/vaylatiedot/ows`): the navigation lines, fairway areas and aids to navigation of the official fairways, Ålands landskapsregering's and Mariehamn's among them, kept whole for Åland's box in `.data/raw/sea-chart/` by `sources.sea_chart_path`. 1,083 navigation lines and 1,953 aids. The lanes follow its lines; the sea marks stand at its aids.
+- **Traficom's depth areas** (`DepthArea_A`, 27,302 polygons, 190 MB raw), from its WFS (`julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs`), which serves them without a key. They are not CC BY: they come under Traficom's hydrographic data licence, free to copy, change and publish for anything but navigation and non-commercially, credited with the data's name and the month it was taken. The lanes keep keeled boats out of water shallower than their draft and half a metre; nothing else uses them yet.
+
+## Removed
+
+- `art/town-kit/road-ferry.ts`'s smaller road ferry, a free-running double-ended ferry: every road ferry on Åland runs on a wire (Töftö, Embarsund, Ängösund, Simskäla), which `art/identity`'s cable ferry already is. The archipelago's car ferry stays.
+- `art/marina`'s plain yellow leading board: the register's leading marks are all striped, red and yellow or red and white, and the board now wears those stripes.
+
 ## Cleanup found along the way
 
 - Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
 - Boats under way have no wake. A boat at speed reads as moving mostly by its bow wave and wake; a wake strip behind each, in one more draw, would be the next step if they look parked.
 - A sailing yacht under way heels to one side whichever way the wind is, since the kit's heel is baked into the model and the game has no wind.
-- The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
+- The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. The real depths are in the pipeline's raw sources now (see Data), used so far only to route boats.
+- Leading marks stand at the model's own heights (7 m front, 11 m rear), where the register's median is 3.4 m above the ground, and the tall rear marks are timber trestles where some real ones are steel lattices. Triangular and plain boards take the nearest striped pattern, and the register's four tube-shaped radar marks take the pillar.
+- The sea marks' lists are rebuilt round the camera's kilometre cell, but a mark on land takes the ground's height as the world has it then, which far off is the 16 m far heights: a cairn on a small skerry can stand a little off its rock until the list is rebuilt nearer.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
 - Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.
 - From close above, a church tower's roof shows a thin light line along its lower rim, which starts just outside the wall (seen on Sund).

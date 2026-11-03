@@ -9,7 +9,7 @@
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
 // --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
 // says when one passes). --pair saves each look twice from the one camera, as <out> and <out>-without, the second with
-// the boats under way left out: a before and after of them.
+// the boats under way and the sea marks left out: a before and after of them.
 
 import { chromium } from "playwright";
 
@@ -106,6 +106,7 @@ for (const { out, place } of looks) {
     const counts = await page.evaluate(async () => {
       const probe = window.__alandDrive;
       probe.showBoatsUnderWay(false);
+      probe.showSeaMarks(false);
       const target = probe.frames() + 3;
       while (probe.frames() < target) {
         probe.counts();
@@ -114,7 +115,10 @@ for (const { out, place } of looks) {
       return probe.counts();
     });
     await page.screenshot({ path: without });
-    await page.evaluate(() => window.__alandDrive.showBoatsUnderWay(true));
+    await page.evaluate(() => {
+      window.__alandDrive.showBoatsUnderWay(true);
+      window.__alandDrive.showSeaMarks(true);
+    });
     console.log(without, JSON.stringify({ counts }));
   }
 }

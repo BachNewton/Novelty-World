@@ -2,8 +2,8 @@
  * The marina kit's colours that no existing token can mix. On integration this block joins the other
  * --color-aland-drive-* tokens in globals.css.
  *
- * The mark colours are the five IALA's buoyage system uses: red, green, yellow, black and white. They are clean
- * and strong so a mark reads at range; they are not measured against IALA Recommendation E-108's own figures.
+ * The mark colours are the five IALA's buoyage system uses: red, green, yellow, black and white, and the orange of
+ * Finland's radar marks. They are clean and strong so a mark reads at range; they are not measured against IALA Recommendation E-108's own figures.
  */
 :root {
   --color-aland-drive-mark-red: #c92a22;
@@ -11,6 +11,7 @@
   --color-aland-drive-mark-yellow: #f5b800;
   --color-aland-drive-mark-black: #1f1f20;
   --color-aland-drive-mark-white: #f1f0e9;
+  --color-aland-drive-mark-orange: #e8661c;
 
   --color-aland-drive-tarp-blue: #2c6aa6;
   --color-aland-drive-tarp-green: #3f6a4a;

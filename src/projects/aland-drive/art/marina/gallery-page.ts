@@ -4,7 +4,9 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildDryingNets, buildFishingHut, buildKummel, buildLighthouse, buildNetHeap, buildWoodenDaymark, identityMaterials } from "../identity";
 import { buildGangway, buildPontoon, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
 import { catalogue } from "./catalogue";
-import { buildBoatInCradle, buildBoatTrolley, buildBoatWinterCover, buildCairn, buildDinghyRack, buildFingerPontoon, buildFishBoxes, buildFlagMast, buildFloatHeap, buildFuelBerth, buildGuestHarbourSign, buildHarbourHut, buildHistoricShedRow, buildHullOnStocks, buildLeadingMark, buildMastRack, buildNetMarker, buildPilotStation, buildPillarBuoy, buildRopewalkShed, buildPyramidBeacon, buildServicePedestal, buildSlipway, buildSkerryLight, buildSmithy, buildSmokehouse, buildSpar, buildSteamBox, buildTarPot, buildTimberStack, buildTravelLift, buildWalkwayGate, marinaMaterials, PLACE_COUNTS, SEA_MARKS, SHED_ROW_M } from "./index";
+import { buildRadarMark, RADAR_BANDS, radarMarkScale } from "./daymarks";
+import { Marked, marinaModel } from "./paint";
+import { buildBoatInCradle, buildBoatTrolley, buildBoatWinterCover, buildCairn, buildDinghyRack, buildFingerPontoon, buildFishBoxes, buildFlagMast, buildFloatHeap, buildFuelBerth, buildGuestHarbourSign, buildHarbourHut, buildHistoricShedRow, buildHullOnStocks, buildLeadingMark, buildMastRack, buildNetMarker, buildPilotStation, buildPillarBuoy, buildRopewalkShed, buildPyramidBeacon, buildServicePedestal, buildSlipway, buildSkerryLight, buildSmithy, buildSmokehouse, buildSpar, buildSteamBox, buildTarPot, buildTimberStack, buildTravelLift, buildWalkwayGate, LEADING_PATTERNS, marinaMaterials, PLACE_COUNTS, SEA_MARKS, SHED_ROW_M } from "./index";
 
 /*
  * The gallery's scene, on the game's renderer, with the game's haze and sun: land for
@@ -113,6 +115,25 @@ family("spars-swap", "spars near their swap, 110 m", 8.8, LINE_Z + 112, 2, 8.8, 
 family("spars-far", "spars at 900 m", 8.8, LINE_Z + 900, 3, 8.8, 1.6, 1.8);
 shots.push({ name: "pillars", label: "pillar buoys, same order", camera: [20, 3, LINE_Z + 40 + 24], target: [20, 2.8, LINE_Z + 40], fieldOfView: 44 });
 
+// The leading marks: each pattern's front, and its rear 100 m behind on the same line, seen down the line as a
+// boat a little off the line sees them; then each version either side of its swap, framed alike, and from far off.
+const LEAD_Z = -1500;
+const LEAD_BEHIND_M = 100;
+const LEAD_SWAP_M = 150;
+const LEAD_APART_M = 9;
+const LEAD_MIDDLE_X = 1.5 * LEAD_APART_M;
+LEADING_PATTERNS.forEach((pattern, index) => {
+  add(buildLeadingMark("front", pattern), [{ x: index * LEAD_APART_M, y: 0, z: LEAD_Z }]);
+  add(buildLeadingMark("rear", pattern), [{ x: index * LEAD_APART_M, y: 0, z: LEAD_Z - LEAD_BEHIND_M }]);
+});
+const leading = (name: string, label: string, fromFront: number, framed: number, targetY: number, eyeY = 2, offLine = 0) => shots.push({ name, label, camera: [LEAD_MIDDLE_X + offLine, eyeY, LEAD_Z + fromFront], target: [LEAD_MIDDLE_X, targetY, LEAD_Z - framed + fromFront], fieldOfView: (2 * Math.atan(7 / framed) * 180) / Math.PI });
+leading("leading-line", `leading lines from 400 m, a little off the line: ${LEADING_PATTERNS.join(", ")}`, 400, 400 + LEAD_BEHIND_M / 2, 9, 2, 5);
+leading("leading-front-swap-near", "fronts just inside their swap", LEAD_SWAP_M - 4, LEAD_SWAP_M, 8);
+leading("leading-front-swap-far", "fronts just past their swap", LEAD_SWAP_M + 4, LEAD_SWAP_M, 8);
+leading("leading-rear-swap-near", "rears just inside their swap", LEAD_SWAP_M - LEAD_BEHIND_M - 4, LEAD_SWAP_M, 12.5, 12);
+leading("leading-rear-swap-far", "rears just past their swap", LEAD_SWAP_M - LEAD_BEHIND_M + 4, LEAD_SWAP_M, 12.5, 12);
+leading("leading-far", "leading lines at 900 m", 900, 900, 9);
+
 // A marina: a main pontoon off the shore with fingers, boats ashore behind it.
 const SCENE_X = 3000;
 function composed() {
@@ -169,8 +190,8 @@ function composed() {
   add(buildPyramidBeacon(), [seaAt(-70, -70)]);
   addWith(buildWoodenDaymark(), [seaAt(-46, -60)], identity);
   addWith(buildKummel(), [seaAt(-58, -30)], identity);
-  add(buildLeadingMark("front"), [seaAt(-120, -40)]);
-  add(buildLeadingMark("rear"), [seaAt(-126, -140)]);
+  add(buildLeadingMark("front", "red-yellow"), [seaAt(-120, -40)]);
+  add(buildLeadingMark("rear", "red-yellow"), [seaAt(-126, -140)]);
   add(buildSpar("port"), [seaAt(-10, 40), seaAt(40, 90)]);
   add(buildSpar("starboard"), [seaAt(30, 30), seaAt(66, 70)]);
   add(buildSpar("west"), [seaAt(90, 10)]);
@@ -178,6 +199,35 @@ function composed() {
   shots.push({ name: "scene-sea", label: "a pilot station, its marks and a fairway", camera: [SCENE_X + 900 + 34, 5, WATER_Z + 44], target: [SCENE_X + 900 - 14, 5, WATER_Z - 40], fieldOfView: 56 });
 }
 composed();
+
+// The radar marks, each band scheme on a skerry of its own, then the median mark at the register's other heights;
+// then the same either side of their swap, and from as far off as a driver on the shore sees them, at the game's own
+// pixels to the degree (its 60° over 1440 rows is 44° over the gallery's 1007).
+const RADAR_Z = WATER_Z + 3000;
+const RADAR_APART_M = 16;
+/** Well aside of everything else, so nothing of the gallery stands behind the far shots. */
+const RADAR_X = -20000;
+const RADAR_SKERRY_M = 0.9;
+const skerry = (radius: number) => marinaModel(new Marked().lathe([0, -0.4, 0], [[0, radius], [0.5, radius * 0.75], [1.05, radius * 0.4], [RADAR_SKERRY_M + 0.25, 0.3]], 7, "stone-pink"), null, 4000, 4000);
+RADAR_BANDS.forEach((bands, index) => {
+  const x = RADAR_X + index * RADAR_APART_M;
+  add(skerry(7), [{ x, y: 0, z: RADAR_Z, yaw: index }]);
+  add(buildRadarMark(bands), [{ x, y: RADAR_SKERRY_M, z: RADAR_Z, yaw: 0.5 }]);
+});
+[4.5, 9, 12].forEach((heightM, index) => {
+  const x = RADAR_X + (index + 1) * RADAR_APART_M;
+  add(skerry(8), [{ x, y: 0, z: RADAR_Z - 60, yaw: index }]);
+  add(buildRadarMark("white-red"), [{ x, y: RADAR_SKERRY_M, z: RADAR_Z - 60, yaw: 0.5, scale: radarMarkScale(heightM) }]);
+});
+const RADAR_MIDDLE_X = RADAR_X + 2 * RADAR_APART_M;
+const RADAR_GAME_FOV = 44;
+const radar = (name: string, label: string, back: number, eyeY: number, fieldOfView: number, targetY = 3.5) => shots.push({ name, label, camera: [RADAR_MIDDLE_X + back * 0.12, eyeY, RADAR_Z + back], target: [RADAR_MIDDLE_X, targetY, RADAR_Z], fieldOfView });
+radar("radar-marks", `radar marks on their skerries: ${RADAR_BANDS.join(", ")}; behind, white-red at 4.5, 9 and 12 m`, 70, 4, 52, 4);
+radar("radar-close", "radar marks, close", 22, 3, 60, 4.5);
+radar("radar-swap-near", "radar marks just inside their swap, 700 m", 690, 4, 8);
+radar("radar-swap-far", "radar marks just past their swap", 710, 4, 8);
+radar("radar-1km", "radar marks at 1 km, the game's pixels", 1000, 3, RADAR_GAME_FOV);
+radar("radar-3km", "radar marks at 3 km, the game's pixels", 3000, 3, RADAR_GAME_FOV);
 
 async function frame(name: string) {
   const shot = shots.find((candidate) => candidate.name === name);
