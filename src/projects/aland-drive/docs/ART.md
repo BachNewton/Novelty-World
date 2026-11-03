@@ -25,7 +25,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Guard rails, reflectors, speed cameras** | `art/street`, `render/roadside.ts` | In the game: guard rails and edge posts; speed cameras not yet placed | OSM `barrier=guard_rail`; rails on embankments and either side of a bridge; edge posts along unlit main roads (`pipeline/roadside.py`) | [x] | [x] | [x] |
 | **Verges and wildflowers** | `art/street`, `render/verge.ts` | In the game | A shader's rule, from the road mask and the photo | [x] | [x] | [x] |
 | **Linden trees** | `art/street` | Built | OSM `natural=tree_row`; esplanades by name | [ ] | [ ] | [ ] |
-| **Street furniture** | `art/street` | Built | OSM benches, bins, bike racks, cafés | [ ] | [ ] | [ ] |
+| **Street furniture** | `art/street`, `render/roadside.ts` | In the game: benches, bins, bike racks, café tables and parasols, with a seat for a person on each bench seat and chair; on tiles rebuilt since, not yet published. Planters and the lone table and chair not yet placed | OSM benches, waste baskets, bicycle parking, and terraces at cafés and bars with outdoor seating; benches along park paths, pedestrian streets and a town's waterside paths, bins at town bus stops, bike racks at supermarkets, schools and the like (`pipeline/furniture.py`) | [x] | [x] | [x] |
 | **Flags, midsummer poles** | `art/street` | Built | OSM flagpoles; a hand list of poles | [ ] | [ ] | [ ] |
 | **Harbour fittings** | `art/street` | Built | Rules along quays; OSM cranes, marinas | [ ] | [ ] | [ ] |
 | **Parked cars** | `art/street` | Built | OSM `amenity=parking`, kerb lines | [ ] | [ ] | [ ] |
@@ -82,7 +82,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
 - Give parked cars a very simple stand-in past about 120 m, because they're most of a town street's cost.
 - Fold the remaining kits' `tokens.css` into `globals.css` as each kit goes in (`art/roadside`, `art/street` and `art/rural` have none left).
-- `art/street` and `art/rural` grow their objects out of the ground at their reach; `art/roadside` dissolves its own instead, which suits the rule that a change of detail isn't noticed. Bring the other two in line once someone checks them in motion.
+- `art/rural` and `art/street`'s parked cars grow out of the ground at their reach; `art/roadside` and the rest of `art/street` dissolve instead, which suits the rule that a change of detail isn't noticed. Bring them in line once someone checks them in motion.
 - Bus shelters stand in the verge's grass, which grows inside them: the verge reads only images, so it can't know they're there.
 - Power lines cross the forest with trees standing under the wires, where a real line has a cleared corridor.
 - Check real shopfronts on central Mariehamn, and the 11 solids holding OSM roads.

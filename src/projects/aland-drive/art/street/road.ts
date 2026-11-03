@@ -1,6 +1,6 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { Painted, runMotion, streetModel } from "./paint";
+import { Painted, streetModel } from "./paint";
 
 /*
  * What stands along a road outside town. As in the roadside kit, runs go along +x,
@@ -62,7 +62,7 @@ export function buildGuardRail(): RoadsideModel {
   const near = sweep(new Painted(), [[0, RAIL_TOP_M, 0], [GUARD_RAIL_M, RAIL_TOP_M, 0]]);
   railPost(near, POST_BAY_M / 2);
   railPost(near, POST_BAY_M * 1.5);
-  return streetModel(near, farRail(0, GUARD_RAIL_M), RAIL_SWAP_M, RAIL_REACH_M, runMotion);
+  return streetModel(near, farRail(0, GUARD_RAIL_M), RAIL_SWAP_M, RAIL_REACH_M);
 }
 
 /** The usual end: over 4 m the beam bends away from the road and runs down into the ground. It joins a section at its origin and runs on along +x. At a run's start, give it a `stretch` of -1: that mirrors it along the run and leaves its road side to the road, which turning it round wouldn't. */
@@ -74,7 +74,7 @@ export function buildGuardRailEnd(): RoadsideModel {
     railPost(near, x, top, off);
   }
   const far = new Painted().face([[0, RAIL_TOP_M, SPACER_M], [END_M, -0.02, SPACER_M - END_FLARE_M], [END_M, -0.05, SPACER_M - END_FLARE_M], [0, RAIL_TOP_M - 0.31, SPACER_M]], "rail", 0.9);
-  return streetModel(near, far, RAIL_SWAP_M, RAIL_REACH_M, runMotion);
+  return streetModel(near, far, RAIL_SWAP_M, RAIL_REACH_M);
 }
 
 /** The other end, for where a run stops at a side road: a short rounded return of the beam, curling back behind its last post. A `stretch` of -1 puts it on a run's start, as for the ramped end. */
@@ -83,7 +83,7 @@ export function buildGuardRailReturn(): RoadsideModel {
   const near = sweep(new Painted(), curve);
   railPost(near, 0);
   const far = new Painted().face([[0, RAIL_TOP_M, SPACER_M], [0.3, RAIL_TOP_M, SPACER_M - 0.2], [0.3, RAIL_TOP_M - 0.31, SPACER_M - 0.2], [0, RAIL_TOP_M - 0.31, SPACER_M]], "rail", 0.9);
-  return streetModel(near, far, RAIL_SWAP_M, RAIL_REACH_M, runMotion);
+  return streetModel(near, far, RAIL_SWAP_M, RAIL_REACH_M);
 }
 
 const REFLECTOR_TALL_M = 1.05;

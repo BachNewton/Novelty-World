@@ -6,10 +6,11 @@ import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type Stree
 /*
  * The same instance layout as the roadside kit, so `placeModel` places these
  * models, and the same light and haze. It adds three things: the street's paints,
- * vertices that move, and no switch anyone can see. An object grows out of nothing
- * over the last share of its reach, and between its versions the two trade pixels
- * by a fixed screen pattern over a band of distance, so they are never both whole
- * and there's never a hole. The pattern means a `discard` in these two materials,
+ * vertices that move, and no switch anyone can see. Between its versions the two
+ * trade pixels by a fixed screen pattern over a band of distance, so they are never
+ * both whole and there's never a hole, and towards its reach the last version
+ * dissolves by the same pattern, at a distance rolled per place, as the roadside
+ * kit's do: a bench rising out of the ground would be seen. The pattern means a `discard` in these two materials,
  * so they keep to objects, never to anything that covers the screen.
  */
 
@@ -82,8 +83,10 @@ const PAINT: Record<StreetPart, { from: string; to?: string; share?: number; gai
   rigging: { from: "wall-plinth", gain: 0.85 },
 };
 
-/** The share of an object's reach it takes to grow from nothing. */
-const GROW_SHARE = 0.14;
+/** The share of its reach over which the last version dissolves. */
+const LEAVE_SHARE = 0.15;
+/** Each place leaves somewhere in this share of its reach, so a row doesn't go on one line. */
+const LEAVE_SPREAD = 0.1;
 /** The band two versions trade pixels over, as a share either side of the swap. */
 const SWAP_BAND = 0.1;
 
@@ -93,7 +96,6 @@ const MOVES: Record<MotionKind, { speed: number; waves: number }> = {
   leaf: { speed: 1.25, waves: 0.8 },
   cloth: { speed: 4.6, waves: 2.4 },
   hull: { speed: 0.7, waves: 0 },
-  run: { speed: 0, waves: 0 },
 };
 const RIPPLE_SHARE = 0.35;
 const RIPPLE_RATE = 1.73;
@@ -145,12 +147,9 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const distance = place.xz.sub(cameraPosition.xz).length();
   const roll = rollOf(place.xz);
 
-  const grown = float(1).sub(smoothstep(reach.y.mul(1 - GROW_SHARE), reach.y, distance));
-  const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(reach.y));
+  const end = reach.y.mul(float(1).sub(roll.mul(LEAVE_SPREAD)));
+  const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND).min(end)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const size = select(shown, fit.x, float(0));
-  const isRun = kindIs(kind, "run");
-  const wide = select(isRun, size, size.mul(grown));
-  const tall = size.mul(grown);
 
   const x = positionGeometry.x.mul(fit.y);
   const up = positionGeometry.y.add(x.mul(fit.z));
@@ -158,11 +157,12 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
-  material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(wide)), place.y.add(up.mul(tall)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(wide)));
+  material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
   material.colorNode = inputs.hazed(paintOf(inputs, up.mul(fit.x), roll, kind));
   const pattern = screenPattern();
   const share = swapShare(reach, distance);
-  material.maskNode = isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share);
+  const kept = pattern.greaterThanEqual(smoothstep(end.mul(1 - LEAVE_SHARE), end, distance));
+  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept);
   material.side = DoubleSide;
   return material;
 }
