@@ -105,20 +105,6 @@ function chair(into: Painted, [cx, , cz]: V3, turn: number): Painted {
   return into.face([at(-half * 0.92, back, -half - 0.06), at(half * 0.92, back, -half - 0.06), at(half * 0.97, back - 0.2, -half - 0.04), at(-half * 0.97, back - 0.2, -half - 0.04)], "cafe-frame", 1.15);
 }
 
-/** One table, on its own. */
-export function buildCafeTable(): RoadsideModel {
-  const far = new Painted().face(levelRing([0, TABLE_TALL_M, 0], TABLE_RADIUS_M, 5), "cafe-top").tube([0, 0, 0], [0, TABLE_TALL_M, 0], 0.05, 3, {}, "cafe-frame");
-  return streetModel(table(new Painted(), 10), far, CAFE_SWAP_M, CAFE_REACH_M);
-}
-
-/** One chair facing +z, on its own, for a terrace set out by hand. */
-export function buildCafeChair(): RoadsideModel {
-  const far = new Painted()
-    .face([[-0.2, 0.46, -0.2], [0.2, 0.46, -0.2], [0.2, 0.46, 0.2], [-0.2, 0.46, 0.2]], "cafe-frame", 1.2)
-    .face([[-0.2, 0, -0.22], [0.2, 0, -0.22], [0.18, 0.84, -0.26], [-0.18, 0.84, -0.26]], "cafe-frame");
-  return streetModel(chair(new Painted(), [0, 0, 0], 0), far, CAFE_SWAP_M, CAFE_REACH_M);
-}
-
 /** A table with two chairs, as one model: what a terrace is mostly made of, in one instance. */
 export function buildCafeSet(): RoadsideModel {
   const near = table(new Painted(), 8);
