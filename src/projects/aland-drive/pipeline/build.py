@@ -18,6 +18,7 @@ for setting in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "GDAL_NUM_THREADS"):
     os.environ[setting] = "1"
 
 import numpy as np
+import shapely
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
@@ -50,6 +51,9 @@ FAR_NODE_STRIDE = 4
 FAR_SHADE_PIXELS = 750
 FAR_SHADE_QUALITY = 80
 MASK_PIXELS = 1500
+# The game decodes the mask through a 2D canvas, which premultiplies by alpha: at 0 a pixel's water and roads would be
+# lost, so a place kept clear of reeds is marked at half.
+REEDS_KEPT_OFF = 128
 # Ground a road shaped over the water that stands this far out of it is the road's bank, and land.
 ROAD_BANK_ABOVE_WATER_M = 0.5
 # The drive starts here, on this tile's main road.
@@ -70,8 +74,11 @@ def encode_heights(nodes: np.ndarray) -> bytes:
     return gzip.compress(np.diff(units, axis=1, prepend=0).astype("<i2").tobytes(), 9, mtime=0)
 
 
-def surface_mask(water: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, north: float) -> Image.Image:
-    """What far terrain paints: water in red, the coverage of main roads in green and of lesser ones in blue, at 4 m."""
+def surface_mask(water: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]], kept_clear: list, west: float, north: float) -> Image.Image:
+    """What far terrain paints: water in red, the coverage of main roads in green and of lesser ones in blue, at 4 m.
+
+    Alpha is where reeds may grow: 255 open, REEDS_KEPT_OFF where docks keep them clear.
+    """
     scale = SAMPLES / TILE_SIZE_M
     canvases = [Image.new("L", (SAMPLES, SAMPLES), 0) for _ in range(2)]
     pens = [ImageDraw.Draw(canvas) for canvas in canvases]
@@ -82,7 +89,12 @@ def surface_mask(water: np.ndarray, ribbons: list[tuple[np.ndarray, np.ndarray]]
             quad = [(columns[section, 0], rows[section, 0]), (columns[section, 2], rows[section, 2]), (columns[section + 1, 2], rows[section + 1, 2]), (columns[section + 1, 0], rows[section + 1, 0])]
             pens[0 if tiers[section] == 0 else 1].polygon(quad, fill=255)
     wet = Image.fromarray(water.astype(np.uint8) * 255)
-    return Image.merge("RGB", [channel.reduce(SAMPLES // MASK_PIXELS) for channel in (wet, *canvases)])
+    open_to_reeds = Image.new("L", (SAMPLES, SAMPLES), 255)
+    pen = ImageDraw.Draw(open_to_reeds)
+    for shape in kept_clear:
+        for part in shapely.get_parts(shape):
+            pen.polygon([((x - west) * scale, (north - y) * scale) for x, y in part.exterior.coords], fill=REEDS_KEPT_OFF)
+    return Image.merge("RGBA", [channel.reduce(SAMPLES // MASK_PIXELS) for channel in (wet, *canvases, open_to_reeds)])
 
 
 def road_cover(ribbons: list[tuple[np.ndarray, np.ndarray]], west: float, north: float) -> np.ndarray:
@@ -151,6 +163,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
         piers, marinas = docks.read(osm_file)
+        piers += docks.boardwalks(roads)
         quay_piers = docks.quays(roads, piers)
         roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
@@ -218,7 +231,6 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     (folder / "water-levels-far.bin.gz").write_bytes(encode_heights(level_nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
     (folder / "shore.bin.gz").write_bytes(encode_heights(shore_nodes))
     (folder / "shore-far.bin.gz").write_bytes(encode_heights(shore_nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
-    surface_mask(water, baked, west, north).save(folder / "mask.png", optimize=True)
 
     shade = terrain.bake_shade(terrain.with_ground_moved(mosaic, raw, conformed))
     encoded = np.round(255 * np.clip(shade, 0, 1) ** (1 / SHADE_GAMMA)).astype(np.uint8)
@@ -232,11 +244,16 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     sites = landmark_sites.Landmarks(tile)
     solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder, placed, sites)
     docks_manifest = None
+    kept_clear = []
     if with_vectors:
-        land = docks.Land(mosaic[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES], water, west, north)
+        under = np.where(levels > terrain.DRY_LEVEL_M, np.maximum(levels - conformed, 0), 0)
+        depth = (under[:-1, :-1] + under[1:, :-1] + under[:-1, 1:] + under[1:, 1:]) / 4
+        land = docks.Land(mosaic[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES], water, depth, west, north)
         moored = docks.Docks(tile, land, [place for model, places in placed.models.items() if model.startswith("boathouse") for place in places], roads)
         moored.place(piers, marinas, quay_piers)
         docks_manifest = moored.write(folder)
+        kept_clear = moored.kept_clear
+    surface_mask(water, baked, kept_clear, west, north).save(folder / "mask.png", optimize=True)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
     stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
@@ -260,7 +277,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "far": {"heightsFile": "heights-far.bin.gz", "nodes": nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE].shape[0], "stepM": FAR_NODE_STRIDE * TILE_SIZE_M / (nodes.shape[0] - 1), "shadeFile": "shade-far.webp", "shadePixels": FAR_SHADE_PIXELS},
         "shade": {"file": "shade.webp", "pixels": SAMPLES, "pixelM": SAMPLE_M, "gamma": SHADE_GAMMA},
         "sun": {"azimuthDeg": terrain.SUN_AZIMUTH_DEG, "elevationDeg": terrain.SUN_ELEVATION_DEG},
-        "mask": {"file": "mask.png", "pixels": MASK_PIXELS, "channels": ["water", "main road", "lesser road"]},
+        "mask": {"file": "mask.png", "pixels": MASK_PIXELS, "channels": ["water", "main road", "lesser road", "open to reeds"]},
         "ground": {"file": "ground.webp", "pixels": SAMPLES, "farFile": "ground-far.webp", "farPixels": ground_colour.FAR_PIXELS},
         "canopy": {"file": "canopy.webp", "pixels": canopy.PIXELS, "unitM": canopy.UNIT_M},
         "stands": stands.MANIFEST,

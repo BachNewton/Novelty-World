@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildFerry } from "../landmarks/ferry";
 import type { RoadsideModel } from "../roadside/models";
-import { buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildMarinaDeck, buildMooredLaunch, buildMooredYacht, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, deliveryVan, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, marinaRow, signalsAtJunction, terminalFeet } from "./index";
+import { buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, deliveryVan, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, signalsAtJunction, terminalFeet } from "./index";
 
 const triangles = (geometry: RoadsideModel["near"] | null) => (geometry?.index?.count ?? 0) / 3;
 
@@ -19,9 +18,6 @@ describe("town triangle budgets", () => {
     village: buildVillageSign(),
     villagePlate: buildVillagePlate(),
     bus: buildBusStopPole(),
-    deck: buildMarinaDeck(),
-    yacht: buildMooredYacht(),
-    launch: buildMooredLaunch(),
   };
 
   it.each(Object.entries(small))("%s stays small", (_, model) => {
@@ -47,11 +43,6 @@ describe("the terminal", () => {
 });
 
 describe("the ferry", () => {
-  it("lies where the landmark did", () => {
-    const { east, north, baseM } = buildFerry();
-    expect([FERRY_BERTH.east, FERRY_BERTH.north, FERRY_BERTH.baseM]).toEqual([east, north, baseM]);
-  });
-
   it("points its bow south along the quay", () => {
     const { yaw = 0 } = ferryPlace();
     expect(Math.cos(yaw)).toBeCloseTo(Math.sin((FERRY_BERTH.bearingDeg * Math.PI) / 180));
@@ -73,23 +64,6 @@ describe("traffic signals", () => {
     expect(heads[0].z).toBeCloseTo(-8);
     const yaw = heads[0].yaw ?? 0;
     expect([Math.sin(yaw), Math.cos(yaw)].map((part) => Math.round(part))).toEqual([0, -1]);
-  });
-});
-
-describe("the marina", () => {
-  const line = [{ x: 0, y: 0, z: 0 }, { x: 80, y: 0, z: 0 }];
-  const spec = { berthM: 3.2, fill: 0.6, seaY: 0.1, deck: true, seed: 5 };
-
-  it("moors the same boats on the same pier every time", () => {
-    expect(marinaRow(line, spec)).toEqual(marinaRow(line, spec));
-  });
-
-  it("fills to its share and keeps boats off the walkway", () => {
-    const { yachts, navyYachts, launches, deck } = marinaRow(line, spec);
-    const boats = [...yachts, ...navyYachts, ...launches];
-    expect(boats.length / (2 * Math.floor(80 / spec.berthM))).toBeCloseTo(spec.fill, 0);
-    expect(deck.length).toBe(10);
-    for (const { z } of boats) expect(Math.abs(z)).toBeGreaterThan(3);
   });
 });
 

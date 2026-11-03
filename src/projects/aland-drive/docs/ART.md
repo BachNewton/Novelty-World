@@ -68,12 +68,13 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Kastelholm | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Bomarsund fort | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
-| Ferry | `art/town-kit` (replaces the one in `art/landmarks`) | Nothing | [ ] | [ ] |
+| Ferry | `art/town-kit` | Nothing | [ ] | [ ] |
 
 ## Cleanup found along the way
 
-- Footbridges that OSM tags `bridge=yes` over water (wooden ones near Västerhamn and in the country, the terminal's walkway) are still drawn by the bridge kit as concrete road bridges; a timber footbridge look would suit them.
-- Reeds and the verge's shrubs are a shader's rule from images, so in a reedy bay they stand through a jetty or among berthed boats. Docks would need to reach the reeds' pass, as a mask or a list, to clear them.
+- Footbridges that OSM tags `bridge=yes` without `surface=wood` (the terminal's walkway, some in the country) are still drawn by the bridge kit as concrete road bridges. Wooden ones are docks now.
+- Every placed boat is moored. Boats under way, sailing and motor, wait for moving traffic, whose logic they would share: `art/boats` has the yachts' sailing state and the regatta, and a still boat out on open water would look stranded.
+- The seabed is the pipeline's own shelf from the shore, not a survey, so berths and keels follow distance from land. Traficom publishes depth areas, contours and soundings as open data (CC BY 4.0, "not for navigation"), and the Transport Infrastructure Agency fairways and aids to navigation: the real seabed, buoys and beacons, if the water ever needs them.
 - A marina's boats are one list per model across the loaded tiles, so every boat runs its near version's vertices wherever it is, folded to nothing past its swap: with Mariehamn loaded that's about 0.6 M of the triangle count (showcase 2 goes from 1.75 to 2.39 M). Lists per 600 m cell, shown by distance as the buildings are, would drop it.
 - Pommern's near rigging is geometry finer than a pixel, so it sparkles in single pixels well before its swap.
 - From close above, a church tower's roof shows a thin light line along its lower rim, which starts just outside the wall (seen on Sund).

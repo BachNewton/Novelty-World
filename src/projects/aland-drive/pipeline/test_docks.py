@@ -7,18 +7,19 @@ from types import SimpleNamespace
 import numpy as np
 from shapely.geometry import LineString, Polygon
 
-from docks import HULLS, Docks, Land, Pier, off_piers, quays
-from terrain import WATERLINE_BELOW_FLAT_M
+from docks import DRAFT_M, HULLS, UNDER_KEEL_M, Docks, Land, Pier, boardwalks, off_piers, quays
+from terrain import DEEPEST_M, SEABED_SLOPE, WATERLINE_BELOW_FLAT_M
 from grid import WORLD_ORIGIN
 
-# 200 m square at 2 m: land 2 m up north of north = 40, the sea at 0 south of it.
+# 200 m square at 2 m: land 2 m up north of north = 40, the sea at 0 south of it, its seabed shelving as the game's does.
 TILE = SimpleNamespace(west=WORLD_ORIGIN[0], south=WORLD_ORIGIN[1], east=WORLD_ORIGIN[0] + 200, north=WORLD_ORIGIN[1] + 200)
 
 
 def land() -> Land:
     water = np.zeros((100, 100), dtype=bool)
     water[80:, :] = True
-    return Land(np.where(water, 0.0, 2.0), water, 0.0, 200.0)
+    from_shore = (np.arange(100)[:, None] - 79.5).clip(0) * 2 * np.ones((1, 100))
+    return Land(np.where(water, 0.0, 2.0), water, np.minimum(SEABED_SLOPE * from_shore, DEEPEST_M), 0.0, 200.0)
 
 
 def pier(line: list[tuple[float, float]], **tags: str) -> Pier:
@@ -35,6 +36,15 @@ class Roads(unittest.TestCase):
         laid = off_piers([road([(100, 90), (100, 10)], "footway", motor=False)], [jetty])
         self.assertEqual(len(laid), 1)
         self.assertGreaterEqual(min(y for _, y in laid[0]["line"]), 59)
+
+    def test_a_wooden_footbridge_is_a_dock_and_a_concrete_one_stays_a_bridge(self):
+        wooden = {**road([(0, 90), (100, 30), (200, 90)], "footway", motor=False), "bridge": "yes", "surface": "wood"}
+        concrete = {**road([(0, 10), (200, 10)], "footway", motor=False), "bridge": "yes", "id": 3}
+        walks = boardwalks([wooden, concrete])
+        self.assertEqual(len(walks), 1)
+        laid = off_piers([wooden, concrete], walks)
+        self.assertIn(concrete, laid)
+        self.assertTrue(all(min(y for _, y in part["line"]) > 30 for part in laid if part["id"] == 2))
 
     def test_a_motor_road_on_a_pier_makes_it_a_quay_with_no_dock(self):
         quay = pier([(100, 60), (100, 10)], width="5")
@@ -55,6 +65,14 @@ class Placing(unittest.TestCase):
         self.assertAlmostEqual(-z, 40, delta=2.5)
         self.assertAlmostEqual(length, 20, delta=2.5)
         self.assertEqual(len(docks.walls), 4)
+
+    def test_a_share_of_jetties_moor_a_sloop_off_the_end(self):
+        moored = 0
+        for pier_id in range(200):
+            docks = Docks(TILE, land(), [], [])
+            docks.place([Pier(pier_id, {"man_made": "pier"}, np.array([(100.0, 55.0), (100.0, 20.0)]), None)], [], [])
+            moored += "sailboat" in docks.models
+        self.assertGreater(moored, 5)
 
     def test_a_dock_stops_short_of_a_motor_road(self):
         shore_road = road([(0, 30), (200, 30)], "residential", motor=True)
@@ -84,6 +102,19 @@ class Placing(unittest.TestCase):
             self.assertLess(abs(centre[0] + bow[0] * length / 2 - 100), abs(centre[0] - 100))
             hulls.append(hull)
         self.assertTrue(all(not a.intersects(b) for index, a in enumerate(hulls) for b in hulls[index + 1 :]))
+
+    def test_a_keel_clears_the_seabed_so_the_deep_yachts_lie_at_the_outer_berths(self):
+        docks = Docks(TILE, land(), [], [])
+        docks.place([pier([(100, 40), (100, 0)], floating="yes")], [], [])
+        self.assertIn("large", docks.models)
+        for model, places in docks.models.items():
+            if model not in HULLS:
+                continue
+            for x, _, z, yaw, _, _ in places:
+                bow = np.array([math.sin(yaw), -math.cos(yaw)])
+                for along in (-0.25, 0.25):
+                    keel = np.array([x, -z]) + bow * along * HULLS[model][0]
+                    self.assertGreaterEqual(min(SEABED_SLOPE * (40 - keel[1]), DEEPEST_M), DRAFT_M[model] + UNDER_KEEL_M - SEABED_SLOPE * 2)
 
 
 if __name__ == "__main__":

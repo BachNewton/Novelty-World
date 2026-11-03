@@ -1,7 +1,9 @@
 """Jetties, piers and pontoons from OSM's piers, and the boats moored at them.
 
 OSM maps a pier as a line or an outline (`man_made=pier`), and a floating one as
-`floating=yes`. Many in a marina also carry a footway, the line people walk, which
+`floating=yes`. A wooden footbridge (`bridge=yes` with `surface=wood`, or
+`bridge=boardwalk`), such as the walkway along Pommern, is a timber deck over the water
+too, and is taken as a pier, with no berths: it's a walkway, not a harbour's. Many in a marina also carry a footway, the line people walk, which
 laid as a road over water was a span, and so a road bridge with a parapet. A dock is
 the shore kit's instead: what lies on a pier isn't laid as a road, and the pier is a
 row of timber sections at a deck height of its own over the water.
@@ -16,10 +18,14 @@ Every place's height is the water's as drawn: the level of the flat water round
 it in the elevation model, less the drop the drawn surface sits under it. A jetty within reach
 of a boathouse is run on to its wall. Boats are by rule: berths down both sides of
 a marina's piers and of every pontoon, each bow to the pier, where the whole hull is on
-open water clear of every dock and other boat.
+open water clear of every dock and other boat, and its keel clears the seabed as the
+game draws it. That seabed shelves from the shore, so a pier's inner berths take the
+small boats and only its outer ones the deep-keeled yachts.
 
 A dock's outline goes to the car as walls, as a building's does: a car can't drive
-along a footbridge, so it stops at a pier's root.
+along a footbridge, so it stops at a pier's root. And the water round every dock and
+boat, and a harbour pier's slips whether a boat lies in them or not, is kept clear of
+the reeds the game grows in sheltered shallows: a berth is water a boat comes into.
 """
 
 import json
@@ -78,6 +84,20 @@ HULLS = {
     "launch": (7.25, 2.1),
     "rib": (7.0, 2.6),
 }
+# Each boat's draft, and what its keel keeps over the seabed. The yachts' are their classes' (a Folkboat's 1.2 m, a
+# 33 ft cruiser's and a 45 ft one's fin keels).
+DRAFT_M = {
+    "rowing-boat-white": 0.25,
+    "rowing-boat-blue": 0.25,
+    "rowing-boat-wood": 0.25,
+    "sailboat": 1.2,
+    "cruiser": 1.7,
+    "large": 2.1,
+    "folkboat": 1.2,
+    "launch": 0.7,
+    "rib": 0.5,
+}
+UNDER_KEEL_M = 0.3
 # A jetty head's length and width (`buildJettyHead`).
 JETTY_HEAD_M = (3.2, 3.0)
 JETTY_BOAT_SHARE = 0.45
@@ -85,13 +105,15 @@ JETTY_BOAT_SHARE = 0.45
 JETTY_HEAD_LONGEST = 5.0
 ROWING_PAINTS = (("rowing-boat-white", 0.5), ("rowing-boat-blue", 0.25), ("rowing-boat-wood", 0.25))
 JETTY_SAILBOAT_SHARE = 0.08
-# A guest harbour's mix, by share of its berths (`MARINA_MIX` in `art/boats/placement.ts`, with its launches for motor boats).
+# A guest harbour's mix, by share of its berths.
 BERTHS = (("cruiser", 0.42), ("launch", 0.2), ("rib", 0.06), ("large", 0.14), ("folkboat", 0.18))
 BERTH_GAP_M = 1.0
 BERTHS_TAKEN = 0.7
 # A boat's bow stands this far off the pier, and its first berth this far from the pier's root.
 BOW_GAP_M = 0.8
 FIRST_BERTH_M = 4.0
+# The water kept clear of reeds round a dock and a boat; a harbour pier's slips are kept clear out to its longest boat.
+REEDS_CLEAR_M = 3.0
 
 
 def _roll(*key) -> float:
@@ -157,6 +179,15 @@ def read(osm_file: Path) -> tuple[list[Pier], list[shapely.Geometry]]:
             elif LineString(line).length > 0:
                 piers.append(Pier(pier_id, tags, line, None))
     return piers, marinas
+
+
+def boardwalks(roads: list[dict]) -> list[Pier]:
+    """The wooden footbridges among the roads, as piers: a timber walkway over the water is a dock, not a span."""
+    return [
+        Pier(road["id"] * 16 + 15, {"man_made": "pier", "highway": road["kind"], "width": road.get("width", ""), "boardwalk": "yes"}, np.array(road["line"], dtype=float), None)
+        for road in roads
+        if not road["motor"] and len(road["line"]) >= 2 and (road.get("bridge") == "boardwalk" or (road.get("bridge") == "yes" and road.get("surface") == "wood"))
+    ]
 
 
 def _share_on(line: LineString, shape: shapely.Geometry) -> float:
@@ -243,10 +274,10 @@ def _largest_rectangle(filled: np.ndarray) -> tuple[int, int, int, int] | None:
 
 
 class Land:
-    """The tile's 2 m ground and water, read at any point (clamped to the tile)."""
+    """The tile's 2 m ground and water, and the depth of the drawn water over the drawn seabed, read at any point (clamped to the tile)."""
 
-    def __init__(self, ground: np.ndarray, water: np.ndarray, west: float, north: float):
-        self.ground, self.water, self.west, self.north = ground, water, west, north
+    def __init__(self, ground: np.ndarray, water: np.ndarray, depth: np.ndarray, west: float, north: float):
+        self.ground, self.water, self.depth, self.west, self.north = ground, water, depth, west, north
 
     def _index(self, points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         last = self.water.shape[0] - 1
@@ -259,6 +290,9 @@ class Land:
 
     def wet(self, points: np.ndarray) -> np.ndarray:
         return self.water[self._index(points)]
+
+    def deep(self, points: np.ndarray) -> np.ndarray:
+        return self.depth[self._index(points)]
 
     def level_near(self, points: np.ndarray) -> float | None:
         """The drawn water's level round some points: from the median of the water samples within reach, the nearer reach first."""
@@ -287,6 +321,7 @@ class Docks:
         self.models: dict[str, list[list[float]]] = {}
         self.walls: list[list[float]] = []
         self.taken: list[shapely.Geometry] = []
+        self.kept_clear: list[shapely.Geometry] = []
 
     def _owns(self, shape: shapely.Geometry) -> bool:
         middle = shape.centroid
@@ -338,7 +373,7 @@ class Docks:
                 laid = self._to_boathouse(laid)
             for start, end, width in laid:
                 self._run(kind, start, end, width, level)
-                if pier.floating or (kind == "pier" and self._at_marina(pier, marina)):
+                if "boardwalk" not in pier.tags and (pier.floating or (kind == "pier" and self._at_marina(pier, marina))):
                     berthed.append((pier, start, end, width, level))
             if kind == "jetty" and pier.line is not None:
                 self._jetty_end(pier, min(laid, key=lambda run: self.land.height(np.array(run[:2])).min()), level)
@@ -391,6 +426,7 @@ class Docks:
         self._place(kind, float(start[0]), level, float(-start[1]), yaw, width, length)
         outline = LineString([start, end]).buffer(width / 2, cap_style="flat")
         self.taken.append(outline)
+        self.kept_clear.append(outline.buffer(REEDS_CLEAR_M))
         ring = np.array(outline.exterior.coords)
         for a, b in zip(ring[:-1], ring[1:]):
             self.walls.append([round(float(a[0]), 2), round(float(-a[1]), 2), round(float(b[0]), 2), round(float(-b[1]), 2)])
@@ -413,43 +449,56 @@ class Docks:
             beam = HULLS[model][1]
             self._boat(model, end - direction * 2.6 + side * (width / 2 + beam / 2 + 0.3), direction, level)
         elif _roll(pier.id, "boat") < JETTY_BOAT_SHARE + JETTY_SAILBOAT_SHARE:
-            self._boat("sailboat", end + direction * (1.5 + HULLS["sailboat"][0] / 2), -direction, level)
+            self._boat("sailboat", end + direction * (JETTY_HEAD_M[0] + BOW_GAP_M + HULLS["sailboat"][0] / 2), -direction, level)
+
+    def _floats(self, model: str, centre: np.ndarray, bow: np.ndarray) -> bool:
+        """Whether a boat's keel, the middle half of its length, clears the seabed."""
+        keel = centre + np.outer((-0.25, 0, 0.25), bow) * HULLS[model][0]
+        return bool(self.land.deep(keel).min() >= DRAFT_M[model] + UNDER_KEEL_M)
 
     def _boat(self, model: str, centre: np.ndarray, bow: np.ndarray, level: float) -> bool:
-        """A boat whose bow points along `bow`, if its whole hull is on open water and clear of every dock and boat."""
+        """A boat whose bow points along `bow`, if its whole hull is on open water, clear of every dock and boat, and afloat."""
         length, beam = HULLS[model]
         across = np.array([-bow[1], bow[0]])
         hull = Polygon([centre + bow * length / 2 * a + across * beam / 2 * b for a, b in ((1, 1), (1, -1), (-1, -1), (-1, 1))])
         probes = np.array([centre, *np.array(hull.exterior.coords)[:4]])
-        if not self.land.wet(probes).all() or any(hull.intersects(taken) for taken in self.taken):
+        if not self.land.wet(probes).all() or not self._floats(model, centre, bow) or any(hull.intersects(taken) for taken in self.taken):
             return False
         self.taken.append(hull)
+        self.kept_clear.append(hull.buffer(REEDS_CLEAR_M))
         # A boat's bow is its +z, which turns to (sin yaw, cos yaw) in the scene, whose z is south.
         self._place(model, float(centre[0]), level, float(-centre[1]), math.atan2(bow[0], -bow[1]))
         return True
 
     def _berths(self, pier: Pier, start: np.ndarray, end: np.ndarray, width: float, level: float) -> None:
-        """Boats down both sides of a harbour run, each bow to the pier, where there's room."""
+        """Boats down both sides of a harbour run, each bow to the pier, where there's room: each berth's from the mix of those deep enough there."""
         along = end - start
         length = float(np.hypot(*along))
         direction = along / max(length, 1e-6)
         if self.land.height(start[None])[0] < self.land.height(end[None])[0]:
             start, direction = end, -direction
+        slips = width / 2 + BOW_GAP_M + max(HULLS[model][0] for model, _ in BERTHS) + REEDS_CLEAR_M
+        self.kept_clear.append(LineString([start, start + direction * length]).buffer(slips, cap_style="flat"))
         for sign in (1, -1):
             outward = np.array([-direction[1], direction[0]]) * sign
             at = FIRST_BERTH_M
             berth = 0
             while at < length:
                 key = (pier.id, round(float(start[0])), round(float(start[1])), sign, berth)
-                model = _pick(_roll(*key, "kind"), BERTHS)
+                centre = lambda model: start + direction * (at + HULLS[model][1] / 2) + outward * (width / 2 + BOW_GAP_M + HULLS[model][0] / 2)
+                fits = [(model, share) for model, share in BERTHS if self._floats(model, centre(model), -outward)]
+                if not fits:
+                    at += HULLS[BERTHS[0][0]][1] + BERTH_GAP_M
+                    berth += 1
+                    continue
+                total = sum(share for _, share in fits)
+                model = _pick(_roll(*key, "kind") * total, tuple(fits))
                 beam = HULLS[model][1]
-                at += beam / 2
-                if at + beam / 2 > length:
+                if at + beam > length:
                     break
                 if _roll(*key, "taken") < BERTHS_TAKEN:
-                    centre = start + direction * at + outward * (width / 2 + BOW_GAP_M + HULLS[model][0] / 2)
-                    self._boat(model, centre, -outward, level)
-                at += beam / 2 + BERTH_GAP_M
+                    self._boat(model, centre(model), -outward, level)
+                at += beam + BERTH_GAP_M
                 berth += 1
 
     def write(self, folder: Path) -> dict:

@@ -459,7 +459,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { r, g, b } = token(name);
     return new Vector3(r, g, b);
   };
-  const { canopyAt, standsAt, roadsAt, landAt, waterAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, openToReedsAt, landAt, waterAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -475,7 +475,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
-  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, sun: manifest.sun });
 
   // Open water out to the sky, under everything the terrain doesn't reach.

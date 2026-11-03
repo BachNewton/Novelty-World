@@ -10,7 +10,7 @@ import { TownPainted, townModel, type TownPart } from "./paint";
  * Bow along +x, y up from the water.
  */
 
-/** The landmark's position, unchanged: the north quay, where the 2025 photo has the ferry berth. */
+/** The north quay, where the 2025 photo has the ferry berth. */
 export const FERRY_BERTH = { east: 107096, north: 6682850, baseM: 0.1, bearingDeg: 180.5 } as const;
 
 const BOW = 88;

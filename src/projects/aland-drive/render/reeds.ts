@@ -15,7 +15,8 @@ import type { LandAt } from "./tile-reads";
  * water at the median and bare rock 71%: reeds fill inner bays, and the open shores
  * are rock. So a clump stands in the water near land, where the water round about is
  * mostly land, where the shallows are pale enough to be shallow, and away from a
- * town's quays, which its roads give away. Over the built
+ * town's quays, which its roads give away, and away from docks and boats, whose water
+ * the tile's mask keeps clear. Over the built
  * tiles that keeps a quarter of the mapped beds' water, 3% of the water off mapped
  * rock, and 7% of other shallows, much of which is beds nobody mapped.
  *
@@ -84,6 +85,8 @@ export interface ReedInputs {
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   landAt: LandAt;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
+  /** 1 where reeds may grow, 0 round docks and boats. */
+  openToReedsAt: (place: Node<"vec2">) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
   /** Metres from the drawn waterline, out into the water and below zero on land. */
   shoreAt: (place: Node<"vec2">) => Node<"float">;
@@ -107,7 +110,7 @@ export interface Reeds {
   dispose: () => void;
 }
 
-export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, groundAt, shoreAt, lightOf, linear, hazed }: ReedInputs): Reeds {
+export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, lightOf, linear, hazed }: ReedInputs): Reeds {
   const clumps = SEEDS.map((seed) => buildReedClump(seed));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
@@ -136,7 +139,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
           const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open)).mul(float(1).sub(smoothstep(float(BUILT[0]), float(BUILT[1]), built)));
           const shore = landAt(place);
           const shallow = smoothstep(float(SHALLOW[0]), float(SHALLOW[1]), dot(shore.broad, vec3(1 / 3)));
-          const clear = roadsAt(place, 0).lessThan(ROAD_CLEAR);
+          const clear = roadsAt(place, 0).lessThan(ROAD_CLEAR).and(openToReedsAt(place).greaterThan(0.5));
           If(clear.and(sheltered.mul(shallow).greaterThan(roll(seed, 21.17, 5.71))), () => {
             const water = groundAt(place).toVar();
             If(seenOn(water), () => {
