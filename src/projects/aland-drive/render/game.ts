@@ -14,6 +14,7 @@ import { canopyLift, tileReads } from "./tile-reads";
 import { createReeds, type ReedsDrawn } from "./reeds";
 import { createShrubs, type ShrubsDrawn } from "./shrubs";
 import { createVerge, type VergeDrawn } from "./verge";
+import { createWallClearing, FAR_CLEARING, NEAR_CLEARING } from "./wall-clearing";
 import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
@@ -475,9 +476,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     sun: manifest.sun,
   });
 
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
+  const verge = createVerge(scene, renderer, { landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
-  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, lightOf, linear, hazed, sun: manifest.sun });
+  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, lightOf, linear, hazed, sun: manifest.sun });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
@@ -552,6 +554,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
         stoneWalls.add(detail.name, walls);
+        for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, walls);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
@@ -587,6 +590,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
         stoneWalls.remove(detail.name);
+        for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
@@ -1041,6 +1045,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.update(spot);
     cameraSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
+    for (const clearing of Object.values(wallClearings)) clearing.update(spot);
     verge.update(spot, camera, seconds);
     reeds.update(spot, camera);
     shrubs.update(spot, camera);
@@ -1201,6 +1206,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       wallMaterial.dispose();
       outbuildings.dispose();
       stoneWalls.dispose();
+      for (const clearing of Object.values(wallClearings)) clearing.dispose();
       landmarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();
