@@ -4,17 +4,22 @@ Where the project stands, and what's next. `CLAUDE.md` holds how things work, `d
 
 ## Where it stands
 
-Phase 5's core is done and live at `https://novelty-world.vercel.app/games/3d-games/aland-drive`: the whole island, 94 tiles and 313 MB, streaming from Supabase as version `1af18d018287`, with 91 bridges, a mini map, a world map on one continuous crane camera, GPS, street names and showcase spots on keys 1–0. The exit test passed: Eckerö harbour to Långnäs on the game's own route, 57.8 km, no respawns.
+Phase 5 is done and live at `https://novelty-world.vercel.app/games/3d-games/aland-drive`: the whole island, 94 tiles, streaming from Supabase as version `864b209e5ae8`, with 91 bridges, a mini map, a world map on one continuous crane camera, GPS, street names and showcase spots on keys 1–0. The exit test passed: Eckerö harbour to Långnäs on the game's own route, 57.8 km, no respawns.
 
-A large library of art is built and pushed under `art/`, and almost none of it is in the game. There is no gameplay yet. The car on screen is the real player's car from `art/cars`, waiting for the owner's look. Its brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
+Much of the art under `art/` is now in the game: the ground, roads and their paint, roofs, facades and shopfronts, the sky, water with a seabed, the forest (lit per face, see `CLAUDE.md`), verges, reeds, shrubs, boathouses and sheds, the medieval stone churches and the landmarks, the roadside (lamps, poles and wires, signs, rails, edge posts, mailboxes, shelters) and stone walls. `docs/ART.md` ticks each kit. Fourteen cars each drive and sound as their own, swapped from the dev menu, and online free roam puts every player in one shared world with collisions between cars. There is no gameplay yet. A car's brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
 The bucket holds one tile version, `864b209e5ae8` (about 400 MB of the 1 GB it shares with `audiobooks`, 105 MB). An island is about 400 MB, so one more fits beside it: clear the older once the newer has proved itself live.
 
+## Waiting for the next tile publish
+
+Granite (`pipeline/rocks.py`: rock outcrops, boulder fields and boulders) and the shore (`pipeline/docks.py`: jetties, harbour piers, pontoons and boats, and piers no longer laid as road bridges) are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish. The docks change how roads are laid on piers, so it takes a full `build.py --island`, which runs every step, not the two scripts alone. Both read as absent on older tiles, so the game runs on the published tiles meanwhile, with neither.
+
 ## What's next, in order
 
-1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement. Take a baseline before any art goes in, using `tools/drive.mjs --clock` on a production build. Average cost is level with Phase 4, but the worst frames are not: frame p99 39.8 ms and max 185 ms, against 20.5 and 54.5 ms. The long frames cluster round Mariehamn with nothing loading, possibly first-time building meshes, which is a guess.
-2. **Integrate art in stages, showing the owner each one in the running game.** Ground and road detail and the sky; then town ground and facades with the churches; then night art; then objects placed across the island by regional rules, the biggest piece. Landmarks and the harbour go in along the way. Measure after each stage, because the kits' costs add up and interact.
-3. **Fix the leftovers** listed under Known problems.
+1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement, and the art added since makes a baseline more pressing. Use `tools/drive.mjs --clock` on a production build. The last reading, before most of the art went in: average cost level with Phase 4, but the worst frames not, frame p99 39.8 ms and max 185 ms against 20.5 and 54.5 ms, clustered round Mariehamn with nothing loading. Placed models are the likely cost now: every place on a loaded tile runs its near version's vertices, folded to nothing past its swap (roadside lamps, boulders, marina boats; see Known problems).
+2. **Integrate the rest of the art in stages, showing the owner each one in the running game.** What's left: town ground, the facades' remaining models, night, and the rural, street, marina and town kits not yet placed (`docs/ART.md`). Measure after each stage, because the kits' costs add up and interact.
+3. **Start the game loop (phase 6).** Road discovery and an odometer, speed traps and zones, and time trials with ghosts fit what the game already has: the road network, the GPS, and a deterministic simulation whose recorded inputs replay exactly.
+4. **Fix the leftovers** listed under Known problems.
 
 Teleporting from the map is about half a day, because `jump` already handles streaming and placement.
 
@@ -45,6 +50,8 @@ Road sign lettering is decided: the regulation letters stay. The credits page li
 - **Bridges:** 73 of 91 crossed both ways. Of the other 18, 12 fail only because the tool starts at the very end of a ribbon, 2 are off main routes, and 4 failed in one run and were not investigated.
 - **Floating cone:** one forest cone floats above the hill at the far left of Västerhamn's water view. It's new with the 1.5 km cone grid and not diagnosed. Look at it first.
 - **Forest cost:** the new forest adds about 0.4 M triangles and about 1.4 ms on a contested machine. If it's too much, the cheapest cut is the forest's settings: full-shape reach, then far density. The dither shows faintly from above.
+- **Placed models cost vertices out of sight:** each model is one list across every loaded tile, and every place runs its near version's vertices, folded to nothing past its swap. Around Mariehamn that's the roadside's 3,154 lamps and about 0.6 M triangles of marina boats, and boulders add 21–76k at the showcase views. Culling the lists by cell, as the buildings and stone walls are, is the fix if the cost shows.
+- **Granite at road cuts:** where a road runs through mapped rock, the rock reads only as a pale verge. A blasted rock face would need art of its own.
 - **Road corridors:** roads have a clearing 6–8 m wider than the carriageway, even on forest tracks, and 33 crowns still reach a carriageway.
 - **World map:** at the top of the zoom the island sits off-centre when the car is at its edge, until the player pans. Tiles using 2022 photos look brighter at the south-east, and faint square patches of sea tone show at the outer tiles.
 - **Coverage:** 7 outer tiles have no 2025 photo, and 10 have no laser sheets, so no trees.
@@ -57,6 +64,9 @@ Road sign lettering is decided: the regulation letters stay. The credits page li
 
 - 60 fps on a quiet machine, a real controller and the real display.
 - The reverse camera was tested with scripted input, not by hand.
+- The engine voices are first proposals, never tuned by ear in the game.
+- The granite's fade to the ground before its stones swap or dissolve, judged by eye while driving.
+- The reeds kept clear round docks, since the clearing moved from the mask's alpha to the 8 m fields layer when granite and the shore merged.
 - The forest and water as a whole: the agent's films and counts are real, but the final filmstrip and the final open-water and lake pictures were not viewed by anyone.
 - Every art kit's weak spots are recorded only here in outline. Judge them in the running game, since galleries are not the game.
 
