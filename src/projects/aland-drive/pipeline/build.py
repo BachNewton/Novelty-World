@@ -39,6 +39,7 @@ import terrain
 import vectors
 import raised
 import walls
+import waterfront
 from give_way import give_way
 from progress import Progress, stage
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
@@ -422,6 +423,7 @@ def main() -> None:
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
+    waterfront.bake_tiles(names, OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

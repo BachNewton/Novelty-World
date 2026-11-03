@@ -6,6 +6,7 @@ import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
+import { createPeople } from "./people";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
@@ -93,6 +94,10 @@ export interface GameProbe {
   roadsideCounts: () => Record<string, number>;
   /** Shows the lamps, poles, signs, rails and the rest beside the roads, or leaves them out, to see what they do. */
   showRoadside: (shown: boolean) => void;
+  /** How many people the loaded tiles hold, and the triangles three counts for them. */
+  peopleCounts: () => { figures: number; triangles: number };
+  /** Shows the people or leaves them out, to see what they cost. */
+  showPeople: (shown: boolean) => void;
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -570,6 +575,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
+  const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
@@ -597,7 +603,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd }, done) {
         const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
@@ -606,6 +612,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
         docks.add(detail.name, moored);
+        people.add(detail.name, crowd);
         stoneWalls.add(detail.name, walls);
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, walls);
         roadside.add(detail.name, placed);
@@ -644,6 +651,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
         docks.remove(detail.name);
+        people.remove(detail.name);
         stoneWalls.remove(detail.name);
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
@@ -709,6 +717,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(true);
   outbuildings.showAll(true);
   docks.showAll(true);
+  people.showAll(true);
   stoneWalls.showAll(true);
   roadside.showAll(true);
   cullCar(false);
@@ -722,6 +731,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(false);
   outbuildings.showAll(false);
   docks.showAll(false);
+  people.showAll(false);
   stoneWalls.showAll(false);
   roadside.showAll(false);
   scene.remove(compiledBridge);
@@ -1113,6 +1123,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     stoneWalls.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1150,6 +1161,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showVerge: verge.show,
       roadsideCounts: roadside.counts,
       showRoadside: roadside.show,
+      peopleCounts: people.counts,
+      showPeople: people.show,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -1275,6 +1288,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       wallMaterial.dispose();
       outbuildings.dispose();
       docks.dispose();
+      people.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();

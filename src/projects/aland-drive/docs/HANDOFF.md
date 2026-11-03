@@ -14,6 +14,8 @@ The bucket holds one tile version, `864b209e5ae8` (about 400 MB of the 1 GB it s
 
 Granite (`pipeline/rocks.py`: rock outcrops, boulder fields and boulders) and the shore (`pipeline/docks.py`: jetties, harbour piers, pontoons and boats, and piers no longer laid as road bridges) are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish. The docks change how roads are laid on piers, so it takes a full `build.py --island`, which runs every step, not the two scripts alone. Both read as absent on older tiles, so the game runs on the published tiles meanwhile, with neither.
 
+People (`pipeline/waterfront.py`, `render/people.ts`: fishers, sitters, tenders and strollers on the docks, and groups at the landmarks) are in the game on tiles the script has been run on, and not in the published tiles either. `waterfront.py` alone adds them to tiles already built, after the docks; a tile without them has no one. Seated people on benches and café chairs, and walkers, are the next to place, through the same per-tile files (`pipeline/people.py`).
+
 ## What's next, in order
 
 1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement, and the art added since makes a baseline more pressing. Use `tools/drive.mjs --clock` on a production build. The last reading, before most of the art went in: average cost level with Phase 4, but the worst frames not, frame p99 39.8 ms and max 185 ms against 20.5 and 54.5 ms, clustered round Mariehamn with nothing loading. Placed models are the likely cost now: every place on a loaded tile runs its near version's vertices, folded to nothing past its swap (roadside lamps, boulders, marina boats; see Known problems).
