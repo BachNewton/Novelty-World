@@ -1129,8 +1129,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    boatsUnderWay.update(seaHeldAt ?? seaSeconds(), lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    seaMarks.update(spot.x, spot.z);
+    boatsUnderWay.update(seaHeldAt ?? seaSeconds(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
+    seaMarks.update(spot.x, spot.z, camera.position);
     stoneWalls.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);

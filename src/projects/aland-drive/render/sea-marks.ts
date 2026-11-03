@@ -4,13 +4,15 @@ import { buildKummel, buildLighthouse, identityMaterials } from "../art/identity
 import { buildFixedMark, buildLeadingMark, buildPillarBuoy, buildRadarMark, buildSkerryLight, buildSpar, LEADING_PATTERNS, marinaMaterials, RADAR_BANDS, radarMarkScale, SEA_MARKS } from "../art/marina/index";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
 import data from "../sea/marks.json";
+import { showVersionsInReach } from "./versions-in-reach";
 
 /*
  * The sea marks round Åland at the official aids to navigation (`pipeline/sea_marks.py`, `sea/marks.json`): spars,
  * buoys and fixed marks by their IALA side or cardinal, leading marks in their real stripes, cairns, lights and radar
  * marks. The file is the whole island, but a model's list holds only the marks within its reach of the camera's
- * kilometre cell, rebuilt when the camera crosses into another: two draw calls a model in view, and the vertices
- * three runs are those of the marks round the camera, not of the island's two thousand. A mark that floats stands
+ * kilometre cell, rebuilt when the camera crosses into another: at most two draw calls a model in view, none for a
+ * version no mark is in range of, and the vertices three runs are those of the marks round the camera, not of the
+ * island's two thousand. A mark that floats stands
  * on the drawn sea; one on a skerry or the shore on the ground as the world has it then.
  */
 
@@ -54,9 +56,10 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
   }
   const lists = [...byModel].map(([name, marks]) => {
     const { kit, build } = known[name];
-    return { name, marks, model: build(), kit, meshes: [] as Mesh[], shown: 0 };
+    return { name, marks, near: [] as typeof marks, model: build(), kit, meshes: [] as Mesh[], shown: 0 };
   });
   let cell: string | null = null;
+  let shownAtAll = true;
 
   const rebuild = (cx: number, cz: number) => {
     for (const list of lists) {
@@ -66,6 +69,7 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
       }
       const reach = list.model.reachM + CELL_M;
       const near = list.marks.filter(({ x, z }) => Math.abs(x - cx) < reach && Math.abs(z - cz) < reach);
+      list.near = near;
       const places: Placement[] = near.map(({ x, z, yaw, floats, scale }) => ({ x, y: floats ? WATER_Y : groundAt(x, z), z, yaw, scale }));
       list.shown = places.length;
       list.meshes = places.length > 0 ? placeModel(list.model, places, materials[list.kit]) : [];
@@ -74,13 +78,24 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
   };
 
   return {
-    /** Keeps the lists to the marks round `x`, `z`, rebuilding them when it moves into another kilometre cell. */
-    update(x: number, z: number) {
+    /** Keeps the lists to the marks round `x`, `z`, rebuilding them when it moves into another kilometre cell; the camera says which versions draw. */
+    update(x: number, z: number, camera: { x: number; z: number }) {
       const [cx, cz] = [Math.floor(x / CELL_M), Math.floor(z / CELL_M)];
       const key = `${cx},${cz}`;
-      if (key === cell) return;
-      cell = key;
-      rebuild((cx + 0.5) * CELL_M, (cz + 0.5) * CELL_M);
+      if (key !== cell) {
+        cell = key;
+        rebuild((cx + 0.5) * CELL_M, (cz + 0.5) * CELL_M);
+      }
+      for (const { meshes, near, model } of lists) {
+        if (meshes.length === 0) continue;
+        let [nearest, farthest] = [Infinity, 0];
+        for (const mark of near) {
+          const away = Math.hypot(mark.x - camera.x, mark.z - camera.z);
+          [nearest, farthest] = [Math.min(nearest, away), Math.max(farthest, away)];
+        }
+        showVersionsInReach(model, meshes, nearest, farthest);
+        if (!shownAtAll) for (const mesh of meshes) mesh.visible = false;
+      }
     },
     /** One of every model, at a place out of sight, so each pipeline is built before the drive. */
     showAll(all: boolean) {
@@ -98,6 +113,7 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
       }
     },
     show(shown: boolean) {
+      shownAtAll = shown;
       for (const { meshes } of lists) for (const mesh of meshes) mesh.visible = shown;
     },
     /** How many of each model are drawn round the camera. */

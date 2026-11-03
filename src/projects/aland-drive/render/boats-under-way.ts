@@ -7,12 +7,13 @@ import { buildBalticFerry, buildRoadFerry, townMaterials } from "../art/town-kit
 import { LANES } from "../sea/lanes";
 import type { BoatPose } from "../sea/motion";
 import { sailings, type BoatModel } from "../sea/timetable";
+import { showVersionsInReach } from "./versions-in-reach";
 
 /*
  * Ferries on their timetables and small boats on their trips (`sea/`), each where the sea's clock puts it. A model
- * is one list of every vessel drawn with it, two draw calls however many sail, and each frame writes only the
- * list's places: a few floats a vessel, worked out on the CPU from the pure function of the time. A vessel out of
- * sight beyond the islands folds to nothing.
+ * is one list of every vessel drawn with it, at most two draw calls however many sail, and none for a version no
+ * vessel on it is in range of; each frame writes only the list's places: a few floats a vessel, worked out on the
+ * CPU from the pure function of the time. A vessel out of sight beyond the islands folds to nothing.
  *
  * Each keeps its kit's own levels of detail and a reach far beyond the shore, so a ship stands on the horizon and
  * a sail is seen across a fjärd: past the buildings' reach the far versions are a few dozen triangles, and the
@@ -77,13 +78,23 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
     return { members, meshes, model };
   });
   const poses: BoatPose[] = fleet.map(() => ({ x: 0, z: 0, yaw: 0, speedMs: 0, shown: false }));
+  let shownAtAll = true;
 
   return {
-    /** Moves every vessel to where it is at `seaSeconds` (the sea's clock), and its rocking on by `seconds`. */
-    update(seaSeconds: number, seconds: number) {
+    /** Moves every vessel to where it is at `seaSeconds` (the sea's clock), and its rocking on by `seconds`; the camera says which versions draw. */
+    update(seaSeconds: number, seconds: number, camera: { x: number; z: number }) {
       time.value += seconds;
       fleet.forEach(({ voyage }, index) => (poses[index] = voyage.poseAt(seaSeconds)));
-      for (const { members, meshes } of lists) {
+      for (const { members, meshes, model } of lists) {
+        let [nearest, farthest] = [Infinity, 0];
+        for (const { index } of members) {
+          const { x, z, shown } = poses[index];
+          if (!shown) continue;
+          const away = Math.hypot(x - camera.x, z - camera.z);
+          [nearest, farthest] = [Math.min(nearest, away), Math.max(farthest, away)];
+        }
+        showVersionsInReach(model, meshes, nearest, farthest);
+        if (!shownAtAll) for (const mesh of meshes) mesh.visible = false;
         const geometry = meshes[0].geometry;
         const place = geometry.getAttribute("place") as InstancedBufferAttribute;
         const fit = geometry.getAttribute("fit") as InstancedBufferAttribute;
@@ -98,6 +109,7 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
     },
     /** Shows the boats under way or leaves them out, to see what they do. */
     show(shown: boolean) {
+      shownAtAll = shown;
       for (const { meshes } of lists) for (const mesh of meshes) mesh.visible = shown;
     },
     /** Every vessel, where the last update put it. */
