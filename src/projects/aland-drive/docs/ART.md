@@ -8,6 +8,13 @@ Each kit has a gallery beside its code, and its integration steps were reported 
 
 Most objects need a per-tile list from the pipeline: model, position, yaw, scale. Lists stay per tile or per cell, because an object that's folded away still costs vertex work, and regional rules decide the mix so each area keeps its own character. Sources are OpenStreetMap, the NLS Topographic Database, or a rule. The counts below are across the built tiles unless noted, and some OSM tags need a hand check.
 
+## Integrating art
+
+Integration is where art meets the real data, so it's also where the kits are corrected:
+
+- **Art that can't be used is deleted** in the same change that finds it: a piece superseded by a better choice, the wrong shape for what the data holds, or a duplicate of another. Its gallery entry, tests and exports go with it, and so does its row here. Nothing stays behind as a gallery-only leftover. Only art in the change's own scope goes: never art that planned work still needs (riders for cyclists, cars for traffic and racers, people for walkers), and the owner decides when that's in doubt.
+- **Art that's missing is built**, not worked around: a kind of thing the data has and no kit draws, or a piece that doesn't fit where it has to stand. Each missing piece is a subagent's task, with the kit it belongs in, the real thing it must match and that kit's conventions, and it's reviewed on the kit's gallery before it's placed. New art gets its row here, and a credit for any third-party design it reproduces.
+
 ## Kits
 
 | Kit | Folder | Status | Placed from | In game | Placed | Seen |
