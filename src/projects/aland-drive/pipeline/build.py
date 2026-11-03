@@ -153,7 +153,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
 
     mosaic = terrain.read_with_rim(tile)
     flat_water = terrain.flat_water(mosaic)
-    water_with_rim = terrain.water_around(flat_water)
+    water_with_rim = terrain.water_around(flat_water, mosaic)
     water = water_with_rim[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES]
 
     west, south = to_local(tile.west, tile.south)
