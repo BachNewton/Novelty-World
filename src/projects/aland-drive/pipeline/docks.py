@@ -62,10 +62,16 @@ ROAD_LEFT_M = 2.0
 CELL_M = 0.5
 OUTLINE_LEFT = 0.1
 NARROWEST_RUN_M = 1.0
+# The directions an outline's grid is tried in: those of its edges this long or longer, the most edge first, so many.
+FRAME_EDGE_M = 2.0
+MOST_FRAMES = 4
 # A run whose deck lies under the ground is trimmed back to where it comes out; one with no water near isn't a dock.
 BURIED_M = 0.1
 WATER_NEAR_M = (15.0, 60.0)
 SHORTEST_RUN_M = 1.5
+TRIM_STEP_M = 0.5
+# Two decks may meet this far over each other, no more.
+DECK_SLIVER_M = 0.1
 # A dock's edge stays this far from a motor road's line, so no dock or wall stands on a road.
 ROAD_CLEAR_M = 4.0
 # A jetty this near a boathouse is run on to its wall.
@@ -217,41 +223,54 @@ def off_piers(roads: list[dict], piers: list[Pier]) -> list[dict]:
 
 
 def _runs_of_outline(outline: shapely.Geometry) -> list[tuple[np.ndarray, np.ndarray, float]]:
-    """An outline as straight runs: (start, end, width). Each is the largest rectangle left on a grid in the outline's own frame."""
-    corners = np.array(outline.minimum_rotated_rectangle.exterior.coords)[:4]
-    along = corners[1] - corners[0]
-    if np.hypot(*along) < np.hypot(*(corners[2] - corners[1])):
-        along = corners[2] - corners[1]
-    along /= np.hypot(*along)
+    """An outline as straight runs: (start, end, width). Each is the largest rectangle left in it along any of its own edges'
+    directions, so a finger at an angle to its walkway is a run of its own rather than a staircase on the walkway's grid."""
+    rings = [np.array(part.exterior.coords) for part in shapely.get_parts(outline) if isinstance(part, Polygon)]
+    edges = np.concatenate([np.diff(ring, axis=0) for ring in rings]) if rings else np.zeros((0, 2))
+    lengths = np.hypot(*edges.T)
+    # A direction and its right angle frame the same grid.
+    angles = np.round(np.degrees(np.arctan2(edges[:, 1], edges[:, 0])) % 90).astype(int) % 90
+    weights = np.bincount(angles[lengths >= FRAME_EDGE_M], lengths[lengths >= FRAME_EDGE_M], minlength=90)
+    frames = [np.radians(angle) for angle in np.argsort(-weights)[:MOST_FRAMES] if weights[angle] > 0] or [0.0]
+    total = outline.area
+    left = outline
+    runs = []
+    while total and left.area > OUTLINE_LEFT * total:
+        found = [run for run in (_largest_run(left, angle) for angle in frames) if run is not None]
+        if not found:
+            break
+        start, end, width, area = max(found, key=lambda run: run[3])
+        if max(float(np.hypot(*(end - start))), width) < NARROWEST_RUN_M:
+            break
+        runs.append((start, end, width))
+        left = shapely.difference(left, LineString([start, end]).buffer(width / 2 + CELL_M / 4, cap_style="flat"))
+    return runs
+
+
+def _largest_run(shape: shapely.Geometry, angle: float) -> tuple[np.ndarray, np.ndarray, float, float] | None:
+    """The largest rectangle in a shape on a grid turned by `angle`, as a run along its longer side, with its area."""
+    if shape.is_empty:
+        return None
+    along = np.array([math.cos(angle), math.sin(angle)])
     across = np.array([-along[1], along[0]])
-    points = np.array(outline.exterior.coords) if isinstance(outline, Polygon) else shapely.get_coordinates(outline)
+    points = shapely.get_coordinates(shape)
     u, v = points @ along, points @ across
     u0, v0 = u.min(), v.min()
     columns, rows = max(1, int(math.ceil((u.max() - u0) / CELL_M))), max(1, int(math.ceil((v.max() - v0) / CELL_M)))
-    centres_u = u0 + (np.arange(columns) + 0.5) * CELL_M
-    centres_v = v0 + (np.arange(rows) + 0.5) * CELL_M
-    grid_u, grid_v = np.meshgrid(centres_u, centres_v)
+    grid_u, grid_v = np.meshgrid(u0 + (np.arange(columns) + 0.5) * CELL_M, v0 + (np.arange(rows) + 0.5) * CELL_M)
     world = grid_u[..., None] * along + grid_v[..., None] * across
-    filled = shapely.contains_xy(outline, world[..., 0], world[..., 1])
-    total = filled.sum()
-    runs = []
-    while total and filled.sum() > OUTLINE_LEFT * total:
-        best = _largest_rectangle(filled)
-        if best is None:
-            break
-        row0, row1, column0, column1 = best
-        if (row1 - row0) * CELL_M < NARROWEST_RUN_M and (column1 - column0) * CELL_M < NARROWEST_RUN_M:
-            break
-        filled[row0:row1, column0:column1] = False
-        lo_u, hi_u = u0 + column0 * CELL_M, u0 + column1 * CELL_M
-        lo_v, hi_v = v0 + row0 * CELL_M, v0 + row1 * CELL_M
-        if hi_u - lo_u >= hi_v - lo_v:
-            mid = (lo_v + hi_v) / 2
-            runs.append((lo_u * along + mid * across, hi_u * along + mid * across, hi_v - lo_v))
-        else:
-            mid = (lo_u + hi_u) / 2
-            runs.append((mid * along + lo_v * across, mid * along + hi_v * across, hi_u - lo_u))
-    return runs
+    best = _largest_rectangle(shapely.contains_xy(shape, world[..., 0], world[..., 1]))
+    if best is None:
+        return None
+    row0, row1, column0, column1 = best
+    lo_u, hi_u = u0 + column0 * CELL_M, u0 + column1 * CELL_M
+    lo_v, hi_v = v0 + row0 * CELL_M, v0 + row1 * CELL_M
+    area = (hi_u - lo_u) * (hi_v - lo_v)
+    if hi_u - lo_u >= hi_v - lo_v:
+        mid = (lo_v + hi_v) / 2
+        return lo_u * along + mid * across, hi_u * along + mid * across, hi_v - lo_v, area
+    mid = (lo_u + hi_u) / 2
+    return mid * along + lo_v * across, mid * along + hi_v * across, hi_u - lo_u, area
 
 
 def _largest_rectangle(filled: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -322,6 +341,7 @@ class Docks:
         self.walls: list[list[float]] = []
         self.taken: list[shapely.Geometry] = []
         self.kept_clear: list[shapely.Geometry] = []
+        self.decks: shapely.Geometry | None = None
 
     def _owns(self, shape: shapely.Geometry) -> bool:
         middle = shape.centroid
@@ -367,6 +387,8 @@ class Docks:
                 run = self._trimmed(kind, start, end, width, level)
                 if run is not None:
                     laid.append((*run, width))
+                    # Its next run, round a bend, stops at this one's edge too.
+                    self._lay(LineString(run).buffer(width / 2, cap_style="flat"))
             if not laid:
                 continue
             if kind == "jetty" and pier.line is not None:
@@ -381,11 +403,12 @@ class Docks:
             self._berths(pier, start, end, width, level)
 
     def _trimmed(self, kind: str, start: np.ndarray, end: np.ndarray, width: float, level: float) -> tuple[np.ndarray, np.ndarray] | None:
-        """A run cut back to its longest stretch where its deck stands clear of the ground and of every motor road, or for a pontoon where it floats."""
+        """A run cut back to its longest stretch where its deck stands clear of the ground, of every motor road and of the decks
+        already laid, or for a pontoon where it floats. Two decks at one height over each other would flicker."""
         length = float(np.hypot(*(end - start)))
         if length < 1e-3:
             return None
-        shares = np.linspace(0, 1, max(2, int(length) + 1))
+        shares = np.linspace(0, 1, max(2, int(length / TRIM_STEP_M) + 1))
         points = start + shares[:, None] * (end - start)
         if kind == "pontoon":
             clear = self.land.wet(points) | (self.land.height(points) <= level + BURIED_M)
@@ -393,6 +416,11 @@ class Docks:
             clear = self.land.height(points) < level + DECK_M[kind] - BURIED_M
         if self.roads is not None:
             clear &= ~shapely.dwithin(self.roads, shapely.points(points), ROAD_CLEAR_M + width / 2)
+        if self.decks is not None:
+            # Where its deck's edges would lie on another's: a finger that meets a walkway stops at the walkway's edge.
+            across = np.array([-(end - start)[1], (end - start)[0]]) / length * (width / 2 - DECK_SLIVER_M)
+            for side in (across, -across):
+                clear &= ~shapely.contains_xy(self.decks, *(points + side).T)
         edges = np.flatnonzero(np.diff(np.concatenate(([0], clear.astype(np.int8), [0]))))
         if len(edges) == 0:
             return None
@@ -415,6 +443,9 @@ class Docks:
         laid[0] = (meet, out, width) if root is start else (out, meet, width)
         return laid
 
+    def _lay(self, deck: shapely.Geometry) -> None:
+        self.decks = deck if self.decks is None else shapely.union(self.decks, deck)
+
     def _place(self, model: str, x: float, y: float, z: float, yaw: float, width: float = 0.0, length: float = 0.0) -> None:
         self.models.setdefault(model, []).append([round(x, 2), round(y, 2), round(z, 2), round(yaw, 4), round(width, 2), round(length, 2)])
 
@@ -426,6 +457,7 @@ class Docks:
         self._place(kind, float(start[0]), level, float(-start[1]), yaw, width, length)
         outline = LineString([start, end]).buffer(width / 2, cap_style="flat")
         self.taken.append(outline)
+        self._lay(outline)
         self.kept_clear.append(outline.buffer(REEDS_CLEAR_M))
         ring = np.array(outline.exterior.coords)
         for a, b in zip(ring[:-1], ring[1:]):

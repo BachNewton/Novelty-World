@@ -5,6 +5,7 @@ import unittest
 from types import SimpleNamespace
 
 import numpy as np
+import shapely
 from shapely.geometry import LineString, Polygon
 
 from docks import DRAFT_M, HULLS, UNDER_KEEL_M, Docks, Land, Pier, boardwalks, off_piers, quays
@@ -57,6 +58,17 @@ class Roads(unittest.TestCase):
 
 
 class Placing(unittest.TestCase):
+    def test_an_outline_with_a_finger_at_an_angle_is_two_straight_runs(self):
+        walkway = LineString([(60, 30), (140, 30)]).buffer(1.5, cap_style="flat")
+        finger = LineString([(100, 30), (130, 0)]).buffer(1.2, cap_style="flat")
+        docks = Docks(TILE, land(), [], [])
+        docks.place([Pier(1, {"man_made": "pier"}, None, shapely.union(walkway, finger))], [], [])
+        long_runs = [(yaw, length) for _, _, _, yaw, _, length in docks.models["pier"] if length > 10]
+        self.assertEqual(len(long_runs), 2)
+        self.assertTrue(any(abs(math.sin(yaw)) < 0.05 for yaw, _ in long_runs))
+        self.assertTrue(any(abs(abs(math.sin(yaw)) - math.sqrt(0.5)) < 0.05 for yaw, _ in long_runs))
+        self.assertLess(len(docks.models["pier"]), 6)
+
     def test_a_jetty_starts_where_its_deck_clears_the_land_and_sits_on_the_water(self):
         docks = Docks(TILE, land(), [], [])
         docks.place([pier([(100, 55), (100, 20)])], [], [])
@@ -73,6 +85,17 @@ class Placing(unittest.TestCase):
             docks.place([Pier(pier_id, {"man_made": "pier"}, np.array([(100.0, 55.0), (100.0, 20.0)]), None)], [], [])
             moored += "sailboat" in docks.models
         self.assertGreater(moored, 5)
+
+    def test_docks_never_lie_over_each_other_and_a_finger_meets_its_walkway(self):
+        docks = Docks(TILE, land(), [], [])
+        walkway = Pier(1, {"man_made": "pier", "width": "3"}, np.array([(60.0, 30.0), (140.0, 30.0)]), None)
+        alongside = Pier(2, {"man_made": "pier", "width": "3"}, np.array([(60.0, 31.5), (140.0, 31.5)]), None)
+        finger = Pier(3, {"man_made": "pier", "width": "2"}, np.array([(100.0, 30.0), (100.0, 10.0)]), None)
+        docks.place([walkway, alongside, finger], [], [])
+        runs = [(x, -z, yaw, width, length) for x, _, z, yaw, width, length in docks.models["pier"]]
+        decks = [LineString([(x, y), (x + math.cos(yaw) * length, y + math.sin(yaw) * length)]).buffer(width / 2, cap_style="flat") for x, y, yaw, width, length in runs]
+        self.assertTrue(all(a.intersection(b).area < 0.5 for index, a in enumerate(decks) for b in decks[index + 1 :]))
+        self.assertTrue(any(abs(x - 100) < 0.1 and abs(y - 28.5) < 0.6 for x, y, _, _, _ in runs) or any(abs(x + math.cos(yaw) * length - 100) < 0.1 and abs(y + math.sin(yaw) * length - 28.5) < 0.6 for x, y, yaw, _, length in runs))
 
     def test_a_dock_stops_short_of_a_motor_road(self):
         shore_road = road([(0, 30), (200, 30)], "residential", motor=True)
