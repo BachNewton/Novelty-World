@@ -95,19 +95,7 @@ export function rockFloor(floor: Node<"vec3">, rockColour: Node<"vec3">, rock: N
   return mix(floor, toned(floor, rockColour, ROCK_BRIGHTEST), rock.mul(float(1).sub(grassShare)).mul(ROCK_TONE));
 }
 
-/**
- * The ground's colour with no relief, rock and boulder fields included: what the terrain is wherever its relief has gone,
- * and what anything standing on it turns to before it goes, so it leaves nothing behind that changes.
- */
-export function groundTone({ photo, litterColour, rock, fields, rockColour, stonesColour }: Omit<GroundInput, "place" | "toCamera" | "roadNearby" | "detail">, kinds: ReturnType<typeof groundKinds>): Node<"vec3"> {
-  const floor = rockFloor(groundFloor(photo, litterColour, kinds), rockColour, rock, kinds.grassShare);
-  return mix(floor, toned(floor, stonesColour, ROCK_BRIGHTEST).mul(FIELD_BRIGHTNESS), fieldShare(fields).mul(FIELD_TONE));
-}
-
-const fieldShare = (fields: Node<"float">) => smoothstep(float(0.2), float(0.6), fields);
-
-export function groundDetail(input: GroundInput): Node<"vec3"> {
-  const { place, toCamera, photo, roadNearby, rock, fields, detail } = input;
+export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, rock, fields, rockColour, stonesColour, detail }: GroundInput): Node<"vec3"> {
   const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
   const coarse = texture(detail, place.div(COARSE_M));
   const fine = texture(detail, place.div(FINE_M).add(vec2(0.37, 0.11)));
@@ -128,10 +116,12 @@ export function groundDetail(input: GroundInput): Node<"vec3"> {
   const gravelRelief = coarse.g.mul(0.35).add(fine.g.mul(0.65)).mul(2).sub(1).mul(STRENGTH.gravel);
   const stoneRelief = mix(rockRelief, gravelRelief, gravelShare);
 
-  const field = fieldShare(fields);
+  const field = smoothstep(float(0.2), float(0.6), fields);
   const stones = texture(detail, place.div(STONES_M)).g.mul(0.65).add(texture(detail, place.div(STONES_M * 0.41).add(vec2(0.23, 0.71))).g.mul(0.35)).mul(2).sub(1).mul(STRENGTH.stones);
   const relief = mix(grassRelief.mul(grassShare).add(earthRelief.mul(earthShare)).add(stoneRelief.mul(stoneShare)), stones, field).mul(shown);
   // Close up, tips take yellow and roots blue-green from the same relief, so the colour isn't one flat wash.
   const bladeTint = mix(vec3(1), vec3(1).add(vec3(0.2, 0.12, -0.3).mul(relief)), grassShare.mul(float(1).sub(field)));
-  return groundTone(input, kinds).mul(relief.add(1).max(0.05)).mul(bladeTint);
+  const floor = rockFloor(groundFloor(photo, litterColour, kinds), rockColour, rock, grassShare);
+  const stony = mix(floor, toned(floor, stonesColour, ROCK_BRIGHTEST).mul(FIELD_BRIGHTNESS), field.mul(FIELD_TONE));
+  return stony.mul(relief.add(1).max(0.05)).mul(bladeTint);
 }
