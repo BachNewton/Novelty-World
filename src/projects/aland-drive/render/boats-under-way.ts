@@ -2,6 +2,7 @@ import type { InstancedBufferAttribute, Scene } from "three/webgpu";
 import { uniform } from "three/tsl";
 import { boatMaterials, buildAllmogebat, buildCruiser, buildDoubleEnder, buildFishingBoat, buildFolkboat, buildLargeCruiser, buildLaunch, buildPassengerBoat, buildRib } from "../art/boats/index";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
+import { buildCableFerry, identityMaterials } from "../art/identity/index";
 import { buildBalticFerry, buildRoadFerry, townMaterials } from "../art/town-kit/index";
 import { LANES } from "../sea/lanes";
 import type { BoatPose } from "../sea/motion";
@@ -27,14 +28,14 @@ const MOTOR_REACH_M = 2500;
 
 const SHIP_SMALL_SCALE = 124 / 176;
 
-type Kit = "town" | "boats";
+type Kit = "town" | "boats" | "identity";
 
 const MODELS: Record<BoatModel, { kit: Kit; build: () => RoadsideModel; reachM?: number; drawnAs?: BoatModel; scale?: number }> = {
   ship: { kit: "town", build: buildBalticFerry, reachM: SHIP_REACH_M },
   // The same ship, smaller: one list and its two draws.
   "ship-small": { kit: "town", build: buildBalticFerry, drawnAs: "ship", scale: SHIP_SMALL_SCALE },
-  archipelago: { kit: "town", build: () => buildRoadFerry("archipelago") },
-  cable: { kit: "town", build: () => buildRoadFerry("cable") },
+  archipelago: { kit: "town", build: buildRoadFerry },
+  cable: { kit: "identity", build: buildCableFerry },
   passenger: { kit: "boats", build: () => buildPassengerBoat(), reachM: 6000 },
   "cruiser-sailing": { kit: "boats", build: () => buildCruiser({ state: "sailing" }), reachM: SAIL_REACH_M },
   "folkboat-sailing": { kit: "boats", build: () => buildFolkboat({ state: "sailing", lee: -1 }), reachM: SAIL_REACH_M },
@@ -57,6 +58,7 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
   const materials: Record<Kit, RoadsideMaterials> = {
     town: townMaterials({ ...inputs, time: uniform(0) }),
     boats: boatMaterials({ ...inputs, time }, { underWay: true }),
+    identity: identityMaterials({ ...inputs, time: uniform(0) }),
   };
   const fleet = sailings(LANES);
   const groups = new Map<BoatModel, { index: number; scale: number }[]>();

@@ -35,6 +35,7 @@ export const LICENSES = {
   "bsd-3-clause": { name: "BSD 3-Clause", url: "https://opensource.org/license/bsd-3-clause", attribution: true },
   "ofl-1.1": { name: "SIL Open Font License 1.1", url: "https://openfontlicense.org/open-font-license-official-text/", attribution: false },
   "all-rights-reserved": { name: "All rights reserved", url: null, attribution: false },
+  "traficom-hydrographic": { name: "Traficom hydrographic data licence (not for navigation, non-commercial)", url: "https://www.traficom.fi/en/access-hydrographic-data-and-licenses", attribution: true },
 } as const satisfies Record<string, License>;
 
 // Work the whole site uses, rather than one project.

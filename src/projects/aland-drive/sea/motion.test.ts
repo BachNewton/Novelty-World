@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ferryPlace } from "../art/town-kit/index";
 import { LANES } from "./lanes";
 import { Lane, Passage, Voyage, type BoatPose, type Handling, type LaneData } from "./motion";
-import { HANDLING, sailings } from "./timetable";
+import { HANDLING, sailings, SMALL_VESSELS } from "./timetable";
 
 const SHIP: Handling = { lengthM: 176, beamM: 28, cruiseMs: 9, harbourMs: 2.5, harbourM: 1600, accelMs2: 0.04, lateralMs2: 0.12, swingS: 200, doubleEnded: false };
 const DOUBLE: Handling = { ...SHIP, lengthM: 62, beamM: 14, cruiseMs: 5.5, harbourM: 300, doubleEnded: true };
@@ -136,7 +136,7 @@ describe("the island's timetable", () => {
 
   it("moves every kind of vessel the lanes were found for", () => {
     for (const { vessel } of data.ferries) expect(Object.keys(HANDLING)).toContain(vessel);
-    for (const { vessel } of data.boats) expect(vessel).toBe("boat");
+    for (const { vessel } of data.boats) expect(SMALL_VESSELS).toContain(vessel);
   });
 
   it("never lies two small boats in one place: every trip ends where no other boat waits", () => {

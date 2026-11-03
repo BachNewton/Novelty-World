@@ -3,20 +3,17 @@ import type { RoadsideModel } from "../roadside/models";
 import { TownPainted, townModel, type TownPart } from "./paint";
 
 /*
- * A double-ended car ferry, invented, with no real line's name or colours: the archipelago's kind, which crosses
- * and comes back without turning, so it is the same at both ends. An open car deck on a low, blunt hull, a ramp
- * raised at each end, and the wheelhouse up on a casing to one side (the archipelago ferry), or a small cabin at
- * the rail (the road ferry). Its middle is the origin, the ends along x, y up from the water. It's drawn under way
- * by `render/boats-under-way.ts` at a place the sea's clock gives, so both versions are only ever seen moving
- * across water, and each is the same from either end so turning back never shows.
+ * A double-ended car ferry of the archipelago's lines, invented, with no real line's name or colours: it crosses and
+ * comes back without turning, so it is the same at both ends. An open car deck on a low, blunt hull, a ramp raised at
+ * each end, and the wheelhouse up on a casing to one side. Its middle is the origin, the ends along x, y up from the
+ * water. It's drawn under way by `render/boats-under-way.ts` at a place the sea's clock gives. The road ferries on
+ * their wires are `art/identity`'s cable ferry.
  */
 
-export type RoadFerryKind = "archipelago" | "cable";
-
-const SHAPES: Record<RoadFerryKind, { lengthM: number; beamM: number; swapM: number; reachM: number }> = {
-  archipelago: { lengthM: 62, beamM: 14, swapM: 500, reachM: 9000 },
-  cable: { lengthM: 42, beamM: 12, swapM: 300, reachM: 5000 },
-};
+const LENGTH_M = 62;
+const BEAM_M = 14;
+const SWAP_M = 500;
+const REACH_M = 9000;
 
 const BOTTOM_M = -0.8;
 const BOOT_M = 0.3;
@@ -101,23 +98,9 @@ function archipelagoTop(into: TownPainted, lengthM: number, beamM: number, far: 
   return into;
 }
 
-function cableTop(into: TownPainted, beamM: number, far: boolean): TownPainted {
-  const half = beamM / 2;
-  const [low, high] = [DECK_M, DECK_M + 2.6];
-  into.box([-3, low, half - 2.6], [3, high, half - 0.3], "ferry-white", { open: true, shadeTop: 1.06 });
-  into.box([-3.3, high, half - 2.9], [3.3, high + 0.25, half], "ferry-steel", { shadeTop: 1.04 });
-  if (far) return into;
-  for (const end of [-1, 1]) into.face([[end * 3.03, low + 1.3, half - 2.4], [end * 3.03, low + 1.3, half - 0.5], [end * 3.03, high - 0.3, half - 0.5], [end * 3.03, high - 0.3, half - 2.4]], "ferry-glass", 1.1);
-  into.face([[-2.6, low + 1.3, half - 2.63], [2.6, low + 1.3, half - 2.63], [2.6, high - 0.3, half - 2.63], [-2.6, high - 0.3, half - 2.63]], "ferry-glass", 1.05);
-  into.tube([0, high + 0.25, half - 1.4], [0, high + 2.6, half - 1.4], 0.1, 5, {}, "ferry-steel");
-  return into;
-}
-
-/** The ferry of a kind: near under 600 triangles, far under 120, trading pixels at its swap. Goes through `townMaterials`. */
-export function buildRoadFerry(kind: RoadFerryKind): RoadsideModel {
-  const { lengthM, beamM, swapM, reachM } = SHAPES[kind];
-  const top = (into: TownPainted, far: boolean) => (kind === "archipelago" ? archipelagoTop(into, lengthM, beamM, far) : cableTop(into, beamM, far));
-  const near = top(ramps(hull(new TownPainted(), lengthM, beamM, 10), lengthM, beamM), false);
-  const far = top(ramps(hull(new TownPainted(), lengthM, beamM, 4), lengthM, beamM), true);
-  return townModel(near, far, swapM, reachM);
+/** The ferry: near under 600 triangles, far under 150, trading pixels at its swap. Goes through `townMaterials`. */
+export function buildRoadFerry(): RoadsideModel {
+  const near = archipelagoTop(ramps(hull(new TownPainted(), LENGTH_M, BEAM_M, 10), LENGTH_M, BEAM_M), LENGTH_M, BEAM_M, false);
+  const far = archipelagoTop(ramps(hull(new TownPainted(), LENGTH_M, BEAM_M, 4), LENGTH_M, BEAM_M), LENGTH_M, BEAM_M, true);
+  return townModel(near, far, SWAP_M, REACH_M);
 }

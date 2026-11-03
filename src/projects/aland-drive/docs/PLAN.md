@@ -99,7 +99,7 @@ Everything, end to end.
 
 Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
 
-**Traffic is on the water too.** Boats under way, sailing yachts and motor boats, come with the cars: they share the logic of things moving on routes, and a still boat out on open water looks stranded, so until then every placed boat is moored. `art/boats` already has the yachts' sailing state and a distant regatta, and ferries are the same work. Ferries are three kinds: the big Baltic ships between Stockholm, Mariehamn, Helsinki and Turku (`art/town-kit/ferry.ts`, built for Västerhamn's berth), the archipelago's road ferries between islands (no art yet), and the small cable ferries (`art/identity`'s).
+**Traffic is on the water too, and comes first.** Boats under way don't share the cars' logic: nothing on the water has to react to the player, so a boat's place is a pure function of its lane and real UTC time (`sea/`), the same for every player with nothing sent, while car traffic will react to the player and run per player. So ferries on their timetables and small boats on their trips are in the game ahead of the cars (see `CLAUDE.md`, "Boats under way"), and cars don't wait on them or they on cars.
 
 **Cycling** is a way to play: a rideable bike on the map's real cycleways and paths, which are already in the road data. **A history thread** teaches the island's past through light errands to real places, as text and places rather than cutscenes.
 

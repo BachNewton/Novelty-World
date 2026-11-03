@@ -35,8 +35,12 @@ from PIL import Image
 from scipy import ndimage
 from skimage.graph import MCP_Geometric
 
-from grid import TILE_SIZE_M, lonlat_to_grid, tile_from_name, to_local
+from affine import Affine
+from rasterio import features
+
+from grid import TILE_SIZE_M, WORLD_ORIGIN, lonlat_to_grid, tile_from_name, to_local
 from outlying import OUTLYING_FILE
+from sources import sea_chart_path
 
 PROJECT = Path(__file__).resolve().parent.parent
 DATA = PROJECT / ".data"
@@ -67,17 +71,38 @@ class Vessel:
     clear_m: float
     turn_m: float
     keep_right_m: float
+    draft_m: float
 
 
 # `sea/timetable.ts` gives each its speeds; a test holds the names equal.
 VESSELS = {
-    "ship": Vessel(176, 28, 60, 450, 30),
-    "ship-small": Vessel(124, 20, 50, 350, 25),
-    "archipelago": Vessel(62, 14, 30, 160, 10),
-    "cable": Vessel(42, 12, 6, 60, 0),
-    "passenger": Vessel(20, 6, 16, 50, 6),
-    "boat": Vessel(12, 4, 14, 30, 5),
+    # The ferries keep to fairways dredged for them, which the chart's depth bands are too coarse to route by
+    # (a band of 3 to 6 m can hold a 4 m channel), so they are drawn to the fairways and kept off land, not
+    # routed by depth: their draft here is none.
+    "ship": Vessel(176, 28, 60, 450, 30, 0),
+    "ship-small": Vessel(124, 20, 50, 350, 25, 0),
+    "archipelago": Vessel(62, 14, 30, 160, 10, 0),
+    # `art/identity`'s wire ferry: every road ferry on Åland runs on a wire.
+    "cable": Vessel(18, 6.6, 6, 40, 0, 0),
+    "passenger": Vessel(20, 6, 16, 50, 6, 0),
+    # A small boat with a keel (a yacht, a big motorboat), and one without (a launch, a RIB).
+    "keel": Vessel(12, 4, 14, 30, 5, 2.0),
+    # Under a metre: water the land check allows is deep enough for it.
+    "boat": Vessel(8, 3, 12, 25, 4, 0),
 }
+# A charted depth this much more than a vessel's draft is deep enough for it. The chart's depth areas are bands
+# (0-3 m, 3-6 m, 6-10 m...), each taken at its shallow edge; an official fairway area is as deep as its design
+# draught says, so a keeled boat crosses the 0-3 m band near the shore by the fairways, as real ones do. Water the
+# chart has no depth for is taken as deep enough: the land check still keeps the lane off land.
+UNDER_KEEL_M = 0.5
+# A keeled boat may cross any charted depth this near its trip's ends, where it comes in to its harbour or anchors.
+DEPTH_FREE_NEAR_ENDS_M = 400
+# Of their cost, a cell on the official fairways' navigation lines saves this share, and one on OSM's mapped lines this:
+# a lane follows the chart where it has a line, and falls back to OSM's only where it has none.
+OFFICIAL_PULL = 0.85
+OSM_PULL = 0.55
+# Cutting a lane's corners keeps every straight stretch within this of the cheapest path it stands for.
+STRAIGHTEN_WITHIN_M = 12
 # The keeping to starboard grows from nothing over this many lengths past where a vessel comes round at an end, so
 # it lies at, and turns about, the lane's own end.
 KEEP_FROM_LENGTHS = 3
@@ -97,6 +122,8 @@ class Water:
     north: float
     masks: dict[tuple[int, int], np.ndarray]
     """Each tile's 4 m water, by its west and north edges."""
+    depth_dm: np.ndarray | None = None
+    """The chart's least depth in each cell, in decimetres to 25 m; 255 where it has none."""
 
     def cell(self, x: float, y: float) -> tuple[int, int]:
         return int((self.north - y) // CELL_M), int((x - self.west) // CELL_M)
@@ -171,7 +198,36 @@ def load_water(data: Path) -> Water:
         row, column = int((north - tile_north) // TILE_SIZE_M), int((tile_west - west) // TILE_SIZE_M)
         water[row * PER_TILE : (row + 1) * PER_TILE, column * PER_TILE : (column + 1) * PER_TILE] = alpha <= OUTLYING_LAND_ALPHA
     labels, _ = ndimage.label(water)
-    return Water((labels == labels[0, 0]) & ~kept_off, west, north, masks)
+    return Water((labels == labels[0, 0]) & ~kept_off, west, north, masks, _charted_depth(water.shape, west, north))
+
+
+def _charted_depth(shape: tuple[int, int], west: float, north: float) -> np.ndarray:
+    """Traficom's depth areas on the grid: each cell the least depth of the area round its middle."""
+    areas = json.loads(sea_chart_path("depth-areas").read_text(encoding="utf-8"))["features"]
+    shapes = ((area["geometry"], int(np.clip(float(area["properties"]["DRVAL1"]) * 10, 0, 250))) for area in areas if area["geometry"] is not None and area["properties"].get("DRVAL1") is not None)
+    origin_east, origin_north = WORLD_ORIGIN
+    transform = Affine(CELL_M, 0, west + origin_east, 0, -CELL_M, north + origin_north)
+    depth = features.rasterize(shapes, out_shape=shape, transform=transform, fill=255, dtype="uint8")
+    fairways = json.loads(sea_chart_path("fairway-areas").read_text(encoding="utf-8"))["features"]
+    dredged = ((area["geometry"], int(np.clip((float(area["properties"]["mitoitussyvays"]) + UNDER_KEEL_M) * 10, 0, 250))) for area in fairways if area["geometry"] is not None and area["properties"].get("mitoitussyvays"))
+    fairway_depth = features.rasterize(dredged, out_shape=shape, transform=transform, fill=0, dtype="uint8")
+    charted = depth != 255
+    depth[charted] = np.maximum(depth[charted], fairway_depth[charted])
+    return depth
+
+
+def official_lines() -> list[np.ndarray]:
+    """The official fairways' navigation lines (Väylävirasto's register, Åland's own fairways among them), local metres."""
+    lines = []
+    for feature in json.loads(sea_chart_path("navigation-lines").read_text(encoding="utf-8"))["features"]:
+        geometry = feature["geometry"]
+        parts = [geometry["coordinates"]] if geometry["type"] == "LineString" else geometry["coordinates"]
+        lines += [np.column_stack(to_local(np.asarray(part)[:, 0], np.asarray(part)[:, 1])) for part in parts if len(part) > 1]
+    return lines
+
+
+def _within(lines: list[np.ndarray], low: np.ndarray, high: np.ndarray) -> list[np.ndarray]:
+    return [line for line in lines if np.any(np.all((line >= low) & (line <= high), axis=1))]
 
 
 def _local_line(points: list[tuple[float, float]]) -> np.ndarray:
@@ -222,15 +278,16 @@ def _along(line: np.ndarray, step_m: float) -> np.ndarray:
     return np.array(out)
 
 
-def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guides: list[np.ndarray], berths: tuple[bool, bool], pull: float, frame: list[np.ndarray] | None = None, kept_off: list[np.ndarray] | None = None) -> np.ndarray | None:
-    """The cheapest line from `start` to `goal` over the water, keeping `vessel.clear_m` off land except near a
-    berth, drawn towards `guides` by `pull` (the share of its cost a cell on a guide saves), with its corners
+def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guides: list[tuple[list[np.ndarray], float]], berths: tuple[bool, bool], frame: list[np.ndarray] | None = None, kept_off: list[np.ndarray] | None = None) -> np.ndarray | None:
+    """The cheapest line from `start` to `goal` over the water, keeping `vessel.clear_m` off land and out of water the
+    chart says is too shallow for its draft except near a berth, drawn towards each set of `guides` lines by its pull
+    (the share of its cost a cell on one saves; where sets overlap, the strongest counts), with its corners
     cut to the fewest that keep every stretch on that water; or None where the water doesn't join them. It
-    looks for one within the box round its ends and `frame` (by default the guides) and a margin. An end that
+    looks for one within the box round its ends and `frame` and a margin. An end that
     isn't a berth starts from the nearest water clear enough, and `ANCHOR_APART_M` from each of `kept_off`, the
     places other lanes' boats already lie."""
     margin = 1500 + vessel.turn_m
-    points = np.vstack([start, goal, *(guides if frame is None else frame)])
+    points = np.vstack([start, goal, *(frame or [])])
     low, high = points.min(axis=0) - margin, points.max(axis=0) + margin
     top, left = water.cell(low[0], high[1])
     bottom, right = water.cell(high[0], low[1])
@@ -241,21 +298,28 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
     rows, columns = np.indices(free.shape)
     xs, ys = water.west + (left + columns + 0.5) * CELL_M, water.north - (top + rows + 0.5) * CELL_M
     allowed = clear >= vessel.clear_m
+    if water.depth_dm is not None and vessel.draft_m > 0:
+        depth = water.depth_dm[top:bottom, left:right]
+        near_ends = (np.hypot(xs - start[0], ys - start[1]) < DEPTH_FREE_NEAR_ENDS_M) | (np.hypot(xs - goal[0], ys - goal[1]) < DEPTH_FREE_NEAR_ENDS_M)
+        allowed &= (depth == 255) | (depth >= (vessel.draft_m + UNDER_KEEL_M) * 10) | near_ends
     for at, is_berth in zip((start, goal), berths):
         if is_berth:
             near = np.hypot(xs - at[0], ys - at[1]) < max(vessel.length_m * BERTH_REACH_LENGTHS, BERTH_REACH_LEAST_M)
             allowed |= near & (clear >= vessel.beam_m / 2 + 2)
     # Dearer the nearer land, so a lane keeps to the middle of a sound.
     cost = 1 + np.clip((2 * vessel.clear_m - clear) / (2 * vessel.clear_m), 0, 1) * 4
-    if guides:
+    saved = np.zeros_like(cost)
+    for lines, pull in guides:
         on_guide = np.zeros_like(free)
-        for guide in guides:
+        for guide in _within(lines, np.array([xs.min(), ys.min()]), np.array([xs.max(), ys.max()])):
             for x, y in _along(guide, CELL_M / 2):
                 row, column = water.cell(x, y)
                 if top <= row < bottom and left <= column < right:
                     on_guide[row - top, column - left] = True
-        off = ndimage.distance_transform_edt(~on_guide) * CELL_M
-        cost = cost * (1 - pull * np.clip(1 - off / (vessel.clear_m + 40), 0, 1))
+        if on_guide.any():
+            off = ndimage.distance_transform_edt(~on_guide) * CELL_M
+            saved = np.maximum(saved, pull * np.clip(1 - off / (vessel.clear_m + 40), 0, 1))
+    cost = cost * (1 - saved)
     cells = []
     for at, is_berth in zip((start, goal), berths):
         distance = np.hypot(xs - at[0], ys - at[1])
@@ -276,7 +340,15 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
     # A berth is where it is, not the nearest cell clear enough to sail from.
     line = np.vstack([start[None] if berths[0] else np.empty((0, 2)), line, goal[None] if berths[1] else np.empty((0, 2))])
 
-    def in_sight(a: np.ndarray, b: np.ndarray) -> bool:
+    def in_sight(first: int, last: int) -> bool:
+        """A straight stretch from one point of the path to another: on allowed water, and close to the path it
+        replaces, so a lane that found a fairway keeps to it rather than cutting across open water."""
+        a, b = line[first], line[last]
+        run = b - a
+        length = max(float(np.hypot(*run)), 1e-9)
+        between = line[first + 1 : last] - a
+        if len(between) and np.abs(run[0] * between[:, 1] - run[1] * between[:, 0]).max() / length > STRAIGHTEN_WITHIN_M:
+            return False
         for x, y in _along(np.array([a, b]), CELL_M / 2):
             row, column = water.cell(x, y)
             if not allowed[row - top, column - left]:
@@ -287,12 +359,12 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
     while kept[-1] < len(line) - 1:
         at, reach, step = kept[-1], kept[-1] + 1, 1
         # Gallop out, then back off to the farthest point still in sight.
-        while reach + step < len(line) and in_sight(line[at], line[reach + step]):
+        while reach + step < len(line) and in_sight(at, reach + step):
             reach += step
             step *= 2
         while step > 1:
             step //= 2
-            if reach + step < len(line) and in_sight(line[at], line[reach + step]):
+            if reach + step < len(line) and in_sight(at, reach + step):
                 reach += step
         kept.append(reach)
     return line[kept]
@@ -441,16 +513,17 @@ def off_the_quay(water: Water, place: tuple[float, float], bearing_deg: float, v
     raise ValueError(f"{what}: no room for the hull within 40 m of its berth")
 
 
-def ferry_lane(water: Water, osm: Osm, spec: dict) -> dict:
+def ferry_lane(water: Water, osm: Osm, official: list[np.ndarray], spec: dict) -> dict:
     vessel = VESSELS[spec["vessel"]]
     guide = np.vstack([osm.ferries[way][1] for way in spec["ways"]])
     if "out" in spec and np.hypot(*guide[0]) > np.hypot(*guide[-1]):
         # A line out of sight berths at its end nearer the island.
         guide = guide[::-1]
     if spec["vessel"] in ("ship", "ship-small"):
-        guides = [osm.ferries[way][1] for way in SHIP_WAYS + spec["ways"] if way in osm.ferries]
+        mapped = [osm.ferries[way][1] for way in SHIP_WAYS + spec["ways"] if way in osm.ferries]
     else:
-        guides = [guide]
+        mapped = [guide]
+    guides = [(official, OFFICIAL_PULL), (mapped, OSM_PULL)]
     if spec.get("from") == "mariehamn":
         start = off_the_quay(water, MARIEHAMN_BERTH, MARIEHAMN_BEARING_DEG, vessel, spec["name"])
     else:
@@ -468,7 +541,7 @@ def ferry_lane(water: Water, osm: Osm, spec: dict) -> dict:
     else:
         goal = berth_from(water, guide[::-1], vessel, spec["name"])
         berths = (True, True)
-    line = lane(water, start, goal, vessel, guides, berths, pull=0.8, frame=[osm.ferries[way][1] for way in spec["ways"]])
+    line = lane(water, start, goal, vessel, guides, berths, frame=[osm.ferries[way][1] for way in spec["ways"]])
     if line is None:
         raise ValueError(f"{spec['name']}: no water joins its ends")
     line = smoothed(water, line, vessel.turn_m, spec["name"])
@@ -537,10 +610,11 @@ def harbours() -> list[np.ndarray]:
     return found
 
 
-def boat_lanes(water: Water, osm: Osm) -> list[dict]:
-    """Small boats' trips from each harbour to its nearest harbours and anchorages, along the fairways where they
-    help. A trip's ends are where the boat waits, off the harbour's docks: the nearest water clear enough of them."""
-    vessel = VESSELS["boat"]
+def boat_lanes(water: Water, osm: Osm, official: list[np.ndarray]) -> list[dict]:
+    """Small boats' trips from each harbour to its nearest harbours and anchorages, along the official fairways where
+    they help and OSM's where the chart has none. Every other trip is a keeled boat's, kept out of water too shallow
+    for it, or a shallow boat's where no deep enough water joins its ends. A trip's ends are where the boat waits,
+    off the harbour's docks: the nearest water clear enough of them."""
     places = harbours()
     targets = places + [np.asarray(point) for point in osm.anchorages]
     lanes, taken, lying = [], set(), []
@@ -554,8 +628,13 @@ def boat_lanes(water: Water, osm: Osm) -> list[dict]:
                 continue
             target = targets[index]
             low, high = np.minimum(harbour, target) - 2000, np.maximum(harbour, target) + 2000
-            guides = [line for line in osm.fairways if np.any(np.all((line >= low) & (line <= high), axis=1))]
-            line = lane(water, harbour, target, vessel, guides, (False, False), pull=0.5, kept_off=lying)
+            guides = [(_within(official, low, high), OFFICIAL_PULL), (_within(osm.fairways, low, high), OSM_PULL)]
+            kinds = ["keel", "boat"] if len(lanes) % 2 == 0 else ["boat"]
+            for kind in kinds:
+                vessel = VESSELS[kind]
+                line = lane(water, harbour, target, vessel, guides, (False, False), kept_off=lying)
+                if line is not None:
+                    break
             if line is None:
                 continue
             name = f"trip-{len(lanes)}"
@@ -567,7 +646,7 @@ def boat_lanes(water: Water, osm: Osm) -> list[dict]:
             taken.add((min(at, index), max(at, index)))
             lying += [line[0], line[-1]]
             ends = [{"kind": "anchor"}, {"kind": "anchor"}]
-            lanes.append({"name": name, "vessel": "boat", "line": _scene_line(line), "ends": ends, **keeping_right(water, line, vessel, ends, name)})
+            lanes.append({"name": name, "vessel": kind, "line": _scene_line(line), "ends": ends, **keeping_right(water, line, vessel, ends, name)})
             made += 1
     return lanes
 
@@ -578,18 +657,19 @@ def main() -> None:
     data = parser.parse_args().data
     water = load_water(data)
     osm = read_osm(data)
-    print(f"water read: {len(osm.ferries)} ferry ways, {len(osm.fairways)} fairways, {len(osm.anchorages)} anchorages")
+    official = official_lines()
+    print(f"water read: {len(official)} official navigation lines, {len(osm.ferries)} OSM ferry ways, {len(osm.fairways)} OSM fairways, {len(osm.anchorages)} anchorages")
     ferries, failed = [], []
     for spec in FERRY_LINES:
         try:
-            ferries.append(ferry_lane(water, osm, spec))
+            ferries.append(ferry_lane(water, osm, official, spec))
         except ValueError as error:
             failed.append(str(error))
             continue
         print(f"  {spec['name']}: {len(ferries[-1]['line']) // 2} points")
     if failed:
         raise SystemExit("ferry lines that failed:" + "".join(f"\n  {line}" for line in failed))
-    boats = boat_lanes(water, osm)
+    boats = boat_lanes(water, osm, official)
     print(f"  {len(boats)} small boats' trips")
     OUTPUT.parent.mkdir(exist_ok=True)
     OUTPUT.write_text(json.dumps({"licence": LICENCE, "ferries": ferries, "boats": boats}, separators=(",", ":")) + "\n", encoding="utf-8")

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoadsideModel } from "../roadside/models";
-import { buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, deliveryVan, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, signalsAtJunction, terminalFeet } from "./index";
+import { buildBalticFerry, buildBicycle, buildRoadFerry, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, deliveryVan, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, signalsAtJunction, terminalFeet } from "./index";
 
 const triangles = (geometry: RoadsideModel["near"] | null) => (geometry?.index?.count ?? 0) / 3;
 
@@ -31,6 +31,12 @@ describe("town triangle budgets", () => {
     expect(triangles(terminal.far)).toBeLessThan(700);
     expect(triangles(ferry.near)).toBeLessThan(4000);
     expect(triangles(ferry.far)).toBeLessThan(300);
+  });
+
+  it("keeps the archipelago's car ferry in its", () => {
+    const ferry = buildRoadFerry();
+    expect(triangles(ferry.near)).toBeLessThan(600);
+    expect(triangles(ferry.far)).toBeLessThan(150);
   });
 });
 

@@ -3,7 +3,7 @@ import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "t
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildBusShelter, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
 import { buildBench, buildBikeRack, buildPlanter, parkedCarMaterial, parkingBays, placeParkedCars, rowAlong, streetMaterials, type LinePoint } from "../street";
-import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
+import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildRoadFerry, yawForBearing, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
 
 /*
  * The gallery's scene on the game's renderer, camera, haze and sun, with the harbour at its real place: the same
@@ -122,6 +122,9 @@ const ferryModel = buildBalticFerry();
 const terminalPlace = { ...sceneOf(TERMINAL_ORIGIN.east, TERMINAL_ORIGIN.north), y: 0 };
 add(terminalModel, [terminalPlace], harbourKit);
 add(ferryModel, [ferryPlace()], harbourKit);
+// The archipelago's double-ended car ferry, out in the channel south of the berth, crossing it.
+const roadFerryModel = buildRoadFerry();
+add(roadFerryModel, [{ ...sceneOf(106900, 6682250), y: 0.1, yaw: yawForBearing(70) }], harbourKit);
 const buildingMaterial = flatMesh(colorOf("wall-pale"));
 const buildingGeometry = new PlaneGeometry(1, 1);
 const block = sceneOf(107207, 6682713);
@@ -148,6 +151,9 @@ look("ferry-stern", "ferry's stern door, from the north-west", atEN(107010, 6683
 look("ferry-quay", "ferry from the quay at car height", atEN(107155, 6682900, 3.6), atEN(107096, 6682860, 20), 72);
 look("ferry-far", "ferry far version, 1.3 km", atEN(105800, 6682720, 4), atEN(107096, 6682850, 18), 10);
 look("ferry-swap", "ferry mid-dissolve, 900 m", atEN(106200, 6682760, 4), atEN(107096, 6682850, 18), 11);
+look("road-ferry", "archipelago car ferry on the beam", atEN(106880, 6682160, 6), atEN(106900, 6682250, 4), 40);
+look("road-ferry-end", "archipelago car ferry, end on", atEN(106800, 6682215, 5), atEN(106900, 6682250, 4), 40);
+look("road-ferry-swap", "archipelago car ferry mid-dissolve, 500 m", atEN(106930, 6681760, 4), atEN(106900, 6682250, 4), 12);
 
 // A town street, 1.5 km inland, 300 m long with a junction in the middle.
 const STREET_X = 500;
@@ -352,6 +358,7 @@ window.__townKitGallery = {
     "village plate": triangles(villagePlate),
     terminal: triangles(terminalModel),
     ferry: triangles(ferryModel),
+    "archipelago ferry": triangles(roadFerryModel),
   },
   ready: true,
 };
