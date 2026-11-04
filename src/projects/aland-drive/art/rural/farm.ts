@@ -355,7 +355,8 @@ export function buildCow(pose: CowPose = "grazing"): RoadsideModel {
     for (const [x, z] of [[-0.06, -0.47], [0.06, -0.47], [-0.06, -0.33], [0.06, -0.33]] as const) near.spike([x, 0.58, z], [x, 0.46, z], 0.022, "udder", 0.85);
   }
 
-  const neck = lofted(head, 8, 0.02);
+  // The face stops where the muzzle starts, and its point lies inside the muzzle.
+  const neck = lofted(head.slice(0, -1), 8, 0.02);
   near.solid(neck.corners, neck.triangles, "hide", (corner) => Math.max(0.9, shadeAt(corner)));
   // The muzzle a hair proud of the face it closes, so the two never fight.
   const muzzle = lofted(head.slice(-2).map(([middle, wide, deep, hang]): HeadStation => [middle, wide + 0.008, deep + 0.008, hang]), 8, 0.035);
