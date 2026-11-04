@@ -19,7 +19,7 @@ import { STEP_S } from "./tuning";
  * A stand-in touches only the car being driven (`groups.ts`): no gravity, no
  * ground, so a car whose ground isn't loaded here can't fall through it. A
  * stand-in put somewhere rather than steered there (a first sight, a reset, a
- * jump) touches nothing until it's clear of this car, or the two would start
+ * jump) touches nothing until it's clear of every simulated car, or the two would start
  * inside each other and be thrown apart.
  */
 
@@ -127,7 +127,7 @@ class RemoteCar {
   }
 
   /** Steers the stand-in for the coming step. */
-  steer(car: Vector3): void {
+  steer(cars: readonly Vector3[]): void {
     this.since++;
     const target = carriedOn(this.heard, this.since);
     this.target = target;
@@ -138,7 +138,8 @@ class RemoteCar {
     const angular = add(target.spin, capped(spinBetween([x, y, z, w], target.rotation), MOST_TURN_CORRECTION / PULL_PER_S), PULL_PER_S);
     this.body.setLinvel({ x: linear[0], y: linear[1], z: linear[2] }, true);
     this.body.setAngvel({ x: angular[0], y: angular[1], z: angular[2] }, true);
-    if (this.ghost && Math.hypot(...difference(point(this.body.translation()), car)) > CLEAR_M) {
+    const at = point(this.body.translation());
+    if (this.ghost && cars.every((car) => Math.hypot(...difference(at, car)) > CLEAR_M)) {
       this.ghost = false;
       this.collider.setCollisionGroups(REMOTE_GROUPS);
     }
@@ -185,9 +186,9 @@ export class RemoteCars {
     return this.cars.get(id)?.ghost ?? true;
   }
 
-  /** Before the world steps, with where the car being driven is. */
-  steer(car: Vector3): void {
-    for (const remote of this.cars.values()) remote.steer(car);
+  /** Before the world steps, with where every simulated car is. */
+  steer(cars: readonly Vector3[]): void {
+    for (const remote of this.cars.values()) remote.steer(cars);
   }
 
   /** After the world steps. */
