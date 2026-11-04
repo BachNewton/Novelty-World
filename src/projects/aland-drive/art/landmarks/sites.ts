@@ -4,8 +4,14 @@ import FUEL from "../facades/fuel-stations.json";
 import { onBearing, painter, type Inks } from "../facades/paint";
 import { fuelFootprints, fuelStation, type FuelStation } from "../facades/roadside-shops";
 import { buildTerminal, FALSE_SOLID, TERMINAL_LEG_M, TERMINAL_ORIGIN, terminalFeet } from "../town-kit/terminal";
+import { BRANNKLINT_SITE } from "./bomarsund";
+import { KUNGSO_SITE } from "./defences";
+import { JOHANNISBERG_SITE, PRASTO_SITES } from "./graves";
 import { LANDMARKS } from "./index";
 import type { Landmark } from "./landmark";
+import { groundOf, type GroundSite, type Replaces } from "./places";
+import { STATUE_SITES } from "./statues";
+import { TOWER_SITES } from "./towers";
 
 /*
  * Every model that stands at a real place of its own, as the pipeline reads them (`sites.json`, which
@@ -16,8 +22,7 @@ import type { Landmark } from "./landmark";
  * legs, islands, kiosks and posts, so the roads under a walkway or a canopy stay open.
  */
 
-/** What a site takes the place of: NLS solids by name, or every solid inside its plan. A generated shape under it always goes. */
-export type Replaces = { solids: string[] } | "inside" | null;
+export type { Replaces } from "./places";
 
 export interface SiteRecord {
   id: string;
@@ -47,10 +52,23 @@ const LANDMARK_REPLACES: Record<string, Replaces> = {
   notvikstornet: "inside",
 };
 
-/** The model at a site: a church is built on the ground round it, a landmark as its art has it. */
+/** The towers, statues, ruins and graves the data has no building for, each built on the ground round it (`places.ts`). */
+export const GROUND_SITES: readonly GroundSite[] = [...TOWER_SITES, ...STATUE_SITES, BRANNKLINT_SITE, ...PRASTO_SITES, JOHANNISBERG_SITE, KUNGSO_SITE];
+
+/** Where a ground site's far version takes over: the game swaps every site at one distance (`render/landmarks.ts`). */
+const LANDMARK_FAR_FROM_M = 1400;
+
+export function buildGroundSite(site: GroundSite, heightAt: HeightAt): Landmark {
+  const { near, far } = site.build(groundOf(heightAt, site.east, site.north));
+  return { id: site.id, name: site.name, east: site.east, north: site.north, baseM: heightAt(site.east, site.north), near, far, farFromM: LANDMARK_FAR_FROM_M };
+}
+
+/** The model at a site: a church or a ground site is built on the ground round it, a landmark as its art has it. */
 export function buildSite(id: string, inks: Inks, heightAt: HeightAt): Landmark {
   const church = CHURCHES.find((spec) => spec.id === id);
   if (church) return buildChurch(church, inks, heightAt);
+  const ground = GROUND_SITES.find((spec) => spec.id === id);
+  if (ground) return buildGroundSite(ground, heightAt);
   const landmark = LANDMARKS().find((candidate) => candidate.id === id);
   if (!landmark) throw new Error(`no site called ${id}`);
   return landmark;
@@ -120,7 +138,7 @@ function fuelRecord(id: string, station: FuelStation): SiteRecord {
   return { id, east, north, baseM: null, replaces: "inside", plan: planOf(mesh, east, north), walls: fuelFootprints(station).map((rectangle) => outlineOf(rectangle, toPlan, east, north)), nearOnly: true };
 }
 
-/** Every site, in a fixed order: the landmarks, the churches, the terminal, then the fuel stations. */
+/** Every site, in a fixed order: the landmarks, the churches, the terminal, the fuel stations, then the ground sites. */
 export function siteRecords(): SiteRecord[] {
   const flat = () => 0;
   const landmarks = LANDMARKS().map((landmark) => {
@@ -129,5 +147,10 @@ export function siteRecords(): SiteRecord[] {
   });
   const churches = CHURCHES.map((spec) => ({ id: spec.id, east: spec.east, north: spec.north, baseM: null, replaces: { solids: spec.solids }, plan: planOf(buildChurch(spec, () => "#ffffff", flat).far, spec.east, spec.north) }));
   const stations = [...FUEL_STATIONS].map(([id, station]) => fuelRecord(id, station));
-  return [...landmarks, ...churches, terminalRecord(), ...stations];
+  const grounds = GROUND_SITES.map((site): SiteRecord => {
+    const record: SiteRecord = { id: site.id, east: site.east, north: site.north, baseM: null, replaces: site.replaces, plan: planOf(site.build(flat).far, site.east, site.north) };
+    if (site.walls) record.walls = site.walls.map((outline) => outline.map(([east, north]): [number, number] => [round(site.east + east), round(site.north + north)]));
+    return record;
+  });
+  return [...landmarks, ...churches, terminalRecord(), ...stations, ...grounds];
 }

@@ -12,6 +12,7 @@ import {
   type Vec3,
 } from "./kit";
 import type { Landmark } from "./landmark";
+import type { Ground, GroundSite } from "./places";
 
 /*
  * Bomarsund, the Russian fortress the British and French took and blew up in 1854, in two pieces. The main fort was a
@@ -571,10 +572,34 @@ export function buildBomarsundFort(): Landmark {
 }
 
 /*
- * Notvik tower in plan: a ring round a court, angles as the kit's arcs count them, from +x (east) towards +z (south).
- * Its arcaded side faces the northern approach it was built to close, to the north-west.
+ * The fortress's round gun towers in plan: a ring round a court, angles as the kit's arcs count them, from +x (east)
+ * towards +z (south). Notvik's arcaded side faces the northern approach it was built to close, to the north-west, and
+ * stands to its roof; the rest of its ring is broken down to its lower storey. Brännklint's, on the height to the west,
+ * is lower and smaller: what stands is its north-western arc, a storey and a half of granite face over the slope, and
+ * the rest of its ring is a low bank of stone round a grassed court, its ground falling three metres across the ring.
  */
-const NOTVIK = {
+interface GunTower {
+  outer: number;
+  court: number;
+  parapet: number;
+  roof: number;
+  crest: number;
+  segments: number;
+  facing: number;
+  /** Half the angle, either side of the facing, that stands to its roof with its arcade, if any does. */
+  standing: number;
+  gate: number;
+  sink: number;
+  seed: number;
+  /** A segment's granite face, metres above its ground, by how far it lies from the facing; it rolls what it needs. */
+  height(off: number, step: number, random: () => number): number;
+  /** The ground under the ring at an angle and radius, above the model's base. */
+  ground(angle: number, radius: number): number;
+  fallen: number;
+  gun: boolean;
+}
+
+const NOTVIK: GunTower = {
   outer: 20,
   court: 12.5,
   parapet: 0.7,
@@ -584,18 +609,24 @@ const NOTVIK = {
   facing: (-3 * Math.PI) / 4,
   standing: 0.9,
   gate: 1.4,
+  sink: 3,
+  seed: 1845,
+  height(off, step, random) {
+    const broken = 2.8 + random() * 2.6;
+    const shoulder = off < this.standing + step * 2.5;
+    return off < this.standing ? this.crest : shoulder ? 5 + random() * 3 + (this.standing + step * 2.5 - off) * 4 : broken;
+  },
+  ground: () => 0,
+  fallen: 70,
+  gun: true,
 };
 const TIERS = [
   { floor: 0, spring: 2.5, sill: 1.6, head: 3 },
   { floor: 5.2, spring: 7.6, sill: 6.6, head: 8 },
 ];
 const ARCH_HALF = 0.62;
-const NOTVIK_SINK = 3;
 
-const polar = (radius: number, angle: number): Vec2 => [
-  radius * Math.cos(angle),
-  radius * Math.sin(angle),
-];
+const polar = (radius: number, angle: number): Vec2 => [radius * Math.cos(angle), radius * Math.sin(angle)];
 
 function angleFrom(angle: number, to: number) {
   return Math.abs(Math.atan2(Math.sin(angle - to), Math.cos(angle - to)));
@@ -604,123 +635,76 @@ function angleFrom(angle: number, to: number) {
 interface RingSegment {
   from: number;
   to: number;
-  /** Heights of the granite face and the brick court side; the standing side is to its roof. */
+  /** The ground under its middle, and the tops of its granite face and its brick court side, above the base. */
+  ground: number;
   outer: number;
   inner: number;
   standing: boolean;
 }
 
 /** The ring in equal segments, the gate left open, its broken heights fixed for the near and far versions alike. */
-function ring(): RingSegment[] {
-  const random = seeded(1845);
-  const step = (Math.PI * 2) / NOTVIK.segments;
+function ring(tower: GunTower): RingSegment[] {
+  const random = seeded(tower.seed);
+  const step = (Math.PI * 2) / tower.segments;
   const segments: RingSegment[] = [];
-  for (let at = 0; at < NOTVIK.segments; at++) {
-    const from = NOTVIK.facing + Math.PI + at * step;
+  for (let at = 0; at < tower.segments; at++) {
+    const from = tower.facing + Math.PI + at * step;
     const middle = from + step / 2;
-    const off = angleFrom(middle, NOTVIK.facing);
-    const gate = angleFrom(middle, NOTVIK.gate) < step * 0.6;
+    const off = angleFrom(middle, tower.facing);
+    const gate = angleFrom(middle, tower.gate) < step * 0.6;
     if (gate) continue;
-    const standing = off < NOTVIK.standing;
-    const shoulder = off < NOTVIK.standing + step * 2.5;
-    const broken = 2.8 + random() * 2.6;
-    const outer = standing
-      ? NOTVIK.crest
-      : shoulder
-        ? 5 + random() * 3 + (NOTVIK.standing + step * 2.5 - off) * 4
-        : broken;
-    segments.push({
-      from,
-      to: from + step,
-      outer,
-      inner: standing ? NOTVIK.roof : outer * (0.6 + random() * 0.25),
-      standing,
-    });
+    const standing = off < tower.standing;
+    const ground = tower.ground(middle, (tower.outer + tower.court) / 2);
+    const outer = ground + tower.height(off, step, random);
+    segments.push({ from, to: from + step, ground, outer, inner: standing ? tower.roof : ground + (outer - ground) * (0.6 + random() * 0.25), standing });
   }
   return segments;
 }
 
 /** An upright face along the ring's chord at a radius, its top at each end. */
-function chord(
-  mesh: MeshBuilder,
-  radius: number,
-  from: number,
-  to: number,
-  bottom: number,
-  topA: number,
-  topB: number,
-  paint: Paint,
-) {
+function chord(mesh: MeshBuilder, radius: number, from: number, to: number, bottom: number, topA: number, topB: number, paint: Paint) {
   const [a, b] = [polar(radius, from), polar(radius, to)];
-  mesh.quad(
-    [a[0], bottom, a[1]],
-    [b[0], bottom, b[1]],
-    [b[0], topB, b[1]],
-    [a[0], topA, a[1]],
-    paint,
-  );
+  mesh.quad([a[0], bottom, a[1]], [b[0], bottom, b[1]], [b[0], topB, b[1]], [a[0], topA, a[1]], paint);
 }
 
 /** The granite face of a segment, with a row of embrasures for each storey it still has. */
-function ringFace(
-  mason: Masonry,
-  mesh: MeshBuilder,
-  segment: RingSegment,
-  index: number,
-  embrasures: boolean,
-) {
-  const { outer: radius } = NOTVIK;
-  const { from, to } = segment;
+function ringFace(tower: GunTower, mason: Masonry, mesh: MeshBuilder, segment: RingSegment, index: number, embrasures: boolean) {
+  const { outer: radius } = tower;
+  const { from, to, ground } = segment;
   const span = to - from;
   const along = (angle: number) => angle * radius;
+  const foot = ground - tower.sink;
   const face = (a: number, b: number, low: number, high: number) => {
-    mason.face(
-      polar(radius, a),
-      polar(radius, b),
-      along(a),
-      along(b),
-      low,
-      high,
-      high,
-      0,
-    );
+    mason.face(polar(radius, a), polar(radius, b), along(a), along(b), low, high, high, ground);
   };
-  const tiers =
-    embrasures && index % 2 === 0
-      ? TIERS.filter((tier) => tier.head + 0.8 < segment.outer)
-      : [];
+  const tiers = embrasures && index % 2 === 0 ? TIERS.filter((tier) => ground + tier.head + 0.8 < segment.outer) : [];
   if (tiers.length === 0) {
-    face(from, to, -NOTVIK_SINK, segment.outer);
+    face(from, to, foot, segment.outer);
     return;
   }
   const middle = from + span / 2;
   const open = EMBRASURE.half / radius;
   const [left, right] = [middle - open, middle + open];
-  face(from, left, -NOTVIK_SINK, segment.outer);
-  face(right, to, -NOTVIK_SINK, segment.outer);
-  let low = -NOTVIK_SINK;
+  face(from, left, foot, segment.outer);
+  face(right, to, foot, segment.outer);
+  let low = foot;
   for (const tier of tiers) {
-    face(left, right, low, tier.sill);
+    const [sill, head] = [ground + tier.sill, ground + tier.head];
+    face(left, right, low, sill);
     const back = radius - EMBRASURE.deep;
-    chord(mesh, back, left, right, tier.sill, tier.head, tier.head, shadow());
+    chord(mesh, back, left, right, sill, head, head, shadow());
     for (const side of [left, right]) {
       const [p, q] = [polar(radius, side), polar(back, side)];
-      mesh.quad(
-        [p[0], tier.sill, p[1]],
-        [q[0], tier.sill, q[1]],
-        [q[0], tier.head, q[1]],
-        [p[0], tier.head, p[1]],
-        flat("fort-granite", 0.7),
-      );
+      mesh.quad([p[0], sill, p[1]], [q[0], sill, q[1]], [q[0], head, q[1]], [p[0], head, p[1]], flat("fort-granite", 0.7));
     }
-    low = tier.head;
+    low = head;
   }
   face(left, right, low, segment.outer);
 }
 
 /** The court side of the standing casemates: brick, an arched door or window to each, two storeys of them. */
-function arcade(mesh: MeshBuilder, segment: RingSegment, random: () => number) {
-  const radius = NOTVIK.court;
+function arcade(tower: GunTower, mesh: MeshBuilder, segment: RingSegment, random: () => number) {
+  const radius = tower.court;
   const { from, to } = segment;
   const [a, b] = [polar(radius, from), polar(radius, to)];
   const width = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -728,233 +712,103 @@ function arcade(mesh: MeshBuilder, segment: RingSegment, random: () => number) {
   const centre = polar(radius * Math.cos((to - from) / 2), middle);
   const along: Vec2 = [(b[0] - a[0]) / width, (b[1] - a[1]) / width];
   const inwards: Vec2 = [Math.cos(middle), Math.sin(middle)];
-  const at = (run: number, y: number, depth = 0): Vec3 => [
-    centre[0] + along[0] * run + inwards[0] * depth,
-    y,
-    centre[1] + along[1] * run + inwards[1] * depth,
-  ];
+  const at = (run: number, y: number, depth = 0): Vec3 => [centre[0] + along[0] * run + inwards[0] * depth, y, centre[1] + along[1] * run + inwards[1] * depth];
   const brick = flat("brick", 0.82 + random() * 0.16);
   const bricks = () => brick;
-  let low = -0.6;
+  let low = segment.ground - 0.6;
   for (const tier of TIERS) {
     const crown = tier.spring + ARCH_HALF;
-    const top = tier === TIERS[0] ? TIERS[1].floor : NOTVIK.roof;
-    mesh.quad(
-      at(-width / 2, low),
-      at(-ARCH_HALF, low),
-      at(-ARCH_HALF, top),
-      at(-width / 2, top),
-      bricks(),
-    );
-    mesh.quad(
-      at(ARCH_HALF, low),
-      at(width / 2, low),
-      at(width / 2, top),
-      at(ARCH_HALF, top),
-      bricks(),
-    );
-    if (tier.floor > low)
-      mesh.quad(
-        at(-ARCH_HALF, low),
-        at(ARCH_HALF, low),
-        at(ARCH_HALF, tier.floor),
-        at(-ARCH_HALF, tier.floor),
-        bricks(),
-      );
+    const top = tier === TIERS[0] ? TIERS[1].floor : tower.roof;
+    mesh.quad(at(-width / 2, low), at(-ARCH_HALF, low), at(-ARCH_HALF, top), at(-width / 2, top), bricks());
+    mesh.quad(at(ARCH_HALF, low), at(width / 2, low), at(width / 2, top), at(ARCH_HALF, top), bricks());
+    if (tier.floor > low) mesh.quad(at(-ARCH_HALF, low), at(ARCH_HALF, low), at(ARCH_HALF, tier.floor), at(-ARCH_HALF, tier.floor), bricks());
     const steps = 5;
     const arch = (step: number) => Math.PI - (step * Math.PI) / steps;
     for (let step = 0; step < steps; step++) {
       const [p, q] = [arch(step), arch(step + 1)];
-      const rim = (angle: number, depth = 0) =>
-        at(
-          Math.cos(angle) * ARCH_HALF,
-          tier.spring + Math.sin(angle) * ARCH_HALF,
-          depth,
-        );
-      mesh.quad(
-        rim(p),
-        rim(q),
-        at(Math.cos(q) * ARCH_HALF, top),
-        at(Math.cos(p) * ARCH_HALF, top),
-        bricks(),
-      );
+      const rim = (angle: number, depth = 0) => at(Math.cos(angle) * ARCH_HALF, tier.spring + Math.sin(angle) * ARCH_HALF, depth);
+      mesh.quad(rim(p), rim(q), at(Math.cos(q) * ARCH_HALF, top), at(Math.cos(p) * ARCH_HALF, top), bricks());
       mesh.quad(rim(p), rim(q), rim(q, 0.9), rim(p, 0.9), flat("brick-dark"));
     }
-    mesh.quad(
-      at(-ARCH_HALF, tier.floor, 0.9),
-      at(ARCH_HALF, tier.floor, 0.9),
-      at(ARCH_HALF, crown, 0.9),
-      at(-ARCH_HALF, crown, 0.9),
-      shadow(),
-    );
-    for (const side of [-ARCH_HALF, ARCH_HALF])
-      mesh.quad(
-        at(side, tier.floor),
-        at(side, tier.floor, 0.9),
-        at(side, tier.spring, 0.9),
-        at(side, tier.spring),
-        flat("brick-dark"),
-      );
+    mesh.quad(at(-ARCH_HALF, tier.floor, 0.9), at(ARCH_HALF, tier.floor, 0.9), at(ARCH_HALF, crown, 0.9), at(-ARCH_HALF, crown, 0.9), shadow());
+    for (const side of [-ARCH_HALF, ARCH_HALF]) mesh.quad(at(side, tier.floor), at(side, tier.floor, 0.9), at(side, tier.spring, 0.9), at(side, tier.spring), flat("brick-dark"));
     low = top;
   }
 }
 
 /** A segment's top and the ruin's sections, shared by both versions: the top slopes from the granite to the brick behind. */
-function ringTop(
-  mesh: MeshBuilder,
-  segment: RingSegment,
-  next: RingSegment | undefined,
-  paint: Paint,
-  roof: Paint,
-) {
-  const { outer, court, parapet } = NOTVIK;
+function ringTop(tower: GunTower, mesh: MeshBuilder, segment: RingSegment, next: RingSegment | undefined, paint: Paint, roof: Paint) {
+  const { outer, court, parapet } = tower;
   const { from, to } = segment;
   const at = (radius: number, angle: number, y: number): Vec3 => {
     const [x, z] = polar(radius, angle);
     return [x, y, z];
   };
   if (segment.standing) {
-    mesh.quad(
-      at(court, from, NOTVIK.roof),
-      at(court, to, NOTVIK.roof),
-      at(outer - parapet, to, NOTVIK.roof),
-      at(outer - parapet, from, NOTVIK.roof),
-      roof,
-    );
-    chord(
-      mesh,
-      outer - parapet,
-      from,
-      to,
-      NOTVIK.roof,
-      NOTVIK.crest,
-      NOTVIK.crest,
-      paint,
-    );
-    mesh.quad(
-      at(outer - parapet, from, NOTVIK.crest),
-      at(outer - parapet, to, NOTVIK.crest),
-      at(outer, to, NOTVIK.crest),
-      at(outer, from, NOTVIK.crest),
-      paint,
-    );
+    mesh.quad(at(court, from, tower.roof), at(court, to, tower.roof), at(outer - parapet, to, tower.roof), at(outer - parapet, from, tower.roof), roof);
+    chord(mesh, outer - parapet, from, to, tower.roof, tower.crest, tower.crest, paint);
+    mesh.quad(at(outer - parapet, from, tower.crest), at(outer - parapet, to, tower.crest), at(outer, to, tower.crest), at(outer, from, tower.crest), paint);
   } else {
-    mesh.quad(
-      at(outer, from, segment.outer),
-      at(outer, to, segment.outer),
-      at(court, to, segment.inner),
-      at(court, from, segment.inner),
-      paint,
-    );
+    mesh.quad(at(outer, from, segment.outer), at(outer, to, segment.outer), at(court, to, segment.inner), at(court, from, segment.inner), paint);
   }
-  const close = (
-    angle: number,
-    outerA: number,
-    innerA: number,
-    outerB: number,
-    innerB: number,
-  ) => {
-    mesh.quad(
-      at(outer, angle, Math.min(outerA, outerB)),
-      at(court, angle, Math.min(innerA, innerB)),
-      at(court, angle, Math.max(innerA, innerB)),
-      at(outer, angle, Math.max(outerA, outerB)),
-      paint,
-    );
+  const close = (angle: number, outerA: number, innerA: number, outerB: number, innerB: number) => {
+    mesh.quad(at(outer, angle, Math.min(outerA, outerB)), at(court, angle, Math.min(innerA, innerB)), at(court, angle, Math.max(innerA, innerB)), at(outer, angle, Math.max(outerA, outerB)), paint);
   };
   const joined = next && Math.abs(next.from - to) < 1e-6;
   if (joined) close(to, segment.outer, segment.inner, next.outer, next.inner);
-  else close(to, -NOTVIK_SINK, -0.6, segment.outer, segment.inner);
+  else close(to, segment.ground - tower.sink, segment.ground - 0.6, segment.outer, segment.inner);
   return joined;
 }
 
-function ringSides(mesh: MeshBuilder, segments: RingSegment[], paint: Paint) {
+function ringSides(tower: GunTower, mesh: MeshBuilder, segments: RingSegment[], paint: Paint) {
   const first = segments[0];
   const at = (radius: number, y: number): Vec3 => {
     const [x, z] = polar(radius, first.from);
     return [x, y, z];
   };
-  mesh.quad(
-    at(NOTVIK.outer, -NOTVIK_SINK),
-    at(NOTVIK.court, -0.6),
-    at(NOTVIK.court, first.inner),
-    at(NOTVIK.outer, first.outer),
-    paint,
-  );
+  mesh.quad(at(tower.outer, first.ground - tower.sink), at(tower.court, first.ground - 0.6), at(tower.court, first.inner), at(tower.outer, first.outer), paint);
 }
 
-function notvik(mason: Masonry, mesh: MeshBuilder) {
-  const random = seeded(1848);
-  const segments = ring();
+function gunTower(tower: GunTower, mason: Masonry, mesh: MeshBuilder) {
+  const random = seeded(tower.seed + 3);
+  const segments = ring(tower);
   const roof = rubble(0.3);
   segments.forEach((segment, index) => {
-    ringFace(mason, mesh, segment, index, true);
-    if (segment.standing) arcade(mesh, segment, random);
-    else
-      chord(
-        mesh,
-        NOTVIK.court,
-        segment.from,
-        segment.to,
-        -0.6,
-        segment.inner,
-        segment.inner,
-        flat("brick", 0.75 + random() * 0.35),
-      );
-    ringTop(
-      mesh,
-      segment,
-      segments[index + 1],
-      rubble(0.25 + random() * 0.3),
-      roof,
-    );
+    ringFace(tower, mason, mesh, segment, index, true);
+    if (segment.standing) arcade(tower, mesh, segment, random);
+    else chord(mesh, tower.court, segment.from, segment.to, segment.ground - 0.6, segment.inner, segment.inner, flat("brick", 0.75 + random() * 0.35));
+    ringTop(tower, mesh, segment, segments[index + 1], rubble(0.25 + random() * 0.3), roof);
   });
-  ringSides(mesh, segments, rubble(0.4));
+  ringSides(tower, mesh, segments, rubble(0.4));
 
   // Fallen stone round the broken side of the ring, outside and in the court.
-  for (let count = 0; count < 70; count++) {
-    const angle =
-      NOTVIK.facing +
-      NOTVIK.standing +
-      0.2 +
-      random() * (Math.PI * 2 - 2 * NOTVIK.standing - 0.4);
+  const broken = Math.max(tower.standing, 0);
+  for (let count = 0; count < tower.fallen; count++) {
+    const angle = tower.facing + broken + 0.2 + random() * (Math.PI * 2 - 2 * broken - 0.4);
     const outside = random() > 0.4;
-    const radius = outside
-      ? NOTVIK.outer + 0.6 + random() * 4
-      : NOTVIK.court - 0.6 - random() * 2.5;
+    const radius = outside ? tower.outer + 0.6 + random() * 4 : tower.court - 0.6 - random() * 2.5;
     const [x, z] = polar(radius, angle);
-    block(mesh, x, outside ? -0.4 : 0, z, random);
+    block(mesh, x, tower.ground(angle, radius) + (outside ? -0.4 : 0), z, random);
   }
+  if (tower.gun) courtGun(tower, mesh);
+}
 
-  // The gun in the court, on its carriage, run out towards the gate.
-  const gun = NOTVIK.gate + 0.15;
+/** The gun in the court, on its carriage, run out towards the gate. */
+function courtGun(tower: GunTower, mesh: MeshBuilder) {
+  const gun = tower.gate + 0.15;
   const [gx, gz] = polar(4, gun);
   const [dx, dz] = [Math.cos(gun), Math.sin(gun)];
   const iron = flat("mast-dark");
   mesh.box([gx, 0.55, gz], [2.2, 0.5, 1], flat("ship-teak", 0.7), gun);
-  mesh.tube(
-    [gx - dx * 1.4, 1, gz - dz * 1.4],
-    [gx + dx * 1.6, 1.05, gz + dz * 1.6],
-    0.3,
-    0.2,
-    8,
-    iron,
-  );
+  mesh.tube([gx - dx * 1.4, 1, gz - dz * 1.4], [gx + dx * 1.6, 1.05, gz + dz * 1.6], 0.3, 0.2, 8, iron);
   for (const side of [-0.65, 0.65]) {
     const [wx, wz] = [gx - dz * side + dx * 0.5, gz + dx * side + dz * 0.5];
-    mesh.tube(
-      [wx - dz * 0.08, 0.5, wz + dx * 0.08],
-      [wx + dz * 0.08, 0.5, wz - dx * 0.08],
-      0.5,
-      0.06,
-      10,
-      iron,
-    );
+    mesh.tube([wx - dz * 0.08, 0.5, wz + dx * 0.08], [wx + dz * 0.08, 0.5, wz - dx * 0.08], 0.5, 0.06, 10, iron);
   }
 }
 
-function notvikFar(mason: Masonry, mesh: MeshBuilder) {
-  const segments = ring();
+function gunTowerFar(tower: GunTower, mason: Masonry, mesh: MeshBuilder) {
+  const segments = ring(tower);
   const paint = rubble(0.4);
   const roof = rubble(0.3);
   // Two near segments to a far one, the standing side apart from the broken.
@@ -962,18 +816,8 @@ function notvikFar(mason: Masonry, mesh: MeshBuilder) {
   let single = false;
   for (const segment of segments) {
     const last = pairs.at(-1);
-    if (
-      single &&
-      last &&
-      Math.abs(last.to - segment.from) < 1e-6 &&
-      last.standing === segment.standing
-    ) {
-      pairs[pairs.length - 1] = {
-        ...last,
-        to: segment.to,
-        outer: Math.max(last.outer, segment.outer),
-        inner: Math.max(last.inner, segment.inner),
-      };
+    if (single && last && Math.abs(last.to - segment.from) < 1e-6 && last.standing === segment.standing) {
+      pairs[pairs.length - 1] = { ...last, to: segment.to, ground: Math.min(last.ground, segment.ground), outer: Math.max(last.outer, segment.outer), inner: Math.max(last.inner, segment.inner) };
       single = false;
     } else {
       pairs.push({ ...segment });
@@ -981,27 +825,18 @@ function notvikFar(mason: Masonry, mesh: MeshBuilder) {
     }
   }
   pairs.forEach((segment, index) => {
-    ringFace(mason, mesh, segment, index, false);
-    chord(
-      mesh,
-      NOTVIK.court,
-      segment.from,
-      segment.to,
-      -0.6,
-      segment.inner,
-      segment.inner,
-      segment.standing ? flat("brick", 0.62) : BRICK_MEAN(),
-    );
-    ringTop(mesh, segment, pairs[index + 1], paint, roof);
+    ringFace(tower, mason, mesh, segment, index, false);
+    chord(mesh, tower.court, segment.from, segment.to, segment.ground - 0.6, segment.inner, segment.inner, segment.standing ? flat("brick", 0.62) : BRICK_MEAN());
+    ringTop(tower, mesh, segment, pairs[index + 1], paint, roof);
   });
-  ringSides(mesh, pairs, paint);
+  ringSides(tower, mesh, pairs, paint);
 }
 
 export function buildNotvikstornet(): Landmark {
   const [nearMason, near] = [masonry(48), createBuilder()];
-  notvik(nearMason, near);
+  gunTower(NOTVIK, nearMason, near);
   const [farMason, far] = [masonry(48), createBuilder()];
-  notvikFar(farMason, far);
+  gunTowerFar(NOTVIK, farMason, far);
   return {
     id: "notvikstornet",
     name: "Notvikstornet",
@@ -1013,3 +848,47 @@ export function buildNotvikstornet(): Landmark {
     farFromM: 400,
   };
 }
+
+/** Brännklint's ring, centred on the court the 2025 photo shows inside its standing arc. */
+const BRANNKLINT = { east: 124888.5, north: 6694741 };
+
+function brannklint(ground: Ground): GunTower {
+  return {
+    outer: 15.5,
+    court: 11.8,
+    parapet: 0.6,
+    roof: 0,
+    crest: 0,
+    segments: 32,
+    facing: -2.13,
+    standing: -1,
+    gate: 1.15,
+    sink: 1.6,
+    seed: 1852,
+    height(off, _step, random) {
+      const roll = random();
+      if (off < 0.98) return 5.4 + roll * 1.4 - Math.max(0, off - 0.7) * 9;
+      return 0.5 + roll * 0.9;
+    },
+    // The kit's angles run from +x towards +z, south.
+    ground: (angle, radius) => ground(radius * Math.cos(angle), -radius * Math.sin(angle)),
+    fallen: 46,
+    gun: false,
+  };
+}
+
+export const BRANNKLINT_SITE: GroundSite = {
+  id: "brannklint",
+  name: "Brännklints torn",
+  east: BRANNKLINT.east,
+  north: BRANNKLINT.north,
+  replaces: "inside",
+  build(ground) {
+    const tower = brannklint(ground);
+    const [nearMason, near] = [masonry(52), createBuilder()];
+    gunTower(tower, nearMason, near);
+    const [farMason, far] = [masonry(52), createBuilder()];
+    gunTowerFar(tower, farMason, far);
+    return { near: merged(near.done(), nearMason.done()), far: merged(far.done(), farMason.done()) };
+  },
+};

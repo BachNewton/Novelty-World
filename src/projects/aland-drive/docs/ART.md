@@ -55,7 +55,7 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 
 ## Landmarks
 
-Each has a real position, exported with its model, and `pipeline/landmarks.py` drops what it replaces, from `art/landmarks/sites.json`. They're in the game on tiles rebuilt since, not yet published. Bomarsund's fort found no solids inside its outline to replace.
+Each has a real position, exported with its model, and `pipeline/landmarks.py` drops what it replaces, from `art/landmarks/sites.json`. The towers, statues, ruins and graves the data has no building for are ground sites (`art/landmarks/places.ts`), built on the ground round them as a church's yard is; they're in the game on tiles rebuilt locally, not yet uploaded. Borgboda's hillfort isn't built: OSM's outline is the whole height, not the rampart, and nothing else says where its stone bank runs. `art/identity`'s viewing tower and viewpoint platform stay as gallery props for the other observation towers and viewpoints OSM maps. They're in the game on tiles rebuilt since, not yet published. Bomarsund's fort found no solids inside its outline to replace.
 
 | Landmark | Folder | Replaces | In game | Seen on terrain |
 |---|---|---|---|---|
@@ -69,6 +69,12 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 | Notvikstornet | `art/landmarks` | Solids inside its outline | [x] | [x] |
 | Västerhamn terminal | `art/town-kit` | `ahvenanmaa_2022_13485`, the walkways NLS ran to the ground; drawn with its tile's detail, and its raised ways are off the road surface | [x] | [x] |
 | Ferry | `art/town-kit` | Nothing | [ ] | [ ] |
+| Lookout towers: Getabergen, Storberget, Orrdalsklint | `art/landmarks` (`towers.ts`) | Anything inside their plans; fitted to OSM's outlines and `height` and the laser | [x] | [ ] |
+| Statues: Maria Alexandrovna, Julius Sundblom | `art/landmarks` (`statues.ts`) | Nothing there; the car stops at the plinth | [x] | [ ] |
+| Brännklint tower ruin | `art/landmarks` (`bomarsund.ts`, Notvik's gun tower made general) | Nothing there; its arc and court from the laser and the 2025 photo | [x] | [ ] |
+| Prästö graveyards: Orthodox, Muslim, Jewish | `art/landmarks` (`graves.ts`) | Nothing; only the Orthodox yard's wall and memorial stop the car | [x] | [ ] |
+| Johannisberg grave field | `art/landmarks` (`graves.ts`) | Nothing; each mound stops the car as a boulder does | [x] | [ ] |
+| Kungsö battery | `art/landmarks` (`defences.ts`) | Nothing; the pits' ring walls stop the car, the trench doesn't | [x] | [ ] |
 
 ## Cleanup found along the way
 
