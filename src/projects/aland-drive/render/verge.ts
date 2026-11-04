@@ -120,7 +120,7 @@ function tuftColours(shape: BufferGeometry, colours: Colour[]) {
 
 export interface VergeInputs {
   landAt: LandAt;
-  townAt: (place: Node<"vec2">) => Node<"float">;
+  pavedAt: (place: Node<"vec2">) => Node<"float">;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   /** How much of a place is boulder field: stones, where no verge grows. */
   fieldsAt: (place: Node<"vec2">) => Node<"float">;
@@ -152,7 +152,7 @@ export interface Verge {
   dispose: () => void;
 }
 
-export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, townAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
+export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
@@ -202,7 +202,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, to
           const clear = float(1).sub(smoothstep(float(ON_ROAD[0]), float(ON_ROAD[1]), roadsAround(0))).toVar();
           const land = landAt(place);
           const { stoneShare } = groundKinds(land.wide.pow(vec3(2.2)));
-          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(townAt(place).lessThan(0.5)), () => {
+          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(pavedAt(place).lessThan(0.5)), () => {
             const ground = groundAt(place).toVar();
             If(seenOn(ground), () => {
               const stand = roll(floor(place.div(STAND_M)), 7.13, 3.77).mul(STANDS).floor().toVar();

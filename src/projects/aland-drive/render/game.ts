@@ -508,7 +508,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return hazed(mix(pastTiles, near, farSeen));
   };
 
-  const { canopyAt, standsAt, roadsAt, townAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, pavedAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -524,7 +524,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
-  const verge = createVerge(scene, renderer, { landAt, townAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const verge = createVerge(scene, renderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, lightOf, linear, hazed, sun: manifest.sun });
   const granite = createGranite(scene, renderer, {

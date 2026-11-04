@@ -186,13 +186,14 @@ export function townGround({ place, toCamera, mask, angle, ground, photoSoft, co
   const axes = runOf(place, angle);
   const run: Run = { ...axes, tone, colour, shown };
   const hardLot = slabs(run).mul(slabShare).add(setts(run).mul(settShare)).add(tarmac(run, blue).mul(tarmacShare)).add(gravelled(tone, fineTone, drift, colour, shown).mul(gravelShare));
-  const greenLot = lawned(tone, fineTone, drift, colour, shown).mul(lawnShare).add(colour("town-bed").mul(float(1).add(fineTone.a.sub(0.5).mul(0.7))).mul(bedShare));
+  const bed = colour("town-bed").mul(float(1).add(fineTone.a.sub(0.5).mul(0.7))).mul(bedShare);
 
   // Light from the photo, kept broad: the shade of a big tree stays, the filler's streaks don't.
   const measured = luminance(photoSoft);
   const lawnLight = mix(float(1), measured.div(PHOTO_MIDDLE.lawn).clamp(0.5, 1.15), PHOTO_LIGHT.lawn);
   const hardLight = mix(float(1), measured.div(PHOTO_MIDDLE.hard).clamp(0.55, 1.1), PHOTO_LIGHT.hard);
-  const lit = hardLot.mul(hardLight).add(greenLot.mul(lawnLight));
+  // A lawn is the ground as the terrain draws it anywhere, with the verge growing on it: a flat green of its own read as bare.
+  const lit = hardLot.mul(hardLight).add(bed.mul(lawnLight)).add(ground.mul(lawnShare));
 
   // A stone edging on the hard side of a line with something softer, and its contact shadow on the other.
   const onHard = hard.mul(max(leafy, tarred));
