@@ -1,3 +1,4 @@
+import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/models";
 import { buildOptimist, buildSingleHander } from "./dinghies";
 import { buildFishingBoat, buildLaunch, buildPassengerBoat, buildPilotBoat, buildRescueBoat, buildRib } from "./motor";
@@ -52,3 +53,5 @@ export const CATALOGUE: readonly Entry[] = [
   entry("pilot", "pilot boat", 16.3, 7.6, false, () => buildPilotBoat()),
   entry("passenger", "archipelago passenger boat", 19.2, 8, false, () => buildPassengerBoat()),
 ];
+
+export const artModels = (): ArtModel[] => CATALOGUE.map(({ name, model }) => nearFar(name, model()));

@@ -1,3 +1,4 @@
+import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/index";
 import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
 
@@ -37,3 +38,5 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
     ...(["grazing", "standing", "lying"] as const).map((pose) => ({ name: `cow ${pose}`, limit: 380, farLimit: 32, model: buildCow(pose) })),
   ];
 }
+
+export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => nearFar(name, model));
