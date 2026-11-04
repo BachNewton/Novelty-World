@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Landmark, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
+import type { Place } from "../map/places";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 
@@ -31,6 +32,7 @@ const SHADE = "var(--color-aland-drive-ui-shade)";
 const ACCENT = "var(--color-aland-drive-ui-accent)";
 const REDLINE = "var(--color-aland-drive-ui-redline)";
 const PLAYER = "var(--color-aland-drive-ui-player)";
+const PLACE = "var(--color-aland-drive-ui-place)";
 
 /** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
 const DIAL_SWEEP = 0.75;
@@ -52,6 +54,8 @@ const MAP_HINTS = [
 ];
 
 const ROAD_LABEL_FADE = "@keyframes aland-road-label { 0% { opacity: 0 } 12% { opacity: 1 } 75% { opacity: 1 } 100% { opacity: 0 } }";
+/** Long enough to read a place's note at an easy pace while driving. */
+const PLACE_CARD_S = 12;
 
 /** The next turn as a distance: a driver reads tens of metres near, and tenths of a kilometre far. */
 function distanceText(metres: number): string {
@@ -84,6 +88,9 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   const [others, setOthers] = useState<string[]>([]);
+  // Places found and not yet shown, the one on screen first.
+  const [finds, setFinds] = useState<Place[]>([]);
+  const [placesFound, setPlacesFound] = useState<{ found: number; total: number } | null>(null);
   useFrameStats();
 
   useEffect(() => {
@@ -130,6 +137,8 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           onCarChange: setCarId,
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
+          onPlaceFound: (place) => { setFinds((waiting) => [...waiting, place]); },
+          onPlacesFound: (found, total) => { setPlacesFound({ found, total }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -177,6 +186,21 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           {road !== null && !mapOpen && camera !== "free" && (
             <div key={road.seen} className="pointer-events-none absolute top-16 left-1/2 -translate-x-1/2 text-2xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, animation: "aland-road-label 3.5s ease-out forwards" }} aria-live="polite" aria-label="Road" onAnimationEnd={() => { setRoad(null); }}>
               {road.name}
+            </div>
+          )}
+          {finds.length > 0 && !mapOpen && camera !== "free" && (
+            <div key={finds[0].id} className="pointer-events-none absolute top-28 left-1/2 w-[min(32rem,90vw)] -translate-x-1/2 rounded-lg p-4" style={{ color: INK, background: SHADE, border: `2px solid ${PLACE}`, animation: `aland-road-label ${PLACE_CARD_S}s ease-out forwards` }} aria-live="polite" aria-label="Place found" onAnimationEnd={() => { setFinds((waiting) => waiting.slice(1)); }}>
+              <div className="flex items-center gap-2 text-xl font-semibold" style={{ color: PLACE }}>
+                <Landmark className="size-5 shrink-0" aria-hidden />
+                <span>{finds[0].name}</span>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed">{finds[0].note}</p>
+            </div>
+          )}
+          {mapOpen && placesFound !== null && (
+            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Places found" title="Places found">
+              <Landmark className="size-5" style={{ color: PLACE }} aria-hidden />
+              <span>{placesFound.found} / {placesFound.total}</span>
             </div>
           )}
           {!mapOpen && camera !== "free" && (

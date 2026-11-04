@@ -51,7 +51,10 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
+import { Discovery } from "../map/discovery";
 import { Navigator, type RouteCue } from "../map/navigator";
+import type { Place as FindablePlace } from "../map/places";
+import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
@@ -172,6 +175,8 @@ export interface GameProbe {
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
   /** How many other players each map drew last. */
   mapPlayers: () => { mini: number; world: number };
+  /** The ids of the places found, once the road network has arrived. */
+  foundPlaces: () => string[] | null;
 }
 
 export interface HudReading {
@@ -207,6 +212,10 @@ export interface GameEvents {
   onRoad?: (name: string) => void;
   /** Everyone else in the online world, by name, whenever that changes. */
   onPlayers?: (names: string[]) => void;
+  /** The car has reached a place it hadn't found before. */
+  onPlaceFound?: (place: FindablePlace) => void;
+  /** How many of the places have been found, when the maps arrive and whenever it changes. */
+  onPlacesFound?: (found: number, total: number) => void;
 }
 
 /** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
@@ -289,6 +298,8 @@ const PAINTED_ROADS_GONE_M = 500;
 const OVERLAY_FROM_M = 250;
 const OVERLAY_FULL_M = 1100;
 const MAP_FIELD_OF_VIEW = 45;
+const storage = getProjectStorage("aland-drive");
+const FOUND_KEY = "found-places";
 /** Below these heights the map looks at its own place: a sharper image only shows once a screen pixel is about as small as twice the image's. */
 const MAP_FAR_FROM_M = 10000;
 const MAP_DETAIL_FROM_M = 3500;
@@ -827,6 +838,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const projected = new Vector3();
   let roadGraph: RoadGraph | null = null;
   let worldMap: WorldMap | null = null;
+  let discovery: Discovery | null = null;
   const headingClockwise = (car: CarState) => -headingOf(car.rotation);
   const pickDestination = (x: number, z: number) => {
     const car = drive.stateAt(1);
@@ -843,11 +855,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       roadGraph = graph;
       const land = landImage(overviewData.image, manifest.overview);
       const ink = mapInk();
-      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, { onRoad: (name) => events.onRoad?.(name) });
+      const found = discovery = new Discovery(graph, {
+        load: () => storage.get<string[]>(FOUND_KEY),
+        save: (ids) => { storage.set(FOUND_KEY, ids); },
+      });
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
         ink,
+        found,
         (x, z) => {
           pickDestination(x, z);
         },
@@ -866,6 +883,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       );
       stream.addBytes(data.bytes);
       events.onMapReady?.();
+      events.onPlacesFound?.(found.foundCount, found.places.length);
     },
     (error: unknown) => {
       fail(error instanceof Error ? error : new Error(String(error)));
@@ -1153,6 +1171,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.showWide(lifted);
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
+    // A jump or a look round the map isn't a visit.
+    if (discovery && !lifted && !jumping) {
+      const reached = discovery.update(car.position[0], car.position[2]);
+      for (const place of reached) events.onPlaceFound?.(place);
+      if (reached.length > 0) events.onPlacesFound?.(discovery.foundCount, discovery.places.length);
+    }
     const engine = drive.engine();
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
@@ -1311,6 +1335,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           ghost: drive.remotes.ghost(peerId),
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
+      foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,

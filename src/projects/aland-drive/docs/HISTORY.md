@@ -1,6 +1,6 @@
 # Åland Drive: the island's history and a light story
 
-The researched basis for a light story: a timeline of Åland, real places with in-game notes, and one proposed story thread. It is a proposal, not a decision, and nothing here is in the game. The facts were checked against the sources listed at the end, Ålands museum, the parish churches' own site, Visit Åland and scholarly papers first, with Wikipedia used only as a pointer. Anything weaker is flagged in [What isn't confirmed](#what-isnt-confirmed), which should be read before any of this becomes in-game text.
+The researched basis for a light story: a timeline of Åland, real places with in-game notes, and one proposed story thread. The story is a proposal, not a decision. The places are in the game as the places to find on the maps (`map/places.ts`), whose notes are the game's copies of the ones here: a change to a note is made in both. The facts were checked against the sources listed at the end, Ålands museum, the parish churches' own site, Visit Åland and scholarly papers first, with Wikipedia used only as a pointer. Anything weaker is flagged in [What isn't confirmed](#what-isnt-confirmed), which should be read before any of this becomes in-game text.
 
 The tone is a calm Nordic summer: exploring, no combat, and wars told as what they did to the people who lived here. The scope is text, places and light errands, with no cutscenes.
 
@@ -68,6 +68,9 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 **Eckerö Sea Rescue Station** · 60.21904, 19.53895 · `-22812, -9183` · L2341H
 > Rocks, fog and a lot of shipping: these waters have always needed rescuers. Today volunteers keep boats ready at stations round the islands, day and night, all year.
 
+**Eckerö Golf** · `-18760, -8763`, among the course's mapped pieces
+> Eckerö Golf opened in 1995 with nine holes and a driving range, and has eighteen holes now. It lies at Kyrkoby in Åland's far west, where pine forest and marsh give way to open farmland, with four sets of tees so beginners and strong players can share a round. ([Visit Åland](https://visitaland.com/?p=13910))
+
 **Eckerö church, S:t Lars** · 60.20778, 19.61246 · `-18897, -7476` · L2341H
 > One of the smallest churches on Åland, in stone since the late 1200s. Its bell may be older than the walls, and its cup-shaped font was carved from a single pine trunk. It was damaged in the Northern War.
 
@@ -75,6 +78,15 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 > Built bit by bit from the late 1200s, and you can read the stages in the walls. The tower stands oddly on the south side, over what was once the main door. Eckerö's church began as a chapel of this parish.
 
 ### Finström, Jomala and the middle
+
+**Geta church, S:t Göran** · `-3848, -24565`
+> Built of Åland red granite, most likely in the 1460s, as a chapel under Finström's parish. Geta only became a parish of its own in 1908. The story goes that Västergeta villagers pulled down by night what their neighbours at Olofsnäs built by day, until the villages let an ox drag a stone and built where it stopped. ([kyrkor.ax](https://kyrkor.ax/churches/geta-church), [Geta brochure](https://www.geta.ax/sites/default/files/attachments/page/Geta%20Broschyr%202020%20FINAL.pdf), [Geta's history](https://www.geta.ax/sites/default/files/attachments/page/Geta-historiaochgeografi.pdf))
+
+**Getabergen** · `-3542, -25734`
+> The hills along Geta's north coast rise to 107 metres, with a view out over the open sea and, on a clear day, a glimpse of Sweden. A cave up here hid local people during the Great Wrath in the early 1700s. At the top the Åland tourist association built Soltuna in the early 1930s, to Lars Sonck's design, with a lookout tower. ([Geta's history](https://www.geta.ax/sites/default/files/attachments/page/Geta-historiaochgeografi.pdf), [Geta brochure](https://www.geta.ax/sites/default/files/attachments/page/Geta%20Broschyr%202020%20FINAL.pdf))
+
+**Storberget tower, Pålsböle** · `-1274, -12467`
+> A signed path climbs Storberget in Pålsböle to a lookout tower above the trees, an easy walk for children. The parish has held an open-air service on the hilltop in summer. ([Finström summer leaflet](https://www.finstrom.ax/sites/default/files/attachments/page/finstroms_sommarinfo_2017_web.pdf), [Visit Åland](https://www.visitaland.com/en/do/sights/lookout-towers/))
 
 **Finström church, S:t Mikael** · 60.26354, 19.93086 · `-654, -11727` · L2343F
 > Often called the best-preserved medieval building in Finland, with saints still painted on the walls. In the 1800s its long-serving vicar, Frans Peter von Knorring, built up Åland's schools, and his statue stands nearby.
@@ -107,6 +119,9 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 
 ### Sund and Kastelholm
 
+**Ålands Golfklubb, Kastelholm** · `6436, -6708`, the clubhouse
+> Golfers have played beside Kastelholm Castle since 1983, when the first nine holes opened on the headland by the bay, and by 1988 Åland had its first 18-hole course. Today two courses share the grounds: Slottsbanan by the water, and Kungsbanan in forest. ([the club's history](https://www.agk.ax/om-agk/var-story), [Visit Åland](https://visitaland.com/?p=13904))
+
 **Kastelholm Castle** · 60.23285, 20.08069 · `7246, -7442` · L3121B
 > Åland's only medieval castle, on record since 1388, and the seat of the Swedish crown here. Gustav Vasa came for the hunting, and his deposed son Erik XIV was held here with Karin Månsdotter in 1571. Fire left it a ruin in 1745.
 
@@ -137,7 +152,7 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 > The fortress buried its dead by faith: Orthodox, Muslim and Jewish graves lie apart in the woods here, and French graves further west. Soldiers came from all over a very large empire, and many never left this island.
 
 **Prästö old pilot cottage** · 60.21188, 20.24372 · `16003, -4179` · L3121C
-> A small house near the fortress, from the days when pilots took ships through these channels. Beyond the bridge is the sound, and over the water Vårdö, where the post road carried on.
+> The pilots' cottage by the strait, where pilots guided ships through these channels. Russian soldiers burned the first one in 1854 so the French and British couldn't use it, and a new one was built after the war. For many years it held the Bomarsund museum. ([Ålands museum, Bomarsund for schools](https://museum.ax/sites/default/files/attachments/page/Bomarsund%20f%C3%B6rberedelsematerial%20f%C3%B6r%20skolor%20l%C3%A4ttl%C3%A4st%20platser%20att%20bes%C3%B6ka.pdf))
 
 ### Lumparland and Lemland
 
@@ -155,6 +170,12 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 
 ### Mariehamn
 
+**Mariehamn town hall** · `-1941, 6925`
+> Lars Sonck, who also drew S:t Görans church, won a competition for Mariehamn's town hall, and it was finished in 1939. It once held the town's offices, police and court, and the offices of the autonomous government. His plans also had two wings and a tower for drying the volunteer firemen's hoses, but they were never built. ([Mariehamn city walk](https://www.mariehamn.ax/sites/default/files/attachments/guidedocument/citywalk_mariehamn_a3.pdf), [Hongell and Sonck](https://www.mariehamn.ax/sites/default/files/attachments/guidedocument/hongellsonck_sv.pdf))
+
+**Mariehamn water tower, Badhusberget** · `-2885, 6277`
+> Mariehamn's water tower stands on Badhusberget, which has long been the town's favourite lookout. An earlier tower here, a lookout built in 1933, began holding water in 1947, before this one replaced it in the 1950s. ([Mariehamn, the bathhouse era walk](https://www.mariehamn.ax/kultur-och-bibliotek/kulturarv/kmarkta-byggnader/vandring-badhusepoken))
+
 **Empress Maria Alexandrovna's memorial** · 60.09685, 19.94355 · `-1941, 6841` · L2334E
 > Mariehamn was founded in 1861 on the fields of Övernäs, and named Marie's Harbour after the Russian empress. Its wide streets were laid out as fire breaks. Around 1900 Hilda Hongell, Finland's first woman master builder, drew many of its wooden houses.
 
@@ -162,7 +183,7 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 > The one parish church here with no medieval past, built in 1927 to Lars Sonck's design with money from a shipowner couple who first gave anonymously. The town's organ is the biggest on Åland, and the old Skarpans bell, carried off as war booty in 1854, found its way here.
 
 **Gustaf Erikson's home** · 60.09728, 19.93809 · `-2238, 6761` · L2334E
-> The sailing-ship king lived here. When the world moved to steam, he bought big square-riggers cheap and kept them working. In the grain race of 1939, ten of the thirteen ships were his.
+> The sailing-ship king lived here. When the world moved to steam, he kept big square-riggers working, more than sixty ships over his life, and before 1940 his was the largest fleet of merchant sailing ships in the world. ([Mariehamn city walk](https://www.mariehamn.ax/sites/default/files/attachments/guidedocument/citywalk_mariehamn_a3.pdf))
 
 **Pommern** · 60.09743, 19.92498 · `-2963, 6666` · L2334E
 > Launched in Scotland in 1903, and in Erikson's fleet from 1923. She carried Australian wheat around Cape Horn until 1939. She has been Mariehamn's own since 1953, the last of her kind still in the harbour she sailed from.
@@ -287,6 +308,9 @@ Check these before they become in-game text.
 - **Kungsö battery:** 1916 in Visit Åland, 1916–18 in another. "Taken in 1918" by Finnish, Swedish and German troops has one weak source.
 - **The second petition** of 9,735 for and 461 against is undated on the Sundblom site, and is probably 1919.
 - **The Åland Congress's exact island.** Lövö on Vårdö in most sources, and Sundsher in one Russian source.
+
+- **The new places' notes.** Geta church's build date isn't given by kyrkor.ax: "most likely the 1460s" is Geta's own brochure, and a Wikipedia list's 1510–1540 clashes with the tree-ring date. The water tower's year is 1956 or 1957 and its architect differs between sources, so neither is named. Getabergen's 107 m is the municipality's, against 98–99 m elsewhere. Eckerö Golf's eighteen holes date from 2004 or 2014. Storberget's tower has no source for its height, builder or date.
+- **Gustaf Erikson's fleet in 1939.** "Ten of the thirteen ships in the grain race" rests on Wikipedia alone, so the note says instead what Mariehamn's own guide says.
 
 **Not confirmed at all, and kept out of the notes or worded around:**
 

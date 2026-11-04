@@ -1,11 +1,12 @@
 import type { OverviewFormat } from "../render/tile";
+import type { Place, PlaceKind } from "./places";
 import type { RoadGraph, Route } from "./road-graph";
 
 /*
  * Drawing a map on a 2D canvas, for both maps: the land from the overview, the
- * roads from the road network, the route, street names and the car. Colours are
- * the game's own tokens. Everything is worked out by hand from one view, so
- * names stay upright on a map that turns with the car.
+ * roads from the road network, the route, street names, the places to find and
+ * the car. Colours are the game's own tokens. Everything is worked out by hand
+ * from one view, so names stay upright on a map that turns with the car.
  */
 
 export interface MapView {
@@ -44,12 +45,14 @@ export interface MapInk {
   accent: string;
   /** Other players. */
   player: string;
+  /** A place that's been found. */
+  place: string;
 }
 
 export function mapInk(): MapInk {
   const styles = getComputedStyle(document.documentElement);
   const token = (name: string) => styles.getPropertyValue(`--color-aland-drive-${name}`).trim();
-  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player") };
+  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player"), place: token("ui-place") };
 }
 
 /** The land as an image a canvas can draw, from the overview's pixels. */
@@ -234,6 +237,140 @@ function arrow(pen: CanvasRenderingContext2D, [screenX, screenY]: [number, numbe
   pen.fill();
   pen.stroke();
   pen.restore();
+}
+
+/** A place's symbol, in a box from -1 to 1, y down: filled shapes, with lines for what's thinner. */
+const GLYPHS: Record<PlaceKind, (pen: CanvasRenderingContext2D) => void> = {
+  church: (pen) => {
+    fill(pen, [-0.55, 0.75], [-0.55, -0.05], [0, -0.5], [0.55, -0.05], [0.55, 0.75]);
+    line(pen, [0, -0.5], [0, -0.95]);
+    line(pen, [-0.2, -0.75], [0.2, -0.75]);
+  },
+  castle: (pen) => fill(pen, [-0.75, 0.75], [-0.75, -0.55], [-0.45, -0.55], [-0.45, -0.3], [-0.15, -0.3], [-0.15, -0.8], [0.15, -0.8], [0.15, -0.3], [0.45, -0.3], [0.45, -0.55], [0.75, -0.55], [0.75, 0.75]),
+  fort: (pen) => fill(pen, ...Array.from({ length: 10 }, (_, corner): [number, number] => {
+    const radius = corner % 2 === 0 ? 0.85 : 0.45;
+    const angle = (corner * Math.PI) / 5 - Math.PI / 2;
+    return [radius * Math.cos(angle), radius * Math.sin(angle)];
+  })),
+  ancient: (pen) => {
+    fill(pen, [-0.75, 0.7], [-0.7, -0.15], [-0.4, -0.25], [-0.35, 0.7]);
+    fill(pen, [-0.2, 0.7], [-0.2, -0.65], [0.2, -0.75], [0.25, 0.7]);
+    fill(pen, [0.4, 0.7], [0.45, -0.3], [0.75, -0.2], [0.75, 0.7]);
+  },
+  graves: (pen) => {
+    pen.beginPath();
+    pen.moveTo(-0.5, 0.75);
+    pen.lineTo(-0.5, -0.2);
+    pen.arc(0, -0.2, 0.5, Math.PI, 0);
+    pen.lineTo(0.5, 0.75);
+    pen.closePath();
+    pen.fill();
+  },
+  monument: (pen) => {
+    fill(pen, [-0.6, 0.8], [-0.6, 0.5], [0.6, 0.5], [0.6, 0.8]);
+    fill(pen, [-0.3, 0.5], [-0.18, -0.6], [0, -0.9], [0.18, -0.6], [0.3, 0.5]);
+  },
+  museum: (pen) => {
+    fill(pen, [-0.85, -0.35], [0, -0.85], [0.85, -0.35]);
+    fill(pen, [-0.85, 0.85], [-0.85, 0.6], [0.85, 0.6], [0.85, 0.85]);
+    for (const x of [-0.6, -0.2, 0.2, 0.6]) fill(pen, [x - 0.11, 0.6], [x - 0.11, -0.25], [x + 0.11, -0.25], [x + 0.11, 0.6]);
+  },
+  landmark: (pen) => fill(pen, ...Array.from({ length: 8 }, (_, corner): [number, number] => {
+    const radius = corner % 2 === 0 ? 0.9 : 0.32;
+    const angle = (corner * Math.PI) / 4 - Math.PI / 2;
+    return [radius * Math.cos(angle), radius * Math.sin(angle)];
+  })),
+  viewpoint: (pen) => {
+    fill(pen, [-0.9, 0.7], [-0.25, -0.45], [0.05, 0.05], [0.3, -0.25], [0.9, 0.7]);
+    pen.beginPath();
+    pen.arc(0.5, -0.6, 0.22, 0, Math.PI * 2);
+    pen.fill();
+  },
+  ship: (pen) => {
+    fill(pen, [-0.85, 0.35], [0.85, 0.35], [0.55, 0.8], [-0.55, 0.8]);
+    fill(pen, [-0.05, 0.2], [-0.05, -0.9], [-0.7, 0.2]);
+    fill(pen, [0.1, 0.2], [0.1, -0.7], [0.65, 0.2]);
+  },
+  golf: (pen) => {
+    line(pen, [-0.3, 0.8], [-0.3, -0.85]);
+    fill(pen, [-0.3, -0.85], [0.65, -0.55], [-0.3, -0.25]);
+    pen.beginPath();
+    pen.ellipse(-0.1, 0.8, 0.55, 0.14, 0, 0, Math.PI * 2);
+    pen.fill();
+  },
+};
+
+function fill(pen: CanvasRenderingContext2D, ...points: [number, number][]): void {
+  pen.beginPath();
+  points.forEach(([x, y], index) => (index === 0 ? pen.moveTo(x, y) : pen.lineTo(x, y)));
+  pen.closePath();
+  pen.fill();
+}
+
+function line(pen: CanvasRenderingContext2D, from: [number, number], to: [number, number]): void {
+  pen.beginPath();
+  pen.moveTo(...from);
+  pen.lineTo(...to);
+  pen.stroke();
+}
+
+/** A place on a map. */
+export interface MapPlace {
+  place: Place;
+  found: boolean;
+}
+
+/** Every place in sight, as its symbol on a disc: in the place's colour once found, and faint until then. Found places are named when `named`. */
+export function drawPlaces(pen: CanvasRenderingContext2D, view: MapView, places: readonly MapPlace[], size: number, ink: MapInk, named: boolean): void {
+  pen.font = "600 12px system-ui, sans-serif";
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  pen.lineJoin = "round";
+  // Found places last, so they sit over any faint one they touch.
+  for (const { place, found } of [...places].sort((a, b) => Number(a.found) - Number(b.found))) {
+    const [x, y] = view.toScreen(place.x, place.z);
+    if (x < -size || y < -size || x > view.width + size || y > view.height + size) continue;
+    pen.globalAlpha = found ? 1 : 0.55;
+    pen.fillStyle = found ? ink.place : ink.shade;
+    pen.strokeStyle = found ? ink.shade : ink.ink;
+    pen.lineWidth = 1.5;
+    pen.beginPath();
+    pen.arc(x, y, size, 0, Math.PI * 2);
+    pen.fill();
+    pen.stroke();
+    pen.save();
+    pen.translate(x, y);
+    pen.scale(size * 0.62, size * 0.62);
+    pen.fillStyle = ink.ink;
+    pen.strokeStyle = ink.ink;
+    pen.lineWidth = 0.2;
+    pen.lineCap = "round";
+    GLYPHS[place.kind](pen);
+    pen.restore();
+    if (named && found) {
+      pen.strokeStyle = ink.shade;
+      pen.lineWidth = 3;
+      pen.strokeText(place.name, x, y + size + 3);
+      pen.fillStyle = ink.place;
+      pen.fillText(place.name, x, y + size + 3);
+    }
+  }
+  pen.globalAlpha = 1;
+}
+
+/** The place whose symbol is under a point on the canvas, if any. */
+export function placeAt(view: MapView, places: readonly Place[], screenX: number, screenY: number, size: number): Place | null {
+  let best: Place | null = null;
+  let nearest = size;
+  for (const place of places) {
+    const [x, y] = view.toScreen(place.x, place.z);
+    const distance = Math.hypot(x - screenX, y - screenY);
+    if (distance <= nearest) {
+      nearest = distance;
+      best = place;
+    }
+  }
+  return best;
 }
 
 /** Another player on a map. */
