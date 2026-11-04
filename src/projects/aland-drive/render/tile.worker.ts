@@ -6,7 +6,6 @@ import { decodeSolids, type SolidsCell } from "./solids";
 import { wallFaces, wallSections, withWalls, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
 import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
-import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
 import { crowdBuffers, type CrowdArrays } from "../art/people/crowd";
 import { tileCrowd, type PeopleFile } from "./tile-people";
 
@@ -39,7 +38,6 @@ export interface FarTile {
 
 export interface DetailTile {
   detail: TileDetail;
-  roadDress: RoadAttributes;
   shade: Mips;
   ground: Mips;
   /** The town ground's image, or nothing for a tile without one, and each road section's class (zeros without). */
@@ -158,6 +156,9 @@ function fieldsOf(mask: Uint8Array, maskPixels: number, rock: Uint8Array | null,
   return fields;
 }
 
+/** The rock file's 4 m layer alone, for the simulation: what a tyre off the road is on. */
+const rockShares = (file: ArrayBuffer | null, world: WorldManifest) => (file && world.rock ? new Uint8Array(file, 0, world.rock.pixels * world.rock.pixels).slice() : null);
+
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const { far: format, heights, mask, ground, canopy, stands, water, rock } = world;
@@ -208,7 +209,7 @@ async function roadMap(base: string, world: WorldManifest): Promise<RoadGraphDat
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
-  const [heights, surface, waterLevels, shore, shade, ground, solids, models, docks, walls, roadsideFile, peopleFiles, parkedFile] = await Promise.all([
+  const [heights, surface, waterLevels, shore, shade, ground, solids, models, docks, walls, roadsideFile, peopleFiles, parkedFile, rock] = await Promise.all([
     reader.inflated(world.heights.file),
     reader.inflated(manifest.roadSurface.file),
     reader.inflated(world.water.levelsFile),
@@ -222,6 +223,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
     manifest.roadside ? reader.json<RoadsideFile>(manifest.roadside.file) : NO_ROADSIDE,
     Promise.all(Object.values(manifest.people ?? {}).map(({ file }) => reader.json<PeopleFile>(file))),
     manifest.parked ? reader.json<ParkedFile>(manifest.parked.file) : null,
+    world.rock ? reader.inflated(world.rock.file) : null,
   ]);
   const [town, townRibbons] = await townOf(reader, manifest, world);
   const parked = decodeParked(parkedFile);
@@ -231,8 +233,8 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   const stoneWalls = wallSections(walls, grid);
   const placed = decodeModels(models);
   const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest), manifest.nearSites);
-  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills), dockWalls(docks), parkedWalls(parked), addOnWalls));
-  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), town, townRibbons: townRibbons ?? new Uint8Array(detail.surface.tiers.length), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, addOns, bytes: reader.bytes };
+  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills), dockWalls(docks), parkedWalls(parked), addOnWalls), rockShares(rock, world));
+  return { detail, shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), town, townRibbons: townRibbons ?? new Uint8Array(detail.surface.tiers.length), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, addOns, bytes: reader.bytes };
 }
 
 const transfersOf = ({ grid, waterLevels, shore, shade, mask, ground, canopy, stands, fields, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, waterLevels.heights.buffer as ArrayBuffer, shore.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands, ...fields].map((mip) => mip.buffer as ArrayBuffer)];
@@ -245,8 +247,8 @@ async function townOf(reader: Reader, manifest: TileManifest, world: WorldManife
   return [mipChain(new Uint8Array(image), world.town.pixels, 4), new Uint8Array(ribbons)];
 }
 
-function detailTransfers({ detail, roadDress, shade, ground, town, townRibbons, buildings, models, docks, stoneWalls, roadside, people, parked }: DetailTile): Transferable[] {
-  const { ribbon, surface, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
+function detailTransfers({ detail, shade, ground, town, townRibbons, buildings, models, docks, stoneWalls, roadside, people, parked }: DetailTile): Transferable[] {
+  const { ribbon, surface, dress, ribbonSurfaces, rock, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
     waterLevels.heights,
@@ -257,8 +259,10 @@ function detailTransfers({ detail, roadDress, shade, ground, town, townRibbons, 
     ribbon.along,
     ribbon.tiers,
     ribbon.indices,
-    roadDress.surface,
-    roadDress.mark,
+    dress.surface,
+    dress.mark,
+    ribbonSurfaces,
+    ...(rock ? [rock] : []),
     ...ribbon.cells.map((cell) => cell.indices),
     roads.points,
     roads.lengths,

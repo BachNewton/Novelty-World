@@ -7,6 +7,7 @@ import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
 import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
+import type { Condition, Surface } from "./surfaces";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
 
@@ -89,9 +90,9 @@ export class SimulatedCar {
     this.car.body.setEnabled(false);
   }
 
-  swap(rapier: RAPIER.World, id: CarId): void {
+  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId): void {
     if (id === this.car.id) return;
-    const next = new Car(rapier, id);
+    const next = new Car(rapier, id, ground);
     next.takeOver(this.car);
     this.car.remove();
     this.car = next;
@@ -105,6 +106,11 @@ export class SimulatedCar {
 
   engine(): EngineRead & { reversing: boolean } {
     return { ...this.car.engine, reversing: this.car.reversing };
+  }
+
+  /** What each wheel was on the last time it touched: front left, front right, rear left, rear right. */
+  surfaces(): readonly Surface[] {
+    return this.car.surfaces;
   }
 
   /** The nearest road, facing the way along it nearest the way the car faces. */
@@ -189,7 +195,7 @@ export class Drive {
     this.rapier.timestep = STEP_S;
     this.ground = new GroundBlocks(this.rapier, world);
     this.addWalls();
-    this.player = new SimulatedCar(new Car(this.rapier, car), world);
+    this.player = new SimulatedCar(new Car(this.rapier, car, this.ground), world);
     this.remotes = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
@@ -235,7 +241,7 @@ export class Drive {
    */
   addCar(road: RoadPoint, id: CarId = DEFAULT_CAR): SimulatedCar {
     this.loadGround(placeOf(this.player.position), road);
-    const car = new SimulatedCar(new Car(this.rapier, id), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, id, this.ground), this.world);
     car.place(road);
     car.land();
     this.others.push(car);
@@ -270,7 +276,16 @@ export class Drive {
 
   /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
   setCar(id: CarId): void {
-    this.player.swap(this.rapier, id);
+    this.player.swap(this.rapier, this.ground, id);
+  }
+
+  /** What the weather has made of every surface, for every car: dry until something says otherwise. */
+  get condition(): Condition {
+    return this.ground.condition;
+  }
+
+  set condition(condition: Condition) {
+    this.ground.condition = condition;
   }
 
   /** The engine as it stands after the last step, and whether the car is in reverse. */

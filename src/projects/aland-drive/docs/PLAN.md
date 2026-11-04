@@ -103,7 +103,7 @@ Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this ga
 
 **Time of day and the seasons run on the world's clock**, the same for every player in the world, worked out from it with nothing sent. Things in the world move in real time, but the day runs faster than real time, as racing games' days do. The sun stands where it would over Åland's real latitude and longitude on that date, so summer has long days and winter long nights. How long a game day and a game season last is still open.
 
-**The weather and the seasons change grip**, so the car's grip is by surface and by condition (dry, wet, snow, ice) from the first piece that gives surfaces grip, before weather exists; weather then sets the condition without reopening the physics (`ideas/traffic-and-racers.md`).
+**The weather and the seasons change grip**, so the car's grip is by surface and by condition (dry, wet, snow, ice). That is built, before weather exists (`ideas/surface-grip.md`): weather and the seasons only set the condition, every surface's at once, without reopening the physics.
 
 **Every placed thing says which seasons it belongs to.** Café terraces and parasols, sunbathers, cows out to graze, midsummer poles, moored boats and the regatta are summer's, and the game leaves out what is out of season as it draws, rather than baking tiles per season, which would build and download the island four times over. A layer placed now carries its seasons from the start, since tagging it later means reopening every layer. Winter itself needs every kit's winter: bare deciduous trees and bushes, snow on spruce, snow over the summer aerial photos with roads cleared and banked, and ice on the sea with boats laid up.
 

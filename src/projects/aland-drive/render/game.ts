@@ -69,6 +69,7 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround, surfaceUnder } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, type CarId } from "../sim/cars";
+import { conditionAsked, type Condition, type Surface } from "../sim/surfaces";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 
@@ -173,6 +174,9 @@ export interface GameProbe {
   setCar: (id: CarId) => void;
   /** The car being driven. */
   carId: () => CarId;
+  /** What each wheel was on the last time it touched, front left, front right, rear left, rear right. */
+  surfaces: () => readonly Surface[];
+  setCondition: (condition: Condition) => void;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
@@ -256,6 +260,9 @@ export interface Game {
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
+  /** What the weather has made of every surface, until there is weather. */
+  condition: () => Condition;
+  setCondition: (condition: Condition) => void;
   setDevMenuOpen: (open: boolean) => void;
   /** The showcase spots, for a dev menu to jump to. */
   spots: readonly { id: string; name: string }[];
@@ -669,8 +676,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, town, townRibbons, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked, addOns }, done) {
-        const meshes = ribbonMeshes(detail, roadDress, townRibbons, roadMaterial);
+      place({ detail, shade: mips, ground, town, townRibbons, buildings: cells, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked, addOns }, done) {
+        const meshes = ribbonMeshes(detail, detail.dress, townRibbons, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
         const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial);
@@ -689,7 +696,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           scene.add(mesh);
           bridges.set(detail.name, mesh);
         }
-        const bytes = meshBytesOf(detail, roadDress, cells);
+        const bytes = meshBytesOf(detail, detail.dress, cells);
         meshBytesByTile.set(detail.name, bytes);
         meshBytes += bytes;
         layers.placeNear(world.named(detail.name), mips, ground, town, manifest, () => {
@@ -770,6 +777,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const askedRoad = askedAt ? world.roads.nearest(askedAt.x, askedAt.z) : undefined;
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M));
+  drive.condition = conditionAsked(window.location.search);
   let carSpec = PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
   const cullCar = (culled: boolean) => {
@@ -1348,6 +1356,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       rendererMemory: () => ({ ...renderer.info.memory }),
       setCar,
       carId: () => drive.carId,
+      surfaces: () => drive.player.surfaces(),
+      setCondition: (condition) => {
+        drive.condition = condition;
+      },
       online: () => {
         const state = onlineWorld?.state();
         return { status: state?.status ?? "idle", role: state?.role ?? null };
@@ -1372,6 +1384,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
+    condition: () => drive.condition,
+    setCondition: (condition) => {
+      drive.condition = condition;
+    },
     setDevMenuOpen,
     spots: SHOWCASE.map(({ id, name }) => ({ id, name })),
     jumpTo(id) {

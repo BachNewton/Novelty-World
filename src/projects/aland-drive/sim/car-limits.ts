@@ -1,14 +1,17 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
+import { SURFACE_GRIP, type Condition, type Surface } from "./surfaces";
 import table from "./car-limits.json";
 
 /*
  * What each car can do at the limit, measured in the simulation
  * (`measure-limits.ts`, run by `tools/car-limits.ts`): its grip in steady
  * corners, its braking and its pull, by speed. The racers plan their speeds
- * from it, so each drives its own car as that car can be driven. Each car's
- * entry carries a print of the tuning it was measured with, and a test holds
- * the two together, so a tuning change asks for the table to be measured again.
+ * from it, so each drives its own car as that car can be driven. A car has a
+ * row for every ground, each surface in each condition, measured on a pad of
+ * that surface alone. Each car's entry carries a print of the tuning and the
+ * surfaces' grip it was measured with, and a test holds the two together, so a
+ * change to either asks for the table to be measured again.
  */
 
 /** A rate over a band of speeds, in g. */
@@ -35,12 +38,17 @@ export interface CarLimits {
   reachedKmh: number;
 }
 
-/** A short print of a car's tuning: any change to a number changes it. */
+/** A surface in a condition, as the table names its rows. */
+export type Ground = `${Condition}-${Surface}`;
+
+export const groundOf = (condition: Condition, surface: Surface): Ground => `${condition}-${surface}`;
+
+/** A short print of a car's tuning and of every surface's grip: any change to a number changes it. */
 export function tuningPrint(tuning: CarTuning): string {
   let hash = 0x811c9dc5;
-  for (const character of JSON.stringify(tuning)) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
+  for (const character of JSON.stringify([tuning, SURFACE_GRIP])) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export const CAR_LIMITS: Readonly<Record<CarId, CarLimits & { tuning: string }>> = table;
+export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Record<Ground, CarLimits> }>> = table;
 
