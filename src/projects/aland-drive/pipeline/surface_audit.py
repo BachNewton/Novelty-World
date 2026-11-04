@@ -59,10 +59,13 @@ SMALLEST_TRIANGLE_M2 = 0.01
 CARRIAGEWAY, SHOULDER = 0, 1
 APRON_OWNER = 1_000_000
 # Who should be on top where two overlap: greater roads, then aprons (which tuck under the roads they join), then tracks
-# and paths, which pass under both.
+# and paths, which pass under both, except at their own ends: an apron joins those as it does a road's.
 APRON_RANK = 1_000_000
 UNDER_APRONS_RANK = 2_000_000
 LEAST_APRON_RANK = 4
+# An end within this of an apron's point lands on it, and its last stretch, as far as an apron reaches along a road, is over it.
+OWN_APRON_M = 0.3
+OWN_APRON_REACH_M = 26.0
 
 # Thresholds a fault must pass to count. Below these it isn't visible from a car.
 GAP_CLOSE_M = 1.5
@@ -136,6 +139,7 @@ def _kept(triangles: np.ndarray) -> np.ndarray:
 
 def drawn(chains: list[Chain], points: np.ndarray, apron_triangles: np.ndarray) -> Drawn:
     triangles, owner, rank, part, span = [], [], [], [], []
+    apron_points = cKDTree(points[np.unique(apron_triangles), :2]) if len(apron_triangles) else None
     for chain in chains:
         rings = chain.rings
         if len(rings) < 2:
@@ -143,7 +147,14 @@ def drawn(chains: list[Chain], points: np.ndarray, apron_triangles: np.ndarray) 
         on_span = np.zeros(len(rings) - 1, dtype=bool)
         for first, last in chain.spans:
             on_span[first:last] = True
-        chain_rank = chain.index if chain.motor and chain.rank <= LEAST_APRON_RANK else UNDER_APRONS_RANK + chain.index
+        chain_rank = np.full(len(rings) - 1, chain.index if chain.motor and chain.rank <= LEAST_APRON_RANK else UNDER_APRONS_RANK + chain.index)
+        if apron_points is not None and chain_rank[0] >= UNDER_APRONS_RANK:
+            steps = np.hypot(*np.diff(rings[:, 2, :2], axis=0).T)
+            along = np.concatenate(([0], np.cumsum(steps)))
+            middle = (along[:-1] + along[1:]) / 2
+            for end, from_end in ((0, middle), (-1, along[-1] - middle)):
+                if apron_points.query(rings[end, 1:4, :2])[0].min() < OWN_APRON_M:
+                    chain_rank[from_end < OWN_APRON_REACH_M] = chain.index
         for lane in range(RINGS - 1):
             here, ahead = rings[:-1], rings[1:]
             # As `render/roads.ts` cuts each quad.
@@ -151,7 +162,7 @@ def drawn(chains: list[Chain], points: np.ndarray, apron_triangles: np.ndarray) 
                 triangles.append(np.stack((a, b, c), axis=1))
                 count = len(a)
                 owner.append(np.full(count, chain.index))
-                rank.append(np.full(count, chain_rank))
+                rank.append(chain_rank)
                 part.append(np.full(count, CARRIAGEWAY if lane in (1, 2) else SHOULDER))
                 span.append(on_span)
     if len(apron_triangles):
