@@ -174,10 +174,37 @@ export interface Viewpoint {
   groundY: number | null;
 }
 
+/** Every way out from a point, to tell open air from air the model closes in: the 26 directions to a cube's faces, edges and corners. */
+const ALL_WAYS: P3[] = [-1, 0, 1].flatMap((x) => [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z): P3 => [x, y, z]))).filter((way) => way.some((value) => value !== 0)).map((way) => way.map((value) => value / Math.hypot(...way)) as P3);
+/** Air a camera can be in has this share of its ways out open, at least: inside a tower or under a closed roof, next to none are. */
+const OPEN_AIR = 0.2;
+/** How many points along a sight line, inside the model's box, are checked for open air. */
+const AIR_SAMPLES = 24;
+
+/** The share of ways out of a point that leave the model's box without meeting a face or the ground. */
+function openness(point: P3, model: Box, groundY: number | null): number {
+  const open = ALL_WAYS.filter((way) => {
+    const exit = exitAlong(model, point, way);
+    if (groundY !== null && way[1] < 0 && (point[1] - groundY) / -way[1] < exit) return false;
+    return !blocked(model, point, way, exit);
+  });
+  return open.length / ALL_WAYS.length;
+}
+
+/** Whether a sight line runs through open air all the way out of the model's box, rather than through space the model closes in, where no camera can be. */
+function throughOpenAir(from: P3, way: P3, exit: number, model: Box, groundY: number | null): boolean {
+  for (let sample = 1; sample <= AIR_SAMPLES; sample++) {
+    const along = (exit * sample) / (AIR_SAMPLES + 1);
+    if (along < 0.05) continue;
+    if (openness([0, 1, 2].map((axis) => from[axis] + way[axis] * along) as P3, model, groundY) < OPEN_AIR) return false;
+  }
+  return true;
+}
+
 /**
  * A sight line from a point on a plane, either side of it, that reaches somewhere a camera can be: out of the
- * model, without meeting a face or going under the ground first, or for a room, clear for a camera's room. Null when
- * none does: nothing sees the point, sealed inside or under the ground.
+ * model through open air, without meeting a face or going under the ground first, or for a room, clear for a camera's
+ * room. Null when none does: nothing sees the point, sealed inside, under the ground or only from air the model closes in.
  */
 function sightLine(point: P3, normal: P3, model: Box, { groundY }: Viewpoint): P3 | null {
   if (groundY !== null && point[1] < groundY) return null;
@@ -187,7 +214,7 @@ function sightLine(point: P3, normal: P3, model: Box, { groundY }: Viewpoint): P
       if (groundY === null) return !blocked(model, from, way, ROOM_CLEAR_M);
       const exit = exitAlong(model, from, way);
       if (way[1] < 0 && (from[1] - groundY) / -way[1] < exit) return false;
-      return !blocked(model, from, way, exit);
+      return !blocked(model, from, way, exit) && throughOpenAir(from, way, exit, model, groundY);
     });
     if (clear !== undefined) return clear;
   }
@@ -251,7 +278,7 @@ function differences(a: Face, b: Face, attributes: [string, Attribute][]): strin
 export function coplanarOverlaps(drawn: BufferGeometry | readonly BufferGeometry[], viewpoint: Viewpoint = { groundY: 0 }): CoplanarOverlap[] {
   const geometries = Array.isArray(drawn) ? drawn : [drawn as BufferGeometry];
   const sorted = geometries.flatMap((geometry, source) => faces(geometry, source)).sort((a, b) => a.offset - b.offset);
-  const attributes = geometries.map((geometry) => Object.entries(geometry.attributes).filter(([name]) => name !== "position"));
+  const attributes = geometries.map((geometry) => (Object.entries(geometry.attributes) as [string, Attribute][]).filter(([name]) => name !== "position"));
   const found: CoplanarOverlap[] = [];
   let model: Box | undefined;
   for (let one = 0; one < sorted.length; one++) {

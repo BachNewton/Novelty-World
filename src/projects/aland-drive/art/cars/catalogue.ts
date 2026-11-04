@@ -7,7 +7,7 @@ import { CARS, WORLD_CARS } from "./specs";
 /** Every car the gallery shows: the fourteen drivable cars at both details, body and glass together, and the world cars. */
 export function artModels(): ArtModel[] {
   const drivable = CARS.flatMap((spec) =>
-    (["hero", "far"] as const).flatMap((detail) => {
+    (["hero", "far"] as const).flatMap((detail): ArtModel[] => {
       const { body, glass, wheel } = buildCarArt(spec, detail);
       return [
         { name: `${spec.name} ${detail}`, geometries: { body: glass === null ? body : [body, glass] }, groundY: groundY(spec) },
