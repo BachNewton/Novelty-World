@@ -35,6 +35,8 @@ export class Autopilot {
     private readonly endsWithinM = 60,
     /** Tighter for a slow, narrow corner, which a long look cuts. */
     private readonly shortestLookM = SHORTEST_LOOK_M,
+    /** The sideways pull it takes a bend at: one for every car unless a measure asks for a car's own. */
+    private readonly cornerMS2 = CORNER_MS2,
   ) {
     this.along = from;
   }
@@ -72,7 +74,7 @@ export class Autopilot {
     for (let step = 1; step <= LOOK_STEPS; step++) {
       const reach = this.along + (step / LOOK_STEPS) * Math.max(speed * SPEED_LOOK_S, 40);
       const bend = Math.abs(wrap(this.line.at(reach + 12).heading - this.line.at(reach - 12).heading)) / 24;
-      if (bend > 1e-5) allowed = Math.min(allowed, Math.sqrt(CORNER_MS2 / bend));
+      if (bend > 1e-5) allowed = Math.min(allowed, Math.sqrt(this.cornerMS2 / bend));
     }
 
     const error = allowed - speed;
