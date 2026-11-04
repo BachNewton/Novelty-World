@@ -279,7 +279,7 @@ def osm_roadside_path(tile: Tile) -> Path:
 
 
 # The official sea chart, for the whole of Åland's box in ETRS-TM35FIN, by WFS. Väylävirasto's fairways and aids to
-# navigation are CC BY 4.0, Åland's own (Ålands landskapsregering's) among them. Traficom's depth areas come under its
+# navigation are CC BY 4.0, as the service's access constraints say, Åland's own (Ålands landskapsregering's) among them. Traficom's depth areas come under its
 # hydrographic data licence: free to copy, change and publish for anything but navigation, non-commercially, credited
 # with the month they were taken (see credits.ts).
 SEA_CHART_BOX = (62000, 6636000, 182000, 6756000)

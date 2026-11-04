@@ -74,7 +74,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 
 ## Data
 
-- **Väylävirasto's fairway register** (CC BY 4.0), from its open WFS (`avoinapi.vaylapilvi.fi/vaylatiedot/ows`): the navigation lines, fairway areas and aids to navigation of the official fairways, Ålands landskapsregering's and Mariehamn's among them, kept whole for Åland's box in `.data/raw/sea-chart/` by `sources.sea_chart_path`. 1,083 navigation lines and 1,953 aids. The lanes follow its lines; the sea marks stand at its aids.
+- **Väylävirasto's fairway register** (CC BY 4.0, as the WFS service's own access constraints state), from its open WFS (`avoinapi.vaylapilvi.fi/vaylatiedot/ows`): the navigation lines, fairway areas and aids to navigation of the official fairways, Ålands landskapsregering's and Mariehamn's among them, kept whole for Åland's box in `.data/raw/sea-chart/` by `sources.sea_chart_path`. 1,083 navigation lines and 1,953 aids. The lanes follow its lines; the sea marks stand at its aids.
 - **Traficom's depth areas** (`DepthArea_A`, 27,302 polygons, 190 MB raw), from its WFS (`julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs`), which serves them without a key. They are not CC BY: they come under Traficom's hydrographic data licence, free to copy, change and publish for anything but navigation and non-commercially, credited with the data's name and the month it was taken. The lanes keep keeled boats out of water shallower than their draft and half a metre; nothing else uses them yet.
 
 ## Removed

@@ -26,6 +26,7 @@ import argparse
 import glob
 import json
 import math
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,7 +47,6 @@ PROJECT = Path(__file__).resolve().parent.parent
 DATA = PROJECT / ".data"
 OUTPUT = PROJECT / "sea" / "lanes.json"
 PLACES = PROJECT / "art" / "marina" / "places.json"
-LICENCE = "Derived from OpenStreetMap, (c) its contributors, under the ODbL"
 
 CELL_M = 8
 PER_TILE = TILE_SIZE_M // CELL_M
@@ -745,6 +745,19 @@ def boat_lanes(water: Water, osm: Osm, official: list[np.ndarray]) -> list[dict]
     return lanes
 
 
+def licence() -> str:
+    """What the lanes are made from, each under its own terms. Traficom's licence asks for the month its data was taken."""
+    with sea_chart_path("depth-areas").open(encoding="utf-8") as raw:
+        month = re.search(r'"asOf": *"(\d{4})-(\d{2})', raw.read(2000))
+    if month is None:
+        raise ValueError("the depth areas say nowhere when they were taken")
+    return (
+        "Derived from OpenStreetMap ((c) its contributors, ODbL), the Finnish Transport Infrastructure Agency's fairway register (CC BY 4.0) "
+        "and the National Land Survey of Finland's elevation model (CC BY 4.0). Contains information received from the Finnish Transport and "
+        f"Communications Agency's nautical chart database {month[2]}/{month[1]}, under its hydrographic data licence: not for navigational use."
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--data", type=Path, default=DATA)
@@ -772,7 +785,7 @@ def main() -> None:
     boats = boat_lanes(water, osm, official)
     print(f"  {len(boats)} small boats' trips")
     OUTPUT.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(json.dumps({"licence": LICENCE, "ferries": ferries, "boats": boats}, separators=(",", ":")) + "\n", encoding="utf-8")
+    OUTPUT.write_text(json.dumps({"licence": licence(), "ferries": ferries, "boats": boats}, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"wrote {OUTPUT}, {OUTPUT.stat().st_size // 1024} kB")
 
 
