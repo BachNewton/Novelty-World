@@ -1,4 +1,4 @@
-import type { LaneNet, LaneRef } from "./lane-net";
+import type { LaneNet } from "./lane-net";
 import type { Connector, LaneLine } from "./lane-map";
 
 /*
@@ -233,4 +233,3 @@ export class Around {
   }
 }
 
-export type { LaneRef };

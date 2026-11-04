@@ -1,6 +1,6 @@
 # Car traffic and AI racers
 
-A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea, not a plan in motion: nothing here is built and no session is scheduled for it. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
+A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in motion: the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10) are built, as the project's `CLAUDE.md` describes; the rest isn't. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
 
 The two are designed together because they stand on the same foundation, and because the obvious framing, cheap cars for traffic and real cars for racers, needed testing against the code before either is built. It holds, with three corrections the code forced:
 
