@@ -1,8 +1,7 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { runMotion } from "../street/paint";
 import { house, houseFar, lettering, letteredWidth, plate, ring } from "./kit";
-import { IdentityMesh, identityModel, type IdentityPart, type Motion } from "./mesh";
+import { IdentityMesh, identityModel, type IdentityPart } from "./mesh";
 
 /*
  * Things that say where the sea is. None portrays a particular structure: Åland's
@@ -124,7 +123,7 @@ export function buildFerryCable(): RoadsideModel {
     const [a, b] = [(step / 4) * FERRY_CABLE_M, ((step + 1) / 4) * FERRY_CABLE_M];
     mesh.beam([a, sagged(a), 0], [b, sagged(b), 0], 0.05, 0.05, "pipe");
   }
-  return identityModel(mesh, null, 800, 800, runMotion as unknown as Motion);
+  return identityModel(mesh, null, 800, 800);
 }
 
 /** A small cable ferry, for later: an open car deck with a ramp each end and a wheelhouse up on one side, hauled along a wire. Its origin is on the water, the way across along +x. */

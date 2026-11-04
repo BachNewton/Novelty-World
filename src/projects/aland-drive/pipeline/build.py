@@ -40,6 +40,7 @@ import terrain
 import vectors
 import raised
 import walls
+import seated
 import waterfront
 from give_way import give_way
 from progress import Progress, stage
@@ -425,6 +426,7 @@ def main() -> None:
     build_all(names, arguments.jobs, arguments.refresh_osm)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     waterfront.bake_tiles(names, OUTPUT)
+    seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside, whose lamps and signs the cars keep clear of.
     parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()

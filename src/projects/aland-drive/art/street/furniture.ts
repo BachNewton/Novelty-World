@@ -13,8 +13,10 @@ const SWAP_M = 42;
 const REACH_M = 200;
 
 const BENCH_WIDE_M = 1.8;
+// Past where the gaps between its slats are under a pixel, so the far bench's solid seat and back can't be told from them.
+const BENCH_SWAP_M = 70;
 
-/** A park bench: dark iron ends under wooden slats. Far off, a seat and a back. */
+/** A park bench: dark iron ends under wooden slats. Far off, a seat and a back on the same iron legs, open beneath as the near one is. */
 export function buildBench(): RoadsideModel {
   const half = BENCH_WIDE_M / 2;
   const near = new Painted();
@@ -34,9 +36,12 @@ export function buildBench(): RoadsideModel {
     near.beam([-half, y, z], [half, y, z], 0.085, 0.03, "bench-wood", 0.92, 1.05);
   }
   const far = new Painted()
-    .box([-half, -SINK_M, -0.25], [half, 0.47, 0.28], "bench-wood", { open: true, shade: 0.5, shadeTop: 1.1 })
-    .face([[-half, 0.47, -0.25], [half, 0.47, -0.25], [half, 0.84, -0.34], [-half, 0.84, -0.34]], "bench-wood");
-  return streetModel(near, far, SWAP_M, REACH_M);
+    .beam([-half, 0.455, 0.022], [half, 0.455, 0.022], 0.55, 0.03, "bench-wood", 0.8, 1.12)
+    .beam([-half, 0.675, -0.268], [half, 0.675, -0.268], 0.03, 0.315, "bench-wood", 0.75, 0.85);
+  for (const x of [-half + 0.14, half - 0.14]) {
+    far.beam([x, -SINK_M, 0.25], [x, 0.44, 0.22], 0.05, 0.05, "iron").beam([x, -SINK_M, -0.2], [x, 0.84, -0.33], 0.05, 0.04, "iron");
+  }
+  return streetModel(near, far, BENCH_SWAP_M, REACH_M);
 }
 
 /** A round steel litter bin on its post, with a hooded top. */
@@ -103,20 +108,6 @@ function chair(into: Painted, [cx, , cz]: V3, turn: number): Painted {
   for (const [x, z] of [[-1, 1], [1, 1]]) into.beam(at(x * half * 0.85, 0, z * half * 0.9), at(x * half * 0.85, seat, z * half * 0.85), 0.025, 0.025, "cafe-frame");
   for (const x of [-1, 1]) into.beam(at(x * half, 0, -half), at(x * half * 0.92, back, -half - 0.06), 0.025, 0.025, "cafe-frame");
   return into.face([at(-half * 0.92, back, -half - 0.06), at(half * 0.92, back, -half - 0.06), at(half * 0.97, back - 0.2, -half - 0.04), at(-half * 0.97, back - 0.2, -half - 0.04)], "cafe-frame", 1.15);
-}
-
-/** One table, on its own. */
-export function buildCafeTable(): RoadsideModel {
-  const far = new Painted().face(levelRing([0, TABLE_TALL_M, 0], TABLE_RADIUS_M, 5), "cafe-top").tube([0, 0, 0], [0, TABLE_TALL_M, 0], 0.05, 3, {}, "cafe-frame");
-  return streetModel(table(new Painted(), 10), far, CAFE_SWAP_M, CAFE_REACH_M);
-}
-
-/** One chair facing +z, on its own, for a terrace set out by hand. */
-export function buildCafeChair(): RoadsideModel {
-  const far = new Painted()
-    .face([[-0.2, 0.46, -0.2], [0.2, 0.46, -0.2], [0.2, 0.46, 0.2], [-0.2, 0.46, 0.2]], "cafe-frame", 1.2)
-    .face([[-0.2, 0, -0.22], [0.2, 0, -0.22], [0.18, 0.84, -0.26], [-0.18, 0.84, -0.26]], "cafe-frame");
-  return streetModel(chair(new Painted(), [0, 0, 0], 0), far, CAFE_SWAP_M, CAFE_REACH_M);
 }
 
 /** A table with two chairs, as one model: what a terrace is mostly made of, in one instance. */

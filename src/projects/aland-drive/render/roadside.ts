@@ -1,11 +1,13 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import { buildBusShelter, buildMailbox, buildPowerPole, buildStreetLamp, buildWireSpan, placeModel, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
-import { buildGuardRail, buildGuardRailEnd, buildReflectorPost, type StreetMaterials } from "../art/street/index";
-import { ROADSIDE_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
+import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildGuardRail, buildGuardRailEnd, buildParasol, buildReflectorPost, type StreetMaterials } from "../art/street/index";
+import { ROADSIDE_FLOATS, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
- * their wires, guard rails, edge posts, mailboxes, bus shelters and signs. As with
+ * their wires, guard rails, edge posts, mailboxes, bus shelters and signs, and the
+ * street furniture (`pipeline/furniture.py`): benches, bins, bike racks, café
+ * tables and parasols. As with
  * the rural buildings, each model is one list of places across every loaded tile,
  * so its draws don't grow with the tiles, and a tile landing or leaving rebuilds
  * only the lists it touches, a few floats a place. Every model dissolves at its
@@ -22,6 +24,11 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   rail: { build: buildGuardRail, kit: "street" },
   "rail-end": { build: buildGuardRailEnd, kit: "street" },
   "reflector-post": { build: buildReflectorPost, kit: "street" },
+  bench: { build: buildBench, kit: "street" },
+  bin: { build: buildBin, kit: "street" },
+  "bike-rack": { build: buildBikeRack, kit: "street" },
+  "cafe-set": { build: buildCafeSet, kit: "street" },
+  parasol: { build: buildParasol, kit: "street" },
 };
 
 /** A list with no places keeps one folded to nothing, so its meshes always exist to be compiled before the drive. */
@@ -145,11 +152,12 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
       hidden = !shown;
       for (const [mesh, has] of placed) visibility(mesh, has);
     },
-    /** How many places each list holds across the loaded tiles, signs as posts. */
+    /** How many places each list holds across the loaded tiles, signs as posts, and the seats on the furniture. */
     counts() {
       const counted: Record<string, number> = Object.fromEntries(models.map(({ name }) => [name, [...tiles.values()].reduce((sum, tile) => sum + (name in tile.models ? tile.models[name].length / ROADSIDE_FLOATS : 0), 0)]));
       counted.wires = [...tiles.values()].reduce((sum, tile) => sum + tile.wires.length / WIRE_FLOATS, 0);
       counted.signs = [...tiles.values()].reduce((sum, tile) => sum + Object.values(tile.signs).reduce((posts, floats) => posts + floats.length / SIGN_FLOATS, 0), 0);
+      counted.seats = [...tiles.values()].reduce((sum, tile) => sum + Object.values(tile.seats).reduce((seats, floats) => seats + floats.length / SEAT_FLOATS, 0), 0);
       return counted;
     },
     dispose() {

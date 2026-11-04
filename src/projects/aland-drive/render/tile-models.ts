@@ -58,8 +58,21 @@ export interface TileRoadside {
   wires: Float32Array;
   /** What the car can't pass, as the solids' walls are: x and z at either end. */
   walls: Float32Array;
+  /**
+   * Where a person would sit on the furniture (`pipeline/furniture.py`), by the
+   * `art/people` pose that fits the seat: x, y, z, yaw, `SEAT_FLOATS` to a seat.
+   * x, y and z are the pose's origin, the seat's footprint on the drawn ground, and
+   * yaw turns the person's +z, the way they face, towards (sin yaw, cos yaw), as a
+   * placed model's does. Every bench has two `sit-bench` seats, every café table
+   * two `sit-cafe` chairs facing each other across it. Nobody sits on them yet.
+   */
+  seats: Partial<Record<SeatPose, Float32Array>>;
 }
 export const ROADSIDE_FLOATS = 6;
+export const SEAT_FLOATS = 4;
+/** The poses a seat is for, by name in `art/people`'s `POSES`. */
+export const SEAT_POSES = ["sit-bench", "sit-cafe"] as const;
+export type SeatPose = (typeof SEAT_POSES)[number];
 export const SIGN_FLOATS = 4;
 export const WIRE_FLOATS = 8;
 
@@ -68,6 +81,8 @@ export interface RoadsideFile {
   signs: Record<string, number[][]>;
   wires: number[][];
   walls: number[][];
+  /** Absent from a tile baked before the furniture. */
+  seats?: Partial<Record<SeatPose, number[][]>>;
 }
 
 export const NO_ROADSIDE: RoadsideFile = { models: {}, signs: {}, wires: [], walls: [] };
@@ -75,5 +90,5 @@ export const NO_ROADSIDE: RoadsideFile = { models: {}, signs: {}, wires: [], wal
 const columns = (lists: Record<string, number[][]>) => Object.fromEntries(Object.entries(lists).map(([name, places]) => [name, Float32Array.from(places.flat())]));
 
 export function decodeRoadside(file: RoadsideFile): TileRoadside {
-  return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()) };
+  return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()), seats: columns(file.seats ?? {}) };
 }

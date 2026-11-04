@@ -20,7 +20,7 @@ import { createReeds, type ReedsDrawn } from "./reeds";
 import { createShrubs, type ShrubsDrawn } from "./shrubs";
 import { createGranite, type GraniteDrawn } from "./granite";
 import { createVerge, type VergeDrawn } from "./verge";
-import { createWallClearing, FAR_CLEARING, NEAR_CLEARING } from "./wall-clearing";
+import { createWallClearing, FAR_CLEARING, furnitureClearances, NEAR_CLEARING } from "./wall-clearing";
 import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
@@ -622,7 +622,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         docks.add(detail.name, moored);
         people.add(detail.name, crowd);
         stoneWalls.add(detail.name, walls);
-        for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, walls);
+        for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, [{ sections: walls, outM: 0 }, ...furnitureClearances(placed.models)]);
         roadside.add(detail.name, placed);
         parkedCars.add(detail.name, parked);
         if (detail.bridges.positions.length > 0) {

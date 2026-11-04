@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoadsideModel } from "../roadside/models";
 import { FLAGS } from "./flags";
-import { buildBench, buildBikeRack, buildBin, buildCafeChair, buildCafeSet, buildCafeTable, buildParasol, buildPlanter, buildPlanterRound } from "./furniture";
+import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildParasol, buildPlanter, buildPlanterRound } from "./furniture";
 import { buildBollard, buildHarbourCrane, buildSailboat } from "./harbour";
 import { buildFlagpole } from "./flags";
 import { buildLinden } from "./linden";
@@ -27,8 +27,6 @@ describe("street triangle budgets", () => {
     bench: buildBench(),
     bin: buildBin(),
     rack: buildBikeRack(),
-    table: buildCafeTable(),
-    chair: buildCafeChair(),
     set: buildCafeSet(),
     parasol: buildParasol(),
     planter: buildPlanter(),

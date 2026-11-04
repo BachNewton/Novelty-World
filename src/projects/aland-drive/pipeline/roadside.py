@@ -13,6 +13,9 @@ surface and OSM's road tags:
 - a speed sign wherever OSM's limit changes along a road;
 - mailboxes at the mouth of a country drive that leads to a house, outside a town.
 
+Street furniture (benches, bins, bike racks, café terraces) and the seats on it
+are `furniture.py`'s, placed in the same lists once these stand.
+
 Traffic keeps right, so a sign stands on the right of the traffic it's for and faces
 it. The list also holds the walls the car can't pass: poles, lamps, rails and
 shelters. A breakaway sign post, an edge post or a mailbox stops no car.
@@ -31,6 +34,8 @@ from pathlib import Path
 
 import numpy as np
 import shapely
+
+import furniture
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
@@ -688,10 +693,11 @@ class Roadside:
         self.speed_signs()
         self.stops_and_crossings()
         self.mailboxes(landings)
+        seats = furniture.place(self)
         # Last, so an edge post makes way for everything else at the roadside.
         placed = [np.array([place[0], -place[2]]) for name in ("rail", "rail-end", "mailbox", "bus-shelter") for place in self.models.get(name, [])]
         self.edge_posts(placed + self.posts)
-        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls}
+        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats}
 
 
 def limit_changes(along: np.ndarray, speeds: list[int | None]) -> list[tuple[int, int]]:
@@ -747,7 +753,7 @@ def bake(tile: Tile, folder: Path, tiles: Path) -> dict:
     """Writes the tile's roadside list and returns its manifest entry."""
     placed = Roadside(tile, folder, tiles).bake()
     replace_text(folder / FILE, json.dumps(placed, separators=(",", ":")))
-    count = {**{name: len(places) for name, places in placed["models"].items()}, **{f"sign {name}": len(places) for name, places in placed["signs"].items()}, "wires": len(placed["wires"]), "walls": len(placed["walls"])}
+    count = {**{name: len(places) for name, places in placed["models"].items()}, **{f"sign {name}": len(places) for name, places in placed["signs"].items()}, "wires": len(placed["wires"]), "walls": len(placed["walls"]), **{f"seat {pose}": len(places) for pose, places in placed["seats"].items()}}
     return {"file": FILE, "count": dict(sorted(count.items()))}
 
 

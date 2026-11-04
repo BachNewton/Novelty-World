@@ -75,10 +75,10 @@ export const STREET_PARTS = [
 
 export type StreetPart = (typeof STREET_PARTS)[number];
 
-/** How a vertex moves. A `run` part doesn't move, but is a run's: it rises from the ground at its reach rather than shrinking to a point, which would open gaps along it. */
-export type MotionKind = "still" | "leaf" | "cloth" | "hull" | "run";
+/** How a vertex moves. */
+export type MotionKind = "still" | "leaf" | "cloth" | "hull";
 
-export const MOTION_KINDS: readonly MotionKind[] = ["still", "leaf", "cloth", "hull", "run"];
+export const MOTION_KINDS: readonly MotionKind[] = ["still", "leaf", "cloth", "hull"];
 /** The furthest a vertex can be told to move, in metres: the whole range of the channel it's kept in. */
 export const MOTION_RANGE_M = 0.6;
 
@@ -164,9 +164,6 @@ export class Painted {
 export function streetModel(near: Painted, far: Painted | null, swapM: number, reachM: number, motion?: Motion): RoadsideModel {
   return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
 }
-
-/** Every part of a run rises rather than shrinks. */
-export const runMotion: Motion = () => ({ kind: "run" });
 
 /** A ring of `sides` points round a centre on a level plane: for discs, lids and table tops. */
 export function levelRing(centre: V3, radius: number, sides: number, turn = 0): V3[] {

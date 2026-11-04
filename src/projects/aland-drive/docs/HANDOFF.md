@@ -14,7 +14,7 @@ The bucket holds one tile version, `864b209e5ae8` (about 400 MB of the 1 GB it s
 
 Granite (`pipeline/rocks.py`: rock outcrops, boulder fields and boulders) and the shore (`pipeline/docks.py`: jetties, harbour piers, pontoons and boats, and piers no longer laid as road bridges) are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish. The docks change how roads are laid on piers, so it takes a full `build.py --island`, which runs every step, not the two scripts alone. Both read as absent on older tiles, so the game runs on the published tiles meanwhile, with neither.
 
-People (`pipeline/waterfront.py`, `render/people.ts`: fishers, sitters, tenders and strollers on the docks, and groups at the landmarks) are in the game on tiles the script has been run on, and not in the published tiles either. `waterfront.py` alone adds them to tiles already built, after the docks; a tile without them has no one. Seated people on benches and café chairs, and walkers, are the next to place, through the same per-tile files (`pipeline/people.py`).
+People (`pipeline/waterfront.py`, `render/people.ts`: fishers, sitters, tenders and strollers on the docks, and groups at the landmarks) are in the game on tiles the script has been run on, and not in the published tiles either. `waterfront.py` alone adds them to tiles already built, after the docks; a tile without them has no one. Street furniture (`pipeline/furniture.py`, in the roadside's list) and people seated on it (`pipeline/seated.py`) are the same: in the game on tiles rebuilt since, run after the roadside, and not published. Walkers are the next to place, through the same per-tile files (`pipeline/people.py`).
 
 ## What's next, in order
 
