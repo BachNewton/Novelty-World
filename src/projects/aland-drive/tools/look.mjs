@@ -17,6 +17,10 @@ const [WIDTH, HEIGHT] = (option("size") ?? "1600x900").split("x").map(Number);
 const URL = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const FRAMES_TO_SETTLE = 3;
 const SHOTS = option("shots");
+// A shot that can't become ready fails the run and closes the browser, which otherwise draws on with no frame limit: a
+// tile file that fails to load never lands, so the stream never drains, and the game shows that it lost part of the map.
+// The deadline is for a stall that says nothing; a far jump with its tiles lands well inside it.
+const SHOT_DEADLINE_S = 300;
 
 const looks = SHOTS
   ? positional.map((look) => {
@@ -35,17 +39,29 @@ const problems = [];
 page.on("console", (message) => {
   if (message.type() === "error" || message.type() === "warning") problems.push(`${message.type()}: ${message.text()}`);
 });
-page.on("pageerror", (error) => problems.push(`thrown: ${error.stack ?? error.message}`));
+let pageThrew;
+const thrown = new Promise((_, reject) => (pageThrew = reject));
+thrown.catch(() => {});
+page.on("pageerror", (error) => {
+  problems.push(`thrown: ${error.stack ?? error.message}`);
+  pageThrew(new Error(`the page threw: ${error.message}`));
+});
+const lostMap = page.getByText("lost part of the map");
+const stopped = lostMap.waitFor({ timeout: 0 }).then(async () => {
+  throw new Error(`the game stopped: ${await lostMap.innerText()}`);
+});
+stopped.catch(() => {});
+const reported = () => [...new Set(problems)].slice(0, 20).join("\n");
 
 await page.goto(URL, { waitUntil: "load" });
 await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 await page.waitForFunction(() => window.__alandDrive !== undefined, null, { timeout: 180000 }).catch(async (error) => {
-  console.log(`no game: ${error.message}\n${[...new Set(problems)].slice(0, 20).join("\n")}\n${(await page.locator("body").innerText()).slice(0, 600)}`);
+  console.log(`no game: ${error.message}\n${reported()}\n${(await page.locator("body").innerText()).slice(0, 600)}`);
   await browser.close();
   process.exit(1);
 });
 
-for (const { out, place } of looks) {
+const shoot = async (place) => {
   if (place.length === 5) {
     const [east, north, height, yaw, pitch] = place;
     await page.evaluate((at) => window.__alandDrive.look(at), { east, north, height, yaw, pitch });
@@ -88,12 +104,26 @@ for (const { out, place } of looks) {
     while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
     await framesPass(settle);
   }, FRAMES_TO_SETTLE);
-  const report = await page.evaluate(async () => {
+  return page.evaluate(async () => {
     const adapter = await navigator.gpu.requestAdapter();
     return { counts: window.__alandDrive.counts(), reeds: window.__alandDrive.reedsDrawn(), shrubs: window.__alandDrive.shrubsDrawn(), granite: window.__alandDrive.graniteDrawn(), gpu: adapter?.info?.description || adapter?.info?.vendor };
   });
-  await page.screenshot({ path: out });
-  console.log(out, JSON.stringify(report));
+};
+
+for (const { out, place } of looks) {
+  let deadline;
+  const late = new Promise((_, reject) => (deadline = setTimeout(() => reject(new Error(`not ready within ${SHOT_DEADLINE_S} s`)), SHOT_DEADLINE_S * 1000)));
+  try {
+    const counts = await Promise.race([shoot(place), thrown, stopped, late]);
+    await page.screenshot({ path: out });
+    console.log(out, JSON.stringify(counts));
+  } catch (error) {
+    console.log(`${out} failed: ${error.message}\n${reported()}`);
+    await browser.close();
+    process.exit(1);
+  } finally {
+    clearTimeout(deadline);
+  }
 }
-if (problems.length > 0) console.log(`The page reported:\n${[...new Set(problems)].slice(0, 20).join("\n")}`);
+if (problems.length > 0) console.log(`The page reported:\n${reported()}`);
 await browser.close();
