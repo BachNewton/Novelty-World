@@ -7,7 +7,7 @@ import type { GroundSite } from "./places";
  * sides, as a statue does from a street away. Andrej Kovaltjuk's Empress Maria Alexandrovna (2011) stands at the foot
  * of Stadshusbacken in a full crinoline gown, a shawl over her shoulders, on a stepped plinth with her name on it,
  * looking up the slope towards the town hall. Viktor Jansson's Julius Sundblom (1948), the editor and Åland's first
- * speaker, stands on Torget's round plaza in a long coat, one hand behind his back, on a tall plain block. The figures
+ * speaker, stands on Torget's round plaza in a long coat, one hand behind his back, on a tall plain block over a step and a low granite base. The figures
  * are our own forms, not copies of the sculptors': a statue's place and its kind are the real thing, its pose a nod.
  */
 
@@ -50,12 +50,20 @@ const STATUES: readonly StatueSpec[] = [
     east: 108054,
     north: 6683243,
     facingDeg: 175,
-    plinth: { steps: [[1.3, 0.3]], block: [0.85, 0.85, 2.1] },
+    plinth: {
+      steps: [
+        [1.9, 0.12],
+        [1.3, 0.3],
+      ],
+      block: [0.85, 0.85, 2.1],
+    },
     figure: { tall: 2.4, gown: false },
   },
 ];
 
 const SINK = 0.5;
+/** How far the near version's cornice rises over the block it caps, which the figure stands on. */
+const CORNICE_PROUD = 0.02;
 
 function plinth(mesh: MeshBuilder, spec: StatueSpec, near: boolean) {
   let y = 0;
@@ -67,9 +75,11 @@ function plinth(mesh: MeshBuilder, spec: StatueSpec, near: boolean) {
   mesh.box([0, y + tall / 2, 0], [hx * 2, tall, hz * 2], flat("plinth-granite"), 0, flat("plinth-granite", 1.08));
   if (near) {
     // A cornice under the figure, and a darker inscription panel on the front (+z faces the way the figure looks).
-    mesh.box([0, y + tall - 0.09, 0], [hx * 2 + 0.16, 0.18, hz * 2 + 0.16], flat("plinth-granite", 1.04));
+    // Each stands a little proud of the block's own faces, so no two faces share a plane.
+    mesh.box([0, y + tall - 0.07, 0], [hx * 2 + 0.16, 0.18, hz * 2 + 0.16], flat("plinth-granite", 1.04));
     mesh.box([0, y + 0.18, 0], [hx * 2 + 0.12, 0.2, hz * 2 + 0.12], flat("plinth-dark"));
-    mesh.box([0, y + tall * 0.55, hz + 0.01], [hx * 1.3, tall * 0.28, 0.02], flat("plinth-dark"));
+    mesh.box([0, y + tall * 0.55, hz + 0.015], [hx * 1.3, tall * 0.28, 0.02], flat("plinth-dark"));
+    return y + tall + CORNICE_PROUD;
   }
   return y + tall;
 }

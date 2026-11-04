@@ -216,12 +216,17 @@ function instanceBuffers(model: RoadsideModel, places: readonly Placement[]) {
 }
 
 /** A model at all its places: one or two meshes to add to the scene, which then need nothing further. */
-export function placeModel(model: RoadsideModel, places: readonly Placement[], { near, far }: RoadsideMaterials): Mesh[] {
-  const buffers = instanceBuffers(model, places);
-  const meshes = [new Mesh(instanced(model.near, buffers, places.length), near)];
-  if (model.far !== null) meshes.push(new Mesh(instanced(model.far, buffers, places.length), far));
-  for (const mesh of meshes) mesh.frustumCulled = false;
-  return meshes;
+export function placeModel(model: RoadsideModel, places: readonly Placement[], materials: RoadsideMaterials): Mesh[] {
+  return [...placeVersion(model, "near", places, materials), ...placeVersion(model, "far", places, materials)];
+}
+
+/** One version of a model at its places, for lists that hold different places: none for a far version the model hasn't. */
+export function placeVersion(model: RoadsideModel, version: "near" | "far", places: readonly Placement[], materials: RoadsideMaterials): Mesh[] {
+  const geometry = model[version];
+  if (geometry === null) return [];
+  const mesh = new Mesh(instanced(geometry, instanceBuffers(model, places), places.length), materials[version]);
+  mesh.frustumCulled = false;
+  return [mesh];
 }
 
 export interface SignPlacement extends Placement {

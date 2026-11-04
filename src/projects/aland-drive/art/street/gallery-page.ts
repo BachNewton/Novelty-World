@@ -3,7 +3,7 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildPier, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
-import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
+import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
 
 /*
  * The gallery's scene, built as the roadside gallery's is (its page has no exports:
@@ -132,11 +132,6 @@ add(reflector, [...rowAlong(reflectorLine, 25, 4.4, undefined, Math.PI / 2), ...
 look("reflector-post", "reflector post, facing oncoming traffic", station(1) - 37.5, [3.5, 1.1, -3], [0, 0.7, -4.4], 16);
 look("reflector-road", "reflector posts down the road", station(1), [-58, 1.3, 1.5], [60, 0.6, 0], 30);
 
-// 2: speed camera.
-const speedCamera = buildSpeedCamera();
-add(speedCamera, [{ x: station(2), y: 0, z: VERGE_Z, yaw: -Math.PI / 2 }]);
-look("speed-camera", "speed camera", station(2), [-11, 1.3, 1.5], [0, 2.5, VERGE_Z], 34);
-
 // 3: the verge.
 const tufts = [buildGrassTuft(3), buildGrassTuft(9, 0.95), buildSeedGrass(11)];
 const flowers: Wildflower[] = ["daisy", "buttercup", "lupine", "fireweed", "cow-parsley"];
@@ -184,6 +179,11 @@ add(cafe, terrace);
 add(parasol, terrace.filter((_, index) => index % 3 === 0));
 look("cafe", "café terrace", station(6), [-5, 1.3, 1.5], [3, 1, VERGE_Z - 1], 50);
 look("cafe-close", "table, chairs", station(6), [-2.5, 1.25, -1.8], [1, 0.5, VERGE_Z + 0.5], 44);
+
+// Across the handovers: one line of sight at the game's lens, either side of each model's swap (café 36 m, bin and
+// rack 42 m, bench 70 m), to see that a version changing can't be told.
+for (const metres of [30, 34, 38, 44, 60]) look(`cafe-${metres}m`, `café terrace at ${metres} m`, station(6), [3.6, 1.6, VERGE_Z + metres], [3.6, 1, VERGE_Z - 1]);
+for (const metres of [36, 40, 46, 62, 66, 74, 80]) look(`furniture-${metres}m`, `bench, bin, bike rack at ${metres} m`, station(5), [1.5, 1.6, VERGE_Z + 1 + metres], [1.5, 0.5, VERGE_Z + 1]);
 
 // 7: planters.
 add(planter, [{ x: station(7), y: 0, z: VERGE_Z + 1 }, { x: station(7) + 1.5, y: 0, z: VERGE_Z + 1 }]);
@@ -337,7 +337,6 @@ window.__streetGallery = {
     "guard rail ramped end": triangles(railEnd),
     "guard rail return": triangles(railReturn),
     "reflector post": triangles(reflector),
-    "speed camera": triangles(speedCamera),
     "grass tuft": triangles(tufts[0]),
     "seed grass": triangles(tufts[2]),
     ...Object.fromEntries(flowers.map((kind, index) => [kind, triangles(flowerModels[index])])),

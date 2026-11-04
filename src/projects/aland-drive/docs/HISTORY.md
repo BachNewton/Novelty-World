@@ -82,7 +82,7 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 **Geta church, S:t Göran** · `-3848, -24565`
 > Built of Åland red granite, most likely in the 1460s, as a chapel under Finström's parish. Geta only became a parish of its own in 1908. The story goes that Västergeta villagers pulled down by night what their neighbours at Olofsnäs built by day, until the villages let an ox drag a stone and built where it stopped. ([kyrkor.ax](https://kyrkor.ax/churches/geta-church), [Geta brochure](https://www.geta.ax/sites/default/files/attachments/page/Geta%20Broschyr%202020%20FINAL.pdf), [Geta's history](https://www.geta.ax/sites/default/files/attachments/page/Geta-historiaochgeografi.pdf))
 
-**Getabergen** · `-3542, -25734`
+**Getabergen, Soltuna's tower** · `-3781, -25712`
 > The hills along Geta's north coast rise to 107 metres, with a view out over the open sea and, on a clear day, a glimpse of Sweden. A cave up here hid local people during the Great Wrath in the early 1700s. At the top the Åland tourist association built Soltuna in the early 1930s, to Lars Sonck's design, with a lookout tower. ([Geta's history](https://www.geta.ax/sites/default/files/attachments/page/Geta-historiaochgeografi.pdf), [Geta brochure](https://www.geta.ax/sites/default/files/attachments/page/Geta%20Broschyr%202020%20FINAL.pdf))
 
 **Storberget tower, Pålsböle** · `-1274, -12467`

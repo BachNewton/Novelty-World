@@ -80,8 +80,8 @@ export const PLACES: readonly Place[] = [
     id: "getabergen",
     name: "Getabergen",
     kind: "viewpoint",
-    x: -3542,
-    z: -25734,
+    x: -3781,
+    z: -25712,
     note: "The hills along Geta's north coast rise to 107 metres, with a view out over the open sea and, on a clear day, a glimpse of Sweden. A cave up here hid local people during the Great Wrath in the early 1700s. At the top the Åland tourist association built Soltuna in the early 1930s, to Lars Sonck's design, with a lookout tower.",
   },
   {
