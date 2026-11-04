@@ -221,7 +221,8 @@
     "near": 5
   },
   "identity: apple crates": {
-    "near": 1
+    "near": 1,
+    "near on its ground": 6
   },
   "identity: harvest flag": {
     "near": 2
@@ -239,13 +240,14 @@
     "near": 48
   },
   "identity: cable ferry": {
-    "near": 258
+    "near": 256
   },
   "landmarks: Mariehamns stadshus": {
     "near": 9
   },
   "marina: walkway gate": {
-    "near": 16
+    "near": 16,
+    "far on its ground": 4
   },
   "marina: water pedestal": {
     "near": 24
@@ -262,17 +264,27 @@
   "marina: travel lift": {
     "near": 32
   },
+  "marina: boat in cradle": {
+    "near on its ground": 4,
+    "far on its ground": 4
+  },
   "marina: boat under blue tarp": {
     "near": 11,
-    "far": 3
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
   },
   "marina: boat under green tarp": {
     "near": 11,
-    "far": 3
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
   },
   "marina: boat shrink-wrapped": {
     "near": 3,
-    "far": 3
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
   },
   "marina: hull on stocks": {
     "near": 287,
@@ -282,7 +294,7 @@
     "near": 4
   },
   "marina: smithy": {
-    "near": 4
+    "near": 2
   },
   "marina: ropewalk shed": {
     "near": 32
@@ -296,10 +308,10 @@
     "far": 8
   },
   "marina: pilot station": {
-    "near": 15
+    "near": 14
   },
   "marina: smokehouse": {
-    "near": 6
+    "near": 5
   },
   "marina: admiralty anchor": {
     "near": 32
@@ -342,9 +354,6 @@
   },
   "people: sunbathe 2": {
     "near": 1
-  },
-  "roadside: mailbox": {
-    "near": 4
   },
   "roadside: pier 32 × 3 m": {
     "near": 348,

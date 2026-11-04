@@ -7,7 +7,7 @@ const SAME_FACING = 0.9999;
 const TOUCH_M = 0.002;
 /** Sight lines tried from each side of an overlap: one that leaves the model means some camera can see it. */
 const SIGHT_LINES = 96;
-/** How far off a face's plane a camera must look at it from, as the sine of the angle: 20°. */
+/** How far off a face's plane a camera must look at it from, as the sine of the angle: 20Â°. */
 const SIGHT_LOWEST = Math.sin((20 * Math.PI) / 180);
 /** A sight line this long inside a room has room for a camera at its end. */
 const ROOM_CLEAR_M = 0.5;
@@ -15,7 +15,7 @@ const ROOM_CLEAR_M = 0.5;
 const SIGHT_START_M = 0.003;
 /** Two faces whose every attribute agrees to this, everywhere they overlap, draw the same pixels: under a step of a colour byte, so a part or paint coded in a byte still counts as different. */
 const SAME_LOOK = 0.003;
-/** Normals this close light a face the same to the eye: under 6°. */
+/** Normals this close light a face the same to the eye: under 6Â°. */
 const SAME_NORMAL = 0.1;
 
 type P2 = [number, number];
@@ -88,7 +88,7 @@ function overlapMiddle(a: P2[], b: P2[]): { area: number; middle: P2 } | null {
   return { area: Math.abs(area) / 2, middle: [shape.reduce((sum, point) => sum + point[0], 0) / shape.length, shape.reduce((sum, point) => sum + point[1], 0) / shape.length] };
 }
 
-/** Whether a ray hits a triangle, by Möller and Trumbore's test. */
+/** Whether a ray hits a triangle, by MÃ¶ller and Trumbore's test. */
 function hits(from: P3, way: P3, [p0, p1, p2]: P3[], within: number): boolean {
   const [edge1, edge2] = [sub(p1, p0), sub(p2, p0)];
   const across = cross(way, edge2);
@@ -104,7 +104,7 @@ function hits(from: P3, way: P3, [p0, p1, p2]: P3[], within: number): boolean {
   return along > 0 && along < within;
 }
 
-/** Directions spread evenly over the half of a sphere facing the way given, from 20° off the plane up: a face seen more nearly edge-on covers next to no pixels. */
+/** Directions spread evenly over the half of a sphere facing the way given, from 20Â° off the plane up: a face seen more nearly edge-on covers next to no pixels. */
 function hemisphere(normal: P3): P3[] {
   const across = cross(normal, Math.abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
   const length = Math.hypot(...across);
@@ -214,7 +214,8 @@ function sightLine(point: P3, normal: P3, model: Box, { groundY }: Viewpoint): P
       if (groundY === null) return !blocked(model, from, way, ROOM_CLEAR_M);
       const exit = exitAlong(model, from, way);
       if (way[1] < 0 && (from[1] - groundY) / -way[1] < exit) return false;
-      return !blocked(model, from, way, exit) && throughOpenAir(from, way, exit, model, groundY);
+      // A face on the model's box is where a ray leaves it, so it blocks the ray only if hits count a little past the exit.
+      return !blocked(model, from, way, exit + SIGHT_START_M) && throughOpenAir(from, way, exit, model, groundY);
     });
     if (clear !== undefined) return clear;
   }
@@ -245,7 +246,7 @@ type Attribute = BufferAttribute | InterleavedBufferAttribute;
  * interpolated linearly across a face, so they do if the first's values, carried on to the second's corners, are the
  * second's. A normal may point either way, since a face seen from behind is lit by its normal turned round.
  */
-function differences(a: Face, b: Face, attributes: [string, Attribute][]): string[] {
+function differences(a: Face, b: Face, attributes: [string, Attribute][], theirs: [string, Attribute][]): string[] {
   const [e1, e2] = [sub(a.points[1], a.points[0]), sub(a.points[2], a.points[0])];
   const [d11, d12, d22] = [dot(e1, e1), dot(e1, e2), dot(e2, e2)];
   const det = d11 * d22 - d12 * d12;
@@ -256,13 +257,13 @@ function differences(a: Face, b: Face, attributes: [string, Attribute][]): strin
     const w = (d11 * d2 - d12 * d1) / det;
     return [1 - v - w, v, w];
   });
-  return attributes.filter(([name, attribute]) => {
-    const value = (corner: number, component: number) => attribute.getComponent(corner, component);
+  return attributes.filter(([name, attribute], at) => {
+    const other = theirs[at][1];
     const agrees = (sign: number) =>
       weights.every((weight, corner) => {
         for (let component = 0; component < attribute.itemSize; component++) {
-          const carried = weight.reduce((sum, share, index) => sum + share * value(a.corners[index], component), 0);
-          if (Math.abs(carried - sign * value(b.corners[corner], component)) > (name === "normal" ? SAME_NORMAL : SAME_LOOK)) return false;
+          const carried = weight.reduce((sum, share, index) => sum + share * attribute.getComponent(a.corners[index], component), 0);
+          if (Math.abs(carried - sign * other.getComponent(b.corners[corner], component)) > (name === "normal" ? SAME_NORMAL : SAME_LOOK)) return false;
         }
         return true;
       });
@@ -286,7 +287,9 @@ export function coplanarOverlaps(drawn: BufferGeometry | readonly BufferGeometry
     for (let other = one + 1; other < sorted.length && sorted[other].offset - a.offset <= SAME_PLANE_M; other++) {
       const b = sorted[other];
       if (dot(a.unit, b.unit) < SAME_FACING) continue;
-      const differs = a.source === b.source ? differences(a, b, attributes[a.source]) : ["geometries"];
+      // Two geometries with one layout, copies of a model laid side by side, are compared as one geometry's faces are.
+      const sameLayout = attributes[a.source].map(([name]) => name).join() === attributes[b.source].map(([name]) => name).join();
+      const differs = sameLayout ? differences(a, b, attributes[a.source], attributes[b.source]) : ["geometries"];
       if (differs.length === 0) continue;
       const along = cross(a.unit, Math.abs(a.unit[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
       const across = along.map((value) => value / Math.hypot(...along)) as P3;

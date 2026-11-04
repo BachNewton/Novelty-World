@@ -8,6 +8,6 @@ export const artModels = (): ArtModel[] =>
     (["near", "far"] as const).map((detail) => {
       const { geometry } = buildBikeArt(spec, detail);
       const tag = geometry.getAttribute("bikeTag");
-      return { name: `${spec.name} ${detail}`, geometries: rigidParts(detail, geometry, (vertex) => tag.getX(vertex)) };
+      return { name: `${spec.name} ${detail}`, geometries: rigidParts(detail, geometry, (vertex) => tag.getX(vertex)), onGround: false };
     }),
   );

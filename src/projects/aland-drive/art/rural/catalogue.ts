@@ -1,6 +1,6 @@
 import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/index";
-import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
+import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION, PIER_SECTION, PONTOON_SECTION, ROCK_SEEDS, STONE_WALL_M, STONE_WALL_OVERLAP_M } from "./index";
 
 /** Every model the kit builds, with its near-triangle limit, for the budget test and the gallery's counts. */
 export function catalogue(): { name: string; limit: number; farLimit: number; model: RoadsideModel }[] {
@@ -39,4 +39,12 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
   ];
 }
 
-export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => nearFar(name, model));
+// The walls' sections each run on past both ends, so one starts its own length less both overlaps after the last.
+const LAID: Record<string, ArtModel["laid"]> = {
+  "stone wall": { alongM: (STONE_WALL_M * STONE_WALL_M) / (STONE_WALL_M + 2 * STONE_WALL_OVERLAP_M), flips: true },
+  "jetty section": { alongM: JETTY_SECTION.lengthM },
+  "pier section": { alongM: PIER_SECTION.lengthM },
+  "pontoon section": { alongM: PONTOON_SECTION.lengthM },
+};
+
+export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => ({ ...nearFar(name, model), laid: LAID[name] }));

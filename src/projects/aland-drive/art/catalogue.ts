@@ -11,6 +11,13 @@ export interface ArtModel {
   geometries: Record<string, BufferGeometry | readonly BufferGeometry[] | null>;
   /** The ground or water it stands on, in its own metres, which no camera is under: 0 unless given. Null for a room, seen from inside. */
   groundY?: number | null;
+  /**
+   * How the game lays it end to end along its +x, if it does: each the next `alongM` further on in its own metres (its
+   * length unless given), and where it `flips`, every other one turned end for end.
+   */
+  laid?: { alongM?: number; flips?: boolean };
+  /** False for what isn't stood on the ground at `groundY`: a part in its own pivot's frame, a box hung on a wall. */
+  onGround?: boolean;
 }
 
 /** A model with a near and far version, as most kits build them. */

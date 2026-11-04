@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtModel } from "./catalogue";
-import { coplanarOverlaps } from "./coplanar";
 import KNOWN from "./known-overlaps.json";
+import { overlapsOf } from "./overlaps";
 import { installTokenStylesheet } from "./stylesheet";
 
 installTokenStylesheet();
@@ -22,13 +22,16 @@ describe("every kit's models", () => {
     expect(Object.keys(catalogues).map(kitOf)).toContain(kit);
   });
 
-  // Art that was there before the check keeps the overlaps it had, written down in known-overlaps.json; anything new
-  // has none. A count that falls is a fix, and the list is brought down to it.
-  it.each(models)("%s has no two faces fighting for one plane that it didn't have", (name, { geometries, groundY = 0 }) => {
+  // Its own faces, the ground it stands on and, laid end to end, the next one along: a placement fights where a face
+  // lies flat on the ground or meets its neighbour's in one plane. Art that was there before the check keeps the
+  // overlaps it had, written down in known-overlaps.json; anything new has none. A count that falls is a fix, and the
+  // list is brought down to it.
+  it.each(models)("%s has no two faces fighting for one plane that it didn't have", (name, model) => {
     const found = Object.fromEntries(
-      Object.entries(geometries).flatMap(([version, geometry]) => {
-        const count = geometry === null ? 0 : coplanarOverlaps(geometry, { groundY }).length;
-        return count > 0 ? [[version, count]] : [];
+      Object.entries(model.geometries).flatMap(([version, geometry]) => {
+        if (geometry === null) return [];
+        const { own, onGround, beside } = overlapsOf(geometry, model);
+        return [[version, own], [`${version} on its ground`, onGround], [`${version} beside the next`, beside]].filter(([, count]) => count !== 0);
       }),
     );
     expect(found).toEqual(known[name] ?? {});

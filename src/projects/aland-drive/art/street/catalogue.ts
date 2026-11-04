@@ -5,7 +5,7 @@ const FLOWERS: Wildflower[] = ["daisy", "buttercup", "lupine", "fireweed", "cow-
 
 /** Every model the street gallery shows. */
 export const artModels = (): ArtModel[] => [
-  nearFar("guard rail", buildGuardRail()),
+  { ...nearFar("guard rail", buildGuardRail()), laid: {} },
   nearFar("guard rail end", buildGuardRailEnd()),
   nearFar("guard rail return", buildGuardRailReturn()),
   nearFar("reflector post", buildReflectorPost()),
