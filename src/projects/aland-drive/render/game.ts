@@ -1143,6 +1143,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     regattas.update();
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
+    roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
     sky.update(camera.position, seconds);
