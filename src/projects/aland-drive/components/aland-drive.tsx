@@ -119,6 +119,8 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [placesFound, setPlacesFound] = useState<{ found: number; total: number } | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
   const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null } | null>(null);
+  // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
+  const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
@@ -156,6 +158,8 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.partner ?? ""}` : "";
       if (play !== shownPlay) {
         shownPlay = play;
+        inRun.current = challenge !== null;
+        if (challenge) setFinds([]);
         setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, partner: challenge.partner } : null);
       }
       if (!challenge) return;
@@ -210,7 +214,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
-          onPlaceFound: (place) => { setFinds((waiting) => [...waiting, place]); },
+          onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onPlacesFound: (found, total) => { setPlacesFound({ found, total }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
@@ -313,7 +317,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
                 {road.name}
               </div>
             )}
-            {finds.length > 0 && playing === null && (
+            {finds.length > 0 && (
               <div key={finds[0].id} className="pointer-events-none w-[min(32rem,90vw)] rounded-lg p-4" style={{ color: INK, background: SHADE, border: `2px solid ${PLACE}`, animation: `aland-road-label ${PLACE_CARD_S}s ease-out forwards` }} aria-live="polite" aria-label="Place found" onAnimationEnd={() => { setFinds((waiting) => waiting.slice(1)); }}>
                 <div className="flex items-center gap-2 text-xl font-semibold" style={{ color: PLACE }}>
                   <Landmark className="size-5 shrink-0" aria-hidden />
