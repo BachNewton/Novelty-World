@@ -1,5 +1,6 @@
 import { abs, cos, dFdx, dFdy, dot, float, floor, fract, fwidth, max, min, mix, select, sin, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
+import type { Tiled } from "../surfaces/tiled";
 
 /*
  * The ground of a town, from a tile's baked surface image (`bake_surface.py`) over
@@ -46,8 +47,10 @@ const PHOTO_MIDDLE = { hard: 0.26, lawn: 0.075 } as const;
 type Colour = (name: string) => Node<"vec3">;
 
 export interface TownInput {
-  /** World x and z of the pixel. */
+  /** World x and z of the pixel, which the paving's lattice is laid from. */
   place: Node<"vec2">;
+  /** Where the pixel is on each of its tones (`tiledGround`). */
+  tiled: Tiled;
   toCamera: Node<"float">;
   /** The tile's surface image, filtered. */
   mask: Node<"vec4">;
@@ -164,12 +167,12 @@ function lawned(tone: Node<"vec4">, fineTone: Node<"vec4">, drift: Node<"float">
 const luminance = (color: Node<"vec3">) => dot(color, vec3(0.2126, 0.7152, 0.0722));
 
 /** The colour of the town's ground at this pixel, over whatever `ground` is. */
-export function townGround({ place, toCamera, mask, angle, ground, photoSoft, colour, detail }: TownInput): Node<"vec3"> {
+export function townGround({ place, tiled, toCamera, mask, angle, ground, photoSoft, colour, detail }: TownInput): Node<"vec3"> {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
   const near = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
-  const tone = texture(detail, place.div(COARSE_M).add(vec2(0.61, 0.17)));
-  const fineTone = texture(detail, place.div(FINE_M).add(vec2(0.13, 0.57)));
-  const drift = texture(detail, place.div(DRIFT_M)).a;
+  const tone = texture(detail, tiled(COARSE_M).add(vec2(0.61, 0.17)));
+  const fineTone = texture(detail, tiled(FINE_M).add(vec2(0.13, 0.57)));
+  const drift = texture(detail, tiled(DRIFT_M)).a;
 
   const [red, green, blue] = [metres(mask.r, RANGE_M[0]), metres(mask.g, RANGE_M[1]), metres(mask.b, RANGE_M[2])];
   // Grass against gravel has no ruled edge: where red and green turn together, the line wanders.
@@ -211,6 +214,7 @@ export function townGround({ place, toCamera, mask, angle, ground, photoSoft, co
 
 export interface RibbonInput {
   place: Node<"vec2">;
+  tiled: Tiled;
   toCamera: Node<"float">;
   /** Metres along the ribbon, which a flight of steps lays its treads across. */
   along: Node<"float">;
@@ -236,10 +240,10 @@ function treads(along: Node<"float">, tone: Node<"vec4">, colour: Colour, shown:
 }
 
 /** A street or path's own surface, on its ribbon, on the same lattice as the terrain's paving beside it. */
-export function townRibbon({ place, toCamera, along, angle, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
+export function townRibbon({ place, tiled, toCamera, along, angle, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
-  const tone = texture(detail, place.div(COARSE_M).add(vec2(0.61, 0.17)));
-  const fineTone = texture(detail, place.div(FINE_M).add(vec2(0.13, 0.57)));
+  const tone = texture(detail, tiled(COARSE_M).add(vec2(0.61, 0.17)));
+  const fineTone = texture(detail, tiled(FINE_M).add(vec2(0.13, 0.57)));
   const [isR, isG, isB] = [bits.r.greaterThan(0.5), bits.g.greaterThan(0.5), bits.b.greaterThan(0.5)];
   const run: Run = { ...runOf(place, angle), tone, colour, shown };
   const paved = select(isB, setts(run), slabs(run));

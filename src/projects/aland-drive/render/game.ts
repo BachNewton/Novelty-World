@@ -71,6 +71,7 @@ import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
+import { tiledGround } from "../art/surfaces/tiled";
 
 /*
  * Åland Drive drawn on WebGPU, with no framework between the game and
@@ -491,8 +492,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { x, y, z } = ruralColours(linear)[RURAL_PARTS.indexOf(part)];
     return vec3(x, y, z);
   };
+  const { tiled, follow: tiledFollows } = tiledGround();
   const surfaceGround = groundDetail({
-    place: positionWorld.xz,
+    tiled,
     toCamera,
     photo: photo.rgb.pow(vec3(2.2)),
     roadNearby: roadNearby.g.add(roadNearby.b),
@@ -512,7 +514,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Paving, gravel, tarmac, setts or steps: a lawn or a bed is soft ground, which a road or path wears into as it does anywhere.
   const townHard = max(townRed, townBlue.mul(float(1).sub(townGreen)));
   const photoSoft = texture(layers.groundNear, imageUv).depth(nearLayer).level(float(3)).rgb.pow(vec3(2.2));
-  const groundColor = townGround({ place: positionWorld.xz, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
+  const groundColor = townGround({ place: positionWorld.xz, tiled, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -601,10 +603,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Centred on every whole dash, so the pattern reads the same from both tiles at a seam, whichever way their chains run.
   const dash = pulses(along, DASH_LENGTH_M, (DASH_SHARE / 2) * DASH_LENGTH_M, fwidth(along));
   const centreLine = band(signedAcross, -CENTRE_LINE_WIDTH, CENTRE_LINE_WIDTH, fwidth(signedAcross)).mul(dash);
-  const dressed = dressRoad({ place: positionWorld.xz, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
+  const dressed = dressRoad({ tiled, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
   // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
-  const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const townRoad = townRibbon({ place: positionWorld.xz, tiled, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
   const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
   // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
   const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
@@ -1228,6 +1230,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     showRibbons(spot);
     landmarks.update(spot);
     sky.update(camera.position, seconds);
+    tiledFollows(camera.position.x, camera.position.z);
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {

@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { abs, attribute, cameraPosition, float, floor, fract, Fn, If, mix, normalWorld, positionLocal, positionWorld, reflect, round, select, sin, smoothstep, uniform, varying, vec3 } from "three/tsl";
+import { seedOf, unitOf } from "../hash";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { PAINTS, PATTERNS, SURFACE_STRIDE, type Paint, type Pattern, type Soup } from "./shell";
 import "./tokens.css";
@@ -87,7 +88,7 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
     const kind = round(finish.z);
     If(kind.equal(patternIs("boards")), () => {
       const along = local.x.add(local.z).div(0.19);
-      const tone = fract(sin(floor(along).mul(12.9898)).mul(43758.5453));
+      const tone = unitOf(seedOf(floor(along)), 1);
       painted.assign(base.mul(mix(float(1), mix(float(0.9), float(1.08), tone), clear(0.19, away))).mul(float(1).sub(lineAt(along, 0.09).mul(0.5).mul(clear(0.03, away)))));
     })
       .ElseIf(kind.equal(patternIs("ribs")), () => {
@@ -99,7 +100,7 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
       .ElseIf(kind.equal(patternIs("tiles")), () => {
         const cell = local.xz.div(1.2);
         const grout = lineAt(cell.x, 0.018).max(lineAt(cell.y, 0.018)).mul(clear(0.02, away));
-        const tone = fract(sin(floor(cell.x).mul(12.9898).add(floor(cell.y).mul(78.233))).mul(43758.5453));
+        const tone = unitOf(seedOf(floor(cell.x), floor(cell.y)), 2);
         painted.assign(base.mul(mix(float(1), mix(float(0.96), float(1.03), tone), clear(1.2, away))).mul(float(1).sub(grout.mul(0.3))));
       })
       .ElseIf(kind.equal(patternIs("speckle")), () => {

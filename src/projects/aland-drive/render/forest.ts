@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
+import { seedOf, unitOf } from "../art/hash";
 import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 import { FAR_RINGS, FAR_TABLE, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, type TreeKind } from "./tree-shapes";
 import { foliageLight, towardsSun } from "./foliage-light";
@@ -152,7 +153,7 @@ function turned(rings: number, sides: number, pointed: boolean): BufferGeometry 
 
 const kindAt = (kind: TreeKind) => float(TREE_KINDS.indexOf(kind));
 
-const roll = (cell: Node<"vec2">, a: number, b: number) => fract(sin(dot(cell, vec2(a, b))).mul(43758.5453));
+const roll = (cell: Node<"vec2">, salt: number) => unitOf(seedOf(cell.x, cell.y), salt);
 
 /** The most lattice places in a circle, with room for a tree's jitter and the lattice's edge, so a list can't overrun. */
 const placesWithin = (metres: number) => Math.ceil(Math.PI * (metres / NEAR_STEP_M + 2) ** 2);
@@ -287,7 +288,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   const writeCone = storage(coneList, "vec4", coneRows);
   const cull = Fn(() => {
     const cell = vec2(instanceIndex.mod(placesAcross), instanceIndex.div(placesAcross)).add(anchor).toVar();
-    const jitter = vec2(roll(cell, ...JITTER_ROLLS[0]), roll(cell, ...JITTER_ROLLS[1])).sub(0.5).mul(JITTER * NEAR_STEP_M);
+    const jitter = vec2(roll(cell, JITTER_ROLLS[0]), roll(cell, JITTER_ROLLS[1])).sub(0.5).mul(JITTER * NEAR_STEP_M);
     const place = cell.mul(NEAR_STEP_M).add(jitter).toVar();
     const distance = place.sub(cameraSpot).length().toVar();
     // The world's heights stand in for the ground at first, so a place behind the camera costs no read of any image.
@@ -295,9 +296,9 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
     If(distance.lessThan(knobs.forestReach).and(perhapsSeen), () => {
       const canopy = canopyAt(place, 0).toVar();
-      const height = canopy.mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL))).toVar();
+      const height = canopy.mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, HEIGHT_ROLL))).toVar();
       const stand = standsAt(place).toVar();
-      If(height.greaterThanEqual(SHORTEST_M).and(roll(cell, ...STAND_ROLL).lessThan(stand.a)), () => {
+      If(height.greaterThanEqual(SHORTEST_M).and(roll(cell, STAND_ROLL).lessThan(stand.a)), () => {
         If(roadsAround(place).lessThanEqual(ROAD_COVERAGE), () => {
           const ground = float(0).toVar();
           const between = (ring: number) => {
@@ -311,28 +312,28 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
           const middle = vec3(place.x, ground.add(height.mul(0.5)), place.y).toVar();
           const seen = sides.map(({ plane }) => dot(plane.xyz, middle).add(plane.w).add(height.mul(TREE_BOUND)).greaterThanEqual(0)).reduce((all, side) => all.and(side));
           If(seen, () => {
-            const tree = roll(cell, 21.17, 5.71).toVar();
+            const tree = roll(cell, 5).toVar();
             const edgeShare = shareLeft(distance, tree, knobs.forestReach, EDGE);
-            const stays = roll(cell, 73.31, 29.47).lessThan(knobs.farDensity);
+            const stays = roll(cell, 6).lessThan(knobs.farDensity);
             const coneTo = select(stays, edgeShare, min(edgeShare, shareLeft(distance, tree, knobs.fullReach, THINNING))).toVar();
             const turnedShare = shareLeft(distance, tree, knobs.fullReach, HANDOVER).toVar();
             const turnedTo = min(turnedShare, coneTo).toVar();
 
-            const mixRoll = roll(cell, 3.11, 47.3).toVar();
+            const mixRoll = roll(cell, 7).toVar();
             const among = smoothstep(float(AMONG_OTHERS[0]), float(AMONG_OTHERS[1]), canopyAt(place, AROUND_MIP).div(canopy)).toVar();
             const open = float(1).sub(among).toVar();
-            const broadleaf = select(roll(cell, 37.7, 59.3).lessThan(open.mul(ROUND_OPEN_SHARE).add(ROUND_SHARE)), kindAt("round"), kindAt("upright"));
+            const broadleaf = select(roll(cell, 8).lessThan(open.mul(ROUND_OPEN_SHARE).add(ROUND_SHARE)), kindAt("round"), kindAt("upright"));
             const toPine = stand.g.add(stand.r).toVar();
             const kind = select(mixRoll.lessThan(stand.g), kindAt("spruce"), select(mixRoll.lessThan(toPine), kindAt("pine"), select(mixRoll.lessThan(toPine.add(stand.b)), kindAt("birch"), broadleaf))).toVar();
-            const look = kind.add(floor(roll(cell, 17.3, 91.1).mul(ROLL_STEPS)).add(among.mul(AMONG_KEPT).add((1 - AMONG_KEPT) / 2)).div(ROLL_STEPS)).toVar();
-            const reached = height.add(roll(cell, 8.41, 66.1).sub(0.5).mul(2 * STAGE_SPREAD_M)).toVar();
+            const look = kind.add(floor(roll(cell, 9).mul(ROLL_STEPS)).add(among.mul(AMONG_KEPT).add((1 - AMONG_KEPT) / 2)).div(ROLL_STEPS)).toVar();
+            const reached = height.add(roll(cell, 10).sub(0.5).mul(2 * STAGE_SPREAD_M)).toVar();
             const stage = select(reached.lessThan(GROWN_M), reached.sub(YOUNG_M).div(GROWN_M - YOUNG_M), reached.sub(GROWN_M).div(OLD_M - GROWN_M).add(1)).clamp(0, STAGES - 1.001).toVar();
             const rocky = select(kind.equal(kindAt("pine")), open.mul(float(1).sub(smoothstep(float(ROCK_TALLEST_M[0]), float(ROCK_TALLEST_M[1]), height))), float(0)).toVar();
-            const leanWay = roll(cell, 29.9, 13.7).mul(6.283).toVar();
-            const lean = vec2(cos(leanWay), sin(leanWay)).mul(LEAN).mul(roll(cell, 71.3, 3.9)).toVar();
-            const blown = DOWNWIND.mul(mix(float(ROCK_LEAN[0]), float(ROCK_LEAN[1]), roll(cell, 11.3, 97.1))).mul(rocky);
+            const leanWay = roll(cell, 11).mul(6.283).toVar();
+            const lean = vec2(cos(leanWay), sin(leanWay)).mul(LEAN).mul(roll(cell, 12)).toVar();
+            const blown = DOWNWIND.mul(mix(float(ROCK_LEAN[0]), float(ROCK_LEAN[1]), roll(cell, 13))).mul(rocky);
             const growing = vec4(stage, rocky, lean.add(blown)).toVar();
-            const yaw = roll(cell, 54.1, 18.7).mul(6.283).toVar();
+            const yaw = roll(cell, 14).mul(6.283).toVar();
             const standing = vec4(place.x, ground.sub(SINK_M), place.y, height).toVar();
 
             const list = (rows: typeof writeTurned, draw: number, from: Node<"float">, to: Node<"float">) => {

@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { attribute, cos, dot, float, floor, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { placeSeed, unitOf } from "../art/hash";
 import { STREET_PARTS, streetColours, streetPaint, streetPalette, type StreetPart } from "../art/street";
 import { MOTION_RANGE_M } from "../art/street/paint";
 import { buildGrassTuft, buildSeedGrass, buildVergeCard, buildWildflowers } from "../art/street/verge";
@@ -188,7 +189,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
     capacities: [far, Math.ceil(far * MOST_FAR_FLOWERS), ...kinds.map(() => near)],
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
-      const chance = roll(seed, 93.989, 67.345).toVar();
+      const chance = roll(seed, 4).toVar();
       If(chance.lessThan(MOST_OF_A_PLACE), () => {
         // A neighbour's roads aren't in a tile's own mask.
         const inTile = fract(place.div(tileM)).mul(tileM).toVar();
@@ -202,23 +203,23 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
           const clear = float(1).sub(smoothstep(float(ON_ROAD[0]), float(ON_ROAD[1]), roadsAround(0))).toVar();
           const land = landAt(place);
           const { stoneShare } = groundKinds(land.wide.pow(vec3(2.2)));
-          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(pavedAt(place).lessThan(0.5)), () => {
+          If(clear.greaterThan(roll(seed, 5)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 6))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 7))).and(pavedAt(place).lessThan(0.5)), () => {
             const ground = groundAt(place).toVar();
             If(seenOn(ground), () => {
-              const stand = roll(floor(place.div(STAND_M)), 7.13, 3.77).mul(STANDS).floor().toVar();
-              const isFlower = stand.lessThan(flowers).and(roll(seed, 17.3, 91.1).lessThan(FLOWER_SHARE));
-              const kind = select(isFlower, stand.add(2), select(roll(seed, 54.1, 18.7).lessThan(SEED_SHARE), float(1), float(0))).toVar();
+              const stand = roll(floor(place.div(STAND_M)), 18).mul(STANDS).floor().toVar();
+              const isFlower = stand.lessThan(flowers).and(roll(seed, 8).lessThan(FLOWER_SHARE));
+              const kind = select(isFlower, stand.add(2), select(roll(seed, 9).lessThan(SEED_SHARE), float(1), float(0))).toVar();
               // Thinner towards the edge of a verge, by the place and never by the distance.
-              const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47)).mul(float(1).sub(smoothstep(float(0.75), float(1), turn))).toVar();
+              const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10)).mul(float(1).sub(smoothstep(float(0.75), float(1), turn))).toVar();
               const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
-              const clearOfWalls = wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M));
+              const clearOfWalls = wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(round(kind))) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M));
               const remaining = left().toVar();
-              const standing = vec4(place.x, ground.sub(SINK_M), place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+              const standing = vec4(place.x, ground.sub(SINK_M), place.y, roll(seed, 11).mul(6.283)).toVar();
               const photo = land.broad.pow(vec3(2.2)).toVar();
               const colour = vec4(groundFloor(photo, litterColour, groundKinds(photo)), lightOf(land.shade)).toVar();
 
               If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
-                const card = vec4(size.mul(tallOf.element(int(kind)) as unknown as Node<"float">), float(1).sub(swap), remaining, kind).toVar();
+                const card = vec4(size.mul(tallOf.element(int(round(kind))) as unknown as Node<"float">), float(1).sub(swap), remaining, kind).toVar();
                 If(isFlower, () => {
                   write(FAR_FLOWER_DRAW, [standing, colour, card]);
                 }).Else(() => {
@@ -255,7 +256,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const foot = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), local.y.mul(size))), float(1), matched);
       // A card is one list for every kind, so it takes its paints from the tuft's kind.
-      const kindOf = int(carried.w);
+      const kindOf = varying(int(round(carried.w)));
       const tip = palette.element(int(tipOf.element(kindOf) as unknown as Node<"float">)) as unknown as Node<"vec3">;
       const body = mix(greenOf.element(kindOf) as unknown as Node<"vec3">, strawOf.element(kindOf) as unknown as Node<"vec3">, select(part.equal(STRAW_BLADE), float(1), float(0)));
       const painted = isFar ? mix(body, tip, select(isPetal, float(1), float(0))) : paint;
@@ -285,4 +286,4 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
   };
 }
 
-const rollPhase = (place: Node<"vec2">) => roll(place, 12.9898, 78.233).mul(6.283);
+const rollPhase = (place: Node<"vec2">) => unitOf(placeSeed(place), 1).mul(6.283);

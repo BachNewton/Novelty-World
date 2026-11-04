@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
 import { flatNormal } from "../flat-normal";
@@ -98,7 +99,9 @@ export function facetLight(sun: RoadsideInputs["sun"]) {
 export const footShade = (foot: Node<"float">) => mix(float(KIT_LIGHT.footShade), float(1), smoothstep(float(0), float(KIT_LIGHT.footM), foot));
 
 /** A place's pseudo-random share, the same every time it's asked. */
-export const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+/** A place's own seed, made in the vertex stage from the place as stored, so every pixel of its model reads the same one. */
+export const seedAt = (place: Node<"vec2">): Node<"uint"> => varying(placeSeed(place));
+export const rollOf = (place: Node<"vec2">) => unitOf(seedAt(place), 1);
 
 /** Interleaved gradient noise: an even spread of thresholds over the screen, the same every frame for a still pixel. */
 export const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
