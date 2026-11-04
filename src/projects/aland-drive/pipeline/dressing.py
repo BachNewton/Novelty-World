@@ -36,7 +36,7 @@ from sources import osm_dressing_path
 
 # Each model's footprint in its own axes, +x along and +z its front: west, south (back), east, north (front).
 FOOTPRINTS = {
-    "linden": (-0.35, -0.35, 0.35, 0.35),
+    **{f"linden-{seed}": (-0.35, -0.35, 0.35, 0.35) for seed in (3, 8, 14)},
     "flagpole-aland": (-0.15, -0.15, 0.15, 0.15),
     "flagpole-finland": (-0.15, -0.15, 0.15, 0.15),
     "midsummer-pole": (-0.4, -0.4, 0.4, 0.4),
@@ -51,8 +51,13 @@ FOOTPRINTS = {
 LINDEN_HEIGHT_M = (10.0, 16.0)
 # A trunk's half width, as a share of the tree's height, for the wall the car meets.
 TRUNK_SHARE = 0.03
+# The crowns `art/street/linden.ts` builds, as `LINDEN_SEEDS` there: each tree rolls one.
+LINDEN_SEEDS = (3, 8, 14)
 TREE_ROW_SPACING_M = 8.0
 TREE_ROW_INSET_M = 2.0
+# A row's trees stand up to this far either way of even, and one in so many is gone, so a row isn't a ruler.
+TREE_ROW_DRIFT_M = 1.2
+TREE_ROW_GAP_SHARE = 0.04
 # A tree stands this clear of a carriageway: a row may stand in the strip between a street and its sidewalk.
 TREE_CARRIAGEWAY_CLEAR_M = 0.6
 
@@ -170,14 +175,19 @@ class Dressing:
         count = max(1, round(usable / TREE_ROW_SPACING_M) + 1) if usable > 0 else 1
         for index in range(count):
             along = line.length / 2 if count == 1 else TREE_ROW_INSET_M + usable * index / (count - 1)
+            even = np.array(line.interpolate(along).coords[0])
+            if count > 2 and roll(*even, 3.7) < TREE_ROW_GAP_SHARE:
+                continue
+            along = float(np.clip(along + (roll(*even, 5.9) - 0.5) * 2 * TREE_ROW_DRIFT_M, 0.0, line.length))
             point = np.array(line.interpolate(along).coords[0])
             self.linden(point, height_of(tags, point))
 
     def linden(self, point: np.ndarray, height: float) -> None:
         yaw = roll(*point, 9.1) * 2 * math.pi
-        if not self.clear_of_carriageways(point, TREE_CARRIAGEWAY_CLEAR_M) or not self.fits("linden", point, yaw, sidewalk=True):
+        model = f"linden-{LINDEN_SEEDS[int(roll(*point, 7.3) * len(LINDEN_SEEDS))]}"
+        if not self.clear_of_carriageways(point, TREE_CARRIAGEWAY_CLEAR_M) or not self.fits(model, point, yaw, sidewalk=True):
             return
-        self.put("linden", point, yaw, scale=round(height, 2), wall_half=height * TRUNK_SHARE)
+        self.put(model, point, yaw, scale=round(height, 2), wall_half=height * TRUNK_SHARE)
 
     def flagpoles(self) -> None:
         yaw = along_yaw(*WIND)

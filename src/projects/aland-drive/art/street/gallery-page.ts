@@ -180,6 +180,11 @@ add(parasol, terrace.filter((_, index) => index % 3 === 0));
 look("cafe", "café terrace", station(6), [-5, 1.3, 1.5], [3, 1, VERGE_Z - 1], 50);
 look("cafe-close", "table, chairs", station(6), [-2.5, 1.25, -1.8], [1, 0.5, VERGE_Z + 0.5], 44);
 
+// Across the handovers: one line of sight at the game's lens, either side of each model's swap (café 36 m, bin and
+// rack 42 m, bench 70 m), to see that a version changing can't be told.
+for (const metres of [30, 34, 38, 44, 60]) look(`cafe-${metres}m`, `café terrace at ${metres} m`, station(6), [3.6, 1.6, VERGE_Z + metres], [3.6, 1, VERGE_Z - 1]);
+for (const metres of [36, 40, 46, 62, 66, 74, 80]) look(`furniture-${metres}m`, `bench, bin, bike rack at ${metres} m`, station(5), [1.5, 1.6, VERGE_Z + 1 + metres], [1.5, 0.5, VERGE_Z + 1]);
+
 // 7: planters.
 add(planter, [{ x: station(7), y: 0, z: VERGE_Z + 1 }, { x: station(7) + 1.5, y: 0, z: VERGE_Z + 1 }]);
 add(round, [{ x: station(7) + 3.6, y: 0, z: VERGE_Z + 1 }]);

@@ -1,7 +1,7 @@
 export { buildFlagpole, FLAGS, flyLengthM, type FlagName, type FlagSpec } from "./flags";
 export { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildCafeSet, buildParasol, buildPlanter, buildPlanterRound } from "./furniture";
 export { buildBollard, buildHarbourCrane, buildSailboat } from "./harbour";
-export { buildLinden } from "./linden";
+export { buildLinden, LINDEN_SEEDS } from "./linden";
 export { streetColours, streetMaterials, streetPaint, streetPalette, type StreetInputs, type StreetMaterials } from "./material";
 export { buildMidsummerPole } from "./midsummer";
 export { STREET_PARTS, type StreetPart } from "./paint";

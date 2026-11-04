@@ -2,7 +2,7 @@ import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import { buildBusShelter, buildMailbox, buildPowerPole, buildStreetLamp, buildWireSpan, placeVersion, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
 import { buildFarmFence, buildFarmFencePost, buildTownFence, buildTownFencePost } from "../art/roadside/index";
 import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../art/identity/index";
-import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, type StreetMaterials } from "../art/street/index";
+import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, LINDEN_SEEDS, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 
 /*
@@ -37,7 +37,7 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   "bike-rack": { build: buildBikeRack, kit: "street" },
   "cafe-set": { build: buildCafeSet, kit: "street" },
   parasol: { build: buildParasol, kit: "street" },
-  linden: { build: buildLinden, kit: "street" },
+  ...Object.fromEntries(LINDEN_SEEDS.map((seed) => [`linden-${seed}`, { build: () => buildLinden(seed), kit: "street" as const }])),
   "flagpole-aland": { build: () => buildFlagpole("aland"), kit: "street" },
   "flagpole-finland": { build: () => buildFlagpole("finland"), kit: "street" },
   "midsummer-pole": { build: buildMidsummerPole, kit: "street" },

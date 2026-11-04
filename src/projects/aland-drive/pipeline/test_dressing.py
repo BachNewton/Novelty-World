@@ -37,10 +37,10 @@ class Dressing_(unittest.TestCase):
     def test_a_tree_row_across_a_street_leaves_its_carriageway_clear(self):
         dressed = dressing()
         dressed.tree_row(LineString([(100, -40), (100, 40)]), {})
-        trees = norths(dressed, "linden")
+        trees = [north for model in dressed.roadside.models if model.startswith("linden") for north in norths(dressed, model)]
         self.assertGreater(len(trees), 6, "the row stands either side")
         self.assertTrue(all(abs(north) > CARRIAGEWAY_HALF_M + 0.5 for north in trees), trees)
-        self.assertEqual(len(dressed.roadside.scales["linden"]), len(trees), "every linden has its height")
+        self.assertEqual(sum(len(sizes) for model, sizes in dressed.roadside.scales.items() if model.startswith("linden")), len(trees), "every linden has its height")
 
     def test_a_fence_across_a_street_is_broken_where_the_street_runs(self):
         dressed = dressing()
