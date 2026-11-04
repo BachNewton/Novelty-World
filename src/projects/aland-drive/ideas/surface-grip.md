@@ -86,7 +86,6 @@ Every car's sixteen rows are in `sim/car-limits.json`.
 - **The classes.** Which car is in which, and how far apart the classes are, are first guesses to judge in the game, as is whether the Berg should lead the road cars on gravel too.
 - **The feel.** Every number is a starting point for the owner to judge against the reference games: whether gravel lets go early enough and holds a slide well enough, whether grass punishes enough without spinning the car, whether wet asphalt is too forgiving, whether ice at a quarter of the grip is fun or a chore.
 - **Ice's top speed.** With no rolling resistance on ice, a car on ice still reaches its dry top speed in a straight line, given time: true of real ice, but whether it plays well is the owner's call.
-- **The sound** still finds the surface its own way, from the nearest road's line, so a wheel on the verge is heard on asphalt within 5 m of the centre. It could read the wheels' surfaces instead.
 - **The autopilot** maps a wheel angle to steering by the dry lock, so on a loose surface it steers a little less than it means to and corrects as it goes. The racer that grows out of it should read the footing.
 
 ## Later: tyres, winter and the feel against TDU

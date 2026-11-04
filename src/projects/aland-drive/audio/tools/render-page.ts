@@ -1,5 +1,6 @@
 import { createDriveAudio } from "../graph";
-import type { DriveAudioState, Place, Surface } from "../model";
+import type { DriveAudioState, Place } from "../model";
+import { CONDITIONS, SURFACES, type Condition, type Surface } from "../../sim/surfaces";
 import { ENGINE_IDS, type VehicleId } from "../vehicles";
 
 /*
@@ -26,7 +27,8 @@ const base = (vehicle: VehicleId): DriveAudioState => ({
   brake: 0,
   handbrake: false,
   slip: 0,
-  surface: "asphalt",
+  wheels: ["asphalt", "asphalt", "asphalt", "asphalt"],
+  condition: "dry",
   suspension: [0.11, 0.11, 0.11, 0.11],
   place: NO_PLACE,
 });
@@ -41,7 +43,9 @@ const pull = (vehicle: VehicleId) => ({
   at: (t: number) => (t < 12 ? { speedMS: 55 * Math.sqrt(t / 12), throttle: 1 } : { speedMS: 55 - (t - 12) * 2 }),
 });
 
-const surface = (name: Surface, slip = 0) => held("strom", `tyres ${name}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, surface: name, slip, heldRpm: 0 });
+const all = (surface: Surface): Surface[] => [surface, surface, surface, surface];
+const tyres = (name: Surface, slip = 0, condition: Condition = "dry") =>
+  held("strom", `tyres ${name}${condition === "dry" ? "" : ` ${condition}`}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, wheels: all(name), condition, slip, heldRpm: 0 });
 
 export const SCENES: (Scene & { vehicle: VehicleId })[] = [
   ...ENGINE_IDS.flatMap((vehicle) => [
@@ -50,18 +54,14 @@ export const SCENES: (Scene & { vehicle: VehicleId })[] = [
     held(vehicle, `${vehicle} held 3000`, { heldRpm: 3000, speedMS: 20, throttle: 0.6 }),
     pull(vehicle),
   ]),
-  surface("asphalt"),
-  surface("gravel"),
-  surface("grass"),
-  surface("asphalt", 1),
-  surface("gravel", 1),
-  surface("grass", 1),
-  held("strom", "wind 15", { speedMS: 15, heldRpm: 0, surface: "asphalt", suspension: [0, 0, 0, 0] }),
+  ...CONDITIONS.flatMap((condition) => SURFACES.flatMap((name) => [tyres(name, 0, condition), tyres(name, 1, condition)])),
+  held("strom", "tyres verge, two wheels", { speedMS: 25, wheels: ["asphalt", "grass", "asphalt", "grass"], heldRpm: 0 }),
+  held("strom", "wind 15", { speedMS: 15, heldRpm: 0, suspension: [0, 0, 0, 0] }),
   held("strom", "wind 30", { speedMS: 30, heldRpm: 0, suspension: [0, 0, 0, 0] }),
   held("strom", "wind 55", { speedMS: 55, heldRpm: 0, suspension: [0, 0, 0, 0] }),
   held("bike", "bike coasting", { speedMS: 7 }),
   held("bike", "bike pedalling", { speedMS: 7, throttle: 0.7 }),
-  held("bike", "bike gravel", { speedMS: 7, throttle: 0.7, surface: "gravel" }),
+  held("bike", "bike gravel", { speedMS: 7, throttle: 0.7, wheels: all("gravel") }),
   held("strom", "forest", { place: { forest: 1, shore: 0, town: 0 } }, 12),
   held("strom", "shore", { place: { forest: 0, shore: 1, town: 0 } }, 12),
   held("strom", "town", { place: { forest: 0, shore: 0, town: 1 } }, 12),
@@ -73,7 +73,7 @@ export const SCENES: (Scene & { vehicle: VehicleId })[] = [
       speedMS: t < 2.5 ? 55 : 10,
       throttle: 1,
       slip: 1,
-      surface: "gravel",
+      wheels: all("gravel"),
       place: { forest: 1, shore: 1, town: 1 },
       suspension: t > 1 && t < 1.03 ? [0.3, 0.3, 0.3, 0.3] : [0.11, 0.11, 0.11, 0.11],
     }),

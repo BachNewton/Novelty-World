@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Car, NO_INPUT, type DriveInput } from "./car";
+import { Car, NO_INPUT, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
 import type { EngineRead } from "./gearbox";
@@ -111,6 +111,11 @@ export class SimulatedCar {
   /** What each wheel was on the last time it touched: front left, front right, rear left, rear right. */
   surfaces(): readonly Surface[] {
     return this.car.surfaces;
+  }
+
+  /** How each wheel's tyre met the ground on the last step, in the same order. */
+  treads(): readonly Readonly<Tread>[] {
+    return this.car.treads;
   }
 
   /** The nearest road, facing the way along it nearest the way the car faces. */

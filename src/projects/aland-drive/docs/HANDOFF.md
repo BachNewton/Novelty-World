@@ -34,7 +34,6 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 - **Models in `art/facades`:** the facades, shop fronts and churches are in the game. Its other models aren't: villas' porches and add-ons, supermarket entrances and fuel stations, which the gallery (`gallery.mjs`) stands in the world. None of those have collision. `church-yards.json` and `fuel-stations.json` came from scripts that were not kept.
 - **Night (`art/night`):** the `real` list in `integration.mjs`, with steps for the baked light, haze, windows and each frame's updates. `lights.json` needs an OSM/ODbL credit when it ships. Make the new meshes part of the precompile, or the first use stalls a frame.
 - **Water:** it reflects the sky and melts into its foot at the horizon. Give `createWater` `seaAtHour` once the night lands.
-- **Surfaces:** every tyre grips the same on tarmac, gravel and grass. The sound already knows the surface under the car (`sim/surroundings.ts`); the tyres don't yet, and each car's could answer it differently.
 
 ## Decisions waiting on the owner
 

@@ -31,6 +31,8 @@ import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
+import { PLAYGROUND_SPOTS } from "../playground/layout";
+import { playgroundAsked } from "../playground/place";
 import { placeAsked, placeLink } from "./start-place";
 import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, type StreamStats } from "./stream";
 import { tileBase } from "./tile-address";
@@ -41,6 +43,7 @@ import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { createRemoteCarViews } from "./remote-cars";
+import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
 import { GAME } from "../net/protocol";
 import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
@@ -66,7 +69,7 @@ import { NO_INPUT, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
-import { placeAround, surfaceUnder } from "../sim/surroundings";
+import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { conditionAsked, type Condition, type Surface } from "../sim/surfaces";
@@ -176,6 +179,9 @@ export interface GameProbe {
   carId: () => CarId;
   /** What each wheel was on the last time it touched, front left, front right, rear left, rear right. */
   surfaces: () => readonly Surface[];
+  /** How many tyre particles are in the air, of the most each pool holds. */
+  tyreCounts: () => { puffs: number; chips: number; puffPool: number; chipPool: number };
+  showTyres: (shown: boolean) => void;
   setCondition: (condition: Condition) => void;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
@@ -406,6 +412,9 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
 /** A page with no `canvases` gets the drive with no maps. */
 export async function startGame(container: HTMLElement, events: GameEvents, canvases?: MapCanvases, online?: OnlineOptions): Promise<Game> {
   const base = tileBase(window.location.search);
+  // The playground has spots of its own, and the showcase's are on an island it doesn't have.
+  const inPlayground = playgroundAsked(window.location.search);
+  const spots = inPlayground ? PLAYGROUND_SPOTS : SHOWCASE;
   const [manifest] = await Promise.all([
     fetch(`${base}/world.json`).then((response) => {
       if (!response.ok) throw new Error(`${base}/world.json: ${response.status}`);
@@ -639,10 +648,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const windmills = createWindmills(scene, outbuildingMaterials, manifest.tiles);
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
-  const regattas = createRegattas(scene, { colour: colorOf, linear, hazed });
+  // What's placed by Åland's own positions rather than from its tiles has no place in the playground, a world of its own.
+  const regattas = createRegattas(scene, { colour: colorOf, linear, hazed }, inPlayground ? [] : undefined);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
   const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun: manifest.sun }, (x, z) => world.height(x, z));
+  if (inPlayground) {
+    boatsUnderWay.show(false);
+    seaMarks.show(false);
+  }
   const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
@@ -780,6 +794,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   drive.condition = conditionAsked(window.location.search);
   let carSpec = PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
+  const tyres = createTyreParticles(scene, token);
   const cullCar = (culled: boolean) => {
     for (const object of carView.objects) {
       object.traverse((part) => {
@@ -802,6 +817,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   roadside.showAll(true);
   parkedCars.showAll(true);
   buildingAddOns.showAll(true);
+  tyres.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
@@ -820,6 +836,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   roadside.showAll(false);
   parkedCars.showAll(false);
   buildingAddOns.showAll(false);
+  tyres.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -881,10 +898,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       roadGraph = graph;
       const land = landImage(overviewData.image, manifest.overview);
       const ink = mapInk();
-      const found = discovery = new Discovery(graph, {
-        load: () => storage.get<string[]>(FOUND_KEY),
-        save: (ids) => { storage.set(FOUND_KEY, ids); },
-      });
+      const found = discovery = inPlayground
+        ? new Discovery(graph, { load: () => null, save: () => undefined }, [])
+        : new Discovery(graph, {
+            load: () => storage.get<string[]>(FOUND_KEY),
+            save: (ids) => { storage.set(FOUND_KEY, ids); },
+          });
       navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
@@ -918,7 +937,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "id">) => {
+  const jump = async ({ x, z, headingDeg, name, offRoad = false }: Omit<ShowcaseSpot, "id">) => {
     if (jumping || mapFrom) return;
     jumping = true;
     const wanted = { done: 0, total: Math.max(stream.wanted(x, z), 1) };
@@ -930,10 +949,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     loadingAround = { x, z };
     stream.update(x, z);
     await stream.settled();
-    const road = world.roads.nearest(x, z);
-    if (!road) throw new Error(`no road at the showcase spot ${name}`);
     const heading = (-headingDeg * Math.PI) / 180;
-    drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
+    if (offRoad) {
+      drive.placeAt({ x, y: world.height(x, z), z, heading, along: 0, distance: 0 });
+    } else {
+      const road = world.roads.nearest(x, z);
+      if (!road) throw new Error(`no road at the showcase spot ${name}`);
+      drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
+    }
     chaseCamera.snap();
     loadingAround = null;
     stream.onLanded = () => undefined;
@@ -942,7 +965,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onRoad?.(name);
   };
   const jumpTo = (id: string) => {
-    const spot = SHOWCASE.find((candidate) => candidate.id === id);
+    const spot = spots.find((candidate) => candidate.id === id);
     if (!spot) throw new Error(`no showcase spot ${id}`);
     return jump(spot);
   };
@@ -1089,6 +1112,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
   const remoteViews = createRemoteCarViews(scene, manifest.sun);
+  /** One step of the simulation, and what the player's tyres threw up in it. */
+  const stepDrive = (input: DriveInput) => {
+    drive.step(input);
+    tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.stateAt(1));
+  };
   const others = new Map<string, { name: string; heard: boolean }>();
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
@@ -1158,12 +1186,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!held && !mapFrom && !jumping && !devMenuOpen) {
       owedSeconds += seconds;
       stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
-      for (let step = 0; step < stepped; step++) drive.step(nextInput());
+      for (let step = 0; step < stepped; step++) stepDrive(nextInput());
       owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
     }
     const car = drive.stateAt(share);
     carView.draw(car);
+    tyres.draw(share);
     onlineWorld?.send(stepped, drive.stateAt(1));
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
@@ -1212,7 +1241,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: drive.condition, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1225,8 +1254,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
-    seaMarks.update(spot.x, spot.z, camera.position);
+    if (!inPlayground) {
+      boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
+      seaMarks.update(spot.x, spot.z, camera.position);
+    }
     people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
     if (!(lifted || held || jumping || devMenuOpen)) streetClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
@@ -1288,7 +1319,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
       advance: (steps, input) => {
-        for (let step = 0; step < steps; step++) drive.step(input ?? nextInput());
+        for (let step = 0; step < steps; step++) stepDrive(input ?? nextInput());
         if (seaHeldAt !== null) seaHeldAt += steps * STEP_S;
       },
       startRoute: (chain, cruiseMS, from) => {
@@ -1357,6 +1388,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       setCar,
       carId: () => drive.carId,
       surfaces: () => drive.player.surfaces(),
+      tyreCounts: tyres.counts,
+      showTyres: tyres.show,
       setCondition: (condition) => {
         drive.condition = condition;
       },
@@ -1389,7 +1422,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       drive.condition = condition;
     },
     setDevMenuOpen,
-    spots: SHOWCASE.map(({ id, name }) => ({ id, name })),
+    spots: spots.map(({ id, name }) => ({ id, name })),
     jumpTo(id) {
       setDevMenuOpen(false);
       void jumpTo(id).catch(fail);
@@ -1407,6 +1440,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       unbindPageHide();
       onlineWorld?.stop();
       remoteViews.dispose();
+      tyres.dispose();
       drive.dispose();
       stream.dispose();
       fetcher.dispose();

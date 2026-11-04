@@ -1,3 +1,4 @@
+import { playgroundAsked } from "../playground/place";
 import { RELAY_PARAM, relayUrlFromSearch } from "@/shared/lib/peer";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
 import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
@@ -33,7 +34,7 @@ export type HostMessage = { kind: "car"; from: string } & CarMessage;
 export function onlineRelay(search: string, automated: boolean): string | null {
   const query = new URLSearchParams(search);
   if (query.has(RELAY_PARAM)) return relayUrlFromSearch(search);
-  if (query.has("tiles") || automated) return null;
+  if (query.has("tiles") || playgroundAsked(search) || automated) return null;
   return relayUrlFromSearch(search);
 }
 

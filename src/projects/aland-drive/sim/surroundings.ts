@@ -1,4 +1,4 @@
-import type { Place, Surface } from "../audio/model";
+import type { Place } from "../audio/model";
 import type { World } from "./world";
 
 /*
@@ -7,18 +7,10 @@ import type { World } from "./world";
  * whatever land is neither town nor shore.
  */
 
-/** Further than this from a road's centre, the car is off it. */
-const ON_ROAD_M = 5;
 const SHORE_LOOK_M = [70, 160];
 const SHORE_LOOKS = 8;
 /** Walls in a 120 m block that read as a full town: a dozen or so buildings. */
 const TOWN_WALLS = 70;
-
-export function surfaceUnder(world: World, x: number, z: number): Surface {
-  const road = world.roads.nearest(x, z);
-  if (!road || road.distance > ON_ROAD_M) return "grass";
-  return road.paved === true ? "asphalt" : "gravel";
-}
 
 export function placeAround(world: World, x: number, z: number): Place {
   let water = 0;

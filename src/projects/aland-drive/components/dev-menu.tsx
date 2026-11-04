@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, CloudRain, MapPin, Navigation, Snowflake, Sun, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
+import { Check, CloudRain, FlaskConical, MapPin, Navigation, TreePine, Snowflake, Sun, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
 import type { CarChoice } from "../render/game";
 import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
+import { playgroundAsked, playgroundLink } from "../playground/place";
 
 /*
  * A tool for the owner, not part of the game: no prompt, no controller. Set to
@@ -98,6 +99,18 @@ function ConditionChoice({ condition, onCondition }: { condition: Condition; onC
   );
 }
 
+/** Over to the playground, a made-up map for trying the car, or back to Åland. */
+function WorldSwitch() {
+  const inPlayground = playgroundAsked(window.location.search);
+  const Icon = inPlayground ? TreePine : FlaskConical;
+  return (
+    <a href={playgroundLink(window.location.href, inPlayground)} className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm" style={{ borderColor: INK }}>
+      <Icon aria-hidden className="size-4" />
+      {inPlayground ? "Back to Åland" : "Playground"}
+    </a>
+  );
+}
+
 function SpotList({ spots, onJump }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void }) {
   return (
     <ul className="flex flex-col gap-1">
@@ -129,6 +142,7 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, spots, onJum
         </button>
         <Section title="Place">
           <CopyPlace whereabouts={whereabouts} />
+          <WorldSwitch />
         </Section>
         <Section title="Ground">
           <ConditionChoice condition={condition} onCondition={onCondition} />

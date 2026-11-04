@@ -39,6 +39,17 @@ export interface Underfoot {
   surfaceUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): Surface;
 }
 
+/** How a wheel's tyre met the ground on the last step, for what's drawn of it: the simulation reads none of it back. */
+export interface Tread {
+  /** Where the tyre touched, at the start of the step; under the wheel's mount at full droop when it touched nothing. */
+  readonly contact: Vector3;
+  /** How fast the ground passed under the tyre along the way it rolls, and across it, metres a second; 0 off the ground. */
+  rollMS: number;
+  slideMS: number;
+  /** What the tyre was asked for over what it could grip: past 1 it was sliding, spinning or locked. 0 off the ground. */
+  demand: number;
+}
+
 const WHEELS = [
   { side: -1, end: 1 },
   { side: 1, end: 1 },
@@ -101,6 +112,8 @@ export class Car {
   readonly contact = [false, false, false, false];
   /** What each wheel was on the last time it touched. */
   readonly surfaces: Surface[] = ["asphalt", "asphalt", "asphalt", "asphalt"];
+  /** How each wheel's tyre met the ground on the last step. */
+  readonly treads: Tread[] = WHEELS.map(() => ({ contact: [0, 0, 0], rollMS: 0, slideMS: 0, demand: 0 }));
 
   readonly tuning: CarTuning;
 
@@ -205,6 +218,9 @@ export class Car {
       this.suspension[index] = Math.min(compression[index], suspension.travelM);
       const contact = along(mount, up, -(hit?.timeOfImpact ?? reach));
       contacts.push(contact);
+      const tread = this.treads[index];
+      for (let axis = 0; axis < 3; axis++) tread.contact[axis] = contact[axis];
+      tread.rollMS = tread.slideMS = tread.demand = 0;
       if (hit) this.surfaces[index] = this.underfoot.surfaceUnder(hit, contact[0], contact[2]);
       const ground = GROUND_GRIP[tuning.class][this.underfoot.condition][this.surfaces[index]];
       grounds.push(ground);
@@ -258,6 +274,10 @@ export class Car {
       ahead -= clamp(rollSpeed / SLOW_MS, -1, 1) * (braking + handbrake + parked);
 
       const asked = Math.hypot(side, ahead);
+      const tread = this.treads[index];
+      tread.rollMS = rollSpeed;
+      tread.slideMS = slideSpeed;
+      tread.demand = reachGrip > 0 ? asked / reachGrip : 0;
       if (asked > reachGrip) {
         side *= reachGrip / asked;
         ahead *= reachGrip / asked;
