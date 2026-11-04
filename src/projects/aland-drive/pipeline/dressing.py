@@ -29,6 +29,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 
 import shapely
 
+import clearing
 from furniture import Furniture, along_yaw, facing, roll
 from grid import lonlat_to_grid, to_local
 from landmarks import Landmarks
@@ -49,6 +50,12 @@ FOOTPRINTS = {
 
 # A street tree's height when OSM doesn't say: a grown linden.
 LINDEN_HEIGHT_M = (10.0, 16.0)
+# How far a linden's crown reaches out from its trunk, as a share of its height, at the widest of `art/street/linden.ts`'s
+# crowns (a test holds them equal). A linden near a building is no taller than lets its crown clear it by the slack, and
+# one that would be shorter than a young street tree isn't planted.
+LINDEN_REACH = 0.44
+LINDEN_SLACK_M = 0.3
+LINDEN_SHORTEST_M = 6.0
 # A trunk's half width, as a share of the tree's height, for the wall the car meets.
 TRUNK_SHARE = 0.03
 # The crowns `art/street/linden.ts` builds, as `LINDEN_SEEDS` there: each tree rolls one.
@@ -117,6 +124,10 @@ class Dressing:
         self.tables: list[np.ndarray] = []
         plans = Landmarks(self.roadside.tile).footprints()
         self.landmarks = shapely.STRtree(plans) if plans else None
+        west, south, east, north = self.roadside.box
+        reach = LINDEN_HEIGHT_M[1] * LINDEN_REACH
+        drawn = clearing.building_shapes(clearing.around(self.roadside.tile.name, self.roadside.tiles), west - reach, south - reach, east + reach, north + reach)
+        self.buildings = shapely.STRtree(drawn) if drawn else None
 
     # Places
 
@@ -135,6 +146,13 @@ class Dressing:
     def settle(self, model: str, point: np.ndarray, yaw: float) -> np.ndarray | None:
         """A mapped object's spot, moved off the paving as the furniture's is, and never by a landmark."""
         return None if self.by_landmark(point) else self.furniture.settle_shape(lambda at: footprint(model, at, yaw), point)
+
+    def room(self, point: np.ndarray, reach: float) -> float:
+        """How far a point is from the nearest building the game draws, 0 inside one, or `reach` if none is nearer."""
+        if self.buildings is None:
+            return reach
+        _, found = self.buildings.query_nearest(Point(point), max_distance=reach, return_distance=True)
+        return float(found.min()) if len(found) else reach
 
     def by_landmark(self, point: np.ndarray) -> bool:
         return self.landmarks is not None and len(self.landmarks.query(Point(point), predicate="dwithin", distance=LANDMARK_CLEAR_M)) > 0
@@ -185,7 +203,8 @@ class Dressing:
     def linden(self, point: np.ndarray, height: float) -> None:
         yaw = roll(*point, 9.1) * 2 * math.pi
         model = f"linden-{LINDEN_SEEDS[int(roll(*point, 7.3) * len(LINDEN_SEEDS))]}"
-        if not self.clear_of_carriageways(point, TREE_CARRIAGEWAY_CLEAR_M) or not self.fits(model, point, yaw, sidewalk=True):
+        height = min(height, (self.room(point, height * LINDEN_REACH + LINDEN_SLACK_M) - LINDEN_SLACK_M) / LINDEN_REACH)
+        if height < LINDEN_SHORTEST_M or not self.clear_of_carriageways(point, TREE_CARRIAGEWAY_CLEAR_M) or not self.fits(model, point, yaw, sidewalk=True):
             return
         self.put(model, point, yaw, scale=round(height, 2), wall_half=height * TRUNK_SHARE)
 

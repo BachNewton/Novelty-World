@@ -94,8 +94,12 @@ export interface Clipmap {
   waterLevelAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** Metres from the shore at a place, out into the water and below zero on land, read between the ring's four nearest nodes as the waterline is drawn. */
   shoreAt: (level: number, place: Node<"vec2">) => Node<"float">;
-  /** The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches. */
-  shoreAround: (place: Node<"vec2">) => Node<"float">;
+  /**
+   * The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches, at
+   * a place no farther than `reachM` from the camera: only the rings that reach can need are read, since each is a
+   * texture of its own and a compute pass holds only so many.
+   */
+  shoreAround: (place: Node<"vec2">, reachM: number) => Node<"float">;
   dispose: () => void;
 }
 
@@ -250,22 +254,25 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     shoreAt(level, place) {
       return rings[level].shoreAt(place);
     },
-    shoreAround(place) {
+    shoreAround(place, reachM) {
       const off = abs(place.sub(cameraSpot)).toVar();
       const from = max(off.x, off.y);
       // A ring's corner sits on its own lattice, so its middle can be a couple of cells off the camera.
-      const holds = (level: number) => from.lessThan((CELLS / 2 - 2) * rings[level].stepM);
+      const halfOf = (level: number) => (CELLS / 2 - 2) * rings[level].stepM;
+      const holds = (level: number) => from.lessThan(halfOf(level));
+      const last = rings.findIndex((_, level) => level === DRIVING_LEVELS - 1 || halfOf(level) >= reachM);
+      if (last === 0) return rings[0].shoreAt(place);
       const shore = float(0).toVar();
       let chain = If(holds(0), () => {
         shore.assign(rings[0].shoreAt(place));
       });
-      for (let level = 1; level < DRIVING_LEVELS - 1; level++) {
+      for (let level = 1; level < last; level++) {
         chain = chain.ElseIf(holds(level), () => {
           shore.assign(rings[level].shoreAt(place));
         });
       }
       chain.Else(() => {
-        shore.assign(rings[DRIVING_LEVELS - 1].shoreAt(place));
+        shore.assign(rings[last].shoreAt(place));
       });
       return shore;
     },

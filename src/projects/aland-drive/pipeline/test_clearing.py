@@ -1,0 +1,55 @@
+"""The clearing round buildings: what a tree reads back must never say a building is further than it is."""
+
+import unittest
+
+import numpy as np
+
+from canopy import PIXELS
+from clearing import REACH_M, UNIT_M, ZERO, distances, encode
+from grid import TILE_SIZE_M
+
+PIXEL_M = TILE_SIZE_M / PIXELS
+# How far a read may say a building is beyond where it is: half a raster cell, and the encoding's rounding.
+SLACK_M = 0.5 + UNIT_M / 2
+
+
+def read(clearing: np.ndarray, x: float, z: float) -> float:
+    """Bilinear, clamped at the edge, as the GPU reads it, at a place in metres from the tile's north-west corner."""
+    u, v = x / PIXEL_M - 0.5, z / PIXEL_M - 0.5
+    column, row = int(np.floor(u)), int(np.floor(v))
+    s, t = u - column, v - row
+    at = lambda c, r: clearing[min(max(r, 0), PIXELS - 1), min(max(c, 0), PIXELS - 1)]
+    return (at(column, row) * (1 - s) + at(column + 1, row) * s) * (1 - t) + (at(column, row + 1) * (1 - s) + at(column + 1, row + 1) * s) * t
+
+
+class Clearing(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # A 20 m house well inside the tile, a shed whose west half is over the tile's west edge, and a wall line.
+        house = np.array([[3000, 3000], [3020, 3000], [3020, 3020], [3000, 3020]], float)
+        shed = np.array([[-3, 1000], [1, 1000], [1, 1006], [-3, 1006]], float)
+        wall = np.array([[4000, 4000, 4000, 4030]], float)
+        signed = distances([house, shed], wall, 0.0, 0.0)
+        cls.clearing = (np.asarray(encode(signed), dtype=float) - ZERO) * UNIT_M
+
+    def test_a_straight_wall_reads_back_its_distance_between_pixels(self):
+        for x in np.arange(3021.0, 3036.0, 0.7):
+            self.assertAlmostEqual(read(self.clearing, x, 3010.3), x - 3020, delta=SLACK_M, msg=x)
+
+    def test_inside_a_building_reads_below_zero(self):
+        self.assertLess(read(self.clearing, 3010.0, 3010.0), -5)
+
+    def test_a_line_clears_both_sides(self):
+        self.assertAlmostEqual(read(self.clearing, 4006.0, 4015.0), 6.0, delta=SLACK_M)
+        self.assertAlmostEqual(read(self.clearing, 3994.0, 4015.0), 6.0, delta=SLACK_M)
+
+    def test_by_the_tiles_edge_a_neighbours_building_is_never_read_further_than_it_is(self):
+        for x in np.arange(1.0, 4.0, 0.25):
+            self.assertLessEqual(read(self.clearing, x, 1003.0), x - 1 + SLACK_M, x)
+
+    def test_far_from_anything_reads_the_reach(self):
+        self.assertAlmostEqual(read(self.clearing, 5000.0, 500.0), REACH_M, delta=UNIT_M)
+
+
+if __name__ == "__main__":
+    unittest.main()

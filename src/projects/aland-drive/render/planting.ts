@@ -1,5 +1,6 @@
 import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, fract, If, instanceIndex, mix, sin, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { CLEARING_SLACK_M } from "./tree-place";
 import { viewSides } from "./view-sides";
 
 /*
@@ -68,6 +69,11 @@ export const placesWithin = (metres: number, stepM: number) => Math.ceil(Math.PI
 export const roll = (cell: Node<"vec2">, a: number, b: number) => fract(sin(dot(cell, vec2(a, b))).mul(43758.5453));
 
 /** How far a shape spreads from its foot, across the ground. */
+/** Whether a plant spreading this far from its foot stands clear of every building, by the clearing round them less what a read of it may be off by. */
+export function clearOfBuildings(clearanceAt: (place: Node<"vec2">) => Node<"float">, place: Node<"vec2">, spread: Node<"float">): Node<"bool"> {
+  return clearanceAt(place).sub(CLEARING_SLACK_M).greaterThan(spread);
+}
+
 export function spreadOf(shape: BufferGeometry): number {
   const position = shape.getAttribute("position");
   let widest = 0;

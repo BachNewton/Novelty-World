@@ -27,6 +27,7 @@ export interface FarTile {
   shade: Mips;
   mask: Mips;
   ground: Mips;
+  /** In red the canopy, and in green the clearing round buildings. */
   canopy: Mips;
   stands: Mips;
   /** Each 8 m pixel's share of boulder field. */
@@ -158,10 +159,20 @@ function fieldsOf(mask: Uint8Array, maskPixels: number, rock: Uint8Array | null,
   return fields;
 }
 
+function interleaved(red: Uint8Array, green: Uint8Array): Uint8Array {
+  const both = new Uint8Array(red.length * 2);
+  for (let at = 0; at < red.length; at++) {
+    both[at * 2] = red[at];
+    both[at * 2 + 1] = green[at];
+  }
+  return both;
+}
+
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
   const reader = new Reader(`${base}/${tile.name}`);
-  const { far: format, heights, mask, ground, canopy, stands, water, rock } = world;
-  const [farHeights, farLevels, farShore, shade, maskPixels, groundPixels, canopyPixels, standPixels, rockPixels] = await Promise.all([
+  const { far: format, heights, mask, ground, canopy, clearing, stands, water, rock } = world;
+  if (clearing.pixels !== canopy.pixels) throw new Error(`the clearing is ${clearing.pixels} pixels and the canopy ${canopy.pixels}: they share a layer`);
+  const [farHeights, farLevels, farShore, shade, maskPixels, groundPixels, canopyPixels, clearingPixels, standPixels, rockPixels] = await Promise.all([
     reader.inflated(format.heightsFile),
     reader.inflated(water.farLevelsFile),
     reader.inflated(water.farShoreFile),
@@ -169,6 +180,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     reader.pixels(mask.file, mask.pixels, 4),
     reader.pixels(ground.farFile, ground.farPixels, 4),
     reader.pixels(canopy.file, canopy.pixels, 1),
+    reader.pixels(clearing.file, clearing.pixels, 1),
     reader.inflated(stands.file),
     rock ? reader.inflated(rock.file) : null,
   ]);
@@ -184,7 +196,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     shade: mipChain(shade, format.shadePixels, 1),
     mask: mipChain(maskPixels, mask.pixels, 4),
     ground: mipChain(groundPixels, ground.farPixels, 4),
-    canopy: mipChain(canopyPixels, canopy.pixels, 1),
+    canopy: mipChain(interleaved(canopyPixels, clearingPixels), canopy.pixels, 2),
     stands: mipChain(new Uint8Array(standPixels), stands.pixels, 4),
     fields: mipChain(fields, fieldPixelsOf(world), 2),
     land,

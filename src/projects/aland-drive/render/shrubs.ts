@@ -4,7 +4,7 @@ import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from ".
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
 import { foliageLight, towardsSun } from "./foliage-light";
-import { bandColours, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
 import { FAR_CLEARING, onLineReading, type WallDistance } from "./wall-clearing";
 import type { LandAt } from "./tile-reads";
@@ -32,6 +32,8 @@ const LATTICES: Lattice[] = [
   { stepM: 2.5, ends: [420, 520, 40], salt: 233.9 },
   { stepM: 6, ends: [1100, 1350, 80], salt: 712.4 },
 ];
+/** The farthest any of its plants stands from the camera. */
+const REACH_M = Math.max(...LATTICES.map(reachOf));
 /** Each lattice's swap to far versions. */
 const SWAPS_M = [60, 150] as const;
 const SWAP_BAND = 0.15;
@@ -100,11 +102,13 @@ export interface ShrubInputs {
   landAt: LandAt;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
-  /** Metres from the drawn waterline, out into the water and below zero on land. */
-  shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the drawn waterline, out into the water and below zero on land, at a place no farther than `reachM` from the camera. */
+  shoreAt: (place: Node<"vec2">, reachM: number) => Node<"float">;
   /** Metres from the nearest stone wall's line, to the bushes' reach and to the birches', for none to stand up through one. */
   wallDistanceAt: WallDistance;
   wallDistanceFarAt: WallDistance;
+  /** Metres from a place to the nearest building (`pipeline/clearing.py`): a plant stands only where its whole spread clears it. */
+  clearanceAt: (place: Node<"vec2">) => Node<"float">;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -126,7 +130,7 @@ export interface Shrubs {
   dispose: () => void;
 }
 
-export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
+export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, clearanceAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
   const kinds: Kind[] = [
     { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
     { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
@@ -166,7 +170,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const isBushes = lattice === LATTICES[BUSHES];
       const chance = roll(seed, 93.989, 67.345).toVar();
       const land = landAt(place);
-      If(land.dry.greaterThan(LEAST_DRY).and(roadsAt(place, 1).lessThan(ROAD_CLEAR)).and(shoreAt(place).lessThanEqual(0)), () => {
+      If(land.dry.greaterThan(LEAST_DRY).and(roadsAt(place, 1).lessThan(ROAD_CLEAR)).and(shoreAt(place, REACH_M).lessThanEqual(0)), () => {
         const here = canopyAt(place, 0);
         const edge = smoothstep(float(EDGE[0]), float(EDGE[1]), canopyAt(place, AROUND_MIP)).mul(float(1).sub(smoothstep(float(OPEN_HERE[0]), float(OPEN_HERE[1]), here))).toVar();
         const bushes = edge.mul(isBushes ? EDGE_BUSHES : EDGE_BIRCHES).toVar();
@@ -184,9 +188,8 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
             const size = mix(lowOf.element(int(kind)) as unknown as Node<"float">, highOf.element(int(kind)) as unknown as Node<"float">, roll(seed, 73.31, 29.47)).toVar();
             const swapM = SWAPS_M[isBushes ? BUSHES : BIRCHES];
             const swap = smoothstep(float(swapM * (1 - SWAP_BAND)), float(swapM * (1 + SWAP_BAND)), distance).toVar();
-            const clearOfWalls = isBushes
-              ? wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M))
-              : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M);
+            const spread = size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).toVar();
+            const clearOfWalls = (isBushes ? wallDistanceAt(place).greaterThan(spread.add(STONE_WALL_HALF_WIDE_M)) : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M)).and(clearOfBuildings(clearanceAt, place, spread));
             const remaining = left().toVar();
             const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
             const look = vec4(land.broad.pow(vec3(2.2)), lightOf(land.shade)).toVar();

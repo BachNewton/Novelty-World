@@ -341,6 +341,7 @@ def along_yaw(east: float, north: float) -> float:
 class Roadside:
     def __init__(self, tile: Tile, folder: Path, tiles: Path):
         self.tile = tile
+        self.tiles = tiles
         self.manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
         bounds = self.manifest["bounds"]
         self.box = (bounds["west"], bounds["south"], bounds["east"], bounds["north"])

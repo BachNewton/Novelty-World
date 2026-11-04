@@ -24,6 +24,7 @@ from scipy import ndimage
 
 import buildings as solids
 import canopy
+import clearing
 import ground as ground_colour
 import landmarks as landmark_sites
 import laser
@@ -365,6 +366,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "mask": first["mask"],
         "ground": first["ground"],
         "canopy": first["canopy"],
+        "clearing": clearing.MANIFEST,
         "stands": stands.MANIFEST,
         "rock": rocks.MANIFEST,
         **next(({"town": town.world_town(manifest["town"])} for manifest in manifests if "town" in manifest), {}),
@@ -441,6 +443,8 @@ def main() -> None:
     parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside too, whose poles and walls the bales, tractors and sheep keep clear of.
     farm.bake_tiles(names, OUTPUT)
+    # Last, once every building and model is placed, its neighbours' too.
+    clearing.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

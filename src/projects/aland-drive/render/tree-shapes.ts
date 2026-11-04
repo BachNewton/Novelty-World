@@ -19,6 +19,16 @@ export const FAR_RINGS = 3;
 export const STAGES = 3;
 /** A ring's unevenness at its widest. */
 export const SWELL = 0.16;
+/** How much a tree's crown differs from its kind's, either way. */
+export const CROWN_SPREAD = 0.12;
+/** A far crown's triangle is narrower than the turned shape's for the same radius, so it's drawn this much wider. */
+export const CONE_FILL = 1.25;
+/** The most any tree leans, as a share of its height, then a rock pine's lean from the wind off the sea, which is mostly south-westerly, that way. */
+export const LEAN = 0.04;
+export const ROCK_LEAN: [number, number] = [0.1, 0.24];
+export const WIND_WAY: [number, number] = [0.7, -0.7];
+/** How far a rock pine's trunk and crown wander from straight, as a share of its height. */
+export const GNARL = 0.05;
 
 export type TreeKind = "spruce" | "pine" | "birch" | "round" | "upright";
 export const TREE_KINDS: TreeKind[] = ["spruce", "pine", "birch", "round", "upright"];
@@ -123,6 +133,17 @@ export const FAR_TABLE = Float32Array.from(ROWS.flatMap(farRow).flat());
 
 /** The widest any crown spreads, as a share of the tree's height, with a ring's swell. */
 export const WIDEST_CROWN = Math.max(...ROWS.flat().map(([, wide]) => wide)) * (1 + SWELL);
+
+/** The farthest any ring of these rows reaches sideways from the foot, as a share of the tree's height, near or far, with the most it swells, spreads and leans and wanders. */
+function reachOf(rows: Rings[], lean: number, wander: number): number {
+  const widest = (rings: Rings, fill: number) => Math.max(...rings.map(([up, wide]) => wide * fill * (1 + SWELL) * (1 + CROWN_SPREAD) + lean * up * up + wander));
+  return Math.max(...rows.map((rings) => Math.max(widest(rings, 1), widest(farRings(rings), CONE_FILL))));
+}
+
+/** How far any tree but a rock pine reaches sideways from its foot, as a share of its height: what keeps its crown clear of a building. */
+export const CROWN_REACH = reachOf(ROWS.slice(0, ROCK_ROW), LEAN, 0);
+/** A rock pine's reach, leaning downwind and wandering as far as one can. */
+export const ROCK_REACH = reachOf([ROCK_PINE], LEAN + Math.hypot(...WIND_WAY) * ROCK_LEAN[1], GNARL * Math.SQRT2);
 
 /** How wide a grown tree of a kind spreads, as a share of its height: what the stands plan a stand's cover from. */
 export const grownCrown = (kind: TreeKind) => Math.max(...STAGED[kind][1].map(([, wide]) => wide));

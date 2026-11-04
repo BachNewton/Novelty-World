@@ -6,7 +6,7 @@ import { buildGrassTuft, buildSeedGrass, buildVergeCard, buildWildflowers } from
 import type { RoadsideModel } from "../art/roadside/models";
 import { groundFloor, groundKinds } from "../art/surfaces";
 import type { LandAt } from "./tile-reads";
-import { createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
 import type { WallDistance } from "./wall-clearing";
 
@@ -38,6 +38,8 @@ const LATTICES: Lattice[] = [
   { stepM: 0.5, ends: [120, 190, 25], salt: 0 },
   { stepM: 1.5, ends: [380, 470, 30], salt: 517.3 },
 ];
+/** The farthest any of its plants stands from the camera. */
+const REACH_M = Math.max(...LATTICES.map(reachOf));
 const SWAP_M = 34;
 const SWAP_BAND = 0.12;
 
@@ -125,10 +127,12 @@ export interface VergeInputs {
   /** How much of a place is boulder field: stones, where no verge grows. */
   fieldsAt: (place: Node<"vec2">) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
-  /** Metres from the drawn waterline, out into the water and below zero on land. */
-  shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the drawn waterline, out into the water and below zero on land, at a place no farther than `reachM` from the camera. */
+  shoreAt: (place: Node<"vec2">, reachM: number) => Node<"float">;
   /** Metres from the nearest stone wall's line, for no tuft to stand up through one. */
   wallDistanceAt: WallDistance;
+  /** Metres from a place to the nearest building (`pipeline/clearing.py`): a plant stands only where its whole spread clears it. */
+  clearanceAt: (place: Node<"vec2">) => Node<"float">;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -152,7 +156,7 @@ export interface Verge {
   dispose: () => void;
 }
 
-export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
+export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, clearanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
@@ -202,7 +206,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
           const clear = float(1).sub(smoothstep(float(ON_ROAD[0]), float(ON_ROAD[1]), roadsAround(0))).toVar();
           const land = landAt(place);
           const { stoneShare } = groundKinds(land.wide.pow(vec3(2.2)));
-          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(pavedAt(place).lessThan(0.5)), () => {
+          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place, REACH_M).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(pavedAt(place).lessThan(0.5)), () => {
             const ground = groundAt(place).toVar();
             If(seenOn(ground), () => {
               const stand = roll(floor(place.div(STAND_M)), 7.13, 3.77).mul(STANDS).floor().toVar();
@@ -211,7 +215,8 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
               // Thinner towards the edge of a verge, by the place and never by the distance.
               const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47)).mul(float(1).sub(smoothstep(float(0.75), float(1), turn))).toVar();
               const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
-              const clearOfWalls = wallDistanceAt(place).greaterThan(size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).add(STONE_WALL_HALF_WIDE_M));
+              const spread = size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).toVar();
+              const clearOfWalls = wallDistanceAt(place).greaterThan(spread.add(STONE_WALL_HALF_WIDE_M)).and(clearOfBuildings(clearanceAt, place, spread));
               const remaining = left().toVar();
               const standing = vec4(place.x, ground.sub(SINK_M), place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
               const photo = land.broad.pow(vec3(2.2)).toVar();
