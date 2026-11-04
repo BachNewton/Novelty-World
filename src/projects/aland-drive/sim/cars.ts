@@ -22,6 +22,7 @@ export const isCarId = (id: string): id is CarId => (CAR_IDS as readonly string[
 /** The sports fastback the game starts in: a straight six that loves to rev, and a tail that stays planted. */
 const SKERRY_GT: CarTuning = {
   name: "Skerry GT",
+  class: "sports",
   car: {
     massKg: 1400,
     halfSize: [0.9, 0.42, 2.2],
@@ -95,6 +96,7 @@ const SKERRY_GT: CarTuning = {
 /** A car as a driver would describe it. */
 interface Character {
   name: string;
+  class: CarTuning["class"];
   massKg: number;
   /** The body as drawn: its length, width, height and the height of its sills, from the road. */
   outline: readonly [length: number, width: number, height: number, sill: number];
@@ -150,6 +152,7 @@ function tuned(c: Character): CarTuning {
   const [frontMu, rearMu] = c.grip;
   return {
     name: c.name,
+    class: c.class,
     car: {
       massKg: mass,
       halfSize: [width / 2, (top - bottom) / 2, length / 2],
@@ -209,6 +212,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A small five-door with a turbo triple: light, eager, out of breath past 180, and the front tyres do everything.
   ljus: tuned({
     name: "Ljus",
+    class: "road",
     massKg: 1080,
     outline: [3.92, 1.72, 1.5, 0.2],
     axleZ: [-1.23, 1.23],
@@ -245,6 +249,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A long Nordic estate with a turbo five: a broad shove from low revs, grip from all four wheels, calm at 240.
   fjard: tuned({
     name: "Fjärd",
+    class: "road",
     massKg: 1640,
     outline: [4.76, 1.82, 1.48, 0.2],
     axleZ: [-1.42, 1.38],
@@ -282,6 +287,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A low two-seater with a flat-plane V8 that screams to 9,000: the fastest car here, stiff, sharp, and all its drive at the back.
   sund: tuned({
     name: "Sund",
+    class: "sports",
     massKg: 1360,
     outline: [4.35, 1.86, 1.27, 0.16],
     axleZ: [-1.27, 1.23],
@@ -320,6 +326,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A working pickup with a lazy cross-plane V8 and four gears: heavy, soft, wallowing on its tall tyres.
   holm: tuned({
     name: "Holm",
+    class: "offroad",
     massKg: 2150,
     outline: [5.24, 1.94, 1.76, 0.36],
     axleZ: [-1.6, 1.6],
@@ -358,6 +365,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A tradesman's turbo-diesel van: slow, tall and top-heavy, but it pulls hard low down and never minds a hill.
   kobb: tuned({
     name: "Kobb",
+    class: "road",
     massKg: 1950,
     outline: [4.94, 1.9, 1.98, 0.24],
     axleZ: [-1.62, 1.42],
@@ -396,6 +404,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // An old estate with a tired four and a four-speed box: soft, slow to answer, and a long way to stop.
   salta: tuned({
     name: "Sälta",
+    class: "road",
     massKg: 1320,
     outline: [4.75, 1.72, 1.44, 0.2],
     axleZ: [-1.36, 1.36],
@@ -432,6 +441,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A tiny open roadster on skinny tyres with a twin-carb four: light as a feather, quick to turn, happy to slide.
   vik: tuned({
     name: "Vik",
+    class: "road",
     massKg: 900,
     outline: [3.95, 1.55, 1.12, 0.17],
     axleZ: [-1.15, 1.15],
@@ -468,6 +478,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A hot hatch with a four that revs to 8,200 and close gears: front-driven, stiff, and it wants to be wrung out.
   sten: tuned({
     name: "Sten",
+    class: "road",
     massKg: 1180,
     outline: [3.95, 1.78, 1.42, 0.2],
     axleZ: [-1.25, 1.25],
@@ -505,6 +516,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // An old four-by-four with a slow straight six: tall, soft, heavy, on mud tyres, and the slowest thing on the road.
   berg: tuned({
     name: "Berg",
+    class: "offroad",
     massKg: 2050,
     outline: [4.4, 1.84, 1.92, 0.42],
     axleZ: [-1.3, 1.3],
@@ -543,6 +555,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // An electric car: one gear, all its shove at once, a low battery floor, regeneration on the lift, and a limit at 230.
   strom: tuned({
     name: "Ström",
+    class: "road",
     massKg: 2120,
     outline: [4.5, 1.9, 1.62, 0.26],
     axleZ: [-1.425, 1.425],
@@ -580,6 +593,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A long black saloon with a V12 and eight gears: silk at a cruise, a wall of pull flat out, heavy and planted.
   ankar: tuned({
     name: "Ankar",
+    class: "sports",
     massKg: 2080,
     outline: [5.1, 1.92, 1.46, 0.19],
     axleZ: [-1.525, 1.525],
@@ -617,6 +631,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // An open four-seat cruiser with a gruff V6: comfortable, rear-driven, quick enough, made for the coast road.
   bris: tuned({
     name: "Bris",
+    class: "road",
     massKg: 1600,
     outline: [4.3, 1.8, 1.3, 0.18],
     axleZ: [-1.275, 1.275],
@@ -653,6 +668,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
   // A rally special with a turbo flat four: lag, then a rush; four-wheel drive, a wing, and a tail that swings on the handbrake.
   grus: tuned({
     name: "Grus",
+    class: "rally",
     massKg: 1330,
     outline: [4.2, 1.88, 1.34, 0.2],
     axleZ: [-1.25, 1.25],

@@ -36,11 +36,24 @@ Dry asphalt is the car exactly as tuned: a grip of one, no change to the curve, 
 
 **The steering knows the footing.** The lock narrows with speed to the angle that asks for the grip there is; that angle now asks for the grip of the surface under the wheels, so full lock on ice asks for an ice corner rather than ploughing the fronts on, and the yaw assist asks for no faster a turn than that grip gives. That's the arcade assist the reference games have on by default. Brakes and throttle need nothing: the friction circle already caps them at the grip there is, which is a perfect ABS and traction control.
 
+**Each car has a class, what it was built for**, so the order of the cars changes with the ground: on an asphalt race the sports cars win, and on gravel, grass or snow they struggle while the rally car and the four-by-fours win. The three reference games each do this their own way:
+
+- **Test Drive Unlimited 2:** the class is the car. A (asphalt), B (off-road) and C (classic), each with tiers by performance and a licence of its own, and off-road events take B-class cars. A car never changes class.
+- **The Crew:** the class is a kit on a car. One car can be built as Street, Dirt, Performance, Raid or Circuit spec, each bought from its own tuner, and events ask for a spec. Not every car has every spec.
+- **Forza Horizon:** any car, made for a surface by its parts. Tyre compound and suspension decide what it's good at, off-road tyres for dirt and cross-country, and road, dirt and cross-country races are capped by one performance number.
+
+Åland Drive takes TDU 2's: the cars are invented characters, there is no upgrade system, and each race names its ground. A car's class is one field of its description, so adding a car is one choice, and a tuning shop could later move a car between classes as Forza's tyres and The Crew's kits do, with no change to the physics. A class is a row on top of the surface table: times each surface's grip, its hold-on in a slide and its rolling, and times the grip in each condition. Every class is the car as tuned on dry asphalt, since a car's own numbers already say how it does there: the four-by-fours are already the softest and slowest to turn on tarmac.
+
+- **Sports**: wide, soft tyres that snatch and let go on gravel, and a low nose that ploughs grass.
+- **Road**: an ordinary car, the surface table as it is, a little worse on grass.
+- **Rally**: tyres and long travel that keep a gravel slide going, and bite in snow.
+- **Off-road**: tall, knobbly tyres that barely notice grass or gravel, and the most bite in snow.
+
 **The racers' table has a row per ground.** `tools/car-limits.ts` measures every car on a test pad of each surface, in each condition: sixteen rows a car. The racers' speed plan reads the row for the ground under each stretch of its route. The table's print covers the surfaces' grip as well as the cars' tuning, so changing either asks for the table to be measured again.
 
 ## What was measured
 
-The Skerry GT and the Berg on the test pad, each surface on its own, before any tuning by feel. Corner is sideways grip held in a steady corner; stop is metres from 100 km/h; top is the fastest in a minute of full throttle.
+The Skerry GT and the Berg on the test pad, each surface on its own, before car classes and before any tuning by feel. Corner is sideways grip held in a steady corner; stop is metres from 100 km/h; top is the fastest in a minute of full throttle.
 
 | Ground | Skerry GT corner g at 100 km/h | stop from 100, m | 0–100, s | top, km/h | Berg corner g at 100 | stop, m | top, km/h |
 |---|---|---|---|---|---|---|---|
@@ -55,10 +68,22 @@ The Skerry GT and the Berg on the test pad, each surface on its own, before any 
 | Dry rock | 1.20 | 31.9 | 4.8 | 254 | 0.77 | 47.4 | 151 |
 | Wet rock | 0.82 | 45.9 | 4.8 | 254 | 0.54 | 66.3 | 151 |
 
+Those are before car classes. With them, every car's sideways grip at 60 km/h, best first:
+
+| Ground | The order |
+|---|---|
+| Dry asphalt (unchanged) | Sund 1.43, Grus 1.33, Skerry GT 1.28, Sten, Ström, Ankar, Fjärd, Bris, Ljus, Vik, Sälta, Kobb, Holm 0.93, Berg 0.86 |
+| Dry gravel | Grus 1.15, Holm 1.01, Sten 0.92, Ström, Berg 0.90, Fjärd, Bris, Ljus, Vik, Sälta, Sund 0.69, Kobb, Skerry GT 0.62, Ankar 0.58 |
+| Dry grass | Holm 0.91, Grus 0.83, Berg 0.83, Ström 0.65, Sten, Fjärd, Bris, Ljus, Vik, Sund 0.53, Sälta, Skerry GT 0.49, Kobb, Ankar 0.44 |
+| Snow on gravel | Grus 0.86, Holm 0.79, Berg 0.73, Ström 0.57, Sten, Fjärd, Bris, Ljus, Vik, Sälta, Kobb, Sund 0.32, Skerry GT 0.29, Ankar 0.27 |
+
+The Berg's own grip is so low that on dry gravel it only draws level with the best road cars; it leads them on grass and snow.
+
 Every car's sixteen rows are in `sim/car-limits.json`.
 
 ## Open
 
+- **The classes.** Which car is in which, and how far apart the classes are, are first guesses to judge in the game, as is whether the Berg should lead the road cars on gravel too.
 - **The feel.** Every number is a starting point for the owner to judge against the reference games: whether gravel lets go early enough and holds a slide well enough, whether grass punishes enough without spinning the car, whether wet asphalt is too forgiving, whether ice at a quarter of the grip is fun or a chore.
 - **Ice's top speed.** With no rolling resistance on ice, a car on ice still reaches its dry top speed in a straight line, given time: true of real ice, but whether it plays well is the owner's call.
 - **The sound** still finds the surface its own way, from the nearest road's line, so a wheel on the verge is heard on asphalt within 5 m of the centre. It could read the wheels' surfaces instead.

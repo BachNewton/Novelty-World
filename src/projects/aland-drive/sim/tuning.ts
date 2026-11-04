@@ -1,4 +1,5 @@
 import type { Gearbox } from "./gearbox";
+import type { CarClass } from "./surfaces";
 
 /*
  * The shape of a car's numbers, and the world's, which every car shares. Lengths
@@ -13,6 +14,8 @@ export const STEP_S = 1 / 120;
 export interface CarTuning {
   /** What the car is called, on screen. */
   name: string;
+  /** What it was built for, which sets how each surface treats it (`surfaces.ts`). */
+  class: CarClass;
   car: {
     massKg: number;
     /** Half the box the chassis collides as: wide, tall, long. */

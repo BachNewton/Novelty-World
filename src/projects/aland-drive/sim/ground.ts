@@ -27,6 +27,7 @@ const blockKey = (row: number, column: number) => row * 65536 + column;
 
 /** A loaded block's triangles in the order its mesh has them: the ground's, then each road triangle's surface, then the walls'. */
 interface BlockSurfaces {
+  triangles: number;
   groundTriangles: number;
   roads: Uint8Array;
 }
@@ -71,7 +72,8 @@ export class GroundBlocks {
     const block = this.surfaces.get(hit.collider.handle);
     // Not a block: the world's edge, whose wall no wheel rolls on but one may brush.
     if (!block || hit.featureId === undefined) return this.world.groundSurface(x, z);
-    const road = hit.featureId - block.groundTriangles;
+    // Rapier numbers a triangle hit from beneath as its index plus the mesh's count, and a ribbon may be wound either way.
+    const road = (hit.featureId % block.triangles) - block.groundTriangles;
     return road >= 0 && road < block.roads.length ? SURFACES[block.roads[road]] : this.world.groundSurface(x, z);
   }
 
@@ -150,7 +152,7 @@ export class GroundBlocks {
     }
     this.built++;
     const collider = this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
-    this.surfaces.set(collider.handle, { groundTriangles: this.patch.length / 3, roads: Uint8Array.from(roadSurfaces) });
+    this.surfaces.set(collider.handle, { triangles: indices.length / 3, groundTriangles: this.patch.length / 3, roads: Uint8Array.from(roadSurfaces) });
     return collider;
   }
 }

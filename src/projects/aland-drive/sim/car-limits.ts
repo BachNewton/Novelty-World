@@ -1,6 +1,6 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
-import { SURFACE_GRIP, type Condition, type Surface } from "./surfaces";
+import { GROUND_GRIP, type Condition, type Surface } from "./surfaces";
 import table from "./car-limits.json";
 
 /*
@@ -46,7 +46,7 @@ export const groundOf = (condition: Condition, surface: Surface): Ground => `${c
 /** A short print of a car's tuning and of every surface's grip: any change to a number changes it. */
 export function tuningPrint(tuning: CarTuning): string {
   let hash = 0x811c9dc5;
-  for (const character of JSON.stringify([tuning, SURFACE_GRIP])) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
+  for (const character of JSON.stringify([tuning, GROUND_GRIP[tuning.class]])) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 

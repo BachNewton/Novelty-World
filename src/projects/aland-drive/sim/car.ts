@@ -4,7 +4,7 @@ import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
 import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
 import { pullAt, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
-import { FIRM_FOOTING, SURFACE_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip } from "./surfaces";
+import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip } from "./surfaces";
 
 /*
  * The car: a rigid body on four rays. Each step a ray from each wheel's mount
@@ -206,7 +206,7 @@ export class Car {
       const contact = along(mount, up, -(hit?.timeOfImpact ?? reach));
       contacts.push(contact);
       if (hit) this.surfaces[index] = this.underfoot.surfaceUnder(hit, contact[0], contact[2]);
-      const ground = SURFACE_GRIP[this.underfoot.condition][this.surfaces[index]];
+      const ground = GROUND_GRIP[tuning.class][this.underfoot.condition][this.surfaces[index]];
       grounds.push(ground);
       if (!hit) return;
       footing.grip += ground.grip;
