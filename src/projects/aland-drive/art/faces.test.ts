@@ -6,7 +6,10 @@ import { installTokenStylesheet } from "./stylesheet";
 installTokenStylesheet();
 
 // Two faces in one plane flicker as the camera moves, which no still shot shows, so every kit's every model is checked.
-const catalogues = import.meta.glob<{ artModels: () => ArtModel[] }>("./*/catalogue.ts", { eager: true });
+// Loaded once the stylesheet is in, since some kits read their colours as they load.
+const catalogues = Object.fromEntries(
+  await Promise.all(Object.entries(import.meta.glob<{ artModels: () => ArtModel[] }>("./*/catalogue.ts")).map(async ([path, load]) => [path, await load()] as const)),
+);
 const galleries = Object.keys(import.meta.glob("./*/gallery-page.ts"));
 const kitOf = (path: string) => path.split("/")[1];
 

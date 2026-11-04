@@ -1,5 +1,5 @@
 import { nearFar, type ArtModel } from "../catalogue";
-import { buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, type Wildflower } from "./index";
+import { buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildWildflowers, type Wildflower } from "./index";
 
 const FLOWERS: Wildflower[] = ["daisy", "buttercup", "lupine", "fireweed", "cow-parsley"];
 
@@ -9,7 +9,6 @@ export const artModels = (): ArtModel[] => [
   nearFar("guard rail end", buildGuardRailEnd()),
   nearFar("guard rail return", buildGuardRailReturn()),
   nearFar("reflector post", buildReflectorPost()),
-  nearFar("speed camera", buildSpeedCamera()),
   nearFar("grass tuft", buildGrassTuft(3)),
   nearFar("grass tuft short", buildGrassTuft(9, 0.95)),
   nearFar("seed grass", buildSeedGrass(11)),
