@@ -12,8 +12,8 @@ import type { Node, Texture } from "three/webgpu";
  * average tone, and past `FADE` the whole thing goes back to the photo.
  */
 
-/** Bits of a class: red, green, blue. These match `bake_surface.py`. */
-export const CLASS = { none: 0b000, bed: 0b011, lawn: 0b010, gravel: 0b100, slab: 0b110, tarmac: 0b101, cobble: 0b111 } as const;
+/** Bits of a class: red, green, blue. These match `pipeline/town_ground.py`. Steps are a ribbon's only. */
+export const CLASS = { none: 0b000, steps: 0b001, bed: 0b011, lawn: 0b010, gravel: 0b100, slab: 0b110, tarmac: 0b101, cobble: 0b111 } as const;
 const RANGE_M = [4, 4, 16] as const;
 
 const FADE = [320, 760] as const;
@@ -33,7 +33,10 @@ const EDGING_M = 0.13;
 const EDGING_STONE_M = 0.9;
 const CONTACT_M = 0.25;
 /** A footway's tarmac: paler than a road's, with no traffic to darken it. */
-const WALKED_TARMAC = 1.22;
+const WALKED_TARMAC = 1.5;
+/** A step's going and how much of it the riser's shadow takes, seen from above. */
+const TREAD_M = 0.32;
+const RISER_SHARE = 0.22;
 const COARSE_M = 5.3;
 const FINE_M = 1.37;
 const DRIFT_M = 11.3;
@@ -183,13 +186,14 @@ export function townGround({ place, toCamera, mask, angle, ground, photoSoft, co
   const axes = runOf(place, angle);
   const run: Run = { ...axes, tone, colour, shown };
   const hardLot = slabs(run).mul(slabShare).add(setts(run).mul(settShare)).add(tarmac(run, blue).mul(tarmacShare)).add(gravelled(tone, fineTone, drift, colour, shown).mul(gravelShare));
-  const greenLot = lawned(tone, fineTone, drift, colour, shown).mul(lawnShare).add(colour("town-bed").mul(float(1).add(fineTone.a.sub(0.5).mul(0.7))).mul(bedShare));
+  const bed = colour("town-bed").mul(float(1).add(fineTone.a.sub(0.5).mul(0.7))).mul(bedShare);
 
   // Light from the photo, kept broad: the shade of a big tree stays, the filler's streaks don't.
   const measured = luminance(photoSoft);
   const lawnLight = mix(float(1), measured.div(PHOTO_MIDDLE.lawn).clamp(0.5, 1.15), PHOTO_LIGHT.lawn);
   const hardLight = mix(float(1), measured.div(PHOTO_MIDDLE.hard).clamp(0.55, 1.1), PHOTO_LIGHT.hard);
-  const lit = hardLot.mul(hardLight).add(greenLot.mul(lawnLight));
+  // A lawn is the ground as the terrain draws it anywhere, with the verge growing on it: a flat green of its own read as bare.
+  const lit = hardLot.mul(hardLight).add(bed.mul(lawnLight)).add(ground.mul(lawnShare));
 
   // A stone edging on the hard side of a line with something softer, and its contact shadow on the other.
   const onHard = hard.mul(max(leafy, tarred));
@@ -208,6 +212,8 @@ export function townGround({ place, toCamera, mask, angle, ground, photoSoft, co
 export interface RibbonInput {
   place: Node<"vec2">;
   toCamera: Node<"float">;
+  /** Metres along the ribbon, which a flight of steps lays its treads across. */
+  along: Node<"float">;
   /** The surface image's angle here, so paving runs straight on from the terrain's. */
   angle: Node<"float">;
   /** The class's three bits, red, green, blue, from `townRibbonBits`. */
@@ -218,8 +224,19 @@ export interface RibbonInput {
   detail: Texture;
 }
 
+/** Stone treads across the line, each with its riser's shadow, going to their average as a tread nears a pixel. */
+function treads(along: Node<"float">, tone: Node<"vec4">, colour: Colour, shown: Node<"float">): Node<"vec3"> {
+  const pixel = fwidth(along);
+  const inTread = fract(along.div(TREAD_M));
+  const riser = float(1).sub(smoothstep(float(RISER_SHARE), float(RISER_SHARE).add(pixel.div(TREAD_M)), inTread));
+  const nosing = smoothstep(float(1).sub(pixel.div(TREAD_M)).sub(0.04), float(1), inTread);
+  const stone = colour("town-slab").mul(float(1).add(tone.g.sub(0.5).mul(0.18).mul(shown)));
+  const step = mix(stone.mul(float(1).add(nosing.mul(0.12))), stone.mul(0.62), riser);
+  return mix(stone.mul(1 - RISER_SHARE * 0.38), step, fadeBy(pixel, 0.04, 0.16));
+}
+
 /** A street or path's own surface, on its ribbon, on the same lattice as the terrain's paving beside it. */
-export function townRibbon({ place, toCamera, angle, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
+export function townRibbon({ place, toCamera, along, angle, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
   const tone = texture(detail, place.div(COARSE_M).add(vec2(0.61, 0.17)));
   const fineTone = texture(detail, place.div(FINE_M).add(vec2(0.13, 0.57)));
@@ -227,13 +244,19 @@ export function townRibbon({ place, toCamera, angle, bits, carriageway, colour, 
   const run: Run = { ...runOf(place, angle), tone, colour, shown };
   const paved = select(isB, setts(run), slabs(run));
   const soft = select(isG, lawned(tone, fineTone, tone.a, colour, shown), select(isB, tarmac(run, float(0)).mul(WALKED_TARMAC), gravelled(tone, fineTone, tone.a, colour, shown)));
-  const claimed = select(isR.or(isG), float(1), float(0));
-  return { carriageway: mix(carriageway, select(isR.and(isG), paved, soft), claimed), claimed };
+  const isSteps = isB.and(isR.or(isG).not());
+  const claimed = select(isR.or(isG).or(isSteps), float(1), float(0));
+  const surface = select(isSteps, treads(along, tone, colour, shown), select(isR.and(isG), paved, soft));
+  return { carriageway: mix(carriageway, surface, claimed), claimed };
 }
 
-/** Each ribbon vertex's class as three floats, from a class per section. They interpolate, and a shader's test at a half makes a clean change between sections. */
-export function townRibbonBits(classes: Uint8Array, ringPoints: number): Float32Array {
-  const bits = new Float32Array(classes.length * ringPoints * 3);
+/**
+ * Each ribbon vertex's class as three floats, from a class per section, for `vertices` in all: the aprons that follow
+ * the sections have none. They interpolate, and a shader's test at a half makes a clean change between sections.
+ */
+export function townRibbonBits(classes: Uint8Array, ringPoints: number, vertices: number): Float32Array {
+  if (classes.length * ringPoints > vertices) throw new Error(`${classes.length} sections' classes for ${vertices} vertices`);
+  const bits = new Float32Array(vertices * 3);
   classes.forEach((surface, section) => {
     for (let point = 0; point < ringPoints; point++) {
       bits.set([(surface >> 2) & 1, (surface >> 1) & 1, surface & 1], (section * ringPoints + point) * 3);

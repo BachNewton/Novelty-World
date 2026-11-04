@@ -42,7 +42,7 @@ The gaps:
 
 ## What the game has now
 
-The courses are there as the land's colour in the aerial photos, with the ground and trees the elevation model and laser give them, but nothing knows they're golf. `art/town-ground/bake_surface.py` counts `golf_course` as green land for the town ground, and that's the only reference. The pipeline doesn't draw OSM's golf features.
+The courses are there as the land's colour in the aerial photos, with the ground and trees the elevation model and laser give them, but nothing knows they're golf. `pipeline/town_ground.py` counts `golf_course` as green land for the town ground, and that's the only reference. The pipeline doesn't draw OSM's golf features.
 
 ## Open questions
 

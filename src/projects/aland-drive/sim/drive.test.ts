@@ -44,7 +44,7 @@ describe("the two copies of the ground", () => {
     // 120 m apart in steps that land on block borders, in fields and over the side roads.
     const across = Array.from({ length: 80 }, (_, index) => [-11900 + index * 60, -300 - index * 67]);
     for (const [x, z] of [...road, ...across]) {
-      drive.ground.around(x, z);
+      drive.ground.around([{ x, z }]);
       drive.rapier.step();
       const hit = drive.rapier.castRay(new RAPIER.Ray({ x, y: TOP_OF_THE_WORLD, z }, { x: 0, y: -1, z: 0 }), 2 * TOP_OF_THE_WORLD, true);
       const drawn = Math.max(surfaceHeight(tile.grid, x, -z), topTriangle(x, z) ?? -Infinity);

@@ -44,6 +44,13 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const { uv, layer, held } = slotOf(place);
       return select(held, texture(layers.stands, uv).depth(layer).level(float(0)), vec4(0));
     },
+    /** Whether a place is the town's hard ground (`art/town-ground`): gravel, paving, setts, tarmac or steps, not a lawn or a bed. Over a tile without detail, no. */
+    pavedAt(place: Node<"vec2">) {
+      const { uv, nearLayer, nearHeld } = slotOf(place);
+      const mask = texture(layers.townNear, uv).depth(nearLayer).level(float(0));
+      const [red, green, blue] = [mask.r, mask.g, mask.b].map((channel) => smoothstep(float(0.49), float(0.51), channel));
+      return select(nearHeld, red.max(blue.mul(float(1).sub(green))), float(0));
+    },
     roadsAt(place: Node<"vec2">, mip: number = ROAD_MASK_MIP) {
       const { uv, layer, held } = slotOf(place);
       const roads = texture(layers.mask, uv).depth(layer).level(float(mip));

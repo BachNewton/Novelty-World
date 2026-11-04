@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Grou
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
-import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
+import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
@@ -14,6 +14,8 @@ import { createWindmills } from "./windmills";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
+import { createBuildingAddOns } from "./building-add-ons";
+import { townMaterials } from "../art/town-kit/material";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
@@ -43,12 +45,16 @@ import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
+import { townGround, townRibbon, townRibbonBits } from "../art/town-ground";
 import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
 import { streetMaterials } from "../art/street/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
+import { Discovery } from "../map/discovery";
 import { Navigator, type RouteCue } from "../map/navigator";
+import type { Place as FindablePlace } from "../map/places";
+import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
@@ -103,6 +109,8 @@ export interface GameProbe {
   showPeople: (shown: boolean) => void;
   /** How many cars are parked across the loaded tiles, and how many are near enough to be on the near and the stand-in lists. */
   parkedCounts: () => { parked: number; near: number; distant: number };
+  /** The villa add-ons, supermarket entrances, and terminal and fuel stations on the loaded tiles. */
+  addOnCounts: () => { villas: number; entrances: number; nearSites: number };
   /** Shows the parked cars or leaves them out, to see what they do. */
   showParked: (shown: boolean) => void;
   reedsDrawn: () => ReedsDrawn;
@@ -126,10 +134,10 @@ export interface GameProbe {
   /** Puts the car at a distance along one of the start tile's chains, facing along it. */
   placeOnRoad: (chain: number, along: number) => void;
   setCamera: (mode: CameraMode) => void;
-  /** Moves the car to a showcase spot by its key, resolving once it's there, on loaded ground. */
-  jumpTo: (key: string) => Promise<void>;
+  /** Moves the car to a showcase spot by its id, resolving once it's there, on loaded ground. */
+  jumpTo: (id: string) => Promise<void>;
   /** Moves the car to a place near a road, in a car's view, resolving once it's there, on loaded ground. */
-  driveFrom: (spot: Omit<ShowcaseSpot, "key">) => Promise<void>;
+  driveFrom: (spot: Omit<ShowcaseSpot, "id">) => Promise<void>;
   /** Tiles at full detail, and what loading them has read. */
   stream: () => StreamStats;
   /** Loads the tiles round a place, wherever the car is, until `loadAround(null)`. */
@@ -167,6 +175,8 @@ export interface GameProbe {
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
   /** How many other players each map drew last. */
   mapPlayers: () => { mini: number; world: number };
+  /** The ids of the places found, once the road network has arrived. */
+  foundPlaces: () => string[] | null;
 }
 
 export interface HudReading {
@@ -202,6 +212,10 @@ export interface GameEvents {
   onRoad?: (name: string) => void;
   /** Everyone else in the online world, by name, whenever that changes. */
   onPlayers?: (names: string[]) => void;
+  /** The car has reached a place it hadn't found before. */
+  onPlaceFound?: (place: FindablePlace) => void;
+  /** How many of the places have been found, when the maps arrive and whenever it changes. */
+  onPlacesFound?: (found: number, total: number) => void;
 }
 
 /** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
@@ -231,6 +245,10 @@ export interface Game {
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
+  /** The showcase spots, for a dev menu to jump to. */
+  spots: readonly { id: string; name: string }[];
+  /** Closes the dev menu and jumps to a showcase spot. */
+  jumpTo: (id: string) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
   dispose: () => void;
@@ -280,6 +298,8 @@ const PAINTED_ROADS_GONE_M = 500;
 const OVERLAY_FROM_M = 250;
 const OVERLAY_FULL_M = 1100;
 const MAP_FIELD_OF_VIEW = 45;
+const storage = getProjectStorage("aland-drive");
+const FOUND_KEY = "found-places";
 /** Below these heights the map looks at its own place: a sharper image only shows once a screen pixel is about as small as twice the image's. */
 const MAP_FAR_FROM_M = 10000;
 const MAP_DETAIL_FROM_M = 3500;
@@ -335,7 +355,7 @@ function bridgeMesh({ positions, parts }: TileDetail["bridges"], material: MeshB
 }
 
 /** Each tile's ribbon in the scene, a mesh per cell sharing its buffers, shown only within reach. */
-function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshBasicNodeMaterial) {
+function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Uint8Array, material: MeshBasicNodeMaterial) {
   const { ribbon } = detail;
   const position = new BufferAttribute(ribbon.positions, 3);
   const across = new BufferAttribute(ribbon.across, 1);
@@ -343,6 +363,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
   const tier = new BufferAttribute(ribbon.tiers, 1);
   const roadInfo = new BufferAttribute(dress.surface, 4);
   const roadMark = new BufferAttribute(dress.mark, 2);
+  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3), 3);
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z }) => {
     const geometry = new BufferGeometry();
@@ -352,6 +373,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, material: MeshB
     geometry.setAttribute("tier", tier);
     geometry.setAttribute("roadInfo", roadInfo);
     geometry.setAttribute("roadMark", roadMark);
+    geometry.setAttribute("townBits", townBits);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -457,7 +479,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { x, y, z } = ruralColours(linear)[RURAL_PARTS.indexOf(part)];
     return vec3(x, y, z);
   };
-  const groundColor = groundDetail({
+  const surfaceGround = groundDetail({
     place: positionWorld.xz,
     toCamera,
     photo: photo.rgb.pow(vec3(2.2)),
@@ -469,6 +491,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     stonesColour: ruralColour("field-stone"),
     detail,
   });
+  // The town's ground over that, from the near tile's surface image: nothing where a tile has none (`art/town-ground`).
+  const townPixels = manifest.town?.pixels ?? 1;
+  const townMask = sampled(layers.townNear, nearLayer).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
+  // A direction can't be filtered, so it's the nearest texel's.
+  const townAngle = textureLoad(layers.townNear, ivec2(imageUv.mul(townPixels).floor().clamp(0, townPixels - 1))).depth(nearLayer).a;
+  const [townRed, townGreen, townBlue] = [townMask.r, townMask.g, townMask.b].map((channel) => smoothstep(float(0.49), float(0.51), channel));
+  // Paving, gravel, tarmac, setts or steps: a lawn or a bed is soft ground, which a road or path wears into as it does anywhere.
+  const townHard = max(townRed, townBlue.mul(float(1).sub(townGreen)));
+  const photoSoft = texture(layers.groundNear, imageUv).depth(nearLayer).level(float(3)).rgb.pow(vec3(2.2));
+  const groundColor = townGround({ place: positionWorld.xz, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
@@ -499,7 +531,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return hazed(mix(pastTiles, near, farSeen));
   };
 
-  const { canopyAt, standsAt, roadsAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt, pavedAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
@@ -515,7 +547,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
-  const verge = createVerge(scene, renderer, { landAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
+  const verge = createVerge(scene, renderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, lightOf, linear, hazed });
   const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, lightOf, linear, hazed, sun: manifest.sun });
   const granite = createGranite(scene, renderer, {
@@ -559,9 +591,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const centreLine = band(signedAcross, -CENTRE_LINE_WIDTH, CENTRE_LINE_WIDTH, fwidth(signedAcross)).mul(dash);
   const dressed = dressRoad({ place: positionWorld.xz, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
-  const painted = mix(dressed.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft));
+  // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
+  const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
+  // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
+  const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
+  const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept).mul(townHard));
+  const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), townHard);
   const roadMaterial = new MeshBasicNodeMaterial();
-  roadMaterial.colorNode = hazed(mix(painted, dressed.shoulder, dressed.shoulderShare).mul(light));
+  roadMaterial.colorNode = hazed(mix(painted, shoulderColour, shoulderShare).mul(light));
 
   const bridgeMaterial = new MeshBasicNodeMaterial();
   const part = attribute<"float">("part", "float");
@@ -592,9 +630,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     street: streetMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }),
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, manifest.sun),
+    town: { inputs: { colour: colorOf, linear, hazed, sun: manifest.sun }, ink: (name) => `#${token(name).getHexString()}` },
   });
   const parkedCars = createParkedCars(scene, manifest.sun, hazed);
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
+  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const bridges = new Map<string, Mesh>();
@@ -613,11 +653,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked }, done) {
-        const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
+      place({ detail, shade: mips, ground, town, townRibbons, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked, addOns }, done) {
+        const meshes = ribbonMeshes(detail, roadDress, townRibbons, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
-        const solids = buildingMeshes(cells, wallMaterial);
+        const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial);
         scene.add(solids.group);
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
@@ -627,6 +667,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, [{ sections: walls, outM: 0 }, ...furnitureClearances(placed.models)]);
         roadside.add(detail.name, placed);
         parkedCars.add(detail.name, parked);
+        buildingAddOns.add(detail.name, addOns);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
           scene.add(mesh);
@@ -635,7 +676,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const bytes = meshBytesOf(detail, roadDress, cells);
         meshBytesByTile.set(detail.name, bytes);
         meshBytes += bytes;
-        layers.placeNear(world.named(detail.name), mips, ground, manifest, () => {
+        layers.placeNear(world.named(detail.name), mips, ground, town, manifest, () => {
           done();
           landmarks.add(detail.name);
         });
@@ -667,6 +708,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
         parkedCars.remove(detail.name);
+        buildingAddOns.remove(detail.name);
         landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
         if (bridge) {
@@ -734,6 +776,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   stoneWalls.showAll(true);
   roadside.showAll(true);
   parkedCars.showAll(true);
+  buildingAddOns.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
@@ -750,6 +793,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   stoneWalls.showAll(false);
   roadside.showAll(false);
   parkedCars.showAll(false);
+  buildingAddOns.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -794,6 +838,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const projected = new Vector3();
   let roadGraph: RoadGraph | null = null;
   let worldMap: WorldMap | null = null;
+  let discovery: Discovery | null = null;
   const headingClockwise = (car: CarState) => -headingOf(car.rotation);
   const pickDestination = (x: number, z: number) => {
     const car = drive.stateAt(1);
@@ -810,11 +855,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       roadGraph = graph;
       const land = landImage(overviewData.image, manifest.overview);
       const ink = mapInk();
-      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, { onRoad: (name) => events.onRoad?.(name) });
+      const found = discovery = new Discovery(graph, {
+        load: () => storage.get<string[]>(FOUND_KEY),
+        save: (ids) => { storage.set(FOUND_KEY, ids); },
+      });
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
         ink,
+        found,
         (x, z) => {
           pickDestination(x, z);
         },
@@ -833,6 +883,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       );
       stream.addBytes(data.bytes);
       events.onMapReady?.();
+      events.onPlacesFound?.(found.foundCount, found.places.length);
     },
     (error: unknown) => {
       fail(error instanceof Error ? error : new Error(String(error)));
@@ -841,7 +892,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "key">) => {
+  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "id">) => {
     if (jumping || mapFrom) return;
     jumping = true;
     const wanted = { done: 0, total: Math.max(stream.wanted(x, z), 1) };
@@ -864,9 +915,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onLoading?.({ done: wanted.total, total: wanted.total });
     events.onRoad?.(name);
   };
-  const jumpByKey = (key: string) => {
-    const spot = SHOWCASE.find((candidate) => candidate.key === key);
-    return spot ? jump(spot) : Promise.resolve();
+  const jumpTo = (id: string) => {
+    const spot = SHOWCASE.find((candidate) => candidate.id === id);
+    if (!spot) throw new Error(`no showcase spot ${id}`);
+    return jump(spot);
   };
 
   /** The view that fits a box, centred, whatever the screen's shape. */
@@ -959,7 +1011,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(null);
     }
   };
-  const controls = startControls({ onAction, onMapAction, onDigit: (digit) => void jumpByKey(digit).catch(fail), onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
+  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
 
   const resize = () => {
     const { clientWidth, clientHeight } = container;
@@ -1119,6 +1171,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.showWide(lifted);
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
+    // A jump or a look round the map isn't a visit.
+    if (discovery && !lifted && !jumping) {
+      const reached = discovery.update(car.position[0], car.position[2]);
+      for (const place of reached) events.onPlaceFound?.(place);
+      if (reached.length > 0) events.onPlacesFound?.(discovery.foundCount, discovery.places.length);
+    }
     const engine = drive.engine();
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
     if (drive.placements !== placements) {
@@ -1182,6 +1240,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       peopleCounts: people.counts,
       showPeople: people.show,
       parkedCounts: parkedCars.counts,
+      addOnCounts: buildingAddOns.counts,
       showParked: parkedCars.show,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
@@ -1239,7 +1298,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         }
         return points;
       },
-      jumpTo: jumpByKey,
+      jumpTo,
       driveFrom: async (spot) => {
         await jump(spot);
         setCamera("chase");
@@ -1276,10 +1335,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           ghost: drive.remotes.ghost(peerId),
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
+      foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
+    spots: SHOWCASE.map(({ id, name }) => ({ id, name })),
+    jumpTo(id) {
+      setDevMenuOpen(false);
+      void jumpTo(id).catch(fail);
+    },
     whereabouts,
     dispose() {
       void renderer.setAnimationLoop(null);
@@ -1315,6 +1380,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();
       parkedCars.dispose();
+      buildingAddOns.dispose();
       landmarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();

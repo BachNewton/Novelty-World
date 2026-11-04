@@ -47,7 +47,7 @@ const settle = () =>
   }, SETTLE_FRAMES);
 
 for (const key of KEYS) {
-  await page.keyboard.press(`Digit${key}`);
+  await page.evaluate((id) => window.__alandDrive.jumpTo(id), key);
   const counts = await settle();
   await page.evaluate(() => window.__alandDrive.showVerge(false));
   const plain = await settle();

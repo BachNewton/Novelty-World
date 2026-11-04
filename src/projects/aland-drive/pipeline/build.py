@@ -38,6 +38,7 @@ import roadside
 import rocks
 import stands
 import terrain
+import town
 import vectors
 import raised
 import walls
@@ -151,7 +152,7 @@ def building_sheets(tile: Tile) -> list[str]:
     return sorted(near.name for near in around if buildings3d_path(near) is not None)
 
 
-def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None:
+def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_town: bool = False) -> None:
     folder = OUTPUT / tile.name
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -182,6 +183,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         piers += docks.boardwalks(roads)
         quay_piers = docks.quays(roads, piers)
         roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
+        roads = sites.off_raised(roads, osm_file)
         lifts = raised.Lookup(raised.read(osm_file))
         meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
         roads, openings = meetings.roads, meetings.openings
@@ -304,6 +306,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "models": placed.write(folder),
         "rock": rocks.MANIFEST,
         "landmarks": sites.places(solids.Heights(conformed, west, north)),
+        "nearSites": sites.places(solids.Heights(conformed, west, north), near_only=True),
         "buildingSheets": building_sheets(tile),
         "water": {
             "levelsFile": "water-levels.bin.gz",
@@ -326,6 +329,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # Rock reads the mask and heights just written, and adds its boulders to the models.
     _, manifest["models"] = rocks.bake(tile, folder)
+    # The town ground reads the photo, mask, buildings and road surface just written. It's off unless asked for: see `town.py`.
+    if with_vectors and with_town:
+        manifest["town"] = town.bake(tile, folder)
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}
@@ -361,6 +367,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "canopy": first["canopy"],
         "stands": stands.MANIFEST,
         "rock": rocks.MANIFEST,
+        **next(({"town": town.world_town(manifest["town"])} for manifest in manifests if "town" in manifest), {}),
         "water": first["water"],
         "overview": overview_manifest,
         "map": map_manifest,
@@ -381,25 +388,25 @@ def tiles_with_new_sheets() -> list[str]:
     return stale
 
 
-def build_named(name: str, refresh_osm: bool = False) -> str:
+def build_named(name: str, refresh_osm: bool = False, with_town: bool = False) -> str:
     tile = tile_from_name(name)
     if dem_path(tile) is None:
         print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
         return name
-    build_tile(tile, refresh_osm)
+    build_tile(tile, refresh_osm, with_town=with_town)
     return name
 
 
-def _build_named(job: tuple[str, bool]) -> str:
+def _build_named(job: tuple[str, bool, bool]) -> str:
     return build_named(*job)
 
 
-def build_all(names: list[str], jobs: int, refresh_osm: bool) -> None:
+def build_all(names: list[str], jobs: int, refresh_osm: bool, with_town: bool = False) -> None:
     """Every tile named, a line saying how far the build is as each one finishes. The time left is the pace so far, and the
     island's road tiles come first and build slowest, so early on it overestimates. It counts the tiles only: the roadside
     and the world come after, each with lines of its own."""
     progress = Progress("tiles", len(names))
-    work = [(name, refresh_osm) for name in names]
+    work = [(name, refresh_osm, with_town) for name in names]
 
     if jobs > 1:
         with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
@@ -417,6 +424,7 @@ def main() -> None:
     parser.add_argument("--new-building-sheets", action="store_true", help="the built tiles a 3D sheet added since their build reaches")
     parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each")
     parser.add_argument("--refresh-osm", action="store_true", help="ask OSM's API again instead of reusing the kept copy")
+    parser.add_argument("--town", action="store_true", help="bake the town's ground too, which is tabled and off by default")
     arguments = parser.parse_args()
     names = list(arguments.tiles)
     if arguments.island:
@@ -425,7 +433,7 @@ def main() -> None:
     if arguments.new_building_sheets:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
-    build_all(names, arguments.jobs, arguments.refresh_osm)
+    build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     waterfront.bake_tiles(names, OUTPUT)
     seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)

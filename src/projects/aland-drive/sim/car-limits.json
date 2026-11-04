@@ -1,0 +1,1869 @@
+{
+  "skerry-gt": {
+    "tuning": "b114324f",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.276
+      },
+      {
+        "kmh": 100,
+        "g": 1.362
+      },
+      {
+        "kmh": 140,
+        "g": 1.473
+      },
+      {
+        "kmh": 180,
+        "g": 1.609
+      },
+      {
+        "kmh": 220,
+        "g": 1.665
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.379
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.358
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.336
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.317
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.3
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.284
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.275
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.271
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.266
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.994
+      }
+    ],
+    "stopFrom100M": 30.5,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.673
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.673
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.584
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.634
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.488
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.404
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.323
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.265
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.22
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.152
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.115
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.06
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 4.71
+      },
+      {
+        "kmh": 160,
+        "s": 9.99
+      },
+      {
+        "kmh": 200,
+        "s": 16.28
+      }
+    ],
+    "quarterS": 12.81,
+    "reachedKmh": 258.1
+  },
+  "ljus": {
+    "tuning": "995d34b9",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.123
+      },
+      {
+        "kmh": 100,
+        "g": 1.165
+      },
+      {
+        "kmh": 140,
+        "g": 1.236
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.188
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.164
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.144
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.126
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.111
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.099
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.095
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.879
+      }
+    ],
+    "stopFrom100M": 35.1,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.506
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.508
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.385
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.307
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.244
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.169
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.127
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.075
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.033
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 7.86
+      },
+      {
+        "kmh": 160,
+        "s": 23.2
+      }
+    ],
+    "quarterS": 15.87,
+    "reachedKmh": 186.1
+  },
+  "fjard": {
+    "tuning": "3338b1fc",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.19
+      },
+      {
+        "kmh": 100,
+        "g": 1.264
+      },
+      {
+        "kmh": 140,
+        "g": 1.364
+      },
+      {
+        "kmh": 180,
+        "g": 1.49
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.251
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.232
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.212
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.195
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.18
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.166
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.155
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.149
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.148
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.9
+      }
+    ],
+    "stopFrom100M": 33.9,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.593
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.593
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.515
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.557
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.368
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.335
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.238
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.208
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.147
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.115
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.067
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.03
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 5.56
+      },
+      {
+        "kmh": 160,
+        "s": 12.35
+      },
+      {
+        "kmh": 200,
+        "s": 21.13
+      }
+    ],
+    "quarterS": 13.75,
+    "reachedKmh": 243.6
+  },
+  "sund": {
+    "tuning": "cc531ad4",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.43
+      },
+      {
+        "kmh": 100,
+        "g": 1.574
+      },
+      {
+        "kmh": 140,
+        "g": 1.761
+      },
+      {
+        "kmh": 180,
+        "g": 1.998
+      },
+      {
+        "kmh": 220,
+        "g": 2.261
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.458
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.441
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.42
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.402
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.386
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.372
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.368
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.369
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.371
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 1.023
+      }
+    ],
+    "stopFrom100M": 28.6,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.746
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.746
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.742
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.656
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.727
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.712
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.47
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.477
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.361
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.32
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.28
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.189
+      },
+      {
+        "fromKmh": 240,
+        "toKmh": 260,
+        "g": 0.162
+      },
+      {
+        "fromKmh": 260,
+        "toKmh": 280,
+        "g": 0.092
+      },
+      {
+        "fromKmh": 280,
+        "toKmh": 300,
+        "g": 0.05
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 3.92
+      },
+      {
+        "kmh": 160,
+        "s": 7.11
+      },
+      {
+        "kmh": 200,
+        "s": 10.45
+      }
+    ],
+    "quarterS": 11.49,
+    "reachedKmh": 312.5
+  },
+  "holm": {
+    "tuning": "aa47a1e8",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 0.927
+      },
+      {
+        "kmh": 100,
+        "g": 0.968
+      },
+      {
+        "kmh": 140,
+        "g": 1.018
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.07
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.07
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.029
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.002
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 0.979
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 0.961
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 0.95
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.791
+      }
+    ],
+    "stopFrom100M": 39.9,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.491
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.49
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.366
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.435
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.371
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.213
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.201
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.12
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.079
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.028
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 6.67
+      },
+      {
+        "kmh": 160,
+        "s": 16.88
+      },
+      {
+        "kmh": 200,
+        "s": 44.5
+      }
+    ],
+    "quarterS": 15.02,
+    "reachedKmh": 203
+  },
+  "kobb": {
+    "tuning": "a425a644",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 0.935
+      },
+      {
+        "kmh": 100,
+        "g": 0.962
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 0.996
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.005
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 0.993
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 0.981
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.817
+      }
+    ],
+    "stopFrom100M": 39.4,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.39
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.31
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.338
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.186
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.161
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.09
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.063
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 11.51
+      }
+    ],
+    "quarterS": 18.27,
+    "reachedKmh": 154.7
+  },
+  "salta": {
+    "tuning": "36a07985",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 0.959
+      },
+      {
+        "kmh": 100,
+        "g": 1.008
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 0.967
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 0.955
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 0.946
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 0.94
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.787
+      }
+    ],
+    "stopFrom100M": 41.1,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.435
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.43
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.223
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.192
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.109
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.085
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.032
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 13.32
+      }
+    ],
+    "quarterS": 18.67,
+    "reachedKmh": 148.5
+  },
+  "vik": {
+    "tuning": "1dd1a64f",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.022
+      },
+      {
+        "kmh": 100,
+        "g": 1.07
+      },
+      {
+        "kmh": 140,
+        "g": 1.11
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.109
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.079
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.054
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.033
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.014
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 0.997
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.829
+      }
+    ],
+    "stopFrom100M": 38.6,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.569
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.581
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.378
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.356
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.229
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.195
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.119
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.079
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.019
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 7.53
+      },
+      {
+        "kmh": 160,
+        "s": 22.38
+      }
+    ],
+    "quarterS": 15.53,
+    "reachedKmh": 181
+  },
+  "sten": {
+    "tuning": "f3a2862f",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.27
+      },
+      {
+        "kmh": 100,
+        "g": 1.331
+      },
+      {
+        "kmh": 140,
+        "g": 1.431
+      },
+      {
+        "kmh": 180,
+        "g": 1.561
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.395
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.366
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.34
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.317
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.297
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.279
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.264
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.255
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.256
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.987
+      }
+    ],
+    "stopFrom100M": 31,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.571
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.577
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.519
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.578
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.412
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.354
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.301
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.214
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.183
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.097
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.068
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 5.42
+      },
+      {
+        "kmh": 160,
+        "s": 11.54
+      },
+      {
+        "kmh": 200,
+        "s": 20.48
+      }
+    ],
+    "quarterS": 13.54,
+    "reachedKmh": 237.6
+  },
+  "berg": {
+    "tuning": "31d2eb75",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 0.857
+      },
+      {
+        "kmh": 100,
+        "g": 0.88
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 0.852
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 0.869
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 0.845
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 0.833
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.714
+      }
+    ],
+    "stopFrom100M": 46,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.44
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.324
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.302
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.172
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.144
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.08
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.049
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 12.12
+      }
+    ],
+    "quarterS": 18.37,
+    "reachedKmh": 153.9
+  },
+  "strom": {
+    "tuning": "87f9889f",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.233
+      },
+      {
+        "kmh": 100,
+        "g": 1.318
+      },
+      {
+        "kmh": 140,
+        "g": 1.426
+      },
+      {
+        "kmh": 180,
+        "g": 1.569
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.405
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.377
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.35
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.325
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.3
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.277
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.256
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.235
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.216
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.927
+      }
+    ],
+    "stopFrom100M": 31.2,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.69
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.691
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.688
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.67
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.561
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.438
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.362
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.303
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.245
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.205
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.167
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 4.32
+      },
+      {
+        "kmh": 160,
+        "s": 9.04
+      },
+      {
+        "kmh": 200,
+        "s": 14.12
+      }
+    ],
+    "quarterS": 12.41,
+    "reachedKmh": 230.6
+  },
+  "ankar": {
+    "tuning": "bfcce102",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.198
+      },
+      {
+        "kmh": 100,
+        "g": 1.286
+      },
+      {
+        "kmh": 140,
+        "g": 1.387
+      },
+      {
+        "kmh": 180,
+        "g": 1.516
+      },
+      {
+        "kmh": 220,
+        "g": 1.642
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.28
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.266
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.25
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.236
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.223
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.212
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.205
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.203
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.201
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.931
+      }
+    ],
+    "stopFrom100M": 32.4,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.593
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.594
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.537
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.533
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.579
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.437
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.374
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.318
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.255
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.214
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.163
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.127
+      },
+      {
+        "fromKmh": 240,
+        "toKmh": 260,
+        "g": 0.083
+      },
+      {
+        "fromKmh": 260,
+        "toKmh": 280,
+        "g": 0.044
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 5
+      },
+      {
+        "kmh": 160,
+        "s": 9.59
+      },
+      {
+        "kmh": 200,
+        "s": 14.45
+      }
+    ],
+    "quarterS": 12.89,
+    "reachedKmh": 291.5
+  },
+  "bris": {
+    "tuning": "38414a98",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.16
+      },
+      {
+        "kmh": 100,
+        "g": 1.232
+      },
+      {
+        "kmh": 140,
+        "g": 1.317
+      },
+      {
+        "kmh": 180,
+        "g": 1.409
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.261
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.24
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.218
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.199
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.183
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.168
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.157
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.15
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.151
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 0.91
+      }
+    ],
+    "stopFrom100M": 33.8,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.593
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.593
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.519
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.577
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.397
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.329
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.276
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.207
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.167
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.113
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.073
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.024
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 5.41
+      },
+      {
+        "kmh": 160,
+        "s": 11.91
+      },
+      {
+        "kmh": 200,
+        "s": 20.32
+      }
+    ],
+    "quarterS": 13.6,
+    "reachedKmh": 242.1
+  },
+  "grus": {
+    "tuning": "788bdf34",
+    "corner": [
+      {
+        "kmh": 60,
+        "g": 1.334
+      },
+      {
+        "kmh": 100,
+        "g": 1.439
+      },
+      {
+        "kmh": 140,
+        "g": 1.584
+      },
+      {
+        "kmh": 180,
+        "g": 1.776
+      }
+    ],
+    "braking": [
+      {
+        "fromKmh": 200,
+        "toKmh": 180,
+        "g": 1.448
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 160,
+        "g": 1.419
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 140,
+        "g": 1.392
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 120,
+        "g": 1.369
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 100,
+        "g": 1.348
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 80,
+        "g": 1.33
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 60,
+        "g": 1.315
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 40,
+        "g": 1.309
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 20,
+        "g": 1.308
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 0,
+        "g": 1.018
+      }
+    ],
+    "stopFrom100M": 29.6,
+    "pull": [
+      {
+        "fromKmh": 0,
+        "toKmh": 20,
+        "g": 0.797
+      },
+      {
+        "fromKmh": 20,
+        "toKmh": 40,
+        "g": 0.796
+      },
+      {
+        "fromKmh": 40,
+        "toKmh": 60,
+        "g": 0.698
+      },
+      {
+        "fromKmh": 60,
+        "toKmh": 80,
+        "g": 0.783
+      },
+      {
+        "fromKmh": 80,
+        "toKmh": 100,
+        "g": 0.59
+      },
+      {
+        "fromKmh": 100,
+        "toKmh": 120,
+        "g": 0.534
+      },
+      {
+        "fromKmh": 120,
+        "toKmh": 140,
+        "g": 0.386
+      },
+      {
+        "fromKmh": 140,
+        "toKmh": 160,
+        "g": 0.336
+      },
+      {
+        "fromKmh": 160,
+        "toKmh": 180,
+        "g": 0.248
+      },
+      {
+        "fromKmh": 180,
+        "toKmh": 200,
+        "g": 0.182
+      },
+      {
+        "fromKmh": 200,
+        "toKmh": 220,
+        "g": 0.135
+      },
+      {
+        "fromKmh": 220,
+        "toKmh": 240,
+        "g": 0.076
+      }
+    ],
+    "sprintS": [
+      {
+        "kmh": 100,
+        "s": 3.92
+      },
+      {
+        "kmh": 160,
+        "s": 8.13
+      },
+      {
+        "kmh": 200,
+        "s": 13.53
+      }
+    ],
+    "quarterS": 11.94,
+    "reachedKmh": 252.3
+  }
+}

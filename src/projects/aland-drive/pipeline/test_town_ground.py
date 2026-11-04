@@ -1,4 +1,4 @@
-"""pipeline/.venv/Scripts/python -m unittest discover -s src/projects/aland-drive/art/town-ground -p "test_*.py" """
+"""The town ground's bake, on made-up ground."""
 
 import sys
 import unittest
@@ -8,7 +8,7 @@ import numpy as np
 from shapely.geometry import LineString, Point, Polygon, box
 
 sys.path.insert(0, str(Path(__file__).parent))
-from bake_surface import COBBLE, GRAVEL, LAWN, NONE, RANGE_M, SLAB, TARMAC, Ribbon, apply_way_surfaces, bake_surface, classify_osm
+from town_ground import COBBLE, GRAVEL, LAWN, NONE, RANGE_M, SLAB, STEPS, TARMAC, Ribbon, apply_way_surfaces, bake_surface, classify_osm
 
 SIZE_M = 200.0
 WEST, NORTH = 0.0, 200.0
@@ -81,13 +81,36 @@ class Ribbons(unittest.TestCase):
         street = straight_road(100.0)
         bake = bake_surface(WEST, NORTH, SIZE_M, classify_osm([]), [walk, street], [], TAN)
         apply_way_surfaces([walk, street], bake, [
-            {"line": LineString([(0, 50), (200, 50)]), "kind": "footway", "footway": "sidewalk"},
-            {"line": LineString([(0, 100), (100, 100)]), "kind": "living_street", "surface": "sett"},
-            {"line": LineString([(100, 100), (200, 100)]), "kind": "living_street", "surface": "asphalt"},
+            {"line": LineString([(0, 50), (200, 50)]), "kind": "footway", "motor": False, "footway": "sidewalk"},
+            {"line": LineString([(0, 100), (100, 100)]), "kind": "living_street", "motor": True, "surface": "sett"},
+            {"line": LineString([(100, 100), (200, 100)]), "kind": "living_street", "motor": True, "surface": "asphalt"},
         ])
         self.assertEqual(bake.ribbon_classes[0][5], SLAB)
         self.assertEqual(bake.ribbon_classes[1][2], COBBLE)
         self.assertEqual(bake.ribbon_classes[1][15], NONE)
+
+    def test_a_path_reads_its_own_way_not_the_street_beside_it(self):
+        # A sidewalk's centre lies nearer its street's line than OSM's own footway: it must still take the footway's class.
+        walk = straight_road(97.0, 1.0, 0.5, motor=False)
+        walk.kind = "footway"
+        street = straight_road(100.0)
+        bake = bake_surface(WEST, NORTH, SIZE_M, classify_osm([]), [walk, street], [], TAN)
+        apply_way_surfaces([walk, street], bake, [
+            {"line": LineString([(0, 99), (200, 99)]), "kind": "residential", "motor": True, "surface": "sett"},
+            {"line": LineString([(0, 94.5), (200, 94.5)]), "kind": "footway", "motor": False},
+        ])
+        self.assertEqual(bake.ribbon_classes[0][5], TARMAC)
+
+    def test_steps_and_untagged_paths_never_keep_a_roads_look(self):
+        trail, steps = straight_road(50.0, 1.0, 0.5, motor=False), straight_road(150.0, 1.0, 0.5, motor=False)
+        trail.kind, steps.kind = "path", "steps"
+        bake = bake_surface(WEST, NORTH, SIZE_M, classify_osm([]), [trail, steps], [], TAN)
+        apply_way_surfaces([trail, steps], bake, [
+            {"line": LineString([(0, 50), (200, 50)]), "kind": "path", "motor": False},
+            {"line": LineString([(0, 150), (200, 150)]), "kind": "steps", "motor": False, "surface": "paving_stones"},
+        ])
+        self.assertEqual(set(bake.ribbon_classes[0]), {GRAVEL})
+        self.assertEqual(set(bake.ribbon_classes[1]), {STEPS})
 
 
 if __name__ == "__main__":

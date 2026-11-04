@@ -1,13 +1,15 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import { buildBusShelter, buildMailbox, buildPowerPole, buildStreetLamp, buildWireSpan, placeModel, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
 import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildGuardRail, buildGuardRailEnd, buildParasol, buildReflectorPost, type StreetMaterials } from "../art/street/index";
-import { ROADSIDE_FLOATS, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
+import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
+import { createTownRoadside, TOWN_MODELS, type TownLooks } from "./town-roadside";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
  * their wires, guard rails, edge posts, mailboxes, bus shelters and signs, and the
  * street furniture (`pipeline/furniture.py`): benches, bins, bike racks, café
- * tables and parasols. As with
+ * tables and parasols, and the town's lamps, traffic lights and name signs
+ * (`town-roadside.ts`). As with
  * the rural buildings, each model is one list of places across every loaded tile,
  * so its draws don't grow with the tiles, and a tile landing or leaving rebuilds
  * only the lists it touches, a few floats a place. Every model dissolves at its
@@ -36,15 +38,6 @@ const NOWHERE: Placement = { x: 0, y: 0, z: 0, scale: 0 };
 /** A sign the compile stands in for every plate: the plates share one material, so one compiles them all. */
 const COMPILED_SIGN = "give-way";
 
-function placesOf(floats: Float32Array): Placement[] {
-  const places: Placement[] = [];
-  for (let at = 0; at < floats.length; at += ROADSIDE_FLOATS) {
-    const [x, y, z, yaw, stretch, shear] = floats.subarray(at, at + ROADSIDE_FLOATS);
-    places.push({ x, y, z, yaw, stretch, shear });
-  }
-  return places;
-}
-
 function postsOf(floats: Float32Array): Placement[] {
   const places: Placement[] = [];
   for (let at = 0; at < floats.length; at += SIGN_FLOATS) {
@@ -68,6 +61,7 @@ export interface RoadsideLooks {
   street: StreetMaterials;
   wires: MeshBasicNodeMaterial;
   signs: SignKit;
+  town: TownLooks;
 }
 
 export function createRoadside(scene: Scene, looks: RoadsideLooks) {
@@ -100,7 +94,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
 
   const rebuildModels = (names: ReadonlySet<string>) => {
     for (const entry of models.filter(({ name }) => names.has(name))) {
-      const places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? placesOf(tile.models[entry.name]) : []));
+      const places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? roadsidePlaces(tile.models[entry.name]) : []));
       entry.meshes = swap(entry.meshes, placeModel(entry.model, places.length > 0 ? places : [NOWHERE], entry.materials), places.length > 0);
     }
   };
@@ -120,19 +114,23 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
     signMeshes = swap(signMeshes, looks.signs.place(shown ? signs : new Map([[COMPILED_SIGN, [NOWHERE]]])), shown);
   };
 
+  const town = createTownRoadside(looks.town, swap);
+
   const rebuild = (tile: TileRoadside) => {
     rebuildModels(new Set(Object.keys(tile.models)));
+    town.rebuild([...tiles.values()], Object.keys(tile.models));
     if (tile.wires.length > 0) rebuildWires();
     if (Object.keys(tile.signs).length > 0) rebuildSigns();
   };
 
   rebuildModels(new Set(Object.keys(MODELS)));
+  town.rebuild([], TOWN_MODELS);
   rebuildWires();
   rebuildSigns();
 
   return {
     add(tile: string, lists: TileRoadside) {
-      for (const name of Object.keys(lists.models)) if (!(name in MODELS)) throw new Error(`${tile} places a roadside model called ${name}, which there isn't`);
+      for (const name of Object.keys(lists.models)) if (!(name in MODELS) && !TOWN_MODELS.has(name)) throw new Error(`${tile} places a roadside model called ${name}, which there isn't`);
       tiles.set(tile, lists);
       rebuild(lists);
     },
@@ -155,6 +153,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
     /** How many places each list holds across the loaded tiles, signs as posts, and the seats on the furniture. */
     counts() {
       const counted: Record<string, number> = Object.fromEntries(models.map(({ name }) => [name, [...tiles.values()].reduce((sum, tile) => sum + (name in tile.models ? tile.models[name].length / ROADSIDE_FLOATS : 0), 0)]));
+      Object.assign(counted, town.counts([...tiles.values()]));
       counted.wires = [...tiles.values()].reduce((sum, tile) => sum + tile.wires.length / WIRE_FLOATS, 0);
       counted.signs = [...tiles.values()].reduce((sum, tile) => sum + Object.values(tile.signs).reduce((posts, floats) => posts + floats.length / SIGN_FLOATS, 0), 0);
       counted.seats = [...tiles.values()].reduce((sum, tile) => sum + Object.values(tile.seats).reduce((seats, floats) => seats + floats.length / SEAT_FLOATS, 0), 0);
@@ -170,6 +169,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
       wireModel.near.dispose();
       for (const mesh of signMeshes) mesh.geometry.dispose();
       looks.signs.dispose();
+      town.dispose();
     },
   };
 }

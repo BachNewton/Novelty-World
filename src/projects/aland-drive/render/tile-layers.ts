@@ -53,6 +53,8 @@ export class TileLayers {
   readonly canopy: DataArrayTexture;
   readonly stands: DataArrayTexture;
   readonly fields: DataArrayTexture;
+  /** The town ground's image at full detail (`pipeline/town.py`), a layer a near tile, zeros where a tile has none. */
+  readonly townNear: DataArrayTexture;
   readonly slots: DataTexture;
   /** The lattice place of the map's first texel, and how many tiles it spans. */
   readonly mapColumn: number;
@@ -67,6 +69,8 @@ export class TileLayers {
   private readonly nearOf = new Map<string, number>();
   private readonly farOf = new Map<string, number>();
   private readonly backend: TextureBackend;
+  private readonly townPixels: number;
+  private noTown: Mips | null = null;
   private queue: Slice[] = [];
 
   constructor(renderer: WebGPURenderer, world: World) {
@@ -84,7 +88,10 @@ export class TileLayers {
       [manifest.stands.pixels, farLayers, 4],
       [fieldPixelsOf(manifest), farLayers, 2],
     ];
-    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands, this.fields] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
+    // A world with no town images still has the texture the shader reads, a pixel to a layer.
+    this.townPixels = manifest.town?.pixels ?? 1;
+    held.push([this.townPixels, NEAR_LAYERS, 4]);
+    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands, this.fields, this.townNear] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
     this.textureBytes = Math.round(held.reduce((sum, [size, depth, channels]) => sum + size * size * depth * channels, 0) * (4 / 3));
     this.freeNear = Array.from({ length: NEAR_LAYERS }, (_, layer) => layer);
     this.freeFar = Array.from({ length: farLayers }, (_, layer) => layer);
@@ -174,11 +181,14 @@ export class TileLayers {
     this.setSlot(tile, 0, 0);
   }
 
-  placeNear(tile: WorldTile, shade: Mips, ground: Mips, manifest: WorldManifest, done: () => void): void {
+  placeNear(tile: WorldTile, shade: Mips, ground: Mips, town: Mips | null, manifest: WorldManifest, done: () => void): void {
     const layer = this.freeNear.pop();
     if (layer === undefined) throw new Error(`no free layer for ${tile.name}: more tiles at full detail than the stream allows`);
     this.nearOf.set(tile.name, layer);
     this.enqueue(this.shadeNear, layer, shade, manifest.shade.pixels, 1, () => undefined);
+    // A layer is reused, so a tile without a town image clears what the last one left: zeros read as no class anywhere.
+    this.noTown ??= Array.from({ length: levelCount(this.townPixels) }, (_, level) => new Uint8Array(Math.max(1, this.townPixels >> level) ** 2 * 4));
+    this.enqueue(this.townNear, layer, town ?? this.noTown, this.townPixels, 4, () => undefined);
     this.enqueue(this.groundNear, layer, ground, manifest.ground.pixels, 4, () => {
       this.setSlot(tile, 1, layer + 1);
       done();
@@ -207,6 +217,7 @@ export class TileLayers {
     this.canopy.dispose();
     this.stands.dispose();
     this.fields.dispose();
+    this.townNear.dispose();
     this.slots.dispose();
   }
 }

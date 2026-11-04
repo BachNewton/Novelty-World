@@ -408,6 +408,15 @@
   --color-aland-drive-surface-kerb: #b4b2aa;
   --color-aland-drive-surface-paving: #8f8d86;
   --color-aland-drive-surface-litter: #3f3a2c;
+  --color-aland-drive-town-slab: #a9a69c;
+  --color-aland-drive-town-slab-pale: #bdb9ad;
+  --color-aland-drive-town-sett: #9a9892;
+  --color-aland-drive-town-sett-warm: #a08f86;
+  --color-aland-drive-town-joint: #3e3b36;
+  --color-aland-drive-town-lawn: #5f7f3c;
+  --color-aland-drive-town-lawn-dry: #84894a;
+  --color-aland-drive-town-bed: #3f3128;
+  --color-aland-drive-town-yard: #a2967f;
   --color-aland-drive-surface-roof-moss: #4f5a35;
   --color-aland-drive-shop-riser: #2f3032;
   --color-aland-drive-shop-interior: #6a5a42;
@@ -550,6 +559,7 @@
   --color-aland-drive-ui-accent: #ffc53d;
   --color-aland-drive-ui-redline: #ff5a4f;
   --color-aland-drive-ui-player: #5fd4e6;
+  --color-aland-drive-ui-place: #f0739a;
   --color-aland-drive-lab-turned: #3ddc6e;
   --color-aland-drive-lab-outline: #ffc53d;
   --color-aland-drive-lab-cone: #4aa8ff;

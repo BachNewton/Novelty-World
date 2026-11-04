@@ -22,8 +22,8 @@ class OpenPaved:
         return True
 
 
-def east_road() -> Chain:
-    stations = np.arange(0, LENGTH_M + 1, 10.0)
+def east_road(length: float = LENGTH_M) -> Chain:
+    stations = np.arange(0, length + 1, 10.0)
     rings = np.zeros((len(stations), RINGS, 3))
     # Right is south as the road runs east.
     for index, across in ((OUTER_LEFT, 5), (EDGE_LEFT, 3), (CENTRE, 0), (EDGE_RIGHT, -3), (OUTER_RIGHT, -5)):
@@ -39,7 +39,19 @@ def roadside() -> Roadside:
     side.building_tree = shapely.STRtree([])
     side.models, side.signs, side.wires, side.walls, side.posts = {}, {}, [], [], []
     side.osm = {"elements": []}
+    side.town_signs()
     return side
+
+
+def north_road(east: float) -> Chain:
+    """A road running north along `east`, as wide as the east road, crossing it at its middle."""
+    stations = np.arange(-LENGTH_M / 2, LENGTH_M / 2 + 1, 10.0)
+    rings = np.zeros((len(stations), RINGS, 3))
+    # Right is east as the road runs north.
+    for index, across in ((OUTER_LEFT, -5), (EDGE_LEFT, -3), (CENTRE, 0), (EDGE_RIGHT, 3), (OUTER_RIGHT, 5)):
+        rings[:, index, 0] = east + across
+        rings[:, index, 1] = stations
+    return Chain(1, "tertiary", 2, True, rings, [])
 
 
 def scene_facing(yaw: float) -> tuple[float, float]:
@@ -79,6 +91,55 @@ class Signs(unittest.TestCase):
         side.chains = [road]
         side.speed_signs()
         self.assertEqual(side.signs, {})
+
+
+class TrafficLights(unittest.TestCase):
+    def test_each_head_stands_right_of_its_incoming_traffic_behind_the_junction_and_faces_it(self):
+        side = roadside()
+        side.chains = [east_road(), north_road(LENGTH_M / 2)]
+        centre = np.array([LENGTH_M / 2, 0.0])
+        side.signal_junction(centre)
+        heads = side.models["traffic-light"]
+        self.assertEqual(len(heads), 4, "one head an arm")
+        for x, _, z, yaw, _, _ in heads:
+            spot = np.array([x, -z]) - centre
+            face = np.array(scene_facing(yaw))
+            traffic = -face
+            self.assertGreater(spot @ face, 0, "it faces away from the junction, at the traffic coming in")
+            self.assertLess(spot @ traffic, -3, "it stands before the junction, past the crossing road's edge")
+            self.assertGreater(spot @ np.array([traffic[1], -traffic[0]]), 3, "on the right of the traffic, past the carriageway")
+        self.assertEqual(len(side.walls), 4 * 4, "each pole stops the car")
+
+    def test_a_roads_two_ends_share_a_start_and_the_crossing_road_takes_the_other_half(self):
+        side = roadside()
+        side.chains = [east_road(), north_road(LENGTH_M / 2)]
+        side.signal_junction(np.array([LENGTH_M / 2, 0.0]))
+        by_way: dict[bool, set[float]] = {}
+        for (_, _, _, yaw, _, _), phase in zip(side.models["traffic-light"], side.signal_phases):
+            by_way.setdefault(abs(scene_facing(yaw)[0]) > 0.5, set()).add(phase)
+        self.assertEqual([len(phases) for phases in by_way.values()], [1, 1])
+        east_west, north_south = by_way[True].pop(), by_way[False].pop()
+        self.assertAlmostEqual((east_west - north_south) % 1.0, 0.5, places=3)
+
+
+class Villages(unittest.TestCase):
+    def test_a_road_through_a_village_has_a_sign_at_each_end_right_of_the_traffic_coming_in_and_facing_it(self):
+        side = roadside()
+        # The hamlet reaches 150 m round its node, so the road comes into it at 50 m and leaves at 350 m.
+        side.chains = [east_road(400)]
+        centre = np.array([200.0, 0.0])
+        side.osm = {"elements": [{"type": "node", "tags": {"place": "hamlet", "name": "Kattby"}}]}
+        side.local = lambda element: centre
+        side.villages()
+        signs = side.models["village-sign"]
+        self.assertEqual(len(signs), 2)
+        self.assertEqual(side.village_names, ["Kattby", "Kattby"])
+        for x, _, z, yaw, _, _ in signs:
+            spot = np.array([x, -z]) - centre
+            face = np.array(scene_facing(yaw))
+            traffic = -face
+            self.assertGreater(spot @ face, 0, "it faces the traffic coming in")
+            self.assertGreater(spot @ np.array([traffic[1], -traffic[0]]), 3, "on that traffic's right, past the carriageway")
 
 
 class Rails(unittest.TestCase):

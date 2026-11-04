@@ -48,7 +48,7 @@ const settle = () =>
   }, SETTLE_FRAMES);
 
 for (const key of KEYS) {
-  await page.keyboard.press(`Digit${key}`);
+  await page.evaluate((id) => window.__alandDrive.jumpTo(id), key);
   const counts = await settle();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/view-${key}.png` });
   await page.evaluate(() => window.__alandDrive.showRoadside(false));

@@ -6,7 +6,7 @@ import { BLOCK_M, WALL_FLOATS, type World } from "./world";
 /*
  * What the car can touch: the drawn triangles themselves, ground and road, in
  * square blocks on one lattice for the whole world, with only the blocks round
- * the car loaded into Rapier. A block doesn't care which tile its heights or
+ * the simulated cars loaded into Rapier. A block doesn't care which tile its heights or
  * roads come from, so a tile's edge is nothing to the car. The block is a
  * triangle mesh rather than Rapier's heightfield because a mesh is the same
  * triangles as the render by construction, diagonal included.
@@ -50,21 +50,28 @@ export class GroundBlocks {
     return stamp;
   }
 
-  /** Loads the blocks round a point and lets go of the rest. New detail under a block rebuilds it, so the car stands on the best ground known; detail landing anywhere else costs the car nothing. */
-  around(x: number, z: number): void {
-    const column = Math.floor(x / BLOCK_M);
-    const row = Math.floor(z / BLOCK_M);
+  /** How many blocks are loaded now. */
+  get loadedBlocks(): number {
+    return this.loaded.size;
+  }
+
+  /** Loads the blocks round some places, the cars, and lets go of the rest: cars close together share theirs. New detail under a block rebuilds it, so a car stands on the best ground known; detail landing anywhere else costs nothing. */
+  around(places: readonly { x: number; z: number }[]): void {
     const wanted = new Set<number>();
-    for (let r = row - REACH_BLOCKS; r <= row + REACH_BLOCKS; r++) {
-      for (let c = column - REACH_BLOCKS; c <= column + REACH_BLOCKS; c++) {
-        if (!this.world.tileAt((c + 0.5) * BLOCK_M, (r + 0.5) * BLOCK_M)) continue;
-        const key = blockKey(r, c);
-        wanted.add(key);
-        const stamp = this.stampOf(r, c);
-        const block = this.loaded.get(key);
-        if (block?.stamp === stamp) continue;
-        this.letGo(key);
-        this.loaded.set(key, { collider: this.build(r, c), stamp });
+    for (const { x, z } of places) {
+      const column = Math.floor(x / BLOCK_M);
+      const row = Math.floor(z / BLOCK_M);
+      for (let r = row - REACH_BLOCKS; r <= row + REACH_BLOCKS; r++) {
+        for (let c = column - REACH_BLOCKS; c <= column + REACH_BLOCKS; c++) {
+          const key = blockKey(r, c);
+          if (wanted.has(key) || !this.world.tileAt((c + 0.5) * BLOCK_M, (r + 0.5) * BLOCK_M)) continue;
+          wanted.add(key);
+          const stamp = this.stampOf(r, c);
+          const block = this.loaded.get(key);
+          if (block?.stamp === stamp) continue;
+          this.letGo(key);
+          this.loaded.set(key, { collider: this.build(r, c), stamp });
+        }
       }
     }
     for (const key of this.loaded.keys()) {

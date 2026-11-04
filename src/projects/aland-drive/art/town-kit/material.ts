@@ -26,13 +26,9 @@ const PAINT: Record<TownPart, { from: string; to?: string; share?: number; gain?
   "signal-walk": { from: "signal-green" },
   "signal-stop": { from: "signal-red" },
   "plate-blue": { from: "plate-blue" },
-  "plate-white": { from: "wall-trim" },
-  "plate-black": { from: "car-tyre", gain: 1.2 },
   "plate-yellow": { from: "plate-yellow" },
   "plate-back": { from: "wall-grey", to: "wall-pale", share: 0.5 },
   "name-face": { from: "plate-blue" },
-  "stripe-black": { from: "car-tyre", gain: 1.4 },
-  "stripe-white": { from: "wall-trim" },
   "post-wood": { from: "wall-door", to: "wall-grey", share: 0.3 },
   "board-white": { from: "wall-trim" },
   "roof-red": { from: "wall-red", gain: 0.95 },
@@ -154,8 +150,17 @@ export function placeTrafficLights(model: RoadsideModel, places: readonly Signal
   return meshes;
 }
 
-/** A name plate's: the street's near material, whose `name-face` reads the cell of `sheet` that its instance names. */
-export function namePlateMaterial(inputs: StreetInputs, sheet: Texture): MeshBasicNodeMaterial {
-  const { near } = recoloured(inputs, (base, lit) => select(partIs(partOf(), "name-face"), texture(sheet, signSheetUv()).rgb.mul(lit), base.mul(lit)));
-  return near;
+/**
+ * A name plate's: the street's near material, whose `name-face` reads the cell of the sheet that its instance names.
+ * `show` puts another sheet in, for names that change with what's loaded, with no new pipeline to build.
+ */
+export function namePlateMaterial(inputs: StreetInputs, sheet: Texture): { material: MeshBasicNodeMaterial; show: (sheet: Texture) => void } {
+  const face = texture(sheet, signSheetUv());
+  const { near } = recoloured(inputs, (base, lit) => select(partIs(partOf(), "name-face"), face.rgb.mul(lit), base.mul(lit)));
+  return {
+    material: near,
+    show: (next) => {
+      face.value = next;
+    },
+  };
 }

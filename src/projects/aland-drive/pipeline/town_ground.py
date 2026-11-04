@@ -1,8 +1,8 @@
 """What the ground between a town's roads and buildings is made of, baked for one tile.
 
-Written to join `pipeline/` as it stands: NumPy, SciPy, rasterio and shapely, with no game code, and nothing here reads a
-file. `classify_osm` says what each OSM area and line is; `bake_surface` paints those over a reading of the aerial photo
-at 0.5 m and turns the result into the image the shader reads.
+Pure: nothing here reads a file (`town.py` reads a built tile and writes what this makes). `classify_osm` says what each
+OSM area and line is; `bake_surface` paints those over a reading of the aerial photo at 1 m and turns the result into the
+image the terrain's shader reads (`art/town-ground/town-ground.ts`).
 
 The image is RGBA at 2 m. Red, green and blue are three signed distances, each to the edge of one bit of the surface's
 class, so edges stay ruled and sharp up close at a quarter of a 1 m mask's memory, and a linear filter can't invent a class
@@ -10,6 +10,7 @@ between two classes. Alpha is the way the paving runs, read unfiltered.
 
 A strip narrower than about 3 m can't live in a 2 m distance field, and needn't: footways, sidewalks and paths are ribbons in
 the road surface already, so each ribbon section gets a class of its own (`ribbon_classes`), and only areas go in the image.
+A ribbon's class has one more, `STEPS`, which only a ribbon can be: a flight of steps is drawn as treads along its line.
 """
 
 from dataclasses import dataclass, field
@@ -27,8 +28,8 @@ FINE_M = 1.0
 RIM_M = 32.0
 
 # Three bits, each a channel. Blue is set only on tarmac and cobbles, so on a car park it is the distance to the lot's edge,
-# which is what lays out its bays. Change these with `CLASS` in `town-ground/mask.ts`.
-NONE, BED, LAWN, GRAVEL, SLAB, TARMAC, COBBLE = 0b000, 0b011, 0b010, 0b100, 0b110, 0b101, 0b111
+# which is what lays out its bays. Change these with `CLASS` in `art/town-ground/town-ground.ts`.
+NONE, STEPS, BED, LAWN, GRAVEL, SLAB, TARMAC, COBBLE = 0b000, 0b001, 0b011, 0b010, 0b100, 0b110, 0b101, 0b111
 # How far each channel measures, in metres, either side of its edge. Red and green draw thin edging; blue reaches a lot's middle.
 RANGE_M = (4.0, 4.0, 16.0)
 
@@ -72,7 +73,9 @@ GREEN_LEAN = 0.05
 SHADE_BRIGHTNESS = 0.16
 PHOTO_BLUR_M = 2.5
 PATH_REACH_M = 4.0
-RIBBON_KINDS = {"footway", "pedestrian", "path", "cycleway", "living_street", "residential", "service", "unclassified", "steps"}
+RIBBON_KINDS = {"footway", "pedestrian", "path", "cycleway", "living_street", "residential", "service", "unclassified", "steps", "bridleway", "corridor"}
+# A path OSM says nothing of: a park's walk or a trail is gravel, a footway or cycleway pale tarmac, never a road's.
+UNTAGGED_PATHS = {"path": GRAVEL, "bridleway": GRAVEL, "pedestrian": SLAB, "corridor": SLAB}
 
 
 @dataclass
@@ -355,29 +358,33 @@ def bake_surface(west: float, north: float, size_m: float, layers: OsmLayers, ri
 
 
 def apply_way_surfaces(ribbons: list[Ribbon], bake: Bake, ways: list[dict]) -> None:
-    """Gives each section the class of the nearest OSM way ({"line", "kind", "surface"?, "footway"?}): setts on a street, slabs on a sidewalk."""
-    lines = [way["line"] for way in ways]
-    tree = STRtree(lines)
-    for chain, ribbon in enumerate(ribbons):
-        if ribbon.kind not in RIBBON_KINDS:
+    """Gives each section the class of the nearest OSM way ({"line", "kind", "motor", "surface"?, "footway"?}): setts on a
+    street, slabs on a sidewalk. A path reads only paths and a road only roads, or a sidewalk beside its street takes the street's."""
+    for motor in (True, False):
+        same = [way for way in ways if way["motor"] == motor]
+        if not same:
             continue
-        for section, middle in enumerate(ribbon.rings[:, 2]):
-            found = tree.query_nearest(Point(middle), max_distance=PATH_REACH_M)
-            if len(found) == 0:
+        tree = STRtree([way["line"] for way in same])
+        for chain, ribbon in enumerate(ribbons):
+            if ribbon.motor != motor or (motor and ribbon.kind not in RIBBON_KINDS):
                 continue
-            way = ways[found[0]]
-            bake.ribbon_classes[chain][section] = _ribbon_class(way, ribbon.motor)
+            for section, middle in enumerate(ribbon.rings[:, 2]):
+                found = tree.query_nearest(Point(middle), max_distance=PATH_REACH_M)
+                way = same[found[0]] if len(found) else {"kind": ribbon.kind}
+                bake.ribbon_classes[chain][section] = _ribbon_class(way, motor)
 
 
 def _ribbon_class(way: dict, motor: bool) -> int:
     surface = HARD_SURFACES.get(way.get("surface", ""))
     if motor:
         return surface if surface == COBBLE else NONE
+    if way["kind"] == "steps":
+        return STEPS
     if surface is not None:
         return surface
-    if way.get("footway") == "sidewalk" or way["kind"] == "pedestrian":
+    if way.get("footway") == "sidewalk":
         return SLAB
-    return GRAVEL if way["kind"] == "path" else NONE
+    return UNTAGGED_PATHS.get(way["kind"], TARMAC)
 
 
 def polygons_from_outers(outers: list[list[tuple[float, float]]], inners: list[list[tuple[float, float]]]) -> list[Polygon]:
