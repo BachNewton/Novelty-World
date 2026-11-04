@@ -68,7 +68,7 @@ function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
 
 function SpotList({ spots, onJump }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void }) {
   return (
-    <ul className="grid grid-cols-2 gap-1">
+    <ul className="flex flex-col gap-1">
       {spots.map(({ id, name }) => (
         <li key={id}>
           <button type="button" className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm" style={{ borderColor: INK }} onClick={() => { onJump(id); }}>
