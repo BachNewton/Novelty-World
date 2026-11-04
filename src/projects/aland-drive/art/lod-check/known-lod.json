@@ -1,0 +1,214 @@
+{
+  "boats: galeas": {
+    "shape": 0.187,
+    "colour": 21.3
+  },
+  "boats: rib": {
+    "shape": 0.21,
+    "colour": 21.3
+  },
+  "boats: rescue": {
+    "shape": 0.078,
+    "colour": 24.1
+  },
+  "boats: pilot": {
+    "shape": 0.054,
+    "colour": 21.4
+  },
+  "boats: passenger": {
+    "shape": 0.053,
+    "colour": 19.2
+  },
+  "identity: deck chair": {
+    "shape": 0.223,
+    "colour": 28.3
+  },
+  "identity: bonfire stack": {
+    "shape": 0.256,
+    "colour": 18.8
+  },
+  "identity: orchard ladder": {
+    "shape": 0.432,
+    "colour": 7
+  },
+  "identity: open-farm sign": {
+    "shape": 0.248,
+    "colour": 24.3
+  },
+  "identity: cyclist with bike": {
+    "shape": 0.305,
+    "colour": 46.1
+  },
+  "identity: cyclist standing": {
+    "shape": 0.173,
+    "colour": 41.3
+  },
+  "identity: bicycle": {
+    "shape": 0.491,
+    "colour": 37.2
+  },
+  "identity: touring rack": {
+    "shape": 0.307,
+    "colour": 38.8
+  },
+  "identity: wooden daymark": {
+    "shape": 0.326,
+    "colour": 27.8
+  },
+  "identity: viewing tower": {
+    "shape": 0.371,
+    "colour": 13.1
+  },
+  "identity: viewpoint platform": {
+    "shape": 0.456,
+    "colour": 18.2
+  },
+  "marina: finger pontoon": {
+    "shape": 0.453,
+    "colour": 5
+  },
+  "marina: walkway gate": {
+    "shape": 0.694,
+    "colour": 20
+  },
+  "marina: dinghy rack": {
+    "shape": 0.285,
+    "colour": 36.1
+  },
+  "marina: rail trolley": {
+    "shape": 0.459,
+    "colour": 4.9
+  },
+  "marina: flag mast": {
+    "shape": 0.169,
+    "colour": 21.5
+  },
+  "marina: cradle": {
+    "shape": 0.566,
+    "colour": 4.4
+  },
+  "marina: mast rack": {
+    "shape": 0.385,
+    "colour": 17.2
+  },
+  "marina: sawn timber stack": {
+    "shape": 0.048,
+    "colour": 17.2
+  },
+  "marina: steam box": {
+    "shape": 0.368,
+    "colour": 6.4
+  },
+  "marina: spar safe": {
+    "shape": 0,
+    "colour": 31.5
+  },
+  "marina: pillar safe": {
+    "shape": 0.06,
+    "colour": 36.4
+  },
+  "marina: admiralty anchor": {
+    "shape": 0.259,
+    "colour": 8.5
+  },
+  "roadside: farm fence": {
+    "shape": 0.299,
+    "colour": 3.4
+  },
+  "roadside: bus shelter": {
+    "shape": 0.128,
+    "colour": 19.5
+  },
+  "rural: tractor": {
+    "shape": 0.05,
+    "colour": 26
+  },
+  "rural: reed bed": {
+    "shape": 0.411,
+    "colour": 14.6
+  },
+  "rural: jetty section": {
+    "shape": 0.393,
+    "colour": 3.1
+  },
+  "rural: jetty head": {
+    "shape": 0.341,
+    "colour": 3.6
+  },
+  "street: guard rail": {
+    "shape": 0.324,
+    "colour": 3.5
+  },
+  "street: guard rail end": {
+    "shape": 0.391,
+    "colour": 4.2
+  },
+  "street: guard rail return": {
+    "shape": 0.607,
+    "colour": 4.3
+  },
+  "street: grass tuft": {
+    "shape": 0.371,
+    "colour": 7.4
+  },
+  "street: grass tuft short": {
+    "shape": 0.386,
+    "colour": 6.2
+  },
+  "street: seed grass": {
+    "shape": 0.316,
+    "colour": 11.4
+  },
+  "street: wildflowers daisy": {
+    "shape": 0.356,
+    "colour": 5.2
+  },
+  "street: wildflowers buttercup": {
+    "shape": 0.337,
+    "colour": 5.1
+  },
+  "street: wildflowers lupine": {
+    "shape": 0.333,
+    "colour": 5.6
+  },
+  "street: wildflowers fireweed": {
+    "shape": 0.329,
+    "colour": 5.5
+  },
+  "street: wildflowers cow-parsley": {
+    "shape": 0.393,
+    "colour": 2.8
+  },
+  "street: bike rack": {
+    "shape": 0.574,
+    "colour": 3.9
+  },
+  "town-kit: terminal": {
+    "shape": 0.502,
+    "colour": 6.4
+  },
+  "town-kit: window box red": {
+    "shape": 0.011,
+    "colour": 25.7
+  },
+  "town-kit: window box white": {
+    "shape": 0.016,
+    "colour": 19.1
+  },
+  "town-kit: bicycle bike-red": {
+    "shape": 0.633,
+    "colour": 15.2
+  },
+  "town-kit: bicycle bike-blue": {
+    "shape": 0.633,
+    "colour": 11.7
+  },
+  "town-kit: bicycle bike-black": {
+    "shape": 0.633,
+    "colour": 9.8
+  },
+  "town-kit: village sign": {
+    "shape": 0.419,
+    "colour": 19.4
+  }
+}

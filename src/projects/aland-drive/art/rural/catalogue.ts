@@ -1,6 +1,7 @@
 import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/index";
 import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION, PIER_SECTION, PONTOON_SECTION, ROCK_SEEDS, STONE_WALL_M, STONE_WALL_OVERLAP_M } from "./index";
+import { ruralMaterials } from "./material";
 
 /** Every model the kit builds, with its near-triangle limit, for the budget test and the gallery's counts. */
 export function catalogue(): { name: string; limit: number; farLimit: number; model: RoadsideModel }[] {
@@ -47,4 +48,4 @@ const LAID: Record<string, ArtModel["laid"]> = {
   "pontoon section": { alongM: PONTOON_SECTION.lengthM },
 };
 
-export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => ({ ...nearFar(name, model), laid: LAID[name] }));
+export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => ({ ...nearFar(name, model, ruralMaterials), laid: LAID[name] }));

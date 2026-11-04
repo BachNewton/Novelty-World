@@ -1,6 +1,7 @@
 import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/index";
 import { buildAnchorMonument, buildBoatInCradle, buildBoatTrolley, buildBoatWinterCover, buildCairn, buildCannon, buildCradle, buildDinghyRack, buildFigurehead, buildFingerPontoon, buildFishBoxes, buildFixedMark, buildFlagMast, buildFloatHeap, buildFuelBerth, buildGuestHarbourSign, buildHarbourHut, buildHistoricShedRow, buildHullOnStocks, buildLeadingMark, buildMastRack, buildMooringRing, buildNetMarker, buildPilotStation, buildPillarBuoy, buildPropellerMonument, buildRopewalkShed, buildPyramidBeacon, buildRadarMark, buildServicePedestal, buildSlipway, buildSkerryLight, buildSmithy, buildSmokehouse, buildSpar, buildSteamBox, buildTarPot, buildTimberStack, buildTravelLift, buildWalkwayGate, buildWheelSign, LEADING_PATTERNS, RADAR_BANDS, SEA_MARKS } from "./index";
+import { marinaMaterials } from "./material";
 
 export interface Entry {
   name: string;
@@ -66,4 +67,4 @@ export function catalogue(): Entry[] {
   ];
 }
 
-export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => nearFar(name, model));
+export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => nearFar(name, model, marinaMaterials));

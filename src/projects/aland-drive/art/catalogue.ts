@@ -1,4 +1,6 @@
 import { BufferAttribute, BufferGeometry } from "three";
+import type { RoadsideMaterials, RoadsideModel } from "./roadside/index";
+import type { StreetInputs } from "./street/material";
 
 /**
  * One model as its kit's gallery shows it, with every geometry it draws by name: a near and far version, or a car's
@@ -18,10 +20,15 @@ export interface ArtModel {
   laid?: { alongM?: number; flips?: boolean };
   /** False for what isn't stood on the ground at `groundY`: a part in its own pivot's frame, a box hung on a wall. */
   onGround?: boolean;
+  /** How the game draws it, where a kit places it by its materials: so its near and far versions can be drawn as it shows them. */
+  drawn?: { model: RoadsideModel; materials: KitMaterials };
 }
 
-/** A model with a near and far version, as most kits build them. */
-export const nearFar = (name: string, { near, far }: { near: BufferGeometry; far: BufferGeometry | null }): ArtModel => ({ name, geometries: { near, far } });
+/** A kit's materials for its models' near and far versions. */
+export type KitMaterials = (inputs: StreetInputs) => RoadsideMaterials;
+
+/** A model with a near and far version, as most kits build them, drawn by its kit's materials. */
+export const nearFar = (name: string, model: RoadsideModel, materials?: KitMaterials): ArtModel => ({ name, geometries: { near: model.near, far: model.far }, drawn: materials && { model, materials } });
 
 /**
  * A model whose parts each move on a pivot of their own, a bike's wheels or a rider's arm, split into one geometry per
