@@ -67,6 +67,11 @@ class Landmarks:
         self.own = [site for site in self.near if tile.west <= site.east < tile.east and tile.south <= site.north < tile.north]
         self.replaced: dict[str, list[str]] = {site.id: [] for site in self.near}
 
+    def replace_also(self, sites: list[Site]) -> None:
+        """Sites drawn by a list of their own, not as landmarks, that still replace what stands under them: the windmills."""
+        self.near += sites
+        self.replaced |= {site.id: [] for site in sites}
+
     def replaces_solid(self, name: str, footprint: Polygon) -> bool:
         for site in self.near:
             if name in site.solids or (site.inside and _under(footprint, site.plan)):

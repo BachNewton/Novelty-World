@@ -1,5 +1,5 @@
 import type { RoadsideModel } from "../roadside/index";
-import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
+import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, ROCK_SEEDS } from "./index";
 
 /** Every model the kit builds, with its near-triangle limit, for the budget test and the gallery's counts. */
 export function catalogue(): { name: string; limit: number; farLimit: number; model: RoadsideModel }[] {
@@ -33,7 +33,7 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
     small("sailboat sailing", buildSailboat("sailing")),
     small("bale wrapped", buildWrappedBale()),
     small("bale hay", buildHayBale()),
-    small("sheep grazing", buildSheep("grazing")),
-    small("sheep standing", buildSheep("standing")),
+    ...(["grazing", "standing"] as const).map((pose) => ({ name: `sheep ${pose}`, limit: 200, farLimit: 24, model: buildSheep(pose) })),
+    ...(["grazing", "standing", "lying"] as const).map((pose) => ({ name: `cow ${pose}`, limit: 380, farLimit: 32, model: buildCow(pose) })),
   ];
 }

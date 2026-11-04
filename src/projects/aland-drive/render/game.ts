@@ -10,6 +10,7 @@ import { createPeople } from "./people";
 import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
+import { createWindmills } from "./windmills";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
@@ -579,6 +580,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const windmills = createWindmills(scene, outbuildingMaterials, manifest.tiles);
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const regattas = createRegattas(scene, { colour: colorOf, linear, hazed });
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
@@ -726,6 +728,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   }
   clipmap.showWide(true);
   outbuildings.showAll(true);
+  windmills.showAll(true);
   docks.showAll(true);
   people.showAll(true);
   stoneWalls.showAll(true);
@@ -741,6 +744,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   cullCar(true);
   clipmap.showWide(false);
   outbuildings.showAll(false);
+  windmills.showAll(false);
   docks.showAll(false);
   people.showAll(false);
   stoneWalls.showAll(false);
@@ -1303,6 +1307,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       wallMaterial.dispose();
       outbuildings.dispose();
+      windmills.dispose();
       docks.dispose();
       people.dispose();
       regattas.dispose();

@@ -121,6 +121,12 @@ def _polygon(shape_record) -> Polygon | None:
 
 def read_topographic(tile: Tile) -> tuple[list[Polygon], list[Polygon]]:
     """The fields and meadows near the tile, and its buildings, in ETRS metres."""
+    fields, buildings = read_classed(tile)
+    return [shape for shape, _ in fields], [shape for shape, _ in buildings]
+
+
+def read_classed(tile: Tile) -> tuple[list[tuple[Polygon, int]], list[tuple[Polygon, int]]]:
+    """The fields and meadows near the tile, and its buildings, each with its class, in ETRS metres."""
     box = shapely.box(tile.west - RIM_M, tile.south - RIM_M, tile.east + RIM_M, tile.north + RIM_M)
     fields, buildings = [], []
     for path in _sheets(tile):
@@ -134,7 +140,7 @@ def read_topographic(tile: Tile) -> tuple[list[Polygon], list[Polygon]]:
                         continue
                     polygon = _polygon(shape_record)
                     if polygon is not None:
-                        (fields if base.startswith("m_") else buildings).append(polygon)
+                        (fields if base.startswith("m_") else buildings).append((polygon, shape_record.record[kinds]))
     return fields, buildings
 
 

@@ -1,5 +1,5 @@
 export { BOATHOUSE, buildBoathouse, buildShed, buildWindmill, SHED, type BoathouseKind, type ShedKind } from "./buildings";
-export { buildHayBale, buildSheep, buildStoneWall, buildTractor, buildWrappedBale, STONE_WALL_M, type SheepCoat, type SheepPose } from "./farm";
+export { buildCow, buildHayBale, buildSheep, buildStoneWall, buildTractor, buildWrappedBale, COW, STONE_WALL_M, type CowPose, type SheepPose } from "./farm";
 export { rapakivi, ruralColours, ruralMaterials, ruralPaint } from "./material";
 export { RURAL_PARTS, type RuralPart } from "./mesh";
 export { buildBirch, buildBush, buildJuniper, buildReedBed, buildReedClump, REED_BED_M, type BirchForm, type BushKind, type JuniperForm } from "./plants";
