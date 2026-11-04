@@ -358,3 +358,40 @@ def osm_furniture_path(tile: Tile) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_furniture(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
     return path
+
+
+# The official sea chart, for the whole of Åland's box in ETRS-TM35FIN, by WFS. Väylävirasto's fairways and aids to
+# navigation are CC BY 4.0, as the service's access constraints say, Åland's own (Ålands landskapsregering's) among them. Traficom's depth areas come under its
+# hydrographic data licence: free to copy, change and publish for anything but navigation, non-commercially, credited
+# with the month they were taken (see credits.ts).
+SEA_CHART_BOX = (62000, 6636000, 182000, 6756000)
+SEA_CHART_PAGE = 5000
+VAYLA_WFS = "https://avoinapi.vaylapilvi.fi/vaylatiedot/ows"
+TRAFICOM_WFS = "https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs"
+SEA_CHART_LAYERS = {
+    "navigation-lines": (VAYLA_WFS, "vesivaylatiedot:navigointilinjat_uusi"),
+    "fairway-areas": (VAYLA_WFS, "vesivaylatiedot:vaylaalueet_uusi"),
+    "aids": (VAYLA_WFS, "vesivaylatiedot:turvalaitteet_uusi"),
+    "depth-areas": (TRAFICOM_WFS, "rajoitettu:DepthArea_A"),
+}
+
+
+def sea_chart_path(layer: str) -> Path:
+    """One of `SEA_CHART_LAYERS` as GeoJSON in ETRS-TM35FIN, every page of it, fetched once and kept with when it was taken."""
+    path = RAW / "sea-chart" / f"{layer}.json"
+    if path.exists():
+        return path
+    service, name = SEA_CHART_LAYERS[layer]
+    west, south, east, north = SEA_CHART_BOX
+    features: list[dict] = []
+    while True:
+        url = f"{service}?service=wfs&version=2.0.0&request=GetFeature&typeNames={name}&srsName=EPSG:3067&bbox={west},{south},{east},{north},EPSG:3067&outputFormat=application/json&count={SEA_CHART_PAGE}&startIndex={len(features)}&sortBy="
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=REQUEST_TIMEOUT_S) as response:
+            page = json.loads(response.read())["features"]
+        features += page
+        if len(page) < SEA_CHART_PAGE:
+            break
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fetched = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path.write_text(json.dumps({"source": service, "layer": name, "asOf": fetched, "features": features}, ensure_ascii=False), encoding="utf-8")
+    return path

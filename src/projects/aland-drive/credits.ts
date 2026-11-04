@@ -51,6 +51,20 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "© OpenStreetMap contributors",
   },
   {
+    work: "Åland's official fairways and aids to navigation (the lanes the ferries and small boats keep to, and where the sea marks, leading marks, cairns and lights stand), from the fairway register, Åland's own fairways among them",
+    author: "Finnish Transport Infrastructure Agency (Väylävirasto)",
+    license: LICENSES["cc-by-4.0"],
+    source: "https://avoinapi.vaylapilvi.fi/vaylatiedot/ows",
+    attribution: "Contains data from the Finnish Transport Infrastructure Agency's fairway register, licensed under CC BY 4.0",
+  },
+  {
+    work: "Depth areas of the nautical chart round Åland (keeping keeled boats out of water too shallow for them)",
+    author: "Finnish Transport and Communications Agency (Traficom)",
+    license: LICENSES["traficom-hydrographic"],
+    source: "https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs",
+    attribution: "Contains information received from the Finnish Transport and Communications Agency's nautical chart database 11/2026. Not for navigational use. Does not meet the requirements of an official nautical chart.",
+  },
+  {
     work: "Finnish road sign designs (the shapes, symbols and colours of the road signs)",
     author: "Finnish Transport Infrastructure Agency and Traficom",
     license: LICENSES["public-domain"],

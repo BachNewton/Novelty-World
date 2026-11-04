@@ -161,26 +161,63 @@ export function buildFixedMark(mark: SeaMark): RoadsideModel {
 
 export type LeadingRole = "front" | "rear";
 
-/** A leading mark (linjamerkki): a timber trestle carrying a board, whose daymark is that board (linjataulu), in the yellow OSM has on every one of the island's 99, with a dark centre line to judge the alignment by. The rear stands higher, so the pair reads one over the other on the line. Board faces +z. */
-export function buildLeadingMark(role: LeadingRole): RoadsideModel {
+/** A leading mark's board in vertical stripes of three, its outer colour first: Väylävirasto's register has every Åland leading mark as one of these four, or a triangle or a plain board, drawn as the nearest. */
+export const LEADING_PATTERNS = ["red-yellow", "yellow-red", "red-white", "white-red"] as const;
+export type LeadingPattern = (typeof LEADING_PATTERNS)[number];
+
+const LEADING_STRIPES: Record<LeadingPattern, readonly [outer: MarkPaint, centre: MarkPaint]> = {
+  "red-yellow": ["mark-red", "mark-yellow"],
+  "yellow-red": ["mark-yellow", "mark-red"],
+  "red-white": ["mark-red", "mark-white"],
+  "white-red": ["mark-white", "mark-red"],
+};
+
+/** A leading line's board (linjataulu): a tall rectangle facing +z, its front in three vertical stripes with the centre one a third of the width, its back bare timber. */
+function leadingBoard(into: Marked, pattern: LeadingPattern, [wide, high]: readonly [number, number], bottom: number, edges: boolean): Marked {
+  const [outer, centre] = LEADING_STRIPES[pattern];
+  const [left, right, top] = [-wide / 2, wide / 2, bottom + high];
+  const third = wide / 6;
+  const front = 0.02;
+  const back = -0.04;
+  const stripe = (x0: number, x1: number, part: MarinaPart) => into.face([[x0, bottom, front], [x1, bottom, front], [x1, top, front], [x0, top, front]], part);
+  stripe(left, -third, outer);
+  stripe(-third, third, centre);
+  stripe(third, right, outer);
+  into.face([[right, bottom, back], [left, bottom, back], [left, top, back], [right, top, back]], "stickers", 0.9);
+  if (edges) {
+    into.face([[left, top, front], [right, top, front], [right, top, back], [left, top, back]], outer, 1.05);
+    into.face([[right, bottom, front], [right, bottom, back], [right, top, back], [right, top, front]], outer, 0.85);
+    into.face([[left, bottom, back], [left, bottom, front], [left, top, front], [left, top, back]], outer, 0.85);
+  }
+  return into;
+}
+
+/** A leading mark (linjamerkki): a timber trestle carrying its striped board. The rear stands higher, and its board is larger, so the pair reads one over the other on the line at about the same size. Board faces +z. */
+export function buildLeadingMark(role: LeadingRole, pattern: LeadingPattern): RoadsideModel {
   const tall = role === "front" ? 7 : 11;
-  const [wide, high] = [1.6, 3.2];
+  const board = role === "front" ? ([1.6, 3.2] as const) : ([2, 4] as const);
   const legs = (into: Marked) => {
     for (const [x, z] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 0.7], [1.3, 0.7]] as const) into.beam([x, 0, z], [x * 0.2, tall, z * 0.1 - 0.15], 0.14, 0.14, "stickers");
     return into;
   };
-  const near = legs(new Marked());
-  for (const up of [0.3, 0.62]) {
-    const y = tall * up;
-    const inset = 1.3 - 1.04 * up;
-    near.beam([-inset, y, -1.1 + up * 0.9], [inset, y, -1.1 + up * 0.9], 0.08, 0.08, "stickers").beam([-inset, y, 0.6 - up * 0.5], [inset, y, 0.6 - up * 0.5], 0.08, 0.08, "stickers");
-    near.beam([-inset, y, -1.1 + up * 0.9], [inset, y + 2, 0.6 - up * 0.5], 0.06, 0.06, "stickers");
-  }
+  /** Two levels of cross bars and a diagonal each: beams near, and flat strips far, which a bar is by its swap anyway. */
+  const braces = (into: Marked, solid: boolean) => {
+    const bar = (from: V3, to: V3, thick: number) => (solid ? into.beam(from, to, thick, thick, "stickers") : into.face([[from[0], from[1] - thick / 2, from[2]], [to[0], to[1] - thick / 2, to[2]], [to[0], to[1] + thick / 2, to[2]], [from[0], from[1] + thick / 2, from[2]]], "stickers"));
+    for (const up of [0.3, 0.62]) {
+      const y = tall * up;
+      const inset = 1.3 - 1.04 * up;
+      const [back, front] = [-1.1 + up * 0.9, 0.6 - up * 0.5];
+      bar([-inset, y, back], [inset, y, back], 0.08);
+      bar([-inset, y, front], [inset, y, front], 0.08);
+      bar([-inset, y, back], [inset, y + 2, front], 0.06);
+    }
+    return into;
+  };
+  const near = braces(legs(new Marked()), true);
   const bottom = tall - 0.4;
-  near.box([-wide / 2, bottom, -0.04], [wide / 2, bottom + high, 0.02], "mark-yellow", { shade: 0.98 });
-  near.face([[-0.17, bottom, 0.023], [0.17, bottom, 0.023], [0.17, bottom + high, 0.023], [-0.17, bottom + high, 0.023]], "mark-black");
-  near.beam([0, tall - 0.4, -0.14], [0, bottom + high, -0.14], 0.12, 0.12, "stickers");
-  const far = legs(new Marked()).face([[-wide / 2, bottom, 0.02], [wide / 2, bottom, 0.02], [wide / 2, bottom + high, 0.02], [-wide / 2, bottom + high, 0.02]], "mark-yellow").face([[-0.2, bottom, 0.03], [0.2, bottom, 0.03], [0.2, bottom + high, 0.03], [-0.2, bottom + high, 0.03]], "mark-black");
+  leadingBoard(near, pattern, board, bottom, true);
+  near.beam([0, bottom, -0.14], [0, bottom + board[1], -0.14], 0.12, 0.12, "stickers");
+  const far = leadingBoard(braces(legs(new Marked()), false), pattern, board, bottom, false);
   return marinaModel(near, far, 150, MARK_REACH_M);
 }
 

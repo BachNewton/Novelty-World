@@ -3,8 +3,9 @@ import { cameraPosition, exp, float, mix, positionWorld, vec3 } from "three/tsl"
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildingMaterial, buildingMeshes } from "../../render/buildings";
 import { createSignSheet, detailTexture } from "../surfaces";
-import { LANDMARKS } from "./index";
+import { LANDMARKS, type Landmark } from "./index";
 import { placed, triangles } from "./landmark";
+import { buildGroundSite, GROUND_SITES } from "./sites";
 
 /*
  * The page `gallery.mjs` opens: the game's renderer, camera, haze and building material on a plain stage of ground and
@@ -36,6 +37,12 @@ export interface GalleryView {
 }
 
 const SEA_M = 0.1;
+
+let every: Landmark[] | undefined;
+/** The ground sites stand on level ground this high, as the views in `gallery-views.mjs` that show them have it. */
+const GROUND_SITE_M = 5;
+/** The landmarks, and the ground sites on the gallery's level ground. */
+const ALL = () => (every ??= [...LANDMARKS(), ...GROUND_SITES.map((site) => buildGroundSite(site, () => GROUND_SITE_M))]);
 
 async function start() {
   const canvas = document.querySelector("canvas");
@@ -75,7 +82,7 @@ async function start() {
     const key = `${id}:${version}`;
     const kept = shown.get(key);
     if (kept) return kept;
-    const landmark = LANDMARKS().find((candidate) => candidate.id === id);
+    const landmark = ALL().find((candidate) => candidate.id === id);
     if (!landmark) throw new Error(`gallery: no landmark ${id}`);
     const cell = placed(landmark, landmark[version], ORIGIN);
     const { group, cells } = buildingMeshes([cell], material);
@@ -93,7 +100,7 @@ async function start() {
   return {
     frames: () => frames,
     counts: () =>
-      LANDMARKS().map((landmark) => ({
+      ALL().map((landmark) => ({
         id: landmark.id,
         near: triangles(landmark.near),
         far: triangles(landmark.far),
@@ -105,7 +112,7 @@ async function start() {
       for (const mesh of shown.values()) mesh.visible = false;
       const mesh = meshOf(view.id, view.version);
       mesh.visible = true;
-      const landmark = LANDMARKS().find((candidate) => candidate.id === view.id);
+      const landmark = ALL().find((candidate) => candidate.id === view.id);
       if (!landmark) throw new Error(`gallery: no landmark ${view.id}`);
       const scene3 = (east: number, height: number, north: number) => new Vector3(landmark.east - ORIGIN.east + east, height, ORIGIN.north - landmark.north - north);
       camera.position.copy(scene3(view.from[0], view.from[2], view.from[1]));
