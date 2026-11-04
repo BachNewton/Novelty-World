@@ -1,74 +1,74 @@
 {
   "ytterby-sprint": {
-    "tuning": "788bdf34",
+    "tuning": "cd596db3",
     "places": "be3c0814",
-    "par": 175.55,
-    "target": 166.8
+    "par": 180.26,
+    "target": 171.3
   },
   "backrace-climb": {
-    "tuning": "38414a98",
+    "tuning": "3782839b",
     "places": "9f4f26ef",
-    "par": 91.68,
+    "par": 91.7,
     "target": 91.7
   },
   "soltuna-climb": {
-    "tuning": "f3a2862f",
+    "tuning": "49a06196",
     "places": "ebb65be3",
     "par": 48.66,
     "target": 48.7
   },
   "getavagen-streetrace": {
-    "tuning": "cc531ad4",
+    "tuning": "7c5bdbb4",
     "places": "f87cd10b",
     "par": 169.38,
     "target": 165
   },
   "hammarbo-201": {
-    "tuning": "87f9889f",
+    "tuning": "75087526",
     "places": "5c99d35b",
     "par": 8.22,
     "target": 9.1
   },
   "lemland-speeding": {
-    "tuning": "36a07985",
+    "tuning": "a062b05c",
     "places": "d5a82724",
     "par": 147.66,
     "target": 144
   },
   "storagatan": {
-    "tuning": "1dd1a64f",
+    "tuning": "99a86e08",
     "places": "b12ac8fb",
     "par": 27.56,
     "target": 30.4
   },
   "castle-to-fortress": {
-    "tuning": "bfcce102",
+    "tuning": "f753aee2",
     "places": "bcd7cb80",
-    "par": 215.89,
-    "target": 215.9
+    "par": 238.42,
+    "target": 238.5
   },
   "orrdalsklint": {
-    "tuning": "31d2eb75",
+    "tuning": "791f8b50",
     "places": "a2218f9c",
-    "par": 110.56,
-    "target": 121.7
+    "par": 109.49,
+    "target": 120.5
   },
   "mockelobacken": {
-    "tuning": "aa47a1e8",
+    "tuning": "9b6923a1",
     "places": "0180eb9f",
     "par": 124.26,
     "target": 111
   },
   "road-2-flat-out": {
-    "tuning": "3338b1fc",
+    "tuning": "2b44a327",
     "places": "79993a30",
     "par": 224.67,
     "target": 213
   },
   "post-road-west": {
-    "tuning": "a425a644",
+    "tuning": "c7fae3f9",
     "places": "7b044c17",
-    "par": 238.86,
-    "target": 262.8
+    "par": 238.93,
+    "target": 262.9
   }
 }
