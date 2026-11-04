@@ -50,6 +50,7 @@ export class TileLayers {
   readonly mask: DataArrayTexture;
   readonly groundNear: DataArrayTexture;
   readonly groundFar: DataArrayTexture;
+  /** The canopy in red and the clearing round buildings in green, which share their pixels. */
   readonly canopy: DataArrayTexture;
   readonly stands: DataArrayTexture;
   readonly fields: DataArrayTexture;
@@ -84,7 +85,7 @@ export class TileLayers {
       [manifest.mask.pixels, farLayers, 4],
       [manifest.ground.pixels, NEAR_LAYERS, 4],
       [manifest.ground.farPixels, farLayers, 4],
-      [manifest.canopy.pixels, farLayers, 1],
+      [manifest.canopy.pixels, farLayers, 2],
       [manifest.stands.pixels, farLayers, 4],
       [fieldPixelsOf(manifest), farLayers, 2],
     ];
@@ -168,7 +169,7 @@ export class TileLayers {
     this.enqueue(this.shadeFar, layer, shade, manifest.far.shadePixels, 1, landed);
     this.enqueue(this.mask, layer, mask, manifest.mask.pixels, 4, landed);
     this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
-    this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
+    this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 2, landed);
     this.enqueue(this.stands, layer, stands, manifest.stands.pixels, 4, landed);
     this.enqueue(this.fields, layer, fields, fieldPixelsOf(manifest), 2, landed);
   }

@@ -4,6 +4,8 @@
  * (`tools/tree-check.ts`). A shader's floats are 32-bit, so the rolls here are too.
  */
 
+import { CROWN_REACH } from "./tree-shapes";
+
 export const NEAR_STEP_M = 6;
 export const FAR_STEP_M = 12;
 /** How far a tree moves off its lattice place, as a share of a near cell. */
@@ -25,6 +27,17 @@ export const ROAD_MASK_MIP = 1;
 export const ROAD_COVERAGE = 0.008;
 /** Within this of a tile's edge a tree reads the road mask this far over it too: a neighbour's roads aren't in a tile's own mask. */
 export const ROAD_LOOK_M = 8;
+
+/**
+ * What a read of the clearing round buildings (`pipeline/clearing.py`) may be off by, from the 1 m raster it's measured
+ * on and its 4 m pixels round a building's corners: every tree and plant keeps this much further off than its spread.
+ */
+export const CLEARING_SLACK_M = 1.5;
+
+/** The tallest a tree may be at a place this far from a building, for its crown to clear it however it spreads and leans. */
+export function tallestClear(clearanceM: number): number {
+  return (clearanceM - CLEARING_SLACK_M) / CROWN_REACH;
+}
 
 const f = Math.fround;
 

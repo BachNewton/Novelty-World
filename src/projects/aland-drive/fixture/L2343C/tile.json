@@ -2442,5 +2442,12 @@
     "pixels": 1500,
     "fieldPixels": 750,
     "encoding": "gzip of bytes, rows north to south, west to east: each pixel's share of rock, 0 to 255, then at fieldPixels each pixel's share of boulder field"
+  },
+  "clearing": {
+    "file": "clearing.png",
+    "pixels": 1500,
+    "unitM": 0.125,
+    "zero": 64,
+    "encoding": "8-bit grey PNG, rows north to south, west to east: the signed distance from each 4 m pixel's middle to the nearest building, (byte - zero) × unitM metres, negative inside"
   }
 }

@@ -1,7 +1,7 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { cos, dot, float, fract, If, int, mix, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
-import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -33,6 +33,8 @@ const LATTICES: Lattice[] = [
   { stepM: 1, ends: [330, 420, 30], salt: 91.7 },
   { stepM: 3, ends: [850, 1050, 60], salt: 404.1 },
 ];
+/** The farthest any of its plants stands from the camera. */
+const REACH_M = Math.max(...LATTICES.map(reachOf));
 const SWAP_M = 60;
 const SWAP_BAND = 0.15;
 
@@ -82,14 +84,16 @@ const MOST_CLUMPS = 0.1;
 const BAND_TOPS_M = [0.4, 0.9, 1.4, 1.9, 3.2];
 
 export interface ReedInputs {
+  /** Metres from a place to the nearest building (`pipeline/clearing.py`): a plant stands only where its whole spread clears it. */
+  clearanceAt: (place: Node<"vec2">) => Node<"float">;
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   landAt: LandAt;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   /** 1 where reeds may grow, 0 round docks and boats. */
   openToReedsAt: (place: Node<"vec2">) => Node<"float">;
   groundAt: (place: Node<"vec2">) => Node<"float">;
-  /** Metres from the drawn waterline, out into the water and below zero on land. */
-  shoreAt: (place: Node<"vec2">) => Node<"float">;
+  /** Metres from the drawn waterline, out into the water and below zero on land, at a place no farther than `reachM` from the camera. */
+  shoreAt: (place: Node<"vec2">, reachM: number) => Node<"float">;
   /** The ground's baked shade as the light on it. */
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
@@ -110,12 +114,13 @@ export interface Reeds {
   dispose: () => void;
 }
 
-export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, lightOf, linear, hazed }: ReedInputs): Reeds {
+export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, clearanceAt, lightOf, linear, hazed }: ReedInputs): Reeds {
   const clumps = SEEDS.map((seed) => buildReedClump(seed));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
   const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours, BAND_TOPS_M)));
+  const spreadOfClump = uniformArray(clumps.map(({ near }) => spreadOf(near)), "float");
 
   const far = Math.ceil(LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0) * MOST_CLUMPS);
   const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_CLUMP_M, stepM), 0);
@@ -130,7 +135,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
       const chance = roll(seed, 93.989, 67.345).toVar();
-      If(chance.lessThan(MOST_OF_A_PLACE).and(waterAt(place, 0).greaterThan(IN_WATER)).and(shoreAt(place).greaterThan(0)), () => {
+      If(chance.lessThan(MOST_OF_A_PLACE).and(waterAt(place, 0).greaterThan(IN_WATER)).and(shoreAt(place, REACH_M).greaterThan(0)), () => {
         const land = float(1).sub(waterAt(place, BELT_MIP)).toVar();
         If(land.greaterThan(LEAST_LAND), () => {
           const grid = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)));
@@ -144,16 +149,17 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
             const water = groundAt(place).toVar();
             If(seenOn(water), () => {
               const kind = roll(seed, 54.1, 18.7).mul(SEEDS.length).floor().toVar();
-              const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47));
+              const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47)).toVar();
               const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
               const remaining = left().toVar();
               const standing = vec4(place.x, water, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+              const clear = clearOfBuildings(clearanceAt, place, size.mul(spreadOfClump.element(int(kind)) as unknown as Node<"float">));
               const photo = shore.broad.pow(vec3(2.2)).toVar();
               const look = vec4(photo, lightOf(shore.shade)).toVar();
-              If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
+              If(clear.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                 write(FAR_DRAW, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
               });
-              If(swap.lessThan(1), () => {
+              If(clear.and(swap.lessThan(1)), () => {
                 SEEDS.forEach((_, index) => {
                   If(kind.equal(index), () => {
                     write(index + FAR_DRAWS, [standing, look, vec4(0, float(1).sub(swap), size, kind)]);

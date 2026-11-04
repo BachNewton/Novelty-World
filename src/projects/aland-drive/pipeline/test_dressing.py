@@ -4,9 +4,10 @@ import math
 import unittest
 
 import numpy as np
-from shapely.geometry import LineString
+import shapely
+from shapely.geometry import LineString, Polygon
 
-from dressing import Dressing
+from dressing import LINDEN_REACH, LINDEN_SLACK_M, Dressing
 from test_furniture import furniture
 from test_roadside import scene_facing
 
@@ -18,7 +19,7 @@ def dressing() -> Dressing:
     dressed = Dressing.__new__(Dressing)
     dressed.furniture = furniture()
     dressed.roadside = dressed.furniture.roadside
-    dressed.tables, dressed.landmarks = [], None
+    dressed.tables, dressed.landmarks, dressed.buildings = [], None, None
     return dressed
 
 
@@ -41,6 +42,15 @@ class Dressing_(unittest.TestCase):
         self.assertGreater(len(trees), 6, "the row stands either side")
         self.assertTrue(all(abs(north) > CARRIAGEWAY_HALF_M + 0.5 for north in trees), trees)
         self.assertEqual(sum(len(sizes) for model, sizes in dressed.roadside.scales.items() if model.startswith("linden")), len(trees), "every linden has its height")
+
+    def test_a_linden_by_a_house_is_no_taller_than_its_crown_has_room_for(self):
+        dressed = dressing()
+        dressed.buildings = shapely.STRtree([Polygon([(100, 10), (110, 10), (110, 20), (100, 20)])])
+        for north, want in ((8.0, None), (5.0, (10.0 - 5.0 - LINDEN_SLACK_M) / LINDEN_REACH), (30.0, 12.0)):
+            dressed.roadside.models, dressed.roadside.scales = {}, {}
+            dressed.linden(np.array([105.0, north]), 12.0)
+            heights = [height for model, sizes in dressed.roadside.scales.items() if model.startswith("linden") for height in sizes]
+            self.assertEqual(heights, [] if want is None else [round(want, 2)], north)
 
     def test_a_fence_across_a_street_is_broken_where_the_street_runs(self):
         dressed = dressing()

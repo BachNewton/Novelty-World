@@ -1,7 +1,7 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
-import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
-import { FAR_RINGS, FAR_TABLE, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, type TreeKind } from "./tree-shapes";
+import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
+import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
 import { foliageLight, towardsSun } from "./foliage-light";
 import { viewSides } from "./view-sides";
 
@@ -17,6 +17,10 @@ import { viewSides } from "./view-sides";
  * them into one list for each model with all a vertex needs. Only the lists are drawn,
  * so a place with no tree and a tree behind the camera cost no vertices, and every
  * tree can stay to the forest's reach.
+ *
+ * Near a building a tree is no taller than lets its crown, at the widest any tree's
+ * spreads, clear the building's outline, as the tile's clearing image measures it
+ * (`pipeline/clearing.py`), so no crown or trunk stands in a building.
  *
  * A tree never changes height, and stands on ground chosen by its distance and not its
  * model, so a handover can't move it. It's the turned shape out to `fullReachM`, then
@@ -51,8 +55,6 @@ const PLACES_A_GROUP = 64;
 const HANDOVER: Band = [0, 68, 24];
 const THINNING: Band = [92, 252, 64];
 const EDGE: Band = [-220, -90, 90];
-/** A triangle's outline is narrower than the turned shape's, for the same radius. */
-const CONE_FILL = 1.25;
 /** Stood this far into the ground, so the coarser ground a shader reads never shows under a trunk on a slope. */
 const SINK_M = 0.5;
 /** A tree eases from each ring's ground to the next's over these runs, by its distance, and each run is done before the ring it leaves runs out. */
@@ -88,14 +90,7 @@ const ROCK_TALLEST_M: [number, number] = [9, 13];
 /** How much of other broadleaf is round, and how much more in the open, where oak and ash stand in meadows. */
 const ROUND_SHARE = 0.35;
 const ROUND_OPEN_SHARE = 0.5;
-/** The most any tree leans, as a share of its height, then a rock pine's lean from the wind off the sea, which is mostly south-westerly. */
-const LEAN = 0.04;
-const ROCK_LEAN: [number, number] = [0.1, 0.24];
-const DOWNWIND = vec2(0.7, -0.7);
-/** How far a rock pine's trunk and crown wander from straight, as a share of its height. */
-const GNARL = 0.05;
-/** How much a tree's crown differs from its kind's, either way. */
-const CROWN_SPREAD = 0.12;
+const DOWNWIND = vec2(...WIND_WAY);
 /** A tree's roll and how crowded it stands share one float after its kind: the roll in steps, the crowding inside a step, kept off a step's edges. */
 const ROLL_STEPS = 256;
 const AMONG_KEPT = 0.98;
@@ -206,6 +201,8 @@ export interface ForestInputs {
   groundAt: (ring: number, place: Node<"vec2">) => Node<"float">;
   /** How much road the mask holds at a place, and the size of a tile: a tree stands clear of roads, and of a neighbour's over a tile's edge. */
   roads?: { at: (place: Node<"vec2">) => Node<"float">; tileM: number };
+  /** Metres from a place to the nearest building: a tree is no taller than its crown can spread clear of it. */
+  clearanceAt?: (place: Node<"vec2">) => Node<"float">;
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   sun: { azimuthDeg: number; elevationDeg: number };
@@ -243,7 +240,7 @@ export interface Forest {
   dispose: () => void;
 }
 
-export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, colour, hazed, sun, paint }: ForestInputs): Forest {
+export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, clearanceAt, colour, hazed, sun, paint }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
   const anchor = uniform(new Vector2());
   const placesAcross = uniform(1, "uint");
@@ -295,7 +292,9 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
     If(distance.lessThan(knobs.forestReach).and(perhapsSeen), () => {
       const canopy = canopyAt(place, 0).toVar();
-      const height = canopy.mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL))).toVar();
+      const rolled = canopy.mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL)));
+      const clearance = clearanceAt ? clearanceAt(place).sub(CLEARING_SLACK_M).toVar() : null;
+      const height = (clearance ? rolled.min(clearance.div(CROWN_REACH)) : rolled).toVar();
       const stand = standsAt(place).toVar();
       If(height.greaterThanEqual(SHORTEST_M).and(roll(cell, ...STAND_ROLL).lessThan(stand.a)), () => {
         If(roadsAround(place).lessThanEqual(ROAD_COVERAGE), () => {
@@ -327,7 +326,9 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
             const look = kind.add(floor(roll(cell, 17.3, 91.1).mul(ROLL_STEPS)).add(among.mul(AMONG_KEPT).add((1 - AMONG_KEPT) / 2)).div(ROLL_STEPS)).toVar();
             const reached = height.add(roll(cell, 8.41, 66.1).sub(0.5).mul(2 * STAGE_SPREAD_M)).toVar();
             const stage = select(reached.lessThan(GROWN_M), reached.sub(YOUNG_M).div(GROWN_M - YOUNG_M), reached.sub(GROWN_M).div(OLD_M - GROWN_M).add(1)).clamp(0, STAGES - 1.001).toVar();
-            const rocky = select(kind.equal(kindAt("pine")), open.mul(float(1).sub(smoothstep(float(ROCK_TALLEST_M[0]), float(ROCK_TALLEST_M[1]), height))), float(0)).toVar();
+            // A rock pine leans and forks wider than any other tree, so one too near a building to fit grows straight.
+            const roomToLean = clearance ? select(height.mul(ROCK_REACH).lessThanEqual(clearance), float(1), float(0)) : float(1);
+            const rocky = select(kind.equal(kindAt("pine")), open.mul(float(1).sub(smoothstep(float(ROCK_TALLEST_M[0]), float(ROCK_TALLEST_M[1]), height))).mul(roomToLean), float(0)).toVar();
             const leanWay = roll(cell, 29.9, 13.7).mul(6.283).toVar();
             const lean = vec2(cos(leanWay), sin(leanWay)).mul(LEAN).mul(roll(cell, 71.3, 3.9)).toVar();
             const blown = DOWNWIND.mul(mix(float(ROCK_LEAN[0]), float(ROCK_LEAN[1]), roll(cell, 11.3, 97.1))).mul(rocky);

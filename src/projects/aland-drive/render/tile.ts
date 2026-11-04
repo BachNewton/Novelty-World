@@ -62,6 +62,8 @@ export interface WorldManifest {
   town?: { pixels: number };
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
+  /** Each canopy pixel's signed distance to the nearest building, (byte - zero) × unitM metres, negative inside (`pipeline/clearing.py`). */
+  clearing: { file: string; pixels: number; unitM: number; zero: number };
   stands: { file: string; pixels: number };
   /** Each 4 m pixel's share of rock, then each 8 m pixel's share of boulder field (`pipeline/rocks.py`), on every tile or none. */
   rock?: { file: string; pixels: number; fieldPixels: number };
