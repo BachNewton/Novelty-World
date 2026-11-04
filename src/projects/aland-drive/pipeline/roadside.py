@@ -41,6 +41,7 @@ from shapely.geometry import LineString, Point, Polygon
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES
 from progress import Progress
+from town import town_of
 from sources import osm_path, osm_roadside_path
 from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 
@@ -106,9 +107,6 @@ SHELTER_ALONG_M = 4.0
 # A drive's mouth: its end within this of the greater road's carriageway.
 MOUTH_M = 8.0
 HOUSE_NEAR_DRIVE_M = 60.0
-# Built up: this many buildings within this of a drive's mouth. A town's post goes through the door.
-BUILT_UP_BUILDINGS = 20
-BUILT_UP_M = 120.0
 MAILBOX_OUT_M = 1.6
 MAILBOX_ALONG_M = (5.0, 7.0)
 MAILBOX_APART_M = 0.45
@@ -310,6 +308,7 @@ class Roadside:
         buildings = json.loads((folder / "buildings.json").read_text(encoding="utf-8"))["buildings"] if (folder / "buildings.json").exists() else []
         self.buildings = [Polygon(building["ring"]) for building in buildings if len(building["ring"]) >= 4]
         self.building_tree = shapely.STRtree(self.buildings)
+        self.town = town_of(tile.name)
         self.osm = json.loads(osm_roadside_path(tile).read_text(encoding="utf-8"))
         self.models: dict[str, list[list[float]]] = {}
         self.signs: dict[str, list[list[float]]] = {}
@@ -398,7 +397,8 @@ class Roadside:
             along += spacing
 
     def built_up(self, point: np.ndarray) -> bool:
-        return len(self.building_tree.query(Point(point), predicate="dwithin", distance=BUILT_UP_M)) >= BUILT_UP_BUILDINGS
+        """In town, by `town.py`'s test. A town's post goes through the door, and its streets are lit."""
+        return self.town(point)
 
     def lit(self, chain: Chain, along: float) -> bool:
         """OSM's word, and a town's street where it has none: OSM leaves most of Mariehamn's untagged."""
