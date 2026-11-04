@@ -25,7 +25,7 @@ describe("town triangle budgets", () => {
 
   it("keeps the two big models in theirs", () => {
     const [terminal, ferry] = [buildTerminal(), buildBalticFerry()];
-    expect(triangles(terminal.near)).toBeLessThan(3000);
+    expect(triangles(terminal.near)).toBeLessThan(3500);
     expect(triangles(terminal.far)).toBeLessThan(700);
     expect(triangles(ferry.near)).toBeLessThan(4000);
     expect(triangles(ferry.far)).toBeLessThan(300);

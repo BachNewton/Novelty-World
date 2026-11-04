@@ -29,6 +29,8 @@ const BAY_M = 12.5;
 const LEG_EVERY_BAYS = 2;
 const LEG_M = 0.5;
 const CAP_OVERHANG_M = 0.3;
+/** How far a glazing bar stands off the glass: the depth buffer can't part two faces much closer than this out at the near version's 700 m reach, and they flicker. */
+const MULLION_PROUD_M = 0.15;
 /** A foot's ground: sunk, since the quay's height varies by half a metre and the sea plane hides the rest. */
 const FOOT_Y_M = 0.6;
 /** How far from a motor road's edge a leg must stand, for a car's width and its mirrors. */
@@ -130,8 +132,13 @@ function sideFaces(into: TownPainted, a: readonly [number, number], b: readonly 
   const [dx, dz] = [b[0] - a[0], b[1] - a[1]];
   const length = Math.hypot(dx, dz) || 1;
   const [ux, uz] = [(dx / length) * 0.18, (dz / length) * 0.18];
-  const [ox, oz] = [outward[0] * 0.02, outward[1] * 0.02];
-  into.face([[a[0] - ux + ox, floorA + SILL_M, a[1] - uz + oz], [a[0] + ux + ox, floorA + SILL_M, a[1] + uz + oz], [a[0] + ux + ox, floorA + HEAD_M, a[1] + uz + oz], [a[0] - ux + ox, floorA + HEAD_M, a[1] - uz + oz]], "clad-grey", shade);
+  const [ox, oz] = [outward[0] * MULLION_PROUD_M, outward[1] * MULLION_PROUD_M];
+  const bar = (along: number, out: number, y: number): V3 => [a[0] + ux * along + ox * out, y, a[1] + uz * along + oz * out];
+  const [low, high] = [floorA + SILL_M, floorA + HEAD_M];
+  into
+    .face([bar(-1, 1, low), bar(1, 1, low), bar(1, 1, high), bar(-1, 1, high)], "clad-grey", shade)
+    .face([bar(1, 1, low), bar(1, 0, low), bar(1, 0, high), bar(1, 1, high)], "clad-grey", shade * 0.9)
+    .face([bar(-1, 0, low), bar(-1, 1, low), bar(-1, 1, high), bar(-1, 0, high)], "clad-grey", shade * 0.9);
 }
 
 const flare = (edge: readonly [number, number], other: readonly [number, number], by: number) => {
