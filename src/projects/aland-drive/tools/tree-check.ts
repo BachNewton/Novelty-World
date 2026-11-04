@@ -209,6 +209,7 @@ for (const { name, west, north } of tiles) {
   }
   const tile = JSON.parse(readFileSync(join(FOLDER, name, "tile.json"), "utf8")) as TileManifest;
   const canopy = await decoded(join(FOLDER, name, manifest.canopy.file));
+  if (!manifest.clearing) throw new Error("these tiles have no clearing round buildings: run pipeline/clearing.py over them");
   const clearing = await decoded(join(FOLDER, name, manifest.clearing.file));
   const clearingTexelM = manifest.tileM / manifest.clearing.pixels;
   const stands = gunzipSync(readFileSync(join(FOLDER, name, manifest.stands.file)));

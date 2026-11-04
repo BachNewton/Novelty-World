@@ -171,7 +171,7 @@ function interleaved(red: Uint8Array, green: Uint8Array): Uint8Array {
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const { far: format, heights, mask, ground, canopy, clearing, stands, water, rock } = world;
-  if (clearing.pixels !== canopy.pixels) throw new Error(`the clearing is ${clearing.pixels} pixels and the canopy ${canopy.pixels}: they share a layer`);
+  if (clearing && clearing.pixels !== canopy.pixels) throw new Error(`the clearing is ${clearing.pixels} pixels and the canopy ${canopy.pixels}: they share a layer`);
   const [farHeights, farLevels, farShore, shade, maskPixels, groundPixels, canopyPixels, clearingPixels, standPixels, rockPixels] = await Promise.all([
     reader.inflated(format.heightsFile),
     reader.inflated(water.farLevelsFile),
@@ -180,7 +180,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     reader.pixels(mask.file, mask.pixels, 4),
     reader.pixels(ground.farFile, ground.farPixels, 4),
     reader.pixels(canopy.file, canopy.pixels, 1),
-    reader.pixels(clearing.file, clearing.pixels, 1),
+    clearing ? reader.pixels(clearing.file, clearing.pixels, 1) : new Uint8Array(canopy.pixels * canopy.pixels).fill(255),
     reader.inflated(stands.file),
     rock ? reader.inflated(rock.file) : null,
   ]);

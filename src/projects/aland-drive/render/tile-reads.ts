@@ -19,10 +19,13 @@ const CANOPY_RISE_FULL_M = 40;
 /** The far photo's level that says what a whole patch is, past a narrow verge's own colour: 32 m. */
 const WIDE_LAND_MIP = 2;
 
+/** How a world without the clearing round buildings reads its filler, every pixel the farthest a byte says. */
+const NO_CLEARING = { unitM: 0.125, zero: 64 };
+
 /** What `tileReads` says of the ground at a place. */
 export type LandAt = (place: Node<"vec2">) => { broad: Node<"vec3">; wide: Node<"vec3">; shade: Node<"float">; dry: Node<"float"> };
 
-export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number, { unitM: clearingUnitM, zero }: WorldManifest["clearing"]) {
+export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number, { unitM: clearingUnitM, zero }: Pick<NonNullable<WorldManifest["clearing"]>, "unitM" | "zero"> = NO_CLEARING) {
   const slotOf = (place: Node<"vec2">) => {
     const inTiles = place.div(tileM);
     const tile = inTiles.floor();
