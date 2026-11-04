@@ -157,8 +157,8 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     world,
     fetcher,
     {
-      place({ detail, shade, ground }, done) {
-        layers.placeNear(world.named(detail.name), shade, ground, manifest, done);
+      place({ detail, shade, ground, town }, done) {
+        layers.placeNear(world.named(detail.name), shade, ground, town, manifest, done);
       },
       release(detail) {
         layers.releaseNear(world.named(detail.name));

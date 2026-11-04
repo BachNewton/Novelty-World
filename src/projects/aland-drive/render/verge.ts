@@ -17,7 +17,7 @@ import type { WallDistance } from "./wall-clearing";
  * for one, no tile changes, and it costs the same however much road there is.
  *
  * It's a planting (`planting.ts`): each frame a pass goes through the places within
- * reach and keeps those beside a road, on dry ground that isn't paving or rock,
+ * reach and keeps those beside a road, on dry ground that isn't paving, rock or a town's mown ground,
  * cheapest test first. Survivors go into a list for each model near the camera, and past that into
  * one list of a three-point card in the near tuft's own colours, its green and, in its
  * middle blade, as much of its straw as the tuft has, or for a flower one tipped with
@@ -120,6 +120,7 @@ function tuftColours(shape: BufferGeometry, colours: Colour[]) {
 
 export interface VergeInputs {
   landAt: LandAt;
+  pavedAt: (place: Node<"vec2">) => Node<"float">;
   roadsAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   /** How much of a place is boulder field: stones, where no verge grows. */
   fieldsAt: (place: Node<"vec2">) => Node<"float">;
@@ -151,7 +152,7 @@ export interface Verge {
   dispose: () => void;
 }
 
-export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
+export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
@@ -201,7 +202,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, ro
           const clear = float(1).sub(smoothstep(float(ON_ROAD[0]), float(ON_ROAD[1]), roadsAround(0))).toVar();
           const land = landAt(place);
           const { stoneShare } = groundKinds(land.wide.pow(vec3(2.2)));
-          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))), () => {
+          If(clear.greaterThan(roll(seed, 21.17, 5.71)).and(land.dry.greaterThan(LEAST_DRY)).and(smoothstep(float(PAVED[0]), float(PAVED[1]), stoneShare).lessThan(roll(seed, 3.11, 47.3))).and(shoreAt(place).lessThanEqual(0)).and(fieldsAt(place).lessThan(roll(seed, 71.9, 2.3))).and(pavedAt(place).lessThan(0.5)), () => {
             const ground = groundAt(place).toVar();
             If(seenOn(ground), () => {
               const stand = roll(floor(place.div(STAND_M)), 7.13, 3.77).mul(STANDS).floor().toVar();
