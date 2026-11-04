@@ -1,6 +1,8 @@
 # Bucket list challenges
 
-An idea with its main decisions taken, built for solo and co-op, both kinds (see the project's `CLAUDE.md`, Challenges): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View. The list of challenges, their targets and the open points at the end are still starting points.
+An idea with its main decisions taken, built for solo and co-op, both kinds (see the project's `CLAUDE.md`, Challenges): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View.
+
+**The system is the foundation; the challenges on it are a first pass.** The owner played the solo challenges and judged the system sound and the list not yet good: the short ones are boring, and every one was beaten at the first try. So the twelve below, their roads, cars and targets, aren't a standard to copy or measure new challenges against. They're placeholders that prove the system, to be redesigned. Co-op is built and passes its e2e spec, but the owner hasn't played it yet.
 
 A challenge is a timed run on its own, so it needs no AI drivers and no traffic. It needs only what's there: the road network and its GPS routes, the car's state, the places, and the online world.
 
@@ -53,7 +55,7 @@ The game has no menu of its own yet. The controller's **Menu** button opens one,
 
 ## The first list
 
-Twelve challenges, each on a real road or place from `docs/DRIVING-CULTURE.md` and `map/places.ts`, with lengths from that doc's table where it has them. Each car is picked for its character in `sim/cars.ts`, as Forza matched the car to the challenge. Every challenge is played solo or co-op.
+A first pass, built to prove the system (see the top: not a standard). Twelve challenges, each on a real road or place from `docs/DRIVING-CULTURE.md` and `map/places.ts`, with lengths from that doc's table where it has them. Each car is picked for its character in `sim/cars.ts`, as Forza matched the car to the challenge. Every challenge is played solo or co-op.
 
 | # | Title | Kind | Car | Where |
 |---|---|---|---|---|
@@ -79,6 +81,7 @@ Forza's designers tuned their targets. Here they start from the simulation:
 - **Par** is the scripted driver's time on the route in the challenge's car (`tools/drive.mjs` already drives a GPS route), or the speed it reaches at the camera flat out. The autopilot slows for bends at one fixed grip whatever the car, so its par on a Route is slow: a floor, not a target.
 - **Each challenge has one target**, set from par and from the owner's own runs, and labelled easy, medium or hard by how far it sits past par, by one rule for every challenge.
 - **A test holds that every challenge can be passed**, solo, by par in its own car beating the target scaled to the autopilot's floor, so no challenge in the list is impossible.
+- **The rule is too kind.** The scripted driver is a floor, and targets near its par were all beaten at the first try. A target has to sit well past what the scripted driver manages, set from the owner's own runs, and a challenge is worth having only if it takes several tries. Short drags that are over in seconds have too little in them to retry.
 
 ## What's built, in order
 
@@ -89,6 +92,9 @@ Forza's designers tuned their targets. Here they start from the simulation:
 5. **Later:** blueprints, as FH3 had them, where a player picks a start, finish, kind and car on the world map. Then leaderboards.
 
 ## Still open
+
+- **Better challenges**: a redesign of the list, its roads, cars and targets, on the system as it is.
+- **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.
 - **The keyboard's retry.** Esc's menu reaches it in two presses. A key of its own may be worth it once it's been played.

@@ -160,6 +160,42 @@ export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: R
   pen.globalAlpha = 1;
 }
 
+/** A challenge's line still to cross, on a map: a gate, the finish or a camera. */
+export interface MapGate {
+  x: number;
+  z: number;
+  /** The way along the road, anticlockwise from north, as the road lines have it. */
+  heading: number;
+  next: boolean;
+  finish: boolean;
+}
+
+const GATE_HALF_PX = 9;
+
+/** The lines still to cross, each a bar across the road at a size on screen, the next one bold in the challenge colour and the finish in the pass colour. */
+export function drawGates(pen: CanvasRenderingContext2D, view: MapView, gates: readonly MapGate[], ink: MapInk): void {
+  // The later ones first, so the next one lies on top.
+  for (const { x, z, heading, next, finish } of [...gates].reverse()) {
+    const [centreX, centreY] = view.toScreen(x, z);
+    const [acrossX, acrossY] = view.toScreen(x + Math.cos(heading), z - Math.sin(heading));
+    const length = Math.hypot(acrossX - centreX, acrossY - centreY) || 1;
+    const half = next ? GATE_HALF_PX : GATE_HALF_PX * 0.7;
+    const dx = ((acrossX - centreX) / length) * half;
+    const dy = ((acrossY - centreY) / length) * half;
+    pen.beginPath();
+    pen.moveTo(centreX - dx, centreY - dy);
+    pen.lineTo(centreX + dx, centreY + dy);
+    pen.lineCap = "round";
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = next ? 8 : 5;
+    pen.stroke();
+    pen.strokeStyle = finish ? ink.pass : next ? ink.challenge : ink.ink;
+    pen.lineWidth = next ? 5 : 2.5;
+    pen.stroke();
+  }
+  pen.lineCap = "butt";
+}
+
 export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: Route, fromAlong: number, ink: MapInk): void {
   const { points, lengths } = route.line;
   pen.beginPath();

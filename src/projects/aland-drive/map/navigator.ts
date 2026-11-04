@@ -1,6 +1,6 @@
 import type { ChallengeBoard } from "../challenge/board";
 import type { Discovery } from "./discovery";
-import { drawCar, drawChallenges, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
+import { drawCar, drawChallenges, drawGates, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapGate, type MapInk, type MapPlayer, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
@@ -60,8 +60,10 @@ export class Navigator {
   private pendingSince = { x: 0, z: 0 };
   private lastRoute = { x: Number.NaN, z: Number.NaN };
   private lastRead = { x: Number.NaN, z: Number.NaN };
-  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0, found: 0, challenges: 0 };
+  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0, found: 0, challenges: 0, gates: null as readonly MapGate[] | null };
   private lastPlayers: readonly MapPlayer[] = [];
+  private gates: readonly MapGate[] = [];
+  private gatesKey = "";
   /** How many other players the mini map last drew. */
   playersDrawn = 0;
   private readonly pen: CanvasRenderingContext2D;
@@ -97,6 +99,13 @@ export class Navigator {
     this.route = route;
     this.held = true;
     this.along = 0;
+  }
+
+  /** A challenge's lines still to cross. `key` says when they changed, so a frame that sets the same ones redraws nothing. */
+  setGates(key: string, gates: () => readonly MapGate[]): void {
+    if (key === this.gatesKey) return;
+    this.gatesKey = key;
+    this.gates = gates();
   }
 
   clearRoute(): void {
@@ -169,9 +178,9 @@ export class Navigator {
 
   private drawMini(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): void {
     const last = this.lastDraw;
-    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && last.found === this.discovery.revision && last.challenges === this.challenges.revision && !this.playersMoved(players);
+    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && last.found === this.discovery.revision && last.challenges === this.challenges.revision && last.gates === this.gates && !this.playersMoved(players);
     if (unchanged) return;
-    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision, found: this.discovery.revision, challenges: this.challenges.revision };
+    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision, found: this.discovery.revision, challenges: this.challenges.revision, gates: this.gates };
     this.lastPlayers = players;
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
@@ -180,6 +189,7 @@ export class Navigator {
     drawLand(pen, view, this.land, this.format, this.sharp, ink, MINI_LAND_DIM);
     drawRoads(pen, view, this.graph, 3, ink);
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
+    drawGates(pen, view, this.gates, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
     drawPlaces(pen, view, this.discovery.places.map((place) => ({ place, found: this.discovery.isFound(place) })), MINI_PLACE_PX, ink, false);
     drawChallenges(pen, view, this.challenges.marks(), MINI_PLACE_PX, ink, false);

@@ -178,7 +178,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
       revNeedle.current?.setAttribute("transform", `rotate(${revs * DIAL_SWEEP * 360} 50 50)`);
-      if (cue.current) cue.current.style.visibility = next ? "visible" : "hidden";
+      if (cue.current) cue.current.style.display = next ? "flex" : "none";
       if (next && cueArrow.current && cueText.current) {
         cueArrow.current.style.transform = `rotate(${next.radians}rad)`;
         cueText.current.textContent = distanceText(next.metres);
@@ -256,32 +256,78 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
       {started && !noWebGpu && (
         <>
-          {road !== null && !mapOpen && camera !== "free" && (
-            <div key={road.seen} className="pointer-events-none absolute top-16 left-1/2 -translate-x-1/2 text-2xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, animation: "aland-road-label 3.5s ease-out forwards" }} aria-live="polite" aria-label="Road" onAnimationEnd={() => { setRoad(null); }}>
-              {road.name}
-            </div>
-          )}
-          {finds.length > 0 && !mapOpen && camera !== "free" && (
-            <div key={finds[0].id} className="pointer-events-none absolute top-28 left-1/2 w-[min(32rem,90vw)] -translate-x-1/2 rounded-lg p-4" style={{ color: INK, background: SHADE, border: `2px solid ${PLACE}`, animation: `aland-road-label ${PLACE_CARD_S}s ease-out forwards` }} aria-live="polite" aria-label="Place found" onAnimationEnd={() => { setFinds((waiting) => waiting.slice(1)); }}>
-              <div className="flex items-center gap-2 text-xl font-semibold" style={{ color: PLACE }}>
-                <Landmark className="size-5 shrink-0" aria-hidden />
-                <span>{finds[0].name}</span>
+          {!mapOpen && camera !== "free" && (
+            // One column at the top middle: the GPS and, in a run, the challenge with it, then the road and a find under them, clear of the frame meter at the top right.
+            <div className="pointer-events-none absolute top-3 left-1/2 flex w-max max-w-[90vw] -translate-x-1/2 flex-col items-center gap-3">
+              <div className={playing === null ? "flex flex-col items-center" : "flex min-w-64 flex-col gap-1 rounded-lg px-4 py-3"} style={playing === null ? undefined : { color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label={playing === null ? undefined : "Challenge"}>
+                <div ref={cue} className="items-center justify-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: playing === null ? `0 0 6px ${SHADE}` : undefined, display: "none" }} aria-label="Next direction">
+                <div ref={cueArrow}>
+                  <ArrowUp className="size-10" style={{ color: ACCENT }} />
+                </div>
+                <span ref={cueText} className="tabular-nums" />
+                </div>
+                {playing !== null && (
+                  <>
+                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
+                    <Flag className="size-4 shrink-0" aria-hidden />
+                    <span>{playing.title}</span>
+                  </div>
+                  <div ref={lightsRow} className="flex justify-center gap-2 py-1" aria-label="Start lights">
+                    {Array.from({ length: LIGHTS }, (_, index) => (
+                      <span key={index} ref={(light) => { lights.current[index] = light; }} className="size-6 rounded-full" style={{ background: SHADE, border: `2px solid ${INK}` }} />
+                    ))}
+                  </div>
+                  {playing.partner !== null && (
+                    <div className="flex items-center gap-2 text-sm font-semibold" aria-label="Partner" title="Co-op">
+                      <Users className="size-4 shrink-0" style={{ color: PLAYER }} aria-hidden />
+                      <span>{playing.partner}</span>
+                    </div>
+                  )}
+                  <div ref={needsRow} className="items-center gap-2 text-lg font-semibold tabular-nums" style={{ display: "none", color: ACCENT }}>
+                    <Target className="size-5 shrink-0" aria-hidden />
+                    <span ref={needsText} aria-label="Partner needs" />
+                  </div>
+                  {playing.kind === "route" ? (
+                    <>
+                      <div className="flex items-baseline gap-2 tabular-nums">
+                        <Timer className="size-5 shrink-0 self-center" aria-hidden />
+                        <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
+                        <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
+                        <Flag className="size-5 shrink-0" aria-hidden />
+                        <span ref={gatesText} aria-label="Gates passed">0 / 0</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
+                      <Gauge className="size-6 shrink-0" aria-hidden />
+                      <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>
+                    </div>
+                  )}
+                  </>
+                )}
               </div>
-              <p className="mt-2 text-sm leading-relaxed">{finds[0].note}</p>
+            {road !== null && (
+              <div key={road.seen} className="pointer-events-none text-2xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, animation: "aland-road-label 3.5s ease-out forwards" }} aria-live="polite" aria-label="Road" onAnimationEnd={() => { setRoad(null); }}>
+                {road.name}
+              </div>
+            )}
+            {finds.length > 0 && (
+              <div key={finds[0].id} className="pointer-events-none w-[min(32rem,90vw)] rounded-lg p-4" style={{ color: INK, background: SHADE, border: `2px solid ${PLACE}`, animation: `aland-road-label ${PLACE_CARD_S}s ease-out forwards` }} aria-live="polite" aria-label="Place found" onAnimationEnd={() => { setFinds((waiting) => waiting.slice(1)); }}>
+                <div className="flex items-center gap-2 text-xl font-semibold" style={{ color: PLACE }}>
+                  <Landmark className="size-5 shrink-0" aria-hidden />
+                  <span>{finds[0].name}</span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed">{finds[0].note}</p>
+              </div>
+            )}
             </div>
           )}
           {mapOpen && placesFound !== null && (
             <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Places found" title="Places found">
               <Landmark className="size-5" style={{ color: PLACE }} aria-hidden />
               <span>{placesFound.found} / {placesFound.total}</span>
-            </div>
-          )}
-          {!mapOpen && camera !== "free" && (
-            <div ref={cue} className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, visibility: "hidden" }} aria-label="Next direction">
-              <div ref={cueArrow}>
-                <ArrowUp className="size-10" style={{ color: ACCENT }} />
-              </div>
-              <span ref={cueText} className="tabular-nums" />
             </div>
           )}
           {camera !== "free" && (
@@ -298,47 +344,6 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
               <span ref={gearText} className="absolute inset-x-0 bottom-1 text-center text-3xl font-bold tabular-nums" aria-label="Gear">
                 1
               </span>
-            </div>
-          )}
-          {playing !== null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute top-3 right-6 flex min-w-56 flex-col gap-1 rounded-lg px-4 py-3" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge">
-              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
-                <Flag className="size-4 shrink-0" aria-hidden />
-                <span>{playing.title}</span>
-              </div>
-              <div ref={lightsRow} className="flex justify-center gap-2 py-1" aria-label="Start lights">
-                {Array.from({ length: LIGHTS }, (_, index) => (
-                  <span key={index} ref={(light) => { lights.current[index] = light; }} className="size-6 rounded-full" style={{ background: SHADE, border: `2px solid ${INK}` }} />
-                ))}
-              </div>
-              {playing.partner !== null && (
-                <div className="flex items-center gap-2 text-sm font-semibold" aria-label="Partner" title="Co-op">
-                  <Users className="size-4 shrink-0" style={{ color: PLAYER }} aria-hidden />
-                  <span>{playing.partner}</span>
-                </div>
-              )}
-              <div ref={needsRow} className="items-center gap-2 text-lg font-semibold tabular-nums" style={{ display: "none", color: ACCENT }}>
-                <Target className="size-5 shrink-0" aria-hidden />
-                <span ref={needsText} aria-label="Partner needs" />
-              </div>
-              {playing.kind === "route" ? (
-                <>
-                  <div className="flex items-baseline gap-2 tabular-nums">
-                    <Timer className="size-5 shrink-0 self-center" aria-hidden />
-                    <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
-                    <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
-                    <Flag className="size-5 shrink-0" aria-hidden />
-                    <span ref={gatesText} aria-label="Gates passed">0 / 0</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
-                  <Gauge className="size-6 shrink-0" aria-hidden />
-                  <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>
-                </div>
-              )}
             </div>
           )}
           {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (

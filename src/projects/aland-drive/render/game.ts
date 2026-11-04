@@ -1541,14 +1541,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const showNextLine = () => {
     if (!session || session.run.outcome) {
       challengeMarks.setLine(null, "gate");
+      navigator?.setGates("", () => []);
       return;
     }
     const { challenge, run, seat } = session;
     if (challenge.kind === "speed-trap") {
-      challengeMarks.setLine(run.players[seat].result === null ? challenge.camera : null, "camera");
+      const crossed = run.players[seat].result !== null;
+      challengeMarks.setLine(crossed ? null : challenge.camera, "camera");
+      navigator?.setGates(`${challenge.id}:${run.attempt}:${crossed}`, () => (crossed ? [] : [{ ...challenge.camera, next: true, finish: true }]));
       return;
     }
     const next = run.players[seat].nextGate;
+    navigator?.setGates(`${challenge.id}:${run.attempt}:${next}`, () =>
+      challenge.gates.slice(next).map((gate, index) => ({ ...gate, next: index === 0, finish: next + index === challenge.gates.length - 1 })),
+    );
     challengeMarks.setLine(next < challenge.gates.length ? challenge.gates[next] : null, next === challenge.gates.length - 1 ? "finish" : "gate");
   };
 
