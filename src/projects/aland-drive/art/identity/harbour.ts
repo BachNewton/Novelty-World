@@ -148,30 +148,30 @@ export function buildCableFerry(): RoadsideModel {
     near.face([[tipX, tipY, -2.9], [tipX, tipY, 2.9], [tipX, tipY - 0.2, 2.9], [tipX, tipY - 0.2, -2.9]], "steel-dark");
     for (const z of [-3, 3]) {
       near.face([[hinge, deck, z], [tipX, tipY, z], [tipX, tipY - 0.2, z], [hinge, deck - 0.2, z]], "steel-dark", 0.9);
-      near.beam([hinge - end * 0.4, deck + 2.2, z], [tipX - end * 0.3, tipY + 0.05, z], 0.04, 0.04, "steel");
-      near.tube([hinge - end * 0.4, deck, z], [hinge - end * 0.4, deck + 2.3, z], 0.09, 4, { cap: true }, "steel-dark");
+      near.thinBeam([hinge - end * 0.4, deck + 2.2, z], [tipX - end * 0.3, tipY + 0.05, z], 0.04, 0.04, "steel");
+      near.thinTube([hinge - end * 0.4, deck, z], [hinge - end * 0.4, deck + 2.3, z], 0.09, 4, { cap: true }, "steel-dark");
     }
   }
-  // Side rails: posts and two bars down each side.
+  // Side rails: posts and two bars down each side. Rails, posts, legs and stays are thin parts: each is held to a pixel so none crawls in motion, and far off they go one at a time to their share, so by the swap few are left, and the far version has none.
   for (const z of [-wide / 2 + 0.06, wide / 2 - 0.06]) {
-    for (const y of [deck + 0.55, deck + 1.05]) near.beam([-long / 2 + 0.3, y, z], [long / 2 - 0.3, y, z], 0.05, 0.05, "hull-white");
-    for (let post = 0; post < 7; post++) {
-      const x = -8.6 + post * 2.87;
-      near.beam([x, deck, z], [x, deck + 1.05, z], 0.05, 0.05, "hull-white");
-    }
+    const posts = Array.from({ length: 7 }, (_, post) => -8.6 + post * 2.87);
+    for (const x of posts) near.thinBeam([x, deck, z], [x, deck + 1.05, z], 0.05, 0.05, "hull-white");
+    // A bar a bay at a time, so each bay goes at a distance of its own.
+    const ends = [-long / 2 + 0.3, ...posts.slice(1, -1), long / 2 - 0.3];
+    for (const y of [deck + 0.55, deck + 1.05]) for (let bay = 0; bay + 1 < ends.length; bay++) near.thinBeam([ends[bay], y, z], [ends[bay + 1], y, z], 0.05, 0.05, "hull-white");
   }
   // The wheelhouse on legs over the +z rail, cars passing under its side.
   const [hx, hz, floor] = [0, wide / 2 - 0.55, deck + 2.4];
-  for (const [x, z] of [[-1, -0.45], [1, -0.45], [-1, 0.55], [1, 0.55]] as const) near.tube([hx + x, deck, hz + z], [hx + x, floor, hz + z], 0.07, 4, {}, "hull-white");
+  for (const [x, z] of [[-1, -0.45], [1, -0.45], [-1, 0.55], [1, 0.55]] as const) near.thinTube([hx + x, deck, hz + z], [hx + x, floor, hz + z], 0.07, 4, {}, "hull-white");
   near
     .box([hx - 1.3, floor - 0.04, hz - 0.65], [hx + 1.3, floor + 1, hz + 0.7], "hull-white", { shadeTop: 1.05 })
     .box([hx - 1.3, floor + 1, hz - 0.65], [hx + 1.3, floor + 1.75, hz + 0.7], "lantern-glass", { open: true, shadeTop: 1 })
     .box([hx - 1.5, floor + 1.75, hz - 0.85], [hx + 1.5, floor + 1.87, hz + 0.9], "hull-white", { shadeTop: 1.05 })
-    .tube([hx, floor + 1.87, hz], [hx, floor + 2.8, hz], 0.05, 3, { cap: true }, "steel-dark");
+    .thinTube([hx, floor + 1.87, hz], [hx, floor + 2.8, hz], 0.05, 3, { cap: true }, "steel-dark");
   // The sheaves the wire runs over, port and starboard of the wheelhouse.
   for (const x of [-long / 2 + 0.6, long / 2 - 0.6]) near.box([x - 0.35, deck, -wide / 2 + 0.05], [x + 0.35, deck + 0.45, -wide / 2 + 0.55], "steel-dark", {});
   const far = hullSide(new IdentityMesh({ afloat: true }))
-    .box([hx - 1.3, deck, hz - 0.65], [hx + 1.3, floor + 1.8, hz + 0.7], "hull-white", { open: true, shadeTop: 1.05 });
+    .box([hx - 1.3, floor - 0.04, hz - 0.65], [hx + 1.3, floor + 1.8, hz + 0.7], "hull-white", { open: true, shadeTop: 1.05 });
   for (const end of [-1, 1]) far.face([[(end * long) / 2, deck, -2.9], [(end * long) / 2, deck, 2.9], [(end * (long + 5)) / 2, deck + 0.85, 2.9], [(end * (long + 5)) / 2, deck + 0.85, -2.9]], "ramp-yellow");
   return identityModel(near, far, 240, 2400, (_, [, y]) => ({ kind: "hull", metres: Math.max(0, y + 0.5) * 0.015 }));
 }
