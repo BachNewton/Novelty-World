@@ -121,7 +121,7 @@ stand("picnic", "picnic table", x + 14, LAND_Z + 1, [-2, 1.4, 3.8], 0.6);
 // The shore: lights, marks, huts. On water or a rock at the land's edge.
 const BEACH_Z = SHORE_Z + 18;
 x = next();
-add(buildBoulder(1), [{ x: x + 3, y: 0, z: BEACH_Z + 8 }]);
+scene.add(...placeModel(buildBoulder(1), [{ x: x + 3, y: 0, z: BEACH_Z + 8 }], rural));
 add(buildFishingHut("tarred"), [{ x, y: 0, z: BEACH_Z + 16 }]);
 add(buildFishingHut("red"), [{ x: x + 7, y: 0, z: BEACH_Z + 16, yaw: 0.1 }]);
 stand("hut", "fishing huts", x + 3, BEACH_Z + 16, [-2.5, 1.5, 11], 1.6, 46);
@@ -141,6 +141,9 @@ add(buildFerryCable(), runSections([{ x: x - 200, y: SEA_Y + 0.1, z: waterZ - 2.
 scene.add(...placeModel(buildRowingBoat("white"), [{ x: x + 26, y: SEA_Y, z: waterZ + 12 }], rural));
 stand("ferry", "cable ferry", x, waterZ, [-26, 2, 30], 2, 44);
 stand("ferry-deck", "from its ramp", x - 13, waterZ, [-5, 2.2, 1.5], 1.6, 60);
+// At the game's own lens, where its rails and posts are about a pixel and where they have thinned to their share.
+stand("ferry-120", "from 120 m", x, waterZ, [-60, 3, 104], 2, 60);
+stand("ferry-220", "from 220 m, before its swap", x, waterZ, [-110, 4, 190], 2, 60);
 x = next() + 200;
 add(buildViewingTower(), [{ x, y: 0, z: LAND_Z }]);
 stand("tower", "viewing tower", x, LAND_Z, [-13, 1.6, 22], 7, 46);

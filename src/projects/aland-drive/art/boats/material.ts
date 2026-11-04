@@ -63,14 +63,15 @@ function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {
   return painted.mul(float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
 }
 
-function placedMaterial(inputs: BoatInputs, isNear: boolean): MeshBasicNodeMaterial {
+function placedMaterial(inputs: BoatInputs, isNear: boolean, underWay: boolean): MeshBasicNodeMaterial {
   const place = attribute<"vec4">("place", "vec4");
   const fit = attribute<"vec4">("fit", "vec4");
   const reach = attribute<"vec2">("reach", "vec2");
   const tint = attribute<"vec4">("tint", "vec4");
   const kind = round(tint.a.mul(255));
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const roll = rollOf(place.xz);
+  // A boat under way moves every frame, so its own roll rides in the fit's spare shear and depth, which no boat reads.
+  const roll = underWay ? rollOf(fit.zw) : rollOf(place.xz);
 
   const grown = float(1).sub(smoothstep(reach.y.mul(1 - GROW_SHARE), reach.y, distance));
   const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(reach.y));
@@ -106,7 +107,11 @@ function placedMaterial(inputs: BoatInputs, isNear: boolean): MeshBasicNodeMater
   return material;
 }
 
-/** The kit's materials, made once for the game; all its boats share them and go through the roadside kit's `placeModel`. */
-export function boatMaterials(inputs: BoatInputs): RoadsideMaterials {
-  return { near: placedMaterial(inputs, true), far: placedMaterial(inputs, false) };
+/**
+ * The kit's materials, made once for the game; all its boats share them and go through the roadside kit's
+ * `placeModel`. `underWay` is for boats whose place changes every frame: each rocks to a seed of its own, given as
+ * its placement's `shear` and `depth`, rather than to where it is.
+ */
+export function boatMaterials(inputs: BoatInputs, { underWay = false } = {}): RoadsideMaterials {
+  return { near: placedMaterial(inputs, true, underWay), far: placedMaterial(inputs, false, underWay) };
 }

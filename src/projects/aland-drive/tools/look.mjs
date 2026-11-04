@@ -7,6 +7,9 @@
 //   node src/projects/aland-drive/tools/look.mjs --shots=<folder> [--size=WxH] <name>:<east>,<north>,<height>,<yaw>,<pitch> or <name>:<metres along Route 1> or <name>:<x1>,<y1>,<z1>,<x2>,<y2>,<z2> for a chase view along that line ...
 // Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
+// --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
+// says when one passes). --pair saves each look twice from the one camera, as <out> and <out>-without, the second with
+// the boats under way and the sea marks left out: a before and after of them.
 
 import { chromium } from "playwright";
 
@@ -21,6 +24,8 @@ const SHOTS = option("shots");
 // tile file that fails to load never lands, so the stream never drains, and the game shows that it lost part of the map.
 // The deadline is for a stall that says nothing; a far jump with its tiles lands well inside it.
 const SHOT_DEADLINE_S = 300;
+const SEA = option("sea");
+const PAIR = flags.includes("--pair");
 
 const looks = SHOTS
   ? positional.map((look) => {
@@ -60,6 +65,8 @@ await page.waitForFunction(() => window.__alandDrive !== undefined, null, { time
   await browser.close();
   process.exit(1);
 });
+
+if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), Date.parse(SEA) / 1000);
 
 const shoot = async (place) => {
   if (place.length === 5) {
@@ -117,6 +124,26 @@ for (const { out, place } of looks) {
     const counts = await Promise.race([shoot(place), thrown, stopped, late]);
     await page.screenshot({ path: out });
     console.log(out, JSON.stringify(counts));
+    if (PAIR) {
+      const without = out.replace(/\.png$/, "-without.png");
+      const bare = await page.evaluate(async () => {
+        const probe = window.__alandDrive;
+        probe.showBoatsUnderWay(false);
+        probe.showSeaMarks(false);
+        const target = probe.frames() + 3;
+        while (probe.frames() < target) {
+          probe.counts();
+          await new Promise(requestAnimationFrame);
+        }
+        return probe.counts();
+      });
+      await page.screenshot({ path: without });
+      await page.evaluate(() => {
+        window.__alandDrive.showBoatsUnderWay(true);
+        window.__alandDrive.showSeaMarks(true);
+      });
+      console.log(without, JSON.stringify({ counts: bare }));
+    }
   } catch (error) {
     console.log(`${out} failed: ${error.message}\n${reported()}`);
     await browser.close();

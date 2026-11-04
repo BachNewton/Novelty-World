@@ -6,6 +6,9 @@ import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
+import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
+import { createSeaMarks } from "./sea-marks";
+import { seaClock } from "../sea/clock";
 import { createPeople } from "./people";
 import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
@@ -177,6 +180,14 @@ export interface GameProbe {
   mapPlayers: () => { mini: number; world: number };
   /** The ids of the places found, once the road network has arrived. */
   foundPlaces: () => string[] | null;
+  /** Pins the sea's clock (UTC seconds) so every boat under way stands where it is then, or lets it run with null. `hold` pins it too, and `advance` steps it. */
+  holdSea: (seconds: number | null) => void;
+  /** Every boat under way, where it was last drawn. */
+  boatsUnderWay: () => UnderWay[];
+  showBoatsUnderWay: (shown: boolean) => void;
+  /** How many of each sea mark are drawn round the camera. */
+  seaMarksCounts: () => Record<string, number>;
+  showSeaMarks: (shown: boolean) => void;
 }
 
 export interface HudReading {
@@ -622,6 +633,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const regattas = createRegattas(scene, { colour: colorOf, linear, hazed });
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
+  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
+  const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun: manifest.sun }, (x, z) => world.height(x, z));
   const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
   const roadside = createRoadside(scene, {
@@ -772,6 +785,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(true);
   windmills.showAll(true);
   docks.showAll(true);
+  seaMarks.showAll(true);
   people.showAll(true);
   stoneWalls.showAll(true);
   roadside.showAll(true);
@@ -789,6 +803,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(false);
   windmills.showAll(false);
   docks.showAll(false);
+  seaMarks.showAll(false);
   people.showAll(false);
   stoneWalls.showAll(false);
   roadside.showAll(false);
@@ -1025,6 +1040,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   resize();
 
   let held = false;
+  const seaNow = seaClock(window.location.search);
+  let seaHeldAt: number | null = null;
   let autopilot: Autopilot | null = null;
   let owedSeconds = 0;
   let lastFrame: number | null = null;
@@ -1197,8 +1214,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
+    seaMarks.update(spot.x, spot.z, camera.position);
     people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    regattas.update();
+    regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     showRibbons(spot);
@@ -1253,9 +1272,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       log: () => drive.log,
       hold: (next) => {
         held = next;
+        seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
       advance: (steps, input) => {
         for (let step = 0; step < steps; step++) drive.step(input ?? nextInput());
+        if (seaHeldAt !== null) seaHeldAt += steps * STEP_S;
       },
       startRoute: (chain, cruiseMS, from) => {
         const line = startLine(chain);
@@ -1336,6 +1357,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
+      holdSea: (seconds) => {
+        seaHeldAt = seconds;
+      },
+      boatsUnderWay: () => boatsUnderWay.fleet(),
+      showBoatsUnderWay: boatsUnderWay.show,
+      seaMarksCounts: seaMarks.counts,
+      showSeaMarks: seaMarks.show,
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
@@ -1374,6 +1402,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       outbuildings.dispose();
       windmills.dispose();
       docks.dispose();
+      boatsUnderWay.dispose();
+      seaMarks.dispose();
       people.dispose();
       regattas.dispose();
       stoneWalls.dispose();
