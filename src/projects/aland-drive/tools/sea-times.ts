@@ -1,6 +1,7 @@
 // When the boats under way pass a place: every vessel that comes within a radius of it in the hours ahead, with when it
 // comes in, when it's nearest, and when it lies still there (a ferry at its quay). For picking a moment to look, and for
-// telling someone when a boat will pass a spot. Times are the sea's clock, real UTC, printed in UTC and Finnish time.
+// a link that shows it: each time is a moment of the world's clock (`sea/clock.ts`), printed as `?sea=` takes it, so
+// `?at=<the place>&sea=<a minute before>` opens there just before the boat comes.
 //
 // Usage: npx tsx src/projects/aland-drive/tools/sea-times.ts <east> <north> [--radius=1500] [--hours=6] [--from=<ISO time>]
 // East and north are ETRS-TM35FIN metres, as `?at=` takes them.
@@ -20,11 +21,7 @@ const hours = Number(option("hours") ?? 6);
 const from = Date.parse(option("from") ?? new Date().toISOString()) / 1000;
 const [x, z] = [east - WORLD_ORIGIN.east, WORLD_ORIGIN.north - north];
 
-const clock = (seconds: number) => {
-  const at = new Date(seconds * 1000);
-  const finnish = at.toLocaleTimeString("en-GB", { timeZone: "Europe/Helsinki", hour: "2-digit", minute: "2-digit" });
-  return `${at.toISOString().slice(11, 16)} UTC (${finnish} Åland)`;
-};
+const clock = (seconds: number) => `${new Date(seconds * 1000).toISOString().slice(0, 16)}Z`;
 
 const passes: { start: number; text: string }[] = [];
 for (const { model, voyage } of sailings(LANES)) {

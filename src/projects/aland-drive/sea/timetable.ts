@@ -1,9 +1,10 @@
 import { Lane, Voyage, type Handling, type LaneData, type Leg } from "./motion";
 
 /*
- * Who sails which lane, and when: an invented timetable on Åland's real lines, plausible rather than true. The
- * ships call at Mariehamn and Långnäs a few times a day, never two in one approach at once, and lie at the quay
- * half an hour; Eckerö's ship crosses to Sweden three times a day; Ålandstrafiken's double-ended car ferries shuttle
+ * Who sails which lane, and when: an invented timetable on Åland's real lines, plausible rather than true, in
+ * cycles of real seconds on the world's clock rather than times of a day, since a day and night cycle would run
+ * faster than real time while the boats keep their real speed. The ships call at Mariehamn and Långnäs every few hours, never two in one approach at once, and lie at the quay
+ * half an hour; Eckerö's ship crosses to Sweden every eight hours; Ålandstrafiken's double-ended car ferries shuttle
  * between their terminals; the road ferries cross every twenty minutes; the excursion boats run out to their
  * islands and back. Small boats each have one trip, out and back, with a pause at the far end, on a cycle of
  * their own rolled from the lane, so a summer's day has a few under way in any one view.
@@ -49,7 +50,7 @@ export const SMALL_VESSELS = ["keel", "boat"] as const;
 interface Service {
   model: BoatModel;
   legs: Leg[];
-  /** When each vessel on it starts its cycle, in seconds past midnight UTC (mod the period). */
+  /** When each vessel on it starts its cycle, in seconds of the world's clock (mod the period). */
   departs: number[];
   periodS: number;
 }

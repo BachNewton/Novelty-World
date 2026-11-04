@@ -8,7 +8,7 @@ import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
 import { createSeaMarks } from "./sea-marks";
-import { seaSeconds } from "../sea/clock";
+import { seaClock } from "../sea/clock";
 import { createPeople } from "./people";
 import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
@@ -984,6 +984,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   resize();
 
   let held = false;
+  const seaNow = seaClock(window.location.search);
   let seaHeldAt: number | null = null;
   let autopilot: Autopilot | null = null;
   let owedSeconds = 0;
@@ -1151,10 +1152,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     shrubs.update(spot, camera);
     granite.update(spot, camera);
     docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    boatsUnderWay.update(seaHeldAt ?? seaSeconds(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
+    boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
     seaMarks.update(spot.x, spot.z, camera.position);
     people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    regattas.update(seaHeldAt ?? seaSeconds());
+    regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     showRibbons(spot);
@@ -1208,7 +1209,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       log: () => drive.log,
       hold: (next) => {
         held = next;
-        seaHeldAt = next ? (seaHeldAt ?? seaSeconds()) : null;
+        seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
       advance: (steps, input) => {
         for (let step = 0; step < steps; step++) drive.step(input ?? nextInput());
