@@ -88,3 +88,21 @@ Every car's sixteen rows are in `sim/car-limits.json`.
 - **Ice's top speed.** With no rolling resistance on ice, a car on ice still reaches its dry top speed in a straight line, given time: true of real ice, but whether it plays well is the owner's call.
 - **The sound** still finds the surface its own way, from the nearest road's line, so a wheel on the verge is heard on asphalt within 5 m of the centre. It could read the wheels' surfaces instead.
 - **The autopilot** maps a wheel angle to steering by the dry lock, so on a loose surface it steers a little less than it means to and corrects as it goes. The racer that grows out of it should read the footing.
+
+## Later: tyres, winter and the feel against TDU
+
+Decided as directions, not built. None of it is needed until the owner picks it up.
+
+**Tyres are an input of their own, beside the condition.** Snow and ice today assume no particular tyre (ice keeps about a quarter of a car's dry grip, snow about half), which misses the main thing about a Finnish winter: winter tyres are the law and most drivers run studs. So a tyre is one of summer, winter friction (studless) or studded, and the season sets it, not the driver: studded in snow and ice, summer in dry and wet, with a dev switch and a link parameter to try the others. Against summer tyres:
+
+- **Studded**: much better on ice, roughly double the grip (Sweden's road research institute measured studs halving the braking distance on very slippery ice), much better in snow, a little worse on dry and wet asphalt.
+- **Winter friction**: better on ice but well short of studs, about level with studs in snow, a little worse on dry and wet asphalt.
+- A car's class still applies on top: a sports car on studs is still worse in snow than the rally car on studs.
+- The racers' table assumes the season's tyres, so it keeps one row per ground, and the AI drives what the law puts on the cars.
+- Åland makes its own road traffic law; its dates for winter tyres and studs weren't found (mainland Finland: winter tyres from 1 November to 31 March as conditions require, studs allowed then). They matter once there are seasons.
+
+**What the tyres are heard and seen as.** Studs tick and hum on bare asphalt, a sound of their own beside each surface's. The tyre particles take the winter too: powder in snow, ice chips under studs, slush in a thaw.
+
+**The art of winter** is the rest of the season, already in `docs/PLAN.md`'s Depth: snow over the land with the roads cleared and banked, snow on spruce, bare deciduous trees, ice on the sea, and the car itself carrying snow and road salt.
+
+**The feel against Test Drive Unlimited.** With no way to measure TDU, the comparison is from what's known of it: TDU's cars feel weighty, steer slowly and understeer, with driving aids that can be turned down to a "sim" mode, and TDU 2 was widely called skittish. Åland Drive is more forgiving and a touch grippier: the steering never asks for more grip than there is, the yaw assist steadies the car, brakes and throttle are capped at the grip (a perfect ABS and traction control), and steady corners hold 0.86–1.43 g, at or a little above real road cars on road tyres. To come closer to TDU's weight: slower steering, more understeer allowed through, and an aids-off mode that turns the yaw assist and the grip-aware steering down. Fan-made dumps of TDU's handling files may hold real numbers to compare against; not looked into.
