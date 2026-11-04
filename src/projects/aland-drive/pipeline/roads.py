@@ -145,9 +145,7 @@ _TERTIARY = RoadClass(2, "main", 6, 10, 180, 0.025, 0.04, 2, 12, 2.5)
 _MINOR = RoadClass(3, "minor", 4.5, 8, 120, 0.02, 0.03, 1.5, 8, 2)
 _SERVICE = RoadClass(4, "minor", 3.5, 5, 70, 0.02, 0, 1.2, 6, 1.5)
 _TRACK = RoadClass(5, "track", 2.5, 4, 50, 0.015, 0, 1, 5, 1)
-# A path lies on the land: no crown, and a profile that keeps the land's shape down to a few metres, so paths that meet
-# or cross are each at the land's height there rather than at heights of their own, and a flight of steps keeps its rise.
-_PATH = RoadClass(6, "track", 2, 3, 10, 0, 0, 0.8, 4, 0)
+_PATH = RoadClass(6, "track", 2, 3, 30, 0.01, 0, 0.8, 4, 0)
 CLASSES = {
     "motorway": _PRIMARY,
     "trunk": _PRIMARY,
