@@ -34,6 +34,6 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
     small("bale wrapped", buildWrappedBale()),
     small("bale hay", buildHayBale()),
     ...(["grazing", "standing"] as const).map((pose) => ({ name: `sheep ${pose}`, limit: 200, farLimit: 24, model: buildSheep(pose) })),
-    ...(["grazing", "standing", "lying"] as const).map((pose) => ({ name: `cow ${pose}`, limit: 320, farLimit: 32, model: buildCow(pose) })),
+    ...(["grazing", "standing", "lying"] as const).map((pose) => ({ name: `cow ${pose}`, limit: 380, farLimit: 32, model: buildCow(pose) })),
   ];
 }

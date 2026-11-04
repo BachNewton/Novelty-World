@@ -216,6 +216,10 @@ look("cows", "dairy herd from the road", herdX, [-12, EYE_M, 1.5], [2, 0.8, VERG
 look("cow-close", "cow at 4 m", herdX, [-3.6, EYE_M, VERGE_Z - 2], [0, 0.85, VERGE_Z - 4.5], 50);
 look("cows-lying", "cows lying, chewing the cud", herdX, [3, EYE_M, -1], [7, 0.5, VERGE_Z - 5.5], 40);
 look("cows-field", "the herd across the field at 250 m", herdX, [0, 3, 250], [2, 0.8, VERGE_Z - 8], 5);
+const PROFILE_X = 20;
+(["standing", "grazing", "lying"] as const).forEach((pose, index) => add(buildCow(pose), [{ x: herdX + PROFILE_X + index * 3.5, y: 0, z: VERGE_Z - 3, yaw: Math.PI / 2 }]));
+look("cows-profile", "standing, grazing and lying, side on", herdX, [PROFILE_X + 3.5, 1.1, VERGE_Z + 4], [PROFILE_X + 3.5, 0.7, VERGE_Z - 3], 50);
+look("cows-front", "the same three, head on", herdX, [PROFILE_X + 13, 1.2, VERGE_Z - 1], [PROFILE_X + 3.5, 0.7, VERGE_Z - 3], 30);
 
 // The shore, along x = SHORE_X, seen from the bank.
 const shore = (along: number, out = 0, y = SEA_Y, yaw = TO_SEA, scale = 1): Placement => ({ x: SHORE_X + out, y, z: along, yaw, scale });

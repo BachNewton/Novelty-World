@@ -238,20 +238,70 @@ const BODY_STATIONS: [z: number, top: number, bottom: number, wide: number, back
   [0.52, 1.41, 0.72, 0.26, 0.09],
 ];
 
+/** A station of the neck and head, from the shoulders to the nose: its middle, its half width and half depth, and how far its lower half hangs further (the dewlap, the jaw). */
+type HeadStation = [middle: V3, wide: number, deep: number, hang: number];
+
 interface CowShape {
   /** Added to the body's heights: a lying cow's belly is on the ground. */
   lift: number;
-  neck: [V3, V3];
-  head: [V3, V3];
-  muzzle: V3;
+  /** The neck out of the shoulders, then the head from the poll to the muzzle. */
+  head: HeadStation[];
   tail: V3[];
 }
 
+/** The head's own stations, from the poll down the face, along its length and as its share of the way to the nose. */
+const FACE: [share: number, wide: number, deep: number, hang: number][] = [
+  [0, 0.12, 0.13, 0.05],
+  [0.22, 0.13, 0.14, 0.07],
+  [0.55, 0.095, 0.115, 0.025],
+  [0.84, 0.092, 0.095, 0],
+  [1, 0.108, 0.085, 0],
+];
+
+/** Where the head starts among a cow's head stations, after the neck's three. */
+const POLL = 3;
+
+/** A neck of three stations from inside the shoulders, then a head from its poll to its nose. */
+function neckAndHead(neck: [V3, V3, V3], poll: V3, nose: V3): HeadStation[] {
+  const [shoulders, middle, throat] = neck;
+  return [
+    [shoulders, 0.25, 0.3, 0],
+    [middle, 0.2, 0.22, 0.1],
+    [throat, 0.15, 0.16, 0.06],
+    ...FACE.map(([share, wide, deep, hang]): HeadStation => [[poll[0] + (nose[0] - poll[0]) * share, poll[1] + (nose[1] - poll[1]) * share, poll[2] + (nose[2] - poll[2]) * share], wide, deep, hang]),
+  ];
+}
+
 const SHAPES: Record<CowPose, CowShape> = {
-  standing: { lift: 0, neck: [[0, 1.12, 0.45], [0, 1.27, 0.98]], head: [[0, 1.3, 0.98], [0, 1.0, 1.38]], muzzle: [0, 0.93, 1.52], tail: [[0, 1.33, -0.86], [0, 1.08, -0.95], [0, 0.6, -0.93]] },
-  grazing: { lift: 0, neck: [[0, 1.1, 0.45], [0, 0.62, 0.98]], head: [[0, 0.64, 1.0], [0, 0.16, 1.22]], muzzle: [0, 0.02, 1.28], tail: [[0, 1.33, -0.86], [0, 1.08, -0.95], [0, 0.6, -0.93]] },
-  lying: { lift: -0.56, neck: [[0, 0.56, 0.45], [0, 0.8, 0.88]], head: [[0, 0.84, 0.9], [0, 0.6, 1.28]], muzzle: [0, 0.54, 1.42], tail: [[0, 0.76, -0.86], [0.14, 0.32, -1.0], [0.38, 0.04, -0.86]] },
+  standing: { lift: 0, head: neckAndHead([[0, 1.1, 0.28], [0, 1.14, 0.62], [0, 1.2, 0.84]], [0, 1.27, 0.97], [0, 0.86, 1.34]), tail: [[0, 1.33, -0.86], [0, 1.08, -0.95], [0, 0.6, -0.93]] },
+  grazing: { lift: 0, head: neckAndHead([[0, 1.06, 0.28], [0, 0.92, 0.62], [0, 0.72, 0.84]], [0, 0.6, 0.97], [0, 0.06, 1.17]), tail: [[0, 1.33, -0.86], [0, 1.08, -0.95], [0, 0.6, -0.93]] },
+  lying: { lift: -0.56, head: neckAndHead([[0, 0.54, 0.28], [0, 0.62, 0.6], [0, 0.74, 0.8]], [0, 0.86, 0.92], [0, 0.5, 1.26]), tail: [[0, 0.76, -0.86], [0.04, 0.34, -0.97], [0.16, 0.06, -0.92]] },
 };
+
+/** A loft through the stations, each a ring across the way the line runs there, open at the first and closed past the last by a point. */
+function lofted(stations: readonly HeadStation[], sides: number, beyond: number): { corners: V3[]; triangles: [number, number, number][] } {
+  const unit = ([x, y, z]: V3): V3 => {
+    const length = Math.hypot(x, y, z);
+    return [x / length, y / length, z / length];
+  };
+  const along = (index: number): V3 => {
+    const [from, to] = [stations[Math.max(0, index - 1)][0], stations[Math.min(stations.length - 1, index + 1)][0]];
+    return unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]);
+  };
+  const rings = stations.map(([middle, wide, deep, hang], index) => {
+    const [, dy, dz] = along(index);
+    // Across is +x, as every station lies in the cow's middle plane; up is across the way the line runs.
+    const up: V3 = [0, dz, -dy];
+    return Array.from({ length: sides }, (_, side): V3 => {
+      const angle = (side / sides) * 2 * Math.PI;
+      const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+      const reach = cos * (deep + (cos < 0 ? hang : 0));
+      return [middle[0] + sin * wide, middle[1] + up[1] * reach, middle[2] + up[2] * reach];
+    });
+  });
+  const [last, way] = [stations[stations.length - 1][0], along(stations.length - 1)];
+  return ringed(rings, [last[0] + way[0] * beyond, last[1] + way[1] * beyond, last[2] + way[2] * beyond]);
+}
 
 type BodyStation = (typeof BODY_STATIONS)[number];
 
@@ -276,7 +326,7 @@ function leg(mesh: RuralMesh, joints: readonly V3[], radii: readonly number[], p
  * under and its head up, chewing the cud.
  */
 export function buildCow(pose: CowPose = "grazing"): RoadsideModel {
-  const { lift, neck, head, muzzle, tail } = SHAPES[pose];
+  const { lift, head, tail } = SHAPES[pose];
   const lying = pose === "lying";
   const near = new RuralMesh();
   const shadeAt = ([, y]: V3) => 0.8 + Math.min(1, Math.max(0, (y - lift - 0.6) / 0.8)) * 0.3;
@@ -287,14 +337,14 @@ export function buildCow(pose: CowPose = "grazing"): RoadsideModel {
 
   const white: RuralPart = "hide-white";
   if (lying) {
-    for (const side of [-1, 1]) leg(near, [[side * 0.16, 0.3, 0.36], [side * 0.18, 0.07, 0.64], [side * 0.12, 0.05, 0.36]], [0.095, 0.07, 0.055], ["hide", white]);
+    for (const side of [-1, 1]) leg(near, [[side * 0.17, 0.3, 0.34], [side * 0.17, 0.09, 0.6], [side * 0.11, 0.07, 0.4]], [0.12, 0.09, 0.07], ["hide", white]);
     // The hind legs fold to one side: the near one's hock out behind, its hoof forward along the belly.
-    leg(near, [[0.24, 0.42, -0.48], [0.38, 0.09, -0.8], [0.43, 0.06, -0.32], [0.44, 0.05, -0.18]], [0.12, 0.065, 0.05, 0.055], ["hide", white, "hoof"]);
+    leg(near, [[0.22, 0.44, -0.46], [0.36, 0.11, -0.76], [0.42, 0.08, -0.4], [0.43, 0.07, -0.28]], [0.17, 0.09, 0.07, 0.07], ["hide", white, "hoof"]);
     leg(near, [[-0.22, 0.4, -0.5], [-0.33, 0.08, -0.72]], [0.12, 0.07], ["hide"]);
   } else {
     for (const side of [-1, 1]) {
-      leg(near, [[side * 0.17, 0.95, 0.42], [side * 0.17, 0.46, 0.44], [side * 0.17, 0.11, 0.45], [side * 0.17, 0, 0.48]], [0.105, 0.068, 0.054, 0.07], ["hide", white, "hoof"]);
-      leg(near, [[side * 0.19, 1.0, -0.5], [side * 0.19, 0.5, -0.74], [side * 0.18, 0.11, -0.67], [side * 0.18, 0, -0.65]], [0.155, 0.075, 0.054, 0.07], ["hide", white, "hoof"]);
+      leg(near, [[side * 0.17, 0.95, 0.42], [side * 0.17, 0.46, 0.44], [side * 0.17, 0.11, 0.45], [side * 0.17, 0, 0.48]], [0.12, 0.075, 0.06, 0.075], ["hide", white, "hoof"]);
+      leg(near, [[side * 0.19, 1.0, -0.5], [side * 0.19, 0.5, -0.74], [side * 0.18, 0.11, -0.67], [side * 0.18, 0, -0.65]], [0.16, 0.08, 0.06, 0.075], ["hide", white, "hoof"]);
     }
     // The udder between the hind legs, with its four teats.
     const udder = ringed([0.8, 0.6].map((y, ring) => Array.from({ length: 6 }, (_, side): V3 => {
@@ -305,14 +355,17 @@ export function buildCow(pose: CowPose = "grazing"): RoadsideModel {
     for (const [x, z] of [[-0.06, -0.47], [0.06, -0.47], [-0.06, -0.33], [0.06, -0.33]] as const) near.spike([x, 0.58, z], [x, 0.46, z], 0.022, "udder", 0.85);
   }
 
-  near.tube(neck[0], neck[1], 0.25, 6, { radiusTo: 0.15, shadeFrom: 0.95, shadeTo: 1 }, "hide");
-  near.tube(head[0], head[1], 0.125, 6, { radiusTo: 0.09 }, "hide");
-  near.tube([head[1][0], head[1][1] + 0.01, head[1][2] - 0.03], muzzle, 0.095, 6, { radiusTo: 0.075, cap: true }, "muzzle");
+  const neck = lofted(head, 8, 0.02);
+  near.solid(neck.corners, neck.triangles, "hide", (corner) => Math.max(0.9, shadeAt(corner)));
+  // The muzzle a hair proud of the face it closes, so the two never fight.
+  const muzzle = lofted(head.slice(-2).map(([middle, wide, deep, hang]): HeadStation => [middle, wide + 0.008, deep + 0.008, hang]), 8, 0.035);
+  near.solid(muzzle.corners, muzzle.triangles, "muzzle", () => 0.95);
   // The ears stand out sideways from the poll.
-  for (const side of [-1, 1]) near.spike([side * 0.07, head[0][1] - 0.02, head[0][2] + 0.03], [side * 0.27, head[0][1] - 0.06, head[0][2] - 0.02], 0.05, "hide", 0.9);
+  const [poll] = head[POLL];
+  for (const side of [-1, 1]) near.spike([side * 0.08, poll[1], poll[2]], [side * 0.29, poll[1] - 0.05, poll[2] - 0.05], 0.05, "hide", 0.9);
   for (let bone = 0; bone < tail.length - 1; bone++) near.tube(tail[bone], tail[bone + 1], 0.045 - bone * 0.018, 3, { radiusTo: 0.03 - bone * 0.01 }, "hide");
   const tip = tail[tail.length - 1];
-  const switchTo: V3 = lying ? [tip[0] + 0.14, tip[1], tip[2] + 0.26] : [tip[0], tip[1] - 0.3, tip[2] + 0.03];
+  const switchTo: V3 = lying ? [tip[0] + 0.2, tip[1], tip[2] + 0.12] : [tip[0], tip[1] - 0.3, tip[2] + 0.03];
   near.spike(tip, switchTo, 0.055, white, 0.85);
 
   // Far off: the body as a diamond, each pair of legs as two crossed quads, the neck and a spike of a head.
@@ -331,7 +384,7 @@ export function buildCow(pose: CowPose = "grazing"): RoadsideModel {
       far.face([[-wide, 0, foot], [wide, 0, foot], [wide, 0.8, z], [-wide, 0.8, z]], white, 0.85);
     }
   }
-  far.tube(neck[0], neck[1], 0.25, 3, { radiusTo: 0.15, shadeFrom: 0.95, shadeTo: 1 }, "hide");
-  far.spike(head[0], muzzle, 0.13, "hide");
+  far.tube(head[0][0], head[POLL][0], 0.25, 3, { radiusTo: 0.15, shadeFrom: 0.95, shadeTo: 1 }, "hide");
+  far.spike(head[POLL][0], head[head.length - 1][0], 0.13, "hide");
   return finished(near, far, COW_SWAP_M, COW_REACH_M);
 }
