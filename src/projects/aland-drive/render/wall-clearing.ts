@@ -5,7 +5,7 @@ import { SECTION_FLOATS, STONE_WALL_HALF_WIDE_M, type WallSections } from "./til
 
 /*
  * How far a place is from the nearest stone wall or street furniture, for the plantings,
- * so no grass, bush or birch stands up through a wall, a bench or a café terrace. The
+ * so no grass, bush or birch stands up through a wall, a bench, a café terrace or a picnic table. The
  * plantings read only images (`planting.ts`), and a wall is too thin for any image a tile
  * has, so this is an image of its own: the distance to the walls and furniture of every
  * loaded tile, in a square that follows the camera. It reads as a distance from a wall's
@@ -53,6 +53,11 @@ const FURNITURE_CLEARANCES: Record<string, { from: [number, number]; to: [number
   bin: { from: [0, 0.04], to: [0, 0.04], halfWideM: 0.35 },
   "bike-rack": { from: [0, 0], to: [2.4, 0], halfWideM: 0.55 },
   "cafe-set": { from: [0, -1.05], to: [0, 1.05], halfWideM: 1.2 },
+  planter: { from: [0, 0], to: [0, 0], halfWideM: 0.65 },
+  "planter-round": { from: [0, 0], to: [0, 0], halfWideM: 0.75 },
+  "picnic-table": { from: [-0.95, 0], to: [0.95, 0], halfWideM: 1.1 },
+  "viewing-tower": { from: [0, 0], to: [0, 0], halfWideM: 2.8 },
+  "viewpoint-platform": { from: [0, -3], to: [0, 0.2], halfWideM: 2.8 },
 };
 
 /** The furniture among a tile's roadside places, by model, as clearances. */

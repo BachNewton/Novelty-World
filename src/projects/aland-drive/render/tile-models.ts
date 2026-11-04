@@ -67,6 +67,8 @@ export interface TileRoadside {
    * two `sit-cafe` chairs facing each other across it. Nobody sits on them yet.
    */
   seats: Partial<Record<SeatPose, Float32Array>>;
+  /** Each place's own size, in order, for a model drawn at one (a linden by its height); absent for the rest, which are 1. */
+  scales: Record<string, Float32Array>;
 }
 export const ROADSIDE_FLOATS = 6;
 export const SEAT_FLOATS = 4;
@@ -83,6 +85,8 @@ export interface RoadsideFile {
   walls: number[][];
   /** Absent from a tile baked before the furniture. */
   seats?: Partial<Record<SeatPose, number[][]>>;
+  /** Absent from a tile baked before the town dressing. */
+  scales?: Record<string, number[]>;
 }
 
 export const NO_ROADSIDE: RoadsideFile = { models: {}, signs: {}, wires: [], walls: [] };
@@ -90,5 +94,10 @@ export const NO_ROADSIDE: RoadsideFile = { models: {}, signs: {}, wires: [], wal
 const columns = (lists: Record<string, number[][]>) => Object.fromEntries(Object.entries(lists).map(([name, places]) => [name, Float32Array.from(places.flat())]));
 
 export function decodeRoadside(file: RoadsideFile): TileRoadside {
-  return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()), seats: columns(file.seats ?? {}) };
+  const scales = Object.fromEntries(Object.entries(file.scales ?? {}).map(([name, sizes]) => [name, Float32Array.from(sizes)]));
+  for (const [name, sizes] of Object.entries(scales)) {
+    const places = name in file.models ? file.models[name].length : 0;
+    if (sizes.length !== places) throw new Error(`the roadside sizes ${sizes.length} places of ${name}, which has ${places}`);
+  }
+  return { models: columns(file.models), signs: columns(file.signs), wires: Float32Array.from(file.wires.flat()), walls: Float32Array.from(file.walls.flat()), seats: columns(file.seats ?? {}), scales };
 }

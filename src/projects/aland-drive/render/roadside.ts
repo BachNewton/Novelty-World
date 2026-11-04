@@ -1,20 +1,23 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import { buildBusShelter, buildMailbox, buildPowerPole, buildStreetLamp, buildWireSpan, placeModel, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
-import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildGuardRail, buildGuardRailEnd, buildParasol, buildReflectorPost, type StreetMaterials } from "../art/street/index";
+import { buildFarmFence, buildFarmFencePost, buildTownFence, buildTownFencePost } from "../art/roadside/index";
+import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../art/identity/index";
+import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
  * their wires, guard rails, edge posts, mailboxes, bus shelters and signs, and the
  * street furniture (`pipeline/furniture.py`): benches, bins, bike racks, café
- * tables and parasols. As with
+ * tables and parasols, and the town dressing (`pipeline/dressing.py`): lindens,
+ * flag and midsummer poles, fences, planters, picnic tables and viewpoints. As with
  * the rural buildings, each model is one list of places across every loaded tile,
  * so its draws don't grow with the tiles, and a tile landing or leaving rebuilds
  * only the lists it touches, a few floats a place. Every model dissolves at its
  * reach, as the forest does, never growing or shrinking.
  */
 
-type Kit = "roadside" | "street";
+type Kit = "roadside" | "street" | "identity";
 
 const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   lamp: { build: buildStreetLamp, kit: "roadside" },
@@ -29,6 +32,19 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   "bike-rack": { build: buildBikeRack, kit: "street" },
   "cafe-set": { build: buildCafeSet, kit: "street" },
   parasol: { build: buildParasol, kit: "street" },
+  linden: { build: buildLinden, kit: "street" },
+  "flagpole-aland": { build: () => buildFlagpole("aland"), kit: "street" },
+  "flagpole-finland": { build: () => buildFlagpole("finland"), kit: "street" },
+  "midsummer-pole": { build: buildMidsummerPole, kit: "street" },
+  "fence-town": { build: buildTownFence, kit: "roadside" },
+  "fence-town-post": { build: buildTownFencePost, kit: "roadside" },
+  "fence-farm": { build: buildFarmFence, kit: "roadside" },
+  "fence-farm-post": { build: buildFarmFencePost, kit: "roadside" },
+  planter: { build: buildPlanter, kit: "street" },
+  "planter-round": { build: buildPlanterRound, kit: "street" },
+  "picnic-table": { build: buildPicnicTable, kit: "identity" },
+  "viewing-tower": { build: buildViewingTower, kit: "identity" },
+  "viewpoint-platform": { build: buildViewpointPlatform, kit: "identity" },
 };
 
 /** A list with no places keeps one folded to nothing, so its meshes always exist to be compiled before the drive. */
@@ -36,11 +52,11 @@ const NOWHERE: Placement = { x: 0, y: 0, z: 0, scale: 0 };
 /** A sign the compile stands in for every plate: the plates share one material, so one compiles them all. */
 const COMPILED_SIGN = "give-way";
 
-function placesOf(floats: Float32Array): Placement[] {
+function placesOf(floats: Float32Array, scales: Float32Array | undefined): Placement[] {
   const places: Placement[] = [];
   for (let at = 0; at < floats.length; at += ROADSIDE_FLOATS) {
     const [x, y, z, yaw, stretch, shear] = floats.subarray(at, at + ROADSIDE_FLOATS);
-    places.push({ x, y, z, yaw, stretch, shear });
+    places.push({ x, y, z, yaw, stretch, shear, scale: scales?.[at / ROADSIDE_FLOATS] ?? 1 });
   }
   return places;
 }
@@ -66,6 +82,7 @@ function spansOf(floats: Float32Array): WireSpan[] {
 export interface RoadsideLooks {
   roadside: RoadsideMaterials;
   street: StreetMaterials;
+  identity: RoadsideMaterials;
   wires: MeshBasicNodeMaterial;
   signs: SignKit;
 }
@@ -100,7 +117,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
 
   const rebuildModels = (names: ReadonlySet<string>) => {
     for (const entry of models.filter(({ name }) => names.has(name))) {
-      const places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? placesOf(tile.models[entry.name]) : []));
+      const places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? placesOf(tile.models[entry.name], tile.scales[entry.name]) : []));
       entry.meshes = swap(entry.meshes, placeModel(entry.model, places.length > 0 ? places : [NOWHERE], entry.materials), places.length > 0);
     }
   };

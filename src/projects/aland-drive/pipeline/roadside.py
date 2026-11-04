@@ -14,7 +14,9 @@ surface and OSM's road tags:
 - mailboxes at the mouth of a country drive that leads to a house, outside a town.
 
 Street furniture (benches, bins, bike racks, café terraces) and the seats on it
-are `furniture.py`'s, placed in the same lists once these stand.
+are `furniture.py`'s, and town dressing (lindens, flag and midsummer poles, fences,
+planters, picnic tables, viewpoints) `dressing.py`'s, placed in the same lists once
+these stand: what OSM maps first, then the furniture, then what rules place.
 
 Traffic keeps right, so a sign stands on the right of the traffic it's for and faces
 it. The list also holds the walls the car can't pass: poles, lamps, rails and
@@ -35,6 +37,7 @@ from pathlib import Path
 import numpy as np
 import shapely
 
+import dressing
 import furniture
 from shapely.geometry import LineString, Point, Polygon
 
@@ -311,6 +314,8 @@ class Roadside:
         self.town = town_of(tile.name)
         self.osm = json.loads(osm_roadside_path(tile).read_text(encoding="utf-8"))
         self.models: dict[str, list[list[float]]] = {}
+        # A model drawn at a size of its own (a linden by its height) has one for every place, in order.
+        self.scales: dict[str, list[float]] = {}
         self.signs: dict[str, list[list[float]]] = {}
         self.wires: list[list[float]] = []
         self.walls: list[list[float]] = []
@@ -351,8 +356,13 @@ class Roadside:
                 return spot
         return None
 
-    def place(self, model: str, point: np.ndarray, height: float, yaw: float, stretch: float = 1.0, shear: float = 0.0) -> None:
-        self.models.setdefault(model, []).append([round(float(point[0]), 2), round(height, 2), round(float(-point[1]), 2), round(yaw, 4), round(stretch, 3), round(shear, 4)])
+    def place(self, model: str, point: np.ndarray, height: float, yaw: float, stretch: float = 1.0, shear: float = 0.0, scale: float | None = None) -> None:
+        places = self.models.setdefault(model, [])
+        if (scale is not None) != (model in self.scales) and places:
+            raise ValueError(f"{model} is placed both with a size of its own and without")
+        places.append([round(float(point[0]), 2), round(height, 2), round(float(-point[1]), 2), round(yaw, 4), round(stretch, 3), round(shear, 4)])
+        if scale is not None:
+            self.scales.setdefault(model, []).append(scale)
 
     def sign(self, name: str, point: np.ndarray, height: float, face: np.ndarray) -> bool:
         if any(np.hypot(*(point - post)) < SIGN_APART_M for post in self.posts):
@@ -693,11 +703,15 @@ class Roadside:
         self.speed_signs()
         self.stops_and_crossings()
         self.mailboxes(landings)
-        seats = furniture.place(self)
+        street = furniture.Furniture(self)
+        dressed = dressing.Dressing(street)
+        dressed.place_mapped()
+        seats = street.place()
+        dressed.place_rules()
         # Last, so an edge post makes way for everything else at the roadside.
         placed = [np.array([place[0], -place[2]]) for name in ("rail", "rail-end", "mailbox", "bus-shelter") for place in self.models.get(name, [])]
         self.edge_posts(placed + self.posts)
-        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats}
+        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats, "scales": self.scales}
 
 
 def limit_changes(along: np.ndarray, speeds: list[int | None]) -> list[tuple[int, int]]:

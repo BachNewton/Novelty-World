@@ -1,10 +1,10 @@
 """Street furniture: benches, bins, bike racks and café terraces, and the seats on them.
 
-Placed in the roadside list (`roadside.py` calls `place` once its own objects
-stand), so it streams, draws and stops the car as the roadside does. OSM places
-what it maps: benches, waste baskets, bicycle parking, and a terrace at a café,
-bar or restaurant with outdoor seating, against the wall of its building that
-faces its street. OSM maps little of it, so rules place the rest:
+Placed in the roadside list (`roadside.py` calls `Furniture.place` once its own
+objects and what `dressing.py` stands from OSM stand), so it streams, draws and
+stops the car as the roadside does. OSM places what it maps: benches, waste
+baskets, bicycle parking, and a terrace at a café, bar or restaurant with
+outdoor seating, against the wall of its building that faces its street. OSM maps little of it, so rules place the rest:
 
 - benches along the paths of a park and a pedestrian street, a bin by every other;
 - benches along a town's waterside paths, facing the water, a bin by every third;
@@ -269,7 +269,11 @@ class Furniture:
 
     def settle(self, model: str, point: np.ndarray, yaw: float, length: float | None = None, terrace: bool = False) -> np.ndarray | None:
         """A mapped object's spot, moved off the paving it would stand on, away from the nearest road or path."""
-        if self.fits(footprint(model, point, yaw, length), terrace):
+        return self.settle_shape(lambda at: footprint(model, at, yaw, length), point, terrace)
+
+    def settle_shape(self, shape_at, point: np.ndarray, terrace: bool = False) -> np.ndarray | None:
+        """The same for any footprint, `shape_at` giving it at a spot."""
+        if self.fits(shape_at(point), terrace):
             return point
         path = self.nearest_path(point, FACE_PATH_M)
         if path is None or np.hypot(*(point - path[1])) < 0.01:
@@ -277,7 +281,7 @@ class Furniture:
         away = (point - path[1]) / np.hypot(*(point - path[1]))
         for step in np.arange(0.5, NUDGE_M + 0.01, 0.5):
             moved = point + away * step
-            if self.fits(footprint(model, moved, yaw, length), terrace):
+            if self.fits(shape_at(moved), terrace):
                 return moved
         return None
 
@@ -553,8 +557,3 @@ def pick(share: float, choices: tuple) -> int:
         if share < 0:
             return value
     return choices[0][0]
-
-
-def place(roadside) -> dict[str, list[list[float]]]:
-    """Stands the tile's street furniture in the roadside's lists and returns its seats by pose."""
-    return Furniture(roadside).place()

@@ -38,7 +38,7 @@ def roadside() -> Roadside:
     side.heights, side.paved = FlatGround(), OpenPaved()
     side.building_tree = shapely.STRtree([])
     side.town = lambda point: False
-    side.models, side.signs, side.wires, side.walls, side.posts = {}, {}, [], [], []
+    side.models, side.signs, side.wires, side.walls, side.posts, side.scales = {}, {}, [], [], [], {}
     side.osm = {"elements": []}
     return side
 

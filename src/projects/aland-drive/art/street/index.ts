@@ -6,5 +6,5 @@ export { streetColours, streetMaterials, streetPaint, streetPalette, type Street
 export { buildMidsummerPole } from "./midsummer";
 export { STREET_PARTS, type StreetPart } from "./paint";
 export { rowAlong, runSections, scatterVerge, shareOut, treeRow, yawAlong, type HeightAt, type LinePoint, type TreeRow, type VergeScatter } from "./place";
-export { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, buildSpeedCamera, GUARD_RAIL_M } from "./road";
+export { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, GUARD_RAIL_M } from "./road";
 export { buildGrassTuft, buildSeedGrass, buildWildflowers, type Wildflower } from "./verge";

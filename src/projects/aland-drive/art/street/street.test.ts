@@ -7,7 +7,7 @@ import { buildFlagpole } from "./flags";
 import { buildLinden } from "./linden";
 import { buildMidsummerPole } from "./midsummer";
 import { rowAlong, runSections, treeRow } from "./place";
-import { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, buildSpeedCamera, GUARD_RAIL_M } from "./road";
+import { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, GUARD_RAIL_M } from "./road";
 import { buildGrassTuft, buildSeedGrass, buildWildflowers } from "./verge";
 
 const triangles = (geometry: RoadsideModel["near"] | null) => (geometry?.index?.count ?? 0) / 3;
@@ -19,7 +19,6 @@ describe("street triangle budgets", () => {
     railEnd: buildGuardRailEnd(),
     railReturn: buildGuardRailReturn(),
     reflector: buildReflectorPost(),
-    camera: buildSpeedCamera(),
     grass: buildGrassTuft(),
     seedGrass: buildSeedGrass(),
     lupine: buildWildflowers("lupine"),
