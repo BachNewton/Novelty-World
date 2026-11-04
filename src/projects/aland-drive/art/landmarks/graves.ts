@@ -117,9 +117,12 @@ function stoneWall(mesh: MeshBuilder, at: (x: number, z: number) => number, half
       const s = (step + 0.5) / blocks;
       const [x, z] = [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s];
       const y = at(x, z);
-      const high = WALL.high * (far ? 1 : 0.8 + random() * 0.35);
+      // Neighbouring blocks overlap a little at their ends, so they alternate in height and thickness: two that matched
+      // there would share a plane.
+      const odd = step % 2;
+      const high = WALL.high * (far ? 1 : 0.8 + odd * 0.2 + random() * 0.15);
       const paint = far ? flat("plinth-granite", 0.9) : blend(flat("plinth-granite", 0.86 + random() * 0.14), flat("field-stone"), random() * 0.6);
-      mesh.box([x, y + high / 2 - 0.2, z], [length / blocks + (far ? 0 : 0.05), high + 0.4, WALL.thick * (far ? 1 : 0.85 + random() * 0.3)], paint, -turn + (far ? 0 : (random() - 0.5) * 0.08), paint);
+      mesh.box([x, y + high / 2 - 0.2, z], [length / blocks + (far ? 0 : 0.05), high + 0.4, WALL.thick * (far ? 1 : 0.85 + odd * 0.17 + random() * 0.12)], paint, -turn + (far ? 0 : (random() - 0.5) * 0.08), paint);
     }
   });
 }
@@ -201,7 +204,7 @@ export const PRASTO_SITES: GroundSite[] = PLOTS.map((spec) => ({
 
 /*
  * Johannisberg's grave field: the mounds, east and north of the site's middle on the height, kept clear of the road
- * 30 m to its north and the houses to its west. Their places are a seeded scatter over the height, fixed here so the car's
+ * 30 m to its north, the houses to its west and the barn to its east. Their places are a seeded scatter over the height, fixed here so the car's
  * walls are the same mounds the art draws.
  */
 interface Mound {
@@ -217,7 +220,7 @@ function mounds(): Mound[] {
   const random = seeded(7);
   const placed: Mound[] = [{ east: 4, north: -2, radius: 5.5, high: 1.1, cairn: true, kerb: true }];
   for (let tries = 0; placed.length < 18 && tries < 400; tries++) {
-    const east = -14 + random() * 44;
+    const east = -14 + random() * 30;
     const north = -34 + random() * 50;
     const radius = 1.6 + random() * 2.8;
     if (north > 14 || (east < -8 && north > -4)) continue;
@@ -229,6 +232,9 @@ function mounds(): Mound[] {
 }
 
 const MOUNDS = mounds();
+
+/** A cairn's stones are the field's grey, lichened, not a headstone's dressed red. */
+const fieldStone = (random: () => number): Paint => blend(flat("field-stone", 0.85 + random() * 0.25), flat("earth-turf"), random() * 0.3);
 
 function mound(mesh: MeshBuilder, ground: Ground, spec: Mound, random: () => number, far: boolean) {
   const { east, north, radius, high, cairn, kerb } = spec;
@@ -254,7 +260,7 @@ function mound(mesh: MeshBuilder, ground: Ground, spec: Mound, random: () => num
       const along = reach / radius;
       const y = base + high * (1 - along * along) - 0.08;
       const size = 0.35 + random() * 0.4;
-      mesh.box([centre[0] + Math.cos(angle) * reach, y, centre[1] + Math.sin(angle) * reach], [size, size * 0.55, size * 0.8], granite(random), random() * Math.PI);
+      mesh.box([centre[0] + Math.cos(angle) * reach, y, centre[1] + Math.sin(angle) * reach], [size, size * 0.55, size * 0.8], fieldStone(random), random() * Math.PI);
     }
   }
   if (kerb) {
@@ -264,7 +270,7 @@ function mound(mesh: MeshBuilder, ground: Ground, spec: Mound, random: () => num
       const [x, z] = [centre[0] + Math.cos(angle) * (radius + 0.3), centre[1] + Math.sin(angle) * (radius + 0.3)];
       const y = ground(x, -z);
       const size = 0.45 + random() * 0.3;
-      mesh.box([x, y + size * 0.25, z], [size, size * 0.8, size * 0.7], granite(random), angle);
+      mesh.box([x, y + size * 0.25, z], [size, size * 0.8, size * 0.7], fieldStone(random), angle);
     }
   }
 }

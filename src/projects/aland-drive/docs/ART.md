@@ -120,5 +120,6 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - The rural kit's near material read every pattern's metres, distance and per-place roll as zero outside the first branch that built them (a node first made inside one `If` branch is set only there), so boards, birch bark, fleece, straw and the per-place offsets of rock were flat in the game until the cattle found it. Fixed: boathouses, sheds, birches and sheep now wear their patterns as designed, and each boulder its own.
 - The shrub planting grows bushes thick across inland pastures by forest edges, where real grazing keeps them down; a planting reads only images, so it can't know a field is grazed.
 - Bus shelters stand in the verge's grass, which grows inside them: the verge reads only images, so it can't know they're there.
+- The verge, bushes and junipers grow through the ground sites' low parts, a statue's bottom step, a graveyard's plot, a grave mound, for the same reason; trees from the canopy stand in the Prästö graveyards, as they do in the real pine wood.
 - Power lines cross the forest with trees standing under the wires, where a real line has a cleared corridor.
 - Check real shopfronts on central Mariehamn, and the 11 solids holding OSM roads.
