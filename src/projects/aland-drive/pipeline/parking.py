@@ -32,6 +32,7 @@ from grid import Tile, tile_from_name
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
 from sources import osm_path
 from vectors import tagged_paved_areas
+from progress import Progress
 
 FILE = "parked.json"
 APRON_FLOATS = 5
@@ -311,12 +312,13 @@ def bake(tile: Tile, folder: Path, tiles: Path) -> dict:
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
     """Adds parked cars to built tiles, once their roadside is there to keep clear of."""
+    progress = Progress("parking", len(names))
     for name in names:
         folder = tiles / name
         entry = bake(tile_from_name(name), folder, tiles)
         manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
         replace_text(folder / "tile.json", json.dumps({**manifest, "parked": entry}, ensure_ascii=False, indent=2))
-        print(name, entry["count"])
+        progress.finished(f"{name} ({entry['count']} cars)")
 
 
 def main() -> None:
