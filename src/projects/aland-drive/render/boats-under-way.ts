@@ -31,7 +31,10 @@ const SHIP_SMALL_SCALE = 124 / 176;
 
 type Kit = "town" | "boats" | "identity";
 
-const MODELS: Record<BoatModel, { kit: Kit; build: () => RoadsideModel; reachM?: number; drawnAs?: BoatModel; scale?: number }> = {
+/** A pose's yaw points a model's +x where it sails; the town and identity kits build their ferries bow along +x, the boats kit its boats bow along +z. */
+export const BOW_TURN: Record<Kit, number> = { town: 0, identity: 0, boats: Math.PI / 2 };
+
+export const MODELS: Record<BoatModel, { kit: Kit; build: () => RoadsideModel; reachM?: number; drawnAs?: BoatModel; scale?: number }> = {
   ship: { kit: "town", build: buildBalticFerry, reachM: SHIP_REACH_M },
   // The same ship, smaller: one list and its two draws.
   "ship-small": { kit: "town", build: buildBalticFerry, drawnAs: "ship", scale: SHIP_SMALL_SCALE },
@@ -75,7 +78,7 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
     const places: Placement[] = members.map(({ index }) => ({ x: 0, y: WATER_Y, z: 0, scale: 0, ...(kit === "boats" ? { shear: (index * 0.618) % 1, depth: (index * 0.377) % 1 } : {}) }));
     const meshes = placeModel(model, places, materials[kit]);
     for (const mesh of meshes) scene.add(mesh);
-    return { members, meshes, model };
+    return { members, meshes, model, turn: BOW_TURN[kit] };
   });
   const poses: BoatPose[] = fleet.map(() => ({ x: 0, z: 0, yaw: 0, speedMs: 0, shown: false }));
   let shownAtAll = true;
@@ -85,7 +88,7 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
     update(seaSeconds: number, seconds: number, camera: { x: number; z: number }) {
       time.value += seconds;
       fleet.forEach(({ voyage }, index) => (poses[index] = voyage.poseAt(seaSeconds)));
-      for (const { members, meshes, model } of lists) {
+      for (const { members, meshes, model, turn } of lists) {
         let [nearest, farthest] = [Infinity, 0];
         for (const { index } of members) {
           const { x, z, shown } = poses[index];
@@ -100,7 +103,7 @@ export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs) {
         const fit = geometry.getAttribute("fit") as InstancedBufferAttribute;
         members.forEach(({ index, scale }, at) => {
           const { x, z, yaw, shown } = poses[index];
-          place.setXYZW(at, x, WATER_Y, z, yaw);
+          place.setXYZW(at, x, WATER_Y, z, yaw + turn);
           fit.setX(at, shown ? scale : 0);
         });
         place.needsUpdate = true;
