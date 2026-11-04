@@ -34,6 +34,9 @@ REACH_M = 400.0
 GROW_M = 0.5
 # A footprint or solid this much inside a plan is under the site.
 UNDER = 0.5
+# A fuel station's canopy is placed from the photo, and the data's outline of it may cross it at another angle (Godby's
+# lies a third under it), while no other building reaches under any station's canopy.
+UNDER_CANOPY = 0.25
 # A raised way this much inside the terminal's plan is one of its walkways, corridors or car ramps, which the model draws.
 RAISED_ROAD_UNDER = 0.6
 
@@ -65,8 +68,9 @@ def read_sites(path: Path = SITES_FILE) -> list[Site]:
     return sites
 
 
-def _under(shape: Polygon, plan) -> bool:
-    return shape.area > 0 and shape.intersection(plan).area >= UNDER * shape.area
+def _under(shape: Polygon, site: Site) -> bool:
+    share = UNDER_CANOPY if site.near_only and site.inside else UNDER
+    return shape.area > 0 and shape.intersection(site.plan).area >= share * shape.area
 
 
 class Landmarks:
@@ -81,7 +85,7 @@ class Landmarks:
 
     def replaces_solid(self, name: str, footprint: Polygon) -> bool:
         for site in self.near:
-            if name in site.solids or (site.inside and _under(footprint, site.plan)):
+            if name in site.solids or (site.inside and _under(footprint, site)):
                 self.replaced[site.id].append(name)
                 return True
         return False
@@ -89,7 +93,7 @@ class Landmarks:
     def covers(self, name: str, footprint: Polygon) -> bool:
         """A footprint under a site: the generated shape it would get stands through the model."""
         for site in self.near:
-            if _under(footprint, site.plan):
+            if _under(footprint, site):
                 self.replaced[site.id].append(name)
                 return True
         return False

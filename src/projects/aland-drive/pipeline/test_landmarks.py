@@ -69,6 +69,13 @@ class OverRoads(unittest.TestCase):
             osm.write_text(json.dumps(tags), encoding="utf-8")
             self.assertEqual([road["id"] for road in sites.off_raised(roads, osm)], [2, 3])
 
+    def test_a_station_takes_the_canopy_outline_that_crosses_it_but_not_the_shop_beside_it(self):
+        station = Site("fuel-1", 103000, 6683000, None, frozenset(), True, box(102990, 6682995, 103010, 6683005), [], True)
+        sites = Landmarks(TILE, [station])
+        # Drawn across the canopy at another angle: a third of it lies under.
+        self.assertTrue(sites.covers("canopy", box(102995, 6682985, 103005, 6683015)))
+        self.assertFalse(sites.covers("shop", box(103008, 6682990, 103030, 6683010)))
+
 
 class Listing(unittest.TestCase):
     def test_a_site_over_the_edge_replaces_here_but_is_listed_by_its_own_tile(self):
