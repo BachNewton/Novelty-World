@@ -34,6 +34,7 @@ import json
 import math
 import os
 from dataclasses import dataclass
+from functools import cached_property
 from multiprocessing import get_context
 from pathlib import Path
 
@@ -652,15 +653,25 @@ class Roadside:
                     found.append((chain, along, towards, best))
         return found
 
+    @cached_property
+    def mapped_signs(self) -> list[tuple[np.ndarray, str]]:
+        return [(self.local(element), "stop" if element["tags"]["highway"] == "stop" else "give-way") for element in self.osm["elements"] if element["type"] == "node" and element["tags"].get("highway") in ("give_way", "stop")]
+
+    def junction_sign(self, chain: Chain, along: float, greater: Chain) -> str | None:
+        """The sign a lesser road's end has where it meets a greater one, "stop" or "give-way", or None. The lane map's right of way
+        reads the same, so what traffic does can't disagree with what a player sees."""
+        end = chain.ring_at(along)[CENTRE, :2]
+        nodes = [kind for point, kind in self.mapped_signs if np.hypot(*(point - end)) < MAPPED_SIGN_M]
+        by_rule = greater.rank <= MAIN_RANK and 1 <= chain.rank <= STREET_RANK
+        if not nodes and not by_rule or self.near_signals(end):
+            return None
+        return "stop" if "stop" in nodes else "give-way"
+
     def junction_signs(self, landings: list) -> None:
-        mapped = [(self.local(element), "stop" if element["tags"]["highway"] == "stop" else "give-way") for element in self.osm["elements"] if element["type"] == "node" and element["tags"].get("highway") in ("give_way", "stop")]
         for chain, along, towards, greater in landings:
-            end = chain.ring_at(along)[CENTRE, :2]
-            nodes = [kind for point, kind in mapped if np.hypot(*(point - end)) < MAPPED_SIGN_M]
-            by_rule = greater.rank <= MAIN_RANK and 1 <= chain.rank <= STREET_RANK
-            if not nodes and not by_rule or self.near_signals(end):
+            name = self.junction_sign(chain, along, greater)
+            if name is None:
                 continue
-            name = "stop" if "stop" in nodes else "give-way"
             # Traffic heading for the end keeps right: the chain's right side if it runs to the last section, its left if to the first.
             side, travel = (1, chain.direction_at(along)) if towards > 0 else (-1, -chain.direction_at(along))
             back = SIGN_BACK_M[0]
@@ -730,6 +741,10 @@ class Roadside:
         return any(np.hypot(*(point - centre)) < SIGNAL_CLUSTER_M for centre in self.signalled)
 
     def signals(self) -> None:
+        for centre in self.signal_centres():
+            self.signal_junction(centre)
+
+    def signal_centres(self) -> list[np.ndarray]:
         """OSM's signal nodes, a junction's grouped: its own node and the signalled crossings round it. A fire station's signals stay dark, so they get none."""
         nodes = []
         for element in self.osm["elements"]:
@@ -741,9 +756,7 @@ class Roadside:
         for node in nodes:
             joined = [group for group in groups if any(np.hypot(*(node[0] - other)) < SIGNAL_CLUSTER_M for other, _ in group)]
             groups = [group for group in groups if not any(group is other for other in joined)] + [[node, *(member for group in joined for member in group)]]
-        for group in groups:
-            junction = [point for point, own in group if own] or [point for point, _ in group]
-            self.signal_junction(np.mean(junction, axis=0))
+        return [np.mean([point for point, own in group if own] or [point for point, _ in group], axis=0) for group in groups]
 
     def arms(self, centre: np.ndarray) -> list[tuple[Chain, float, int, np.ndarray]]:
         """The roads leaving a junction: each one's chain, how far along it the junction is, which way along it the arm runs, and its way out on the ground."""

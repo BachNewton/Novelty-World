@@ -555,6 +555,13 @@
   --color-aland-drive-lab-cone: #4aa8ff;
   --color-aland-drive-lab-still: #c9cbc7;
   --color-aland-drive-lab-hot: #ff3b30;
+  --color-aland-drive-lane-road: #e8f4ff;
+  --color-aland-drive-lane-path: #8fe39a;
+  --color-aland-drive-lane-priority: #2ee06b;
+  --color-aland-drive-lane-yield: #ffb020;
+  --color-aland-drive-lane-off: #ff2e2e;
+  --color-aland-drive-lane-back: #b48cff;
+  --color-aland-drive-lane-issue: #ff2bd6;
 }
 
 /* Tell the browser the UI is dark so it themes NATIVE controls to match —

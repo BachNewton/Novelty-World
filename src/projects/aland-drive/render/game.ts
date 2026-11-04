@@ -2,6 +2,8 @@ import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Grou
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
+import { createLaneOverlay } from "./lane-overlay";
+import { LaneNet } from "../traffic/lane-net";
 import { FLAT_LIGHT, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
@@ -109,6 +111,10 @@ export interface GameProbe {
   addOnCounts: () => { villas: number; entrances: number; nearSites: number };
   /** Shows the parked cars or leaves them out, to see what they do. */
   showParked: (shown: boolean) => void;
+  /** The loaded tiles' lane maps, joined at their seams. */
+  lanes: () => LaneNet;
+  /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
+  showLanes: (shown: boolean) => void;
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -599,6 +605,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     town: { inputs: { colour: colorOf, linear, hazed, sun: manifest.sun }, ink: (name) => `#${token(name).getHexString()}` },
   });
   const parkedCars = createParkedCars(scene, manifest.sun, hazed);
+  const laneNet = new LaneNet();
+  const laneOverlay = createLaneOverlay(scene, laneNet, token);
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
@@ -619,7 +627,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world,
     fetcher,
     {
-      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked, addOns }, done) {
+      place({ detail, shade: mips, ground, buildings: cells, roadDress, models, docks: moored, stoneWalls: walls, roadside: placed, people: crowd, parked, addOns, lanes }, done) {
         const meshes = ribbonMeshes(detail, roadDress, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
@@ -633,6 +641,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, [{ sections: walls, outM: 0 }, ...furnitureClearances(placed.models)]);
         roadside.add(detail.name, placed);
         parkedCars.add(detail.name, parked);
+        laneNet.add(detail.name, lanes);
         buildingAddOns.add(detail.name, addOns);
         if (detail.bridges.positions.length > 0) {
           const mesh = bridgeMesh(detail.bridges, bridgeMaterial);
@@ -674,6 +683,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
         parkedCars.remove(detail.name);
+        laneNet.remove(detail.name);
         buildingAddOns.remove(detail.name);
         landmarks.remove(detail.name);
         const bridge = bridges.get(detail.name);
@@ -1194,6 +1204,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       parkedCounts: parkedCars.counts,
       addOnCounts: buildingAddOns.counts,
       showParked: parkedCars.show,
+      lanes: () => laneNet,
+      showLanes: laneOverlay.show,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -1326,6 +1338,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();
       parkedCars.dispose();
+      laneOverlay.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
       outbuildingMaterials.near.dispose();

@@ -1,0 +1,130 @@
+/*
+ * A tile's lane map, as `pipeline/lanes.py` writes it: the lines traffic drives
+ * along, one direction of one laid road between junctions, and the connectors
+ * across each junction from one lane's end to another's start, each listing the
+ * connectors it gives way to. Places are in the scene (east +x, up +y, north -z).
+ * Decoded in the tile worker into plain arrays; `LaneNet` joins the loaded tiles'.
+ */
+
+export type Turn = "straight" | "left" | "right" | "back";
+
+/** How a junction's right of way works: by a sign, a ring, lights, a drive giving way, or traffic from the right. */
+export type JunctionKind = "roundabout" | "signals" | "stop" | "give-way" | "drive" | "right" | "join" | "end";
+
+/** Where a lane or connector can't sit cleanly on the drawn road. */
+export type LaneIssueKind = "off-road" | "buried" | "step" | "kink" | "unreachable";
+
+export interface LaneIssue {
+  kind: LaneIssueKind;
+  x: number;
+  y: number;
+  z: number;
+  detail: string;
+  /** How many of its kind were found within a few tens of metres. */
+  count: number;
+  /** On a footway or cycleway rather than a road. */
+  path?: true;
+}
+
+/** Every `points` is scene (x, y, z) in whole centimetres, the first point as it is and each after as the step from the one before. */
+export interface LanesFile {
+  lanes: {
+    points: number[];
+    kind: string;
+    chain: number;
+    forward: boolean;
+    lane: number;
+    of: number;
+    width: number;
+    /** Each limit in km/h from where it starts, in metres along the lane. */
+    speeds: [number, number][];
+    from?: number;
+    to?: number;
+    seamStart?: true;
+    seamEnd?: true;
+  }[];
+  connectors: { from: number; to: number; junction: number; turn: Turn; points: number[]; yields?: number[]; offM?: number }[];
+  /** Where a path meets a road: from the path's end on to a road lane, or off a road lane on to the path's start. */
+  links?: { path: number; road: number; along: number; onToRoad: boolean; points: number[] }[];
+  junctions: { kind: JunctionKind; x: number; z: number; arms: { sign?: "stop" | "give-way"; yields?: true; phase?: number }[] }[];
+  issues: LaneIssue[];
+}
+
+/** A line of points in `TileLanes.points`. */
+export interface LaneLine {
+  first: number;
+  count: number;
+}
+
+export interface Lane extends LaneLine {
+  kind: string;
+  /** A footway or cycleway's, for cyclists and walkers. */
+  path: boolean;
+  width: number;
+  speeds: [number, number][];
+  /** The connectors leaving its end. */
+  next: number[];
+  seamStart: boolean;
+  seamEnd: boolean;
+}
+
+export interface Connector extends LaneLine {
+  from: number;
+  to: number;
+  junction: number;
+  turn: Turn;
+  /** The connectors it gives way to. */
+  yields: number[];
+  /** How far it leaves the drawn road, where it does by more than half a metre. */
+  offM: number;
+}
+
+/** A path's end on a road lane, at a distance along it: walkers and cyclists step on or off there. */
+export interface PathLink extends LaneLine {
+  path: number;
+  road: number;
+  along: number;
+  onToRoad: boolean;
+}
+
+export interface TileLanes {
+  /** Scene (x, y, z) of every lane's points, then every connector's, then every link's. */
+  points: Float32Array;
+  lanes: Lane[];
+  connectors: Connector[];
+  links: PathLink[];
+  junctions: LanesFile["junctions"];
+  issues: LaneIssue[];
+}
+
+export const NO_LANES: TileLanes = { points: new Float32Array(0), lanes: [], connectors: [], links: [], junctions: [], issues: [] };
+
+const PATH_KINDS = new Set(["footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"]);
+
+export function decodeLanes(file: LanesFile): TileLanes {
+  const links = file.links ?? [];
+  const total = [...file.lanes, ...file.connectors, ...links].reduce((sum, line) => sum + line.points.length, 0);
+  const points = new Float32Array(total);
+  let at = 0;
+  // Whole centimetres, each point after the first as the step from the one before.
+  const place = (values: number[]): LaneLine => {
+    const sum = [0, 0, 0];
+    for (let value = 0; value < values.length; value++) {
+      sum[value % 3] += values[value];
+      points[at + value] = sum[value % 3] / 100;
+    }
+    const line = { first: at / 3, count: values.length / 3 };
+    at += values.length;
+    return line;
+  };
+  const lanes: Lane[] = file.lanes.map((lane) => ({ ...place(lane.points), kind: lane.kind, path: PATH_KINDS.has(lane.kind), width: lane.width, speeds: lane.speeds, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true }));
+  const connectors: Connector[] = file.connectors.map((connector, index) => {
+    if (connector.from >= lanes.length || connector.to >= lanes.length) throw new Error(`connector ${index} joins lanes the file doesn't have`);
+    lanes[connector.from].next.push(index);
+    return { ...place(connector.points), from: connector.from, to: connector.to, junction: connector.junction, turn: connector.turn, yields: connector.yields ?? [], offM: connector.offM ?? 0 };
+  });
+  const pathLinks = links.map((link) => ({ ...place(link.points), path: link.path, road: link.road, along: link.along, onToRoad: link.onToRoad }));
+  return { points, lanes, connectors, links: pathLinks, junctions: file.junctions, issues: file.issues };
+}
+
+export const laneTransfers = (lanes: TileLanes): ArrayBuffer[] => [lanes.points.buffer as ArrayBuffer];

@@ -26,6 +26,7 @@ import buildings as solids
 import canopy
 import ground as ground_colour
 import landmarks as landmark_sites
+import lanes
 import laser
 import docks
 import farm
@@ -429,6 +430,8 @@ def main() -> None:
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
+    # Beside the roadside, whose sign rule its right of way reads. It needs only each tile's own surface and OSM's signs.
+    lanes.bake_tiles(names, OUTPUT)
     waterfront.bake_tiles(names, OUTPUT)
     seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside, whose lamps and signs the cars keep clear of.
