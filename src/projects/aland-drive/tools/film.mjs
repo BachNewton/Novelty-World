@@ -59,7 +59,8 @@ await page.evaluate(() => {
 
 // From here the page's time, timers and animation frames move only when told to: a frame's time per frame.
 await page.clock.install();
-await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+// A moment just ahead of the page's own: its clock keeps running until paused, and can't be paused in its past.
+await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
 const frames = mkdtempSync(join(tmpdir(), "aland-film-"));
 const total = Math.round(SECONDS * FPS);
 const seaFrom = SEA === undefined ? null : Date.parse(SEA) / 1000;
