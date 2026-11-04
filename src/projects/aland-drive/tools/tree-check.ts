@@ -4,6 +4,7 @@
 // walls, and the rural kit's sheds, boathouses and windmills), the neighbouring tiles' included. A tree's crown is in a
 // building when the building comes nearer its foot than its crown can reach (`CROWN_REACH`). The town dressing's lindens
 // are counted against the buildings too, by each crown's own spread.
+// `shortened` counts the trees the clearing made shorter, `shortenedByHalf` those it more than halved.
 //
 // Usage: npx tsx src/projects/aland-drive/tools/tree-check.ts [--folder=<tiles>] [--tile=<name>] [--ungated] [--uncleared]
 // --ungated leaves out the road mask, and --uncleared the clearing round buildings, to see what the canopy image alone would do.
@@ -166,7 +167,7 @@ function distanceToBuildings(x: number, z: number, reach: number): number {
   return best;
 }
 
-const counts = { trees: 0, onCarriageway: 0, onRibbon: 0, withinMetre: 0, crownOverCarriageway: 0, trunkInBuilding: 0, crownInBuilding: 0, lindens: 0, lindenCrownInBuilding: 0 };
+const counts = { trees: 0, onCarriageway: 0, onRibbon: 0, withinMetre: 0, crownOverCarriageway: 0, shortened: 0, shortenedByHalf: 0, trunkInBuilding: 0, crownInBuilding: 0, lindens: 0, lindenCrownInBuilding: 0 };
 const byTier = [0, 0, 0];
 
 const tiles = manifest.tiles.filter(({ name }) => !ONLY || name === ONLY);
@@ -225,6 +226,8 @@ for (const { name, west, north } of tiles) {
       if (!treeStands(column, row, readImage(stands, manifest.stands.pixels, 4, 3, manifest.tileM / manifest.stands.pixels, localX, localZ) / 255)) continue;
       if (GATED && Math.max(await roadsAt(x, z), await roadsAt(x + lookOver(x), z + lookOver(z))) > ROAD_COVERAGE) continue;
       counts.trees++;
+      if (height < rolled) counts.shortened++;
+      if (height < rolled / 2) counts.shortenedByHalf++;
       const reach = height * CROWN_REACH;
       const fromBuildings = distanceToBuildings(x, z, reach);
       if (fromBuildings === 0) counts.trunkInBuilding++;
