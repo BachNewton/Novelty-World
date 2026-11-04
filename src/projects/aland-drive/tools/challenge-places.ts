@@ -39,7 +39,8 @@ const BETWEEN_CARS_M = 0.6;
 /** How far a car's side may stand past the carriageway's edge, on the shoulder. */
 const ONTO_SHOULDER_M = 0.3;
 const GATE_EVERY_M = 400;
-const GATE_PAST_SURFACE_M = 4;
+// Generous, as a checkpoint should be: the GPS line can lie a few metres off the road as laid, and a car cutting a bend lies further.
+const GATE_PAST_SURFACE_M = 12;
 /** A gate is moved on from a bend sharper than this over `BEND_READ_M` either side, so it lies square across a straight. */
 const BEND_RADIANS = (25 * Math.PI) / 180;
 const BEND_READ_M = 15;

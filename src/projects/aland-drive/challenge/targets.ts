@@ -2,23 +2,22 @@ import type { Challenge, ChallengeKind } from "./types";
 
 /*
  * One rule for every challenge's target, from its par: the scripted driver's
- * run in the challenge's car (`tools/challenge-par.ts`), cornering at that car's
- * own grip, flat out wherever the bends allow. It doesn't brake late, carry speed
- * into a bend or pick a line, so a player can beat it on a Route, by a little:
- * par is a floor, and the hardest target asks for no more than `FLOOR_SHARE` of
- * it. At a Speed trap it is already flat out from the start line, so the
- * hardest target is par itself. How far the target sits past par is what makes
- * it easy, medium or hard.
+ * run in the challenge's car (`tools/challenge-par.ts`), braking
+ * for each bend as late as the grip of the ground under it allows. It keeps
+ * to the middle of the road and takes no line, so a good run can match it, and
+ * the hardest target is par itself: a challenge the driver passes, which a
+ * player has to drive at the car's limit to pass. How far the target sits
+ * past par is what makes it easy, medium or hard.
  */
 
 export type Difficulty = "easy" | "medium" | "hard";
 
 /** A Route's target time, as a share of par. */
-const ROUTE_SHARE: Record<Difficulty, number> = { easy: 1.1, medium: 1, hard: 0.95 };
+const ROUTE_SHARE: Record<Difficulty, number> = { easy: 1.08, medium: 1.03, hard: 1 };
 /** A Speed trap's target speed, as a share of par. */
-const TRAP_SHARE: Record<Difficulty, number> = { easy: 0.9, medium: 0.95, hard: 0.98 };
+const TRAP_SHARE: Record<Difficulty, number> = { easy: 0.93, medium: 0.96, hard: 0.99 };
 /** The most a player can be asked to beat par by: a Route's time, a Speed trap's speed. */
-const FLOOR_SHARE: Record<ChallengeKind, number> = { route: ROUTE_SHARE.hard, "speed-trap": 1 };
+const FLOOR_SHARE: Record<ChallengeKind, number> = { route: 1, "speed-trap": 1 };
 
 /** Seconds rounded up to a tenth and speeds down to a whole km/h, so rounding only ever eases a target. */
 export function targetFromPar(kind: ChallengeKind, par: number, difficulty: Difficulty): number {

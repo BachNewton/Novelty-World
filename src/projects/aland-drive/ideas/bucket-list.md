@@ -2,7 +2,7 @@
 
 An idea with its main decisions taken, built for solo and co-op, both kinds (see the project's `CLAUDE.md`, Challenges): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View.
 
-**The system is the foundation; the challenges on it are a first pass.** The owner played the solo challenges and judged the system sound and the list not yet good: the short ones are boring, and every one was beaten at the first try. So the twelve below, their roads, cars and targets, aren't a standard to copy or measure new challenges against. They're placeholders that prove the system, to be redesigned. Co-op is built and passes its e2e spec, but the owner hasn't played it yet.
+**The system is the foundation; the list on it is still being found.** The owner played the first twelve and judged the system sound and the list not yet good: the short ones were boring, and every one was beaten at the first try. The second list below replaced it, longer and with targets from a driver that brakes late, and it hasn't been played yet. Neither is a standard to copy. Co-op is built and passes its e2e spec, but the owner hasn't played it yet.
 
 A challenge is a timed run on its own, so it needs no AI drivers and no traffic. It needs only what's there: the road network and its GPS routes, the car's state, the places, and the online world.
 
@@ -53,43 +53,43 @@ The game has no menu of its own yet. The controller's **Menu** button opens one,
 
 **Joining.** A challenge's start is on both maps for everyone. A player who drives into its start ring is shown its own button (X, or E): alone in the ring it starts the challenge solo, and with another player there it offers Solo or Co-op, not the game menu. Co-op asks that player, whose HUD prompts the same button, and A on Join puts them in; the first countdown starts once both cars are on their places. Two is the most a challenge takes: a third player in the ring isn't offered the co-op one until it's over.
 
-## The first list
+## The list
 
-A first pass, built to prove the system (see the top: not a standard). Twelve challenges, each on a real road or place from `docs/DRIVING-CULTURE.md` and `map/places.ts`, with lengths from that doc's table where it has them. Each car is picked for its character in `sim/cars.ts`, as Forza matched the car to the challenge. Every challenge is played solo or co-op.
+The second list, replacing a first pass of twelve that was too short and too easy. Eleven challenges, each on a real road, one to four minutes at par, each car picked for its road: gravel roads go to the rally car or the old four-by-four, tarmac to road and sports cars. All are dry (see "The car suits the road"). Every challenge is played solo or co-op. Par and target are from `challenge/targets.json`.
 
-| # | Title | Kind | Car | Where |
-|---|---|---|---|---|
-| 1 | Run the Ytterby sprint stage | Route | Grus (rally, turbo flat four) | Tomtbergsvägen and Ljufviksvägen, Jomala: the real Rallysprint's gravel stage, 1.6 + 2.5 km |
-| 2 | Climb the Backrace road | Route | Bris (V6 cruiser) | Norra Sundsvägen, the real hill race's road, cut to a few kilometres |
-| 3 | Climb to Soltuna | Route | Sten (hot hatch) | Getabergsvägen to the Getabergen tower, 1.2 km uphill, the hill race's first road |
-| 4 | Nearly 200 on Getavägen | Speed trap | Sund (the fastest car) | Getavägen at Törnebolstad, 201 m from a standing start: the 2024 Streetrace record, nearly 200 km/h |
-| 5 | 201 metres at Hammarbo | Route | Ström (electric, all its shove at once) | Hammarlandsvägen at Hammarbo, from a standstill: the 2025–26 Streetrace |
-| 6 | Caught doing 145 through Lemland | Speed trap | Sälta (tired old estate) | Lemlandsvägen. A real [news story](https://www.alandstidningen.ax/nyheter/korde-145-kmh-genom-lemland), and hard in the slowest estate |
-| 7 | Storagatan, harbour to harbour | Route | Vik (tiny open roadster) | Storagatan, Mariehamn, 1.0 km: the weekend cruise's street |
-| 8 | Castle to fortress | Route | Ankar (V12 saloon) | Kastelholm Castle to Bomarsund Fortress |
-| 9 | Up Orrdalsklint | Route | Berg (old mud-tyred 4×4) | To the Orrdalsklint viewpoint, Saltvik, the main island's highest point |
-| 10 | Möckelöbacken | Speed trap | Holm (soft, wallowing pickup) | Hammarlandsvägen at Möckelö, the 2023 Streetrace |
-| 11 | Road 2, flat out | Speed trap | Fjärd (estate, calm at 240) | Nya Godbyvägen, the 2021–22 Streetrace road, on its longest straight |
-| 12 | Post road, the western leg | Route | Kobb (diesel van) | Gamla Postrotevägen from the Eckerö Post and Customs House east: the mail goes through |
+| Title | Kind | Car | Road | Par | Target |
+|---|---|---|---|---|---|
+| Run the Ytterby sprint stage | Route | Grus (rally) | The Rallysprint's gravel stage, Jomala, 4.1 km | 2:31 | 2:31, hard |
+| Take the Backrace road flat out | Route | Sund (the fastest car) | Norra Sundsvägen, the hill race's road, Sund, 7.3 km | 3:54 | 3:54, hard |
+| Get the V12 to Långnäs before the boat | Route | Ankar (V12 saloon) | Ängösundsvägen to the ferry harbour, Lumparland, 5.9 km | 3:04 | 3:04, hard |
+| Find Djurvik in the old four-by-four | Route | Berg (off-road) | Djurvikvägen's gravel, Hammarland, 4.0 km | 3:10 | 3:15, medium |
+| Rally the forest road to Nötviken | Route | Grus (rally) | Nötviken's gravel, Sund, 5.6 km | 3:17 | 3:23, medium |
+| Cruise Skagvägen through Eckerö | Route | Bris (V6 cruiser) | Skagvägen, Eckerö, 3.9 km | 1:40 | 1:48, easy |
+| Wring the hot hatch down Hultvägen | Route | Sten (hot hatch) | Hultvägen, Sund, 2.8 km | 1:33 | 1:36, medium |
+| Castle to fortress along the coast | Route | Bris (V6 cruiser) | Kastelholm to Bomarsund, Sund, 9.8 km | 3:36 | 3:42, medium |
+| Get the post through on the western leg | Route | Kobb (diesel van) | The post road from Eckerö's Post and Customs House over the Marsund bridge, 8.5 km | 3:47 | 3:54, medium |
+| Beat the 145 through Lemland | Speed trap | Sälta (tired old estate) | Lemlandsvägen, 2.3 km to the camera; 145 km/h was a real news story's speed | 148.8 km/h | 147 km/h, hard |
+| Flat out on road 2 | Speed trap | Skerry GT (sports) | Nya Godbyvägen's longest straight, Jomala, 1.5 km to the camera | 239 km/h | 236 km/h, hard |
 
-A run of one to five minutes is what makes retries bearable, so #8 and #12 are measured first and cut to a leg if they're longer. The real post road is about 65 km. The roads and places are the point, so their names stay real. Only clubs, sponsors and brands are invented.
+Left out on the way, each for a reason worth keeping: the 201 m drags and Storagatan, over in seconds; the Soltuna climb, 1.2 km; Orrdalsklint's forest track and Bodkaröjvägen, whose tightest turns the scripted driver can't follow, so neither gets a par. The roads and places are the point, so their names stay real. Only clubs, sponsors and brands are invented.
 
-## Ground, condition and the car's class
+## The car suits the road
 
-Grip by surface and condition (`ideas/surface-grip.md`) gives challenges more to work with, and Forza's bucket lists already used both levers:
+Grip by surface (`ideas/surface-grip.md`) gives every car a class (sports, road, rally, off-road), and the order of the cars changes with the ground: on gravel the rally car and the four-by-fours lead, and the sports cars and the V12 saloon fall to the bottom.
 
-- **The car's class against the ground.** Each car has a class (sports, road, rally, off-road), and the order of the cars changes with the ground: on gravel the sports cars and the V12 saloon are near the bottom, and the rally car and the four-by-fours lead. Forza handed you a car that suited its challenge or fought it ("Ignore the Road in a Bowler EXR S", a rally Lancia "Through a Forest at Night"). So a challenge's car can be chosen to fight its road, and a sports car on a gravel stage is what makes a challenge hard. The first list mostly matches car to road.
-- **A challenge names its condition.** Forza fixed a challenge's weather and time ("Drift an Enzo Ferrari in the Rain", "Outrun the Sun in a Ferrari F40"). The condition is one input to the physics today (dry, wet, snow or ice, from the dev menu or `?condition=`), so a challenge can carry its own: the run sets it on start for both players and gives back the world's on leaving. Each condition is a challenge of its own with its own target, not a scale on one target. Not built: every challenge runs in whatever condition the world is in, and the targets were measured dry.
-- **Par has to read the ground.** `tools/challenge-par.ts` corners at a share of the car's dry-asphalt grip wherever the road is, so on a gravel stage it overdrives the bends, and a target set on another condition would be meaningless. The racers' speed plan will read the limits table's row for the ground under each stretch, and the par tool should use it when the targets are redone.
+**Forza matched the car to the road.** Its off-road challenges used off-road cars (the Ariel Nomad through the rainforest, the Baldwin trophy truck at the shipwrecks, "Ignore the Road in a Bowler EXR S"), its rally ones rally cars (the RS200 at the golf course, the Lancia Delta S4 through a forest at night) and its road ones road cars. A car that fought its surface wasn't the way a bucket list got hard, and Åland Drive's off-road handling, closer to Test Drive Unlimited's than to Forza's forgiving one, would make it a chore. So a gravel road gets the rally car or a four-by-four, a tarmac one a road or sports car, and the difficulty is the target.
+
+**Weather waits for weather.** Forza fixed some challenges' rain or time of day, and the physics already takes a condition (dry, wet, snow or ice). But until the game has weather and seasons, every challenge is dry. A challenge naming its condition is for later.
 
 ## Targets are measured
 
 Forza's designers tuned their targets. Here they start from the simulation:
 
-- **Par** is the scripted driver's time on the route in the challenge's car (`tools/drive.mjs` already drives a GPS route), or the speed it reaches at the camera flat out. The autopilot slows for bends at one fixed grip whatever the car, so its par on a Route is slow: a floor, not a target.
-- **Each challenge has one target**, set from par and from the owner's own runs, and labelled easy, medium or hard by how far it sits past par, by one rule for every challenge.
-- **A test holds that every challenge can be passed**, solo, by par in its own car beating the target scaled to the autopilot's floor, so no challenge in the list is impossible.
-- **The rule is too kind.** The scripted driver is a floor, and targets near its par were all beaten at the first try. A target has to sit well past what the scripted driver manages, set from the owner's own runs, and a challenge is worth having only if it takes several tries. Short drags that are over in seconds have too little in them to retry.
+- **Par** is the scripted driver's time on the route in the challenge's car, or the speed it reaches at the camera flat out (`tools/challenge-par.ts`). The driver plans its speed: it brakes for each bend as late as the car's grip on the ground under it allows, asphalt or gravel as the road is laid, from the limits table (`sim/car-limits.json`), and goes flat out between. Where it still loses the road (a crest, a camber, grip measured on a flat pad that a real road doesn't give), that one spot is eased and the route driven again, so a bad bend slows par only there. It keeps to the middle of the road and takes no line, so a good run can match it.
+- **Each challenge has one target**, set from par by one rule for every challenge: a Route's target is par for hard, 3% over for medium and 8% for easy, and a Speed trap's is 99%, 96% and 93% of par's speed.
+- **A test holds that every challenge can be passed**: the target is never past par, so the scripted driver itself passes it.
+- **The first list's driver was too kind.** It slowed for any bend in the next five seconds as soon as it saw it, and its targets were all beaten at the first try. The planning driver's par is 5–16% faster on the same roads.
+- **Gates are generous**, reaching 12 m past the laid road either side: the GPS line the gates are laid on can lie metres off the road as laid, and a car cutting a bend lies further, which a narrower gate missed without a sign, so the finish never counted.
 
 ## What's built, in order
 
@@ -101,7 +101,8 @@ Forza's designers tuned their targets. Here they start from the simulation:
 
 ## Still open
 
-- **Better challenges**: a redesign of the list, its roads, cars and targets, on the system as it is.
+- **Whether the second list is right**: whether its targets take several tries and its roads are worth retrying, once it's been played.
+- **Challenges in weather**, once the game has weather and seasons: a challenge naming its own condition, as Forza's "Drift an Enzo Ferrari in the Rain" did.
 - **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.

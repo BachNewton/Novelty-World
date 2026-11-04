@@ -3,9 +3,10 @@ import type { Difficulty } from "./targets";
 import type { ChallengeKind, ScenePoint } from "./types";
 
 /*
- * The first list (`ideas/bucket-list.md`), as written by hand: each challenge's
- * title, kind, car, and the waypoints its route is routed through, picked on
- * the game's own road map. Everything measured from the roads (the start
+ * The list (`ideas/bucket-list.md`), as written by hand: each challenge's
+ * title, kind, car, and the waypoints its route is routed through,
+ * picked on the game's own road map. A car suits its road, as Forza's did: a
+ * gravel road gets a car made for gravel, and what makes one hard is its target. Everything measured from the roads (the start
  * places, the gates, the camera) is `places.json`, written from these by
  * `tools/challenge-places.ts`; par and the target are `targets.json`, from
  * `tools/challenge-par.ts`, by the difficulty asked for here.
@@ -40,85 +41,82 @@ export const CHALLENGE_SPECS: readonly ChallengeSpec[] = [
     difficulty: "hard",
   },
   {
-    id: "backrace-climb",
-    title: "Climb the Backrace road",
+    id: "backrace-road",
+    title: "Take the Backrace road flat out",
     kind: "route",
-    car: "bris",
-    where: "Norra Sundsvägen, Sund: its longest climb, the two kilometres up to the top before Faderviksvägen's mouth. The race's own ends aren't on the map",
+    car: "sund",
+    where: "Norra Sundsvägen, Sund: the hill race's road, from road 2 east to the top before Faderviksvägen's mouth",
     waypoints: [
-      { x: 11343, z: -10553 },
+      { x: 7446, z: -8026 },
       { x: 12785, z: -10623 },
     ],
+    difficulty: "hard",
+  },
+  {
+    id: "langnas-ferry",
+    title: "Get the V12 to Långnäs before the boat",
+    kind: "route",
+    car: "ankar",
+    where: "Ängösundsvägen, Lumparland: the main road out to the ferry harbour at Långnäs",
+    waypoints: [
+      { x: 15917, z: 6654 },
+      { x: 17871, z: 2601 },
+    ],
+    difficulty: "hard",
+  },
+  {
+    id: "djurvik",
+    title: "Find Djurvik in the old four-by-four",
+    kind: "route",
+    car: "berg",
+    where: "Djurvikvägen, Hammarland: out to the shore at Djurvik",
+    waypoints: [
+      { x: -10774, z: 4515 },
+      { x: -13494, z: 2391 },
+    ],
     difficulty: "medium",
   },
   {
-    id: "soltuna-climb",
-    title: "Climb to Soltuna",
+    id: "notviken",
+    title: "Rally the forest road to Nötviken",
+    kind: "route",
+    car: "grus",
+    where: "Nötviken, Sund: the road through the forest to the bay",
+    waypoints: [
+      { x: 13348, z: -9610 },
+      { x: 14600, z: -14000 },
+    ],
+    difficulty: "medium",
+  },
+  {
+    id: "eckero-skagvagen",
+    title: "Cruise Skagvägen through Eckerö",
+    kind: "route",
+    car: "bris",
+    where: "Skagvägen, Eckerö: south, the road the GPS takes between Vikvägen's two ends",
+    waypoints: [
+      { x: -20162, z: -10114 },
+      { x: -19344, z: -13501 },
+    ],
+    difficulty: "easy",
+  },
+  {
+    id: "hultvagen",
+    title: "Wring the hot hatch down Hultvägen",
     kind: "route",
     car: "sten",
-    where: "Getabergsvägen, Geta: from Södravägen up to the Getabergen tower",
+    where: "Hultvägen, Sund",
     waypoints: [
-      { x: -4066, z: -24575 },
-      { x: -3955, z: -25700 },
+      { x: 14979, z: -8968 },
+      { x: 16228, z: -11279 },
     ],
     difficulty: "medium",
-  },
-  {
-    id: "getavagen-streetrace",
-    title: "165 in 201 metres on Getavägen",
-    kind: "speed-trap",
-    car: "sund",
-    where: "Getavägen, Finström: north from the Pålsböle junction towards Törnebolstad, the Streetrace's 201 m from a standing start. The record was nearly 200 km/h; the fastest car here reaches about 169 in that distance",
-    waypoints: [
-      { x: 650, z: -13080 },
-      { x: 723, z: -13425 },
-    ],
-    lengthM: 201,
-    difficulty: "hard",
-  },
-  {
-    id: "hammarbo-201",
-    title: "201 metres at Hammarbo",
-    kind: "route",
-    car: "strom",
-    where: "Hammarlandsvägen at Hammarbo, Hammarland: from Skarpnåtövägen towards Mejerigatan, from a standstill",
-    waypoints: [
-      { x: -10421, z: -6318 },
-      { x: -11486, z: -7560 },
-    ],
-    lengthM: 201,
-    difficulty: "easy",
-  },
-  {
-    id: "lemland-speeding",
-    title: "Caught doing 144 through Lemland",
-    kind: "speed-trap",
-    car: "salta",
-    where: "Lemlandsvägen, Lemland: east along its long fast stretch, to where the estate is at its fastest. The real story's 145 is past what the target rule gives it there",
-    waypoints: [
-      { x: 3474, z: 11129 },
-      { x: 13450, z: 10338 },
-    ],
-    lengthM: 2300,
-    difficulty: "hard",
-  },
-  {
-    id: "storagatan",
-    title: "Storagatan, harbour to harbour",
-    kind: "route",
-    car: "vik",
-    where: "Storagatan, Mariehamn: Österhamn to Västerhamn, west, since its last block is one way",
-    waypoints: [
-      { x: -1925, z: 6781 },
-      { x: -2845, z: 6794 },
-    ],
-    difficulty: "easy",
   },
   {
     id: "castle-to-fortress",
-    title: "Castle to fortress",
+    title: "Castle to fortress along the coast",
     kind: "route",
-    car: "ankar",
+    car: "bris",
     where: "Kastelholm Castle to Bomarsund Fortress, Sund: Slottsvägen, then Sundsvägen east",
     waypoints: [
       { x: 7291, z: -7453 },
@@ -127,47 +125,8 @@ export const CHALLENGE_SPECS: readonly ChallengeSpec[] = [
     difficulty: "medium",
   },
   {
-    id: "orrdalsklint",
-    title: "Up Orrdalsklint",
-    kind: "route",
-    car: "berg",
-    where: "Saltvik: the forest track up to the Orrdalsklint viewpoint, the main island's highest point",
-    waypoints: [
-      { x: 10960, z: -16520 },
-      { x: 10922, z: -17679 },
-      { x: 10460, z: -17895 },
-    ],
-    difficulty: "easy",
-  },
-  {
-    id: "mockelobacken",
-    title: "Möckelöbacken",
-    kind: "speed-trap",
-    car: "holm",
-    where: "Hammarlandsvägen at Möckelö, Jomala: north-west from the Flygfältsrondellen roundabout, the Streetrace's 201 m from a standing start",
-    waypoints: [
-      { x: -3480, z: 4949 },
-      { x: -3910, z: 5205 },
-    ],
-    lengthM: 201,
-    difficulty: "easy",
-  },
-  {
-    id: "road-2-flat-out",
-    title: "Road 2, flat out",
-    kind: "speed-trap",
-    car: "fjard",
-    where: "Nya Godbyvägen, Jomala: north along its longest straight",
-    waypoints: [
-      { x: -356, z: -2535 },
-      { x: -325, z: -4106 },
-    ],
-    lengthM: 1500,
-    difficulty: "medium",
-  },
-  {
     id: "post-road-west",
-    title: "Post road, the western leg",
+    title: "Get the post through on the western leg",
     kind: "route",
     car: "kobb",
     where: "Eckerö: from the Post and Customs House along Gamla Postrotevägen and Eckerövägen, the post road's line, to over the Marsund bridge",
@@ -177,6 +136,32 @@ export const CHALLENGE_SPECS: readonly ChallengeSpec[] = [
       { x: -22257, z: -9503 },
       { x: -15235, z: -8160 },
     ],
-    difficulty: "easy",
+    difficulty: "medium",
+  },
+  {
+    id: "lemland-speeding",
+    title: "Beat the 145 through Lemland",
+    kind: "speed-trap",
+    car: "salta",
+    where: "Lemlandsvägen, Lemland: east along its long fast stretch, to where the old estate is at its fastest. 145 km/h was a real news story's speed",
+    waypoints: [
+      { x: 3474, z: 11129 },
+      { x: 13450, z: 10338 },
+    ],
+    lengthM: 2300,
+    difficulty: "hard",
+  },
+  {
+    id: "road-2-flat-out",
+    title: "Flat out on road 2",
+    kind: "speed-trap",
+    car: "skerry-gt",
+    where: "Nya Godbyvägen, Jomala: north along its longest straight",
+    waypoints: [
+      { x: -356, z: -2535 },
+      { x: -325, z: -4106 },
+    ],
+    lengthM: 1500,
+    difficulty: "hard",
   },
 ];

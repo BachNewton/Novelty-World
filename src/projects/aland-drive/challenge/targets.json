@@ -1,74 +1,68 @@
 {
   "ytterby-sprint": {
     "tuning": "cd596db3",
-    "places": "be3c0814",
-    "par": 180.26,
-    "target": 171.3
+    "places": "9b7da010",
+    "par": 151.24,
+    "target": 151.3
   },
-  "backrace-climb": {
-    "tuning": "3782839b",
-    "places": "9f4f26ef",
-    "par": 91.7,
-    "target": 91.7
-  },
-  "soltuna-climb": {
-    "tuning": "49a06196",
-    "places": "ebb65be3",
-    "par": 48.66,
-    "target": 48.7
-  },
-  "getavagen-streetrace": {
+  "backrace-road": {
     "tuning": "7c5bdbb4",
-    "places": "f87cd10b",
-    "par": 169.38,
-    "target": 165
+    "places": "d9eb85c0",
+    "par": 233.98,
+    "target": 234
   },
-  "hammarbo-201": {
-    "tuning": "75087526",
-    "places": "5c99d35b",
-    "par": 8.22,
-    "target": 9.1
+  "langnas-ferry": {
+    "tuning": "f753aee2",
+    "places": "093e9885",
+    "par": 183.7,
+    "target": 183.8
   },
-  "lemland-speeding": {
-    "tuning": "a062b05c",
-    "places": "d5a82724",
-    "par": 147.66,
-    "target": 144
+  "djurvik": {
+    "tuning": "791f8b50",
+    "places": "86a865ae",
+    "par": 189.55,
+    "target": 195.3
   },
-  "storagatan": {
-    "tuning": "99a86e08",
-    "places": "b12ac8fb",
-    "par": 27.56,
-    "target": 30.4
+  "notviken": {
+    "tuning": "cd596db3",
+    "places": "901161ca",
+    "par": 196.59,
+    "target": 202.5
+  },
+  "eckero-skagvagen": {
+    "tuning": "3782839b",
+    "places": "cecebe9b",
+    "par": 100.2,
+    "target": 108.3
+  },
+  "hultvagen": {
+    "tuning": "49a06196",
+    "places": "dfefada1",
+    "par": 93.05,
+    "target": 95.9
   },
   "castle-to-fortress": {
-    "tuning": "f753aee2",
-    "places": "bcd7cb80",
-    "par": 238.42,
-    "target": 238.5
-  },
-  "orrdalsklint": {
-    "tuning": "791f8b50",
-    "places": "a2218f9c",
-    "par": 109.49,
-    "target": 120.5
-  },
-  "mockelobacken": {
-    "tuning": "9b6923a1",
-    "places": "0180eb9f",
-    "par": 124.26,
-    "target": 111
-  },
-  "road-2-flat-out": {
-    "tuning": "2b44a327",
-    "places": "79993a30",
-    "par": 224.67,
-    "target": 213
+    "tuning": "3782839b",
+    "places": "44164073",
+    "par": 215.74,
+    "target": 222.3
   },
   "post-road-west": {
     "tuning": "c7fae3f9",
-    "places": "7b044c17",
-    "par": 238.93,
-    "target": 262.9
+    "places": "a8b1dfef",
+    "par": 227.39,
+    "target": 234.3
+  },
+  "lemland-speeding": {
+    "tuning": "a062b05c",
+    "places": "0334419c",
+    "par": 148.77,
+    "target": 147
+  },
+  "road-2-flat-out": {
+    "tuning": "6f0f38fd",
+    "places": "9f117f6f",
+    "par": 239.04,
+    "target": 236
   }
 }

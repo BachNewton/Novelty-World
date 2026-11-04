@@ -44,71 +44,71 @@
         "x": 2115.4,
         "z": 749.61,
         "heading": 2.932,
-        "halfWidthM": 7.7
+        "halfWidthM": 15.7
       },
       {
         "x": 2264.38,
         "z": 1092.14,
         "heading": -2.2826,
-        "halfWidthM": 7.8
+        "halfWidthM": 15.8
       },
       {
         "x": 2603.24,
         "z": 1153.18,
         "heading": -1.3286,
-        "halfWidthM": 7.8
+        "halfWidthM": 15.8
       },
       {
         "x": 2868.59,
         "z": 1392.38,
         "heading": 1.8107,
-        "halfWidthM": 7
+        "halfWidthM": 15
       },
       {
         "x": 2515.91,
         "z": 1433.94,
         "heading": 1.0432,
-        "halfWidthM": 7.7
+        "halfWidthM": 15.7
       },
       {
         "x": 2183.23,
         "z": 1247.67,
         "heading": 0.4886,
-        "halfWidthM": 7.8
+        "halfWidthM": 15.8
       },
       {
         "x": 1888.86,
         "z": 1013.84,
         "heading": 1.8029,
-        "halfWidthM": 7.7
+        "halfWidthM": 15.7
       },
       {
         "x": 1782.53,
         "z": 1363.21,
         "heading": 2.5609,
-        "halfWidthM": 7.7
+        "halfWidthM": 15.7
       },
       {
         "x": 1520.04,
         "z": 1625.08,
         "heading": 2.2731,
-        "halfWidthM": 7.8
+        "halfWidthM": 15.8
       },
       {
         "x": 1130.08,
         "z": 1801.29,
         "heading": 1.4566,
-        "halfWidthM": 7.7
+        "halfWidthM": 15.7
       }
     ]
   },
-  "backrace-climb": {
+  "backrace-road": {
     "madeFrom": {
-      "car": "bris",
+      "car": "sund",
       "waypoints": [
         {
-          "x": 11343,
-          "z": -10553
+          "x": 7446,
+          "z": -8026
         },
         {
           "x": 12785,
@@ -117,254 +117,624 @@
       ],
       "lengthM": null
     },
-    "lengthM": 2041.5,
+    "lengthM": 7291.7,
     "starts": [
       {
-        "x": 11348.26,
-        "z": -10559.21,
-        "heading": -0.5158
+        "x": 7453.16,
+        "z": -8026.97,
+        "heading": -1.2866
       },
       {
-        "x": 11345.65,
-        "z": -10560.69,
-        "heading": -0.5158
+        "x": 7452.32,
+        "z": -8029.85,
+        "heading": -1.2866
       }
     ],
     "gates": [
       {
-        "x": 11599.91,
-        "z": -10434.03,
-        "heading": -1.5333,
-        "halfWidthM": 9
+        "x": 7632.01,
+        "z": -8363.98,
+        "heading": -0.7939,
+        "halfWidthM": 17
       },
       {
-        "x": 11893.9,
-        "z": -10553.06,
-        "heading": -2.3013,
-        "halfWidthM": 9
+        "x": 7885.68,
+        "z": -8667.45,
+        "heading": -0.7366,
+        "halfWidthM": 17
       },
       {
-        "x": 12257.84,
-        "z": -10572.85,
+        "x": 8213.28,
+        "z": -8879.19,
+        "heading": -0.5437,
+        "halfWidthM": 17
+      },
+      {
+        "x": 8545.6,
+        "z": -9084.03,
+        "heading": -1.1977,
+        "halfWidthM": 17
+      },
+      {
+        "x": 8872.36,
+        "z": -9309.01,
+        "heading": -1.1015,
+        "halfWidthM": 17
+      },
+      {
+        "x": 9243.45,
+        "z": -9383.29,
+        "heading": -1.9575,
+        "halfWidthM": 17
+      },
+      {
+        "x": 9582.78,
+        "z": -9541.23,
+        "heading": -0.8661,
+        "halfWidthM": 17
+      },
+      {
+        "x": 9933.08,
+        "z": -9686.89,
+        "heading": -1.0917,
+        "halfWidthM": 17
+      },
+      {
+        "x": 10315.97,
+        "z": -9830.02,
+        "heading": -0.1049,
+        "halfWidthM": 17
+      },
+      {
+        "x": 10636.99,
+        "z": -9939.77,
+        "heading": -1.9568,
+        "halfWidthM": 17
+      },
+      {
+        "x": 10896.13,
+        "z": -10166.98,
+        "heading": 0.0285,
+        "halfWidthM": 17
+      },
+      {
+        "x": 10980.75,
+        "z": -10579.43,
+        "heading": -0.9121,
+        "halfWidthM": 17
+      },
+      {
+        "x": 11303.39,
+        "z": -10546.46,
+        "heading": -1.59,
+        "halfWidthM": 17
+      },
+      {
+        "x": 11561.74,
+        "z": -10441.76,
+        "heading": -2.3217,
+        "halfWidthM": 17
+      },
+      {
+        "x": 11850.15,
+        "z": -10575.82,
+        "heading": -1.9018,
+        "halfWidthM": 17
+      },
+      {
+        "x": 12213.35,
+        "z": -10549.47,
         "heading": -1.087,
-        "halfWidthM": 9
+        "halfWidthM": 17
       },
       {
-        "x": 12547.26,
-        "z": -10834.68,
-        "heading": -0.8766,
-        "halfWidthM": 9
+        "x": 12506.45,
+        "z": -10805.61,
+        "heading": -1.0291,
+        "halfWidthM": 17
       },
       {
         "x": 12784.96,
         "z": -10622.99,
         "heading": -2.8238,
-        "halfWidthM": 9
+        "halfWidthM": 17
       }
     ]
   },
-  "soltuna-climb": {
+  "langnas-ferry": {
+    "madeFrom": {
+      "car": "ankar",
+      "waypoints": [
+        {
+          "x": 15917,
+          "z": 6654
+        },
+        {
+          "x": 17871,
+          "z": 2601
+        }
+      ],
+      "lengthM": null
+    },
+    "lengthM": 5902.3,
+    "starts": [
+      {
+        "x": 15925.14,
+        "z": 6653.33,
+        "heading": -1.2867
+      },
+      {
+        "x": 15924.16,
+        "z": 6649.97,
+        "heading": -1.2867
+      }
+    ],
+    "gates": [
+      {
+        "x": 16089.53,
+        "z": 6324.72,
+        "heading": 0.0586,
+        "halfWidthM": 18
+      },
+      {
+        "x": 15994.76,
+        "z": 5937,
+        "heading": 0.2728,
+        "halfWidthM": 18
+      },
+      {
+        "x": 15949.4,
+        "z": 5545.24,
+        "heading": -0.2223,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16113.65,
+        "z": 5182.2,
+        "heading": -0.475,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16409.58,
+        "z": 4989.38,
+        "heading": -1.6959,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16735.51,
+        "z": 5140.12,
+        "heading": -1.3341,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16780.47,
+        "z": 4785.01,
+        "heading": 0.0152,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16757.79,
+        "z": 4417.39,
+        "heading": -0.2565,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16658.43,
+        "z": 4041.09,
+        "heading": 0.7082,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16576.18,
+        "z": 3709.63,
+        "heading": -0.9228,
+        "halfWidthM": 18
+      },
+      {
+        "x": 16844.81,
+        "z": 3418.01,
+        "heading": -0.7218,
+        "halfWidthM": 18
+      },
+      {
+        "x": 17139.51,
+        "z": 3160.78,
+        "heading": -0.4183,
+        "halfWidthM": 18
+      },
+      {
+        "x": 17454.65,
+        "z": 2940.69,
+        "heading": -1.0035,
+        "halfWidthM": 18
+      },
+      {
+        "x": 17822.65,
+        "z": 2833.31,
+        "heading": -1.8324,
+        "halfWidthM": 18
+      },
+      {
+        "x": 17871.14,
+        "z": 2601.45,
+        "heading": -1.2601,
+        "halfWidthM": 18
+      }
+    ]
+  },
+  "djurvik": {
+    "madeFrom": {
+      "car": "berg",
+      "waypoints": [
+        {
+          "x": -10774,
+          "z": 4515
+        },
+        {
+          "x": -13494,
+          "z": 2391
+        }
+      ],
+      "lengthM": null
+    },
+    "lengthM": 4022.3,
+    "starts": [
+      {
+        "x": -10781.47,
+        "z": 4511.66,
+        "heading": 1.3376
+      },
+      {
+        "x": -10782.16,
+        "z": 4514.57,
+        "heading": 1.3376
+      }
+    ],
+    "gates": [
+      {
+        "x": -11099.58,
+        "z": 4291.89,
+        "heading": 1.0444,
+        "halfWidthM": 17
+      },
+      {
+        "x": -11342.91,
+        "z": 4018.65,
+        "heading": -0.105,
+        "halfWidthM": 17
+      },
+      {
+        "x": -11606.27,
+        "z": 3751.43,
+        "heading": 0.4912,
+        "halfWidthM": 17
+      },
+      {
+        "x": -11982.91,
+        "z": 3660.99,
+        "heading": 1.012,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": -12286.1,
+        "z": 3410.1,
+        "heading": 0.8336,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": -12564.01,
+        "z": 3159.73,
+        "heading": 0.7285,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": -12746.52,
+        "z": 2860.71,
+        "heading": 0.0163,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": -12907.92,
+        "z": 2512.95,
+        "heading": 0.3936,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": -13093.76,
+        "z": 2292.27,
+        "heading": 2.0574,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": -13494,
+        "z": 2391.1,
+        "heading": 1.2091,
+        "halfWidthM": 15.7
+      }
+    ]
+  },
+  "notviken": {
+    "madeFrom": {
+      "car": "grus",
+      "waypoints": [
+        {
+          "x": 13348,
+          "z": -9610
+        },
+        {
+          "x": 14600,
+          "z": -14000
+        }
+      ],
+      "lengthM": null
+    },
+    "lengthM": 5583.3,
+    "starts": [
+      {
+        "x": 13352.34,
+        "z": -9616.83,
+        "heading": -0.4154
+      },
+      {
+        "x": 13350.07,
+        "z": -9617.83,
+        "heading": -0.4154
+      }
+    ],
+    "gates": [
+      {
+        "x": 13482.48,
+        "z": -9969.96,
+        "heading": 0.0745,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13535.92,
+        "z": -10317.38,
+        "heading": -0.9806,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13904.26,
+        "z": -10421.95,
+        "heading": -0.569,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 13896.06,
+        "z": -10795.29,
+        "heading": 0.3943,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13705.62,
+        "z": -11140.66,
+        "heading": 0.3749,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 13629.83,
+        "z": -11510.74,
+        "heading": 0.2336,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 13538.82,
+        "z": -11887.89,
+        "heading": -0.1924,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13541.95,
+        "z": -12282.2,
+        "heading": 0.1383,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13444.21,
+        "z": -12653.77,
+        "heading": -0.2898,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 13655.44,
+        "z": -12942.66,
+        "heading": -0.6507,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 13806.85,
+        "z": -13262.16,
+        "heading": -0.4023,
+        "halfWidthM": 15.7
+      },
+      {
+        "x": 14047.57,
+        "z": -13566.72,
+        "heading": -0.5948,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 14245.71,
+        "z": -13903.21,
+        "heading": -0.4371,
+        "halfWidthM": 15.8
+      },
+      {
+        "x": 14582.81,
+        "z": -14044.08,
+        "heading": -1.1988,
+        "halfWidthM": 15.7
+      }
+    ]
+  },
+  "eckero-skagvagen": {
+    "madeFrom": {
+      "car": "bris",
+      "waypoints": [
+        {
+          "x": -20162,
+          "z": -10114
+        },
+        {
+          "x": -19344,
+          "z": -13501
+        }
+      ],
+      "lengthM": null
+    },
+    "lengthM": 3884,
+    "starts": [
+      {
+        "x": -20155.44,
+        "z": -10109.82,
+        "heading": -0.757
+      },
+      {
+        "x": -20157.62,
+        "z": -10111.88,
+        "heading": -0.757
+      }
+    ],
+    "gates": [
+      {
+        "x": -19860.74,
+        "z": -10375.81,
+        "heading": -1.2184,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19554.87,
+        "z": -10599.02,
+        "heading": -0.3051,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19446.12,
+        "z": -10973.77,
+        "heading": 0.0213,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19384.27,
+        "z": -11367.04,
+        "heading": -0.277,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19211.21,
+        "z": -11727.28,
+        "heading": -0.4621,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19146.5,
+        "z": -12113.2,
+        "heading": 0.0078,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19047.71,
+        "z": -12498.83,
+        "heading": -0.3791,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19084.29,
+        "z": -12883.28,
+        "heading": 0.5365,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19282.96,
+        "z": -13224.2,
+        "heading": 0.347,
+        "halfWidthM": 17
+      },
+      {
+        "x": -19344.2,
+        "z": -13500.96,
+        "heading": 0.1899,
+        "halfWidthM": 17
+      }
+    ]
+  },
+  "hultvagen": {
     "madeFrom": {
       "car": "sten",
       "waypoints": [
         {
-          "x": -4066,
-          "z": -24575
+          "x": 14979,
+          "z": -8968
         },
         {
-          "x": -3955,
-          "z": -25700
+          "x": 16228,
+          "z": -11279
         }
       ],
       "lengthM": null
     },
-    "lengthM": 1176.6,
+    "lengthM": 2831.4,
     "starts": [
       {
-        "x": -4067.59,
-        "z": -24582.96,
-        "heading": 0.0242
+        "x": 14981.35,
+        "z": -8976.08,
+        "heading": -0.0849
       },
       {
-        "x": -4070.59,
-        "z": -24582.89,
-        "heading": 0.0242
+        "x": 14978.36,
+        "z": -8976.33,
+        "heading": -0.0849
       }
     ],
     "gates": [
       {
-        "x": -4092.86,
-        "z": -24959.35,
-        "heading": -0.2515,
-        "halfWidthM": 9
+        "x": 15210.18,
+        "z": -9282.88,
+        "heading": -0.4389,
+        "halfWidthM": 17
       },
       {
-        "x": -4064.52,
-        "z": -25351.52,
-        "heading": -0.2777,
-        "halfWidthM": 9
+        "x": 15327.28,
+        "z": -9656.92,
+        "heading": -0.0461,
+        "halfWidthM": 17
       },
       {
-        "x": -3960.19,
-        "z": -25703.7,
-        "heading": -0.6187,
-        "halfWidthM": 8.6
-      }
-    ]
-  },
-  "getavagen-streetrace": {
-    "madeFrom": {
-      "car": "sund",
-      "waypoints": [
-        {
-          "x": 650,
-          "z": -13080
-        },
-        {
-          "x": 723,
-          "z": -13425
-        }
-      ],
-      "lengthM": 201
-    },
-    "lengthM": 201,
-    "starts": [
-      {
-        "x": 647.32,
-        "z": -13088.04,
-        "heading": -0.0134
+        "x": 15472.07,
+        "z": -10008.57,
+        "heading": -0.8226,
+        "halfWidthM": 17
       },
       {
-        "x": 643.57,
-        "z": -13088.09,
-        "heading": -0.0134
-      }
-    ],
-    "camera": {
-      "x": 677.32,
-      "z": -13285.54,
-      "heading": -0.2976,
-      "halfWidthM": 10.3
-    }
-  },
-  "hammarbo-201": {
-    "madeFrom": {
-      "car": "strom",
-      "waypoints": [
-        {
-          "x": -10421,
-          "z": -6318
-        },
-        {
-          "x": -11486,
-          "z": -7560
-        }
-      ],
-      "lengthM": 201
-    },
-    "lengthM": 201,
-    "starts": [
-      {
-        "x": -10424.44,
-        "z": -6325.44,
-        "heading": 0.6548
+        "x": 15767.58,
+        "z": -10261,
+        "heading": -0.9849,
+        "halfWidthM": 17
       },
       {
-        "x": -10427.42,
-        "z": -6323.16,
-        "heading": 0.6548
-      }
-    ],
-    "gates": [
-      {
-        "x": -10549.75,
-        "z": -6482.59,
-        "heading": 0.6967,
-        "halfWidthM": 10.3
-      }
-    ]
-  },
-  "lemland-speeding": {
-    "madeFrom": {
-      "car": "salta",
-      "waypoints": [
-        {
-          "x": 3474,
-          "z": 11129
-        },
-        {
-          "x": 13450,
-          "z": 10338
-        }
-      ],
-      "lengthM": 2300
-    },
-    "lengthM": 2300,
-    "starts": [
-      {
-        "x": 3481.58,
-        "z": 11132,
-        "heading": -1.7565
+        "x": 15967.57,
+        "z": -10588.53,
+        "heading": -0.3345,
+        "halfWidthM": 17
       },
       {
-        "x": 3482.27,
-        "z": 11128.32,
-        "heading": -1.7565
-      }
-    ],
-    "camera": {
-      "x": 5734.44,
-      "z": 10773.11,
-      "heading": -1.51,
-      "halfWidthM": 10.2
-    }
-  },
-  "storagatan": {
-    "madeFrom": {
-      "car": "vik",
-      "waypoints": [
-        {
-          "x": -1925,
-          "z": 6781
-        },
-        {
-          "x": -2845,
-          "z": 6794
-        }
-      ],
-      "lengthM": null
-    },
-    "lengthM": 912.1,
-    "starts": [
-      {
-        "x": -1932.99,
-        "z": 6778.65,
-        "heading": 1.5675
+        "x": 16043.34,
+        "z": -10956.42,
+        "heading": -0.6145,
+        "halfWidthM": 17
       },
       {
-        "x": -1933,
-        "z": 6782.15,
-        "heading": 1.5675
-      }
-    ],
-    "gates": [
-      {
-        "x": -2332.94,
-        "z": 6786.55,
-        "heading": 1.5821,
-        "halfWidthM": 10
-      },
-      {
-        "x": -2845.01,
-        "z": 6793.8,
-        "heading": 1.6195,
-        "halfWidthM": 9.3
+        "x": 16227.99,
+        "z": -11279.02,
+        "heading": -1.0573,
+        "halfWidthM": 15.8
       }
     ]
   },
   "castle-to-fortress": {
     "madeFrom": {
-      "car": "ankar",
+      "car": "bris",
       "waypoints": [
         {
           "x": 7291,
@@ -395,288 +765,153 @@
         "x": 7496.29,
         "z": -7114.04,
         "heading": -2.4575,
-        "halfWidthM": 9
+        "halfWidthM": 17
       },
       {
         "x": 7771.02,
         "z": -7093.55,
         "heading": -0.1425,
-        "halfWidthM": 9
+        "halfWidthM": 17
       },
       {
         "x": 8006.01,
         "z": -6925.03,
         "heading": -2.6239,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 8203.96,
         "z": -6577.44,
         "heading": -2.6239,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 8468.66,
         "z": -6281.22,
         "heading": -2.2178,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 8817.96,
         "z": -6087.06,
         "heading": -2.0497,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 9173.84,
         "z": -5904.47,
         "heading": -2.0427,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 9555.08,
         "z": -5793.96,
         "heading": -1.6542,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 9953.92,
         "z": -5763.49,
         "heading": -1.6421,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 10352.08,
         "z": -5775.68,
         "heading": -1.3977,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 10746.11,
         "z": -5844.56,
         "heading": -1.3978,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 11140.16,
         "z": -5913.26,
         "heading": -1.3987,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 11536.51,
         "z": -5955.29,
         "heading": -1.4927,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 11933.47,
         "z": -5909.11,
         "heading": -1.6896,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 12311.59,
         "z": -5796.14,
         "heading": -2.1184,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 12649.44,
         "z": -5582.02,
         "heading": -2.1387,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 12989.12,
         "z": -5370.84,
         "heading": -2.1085,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 13332.59,
         "z": -5165.82,
         "heading": -2.1092,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 13675.99,
         "z": -4960.71,
         "heading": -2.1092,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 14024.1,
         "z": -4763.71,
         "heading": -2.0737,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 14380.48,
         "z": -4582.11,
         "heading": -2.0365,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 14735.78,
         "z": -4398.4,
         "heading": -2.0518,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 15091.46,
         "z": -4217.51,
         "heading": -1.801,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": 15486.83,
         "z": -4235.02,
         "heading": -1.3921,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": 15690.72,
         "z": -4267.12,
         "heading": -1.5361,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       }
     ]
-  },
-  "orrdalsklint": {
-    "madeFrom": {
-      "car": "berg",
-      "waypoints": [
-        {
-          "x": 10960,
-          "z": -16520
-        },
-        {
-          "x": 10922,
-          "z": -17679
-        },
-        {
-          "x": 10460,
-          "z": -17895
-        }
-      ],
-      "lengthM": null
-    },
-    "lengthM": 2110.1,
-    "starts": [
-      {
-        "x": 10953.23,
-        "z": -16526.34,
-        "heading": 0.2879
-      },
-      {
-        "x": 10950.89,
-        "z": -16525.65,
-        "heading": 0.2879
-      }
-    ],
-    "gates": [
-      {
-        "x": 10883.46,
-        "z": -16935.21,
-        "heading": 0.6184,
-        "halfWidthM": 6.3
-      },
-      {
-        "x": 10870.91,
-        "z": -17306.92,
-        "heading": -0.0581,
-        "halfWidthM": 6.2
-      },
-      {
-        "x": 10925.56,
-        "z": -17701.41,
-        "heading": -0.1446,
-        "halfWidthM": 6.2
-      },
-      {
-        "x": 10784.89,
-        "z": -18014.96,
-        "heading": 1.2304,
-        "halfWidthM": 6.3
-      },
-      {
-        "x": 10456.38,
-        "z": -17893.41,
-        "heading": -2.7288,
-        "halfWidthM": 6.2
-      }
-    ]
-  },
-  "mockelobacken": {
-    "madeFrom": {
-      "car": "holm",
-      "waypoints": [
-        {
-          "x": -3480,
-          "z": 4949
-        },
-        {
-          "x": -3910,
-          "z": 5205
-        }
-      ],
-      "lengthM": 201
-    },
-    "lengthM": 201,
-    "starts": [
-      {
-        "x": -3487.88,
-        "z": 4951.4,
-        "heading": 2.1078
-      },
-      {
-        "x": -3485.96,
-        "z": 4954.62,
-        "heading": 2.1078
-      }
-    ],
-    "camera": {
-      "x": -3659.64,
-      "z": 5055.83,
-      "heading": 2.1078,
-      "halfWidthM": 10.2
-    }
-  },
-  "road-2-flat-out": {
-    "madeFrom": {
-      "car": "fjard",
-      "waypoints": [
-        {
-          "x": -356,
-          "z": -2535
-        },
-        {
-          "x": -325,
-          "z": -4106
-        }
-      ],
-      "lengthM": 1500
-    },
-    "lengthM": 1500,
-    "starts": [
-      {
-        "x": -352.76,
-        "z": -2542.53,
-        "heading": -0.1856
-      },
-      {
-        "x": -356.44,
-        "z": -2543.22,
-        "heading": -0.1856
-      }
-    ],
-    "camera": {
-      "x": -322.55,
-      "z": -4038.29,
-      "heading": 0.0348,
-      "halfWidthM": 10.2
-    }
   },
   "post-road-west": {
     "madeFrom": {
@@ -719,128 +954,198 @@
         "x": -22216.31,
         "z": -9516.05,
         "heading": -1.2596,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -21823.34,
         "z": -9565.39,
         "heading": -1.7273,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -21429.73,
         "z": -9517.43,
         "heading": -1.539,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -21031.72,
         "z": -9554.25,
         "heading": -1.4295,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -20642.81,
         "z": -9641.91,
         "heading": -1.167,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -20264.27,
         "z": -9753.73,
         "heading": -1.5993,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -19907.81,
         "z": -9595.15,
         "heading": -2.3988,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -19689.58,
         "z": -9261.11,
         "heading": -2.6063,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -19505.69,
         "z": -8905.96,
         "heading": -2.6705,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -19320.78,
         "z": -8551.35,
         "heading": -2.573,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -19067.69,
         "z": -8243.27,
         "heading": -2.2925,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -18750,
         "z": -8004.38,
         "heading": -1.9794,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -18355.42,
         "z": -7989.86,
         "heading": -1.4754,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -17957.26,
         "z": -8028.12,
         "heading": -1.4646,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -17559.8,
         "z": -8073.08,
         "heading": -1.4535,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -17175.36,
         "z": -7999.95,
         "heading": -2.0865,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -16827.4,
         "z": -7806.08,
         "heading": -1.8378,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -16431.96,
         "z": -7783.14,
         "heading": -1.4259,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -16047.95,
         "z": -7894.77,
         "heading": -1.2786,
-        "halfWidthM": 10.2
+        "halfWidthM": 18.2
       },
       {
         "x": -15664.82,
         "z": -8009.7,
         "heading": -1.2796,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       },
       {
         "x": -15235.06,
         "z": -8160.1,
         "heading": -1.0328,
-        "halfWidthM": 10.3
+        "halfWidthM": 18.3
       }
     ]
+  },
+  "lemland-speeding": {
+    "madeFrom": {
+      "car": "salta",
+      "waypoints": [
+        {
+          "x": 3474,
+          "z": 11129
+        },
+        {
+          "x": 13450,
+          "z": 10338
+        }
+      ],
+      "lengthM": 2300
+    },
+    "lengthM": 2300,
+    "starts": [
+      {
+        "x": 3481.58,
+        "z": 11132,
+        "heading": -1.7565
+      },
+      {
+        "x": 3482.27,
+        "z": 11128.32,
+        "heading": -1.7565
+      }
+    ],
+    "camera": {
+      "x": 5734.44,
+      "z": 10773.11,
+      "heading": -1.51,
+      "halfWidthM": 18.2
+    }
+  },
+  "road-2-flat-out": {
+    "madeFrom": {
+      "car": "skerry-gt",
+      "waypoints": [
+        {
+          "x": -356,
+          "z": -2535
+        },
+        {
+          "x": -325,
+          "z": -4106
+        }
+      ],
+      "lengthM": 1500
+    },
+    "lengthM": 1500,
+    "starts": [
+      {
+        "x": -352.76,
+        "z": -2542.53,
+        "heading": -0.1856
+      },
+      {
+        "x": -356.44,
+        "z": -2543.22,
+        "heading": -0.1856
+      }
+    ],
+    "camera": {
+      "x": -322.55,
+      "z": -4038.29,
+      "heading": 0.0348,
+      "halfWidthM": 18.2
+    }
   }
 }
