@@ -40,6 +40,8 @@ export interface TileManifest {
   parked?: { file: string };
   /** The post mills standing in the tile (`pipeline/farm.py`). A tile with none has none. */
   windmills?: WindmillPlace[];
+  /** The Västerhamn terminal and the fuel stations standing in the tile, drawn with its detail. A tile built before them has none. */
+  nearSites?: LandmarkPlace[];
 }
 
 /** What `world.json` says about the whole of what's been built. */

@@ -182,6 +182,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         piers += docks.boardwalks(roads)
         quay_piers = docks.quays(roads, piers)
         roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
+        roads = sites.off_raised(roads, osm_file)
         lifts = raised.Lookup(raised.read(osm_file))
         meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
         roads, openings = meetings.roads, meetings.openings
@@ -304,6 +305,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "models": placed.write(folder),
         "rock": rocks.MANIFEST,
         "landmarks": sites.places(solids.Heights(conformed, west, north)),
+        "nearSites": sites.places(solids.Heights(conformed, west, north), near_only=True),
         "buildingSheets": building_sheets(tile),
         "water": {
             "levelsFile": "water-levels.bin.gz",

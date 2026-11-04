@@ -2,7 +2,7 @@ import { Group, type MeshBasicNodeMaterial, type Node, type Scene, type Vector3 
 import { startGame, type Place } from "../../render/game";
 import type { SolidsCell } from "../../render/solids";
 import type { World } from "../../sim/world";
-import { doorFacades } from "./add-ons";
+import { doorFacades } from "./add-on-places";
 import { placeModels, type ModelStage, type StagedModels } from "./gallery-models";
 
 /* The gallery's page: the real game on real tiles, with a way to find a style's doors and to stand the models in it. */

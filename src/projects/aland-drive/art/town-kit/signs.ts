@@ -1,13 +1,12 @@
 import { CanvasTexture, LinearFilter, LinearMipmapLinearFilter, SRGBColorSpace, type Mesh, type MeshBasicNodeMaterial } from "three/webgpu";
 import { placeSigns, type Placement, type SignPlacement } from "../roadside/material";
-import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { TownPainted, townModel, uprightRing } from "./paint";
+import { TownPainted, townModel } from "./paint";
 
 /*
- * Signs on poles. The pictorial ones are cut from geometry, so they stay opaque and sharp with no sheet of their own.
- * Names are the one thing geometry can't say: a name plate draws through `namePlateMaterial`, each instance with its
- * own cell of a sheet drawn on a canvas when the game starts, for only the names it's given.
+ * Name signs: a street's blades on a corner post, and a village's board. Names are the one thing geometry can't say: a
+ * name plate draws through `namePlateMaterial`, each instance with its own cell of a sheet drawn on a canvas, for only
+ * the names it's given. A road sign that says something else is the real one, `art/surfaces`' Traficom plates.
  */
 
 const SINK_M = 0.5;
@@ -27,19 +26,23 @@ export interface NameSheet {
   cell: (name: string) => SignPlacement["cell"];
 }
 
-const SHEET_WIDE_PX = 2048;
 const CELL_PADDING = 0.08;
+/** The largest side a texture is sure to have on WebGPU. */
+const SHEET_MOST_PX = 8192;
 
 /**
- * Every name in `names` on one sheet, white on the plate's blue. `aspect` is a cell's width over its height, the
- * plate's own, so nothing stretches. `ink` turns a token's name into a CSS colour.
+ * Every name in `names` on one sheet, white on the plate's blue, in cells `cellWidePx` wide, laid out near square so
+ * neither side runs out first. `aspect` is a cell's width over its height, the plate's own, so nothing stretches.
+ * `ink` turns a token's name into a CSS colour. With no names it's one blank cell, for a list with nothing to show.
  */
-export function createNameSheet(names: readonly string[], aspect: number, ink: (token: string) => string, columns = 4): NameSheet {
-  const cellWide = Math.floor(SHEET_WIDE_PX / columns);
+export function createNameSheet(names: readonly string[], aspect: number, ink: (token: string) => string, cellWidePx = 256): NameSheet {
+  const cellWide = cellWidePx;
   const cellTall = Math.round(cellWide / aspect);
-  const rows = Math.ceil(names.length / columns);
+  const columns = Math.max(1, Math.ceil(Math.sqrt((names.length * cellTall) / cellWide)));
+  const rows = Math.max(1, Math.ceil(names.length / columns));
+  if (columns * cellWide > SHEET_MOST_PX || rows * cellTall > SHEET_MOST_PX) throw new Error(`${names.length} names don't fit one sheet`);
   const canvas = document.createElement("canvas");
-  canvas.width = SHEET_WIDE_PX;
+  canvas.width = columns * cellWide;
   canvas.height = rows * cellTall;
   const pen = canvas.getContext("2d");
   if (pen === null) throw new Error("no 2D canvas for the name sheet");
@@ -55,12 +58,10 @@ export function createNameSheet(names: readonly string[], aspect: number, ink: (
     pen.lineWidth = Math.max(2, cellTall * 0.04);
     pen.strokeRect(x + inset, y + inset, cellWide - inset * 2, cellTall - inset * 2);
     const fit = cellWide - inset * 6;
-    let size = Math.round(cellTall * 0.58);
-    pen.font = `600 ${size}px sans-serif`;
-    while (pen.measureText(name).width > fit) {
-      size -= 1;
-      pen.font = `600 ${size}px sans-serif`;
-    }
+    const largest = Math.round(cellTall * 0.58);
+    pen.font = `600 ${largest}px sans-serif`;
+    // Text's width scales with its size, so one measure fits it.
+    pen.font = `600 ${Math.min(largest, Math.floor((largest * fit) / pen.measureText(name).width))}px sans-serif`;
     pen.fillStyle = ink("wall-trim");
     pen.fillText(name, x + cellWide / 2, y + cellTall / 2 + cellTall * 0.03);
     return [name, [column / columns, 1 - (row + 1) / rows, 1 / columns, 1 / rows] as const] as const;
@@ -120,63 +121,6 @@ export const STREET_BLADE_Y_M = [2.88, 2.66] as const;
 /** A junction's blades on its post: one along each road, reading from the street. */
 export function bladesOnPost({ x, y, z }: { x: number; y: number; z: number }, roads: readonly { name: string; yaw: number }[]): (Placement & { name: string })[] {
   return roads.slice(0, STREET_BLADE_Y_M.length).map(({ name, yaw }, index) => ({ x, y: y + STREET_BLADE_Y_M[index], z, yaw, name }));
-}
-
-/** A blue square with a white triangle and a walker, as on the Finnish crossing sign, cut from geometry. Faces +z, or -z with `way` -1. */
-function crossingPlate(into: TownPainted, y: number, z: number, way: 1 | -1): TownPainted {
-  const half = 0.3;
-  const at = (x: number, up: number, lift: number): V3 => [x * way, y + up, z + lift * way];
-  return into
-    .face([at(-half, -half, 0), at(half, -half, 0), at(half, half, 0), at(-half, half, 0)], "plate-blue")
-    .face([at(-0.27, -0.23, 0.004), at(0.27, -0.23, 0.004), at(0, 0.26, 0.004)], "plate-white")
-    .face([at(-0.27, -0.27, 0.004), at(0.27, -0.27, 0.004), at(0.27, -0.25, 0.004), at(-0.27, -0.25, 0.004)], "plate-white")
-    .face([at(-0.015, 0.1, 0.008), at(0.022, 0.1, 0.008), at(0.022, 0.135, 0.008), at(-0.015, 0.135, 0.008)], "plate-black")
-    .face([at(-0.03, 0.08, 0.008), at(0.03, 0.08, 0.008), at(0.05, -0.08, 0.008), at(0.002, -0.05, 0.008), at(-0.03, -0.08, 0.008)], "plate-black")
-    .face([at(-0.03, -0.08, 0.008), at(0.005, -0.06, 0.008), at(-0.04, -0.2, 0.008), at(-0.08, -0.2, 0.008)], "plate-black")
-    .face([at(0.002, -0.05, 0.008), at(0.05, -0.08, 0.008), at(0.09, -0.2, 0.008), at(0.05, -0.2, 0.008)], "plate-black");
-}
-
-const CROSSING_BANDS = 7;
-
-/** A crossing's pole: black and white bands so it reads at a walk, and the crossing sign both ways. */
-export function buildCrossingPole(): RoadsideModel {
-  const [low, high, plateY] = [0.25, 2.3, 2.62];
-  const near = new TownPainted().tube([0, -SINK_M, 0], [0, low, 0], POST_R + 0.012, 5, {}, "stripe-black");
-  for (let band = 0; band < CROSSING_BANDS; band++) {
-    const [from, to] = [low + ((high - low) * band) / CROSSING_BANDS, low + ((high - low) * (band + 1)) / CROSSING_BANDS];
-    near.tube([0, from, 0], [0, to, 0], POST_R + 0.012, 5, {}, band % 2 === 0 ? "stripe-white" : "stripe-black");
-  }
-  near.tube([0, high, 0], [0, plateY + 0.32, 0], POST_R, 5, { cap: true }, "galvanised");
-  crossingPlate(near, plateY, 0.04, 1);
-  crossingPlate(near, plateY, -0.04, -1);
-  const far = new TownPainted()
-    .tube([0, -SINK_M, 0], [0, plateY, 0], 0.05, 3, {}, "stripe-white")
-    .face([[-0.32, plateY - 0.32, 0], [0.32, plateY - 0.32, 0], [0.32, plateY + 0.32, 0], [-0.32, plateY + 0.32, 0]], "plate-blue");
-  return townModel(near, far, 60, 320);
-}
-
-/** A town bus stop's pole: a yellow disc with a bus cut from geometry, and a timetable case at reading height. */
-export function buildBusStopPole(): RoadsideModel {
-  const top = 2.95;
-  const plateY = 2.6;
-  const near = new TownPainted().tube([0, -SINK_M, 0], [0, top, 0], POST_R + 0.012, 5, { radiusTo: POST_R, cap: true }, "galvanised");
-  for (const way of [1, -1] as const) {
-    const z = way * 0.05;
-    near.face(uprightRing([0, plateY, z], 0.27, 12), "plate-yellow");
-    const [lift, glass] = [z + way * 0.004, z + way * 0.006];
-    near
-      .face([[-0.17, plateY - 0.08, lift], [0.17, plateY - 0.08, lift], [0.17, plateY + 0.11, lift], [-0.17, plateY + 0.11, lift]], "plate-blue")
-      .face([[-0.14, plateY + 0.01, glass], [0.14, plateY + 0.01, glass], [0.14, plateY + 0.08, glass], [-0.14, plateY + 0.08, glass]], "plate-white")
-      .face([[-0.11, plateY - 0.14, lift], [-0.05, plateY - 0.14, lift], [-0.05, plateY - 0.08, lift], [-0.11, plateY - 0.08, lift]], "plate-black")
-      .face([[0.05, plateY - 0.14, lift], [0.11, plateY - 0.14, lift], [0.11, plateY - 0.08, lift], [0.05, plateY - 0.08, lift]], "plate-black");
-  }
-  near
-    .box([-0.17, 1.2, 0.04], [0.17, 1.72, 0.09], "lamp-iron", { shadeTop: 1.1 })
-    .face([[-0.14, 1.23, 0.092], [0.14, 1.23, 0.092], [0.14, 1.69, 0.092], [-0.14, 1.69, 0.092]], "board-white", 0.92);
-  const far = new TownPainted()
-    .tube([0, -SINK_M, 0], [0, plateY, 0], 0.05, 3, {}, "galvanised")
-    .face([[-0.26, plateY - 0.26, 0], [0.26, plateY - 0.26, 0], [0.26, plateY + 0.26, 0], [-0.26, plateY + 0.26, 0]], "plate-yellow");
-  return townModel(near, far, 60, 320);
 }
 
 /** The frame of a village's sign: two tarred posts, a white frame and a little red hood. Its name is a `buildVillagePlate` at `VILLAGE_PLATE_Y_M`. */
