@@ -31,6 +31,7 @@ What each attempt did, judged by the owner on screenshots from the same cameras:
 - **Tracks and paths take aprons at their ends**, as roads do, instead of sliding over the greater road's shoulder. The counts fell 20–40% for gaps, steps and plates; the pictures barely changed, and the seam flicker now runs along track ends too.
 - **Ground pressed under a way only as far as that way needs**, instead of every 4 m cell it touches being flattened to its level, which dragged the ground out from under a higher way beside it. It fixed a floating path and cut ledges by about 70%; the pale slabs between paths got slightly bigger.
 - **The ground at the survey's full 2 m** instead of 4 m. It removed one stretched wall of ground and changed little else, broke the trees' detail distances (they read the ground rings), and would triple the heights' size. Dropped.
+- **The ground smoothed near the ways** (fully within 12 m, back to the survey by 40 m) before any way is laid, so a way and the land beside it start out agreeing. On top of the gentler pressing: a bank's stretched wall became one smooth slope, the pale slabs between paths shrank and an underpass's banks smoothed; ledges fell a further 8–16% and folds about 10%. The ways themselves (slabs, shoulders, overlaps) are unchanged.
 - **Holding a way's height near a greater way beside it** changed nothing visible: the heights weren't the problem there, the ground under them was. Dropped.
 
 ## Directions not yet tried
