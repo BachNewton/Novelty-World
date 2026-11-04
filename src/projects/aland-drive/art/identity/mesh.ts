@@ -7,7 +7,10 @@ import { MOTION_KINDS, MOTION_RANGE_M, type MotionKind } from "../street/paint";
  * The roadside kit's `Model` writes the shapes, as it does for the rural and street
  * kits; this adds the identity kit's paints, and packs what those two keep apart:
  * `tint` is r the part, g the shade, b how far a vertex moves, and a the street's
- * motion kind, the surface pattern and whether the thing floats, as bits.
+ * motion kind, the surface pattern and whether the thing floats, as bits. `thin` is,
+ * for a rail, post or wire, each vertex's way out from its own axis in metres, which is
+ * as long as the part's half width, and the part's own roll, so the material can hold it
+ * to a pixel and let each go at a distance of its own; zero on the rest.
  */
 
 export const PATTERNS = ["plain", "boards", "net"] as const;
@@ -104,6 +107,8 @@ export class IdentityMesh {
   private readonly positions: number[] = [];
   private readonly shades: number[] = [];
   private readonly parts: IdentityPart[] = [];
+  private readonly thins: number[] = [];
+  private thinParts = 0;
   private readonly indices: number[] = [];
   private readonly afloat: boolean;
 
@@ -121,6 +126,7 @@ export class IdentityMesh {
       this.positions.push(positions.getX(index), positions.getY(index), positions.getZ(index));
       this.parts.push(partOf(tints.array[index * 4]));
       this.shades.push(tints.array[index * 4 + 1]);
+      this.thins.push(0, 0, 0, 0);
     }
     for (const index of geometry.getIndex()?.array ?? []) this.indices.push(first + index);
     return this;
@@ -142,6 +148,34 @@ export class IdentityMesh {
     return this.take((model) => model.beam(from, to, wide, tall, STAND_IN, shade, shadeTop), () => part);
   }
 
+  /**
+   * A beam too thin to stay whole on screen far off: the material widens it to a pixel, and once that pixel is more than
+   * the beam covers, lets it go at a distance of its own, so a model's thin parts thin out one at a time to their share.
+   */
+  thinBeam(from: V3, to: V3, wide: number, tall: number, part: IdentityPart): this {
+    return this.thin(from, to, () => this.beam(from, to, wide, tall, part));
+  }
+
+  /** A tube held to a pixel, as `thinBeam` is. Its caps are fans of its rims, so every vertex lies off its axis. */
+  thinTube(from: V3, to: V3, radius: number, sides: number, options: TubeOptions, part: IdentityPart): this {
+    return this.thin(from, to, () => this.tube(from, to, radius, sides, options, part));
+  }
+
+  private thin(from: V3, to: V3, draw: () => this): this {
+    // Golden-ratio steps spread the parts' rolls evenly, so they go at evenly spread distances.
+    const roll = 0.04 + 0.95 * ((this.thinParts++ * 0.618034 + 0.37) % 1);
+    const first = this.parts.length;
+    draw();
+    const axis: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    const length2 = axis[0] ** 2 + axis[1] ** 2 + axis[2] ** 2;
+    for (let index = first; index < this.parts.length; index++) {
+      const at = [0, 1, 2].map((k) => this.positions[index * 3 + k] - from[k]);
+      const along = Math.min(1, Math.max(0, (at[0] * axis[0] + at[1] * axis[1] + at[2] * axis[2]) / length2));
+      this.thins.splice(index * 4, 4, ...at.map((value, k) => value - axis[k] * along), roll);
+    }
+    return this;
+  }
+
   box(low: V3, high: V3, part: IdentityPart, options: BoxOptions = {}): this {
     return this.take((model) => model.box(low, high, STAND_IN, options), () => part);
   }
@@ -161,6 +195,7 @@ export class IdentityMesh {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(Float32Array.from(this.positions), 3));
     geometry.setAttribute("tint", new BufferAttribute(tints, 4, true));
+    geometry.setAttribute("thin", new BufferAttribute(Float32Array.from(this.thins), 4));
     geometry.setIndex(this.indices);
     return geometry;
   }

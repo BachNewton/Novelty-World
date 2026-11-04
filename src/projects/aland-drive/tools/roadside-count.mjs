@@ -29,7 +29,7 @@ const settle = async () => {
   return page.evaluate(() => ({ ...window.__alandDrive.counts(), roadside: window.__alandDrive.roadsideCounts() }));
 };
 
-const views = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.keyboard.press(`Digit${key}`) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
+const views = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.evaluate((id) => window.__alandDrive.jumpTo(id), key) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
 for (const { name, go } of views) {
   const [counts, plain] = await step(name, async () => {
     await go();

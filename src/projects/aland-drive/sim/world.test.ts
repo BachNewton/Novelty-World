@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { nextToLoad, isPastUnload } from "../render/stream";
 import { paintAlong, DASH_LENGTH_M } from "../render/roads";
 import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
-import { boulderWalls } from "../render/tile-models";
+import { modelWalls } from "../render/tile-models";
 import { parkedWalls } from "../render/parked-places";
 import { NO_INPUT } from "./car";
 import { Drive, initPhysics } from "./drive";
@@ -100,7 +100,7 @@ function twoTiles(withEastDetail = true, walls?: Float32Array): World {
 beforeAll(initPhysics);
 
 const downOn = (drive: Drive, x: number, z: number) => {
-  drive.ground.around(x, z);
+  drive.ground.around([{ x, z }]);
   drive.rapier.step();
   const hit = drive.rapier.castRay(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
   if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
@@ -167,7 +167,7 @@ describe("a power pole", () => {
 describe("a boulder", () => {
   it("stops the car at top speed: its ring of walls is as closed as a building's", () => {
     const boulderX = -300;
-    const world = twoTiles(true, boulderWalls({ "boulder-3": Float32Array.of(boulderX, 0, ROAD_Z, 0.4, 2, 2) }));
+    const world = twoTiles(true, modelWalls({ "boulder-3": Float32Array.of(boulderX, 0, ROAD_Z, 0.4, 2, 2) }));
     const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
     const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
     let furthest = -Infinity;
@@ -177,6 +177,22 @@ describe("a boulder", () => {
     }
     expect(furthest).toBeLessThan(boulderX);
     drive.dispose();
+  });
+});
+
+describe("the farm", () => {
+  it("stops the car at a bale, the smallest prop with walls, at top speed", () => {
+    const baleX = -300;
+    const { fastest, furthest } = flatOut(twoTiles(true, modelWalls({ "bale-wrapped": Float32Array.of(baleX, 0, ROAD_Z, 0.4, 1, 1) })));
+    expect(fastest).toBeGreaterThan(50);
+    expect(furthest).toBeLessThan(baleX);
+  });
+
+  it("stops the car at a windmill's trestle at top speed", () => {
+    const millX = -300;
+    const { fastest, furthest } = flatOut(twoTiles(true, modelWalls({}, [[millX, 0, ROAD_Z, 0.4, 3.7, 4.5]])));
+    expect(fastest).toBeGreaterThan(50);
+    expect(furthest).toBeLessThan(millX);
   });
 });
 

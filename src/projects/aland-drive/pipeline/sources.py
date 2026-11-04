@@ -240,13 +240,13 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
 
 
 # What a kept copy of a tile's roadside objects holds: kept apart from the roads and buildings, so it can change alone.
-ROADSIDE_KEPT_VERSION = 1
-ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing"}, "power": {"pole"}}
+ROADSIDE_KEPT_VERSION = 2
+ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing", "traffic_signals"}, "power": {"pole"}, "place": {"village", "hamlet"}}
 ROADSIDE_WAYS = {"power": {"minor_line"}, "barrier": {"guard_rail"}}
 
 
 def _roadside(xml_files: list[Path]) -> dict:
-    """The API's lamps, poles, signs and stops as points, and its power lines and guard rails as lines, pole by pole."""
+    """The API's lamps, poles, signs, signals, stops and villages as points, and its power lines and guard rails as lines, pole by pole."""
     roots = [ElementTree.parse(path).getroot() for path in xml_files]
     tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
     wanted = lambda tags, kinds: any(tags.get(key) in values for key, values in kinds.items())
@@ -276,6 +276,47 @@ def osm_roadside_path(tile: Tile) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_roadside(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
     return path
+
+
+# What a kept copy of a tile's town ground holds: the areas and lines that say what lies between its roads and buildings.
+TOWN_KEPT_VERSION = 1
+TOWN_KEYS = {"landuse", "leisure", "area:highway", "place", "natural"}
+TOWN_VALUES = {"amenity": {"parking", "fountain"}, "highway": {"pedestrian"}, "barrier": {"hedge", "hedge_bank"}}
+
+
+def _is_town(tags: dict) -> bool:
+    return any(key in tags for key in TOWN_KEYS) or any(tags.get(key) in values for key, values in TOWN_VALUES.items())
+
+
+def _town(xml_files: list[Path]) -> dict:
+    """The API's land use, parks, squares, car parks, pedestrian areas and hedges as lines and multipolygons, and its fountains as points."""
+    roots = [ElementTree.parse(path).getroot() for path in xml_files]
+    tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+    nodes = {node.get("id"): node for root in roots for node in root.iter("node")}
+    point = lambda node: {"lat": float(node.get("lat")), "lon": float(node.get("lon"))}
+    ways = {way.get("id"): way for root in roots for way in root.iter("way")}
+    lines = {id: [point(nodes[nd.get("ref")]) for nd in way.findall("nd") if nd.get("ref") in nodes] for id, way in ways.items()}
+    elements: list[dict] = [{"type": "node", "id": int(id), **point(node), "tags": tags_of(node)} for id, node in nodes.items() if tags_of(node).get("amenity") == "fountain"]
+    for id, way in ways.items():
+        tags = tags_of(way)
+        if _is_town(tags):
+            elements.append({"type": "way", "id": int(id), "tags": tags, "geometry": lines[id]})
+    relations = {relation.get("id"): relation for root in roots for relation in root.iter("relation")}
+    for id, relation in relations.items():
+        tags = tags_of(relation)
+        if tags.get("type") == "multipolygon" and _is_town(tags):
+            members = [{"role": member.get("role"), "geometry": lines[member.get("ref")]} for member in relation.findall("member") if member.get("type") == "way" and member.get("ref") in lines]
+            elements.append({"type": "relation", "id": int(id), "tags": tags, "members": members})
+    fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"version": TOWN_KEPT_VERSION, "asOf": fetched, "elements": elements}
+
+
+def osm_town_path(tile: Tile) -> Path:
+    path = RAW / "osm-town" / f"{tile.name}.json"
+    if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("version") == TOWN_KEPT_VERSION:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_town(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
 
 
 # What a kept copy of a tile's street furniture and the places it gathers at holds: kept apart, as the roadside's is.
@@ -339,4 +380,41 @@ def osm_dressing_path(tile: Tile) -> Path:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_points_and_outlines(osm_xml(tile), DRESSING_TAGS, DRESSING_KEPT_VERSION), ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+# The official sea chart, for the whole of Åland's box in ETRS-TM35FIN, by WFS. Väylävirasto's fairways and aids to
+# navigation are CC BY 4.0, as the service's access constraints say, Åland's own (Ålands landskapsregering's) among them. Traficom's depth areas come under its
+# hydrographic data licence: free to copy, change and publish for anything but navigation, non-commercially, credited
+# with the month they were taken (see credits.ts).
+SEA_CHART_BOX = (62000, 6636000, 182000, 6756000)
+SEA_CHART_PAGE = 5000
+VAYLA_WFS = "https://avoinapi.vaylapilvi.fi/vaylatiedot/ows"
+TRAFICOM_WFS = "https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs"
+SEA_CHART_LAYERS = {
+    "navigation-lines": (VAYLA_WFS, "vesivaylatiedot:navigointilinjat_uusi"),
+    "fairway-areas": (VAYLA_WFS, "vesivaylatiedot:vaylaalueet_uusi"),
+    "aids": (VAYLA_WFS, "vesivaylatiedot:turvalaitteet_uusi"),
+    "depth-areas": (TRAFICOM_WFS, "rajoitettu:DepthArea_A"),
+}
+
+
+def sea_chart_path(layer: str) -> Path:
+    """One of `SEA_CHART_LAYERS` as GeoJSON in ETRS-TM35FIN, every page of it, fetched once and kept with when it was taken."""
+    path = RAW / "sea-chart" / f"{layer}.json"
+    if path.exists():
+        return path
+    service, name = SEA_CHART_LAYERS[layer]
+    west, south, east, north = SEA_CHART_BOX
+    features: list[dict] = []
+    while True:
+        url = f"{service}?service=wfs&version=2.0.0&request=GetFeature&typeNames={name}&srsName=EPSG:3067&bbox={west},{south},{east},{north},EPSG:3067&outputFormat=application/json&count={SEA_CHART_PAGE}&startIndex={len(features)}&sortBy="
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=REQUEST_TIMEOUT_S) as response:
+            page = json.loads(response.read())["features"]
+        features += page
+        if len(page) < SEA_CHART_PAGE:
+            break
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fetched = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path.write_text(json.dumps({"source": service, "layer": name, "asOf": fetched, "features": features}, ensure_ascii=False), encoding="utf-8")
     return path

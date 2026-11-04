@@ -29,7 +29,7 @@ const settle = async () => {
 
 for (const key of KEYS) {
   const [counts, plain] = await step(`view ${key}`, async () => {
-    await page.keyboard.press(`Digit${key}`);
+    await page.evaluate((id) => window.__alandDrive.jumpTo(id), key);
     const shown = await settle();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/view-${key}.png` });
     await page.evaluate(() => window.__alandDrive.showPeople(false));

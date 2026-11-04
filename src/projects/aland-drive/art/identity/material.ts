@@ -1,5 +1,5 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, float, floor, fract, int, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, varying, vec3 } from "three/tsl";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
 import type { StreetInputs } from "../street/index";
@@ -28,6 +28,12 @@ const BOARD_M = 0.19;
 const MESH_M = 0.07;
 /** Metres a pixel covers, per metre away, at the game's lens and size. */
 const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
+/** Pixels from a thin part's axis to its corners, at the least: a line any thinner breaks into dashes that crawl as it moves. */
+const THIN_PIXELS = 0.6;
+/** The share of a thin part's cover over which it dissolves, either side of its roll. */
+const THIN_BAND = 0.03;
+/** A thin part stays while it covers this share of its roll: a little heavier than its share reads truer than a railing with gaps. */
+const THIN_HOLD = 0.6;
 
 const MOVES = { still: [0, 0], leaf: [1.25, 0.8], cloth: [3.4, 2.1], hull: [0.7, 0], run: [0, 0] } as const;
 
@@ -50,11 +56,19 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND).min(end)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const size = select(shown, fit.x, float(0));
 
-  const x = positionGeometry.x.mul(fit.y);
-  const up = positionGeometry.y.add(x.mul(fit.z));
+  // A thin part is widened to a pixel. Once that pixel is more than the part covers, it goes at a distance of its own
+  // roll, so a model's thin parts thin out one by one to their share of the pixels rather than breaking into dashes.
+  const thin = attribute<"vec4">("thin", "vec4");
+  const half = thin.xyz.length().mul(fit.x);
+  const widened = max(float(1), distance.mul(PIXEL_M_PER_M * THIN_PIXELS).div(max(half, float(1e-4))));
+  const local = positionGeometry.add(thin.xyz.mul(widened.sub(1)));
+  const thinLeft = varying(select(thin.w.greaterThan(0), smoothstep(thin.w.sub(THIN_BAND), thin.w.add(THIN_BAND), float(1 / THIN_HOLD).div(widened)), float(1)));
+
+  const x = local.x.mul(fit.y);
+  const up = local.y.add(x.mul(fit.z));
   const pick = (index: 0 | 1) => MOTION_KINDS.reduce<Node<"float">>((value, name, at) => select(kind.equal(at), float(MOVES[name][index]), value), float(0));
-  const wave = time.mul(pick(0)).sub(positionGeometry.x.mul(pick(1))).add(roll.mul(6.283));
-  const z = positionGeometry.z.add(tint.b.mul(MOTION_RANGE_M).mul(sin(wave)));
+  const wave = time.mul(pick(0)).sub(local.x.mul(pick(1))).add(roll.mul(6.283));
+  const z = local.z.add(tint.b.mul(MOTION_RANGE_M).mul(sin(wave)));
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
@@ -75,7 +89,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), up.mul(fit.x))), float(1), afloat);
 
   const away = positionWorld.sub(cameraPosition).length();
-  const metres = vec3(x, positionGeometry.y, positionGeometry.z).mul(fit.x);
+  const metres = vec3(x, local.y, local.z).mul(fit.x);
   const along = metres.x.add(metres.z).div(BOARD_M);
   const seam = float(1).sub(smoothstep(float(0.02), float(0.09), abs(fract(along).sub(0.5)).sub(0.5).abs()));
   const tone = fract(sin(floor(along).mul(127.1)).mul(43758.5453));
@@ -91,8 +105,10 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const cord = smoothstep(float(0.36), float(0.44), knotA.max(knotB));
   const netAlpha = mix(cord, float(0.45), gone(MESH_M * 0.5, away));
   const kept = patternIs(code, "net").not().or(pattern.lessThan(netAlpha));
+  // A thin part's share is taken from within its version's own share of the pattern, so the two don't eat into each other.
+  const traded = isNear ? pattern.greaterThanEqual(share).and(pattern.lessThan(mix(share, float(1), thinLeft))) : pattern.lessThan(share.mul(thinLeft));
   const leaving = smoothstep(end.mul(1 - LEAVE_SHARE), end, distance);
-  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(pattern.greaterThanEqual(leaving));
+  material.maskNode = traded.and(kept).and(pattern.greaterThanEqual(leaving));
   material.side = DoubleSide;
   return material;
 }

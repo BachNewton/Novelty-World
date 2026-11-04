@@ -1,6 +1,7 @@
-import { decodeHeights, fieldPixelsOf, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
+import { decodeHeights, decodeRoadSurface, fieldPixelsOf, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
+import { tileAddOns, type TileAddOns } from "./tile-add-ons";
 import { decodeParked, parkedWalls, type ParkedFile, type TileParked } from "./parked-places";
-import { boulderWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
+import { modelWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
 import { wallFaces, wallSections, withWalls, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
@@ -41,6 +42,9 @@ export interface DetailTile {
   roadDress: RoadAttributes;
   shade: Mips;
   ground: Mips;
+  /** The town ground's image, or nothing for a tile without one, and each road section's class (zeros without). */
+  town: Mips | null;
+  townRibbons: Uint8Array;
   buildings: SolidsCell[];
   models: TileModels;
   docks: TileModels;
@@ -49,6 +53,8 @@ export interface DetailTile {
   /** Everyone the tile's people files place, baked as one crowd, or nothing for a tile with no one. */
   people: CrowdArrays | null;
   parked: TileParked;
+  /** What stands off the walls, and the terminal and fuel stations. */
+  addOns: TileAddOns;
   bytes: number;
 }
 
@@ -217,19 +223,29 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
     Promise.all(Object.values(manifest.people ?? {}).map(({ file }) => reader.json<PeopleFile>(file))),
     manifest.parked ? reader.json<ParkedFile>(manifest.parked.file) : null,
   ]);
+  const [town, townRibbons] = await townOf(reader, manifest, world);
   const parked = decodeParked(parkedFile);
   const roadside = decodeRoadside(roadsideFile);
   const grid = decodeHeights(new Int16Array(heights), world.heights, tile);
   const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
   const stoneWalls = wallSections(walls, grid);
   const placed = decodeModels(models);
-  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, boulderWalls(placed), dockWalls(docks), parkedWalls(parked)));
-  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, bytes: reader.bytes };
+  const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest), manifest.nearSites);
+  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills), dockWalls(docks), parkedWalls(parked), addOnWalls));
+  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), town, townRibbons: townRibbons ?? new Uint8Array(detail.surface.tiers.length), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, addOns, bytes: reader.bytes };
 }
 
 const transfersOf = ({ grid, waterLevels, shore, shade, mask, ground, canopy, stands, fields, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, waterLevels.heights.buffer as ArrayBuffer, shore.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands, ...fields].map((mip) => mip.buffer as ArrayBuffer)];
 
-function detailTransfers({ detail, roadDress, shade, ground, buildings, models, docks, stoneWalls, roadside, people, parked }: DetailTile): Transferable[] {
+/** A tile's town image with its mips, and its sections' classes, or nothing for a tile built before the town ground. */
+async function townOf(reader: Reader, manifest: TileManifest, world: WorldManifest): Promise<[Mips | null, Uint8Array | null]> {
+  if (!manifest.town || !world.town) return [null, null];
+  if (manifest.town.pixels !== world.town.pixels) throw new Error(`${manifest.tile}: a town image of ${manifest.town.pixels} pixels in a world of ${world.town.pixels}`);
+  const [image, ribbons] = await Promise.all([reader.inflated(manifest.town.file), reader.inflated(manifest.town.ribbons)]);
+  return [mipChain(new Uint8Array(image), world.town.pixels, 4), new Uint8Array(ribbons)];
+}
+
+function detailTransfers({ detail, roadDress, shade, ground, town, townRibbons, buildings, models, docks, stoneWalls, roadside, people, parked }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
@@ -261,6 +277,8 @@ function detailTransfers({ detail, roadDress, shade, ground, buildings, models, 
     blockWalls.items,
     ...shade,
     ...ground,
+    ...(town ?? []),
+    townRibbons,
     ...buildings.flatMap((cell) => [cell.positions, cell.facades, cell.tints, cell.indices]),
     ...Object.values(models),
     ...Object.values(docks),

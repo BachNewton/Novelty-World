@@ -6,6 +6,9 @@
 //   node src/projects/aland-drive/tools/look.mjs --shots=<folder> [--size=WxH] <name>:<east>,<north>,<height>,<yaw>,<pitch> or <name>:<metres along Route 1> or <name>:<x1>,<y1>,<z1>,<x2>,<y2>,<z2> for a chase view along that line ...
 // Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
+// --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
+// says when one passes). --pair saves each look twice from the one camera, as <out> and <out>-without, the second with
+// the boats under way and the sea marks left out: a before and after of them.
 
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";
 
@@ -16,6 +19,8 @@ const [WIDTH, HEIGHT] = (option("size") ?? "1600x900").split("x").map(Number);
 const URL = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const FRAMES_TO_SETTLE = 3;
 const SHOTS = option("shots");
+const SEA = option("sea");
+const PAIR = flags.includes("--pair");
 
 const looks = SHOTS
   ? positional.map((look) => {
@@ -25,6 +30,8 @@ const looks = SHOTS
   : [{ out: positional[0] ?? "look.png", place: positional.slice(1).map(Number) }];
 
 const { page, step, reported, close } = await openGame(URL, { width: WIDTH, height: HEIGHT, args: UNCAPPED_ARGS });
+
+if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), Date.parse(SEA) / 1000);
 
 const shoot = async (place) => {
   if (place.length === 5) {
@@ -79,9 +86,30 @@ for (const { out, place } of looks) {
   const counts = await step(out, async () => {
     const shown = await shoot(place);
     await page.screenshot({ path: out });
-    return shown;
+    if (PAIR) {
+      const without = out.replace(/\.png$/, "-without.png");
+      const bare = await page.evaluate(async () => {
+        const probe = window.__alandDrive;
+        probe.showBoatsUnderWay(false);
+        probe.showSeaMarks(false);
+        const target = probe.frames() + 3;
+        while (probe.frames() < target) {
+          probe.counts();
+          await new Promise(requestAnimationFrame);
+        }
+        return probe.counts();
+      });
+      await page.screenshot({ path: without });
+      await page.evaluate(() => {
+        window.__alandDrive.showBoatsUnderWay(true);
+        window.__alandDrive.showSeaMarks(true);
+      });
+      return { shown, without, bare };
+    }
+    return { shown };
   });
-  console.log(out, JSON.stringify(counts));
+  console.log(out, JSON.stringify(counts.shown));
+  if (counts.without !== undefined) console.log(counts.without, JSON.stringify({ counts: counts.bare }));
 }
 const problems = reported();
 if (problems) console.log(`The page reported:\n${problems}`);

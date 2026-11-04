@@ -28,7 +28,7 @@ const settle = async () => {
 
 for (const key of KEYS) {
   const [counts, plain] = await step(`view ${key}`, async () => {
-    await page.keyboard.press(`Digit${key}`);
+    await page.evaluate((id) => window.__alandDrive.jumpTo(id), key);
     const shown = await settle();
     await page.evaluate(() => window.__alandDrive.showVerge(false));
     const without = await settle();

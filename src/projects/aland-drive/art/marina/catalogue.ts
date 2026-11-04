@@ -1,5 +1,5 @@
 import type { RoadsideModel } from "../roadside/index";
-import { buildAnchorMonument, buildBoatInCradle, buildBoatTrolley, buildBoatWinterCover, buildCairn, buildCannon, buildCradle, buildDinghyRack, buildFigurehead, buildFingerPontoon, buildFishBoxes, buildFixedMark, buildFlagMast, buildFloatHeap, buildFuelBerth, buildGuestHarbourSign, buildHarbourHut, buildHistoricShedRow, buildHullOnStocks, buildLeadingMark, buildMastRack, buildMooringRing, buildNetMarker, buildPilotStation, buildPillarBuoy, buildPropellerMonument, buildRopewalkShed, buildPyramidBeacon, buildServicePedestal, buildSlipway, buildSkerryLight, buildSmithy, buildSmokehouse, buildSpar, buildSteamBox, buildTarPot, buildTimberStack, buildTravelLift, buildWalkwayGate, buildWheelSign, SEA_MARKS } from "./index";
+import { buildAnchorMonument, buildBoatInCradle, buildBoatTrolley, buildBoatWinterCover, buildCairn, buildCannon, buildCradle, buildDinghyRack, buildFigurehead, buildFingerPontoon, buildFishBoxes, buildFixedMark, buildFlagMast, buildFloatHeap, buildFuelBerth, buildGuestHarbourSign, buildHarbourHut, buildHistoricShedRow, buildHullOnStocks, buildLeadingMark, buildMastRack, buildMooringRing, buildNetMarker, buildPilotStation, buildPillarBuoy, buildPropellerMonument, buildRopewalkShed, buildPyramidBeacon, buildRadarMark, buildServicePedestal, buildSlipway, buildSkerryLight, buildSmithy, buildSmokehouse, buildSpar, buildSteamBox, buildTarPot, buildTimberStack, buildTravelLift, buildWalkwayGate, buildWheelSign, LEADING_PATTERNS, RADAR_BANDS, SEA_MARKS } from "./index";
 
 export interface Entry {
   name: string;
@@ -45,10 +45,10 @@ export function catalogue(): Entry[] {
     ...SEA_MARKS.map((mark) => small(`spar ${mark}`, buildSpar(mark))),
     ...SEA_MARKS.map((mark) => small(`pillar ${mark}`, buildPillarBuoy(mark))),
     piece("fixed north", buildFixedMark("north")),
-    piece("leading front", buildLeadingMark("front")),
-    piece("leading rear", buildLeadingMark("rear")),
+    ...LEADING_PATTERNS.flatMap((pattern) => [piece(`leading front ${pattern}`, buildLeadingMark("front", pattern)), piece(`leading rear ${pattern}`, buildLeadingMark("rear", pattern))]),
     piece("cairn", buildCairn(3)),
     piece("pyramid beacon", buildPyramidBeacon()),
+    ...RADAR_BANDS.map((bands) => piece(`radar mark ${bands}`, buildRadarMark(bands))),
     shed("skerry light", buildSkerryLight()),
     hero("pilot station", buildPilotStation()),
     small("fish boxes", buildFishBoxes()),

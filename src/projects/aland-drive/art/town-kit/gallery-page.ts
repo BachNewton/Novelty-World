@@ -5,7 +5,7 @@ import { buildBusShelter, buildStreetLamp, placeModel, roadsideMaterials, type P
 import { createCarFleet } from "../cars/fleet";
 import { WORLD_CARS } from "../cars/specs";
 import { buildBench, buildBikeRack, buildPlanter, rowAlong, streetMaterials, type LinePoint } from "../street";
-import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildBusStopPole, buildCrossingPole, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M } from "./index";
+import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M, buildRoadFerry, yawForBearing } from "./index";
 
 /*
  * The gallery's scene on the game's renderer, camera, haze and sun, with the harbour at its real place: the same
@@ -123,6 +123,9 @@ const ferryModel = buildBalticFerry();
 const terminalPlace = { ...sceneOf(TERMINAL_ORIGIN.east, TERMINAL_ORIGIN.north), y: 0 };
 add(terminalModel, [terminalPlace], harbourKit);
 add(ferryModel, [ferryPlace()], harbourKit);
+// The archipelago's double-ended car ferry, out in the channel south of the berth, crossing it.
+const roadFerryModel = buildRoadFerry();
+add(roadFerryModel, [{ ...sceneOf(106900, 6682250), y: 0.1, yaw: yawForBearing(70) }], harbourKit);
 const buildingMaterial = flatMesh(colorOf("wall-pale"));
 const buildingGeometry = new PlaneGeometry(1, 1);
 const block = sceneOf(107207, 6682713);
@@ -149,6 +152,9 @@ look("ferry-stern", "ferry's stern door, from the north-west", atEN(107010, 6683
 look("ferry-quay", "ferry from the quay at car height", atEN(107155, 6682900, 3.6), atEN(107096, 6682860, 20), 72);
 look("ferry-far", "ferry far version, 1.3 km", atEN(105800, 6682720, 4), atEN(107096, 6682850, 18), 10);
 look("ferry-swap", "ferry mid-dissolve, 900 m", atEN(106200, 6682760, 4), atEN(107096, 6682850, 18), 11);
+look("road-ferry", "archipelago car ferry on the beam", atEN(106880, 6682160, 6), atEN(106900, 6682250, 4), 40);
+look("road-ferry-end", "archipelago car ferry, end on", atEN(106800, 6682215, 5), atEN(106900, 6682250, 4), 40);
+look("road-ferry-swap", "archipelago car ferry mid-dissolve, 500 m", atEN(106930, 6681760, 4), atEN(106900, 6682250, 4), 12);
 
 // A town street, 1.5 km inland, 300 m long with a junction in the middle.
 const STREET_X = 500;
@@ -204,16 +210,11 @@ const plates = [
   // A plate on a wall.
   { x: STREET_X - 30, y: 3.1, z: STREET_Z - 10.98, yaw: 0, name: "Storagatan" },
 ];
-const plateMaterial = namePlateMaterial(inputs, nameSheet.texture);
+const plateMaterial = namePlateMaterial(inputs, nameSheet.texture).material;
 const plateMesh = placeNamePlates(plateModel, nameSheet, plates, plateMaterial);
 scene.add(plateMesh);
 streetKit.push(plateMesh);
 
-const crossingModel = buildCrossingPole();
-add(crossingModel, [ground(-22, 4.3), ground(-22, -4.3), ground(22, 4.3), ground(22, -4.3)].map(({ x, y, z }) => ({ x, y, z, yaw: Math.PI / 2 })));
-
-const busModel = buildBusStopPole();
-add(busModel, [{ ...ground(60, 4.6), yaw: 0 }]);
 const shelter = placeModel(buildBusShelter(), [{ ...ground(68, -5.4) }], roadside);
 scene.add(...shelter);
 
@@ -251,22 +252,20 @@ look("signal-amber", "head on amber", eye(-11.5, 2.3, 3.4), eye(-7.5, 2.65, 4.6)
 look("signal-red", "head on red", eye(-11.5, 2.3, 3.4), eye(-7.5, 2.65, 4.6), 16, 3);
 look("signal-far", "signals from 300 m, far version", eye(-310, 2, 1.6), eye(0, 2.6, 0), 8, 3);
 look("street-sign", "street names on a post", eye(-11, 1.9, -3.2), eye(-6.2, 2.75, -6.2), 34);
-look("crossing", "crossing pole", eye(-29, 1.6, 2), eye(-22, 2, 4.3), 42);
 look("bicycles", "bicycles at a rack", eye(-13.5, 1.4, 5.4), eye(-16.4, 0.6, 8.6), 44);
 look("wall-addons", "hanging lamps and window boxes", eye(-62, 1.7, -3), eye(-62, 2.5, -11), 68);
 look("window-box", "window box close", eye(-59, 1.7, -8.4), eye(-60.5, 1.35, -10.8), 34);
 look("van", "cars kit van as delivery stand-in", eye(-48, 1.5, 1), eye(-40, 1.2, 2.8), 48);
-look("bus-stop", "bus stop pole", eye(54, 1.6, 2), eye(60, 2, 4.6), 44);
 look("street-far", "street from outside, grow-in at the far end", eye(-430, 2, 1.2), eye(0, 3, 0), 16);
 
 // A village's sign on a country road, near the street.
 const villageX = STREET_X;
 const villageZ = STREET_Z + 500;
-const villageSheet = createNameSheet(["Jomalby", "Önningeby", "Kattby", "Sundsvidja"], VILLAGE_PLATE.wideM / VILLAGE_PLATE.tallM, ink, 2);
+const villageSheet = createNameSheet(["Jomalby", "Önningeby", "Kattby", "Sundsvidja"], VILLAGE_PLATE.wideM / VILLAGE_PLATE.tallM, ink, 512);
 const villageFrame = buildVillageSign();
 const villagePlate = buildVillagePlate();
 add(villageFrame, [{ x: villageX, y: 0.12, z: villageZ }]);
-const villageMesh = placeNamePlates(villagePlate, villageSheet, [{ x: villageX, y: 0.12 + VILLAGE_PLATE_Y_M, z: villageZ, name: "Önningeby" }], namePlateMaterial(inputs, villageSheet.texture));
+const villageMesh = placeNamePlates(villagePlate, villageSheet, [{ x: villageX, y: 0.12 + VILLAGE_PLATE_Y_M, z: villageZ, name: "Önningeby" }], namePlateMaterial(inputs, villageSheet.texture).material);
 scene.add(villageMesh);
 look("village", "village sign", [villageX - 2, 1.5, villageZ + 8], [villageX, 1.6, villageZ], 40);
 
@@ -345,8 +344,6 @@ window.__townKitGallery = {
     "traffic light": triangles(lightModel),
     "street-name post": triangles(postModel),
     "street-name plate": triangles(plateModel),
-    "crossing pole": triangles(crossingModel),
-    "bus stop pole": triangles(busModel),
     bicycle: triangles(bikeModels[0]),
     "hanging lamp": triangles(hangingModel),
     "window box": triangles(boxModels[0]),
@@ -354,6 +351,7 @@ window.__townKitGallery = {
     "village plate": triangles(villagePlate),
     terminal: triangles(terminalModel),
     ferry: triangles(ferryModel),
+    "archipelago ferry": triangles(roadFerryModel),
   },
   ready: true,
 };

@@ -42,6 +42,21 @@ export const LANDMARK_COLOURS = {
   "castle-lime-foot": "#a9a296",
   "castle-roof": "#6d6a66",
   "castle-window": "#2c2a28",
+  "timber-grey": "#8b8072",
+  "timber-pale": "#b7a98f",
+  "timber-dark": "#5d5347",
+  "falu-red": "#8f3a2a",
+  "tower-tin": "#7d8580",
+  bronze: "#556553",
+  "bronze-dark": "#39443a",
+  "plinth-granite": "#9c8f88",
+  "plinth-dark": "#6e6460",
+  "cross-iron": "#2f3233",
+  "earth-turf": "#6f7a45",
+  "earth-bare": "#7d6a52",
+  "field-stone": "#8a8580",
+  concrete: "#a4a29b",
+  "concrete-dark": "#6d6c66",
 } as const;
 
 export type LandmarkColour = keyof typeof LANDMARK_COLOURS;

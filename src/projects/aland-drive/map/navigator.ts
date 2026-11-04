@@ -1,12 +1,13 @@
-import { drawCar, drawLand, drawNames, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
+import type { Discovery } from "./discovery";
+import { drawCar, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
 /*
  * The car's place on the road network, as the drive goes on: the road it's on,
  * the GPS route and the next direction, and the mini map, which turns with the
- * car. Each frame hands it the car and it works out what changed; nothing here
- * has a clock.
+ * car, with the places to find on it. Each frame hands it the car and it works
+ * out what changed; nothing here has a clock.
  */
 
 /** What the HUD shows of the route. */
@@ -42,6 +43,7 @@ const MINI_FAR_SCALE = 0.17;
 const MINI_FAR_SPEED_MS = 45;
 const MINI_LAND_DIM = 0.35;
 const MINI_NAMES = 4;
+const MINI_PLACE_PX = 7;
 /** Other players stay this far inside the mini map's rim. */
 const MINI_RIM_PX = 12;
 
@@ -53,7 +55,7 @@ export class Navigator {
   private pendingSince = { x: 0, z: 0 };
   private lastRoute = { x: Number.NaN, z: Number.NaN };
   private lastRead = { x: Number.NaN, z: Number.NaN };
-  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0 };
+  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0, found: 0 };
   private lastPlayers: readonly MapPlayer[] = [];
   /** How many other players the mini map last drew. */
   playersDrawn = 0;
@@ -66,6 +68,7 @@ export class Navigator {
     private readonly sharp: SharpLand,
     private readonly mini: HTMLCanvasElement,
     private readonly ink: MapInk,
+    private readonly discovery: Discovery,
     private readonly events: NavigatorEvents,
   ) {
     const pen = mini.getContext("2d");
@@ -151,9 +154,9 @@ export class Navigator {
 
   private drawMini(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): void {
     const last = this.lastDraw;
-    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && !this.playersMoved(players);
+    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && last.found === this.discovery.revision && !this.playersMoved(players);
     if (unchanged) return;
-    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision };
+    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision, found: this.discovery.revision };
     this.lastPlayers = players;
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
@@ -163,6 +166,7 @@ export class Navigator {
     drawRoads(pen, view, this.graph, 3, ink);
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
+    drawPlaces(pen, view, this.discovery.places.map((place) => ({ place, found: this.discovery.isFound(place) })), MINI_PLACE_PX, ink, false);
     drawPlayers(pen, view, players, 8, ink, { circle: [width / 2, height / 2, width / 2 - MINI_RIM_PX] }, false);
     this.playersDrawn = players.length;
     drawCar(pen, view, x, z, headingClockwise, 9, ink);

@@ -1,0 +1,76 @@
+// A video of the world in motion, for judging by eye what a screenshot can't show (boats under way, anything that
+// moves or changes with distance): opens the game in headless Chromium at a place, takes over the page's clock, and
+// renders the video's frames one after another, each exactly a frame's time later, so the video plays at real speed
+// however slowly the machine renders. The frames are encoded with ffmpeg, which must be on the PATH.
+// The full Chromium is asked for by name: the default headless shell falls back to WebGL2 here.
+//
+// Prereq: a dev server and a tile server (`tools/serve-tiles.mjs`). Usage:
+//   node src/projects/aland-drive/tools/film.mjs <out.mp4> <east,north,height,yaw,pitch> [--sea=<ISO time>] [--speed=1] [--seconds=20] [--fps=30] [--size=1280x720]
+// The place is `?at=`'s five numbers; --sea is the boats' clock at the video's first frame (`tools/sea-times.ts` says
+// when one passes), stepped a frame's time each frame after, or --speed times that for a time-lapse of a ship's
+// slow manoeuvre: only the boats speed up, while the water and the sky keep real time.
+// ALAND_DRIVE_URL is the page's address, with ?tiles=local:<port> for the local tile server.
+
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium } from "playwright";
+
+const flags = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
+const [out, at] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+const option = (name) => flags.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+if (out === undefined || at === undefined) throw new Error("usage: film.mjs <out.mp4> <east,north,height,yaw,pitch> [--sea=<ISO time>] [--seconds=20] [--fps=30] [--size=1280x720]");
+const [WIDTH, HEIGHT] = (option("size") ?? "1280x720").split("x").map(Number);
+const FPS = Number(option("fps") ?? 30);
+const SECONDS = Number(option("seconds") ?? 20);
+const SEA = option("sea");
+const SPEED = Number(option("speed") ?? 1);
+const BASE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
+const url = `${BASE}${BASE.includes("?") ? "&" : "?"}at=${at}`;
+
+const browser = await chromium.launch({ channel: "chromium", headless: true, args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
+const problems = [];
+page.on("pageerror", (error) => problems.push(error.message));
+await page.goto(url, { waitUntil: "load" });
+await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+await page.waitForFunction(() => window.__alandDrive !== undefined, null, { timeout: 180000 }).catch(async (error) => {
+  console.log(`no game: ${error.message}\n${problems.join("\n")}\n${(await page.locator("body").innerText()).slice(0, 600)}`);
+  await browser.close();
+  process.exit(1);
+});
+// Everything round the place lands before the clock is taken, so the video starts on a whole view.
+await page.evaluate(async () => {
+  const probe = window.__alandDrive;
+  const framesPass = async (count) => {
+    const target = probe.frames() + count;
+    while (probe.frames() < target) await new Promise(requestAnimationFrame);
+  };
+  await framesPass(10);
+  while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
+  await framesPass(10);
+});
+
+// The frame meter measures the machine, which reads as nonsense on a clock that moves a frame at a time.
+await page.evaluate(() => {
+  for (const element of document.body.children) if (element instanceof HTMLElement && element.style.right === "0px" && element.querySelector("canvas")) element.style.display = "none";
+});
+
+// From here the page's time, timers and animation frames move only when told to: a frame's time per frame.
+await page.clock.install();
+// A moment just ahead of the page's own: its clock keeps running until paused, and can't be paused in its past.
+await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+const frames = mkdtempSync(join(tmpdir(), "aland-film-"));
+const total = Math.round(SECONDS * FPS);
+const seaFrom = SEA === undefined ? null : Date.parse(SEA) / 1000;
+for (let frame = 0; frame < total; frame++) {
+  if (seaFrom !== null) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), seaFrom + (frame * SPEED) / FPS);
+  await page.clock.runFor(1000 / FPS);
+  await page.screenshot({ path: join(frames, `${String(frame).padStart(5, "0")}.png`) });
+  if (frame % FPS === 0) process.stdout.write(`\r${frame / FPS} of ${SECONDS} s`);
+}
+await browser.close();
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(FPS), "-i", join(frames, "%05d.png"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", out]);
+rmSync(frames, { recursive: true });
+console.log(`\r${out}: ${SECONDS} s at ${FPS} fps${SPEED === 1 ? "" : `, the boats at ${SPEED}× speed`}${problems.length ? `, with page errors:\n${problems.join("\n")}` : ""}`);

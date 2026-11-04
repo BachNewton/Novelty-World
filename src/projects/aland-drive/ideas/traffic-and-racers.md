@@ -1,6 +1,6 @@
 # Car traffic and AI racers
 
-A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea, not a plan in motion: nothing here is built and no session is scheduled for it. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
+A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), and nothing else. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
 
 The two are designed together because they stand on the same foundation, and because the obvious framing, cheap cars for traffic and real cars for racers, needed testing against the code before either is built. It holds, with three corrections the code forced:
 
@@ -12,8 +12,9 @@ The owner's decisions changed one more part of it. Traffic isn't each player's o
 
 ## What's there today
 
-- **One simulated car.** `sim/drive.ts` holds one `Car` in its own Rapier world, a body on four wheel rays (`sim/car.ts`), stepped 120 times a second from a `DriveInput` (throttle, brake, steer, handbrake). The same inputs give the same drive, every time.
-- **Ground only round that car.** `sim/ground.ts` keeps the 3×3 blocks of 120 m round the car loaded as collision meshes. So the ground reaches at least 120 m from the car in every direction, and nothing beyond.
+- **Several simulated cars.** `sim/drive.ts` holds the player's `Car` and any others the game adds (`Drive.addCar`) in one Rapier world, each a body on four wheel rays (`sim/car.ts`), stepped 120 times a second from its own `DriveInput` (throttle, brake, steer, handbrake). The same inputs give the same drive, every time, and a car added elsewhere leaves the player's drive exactly as it was.
+- **Ground round every simulated car.** `sim/ground.ts` keeps the 3×3 blocks of 120 m round each car loaded as collision meshes, the blocks of cars close together shared. So the ground reaches at least 120 m from every car in every direction, and nothing beyond.
+- **Each car's limits.** `sim/car-limits.json`, measured by `tools/car-limits.ts` on a flat test pad: each car's sideways grip in steady corners from 60 to 220 km/h, its braking and its pull, band by band of speed. A test holds it to the cars' tuning.
 - **Other players as stand-ins.** `sim/remote-cars.ts`: each other player's car is a dynamic body with no ground and no gravity, steered every step to where that car should be, so a hit trades momentum by weight and the stand-in is pulled back on its way. It touches only the player's car (`sim/groups.ts`). This is already most of what a traffic car near the player needs.
 - **A plain driver.** `sim/autopilot.ts` follows one line by pure pursuit, slowing for bends ahead to a fixed 9 m/s² of sideways grip whatever the car. It knows nothing of other cars, the road's width or the car's own limits. It is the seed of the racer.
 - **Road centre lines.** `sim/road-net.ts` holds each loaded tile's laid road centres, for respawning. A lesser road's line stops short of the road it meets (the apron between is paved, not lined), so the lines have gaps at every junction and nothing joins them.
@@ -37,6 +38,17 @@ Lanes and junctions are counted from the published road map (`map.json.gz`) over
 Counting service roads and tracks too, the island has 3,546 km of motor road and 11,500 junctions, most of them drives. Only 581 roads are one-way, nearly all in Mariehamn. So the lane map is small: a few thousand lanes in the busiest place a player can be, a few hundred in the country.
 
 **One simulated car**, counted on the fixture tile by the scripted driver along Route 1 for two minutes at 90 km/h (2.9 km): each step it casts **4 wheel rays**, is **1 body**, and is in contact with **1.2 ground blocks** on average. It **builds 31 ground blocks per km driven**, each about **1,800 ground and 130 road triangles** on a country tile. A traffic car moved along its lane costs no rays, no body and no ground at all.
+
+**Several**, by the same driver on the same road for the same two minutes, every car at 90 km/h:
+
+| Cars | Wheel rays a step | Bodies | Ground blocks loaded | Blocks built per km the cars cover |
+|---|---|---|---|---|
+| 1 | 4 | 1 | 9 | 28 |
+| 4 in a pack, 12 m apart | 16 | 4 | 10 | 29 |
+| 8 in a pack, 12 m apart | 32 | 8 | 11.3 | 30 |
+| 2, 1 km apart | 8 | 2 | 18 | 27 a car |
+
+Rays and bodies grow with the cars; ground grows with how spread out they are. A pack shares nearly all its blocks, so eight racers together cost the ground of one car and a bit; a racer far from the player costs a car's ground of its own.
 
 ## The shared foundation
 
@@ -75,7 +87,7 @@ Kept to what already works:
 
 ### The simulation holds more than one car
 
-Racers, and traffic once hit, are full cars in the player's own Rapier world, beside the player's, each from its own `DriveInput`. That needs the simulation to hold several cars and to load ground round each of them, the blocks round every simulated car together, so a racer 1 km ahead drives on real ground. A pack of racers close together shares most of its blocks.
+Racers, and traffic once hit, are full cars in the player's own Rapier world, beside the player's, each from its own `DriveInput`. The simulation holds several cars and loads ground round each of them, the blocks round every simulated car together, so a racer 1 km ahead drives on real ground (`sim/several-cars.test.ts` holds that, and that two simulated cars collide). A pack of racers close together shares most of its blocks. A car added sits out its first step out of the world: a collider made since the last step isn't found by a ray until the world steps, so its new ground isn't there to it yet, and stepping the world for it would move every other car.
 
 A simulated car needs detail under it, which only reaches 2.2 km from the player. Past that, a racer moves on a pace model instead: along its racing line at the speeds its plan says, with no physics, and back into the simulation once it's within reach. A player who is that far behind or ahead can't see it either way.
 
@@ -143,7 +155,7 @@ Everything that costs is a number a frame reads, the forest's way: how many cars
 A racer is an AI holding the same `DriveInput` of the same simulated car as the player: the same physics, grip, engine and gearbox, so whatever it does a player could do too. It grows out of the autopilot in three steps.
 
 - **A racing line.** For the race's route, a line inside the road's edges that straightens the bends: outside, apex, outside. The road's edges come from the laid surface, which knows each section's width, so the line never leaves the tarmac. A racer that's being cautious, or on a narrow village road, keeps nearer its own side.
-- **A speed plan for its own car.** Each car's real limits are measured once in the simulation by a tool: the sideways grip it holds at speed, how hard it brakes, how it pulls through its gears. From those, the plan works out the fastest speed at every metre of the line: as fast as the next bend allows, braking where this car must brake for it. Today's autopilot uses one number for every car, which is why it is slow in the GT and wild in the van. This makes each racer drive its car as that car can be driven.
+- **A speed plan for its own car.** Each car's real limits are measured once in the simulation by a tool (`tools/car-limits.ts`, into `sim/car-limits.json`): the sideways grip it holds at speed, how hard it brakes, how it pulls through its gears. From those, the plan works out the fastest speed at every metre of the line: as fast as the next bend allows, braking where this car must brake for it. Today's autopilot uses one number for every car, which is why it is slow in the GT and wild in the van. This makes each racer drive its car as that car can be driven.
 - **Following the plan**: steering by pure pursuit along the line, throttle and brake to the plan's speed, and the handbrake only where a hairpin asks for it.
 
 ### Overtaking and defending
@@ -192,10 +204,12 @@ Each piece is small enough for one session, and says what it needs first. Racers
 
 **Foundation**
 
-1. **More than one simulated car.** The simulation holds several cars, each with its own input, and loads the ground round all of them. Holds by test that two simulated cars collide and that a car 1 km from the player drives on real ground. Needs nothing.
-2. **Each car's limits, measured.** A tool drives each of the 14 cars through set manoeuvres in the simulation and records its grip at speed, its braking and its pull, into a table the racers read. Needs nothing.
+1. **More than one simulated car.** Built. The simulation holds several cars, each with its own input, and loads the ground round all of them. Holds by test that two simulated cars collide and that a car 1 km from the player drives on real ground.
+2. **Each car's limits, measured.** Built. A tool drives each of the 14 cars through set manoeuvres in the simulation and records its grip at speed, its braking and its pull, into a table the racers read.
 
-**Racers** (needs 1 and 2; phase 6's race start and finish are their own work, and the racers need only a route)
+**Grip by surface comes before the racing line.** The simulated car has one grip, front and rear, the same on asphalt, gravel, grass and rock, for the player as for any car. So the Ytterby gravel stage drives like tarmac, and the limits table holds only the test pad's dry, flat grip. Surfaces are the car's physics, not a racer's: every car gets them, the player's first, and the racers have them for free because they drive the same car. The table then takes a row per surface, which the speed plan reads. Traffic doesn't need it: a traffic car away from the player runs no physics, and near one it is a stand-in steered to its lane, so a surface reaches it only as its lane's speed. Getting the feel right is the work, since the balance between arcade and realism is hard to strike. It is judged by the owner in the game against Test Drive Unlimited, Forza Horizon and The Crew, the games this one stands among: gravel that lets go earlier and slides predictably, and grass and verges that punish without spinning the car, rather than a simulator's.
+
+**Racers** (needs 1, 2 and grip by surface; phase 6's race start and finish are their own work, and the racers need only a route)
 
 3. **The racing line and speed plan**, for a route on real roads, inside the laid edges. Checked against the real stages of `docs/DRIVING-CULTURE.md`: every car finishes Norra Sundsvägen and the Ytterby gravel, and the times come out by count.
 4. **The racer.** The autopilot grown into a driver of the plan, with recovery by its own reset, and difficulty as above.

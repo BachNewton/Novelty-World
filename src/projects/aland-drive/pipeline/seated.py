@@ -6,7 +6,7 @@ after the other, so a seat's partner is the one beside it in the list. Each benc
 rolls from where it stands whether anyone is there, and whether it's one or a pair:
 
 - **A café table** is busy anywhere, since its terrace is out because the place is open,
-  and busier in town (`town.py`'s test, the roadside's too). A taken table
+  and busier in town (`built_up.py`'s test, the roadside's too). A taken table
   is as often a pair, facing each other across it, as someone alone.
 - **A bench** is quieter, much more so out of town, a park's included, now and then a
   pair side by side, and its sitters lean older.
@@ -25,7 +25,7 @@ import numpy as np
 
 from people import Figure, roll, seed_of, write
 from roadside import FILE
-from town import town_of
+from built_up import built_up_of
 
 SOURCE = "seated"
 # Placed from OSM's benches, cafés and buildings, so the list is ODbL, as the roadside is.
@@ -59,7 +59,7 @@ def bake_seats(seats: dict[str, list[list[float]]], built_up) -> list[Figure]:
 def figures_of(folder: Path) -> list[Figure]:
     entry = folder / FILE
     seats = json.loads(entry.read_text(encoding="utf-8")).get("seats", {}) if entry.exists() else {}
-    return bake_seats(seats, town_of(folder.name)) if any(seats.values()) else []
+    return bake_seats(seats, built_up_of(folder.name)) if any(seats.values()) else []
 
 
 def bake(name: str, tiles: Path) -> dict:

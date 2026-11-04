@@ -4,7 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildFarmFence, FARM_FENCE_M, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside/index";
 import { catalogue } from "./catalogue";
-import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, PIER_SECTION, PONTOON_SECTION, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M } from "./index";
+import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildCow, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildPierSection, buildPontoonSection, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, PIER_SECTION, PONTOON_SECTION, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M, type CowPose } from "./index";
 
 /*
  * The gallery's scene: a straight road on the game's own renderer, camera, haze, sun,
@@ -47,6 +47,8 @@ export interface Shot {
   target: [number, number, number];
   label: string;
   fieldOfView?: number;
+  /** Shows only this version of the models that have both at one place. */
+  version?: "near" | "far";
 }
 
 const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true, trackTimestamp: true });
@@ -189,7 +191,7 @@ look("tractor-rear", "tractor, the other side", station(9), [6, EYE_M, -2], [0, 
 const flock: Placement[] = [[0, 0, 0.4], [2.4, 1.3, 2.1], [-1.6, 2.2, 4.3], [4.6, -0.4, 5.5], [1.4, 4, 1.2], [-3.4, 0.6, 2.8]].map(([x, back, yaw]) => ({ x: station(10) + x, y: 0, z: VERGE_Z - 2 - back, yaw }));
 add(buildSheep("grazing"), flock.slice(0, 3));
 add(buildSheep("standing"), flock.slice(3, 5));
-add(buildSheep("grazing", "grey"), flock.slice(5));
+add(buildSheep("grazing"), flock.slice(5));
 look("sheep", "sheep", station(10), [-3, EYE_M, 1.5], [0.5, 0.5, VERGE_Z - 3], 30);
 
 // 11: a corner of farm with everything in it, to see the kit together with the roadside's.
@@ -202,6 +204,22 @@ add(buildWrappedBale(), [{ x: farmX + 10, y: 0, z: -17 }, { x: farmX + 12, y: 0,
 add(buildSheep("grazing"), [{ x: farmX + 21, y: 0, z: -13, yaw: 1 }, { x: farmX + 24, y: 0, z: -15, yaw: 4 }]);
 add(buildStoneWall(1), Array.from({ length: 30 }, (_, index) => ({ x: farmX - 26 + index * STONE_WALL_M, y: 0, z: -10 })));
 look("farm-corner", "a corner of farm", farmX, [-22, EYE_M, 1.5], [16, 3, -14], 60);
+
+// 13: a dairy herd at grass, Ayrshire or Holstein as each place rolls, and one cow close.
+const herdX = station(13);
+const herd: [pose: CowPose, x: number, back: number, yaw: number][] = [
+  ["grazing", -9, 3, 0.4], ["grazing", -4, 6, 2.2], ["standing", 0, 2.5, 4.4], ["grazing", 4, 8, 1.1], ["lying", 7, 3.5, 5.2],
+  ["lying", -1, 11, 2.9], ["standing", 10, 9, 3.6], ["grazing", 13, 4, 0.9], ["lying", -7, 9, 1.6], ["grazing", 2, 15, 5.8],
+];
+for (const pose of ["grazing", "standing", "lying"] as const) add(buildCow(pose), herd.filter(([kind]) => kind === pose).map(([, x, back, yaw]) => ({ x: herdX + x, y: 0, z: VERGE_Z - 2 - back, yaw })));
+look("cows", "dairy herd from the road", herdX, [-12, EYE_M, 1.5], [2, 0.8, VERGE_Z - 6], 40);
+look("cow-close", "cow at 4 m", herdX, [-3.6, EYE_M, VERGE_Z - 2], [0, 0.85, VERGE_Z - 4.5], 50);
+look("cows-lying", "cows lying, chewing the cud", herdX, [3, EYE_M, -1], [7, 0.5, VERGE_Z - 5.5], 40);
+look("cows-field", "the herd across the field at 250 m", herdX, [0, 3, 250], [2, 0.8, VERGE_Z - 8], 5);
+const PROFILE_X = 20;
+(["standing", "grazing", "lying"] as const).forEach((pose, index) => add(buildCow(pose), [{ x: herdX + PROFILE_X + index * 3.5, y: 0, z: VERGE_Z - 3, yaw: Math.PI / 2 }]));
+look("cows-profile", "standing, grazing and lying, side on", herdX, [PROFILE_X + 3.5, 1.1, VERGE_Z + 4], [PROFILE_X + 3.5, 0.7, VERGE_Z - 3], 50);
+look("cows-front", "the same three, head on", herdX, [PROFILE_X + 13, 1.2, VERGE_Z - 1], [PROFILE_X + 3.5, 0.7, VERGE_Z - 3], 30);
 
 // The shore, along x = SHORE_X, seen from the bank.
 const shore = (along: number, out = 0, y = SEA_Y, yaw = TO_SEA, scale = 1): Placement => ({ x: SHORE_X + out, y, z: along, yaw, scale });
@@ -259,6 +277,21 @@ swaps.forEach(([name, model, apart], index) => {
   for (const away of [12, model.swapM]) look(`swap-${name}-${away}`, `${name}, far and near, at ${away} m`, x, [0, EYE_M + 1, SWAP_Z + away], [0, 2, SWAP_Z], (2 * Math.atan((apart * 1.6) / away) * 180) / Math.PI);
 });
 
+// Each cow's two versions at one place, one shown at a time (`Shot.version`), seen along the clear strip of the road
+// behind the windmill: from close, from 90 m and from where the two trade.
+const COW_PAIR_X = -420;
+const cowVersions: Record<"near" | "far", Mesh[]> = { near: [], far: [] };
+(["grazing", "standing", "lying"] as const).forEach((pose, index) => {
+  const model = buildCow(pose);
+  const at = { x: COW_PAIR_X, y: 0, z: -24 + index * 4, yaw: 0 };
+  cowVersions.far.push(...add({ ...model, swapM: 0 }, [at]));
+  cowVersions.near.push(...add({ ...model, swapM: 1e4, reachM: 1e4 }, [at]));
+  if (index > 0) return;
+  for (const away of [12, 90, model.swapM]) {
+    for (const version of ["near", "far"] as const) shots.push({ name: `swap-cow-${version}-${away}`, label: `cows, ${version}, at ${away} m`, camera: [COW_PAIR_X - away, EYE_M + 1, -20], target: [COW_PAIR_X, 0.9, -20], fieldOfView: (2 * Math.atan(2.6 / away) * 180) / Math.PI, version });
+  }
+});
+
 // The stretch of country, for the cost.
 const COUNTRY_X = -3400;
 const COUNTRY_M = 2400;
@@ -289,6 +322,8 @@ scatter(buildJuniper(2, "spreading"), 60, 8, 60, () => 1);
 scatter(buildWrappedBale(), 90, 16, 80, () => 1);
 scatter(buildHayBale(), 40, 16, 80, () => 1);
 scatter(buildSheep("grazing"), 70, 20, 70, () => 1);
+scatter(buildCow("grazing"), 40, 20, 90, () => 1);
+scatter(buildCow("lying"), 15, 20, 90, () => 1);
 scatter(buildShed("red"), 24, 14, 70, () => 1);
 scatter(buildTractor(), 4, 14, 60, () => 1);
 scatter(mill, 3, 40, 80, () => 1);
@@ -309,6 +344,8 @@ function pose(shot: Shot) {
   camera.updateProjectionMatrix();
   camera.position.set(...shot.camera);
   camera.lookAt(...shot.target);
+  for (const mesh of cowVersions.near) mesh.visible = shot.version !== "far";
+  for (const mesh of cowVersions.far) mesh.visible = shot.version !== "near";
   forest.update(camera.position, camera);
 }
 

@@ -110,8 +110,8 @@ function doorway(mesh: RuralMesh, { centre, bottom: floor, wide, tall, leaves }:
   if (leaves === 2) mesh.face([[centre - mullion, floor, skin + way * 0.01], [centre + mullion, floor, skin + way * 0.01], [centre + mullion, top, skin + way * 0.01], [centre - mullion, top, skin + way * 0.01]], "trim");
   const out = skin + way * 0.012;
   mesh
-    .face([[left - frame, floor, out], [left, floor, out], [left, top + frame, out], [left - frame, top + frame, out]], "trim")
-    .face([[right, floor, out], [right + frame, floor, out], [right + frame, top + frame, out], [right, top + frame, out]], "trim")
+    .face([[left - frame, floor, out], [left, floor, out], [left, top, out], [left - frame, top, out]], "trim")
+    .face([[right, floor, out], [right + frame, floor, out], [right + frame, top, out], [right, top, out]], "trim")
     .face([[left - frame, top, out], [right + frame, top, out], [right + frame, top + frame, out], [left - frame, top + frame, out]], "trim");
   return mesh;
 }
@@ -247,11 +247,14 @@ const SAIL_BARS = 8;
 const SHAFT_TILT = 0.07;
 
 /** One arm of four: the stock, and on its trailing side a lattice of white bars between two rails. */
+const BAR_PROUD_M = 0.015;
+
 function sailArm(mesh: RuralMesh, angle: number, centre: V3, bars: number): void {
-  const out = (reach: number, side: number): V3 => {
+  // Bars lie a little proud of the rails they cross, or the two whites would fight for the same pixels.
+  const out = (reach: number, side: number, proud = 0): V3 => {
     const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
     const [x, y] = [cos * reach - sin * side, sin * reach + cos * side];
-    return [centre[0] + x, centre[1] + y, centre[2] - y * SHAFT_TILT];
+    return [centre[0] + x, centre[1] + y, centre[2] - y * SHAFT_TILT + proud];
   };
   const tip = MILL.armM;
   mesh.beam(out(0, 0), out(tip, 0), STOCK_M, STOCK_M * 0.8, "trim", 0.98);
@@ -265,7 +268,7 @@ function sailArm(mesh: RuralMesh, angle: number, centre: V3, bars: number): void
   rail(SAIL_WIDE_M * 0.5);
   for (let bar = 0; bar <= bars; bar++) {
     const reach = start + (bar / bars) * (tip - start);
-    mesh.face([out(reach - 0.04, 0), out(reach + 0.04, 0), out(reach + 0.04, SAIL_WIDE_M), out(reach - 0.04, SAIL_WIDE_M)], "trim", 0.97);
+    mesh.face([out(reach - 0.04, 0, BAR_PROUD_M), out(reach + 0.04, 0, BAR_PROUD_M), out(reach + 0.04, SAIL_WIDE_M, BAR_PROUD_M), out(reach - 0.04, SAIL_WIDE_M, BAR_PROUD_M)], "trim", 0.97);
   }
 }
 
@@ -286,7 +289,7 @@ export function buildWindmill(): RoadsideModel {
     near.tube([ax * 0.92, trees, az * 0.92], [ax * 0.1, postTop - 1.3, az * 0.1], 0.13, 4, {}, "mill-timber");
   }
   near.beam([-crossM - 0.3, trees, 0], [crossM + 0.3, trees, 0], 0.3, 0.3, "mill-timber-dark", 0.9, 1);
-  near.beam([0, trees + 0.3, -crossM - 0.3], [0, trees + 0.3, crossM + 0.3], 0.3, 0.3, "mill-timber-dark", 0.9, 1);
+  near.beam([0, trees + 0.32, -crossM - 0.3], [0, trees + 0.32, crossM + 0.3], 0.3, 0.3, "mill-timber-dark", 0.9, 1);
   near.tube([0, trees, 0], [0, postTop, 0], 0.34, 8, { radiusTo: 0.29, shadeFrom: 0.8, shadeTo: 1 }, "mill-timber");
 
   // The body, wider at the top than the floor, as a post mill's is, with a skirt of crowntree under it.
@@ -320,7 +323,8 @@ export function buildWindmill(): RoadsideModel {
     near.face([[side * shoulder.x, shoulder.y, -zOut], [side * shoulder.x, shoulder.y, zOut], [0, ridge, zOut], [0, ridge, -zOut]], "roof-dark", 1.08);
     near.face([[side * x, eaves - 0.04, -zOut], [side * x, eaves - 0.04, zOut], [side * xOut, eavesOut - 0.08, zOut], [side * xOut, eavesOut - 0.08, -zOut]], "roof-under");
     near.face([[side * xOut, eavesOut, -zOut], [side * xOut, eavesOut, zOut], [side * xOut, eavesOut - 0.18, zOut], [side * xOut, eavesOut - 0.18, -zOut]], "trim", 0.96);
-    for (const end of [-zOut, zOut]) {
+    // The barge boards stand just proud of the gable they edge.
+    for (const end of [-zOut - 0.02, zOut + 0.02]) {
       near.face([[side * xOut, eavesOut + 0.02, end], [side * shoulder.x, shoulder.y + 0.02, end], [side * shoulder.x, shoulder.y - 0.22, end], [side * xOut, eavesOut - 0.2, end]], "trim");
       near.face([[side * shoulder.x, shoulder.y + 0.02, end], [0, ridge + 0.02, end], [0, ridge - 0.22, end], [side * shoulder.x, shoulder.y - 0.22, end]], "trim");
     }

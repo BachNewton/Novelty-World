@@ -17,10 +17,15 @@ Street furniture (benches, bins, bike racks, café terraces) and the seats on it
 are `furniture.py`'s, and town dressing (lindens, flag and midsummer poles, fences,
 planters, picnic tables, viewpoints) `dressing.py`'s, placed in the same lists once
 these stand: what OSM maps first, then the furniture, then what rules place.
+A built-up place's lesser streets get the town's post-top lamp, not the road's. The
+town's things come from OSM where it maps them: traffic lights at its signal nodes,
+a village's sign where a road comes into it, and street names at a town junction of
+two named streets.
 
 Traffic keeps right, so a sign stands on the right of the traffic it's for and faces
-it. The list also holds the walls the car can't pass: poles, lamps, rails and
-shelters. A breakaway sign post, an edge post or a mailbox stops no car.
+it. The list also holds the walls the car can't pass: poles, lamps, signal poles, rails
+and shelters. A breakaway sign post, a street-name post, a village's wooden sign, an
+edge post or a mailbox stops no car.
 
 Run alone, it adds `roadside.json` to tiles already built, which needs no rebuild.
 """
@@ -44,7 +49,7 @@ from shapely.geometry import LineString, Point, Polygon
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES
 from progress import Progress
-from town import town_of
+from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
 from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 
@@ -70,6 +75,41 @@ LAMP_OUT_M = 1.2
 STEP_OUT_M = (1.5, 2.5, 3.5, 4.5, 5.5)
 # A rule's lamp gives way to one OSM has mapped this near.
 MAPPED_LAMP_M = 20.0
+# A town's post-top lamp has no arm over the road: it stands at the kerb's back.
+TOWN_LAMP_OUT_M = 0.7
+
+# A signalled junction: OSM's signal nodes this near one another are one junction's, its own node and the crossings round it.
+SIGNAL_CLUSTER_M = 40.0
+# A road passing this near the junction's middle is one of its roads, and leaves it as an arm if it runs on this far.
+SIGNAL_ARM_REACH_M = 12.0
+SIGNAL_ARM_SHORTEST_M = 8.0
+# Two arms leaving within this angle are one: a road drawn as two chains, or a chain ending on another.
+SIGNAL_ARM_MERGE = math.cos(math.radians(30))
+# Two arms this near opposite are one road's two ends, which go together; the crossing road waits half a cycle.
+SIGNAL_SAME_ROAD = math.cos(math.radians(45))
+# A head stands a crosswalk's width back from the crossing road's edge.
+SIGNAL_CROSSWALK_M = 3.0
+SIGNAL_BACK_MOST_M = 15.0
+
+# A street-name post stands at one corner of a town junction of two named streets, this far back from the crossing street's edge.
+NAME_BACK_M = 1.5
+NAME_BACK_MOST_M = 10.0
+NAME_OUT_M = 0.8
+# A chain's end this near the crossing street's edge lands on it.
+NAME_LANDING_M = 3.0
+# One post a junction: a pair of names already given this near is the same junction.
+NAME_JUNCTION_APART_M = 40.0
+
+# A village's sign stands where a road comes this near its OSM node, on the right of the traffic coming in.
+VILLAGE_REACH_M = {"village": 200.0, "hamlet": 150.0}
+# The roads that lead into a village from elsewhere: a residential street is the village's own.
+VILLAGE_ROADS = {"primary", "secondary", "tertiary", "unclassified"}
+# The board is 2 m across the traffic, so its middle stands out far enough for its near post to clear the road.
+VILLAGE_OUT_M = 2.4
+VILLAGE_CLEAR_M = 1.3
+VILLAGE_STEP_M = 4.0
+VILLAGE_STEPS = 5
+VILLAGE_SIGNS_APART_M = 60.0
 
 POST_SPACING_M = 50.0
 POST_OUT_M = 0.9
@@ -133,6 +173,7 @@ class Chain:
     motor: bool
     rings: np.ndarray  # (sections, RINGS, 3) of east, north, height.
     spans: list[tuple[int, int]]
+    name: str = ""
 
     def __post_init__(self):
         centre = self.rings[:, CENTRE, :2]
@@ -208,7 +249,7 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
     for index, chain in enumerate(surface["chains"]):
         kind = chain["kind"]
         rank = CLASSES[kind].rank if kind in CLASSES else 6
-        chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans", [])]))
+        chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans", [])], chain.get("name") or ""))
         first += chain["sections"]
     aprons = surface["aprons"]
     start = sections * RINGS * 12 + sections
@@ -311,7 +352,7 @@ class Roadside:
         buildings = json.loads((folder / "buildings.json").read_text(encoding="utf-8"))["buildings"] if (folder / "buildings.json").exists() else []
         self.buildings = [Polygon(building["ring"]) for building in buildings if len(building["ring"]) >= 4]
         self.building_tree = shapely.STRtree(self.buildings)
-        self.town = town_of(tile.name)
+        self.town = built_up_of(tile.name)
         self.osm = json.loads(osm_roadside_path(tile).read_text(encoding="utf-8"))
         self.models: dict[str, list[list[float]]] = {}
         # A model drawn at a size of its own (a linden by its height) has one for every place, in order.
@@ -320,6 +361,14 @@ class Roadside:
         self.wires: list[list[float]] = []
         self.walls: list[list[float]] = []
         self.posts: list[np.ndarray] = []
+        self.town_signs()
+
+    def town_signs(self) -> None:
+        """What the town's things carry beyond a place, each in the order of its model's places."""
+        self.signal_phases: list[float] = []
+        self.street_names: list[list] = []
+        self.village_names: list[str] = []
+        self.signalled: list[np.ndarray] = []
 
     # Places
 
@@ -407,7 +456,7 @@ class Roadside:
             along += spacing
 
     def built_up(self, point: np.ndarray) -> bool:
-        """In town, by `town.py`'s test. A town's post goes through the door, and its streets are lit."""
+        """In town, by `built_up.py`'s test. A town's post goes through the door, and its streets are lit."""
         return self.town(point)
 
     def lit(self, chain: Chain, along: float) -> bool:
@@ -427,17 +476,19 @@ class Roadside:
                 road = self.nearest_road(point, 30.0, STREET_RANK)
                 if road is None:
                     if self.free(point):
-                        self.lamp(point, self.heights.at(*point), roll(*point) * 2 * math.pi)
+                        self.lamp(point, self.heights.at(*point), roll(*point) * 2 * math.pi, self.built_up(point))
                     continue
                 chain, along, side = road
+                town = self.town_street(chain, point)
+                out_m = TOWN_LAMP_OUT_M if town else LAMP_OUT_M
                 ring = chain.ring_at(along)
                 edge = ring[side_name(side)[0], :2]
-                if np.hypot(*(point - ring[CENTRE, :2])) < np.hypot(*(edge - ring[CENTRE, :2])) + LAMP_OUT_M:
-                    point, height, out = self.beside(chain, along, side, LAMP_OUT_M)
+                if np.hypot(*(point - ring[CENTRE, :2])) < np.hypot(*(edge - ring[CENTRE, :2])) + out_m:
+                    point, height, out = self.beside(chain, along, side, out_m)
                 else:
                     height, out = self.heights.at(*point), (point - ring[CENTRE, :2]) / np.hypot(*(point - ring[CENTRE, :2]))
                 if self.free(point):
-                    self.lamp(point, height, facing(*-out))
+                    self.lamp(point, height, facing(*-out), town)
         for chain in self.chains:
             if not chain.motor or chain.rank > STREET_RANK:
                 continue
@@ -445,14 +496,19 @@ class Roadside:
             for along in self.walk(chain, LAMP_SPACING_M, LAMP_SPACING_M / 3):
                 if chain.on_span(along, 2.0) or not self.lit(chain, along):
                     continue
-                spot = self.standing(chain, along, side, LAMP_OUT_M)
+                town = self.town_street(chain, chain.ring_at(along)[CENTRE, :2])
+                spot = self.standing(chain, along, side, TOWN_LAMP_OUT_M if town else LAMP_OUT_M)
                 if spot is None or any(np.hypot(*(spot[0] - lamp)) < MAPPED_LAMP_M for lamp in mapped):
                     continue
                 point, height, out = spot
-                self.lamp(point, height, facing(*-out))
+                self.lamp(point, height, facing(*-out), town)
 
-    def lamp(self, point: np.ndarray, height: float, yaw: float) -> None:
-        self.place("lamp", point, height, yaw)
+    def town_street(self, chain: Chain, point: np.ndarray) -> bool:
+        """A built-up place's lesser street, whose lamps are the town's post-tops: a main road keeps its lamps' arms over the road."""
+        return chain.rank > MAIN_RANK and self.built_up(point)
+
+    def lamp(self, point: np.ndarray, height: float, yaw: float, town: bool = False) -> None:
+        self.place("town-lamp" if town else "lamp", point, height, yaw)
         self.wall_ring(point, (POLE_HALF_M, POLE_HALF_M), 0.0)
 
     def local(self, element: dict) -> np.ndarray:
@@ -612,7 +668,7 @@ class Roadside:
             end = chain.ring_at(along)[CENTRE, :2]
             nodes = [kind for point, kind in mapped if np.hypot(*(point - end)) < MAPPED_SIGN_M]
             by_rule = greater.rank <= MAIN_RANK and 1 <= chain.rank <= STREET_RANK
-            if not nodes and not by_rule:
+            if not nodes and not by_rule or self.near_signals(end):
                 continue
             name = "stop" if "stop" in nodes else "give-way"
             # Traffic heading for the end keeps right: the chain's right side if it runs to the last section, its left if to the first.
@@ -672,6 +728,166 @@ class Roadside:
                     if spot is not None:
                         self.sign("pedestrian-crossing", spot[0], spot[1], -direction * side)
 
+    # The town's things
+
+    def taken(self, point: np.ndarray, metres: float = SIGN_APART_M) -> bool:
+        """A post, a lamp or a pole already stands this near."""
+        if any(np.hypot(*(point - post)) < metres for post in self.posts):
+            return True
+        return any(math.hypot(place[0] - point[0], -place[2] - point[1]) < metres for name in ("lamp", "town-lamp", "pole") for place in self.models.get(name, []))
+
+    def near_signals(self, point: np.ndarray) -> bool:
+        return any(np.hypot(*(point - centre)) < SIGNAL_CLUSTER_M for centre in self.signalled)
+
+    def signals(self) -> None:
+        """OSM's signal nodes, a junction's grouped: its own node and the signalled crossings round it. A fire station's signals stay dark, so they get none."""
+        nodes = []
+        for element in self.osm["elements"]:
+            tags = element["tags"] if element["type"] == "node" else {}
+            signalled = tags.get("highway") == "traffic_signals" or tags.get("highway") == "crossing" and tags.get("crossing") == "traffic_signals"
+            if signalled and tags.get("traffic_signals") != "emergency":
+                nodes.append((self.local(element), tags.get("highway") == "traffic_signals"))
+        groups: list[list[tuple[np.ndarray, bool]]] = []
+        for node in nodes:
+            joined = [group for group in groups if any(np.hypot(*(node[0] - other)) < SIGNAL_CLUSTER_M for other, _ in group)]
+            groups = [group for group in groups if not any(group is other for other in joined)] + [[node, *(member for group in joined for member in group)]]
+        for group in groups:
+            junction = [point for point, own in group if own] or [point for point, _ in group]
+            self.signal_junction(np.mean(junction, axis=0))
+
+    def arms(self, centre: np.ndarray) -> list[tuple[Chain, float, int, np.ndarray]]:
+        """The roads leaving a junction: each one's chain, how far along it the junction is, which way along it the arm runs, and its way out on the ground."""
+        found: list[tuple[Chain, float, int, np.ndarray]] = []
+        for chain in sorted(self.chains, key=lambda chain: chain.rank):
+            if not chain.motor or chain.rank > STREET_RANK or chain.line is None or chain.line.distance(Point(centre)) > SIGNAL_ARM_REACH_M:
+                continue
+            at = chain.line.project(Point(centre))
+            for way in (1, -1):
+                if (chain.length - at if way > 0 else at) < SIGNAL_ARM_SHORTEST_M:
+                    continue
+                out = chain.ring_at(at + way * SIGNAL_ARM_SHORTEST_M)[CENTRE, :2] - chain.ring_at(at)[CENTRE, :2]
+                out = out / max(float(np.hypot(*out)), 1e-6)
+                if all(out @ other[3] < SIGNAL_ARM_MERGE for other in found):
+                    found.append((chain, at, way, out))
+        return found
+
+    def signal_junction(self, centre: np.ndarray) -> None:
+        """A head on each arm, on the right of the traffic coming in and facing it, a crosswalk back from the crossing road.
+        A road's two arms share a start in the cycle and the crossing road takes the other half; a crossing on one road is that road's two arms."""
+        arms = self.arms(centre)
+        if not arms:
+            return
+        self.signalled.append(centre)
+        start = roll(*centre, 5.3)
+        for chain, at, way, out in arms:
+            crossing = [other for other in arms if abs(other[3] @ out) < SIGNAL_SAME_ROAD]
+            half = max((carriageway_half(other[0], other[1]) for other in crossing), default=0.0)
+            # Traffic coming in runs against the arm: with the chain if the arm runs back along it, so its right is the chain's right.
+            side = -way
+            back = half + SIGNAL_CROSSWALK_M
+            while back <= half + SIGNAL_BACK_MOST_M:
+                along = at + way * back
+                if not 0.0 <= along <= chain.length:
+                    break
+                spot = self.standing(chain, along, side, SIGN_OUT_M)
+                if spot is not None and not self.taken(spot[0]):
+                    point, height, _ = spot
+                    self.place("traffic-light", point, height, facing(*(chain.direction_at(along) * way)))
+                    self.signal_phases.append(round((start + (0.0 if abs(out @ arms[0][3]) > SIGNAL_SAME_ROAD else 0.5)) % 1.0, 3))
+                    self.wall_ring(point, (POLE_HALF_M, POLE_HALF_M), 0.0)
+                    self.posts.append(point)
+                    break
+                back += 1.5
+
+    def name_posts(self) -> None:
+        """A post at one corner of each town junction of two named streets, a blade along each. Real towns name a junction once, not at every corner."""
+        named = [chain for chain in self.chains if chain.motor and chain.rank <= STREET_RANK and chain.name and chain.line is not None]
+        if not named:
+            return
+        tree = shapely.STRtree([chain.line for chain in named])
+        given: list[tuple[frozenset, np.ndarray]] = []
+        for chain in named:
+            for index in tree.query(chain.line, predicate="dwithin", distance=NAME_LANDING_M + 6.0):
+                other = named[index]
+                if other.name == chain.name:
+                    continue
+                for junction, along, towards in self.meetings(chain, other):
+                    pair = frozenset((chain.name, other.name))
+                    if not other_than_seam(junction, self.box) or not self.built_up(junction) or any(names == pair and np.hypot(*(junction - at)) < NAME_JUNCTION_APART_M for names, at in given):
+                        continue
+                    if self.name_post(chain, along, towards, other, junction):
+                        given.append((pair, junction))
+
+    def meetings(self, chain: Chain, other: Chain) -> list[tuple[np.ndarray, float, int]]:
+        """Where a chain meets another: each place, how far along the chain, and which way along it traffic comes to it.
+        A chain ending on the other comes to it from its own side; one crossing it, from the side with room for a post."""
+        found = []
+        for along, towards in ((0.0, -1), (chain.length, 1)):
+            end = chain.ring_at(along)[CENTRE, :2]
+            if other.line.distance(Point(end)) <= carriageway_half(other, other.line.project(Point(end))) + NAME_LANDING_M:
+                found.append((end, along, towards))
+        crossing = chain.line.intersection(other.line)
+        for point in shapely.get_parts(crossing):
+            if point.geom_type != "Point":
+                continue
+            along = chain.line.project(point)
+            if min(along, chain.length - along) > NAME_BACK_MOST_M:
+                found.append((np.array(point.coords[0]), along, 1))
+        return found
+
+    def name_post(self, chain: Chain, along: float, towards: int, other: Chain, junction: np.ndarray) -> bool:
+        """The post on the corner left of the traffic coming along `chain`, where no junction sign of its own stands, a blade along each street."""
+        reach = carriageway_half(other, other.line.project(Point(junction)))
+        back = max(0.0, reach - float(other.line.distance(Point(chain.ring_at(along)[CENTRE, :2])))) + NAME_BACK_M
+        while back <= NAME_BACK_MOST_M + reach:
+            at = along - towards * back
+            if not 0.0 <= at <= chain.length:
+                return False
+            spot = self.standing(chain, at, -towards, NAME_OUT_M)
+            if spot is not None and not self.taken(spot[0]):
+                point, height, _ = spot
+                across = other.direction_at(other.line.project(Point(junction)))
+                across = across if across @ (point - junction) > 0 else -across
+                self.place("name-post", point, height, 0.0)
+                self.street_names.append([round(along_yaw(*(-towards * chain.direction_at(at))), 4), chain.name, round(along_yaw(*across), 4), other.name])
+                self.posts.append(point)
+                return True
+            back += 1.0
+        return False
+
+    def villages(self) -> None:
+        """A village's sign where each road leading in comes within its reach of OSM's node, on the right of the traffic coming in and facing it."""
+        for element in self.osm["elements"]:
+            tags = element["tags"] if element["type"] == "node" else {}
+            if tags.get("place") not in VILLAGE_REACH_M or not tags.get("name"):
+                continue
+            centre = self.local(element)
+            boundary = Point(centre).buffer(VILLAGE_REACH_M[tags["place"]]).exterior
+            placed: list[np.ndarray] = []
+            for chain in self.chains:
+                if not chain.motor or chain.kind not in VILLAGE_ROADS or chain.line is None:
+                    continue
+                for point in shapely.get_parts(chain.line.intersection(boundary)):
+                    if point.geom_type != "Point":
+                        continue
+                    at = chain.line.project(point)
+                    ahead, behind = (chain.ring_at(min(at + 5.0, chain.length))[CENTRE, :2], chain.ring_at(max(at - 5.0, 0.0))[CENTRE, :2])
+                    inwards = 1 if np.hypot(*(ahead - centre)) < np.hypot(*(behind - centre)) else -1
+                    for step in range(VILLAGE_STEPS):
+                        along = at - inwards * step * VILLAGE_STEP_M
+                        if not 0.0 <= along <= chain.length:
+                            break
+                        spot = self.standing(chain, along, inwards, VILLAGE_OUT_M, VILLAGE_CLEAR_M)
+                        if spot is None or self.taken(spot[0], VILLAGE_CLEAR_M + SIGN_APART_M):
+                            continue
+                        if any(np.hypot(*(spot[0] - other)) < VILLAGE_SIGNS_APART_M for other in placed):
+                            break
+                        self.place("village-sign", spot[0], spot[1], facing(*(-chain.direction_at(along) * inwards)))
+                        self.village_names.append(tags["name"])
+                        self.posts.append(spot[0])
+                        placed.append(spot[0])
+                        break
+
     def mailboxes(self, landings: list) -> None:
         for chain, along, towards, greater in landings:
             if chain.rank < STREET_RANK or greater.rank > STREET_RANK or chain.length < 20:
@@ -699,9 +915,13 @@ class Roadside:
         self.lamps()
         self.rails()
         landings = self.landings()
+        # Before the junctions' signs, which a signalled junction has no need of.
+        self.signals()
         self.junction_signs(landings)
         self.speed_signs()
         self.stops_and_crossings()
+        self.name_posts()
+        self.villages()
         self.mailboxes(landings)
         street = furniture.Furniture(self)
         dressed = dressing.Dressing(street)
@@ -711,7 +931,11 @@ class Roadside:
         # Last, so an edge post makes way for everything else at the roadside.
         placed = [np.array([place[0], -place[2]]) for name in ("rail", "rail-end", "mailbox", "bus-shelter") for place in self.models.get(name, [])]
         self.edge_posts(placed + self.posts)
-        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats, "scales": self.scales}
+        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats, "scales": self.scales, **self.town_lists()}
+
+    def town_lists(self) -> dict:
+        """Each in the order of its model's places: a head's start in its cycle, a name post's two blades (yaw and name each), a village sign's name."""
+        return {"signalPhases": self.signal_phases, "streetNames": self.street_names, "villageNames": self.village_names}
 
 
 def limit_changes(along: np.ndarray, speeds: list[int | None]) -> list[tuple[int, int]]:
@@ -726,6 +950,11 @@ def limit_changes(along: np.ndarray, speeds: list[int | None]) -> list[tuple[int
         if end - float(along[start]) >= SHORTEST_LIMIT_M and (not kept or kept[-1][1] != speed):
             kept.append((start, speed))
     return kept
+
+
+def carriageway_half(chain: Chain, along: float) -> float:
+    ring = chain.ring_at(along)
+    return float(np.hypot(*(ring[EDGE_RIGHT, :2] - ring[EDGE_LEFT, :2]))) / 2
 
 
 def other_than_seam(point: np.ndarray, box: tuple[float, float, float, float]) -> bool:
