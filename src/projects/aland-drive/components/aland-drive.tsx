@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
-import { Prompt } from "@/shared/components/prompts";
+import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Landmark, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Landmark, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
+import { GameMenu } from "./game-menu";
+import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
@@ -45,6 +47,7 @@ const HINTS = [
   { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
   { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
   { binding: BINDINGS.mute, icon: Volume2, label: "Sound on or off" },
+  { binding: BINDINGS.menu, icon: MenuIcon, label: "Game menu" },
 ];
 
 const MAP_HINTS = [
@@ -84,8 +87,9 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "spots" | "jumpTo" | "whereabouts"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
+  const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   const [others, setOthers] = useState<string[]>([]);
   // Places found and not yet shown, the one on screen first.
@@ -134,6 +138,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
+          onGameMenu: setGameMenu,
           onCarChange: setCarId,
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
@@ -234,7 +239,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
             </div>
           )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>
-            {(mapOpen ? MAP_HINTS : HINTS).map(({ binding, icon: Icon, label }) => (
+            {(mapOpen ? MAP_HINTS : HINTS).filter(({ binding }) => controlFor(binding, input) !== null).map(({ binding, icon: Icon, label }) => (
               <li key={label} className="flex items-center gap-1" title={label}>
                 <Prompt binding={binding} input={input} />
                 <Icon aria-label={label} className="size-4" />
@@ -243,6 +248,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           </ul>
         </>
       )}
+      {gameMenu !== null && dev !== null && <GameMenu menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
       {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">

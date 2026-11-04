@@ -53,6 +53,40 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes it", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  const menu = page.getByRole("dialog", { name: "Game menu" });
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Resume" })).toBeFocused();
+
+  // Held throttle does nothing while it's open: the drive isn't stepped at all.
+  const paused = await page.evaluate(() => window.__alandDrive?.car().position);
+  await page.keyboard.down("KeyW");
+  const frames = await page.evaluate(() => window.__alandDrive?.frames() ?? 0);
+  await page.waitForFunction((from) => (window.__alandDrive?.frames() ?? 0) > from + 30, frames);
+  expect(await page.evaluate(() => window.__alandDrive?.car().position)).toEqual(paused);
+
+  await menu.getByRole("button", { name: "Resume" }).click();
+  await expect(menu).toBeHidden();
+  await page.waitForFunction(
+    (from) => {
+      const position = window.__alandDrive?.car().position;
+      return position !== undefined && from !== undefined && Math.hypot(position[0] - from[0], position[2] - from[2]) > 1;
+    },
+    paused,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.up("KeyW");
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+});
+
 test("the verge grows beside the road, and leaving it out takes its triangles away", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });

@@ -54,6 +54,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
+import { DRIVING_MENU, type GameMenu, type MenuItemId } from "./game-menu";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -218,6 +219,8 @@ export interface GameEvents {
   onMapReady?: () => void;
   onMapOpen?: (open: boolean) => void;
   onDevMenuOpen?: (open: boolean) => void;
+  /** The game menu has opened, with what it holds, or closed (null). */
+  onGameMenu?: (menu: GameMenu | null) => void;
   /** Another car is being driven. */
   onCarChange?: (id: CarId) => void;
   /** The car has entered a named road. */
@@ -257,6 +260,9 @@ export interface Game {
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
+  setGameMenuOpen: (open: boolean) => void;
+  /** Does what a game menu item says: Resume closes the menu. */
+  pickMenuItem: (id: MenuItemId) => void;
   /** The showcase spots, for a dev menu to jump to. */
   spots: readonly { id: string; name: string }[];
   /** Closes the dev menu and jumps to a showcase spot. */
@@ -850,6 +856,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let mapLook: { x: number; z: number; detail: boolean } | null = null;
   let heldFlight = false;
   let devMenuOpen = false;
+  // The game menu while it's open, as the game worked it out on opening.
+  let gameMenu: GameMenu | null = null;
   const raycaster = new Raycaster();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
   const groundHit = new Vector3();
@@ -956,7 +964,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const setMapOpen = (open: boolean) => {
-    if (!worldMap || !navigator || cameraMode === "free" || jumping) return;
+    if (!worldMap || !navigator || cameraMode === "free" || jumping || gameMenu) return;
     if (open === worldMap.wanted) return;
     if (open && !mapFrom) {
       const car = drive.stateAt(1);
@@ -978,10 +986,29 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const setDevMenuOpen = (open: boolean) => {
-    if (open === devMenuOpen || (open && (mapFrom || jumping))) return;
+    if (open === devMenuOpen || (open && (mapFrom || jumping || gameMenu))) return;
     devMenuOpen = open;
     controls.setDevMenuOpen(open);
     events.onDevMenuOpen?.(open);
+  };
+
+  /** What the game menu holds and whether it stops the drive, worked out as it opens. */
+  const menuNow = (): GameMenu => DRIVING_MENU;
+  const setGameMenuOpen = (open: boolean) => {
+    if (open === (gameMenu !== null) || (open && (mapFrom || jumping || devMenuOpen))) return;
+    gameMenu = open ? menuNow() : null;
+    controls.setGameMenuOpen(open);
+    events.onGameMenu?.(gameMenu);
+  };
+  const pickMenuItem = (id: MenuItemId) => {
+    switch (id) {
+      case "resume":
+        setGameMenuOpen(false);
+        break;
+      case "sound":
+        useDriveSoundSettings.getState().toggleMuted();
+        break;
+    }
   };
 
   const whereabouts = () => {
@@ -1029,7 +1056,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(null);
     }
   };
-  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
+  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onGameMenu: setGameMenuOpen, onInputKind: events.onInputKind });
 
   const resize = () => {
     const { clientWidth, clientHeight } = container;
@@ -1075,7 +1102,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const nextInput = (): DriveInput => {
     if (autopilot) lastInput = autopilot.input(drive.stateAt(1));
-    else lastInput = cameraMode === "free" ? NO_INPUT : controls.read();
+    // A menu that doesn't pause lets go of the car's controls.
+    else lastInput = cameraMode === "free" || gameMenu ? NO_INPUT : controls.read();
     return lastInput;
   };
 
@@ -1146,8 +1174,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     lastFrame = now;
     let share = 1;
     let stepped = 0;
+    const menuHolds = devMenuOpen || gameMenu?.pauses === true;
     if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
-    if (!held && !mapFrom && !jumping && !devMenuOpen) {
+    if (!held && !mapFrom && !jumping && !menuHolds) {
       owedSeconds += seconds;
       stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
       for (let step = 0; step < stepped; step++) drive.step(nextInput());
@@ -1176,7 +1205,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const shown = Math.max(0, Math.min(1, (height - OVERLAY_FROM_M) / (OVERLAY_FULL_M - OVERLAY_FROM_M)));
       worldMap.draw(mapViewOf(height, pose.turn), shown);
     } else if (cameraMode === "free") {
-      if (!devMenuOpen) freeCamera.update(now);
+      if (!devMenuOpen && !gameMenu) freeCamera.update(now);
     } else {
       chaseCamera.update(car, held ? STEP_S * 4 : seconds, controls.look());
       hazeM.value = HAZE_M;
@@ -1204,7 +1233,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1216,11 +1245,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     reeds.update(spot, camera);
     shrubs.update(spot, camera);
     granite.update(spot, camera);
-    docks.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
+    docks.update(lifted || held || jumping || menuHolds ? 0 : seconds);
+    boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, camera.position);
     seaMarks.update(spot.x, spot.z, camera.position);
-    people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
-    if (!(lifted || held || jumping || devMenuOpen)) streetClock.value += seconds;
+    people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
+    if (!(lifted || held || jumping || menuHolds)) streetClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
@@ -1373,6 +1402,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
+    setGameMenuOpen,
+    pickMenuItem,
     spots: SHOWCASE.map(({ id, name }) => ({ id, name })),
     jumpTo(id) {
       setDevMenuOpen(false);

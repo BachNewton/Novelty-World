@@ -15,11 +15,14 @@ It lives at Games → 3D Games → Åland Drive. It is the whole main island, 54
 | Look down on the car, while held | Up | |
 | Handbrake | Space | A |
 | Back to the nearest road | R | Y |
-| Free camera | F | View |
-| World map | M | Menu |
+| Free camera | F | |
+| World map | M | View |
+| Game menu | Esc | Menu |
 | Sound on or off | N | X |
 
-The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or Menu flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
+The game menu (`components/game-menu.tsx`) opens on Resume, which B, Menu and Esc press too, and holds the sound on or off. Esc opens it only when nothing else is open for it to close. It is driven by the shared pad navigation, and the game decides what it holds and whether it pauses (`render/game-menu.ts`): each time it opens, the game works out its items, which the page draws by id, and whether the drive stops. It pauses as the map does unless the game says otherwise, and a menu that doesn't pause lets go of the car's controls while the cars and the clock run on.
+
+The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
 
 The dev menu (below) jumps the car to any of the ten showcase spots (`render/showcase.ts`) by name, with the first load's bar while the tiles there land and the spot's name on arrival. `tools/showcase.mjs` screenshots all ten through the probe, the repeatable view set for art and performance checks.
 

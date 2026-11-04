@@ -18,8 +18,9 @@ export const BINDINGS = {
   right: binding("L3", "D"),
   handbrake: binding("A", "Space"),
   respawn: binding("Y", "R"),
-  freeCamera: binding("View", "F"),
-  map: binding("Menu", "M"),
+  freeCamera: binding(null, "F"),
+  map: binding("View", "M"),
+  menu: binding("Menu", "Esc"),
   mute: binding("X", "N"),
   mapPick: binding("A", "Click"),
   mapClear: binding("X", "X"),
@@ -30,9 +31,9 @@ export type GameAction = "respawn" | "freeCamera" | "map" | "mute";
 export type MapAction = "pick" | "clear" | "close";
 
 const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map", KeyN: "mute" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "freeCamera", Menu: "map", X: "mute" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "map", X: "mute" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
-const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", Menu: "close" };
+const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", View: "close" };
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 /** `~` is a dead key on some layouts, sent as "Dead" until it's pressed twice, so the key under Esc counts by where it is. */
@@ -42,13 +43,16 @@ export interface ControlsListener {
   onAction: (action: GameAction) => void;
   onMapAction: (action: MapAction) => void;
   onDevMenu: (open: boolean) => void;
+  /** The game menu: Esc or a pad's Menu opens it, and Esc closes it. Its own buttons are the page's. */
+  onGameMenu: (open: boolean) => void;
   onInputKind: (kind: InputKind) => void;
 }
 
-export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }: ControlsListener) {
+export function startControls({ onAction, onMapAction, onDevMenu, onGameMenu, onInputKind }: ControlsListener) {
   const held = new Set<string>();
   let mapOpen = false;
   let devMenuOpen = false;
+  let gameMenuOpen = false;
   let pad: PadReading | null = null;
   let kind: InputKind = "keyboard-mouse";
 
@@ -60,7 +64,7 @@ export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }:
 
   const onKeyDown = (event: KeyboardEvent) => {
     // Open, the menu's buttons take Space themselves.
-    if (TAKEN_KEYS.has(event.code) && !devMenuOpen) event.preventDefault();
+    if (TAKEN_KEYS.has(event.code) && !devMenuOpen && !gameMenuOpen) event.preventDefault();
     if (event.repeat) return;
     switchTo("keyboard-mouse");
     held.add(event.code);
@@ -73,8 +77,16 @@ export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }:
       if (event.code === "Escape" || isDevMenuKey(event)) onDevMenu(false);
       return;
     }
+    if (gameMenuOpen) {
+      if (event.code === "Escape") onGameMenu(false);
+      return;
+    }
     if (isDevMenuKey(event)) {
       onDevMenu(true);
+      return;
+    }
+    if (event.code === "Escape") {
+      onGameMenu(true);
       return;
     }
     const action = KEY_ACTIONS[event.code];
@@ -95,10 +107,15 @@ export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }:
       if (changed && pad) switchTo("pad");
     },
     onButton(edge) {
-      if (!edge.pressed || edge.name === null || devMenuOpen) return;
+      // The game menu's buttons are the page's own pad navigation.
+      if (!edge.pressed || edge.name === null || devMenuOpen || gameMenuOpen) return;
       if (mapOpen) {
         const mapAction = PAD_MAP_ACTIONS[edge.name];
         if (mapAction) onMapAction(mapAction);
+        return;
+      }
+      if (edge.name === "Menu") {
+        onGameMenu(true);
         return;
       }
       const action = PAD_ACTIONS[edge.name];
@@ -141,6 +158,9 @@ export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }:
     },
     setDevMenuOpen(open: boolean) {
       devMenuOpen = open;
+    },
+    setGameMenuOpen(open: boolean) {
+      gameMenuOpen = open;
     },
     /** The steady inputs on the world map: a pad's, and WASD's panning. */
     mapSteer() {
