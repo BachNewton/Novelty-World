@@ -475,7 +475,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const townMask = sampled(layers.townNear, nearLayer).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
   // A direction can't be filtered, so it's the nearest texel's.
   const townAngle = textureLoad(layers.townNear, ivec2(imageUv.mul(townPixels).floor().clamp(0, townPixels - 1))).depth(nearLayer).a;
-  const townClassed = max(smoothstep(float(0.49), float(0.51), townMask.r), smoothstep(float(0.49), float(0.51), townMask.g));
+  const [townRed, townGreen, townBlue] = [townMask.r, townMask.g, townMask.b].map((channel) => smoothstep(float(0.49), float(0.51), channel));
+  // Paving, gravel, tarmac, setts or steps: a lawn or a bed is soft ground, which a road or path wears into as it does anywhere.
+  const townHard = max(townRed, townBlue.mul(float(1).sub(townGreen)));
   const photoSoft = texture(layers.groundNear, imageUv).depth(nearLayer).level(float(3)).rgb.pow(vec3(2.2));
   const groundColor = townGround({ place: positionWorld.xz, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
@@ -571,10 +573,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
   const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
   const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
-  // Where the town's ground is classed, a street's shoulder is that ground, save a paved town street's kerb.
+  // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
   const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
-  const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept.mul(townClassed)));
-  const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), max(townRoad.claimed, townClassed));
+  const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept).mul(townHard));
+  const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), townHard);
   const roadMaterial = new MeshBasicNodeMaterial();
   roadMaterial.colorNode = hazed(mix(painted, shoulderColour, shoulderShare).mul(light));
 
