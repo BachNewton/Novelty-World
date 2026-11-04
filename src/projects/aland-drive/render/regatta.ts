@@ -26,9 +26,9 @@ export const COURSES: readonly RegattaCourse[] = [
 ];
 
 
-export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">) {
+export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">, courses: readonly RegattaCourse[] = COURSES) {
   const time = uniform(seaSeconds() % DAY_S);
-  const fleets = COURSES.map((course) => buildRegatta({ ...inputs, time }, course));
+  const fleets = courses.map((course) => buildRegatta({ ...inputs, time }, course));
   for (const fleet of fleets) scene.add(fleet);
   return {
     /** The sea's clock, which a tool may hold. */

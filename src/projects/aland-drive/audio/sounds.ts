@@ -5,7 +5,7 @@ import { Shape, type SoundDesign } from "@/shared/lib/sound";
  * the places) can't be one-shots: they are `graph.ts`'s.
  */
 
-export const SOUND_IDS = ["knock", "thud", "bump-stop", "gear", "handbrake", "crash"] as const;
+export const SOUND_IDS = ["knock", "thud", "bump-stop", "gear", "handbrake", "crash", "stone", "clod"] as const;
 export type SoundId = (typeof SOUND_IDS)[number];
 
 export const SOUNDS: Record<SoundId, SoundDesign> = {
@@ -74,5 +74,27 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
     variation: { pitch: 0.07, volume: 0.1 },
     minGap: 0.6,
     busiestEvery: 1,
+  },
+  stone: {
+    label: "Stone in the arch",
+    trigger: "A tyre throws a stone up into its arch: now and then rolling fast on gravel, a hail of them in a slide on gravel or rock.",
+    layers: [
+      { at: 0, zzfx: { volume: 0.12, frequency: 2300, release: 0.025, shape: Shape.triangle, noise: 0.2, filter: 1200 } },
+      { at: 0.002, zzfx: { volume: 0.05, frequency: 3900, release: 0.05, shape: Shape.sine, filter: 2000 } },
+    ],
+    variation: { pitch: 0.35, volume: 0.6 },
+    minGap: 0.03,
+    busiestEvery: 0.07,
+  },
+  clod: {
+    label: "Turf thrown up",
+    trigger: "A sliding tyre tears up grass and earth, and it thumps against the arch.",
+    layers: [
+      { at: 0, zzfx: { volume: 0.18, frequency: 110, sustain: 0.01, release: 0.06, shape: Shape.noise, filter: -700 } },
+      { at: 0, zzfx: { volume: 0.1, frequency: 160, release: 0.05, shape: Shape.sine, slide: -0.5, filter: -600 } },
+    ],
+    variation: { pitch: 0.25, volume: 0.5 },
+    minGap: 0.06,
+    busiestEvery: 0.14,
   },
 };

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, MapPin, Navigation, X } from "lucide-react";
+import { Check, CloudRain, FlaskConical, MapPin, Navigation, TreePine, Snowflake, Sun, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
 import type { CarChoice } from "../render/game";
 import type { CarId } from "../sim/cars";
+import { CONDITIONS, type Condition } from "../sim/surfaces";
+import { playgroundAsked, playgroundLink } from "../playground/place";
 
 /*
  * A tool for the owner, not part of the game: no prompt, no controller. Set to
@@ -66,6 +68,49 @@ function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
   );
 }
 
+const CONDITION_ICONS: Record<Condition, LucideIcon> = { dry: Sun, wet: CloudRain, snow: Snowflake, ice: ThermometerSnowflake };
+
+/** Every surface's condition at once, for trying the grip before there is weather to set it. */
+function ConditionChoice({ condition, onCondition }: { condition: Condition; onCondition: (condition: Condition) => void }) {
+  const [chosen, setChosen] = useState(condition);
+  return (
+    <div role="radiogroup" aria-label="Condition" className="grid grid-cols-4 gap-1">
+      {CONDITIONS.map((name) => {
+        const Icon = CONDITION_ICONS[name];
+        return (
+          <button
+            key={name}
+            type="button"
+            role="radio"
+            aria-checked={name === chosen}
+            className="flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-1 py-1 text-xs capitalize"
+            style={{ borderColor: name === chosen ? ACCENT : "transparent" }}
+            onClick={() => {
+              setChosen(name);
+              onCondition(name);
+            }}
+          >
+            <Icon aria-hidden className="size-4" style={{ color: name === chosen ? ACCENT : INK }} />
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Over to the playground, a made-up map for trying the car, or back to Åland. */
+function WorldSwitch() {
+  const inPlayground = playgroundAsked(window.location.search);
+  const Icon = inPlayground ? TreePine : FlaskConical;
+  return (
+    <a href={playgroundLink(window.location.href, inPlayground)} className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm" style={{ borderColor: INK }}>
+      <Icon aria-hidden className="size-4" />
+      {inPlayground ? "Back to Åland" : "Playground"}
+    </a>
+  );
+}
+
 function SpotList({ spots, onJump }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void }) {
   return (
     <ul className="flex flex-col gap-1">
@@ -81,7 +126,7 @@ function SpotList({ spots, onJump }: { spots: readonly { id: string; name: strin
   );
 }
 
-export function DevMenu({ cars, car, onCar, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, condition, onCondition, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -97,6 +142,10 @@ export function DevMenu({ cars, car, onCar, spots, onJump, whereabouts, onClose 
         </button>
         <Section title="Place">
           <CopyPlace whereabouts={whereabouts} />
+          <WorldSwitch />
+        </Section>
+        <Section title="Ground">
+          <ConditionChoice condition={condition} onCondition={onCondition} />
         </Section>
         <Section title="Jump to">
           <SpotList spots={spots} onJump={onJump} />

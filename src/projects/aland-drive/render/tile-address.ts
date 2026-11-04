@@ -1,8 +1,11 @@
 /*
  * The one place that says where tiles come from. Moving them to another host is
  * copying the files and changing `published` below. A page or tool can be pointed
- * at a local server with `?tiles=local:<port>`, as tests and measuring runs are.
+ * at a local server with `?tiles=local:<port>`, as tests and measuring runs are,
+ * and `?playground` reads the made-up tile the site serves itself.
  */
+
+import { PLAYGROUND_FOLDER, playgroundAsked } from "../playground/place";
 
 /** Names the built tiles' folder in the bucket: a rebuild goes up beside the old one, so nothing can be served stale. */
 const TILES_VERSION = "3025226c4a92";
@@ -15,6 +18,7 @@ function published(): string {
 }
 
 export function tileBase(search: string): string {
+  if (playgroundAsked(search)) return `${window.location.origin}/${PLAYGROUND_FOLDER}`;
   const override = new URLSearchParams(search).get("tiles");
   if (override === null) return published();
   const port = /^local:(\d+)$/.exec(override)?.[1];

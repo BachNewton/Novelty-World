@@ -124,6 +124,17 @@ function flatOut(world: World): { fastest: number; furthest: number } {
   return { fastest, furthest };
 }
 
+describe("the surface under the wheels", () => {
+  // The two tiles' ribbons run opposite ways, so one is wound face down: Rapier numbers a hit on it differently.
+  it.each([-2400, 2400])("is the road's on a ribbon either way it's wound, at x = %i", (x) => {
+    const onRoad = (at: number) => landHeight(at, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
+    const drive = new Drive(twoTiles(), new RoadLine(Float32Array.of(x, onRoad(x), ROAD_Z, x + 100, onRoad(x + 100), ROAD_Z)).at(0));
+    for (let step = 0; step < 10; step++) drive.step(NO_INPUT);
+    expect(drive.player.surfaces()).toEqual(["asphalt", "asphalt", "asphalt", "asphalt"]);
+    drive.dispose();
+  });
+});
+
 describe("a building", () => {
   it("stops the car at top speed: the wall is thinner than a step, and the car mustn't come out the far side", () => {
     const wallX = -300;

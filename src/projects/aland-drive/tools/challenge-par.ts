@@ -87,7 +87,7 @@ function measure(challenge: Challenge, line: RoadLine, world: World, gripShare: 
   const road = world.roads.nearest(place.x, place.z);
   if (!road) throw new Error(`${challenge.id}: no road at the start`);
   const drive = new Drive(world, { ...road, x: place.x, z: place.z, heading: place.heading }, challenge.car);
-  const cornerG = Math.min(...CAR_LIMITS[challenge.car].corner.map(({ g }) => g));
+  const cornerG = Math.min(...CAR_LIMITS[challenge.car].grounds["dry-asphalt"].corner.map(({ g }) => g));
   const driven = runOn(line, RUN_ON_M);
   const pilot = new Autopilot(driven, FLAT_OUT_MS, 0, 0, undefined, gripShare * cornerG * WORLD.gravity);
   // Unbeatable while measuring: a Route is only lost against its target, which par is what sets.

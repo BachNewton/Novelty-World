@@ -12,6 +12,8 @@ export interface ShowcaseSpot {
   x: number;
   z: number;
   headingDeg: number;
+  /** Put the car on the spot itself, off any road, rather than on the road nearest it. */
+  offRoad?: boolean;
 }
 
 export const SHOWCASE: readonly ShowcaseSpot[] = [

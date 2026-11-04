@@ -109,7 +109,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
@@ -383,7 +383,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
         </>
       )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>

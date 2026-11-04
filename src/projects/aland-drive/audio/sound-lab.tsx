@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { SoundLab as Lab } from "@/shared/components/sound-lab";
 import { unlockAudio } from "@/shared/lib/sound";
 import { createDriveAudio } from "./graph";
-import { SURFACES, type DriveAudioState, type Place, type Surface } from "./model";
+import type { DriveAudioState, Place } from "./model";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
 import { CARS } from "../sim/cars";
+import { CONDITIONS, SURFACES, type Condition, type Surface } from "../sim/surfaces";
 import { pullAt, resistanceAt, restingEngine, stepEngine, topSpeedMS, type EngineRead } from "../sim/gearbox";
 
 /*
@@ -28,7 +29,10 @@ const REST: DriveAudioState["suspension"] = [0.114, 0.114, 0.114, 0.114];
 
 interface Knobs {
   vehicle: VehicleId;
-  surface: Surface;
+  /** What the left wheels are on and what the right ones are, so the road's edge can be straddled. */
+  left: Surface;
+  right: Surface;
+  condition: Condition;
   kmh: number;
   throttle: number;
   slip: number;
@@ -39,7 +43,7 @@ interface Knobs {
   place: Place;
 }
 
-const START: Knobs = { vehicle: "skerry-gt", surface: "asphalt", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -76,6 +80,15 @@ function Choice<Value extends string>({ values, label, value, onChange }: { valu
           {label(option)}
         </button>
       ))}
+    </div>
+  );
+}
+
+function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 text-xs text-text-secondary">
+      <span>{label}</span>
+      {children}
     </div>
   );
 }
@@ -140,7 +153,8 @@ function Bench() {
           brake: 0,
           handbrake: knob.handbrake,
           slip: knob.handbrake && speedMS > 3 ? Math.max(knob.slip, 0.55) : knob.slip,
-          surface: knob.surface,
+          wheels: [knob.left, knob.right, knob.left, knob.right],
+          condition: knob.condition,
           suspension: REST,
           place: knob.place,
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
@@ -162,7 +176,7 @@ function Bench() {
   const stop = () => {
     setRunning(false);
     setReadout("Stopped");
-    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, surface: "asphalt", suspension: REST, place: { forest: 0, shore: 0, town: 0 }, paused: true }, 0.03);
+    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, wheels: [latest.current.left, latest.current.right, latest.current.left, latest.current.right], condition: latest.current.condition, suspension: REST, place: { forest: 0, shore: 0, town: 0 }, paused: true }, 0.03);
   };
 
   const engine = knobs.vehicle === "bike" ? null : ENGINES[knobs.vehicle];
@@ -177,7 +191,17 @@ function Bench() {
         <span className="text-xs text-text-muted tabular-nums">{readout}</span>
       </div>
       <Choice values={VEHICLE_IDS} label={vehicleLabel} value={knobs.vehicle} onChange={(vehicle) => set({ vehicle, kmh: 0, floorIt: false, rpm: vehicle === "bike" ? 0 : Math.min(ENGINES[vehicle].redlineRpm * 0.4, 3000) })} />
-      <Choice values={SURFACES} label={capitalised} value={knobs.surface} onChange={(surface) => set({ surface })} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Labelled label="Left wheels">
+          <Choice values={SURFACES} label={capitalised} value={knobs.left} onChange={(left) => set({ left })} />
+        </Labelled>
+        <Labelled label="Right wheels">
+          <Choice values={SURFACES} label={capitalised} value={knobs.right} onChange={(right) => set({ right })} />
+        </Labelled>
+        <Labelled label="Condition">
+          <Choice values={CONDITIONS} label={capitalised} value={knobs.condition} onChange={(condition) => set({ condition })} />
+        </Labelled>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Slider label="Speed, km/h" value={knobs.kmh} min={0} max={Math.round(topKmh)} onChange={(kmh) => set({ kmh, floorIt: false })} />
         <Slider label="Throttle (pedalling, on the bicycle)" value={knobs.floorIt ? 1 : knobs.throttle} min={0} max={1} step={0.01} onChange={(throttle) => set({ throttle, floorIt: false })} />
