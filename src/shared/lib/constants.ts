@@ -28,13 +28,6 @@ export const PROJECTS: Project[] = [
     icon: "Spade",
   },
   {
-    name: "Poker",
-    slug: "poker",
-    description: "Texas Hold'em and more",
-    categorySlug: "card-games",
-    icon: "Club",
-  },
-  {
     name: "Tic Tac Toe",
     slug: "tic-tac-toe",
     description: "The classic game of X's and O's",
@@ -42,32 +35,11 @@ export const PROJECTS: Project[] = [
     icon: "Hash",
   },
   {
-    name: "Burraco",
-    slug: "burraco",
-    description: "The Italian rummy card game",
-    categorySlug: "card-games",
-    icon: "Club",
-  },
-  {
-    name: "Pokémon Ranker",
-    slug: "pokemon-ranker",
-    description: "Rank and tier your favorite Pokémon",
-    categorySlug: "games",
-    icon: "Star",
-  },
-  {
     name: "RPG",
     slug: "rpg",
     description: "A 2D role-playing game adventure",
     categorySlug: "2d-games",
     icon: "Swords",
-  },
-  {
-    name: "Labyrinth",
-    slug: "labyrinth",
-    description: "Navigate the shifting maze board game",
-    categorySlug: "board-games",
-    icon: "Grid3x3",
   },
   {
     name: "Betrayal at House on the Hill",
@@ -84,13 +56,6 @@ export const PROJECTS: Project[] = [
     icon: "Globe",
   },
   {
-    name: "Flag Game",
-    slug: "flag-game",
-    description: "Test your knowledge of world flags",
-    categorySlug: "trivia",
-    icon: "Flag",
-  },
-  {
     name: "Halo",
     slug: "halo",
     description: "Guess the Halo map from its image",
@@ -103,13 +68,6 @@ export const PROJECTS: Project[] = [
     description: "Guess each Pokémon's type(s) from its sprite",
     categorySlug: "trivia",
     icon: "Sparkles",
-  },
-  {
-    name: "Fortuna",
-    slug: "fortuna",
-    description: "A 3D game of fortune and chance",
-    categorySlug: "3d-games",
-    icon: "Box",
   },
   {
     name: "Shipwright",
@@ -145,13 +103,6 @@ export const PROJECTS: Project[] = [
     description: "Drive the open roads of Åland, a whole island at 1:1 scale built from real map data",
     categorySlug: "3d-games",
     icon: "Car",
-  },
-  {
-    name: "Pi Solver",
-    slug: "pi-solver",
-    description: "Compute digits of Pi with various algorithms",
-    categorySlug: "tools",
-    icon: "Calculator",
   },
   {
     name: "For The Stats 2",
