@@ -100,7 +100,7 @@ function twoTiles(withEastDetail = true, walls?: Float32Array): World {
 beforeAll(initPhysics);
 
 const downOn = (drive: Drive, x: number, z: number) => {
-  drive.ground.around(x, z);
+  drive.ground.around([{ x, z }]);
   drive.rapier.step();
   const hit = drive.rapier.castRay(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
   if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
