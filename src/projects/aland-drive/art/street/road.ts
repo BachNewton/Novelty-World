@@ -116,24 +116,3 @@ export function buildReflectorPost(): RoadsideModel {
     .face([[-wide, BAND_HIGH_M, 0], [wide, BAND_HIGH_M, 0], [wide, REFLECTOR_TALL_M, 0], [-wide, REFLECTOR_TALL_M, 0]], "post-white");
   return streetModel(near, far, 45, 360);
 }
-
-/** A Finnish road-safety camera: a grey mast on a concrete foot, a cabinet with its lens looking along +z at oncoming cars, and the flash beside it. */
-export function buildSpeedCamera(): RoadsideModel {
-  const mast = 3.4;
-  const [wide, deep, tall] = [0.24, 0.26, 0.72];
-  const low = mast - 0.2;
-  const near = new Painted()
-    .box([-0.32, -SINK_M, -0.32], [0.32, 0.12, 0.32], "concrete", { open: true, shadeTop: 1.1 })
-    .tube([0, 0.1, 0], [0, low, 0], 0.075, 6, { radiusTo: 0.065 }, "camera-grey")
-    .box([-wide, low, -deep], [wide, low + tall, deep], "camera-grey", { shade: 0.95, shadeTop: 1.08 })
-    .box([-wide - 0.02, low + tall, -deep - 0.02], [wide + 0.02, low + tall + 0.04, deep + 0.03], "camera-dark", { shadeTop: 1.4 })
-    .face([[-0.18, low + 0.28, deep + 0.004], [0.18, low + 0.28, deep + 0.004], [0.18, low + 0.62, deep + 0.004], [-0.18, low + 0.62, deep + 0.004]], "camera-glass")
-    .tube([-0.07, low + 0.45, deep + 0.005], [-0.07, low + 0.45, deep + 0.03], 0.075, 6, { cap: true }, "camera-dark")
-    .tube([-0.07, low + 0.45, deep + 0.03], [-0.07, low + 0.45, deep + 0.034], 0.05, 6, { cap: true, shadeFrom: 1.2 }, "camera-lens")
-    .box([0.04, low + 0.34, deep + 0.005], [0.15, low + 0.56, deep + 0.03], "camera-lens", { shade: 1.15 })
-    .box([-0.09, low - 0.6, -0.07], [0.09, low - 0.1, 0.08], "camera-dark", { open: false });
-  const far = new Painted()
-    .tube([0, -SINK_M, 0], [0, low, 0], 0.09, 3, {}, "camera-grey")
-    .box([-wide, low, -deep], [wide, low + tall, deep], "camera-grey", { open: true, shadeTop: 1.1 });
-  return streetModel(near, far, 90, 520);
-}

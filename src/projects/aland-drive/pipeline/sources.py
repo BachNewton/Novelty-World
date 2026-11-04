@@ -328,11 +328,11 @@ FURNITURE_TAGS = {
 }
 
 
-def _furniture(xml_files: list[Path]) -> dict:
-    """The API's benches, bins, bike parking, cafés and their terraces, parks and busy places, as points or outlines."""
+def _points_and_outlines(xml_files: list[Path], kinds: dict[str, set[str]], version: int) -> dict:
+    """The API's objects of these kinds, as points or as lines and outlines, node by node."""
     roots = [ElementTree.parse(path).getroot() for path in xml_files]
     tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
-    wanted = lambda tags: any(tags.get(key) in values for key, values in FURNITURE_TAGS.items())
+    wanted = lambda tags: any(tags.get(key) in values for key, values in kinds.items())
     nodes: dict[str, dict] = {}
     for root in roots:
         for node in root.iter("node"):
@@ -348,7 +348,7 @@ def _furniture(xml_files: list[Path]) -> dict:
             geometry = [{"lat": nodes[nd.get("ref")]["lat"], "lon": nodes[nd.get("ref")]["lon"]} for nd in way.findall("nd") if nd.get("ref") in nodes]
             elements.append({"type": "way", "id": int(way.get("id")), "tags": tags, "geometry": geometry})
     fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"version": FURNITURE_KEPT_VERSION, "asOf": fetched, "elements": elements}
+    return {"version": version, "asOf": fetched, "elements": elements}
 
 
 def osm_furniture_path(tile: Tile) -> Path:
@@ -356,7 +356,30 @@ def osm_furniture_path(tile: Tile) -> Path:
     if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("version") == FURNITURE_KEPT_VERSION:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_furniture(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(_points_and_outlines(osm_xml(tile), FURNITURE_TAGS, FURNITURE_KEPT_VERSION), ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+# What a kept copy of a tile's town dressing and the places it goes holds: kept apart, as the furniture's is.
+DRESSING_KEPT_VERSION = 1
+DRESSING_TAGS = {
+    "natural": {"tree", "tree_row", "beach"},
+    "man_made": {"flagpole", "maypole"},
+    "barrier": {"fence"},
+    "leisure": {"picnic_table", "park", "swimming_area", "beach_resort"},
+    "tourism": {"picnic_site", "viewpoint", "hotel"},
+    "highway": {"rest_area"},
+    "tower:type": {"observation"},
+    "amenity": {"townhall", "ferry_terminal"},
+}
+
+
+def osm_dressing_path(tile: Tile) -> Path:
+    path = RAW / "osm-dressing" / f"{tile.name}.json"
+    if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("version") == DRESSING_KEPT_VERSION:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_points_and_outlines(osm_xml(tile), DRESSING_TAGS, DRESSING_KEPT_VERSION), ensure_ascii=False), encoding="utf-8")
     return path
 
 

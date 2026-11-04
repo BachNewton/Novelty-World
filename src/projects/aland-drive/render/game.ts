@@ -52,6 +52,7 @@ import { townGround, townRibbon, townRibbonBits } from "../art/town-ground";
 import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
 import { streetMaterials } from "../art/street/index";
+import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
@@ -637,10 +638,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun: manifest.sun }, (x, z) => world.height(x, z));
   const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
   const viewHeight = uniform(1);
+  // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
+  const streetClock = uniform(0);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
-    // Rails and edge posts hold still, so the street kit's clock can.
-    street: streetMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }),
+    street: streetMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: streetClock }),
+    identity: identityMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: streetClock }),
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, manifest.sun),
     town: { inputs: { colour: colorOf, linear, hazed, sun: manifest.sun }, ink: (name) => `#${token(name).getHexString()}` },
@@ -1217,9 +1220,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || devMenuOpen ? 0 : seconds, camera.position);
     seaMarks.update(spot.x, spot.z, camera.position);
     people.update(lifted || held || jumping || devMenuOpen ? 0 : seconds);
+    if (!(lifted || held || jumping || devMenuOpen)) streetClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
+    roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
     sky.update(camera.position, seconds);

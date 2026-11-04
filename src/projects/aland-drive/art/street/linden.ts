@@ -1,13 +1,15 @@
 import { seeded, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { Painted, streetModel, type Motion, type StreetPart } from "./paint";
+import { Painted, streetModel, type StreetPart } from "./paint";
 
 /*
  * A planted linden one unit tall, to be scaled by the tree's height, like the
  * roadside pine. A clean stem to a lifted crown, as an esplanade keeps them, under
  * one full egg-shaped crown: an icosphere pushed out by a few lobes, its facets lit
  * by height so the top is bright and the skirt is dark. The far version is the same
- * crown at a coarser sphere, so the shape doesn't change at the swap.
+ * crown at a coarser sphere, so the shape doesn't change at the swap. Each seed is a
+ * crown of its own, its lobes and its width, so a row of a few seeds isn't one tree
+ * repeated. It holds still, as the forest's trees do.
  */
 
 const SINK = -0.04;
@@ -15,6 +17,8 @@ const SINK = -0.04;
 const CROWN_LOW = 0.26;
 const CROWN_HIGH = 1;
 const CROWN_WIDE = 0.34;
+/** How much one seed's crown is wider or narrower than another's, as a share of the width. */
+const CROWN_WIDE_SPREAD = 0.28;
 const STEM_TOP = 0.42;
 const LOBES = 7;
 const LOBE_DEPTH = 0.13;
@@ -48,8 +52,8 @@ interface Lobe {
   wide: number;
 }
 
-/** A sphere's point on the crown: egg-shaped, widest low, pushed out by the lobes. */
-function onCrown(point: V3, lobes: readonly Lobe[]): V3 {
+/** A sphere's point on the crown: egg-shaped, widest low, pushed out by the lobes, `wide` the crown's share of its height across. */
+function onCrown(point: V3, lobes: readonly Lobe[], wide: number): V3 {
   const bulge = lobes.reduce((sum, { way, wide }) => {
     const nearness = Math.max(0, point[0] * way[0] + point[1] * way[1] + point[2] * way[2]);
     return sum + nearness ** wide;
@@ -59,11 +63,11 @@ function onCrown(point: V3, lobes: readonly Lobe[]): V3 {
   // Narrower to the top than the skirt, with the widest part a third of the way up.
   const taper = 1 - 0.34 * Math.max(0, up - 0.34) ** 1.3;
   const height = CROWN_LOW + (CROWN_HIGH - CROWN_LOW) * up;
-  const reach = CROWN_WIDE * out * taper;
+  const reach = wide * out * taper;
   return [point[0] * reach, height + (out - 1) * 0.08 * point[1], point[2] * reach];
 }
 
-function crown(into: Painted, splits: number, lobes: readonly Lobe[], random: () => number): Painted {
+function crown(into: Painted, splits: number, lobes: readonly Lobe[], wide: number, random: () => number): Painted {
   for (const triangle of icosphere(splits)) {
     const centre = (triangle[0][1] + triangle[1][1] + triangle[2][1]) / 3;
     const up = (centre + 1) / 2;
@@ -71,22 +75,23 @@ function crown(into: Painted, splits: number, lobes: readonly Lobe[], random: ()
     const dappled = up + (random() - 0.5) * 0.26;
     const part: StreetPart = dappled < 0.3 ? "leaf-under" : dappled > 0.58 ? "leaf-lit" : "leaf";
     const shade = (0.8 + up * 0.36) * (0.9 + random() * 0.2);
-    into.face(triangle.map((point) => onCrown(point, lobes)), part, shade);
+    into.face(triangle.map((point) => onCrown(point, lobes, wide)), part, shade);
   }
   return into;
 }
-
-/** Only the crown moves, more towards its top, and only a little: a whole tree of metres leaning in a summer air. */
-const leaves: Motion = (part, [, y]) => (part.startsWith("leaf") ? { kind: "leaf", metres: 0.05 * Math.max(0, y) } : { kind: "still" });
 
 const NEAR_SPLITS = 2;
 const FAR_SPLITS = 1;
 const LINDEN_SWAP_M = 130;
 const LINDEN_REACH_M = 1200;
 
+/** The crowns the game places, by seed: `linden-<seed>` in the roadside's lists (`pipeline/dressing.py` holds the same). */
+export const LINDEN_SEEDS = [3, 8, 14] as const;
+
 export function buildLinden(seed = 3): RoadsideModel {
   const random = seeded(seed);
   const lobes = Array.from({ length: LOBES }, (): Lobe => ({ way: unit([random() - 0.5, (random() - 0.5) * 1.4, random() - 0.5]), wide: 2 + random() * 3 }));
+  const wide = CROWN_WIDE * (1 + (random() - 0.5) * CROWN_WIDE_SPREAD);
   const near = new Painted()
     .tube([0, SINK, 0], [0, 0.05, 0], 0.036, 6, { radiusTo: 0.024, shadeFrom: 0.8, shadeTo: 0.95 }, "bark")
     .tube([0, 0.05, 0], [0.004, 0.24, 0.002], 0.024, 6, { radiusTo: 0.019, shadeFrom: 0.95 }, "bark")
@@ -95,7 +100,7 @@ export function buildLinden(seed = 3): RoadsideModel {
     const turn = limb * 1.7 + random();
     near.spike([0.004, 0.225 + limb * 0.015, 0.002], [Math.cos(turn) * 0.17, 0.36, Math.sin(turn) * 0.17], 0.009, "bark-limb");
   }
-  crown(near, NEAR_SPLITS, lobes, random);
-  const far = crown(new Painted().tube([0, SINK, 0], [0, 0.3, 0], 0.027, 3, { radiusTo: 0.02, shadeFrom: 0.9 }, "bark"), FAR_SPLITS, lobes, random);
-  return streetModel(near, far, LINDEN_SWAP_M, LINDEN_REACH_M, leaves);
+  crown(near, NEAR_SPLITS, lobes, wide, random);
+  const far = crown(new Painted().tube([0, SINK, 0], [0, 0.3, 0], 0.027, 3, { radiusTo: 0.02, shadeFrom: 0.9 }, "bark"), FAR_SPLITS, lobes, wide, random);
+  return streetModel(near, far, LINDEN_SWAP_M, LINDEN_REACH_M);
 }
