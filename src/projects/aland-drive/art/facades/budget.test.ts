@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ADD_ON_MODELS, villaAddOns, type AddOnKind } from "./add-ons";
+import { addOnWalls, doorFacades, villaAddOns, type AddOnKind } from "./add-on-places";
+import { ADD_ON_MODELS } from "./add-ons";
 import { buildChurch } from "./church";
 import { CHURCHES } from "./churches";
 import IDS from "./facade-ids.json";
 import { painter, triangles } from "./paint";
-import { fuelStation, supermarketEntrance } from "./roadside-shops";
+import FUEL from "./fuel-stations.json";
+import { fuelStation, supermarketEntrance, type FuelStation } from "./roadside-shops";
 
 const ADD_ON_MOST = 150;
+const FUEL_MOST = 250;
 const CHURCH_MOST = 2500;
 const WHITE = "#ffffff";
 const paint = painter(() => WHITE);
@@ -14,7 +17,7 @@ const paint = painter(() => WHITE);
 describe("what the budget allows", () => {
   it("keeps every add-on model under its triangles", () => {
     for (const kind of Object.keys(ADD_ON_MODELS) as AddOnKind[]) expect(triangles(ADD_ON_MODELS[kind](paint)), kind).toBeLessThan(ADD_ON_MOST);
-    expect(triangles(fuelStation(paint, "TÄRNAN", 1))).toBeLessThan(ADD_ON_MOST);
+    for (const station of FUEL as unknown as FuelStation[]) expect(triangles(fuelStation(paint, station)), station.osm).toBeLessThan(FUEL_MOST);
     expect(triangles(supermarketEntrance(paint, "MATHOLMEN", 1))).toBeLessThan(ADD_ON_MOST);
   });
 
@@ -44,13 +47,20 @@ describe("a villa's add-ons", () => {
   }
 
   it("stands on the street side of the wall, facing out of the building", () => {
-    const addOns = villaAddOns([villaCell(IDS.styles.villa)]);
+    const addOns = villaAddOns(doorFacades([villaCell(IDS.styles.villa)]));
     expect(addOns.length).toBeGreaterThan(0);
     expect(addOns[0].outZ).toBeGreaterThan(0.99);
     expect(addOns[0].x).toBeCloseTo(6);
   });
 
+  it("stops the car in front of the wall it stands on, not behind it", () => {
+    const walls = addOnWalls(villaAddOns(doorFacades([villaCell(IDS.styles.villa)])), []);
+    expect(walls.length).toBeGreaterThan(0);
+    for (let at = 0; at < walls.length; at += 2) expect(walls[at + 1]).toBeGreaterThanOrEqual(-1e-4);
+    expect(Math.max(...walls.filter((_, at) => at % 2 === 1))).toBeGreaterThan(1.5);
+  });
+
   it("stands only on villas", () => {
-    expect(villaAddOns([villaCell(IDS.styles.block)])).toEqual([]);
+    expect(villaAddOns(doorFacades([villaCell(IDS.styles.block)]))).toEqual([]);
   });
 });

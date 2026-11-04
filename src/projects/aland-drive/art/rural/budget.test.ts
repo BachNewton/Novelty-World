@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoadsideModel } from "../roadside/index";
+import { coplanarOverlaps } from "../coplanar";
 import { catalogue } from "./catalogue";
 import { GABLE_PAINTS } from "./buildings";
 import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS } from "./mesh";
@@ -29,5 +30,13 @@ describe("rural vertices", () => {
       }
     }
     expect(Object.keys(PAINT)).toEqual(RURAL_PARTS);
+  });
+});
+
+// Two faces in one plane flicker as the camera moves, which no still shot shows: the countryside's models have none.
+describe("rural faces", () => {
+  const countryside = catalogue().filter(({ name }) => ["windmill", "tractor", "bale", "sheep", "cow"].some((kind) => name.startsWith(kind)));
+  it.each(countryside.map((entry) => [entry.name, entry.model] as const))("%s has no two faces fighting for one plane", (_, model) => {
+    for (const geometry of [model.near, model.far]) if (geometry !== null) expect(coplanarOverlaps(geometry)).toEqual([]);
   });
 });

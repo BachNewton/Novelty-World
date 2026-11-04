@@ -3,7 +3,7 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildPier, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
-import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeChair, buildCafeSet, buildCafeTable, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
+import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
 
 /*
  * The gallery's scene, built as the roadside gallery's is (its page has no exports:
@@ -179,15 +179,11 @@ const cafe = buildCafeSet();
 const parasol = buildParasol();
 const planter = buildPlanter();
 const round = buildPlanterRound();
-const cafeTable = buildCafeTable();
-const cafeChair = buildCafeChair();
 const terrace = [0, 1, 2, 3].flatMap((row) => [0, 1].map((column): Placement => ({ x: station(6) + row * 2.4, y: 0, z: VERGE_Z - column * 3 + 0.5, yaw: (row + column) * 0.3 })));
 add(cafe, terrace);
 add(parasol, terrace.filter((_, index) => index % 3 === 0));
-add(cafeTable, [{ x: station(6) - 3, y: 0, z: VERGE_Z + 1 }]);
-add(cafeChair, [{ x: station(6) - 3, y: 0, z: VERGE_Z + 1.65, yaw: Math.PI }]);
 look("cafe", "café terrace", station(6), [-5, 1.3, 1.5], [3, 1, VERGE_Z - 1], 50);
-look("cafe-close", "table, chairs", station(6), [-4, 1.25, -1.8], [-1, 0.5, VERGE_Z + 1], 44);
+look("cafe-close", "table, chairs", station(6), [-2.5, 1.25, -1.8], [1, 0.5, VERGE_Z + 0.5], 44);
 
 // 7: planters.
 add(planter, [{ x: station(7), y: 0, z: VERGE_Z + 1 }, { x: station(7) + 1.5, y: 0, z: VERGE_Z + 1 }]);
@@ -350,8 +346,6 @@ window.__streetGallery = {
     bin: triangles(bin),
     "bike rack": triangles(rack),
     "café set": triangles(cafe),
-    "café table": triangles(cafeTable),
-    "café chair": triangles(cafeChair),
     parasol: triangles(parasol),
     planter: triangles(planter),
     "planter, round": triangles(round),

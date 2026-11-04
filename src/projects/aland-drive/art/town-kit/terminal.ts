@@ -23,12 +23,15 @@ type EastNorth = readonly [number, number];
 const toLocal = ([east, north]: readonly number[]): readonly [number, number] => [east - TERMINAL_ORIGIN.east, TERMINAL_ORIGIN.north - north];
 
 const TALL_M = 3.1;
-const SILL_M = 1;
-const HEAD_M = 2.55;
+/** The glass band, as shares of a storey's height. */
+const SILL_SHARE = 1 / TALL_M;
+const HEAD_SHARE = 2.55 / TALL_M;
 const BAY_M = 12.5;
 const LEG_EVERY_BAYS = 2;
 const LEG_M = 0.5;
 const CAP_OVERHANG_M = 0.3;
+/** How far a glazing bar stands off the glass: the depth buffer can't part two faces much closer than this out at the near version's 700 m reach, and they flicker. */
+const MULLION_PROUD_M = 0.15;
 /** A foot's ground: sunk, since the quay's height varies by half a metre and the sea plane hides the rest. */
 const FOOT_Y_M = 0.6;
 /** How far from a motor road's edge a leg must stand, for a car's width and its mirrors. */
@@ -119,19 +122,25 @@ function unitBetween(from: readonly [number, number], to: readonly [number, numb
   return [dx / length, dz / length];
 }
 
-function sideFaces(into: TownPainted, a: readonly [number, number], b: readonly [number, number], roofA: number, roofB: number, shade: number, outward?: readonly [number, number]) {
-  const [floorA, floorB] = [roofA - TALL_M, roofB - TALL_M];
+function sideFaces(into: TownPainted, a: readonly [number, number], b: readonly [number, number], roofA: number, roofB: number, shade: number, outward?: readonly [number, number], tall = TALL_M) {
+  const [floorA, floorB] = [roofA - tall, roofB - tall];
+  const [sill, head] = [SILL_SHARE * tall, HEAD_SHARE * tall];
   const p = (end: readonly [number, number], y: number): V3 => [end[0], y, end[1]];
   into
-    .face([p(a, floorA), p(b, floorB), p(b, floorB + SILL_M), p(a, floorA + SILL_M)], "clad-pale", shade)
-    .face([p(a, floorA + SILL_M), p(b, floorB + SILL_M), p(b, floorB + HEAD_M), p(a, floorA + HEAD_M)], "terminal-glass", shade)
-    .face([p(a, floorA + HEAD_M), p(b, floorB + HEAD_M), p(b, roofB), p(a, roofA)], "clad-pale", shade * 1.03);
+    .face([p(a, floorA), p(b, floorB), p(b, floorB + sill), p(a, floorA + sill)], "clad-pale", shade)
+    .face([p(a, floorA + sill), p(b, floorB + sill), p(b, floorB + head), p(a, floorA + head)], "terminal-glass", shade)
+    .face([p(a, floorA + head), p(b, floorB + head), p(b, roofB), p(a, roofA)], "clad-pale", shade * 1.03);
   if (outward === undefined) return;
   const [dx, dz] = [b[0] - a[0], b[1] - a[1]];
   const length = Math.hypot(dx, dz) || 1;
   const [ux, uz] = [(dx / length) * 0.18, (dz / length) * 0.18];
-  const [ox, oz] = [outward[0] * 0.02, outward[1] * 0.02];
-  into.face([[a[0] - ux + ox, floorA + SILL_M, a[1] - uz + oz], [a[0] + ux + ox, floorA + SILL_M, a[1] + uz + oz], [a[0] + ux + ox, floorA + HEAD_M, a[1] + uz + oz], [a[0] - ux + ox, floorA + HEAD_M, a[1] - uz + oz]], "clad-grey", shade);
+  const [ox, oz] = [outward[0] * MULLION_PROUD_M, outward[1] * MULLION_PROUD_M];
+  const bar = (along: number, out: number, y: number): V3 => [a[0] + ux * along + ox * out, y, a[1] + uz * along + oz * out];
+  const [low, high] = [floorA + sill, floorA + head];
+  into
+    .face([bar(-1, 1, low), bar(1, 1, low), bar(1, 1, high), bar(-1, 1, high)], "clad-grey", shade)
+    .face([bar(1, 1, low), bar(1, 0, low), bar(1, 0, high), bar(1, 1, high)], "clad-grey", shade * 0.9)
+    .face([bar(-1, 0, low), bar(-1, 1, low), bar(-1, 1, high), bar(-1, 0, high)], "clad-grey", shade * 0.9);
 }
 
 const flare = (edge: readonly [number, number], other: readonly [number, number], by: number) => {
@@ -156,43 +165,49 @@ function bent(into: TownPainted, { left, right }: Corner, floor: number): EastNo
   return feet;
 }
 
-function walkway(near: TownPainted, far: TownPainted, line: readonly (readonly [number, number])[], wide: number, roof: readonly number[], legs: boolean, feet: EastNorth[]) {
+/**
+ * One run of walkway. A storey stacked on the run below it on the same line has no legs and no floor of its own: it
+ * stands on that run's roof, as tall as the gap between the two roofs, so their walls meet rather than overlap and
+ * flicker.
+ */
+function walkway(near: TownPainted, far: TownPainted, line: readonly (readonly [number, number])[], wide: number, roof: readonly number[], below: readonly number[] | null, feet: EastNorth[]) {
+  const tall = below === null ? TALL_M : roof[0] - below[0];
+  const legs = below === null;
   const corners = edgesOf(line, wide);
   const bays = baysOf(corners, line, roof, BAY_M);
   bays.forEach(({ a, b, roofA, roofB }, at) => {
-    sideFaces(near, a.left, b.left, roofA, roofB, 1, unitBetween(a.right, a.left));
-    sideFaces(near, a.right, b.right, roofA, roofB, 0.94, unitBetween(a.left, a.right));
+    sideFaces(near, a.left, b.left, roofA, roofB, 1, unitBetween(a.right, a.left), tall);
+    sideFaces(near, a.right, b.right, roofA, roofB, 0.94, unitBetween(a.left, a.right), tall);
     const eaves = (edge: readonly [number, number], other: readonly [number, number], y: number): V3 => {
       const [x, z] = flare(edge, other, CAP_OVERHANG_M);
       return [x, y, z];
     };
-    near
-      .face([eaves(a.left, a.right, roofA), eaves(b.left, b.right, roofB), eaves(b.right, b.left, roofB), eaves(a.right, a.left, roofA)], "clad-roof", 1.05)
-      .face([[a.left[0], roofA - TALL_M, a.left[1]], [b.left[0], roofB - TALL_M, b.left[1]], [b.right[0], roofB - TALL_M, b.right[1]], [a.right[0], roofA - TALL_M, a.right[1]]], "clad-grey", 0.7);
-    if (legs && at % LEG_EVERY_BAYS === 0) feet.push(...bent(near, a, roofA - TALL_M));
+    near.face([eaves(a.left, a.right, roofA), eaves(b.left, b.right, roofB), eaves(b.right, b.left, roofB), eaves(a.right, a.left, roofA)], "clad-roof", 1.05);
+    if (legs) near.face([[a.left[0], roofA - tall, a.left[1]], [b.left[0], roofB - tall, b.left[1]], [b.right[0], roofB - tall, b.right[1]], [a.right[0], roofA - tall, a.right[1]]], "clad-grey", 0.7);
+    if (legs && at % LEG_EVERY_BAYS === 0) feet.push(...bent(near, a, roofA - tall));
   });
   const [first, last] = [corners[0], corners[corners.length - 1]];
   const end = (corner: Corner, y: number) => {
     const [l, r] = [corner.left, corner.right];
-    near.face([[l[0], y - TALL_M, l[1]], [r[0], y - TALL_M, r[1]], [r[0], y, r[1]], [l[0], y, l[1]]], "clad-pale", 0.92);
+    near.face([[l[0], y - tall, l[1]], [r[0], y - tall, r[1]], [r[0], y, r[1]], [l[0], y, l[1]]], "clad-pale", 0.92);
   };
   end(first, roof[0]);
   end(last, roof[1]);
-  if (legs) feet.push(...bent(near, last, roof[1] - TALL_M));
+  if (legs) feet.push(...bent(near, last, roof[1] - tall));
 
   // Far off: the same run as a box with a band of glass, on a third of its legs.
   const coarse = baysOf(corners, line, roof, 1000);
   coarse.forEach(({ a, b, roofA, roofB }) => {
     for (const [from, to, shade] of [[a.left, b.left, 1], [a.right, b.right, 0.94]] as const) {
-      sideFaces(far, from, to, roofA, roofB, shade);
+      sideFaces(far, from, to, roofA, roofB, shade, undefined, tall);
     }
     far.face([[a.left[0], roofA, a.left[1]], [b.left[0], roofB, b.left[1]], [b.right[0], roofB, b.right[1]], [a.right[0], roofA, a.right[1]]], "clad-roof", 1.05);
-    far.face([[a.left[0], roofA - TALL_M, a.left[1]], [b.left[0], roofB - TALL_M, b.left[1]], [b.right[0], roofB - TALL_M, b.right[1]], [a.right[0], roofA - TALL_M, a.right[1]]], "clad-grey", 0.7);
+    if (legs) far.face([[a.left[0], roofA - tall, a.left[1]], [b.left[0], roofB - tall, b.left[1]], [b.right[0], roofB - tall, b.right[1]], [a.right[0], roofA - tall, a.right[1]]], "clad-grey", 0.7);
   });
   bays.forEach(({ a, roofA }, at) => {
     if (!legs || at % (LEG_EVERY_BAYS * 3) !== 1) return;
     const [mx, mz] = [(a.left[0] + a.right[0]) / 2, (a.left[1] + a.right[1]) / 2];
-    far.beam([mx, FOOT_Y_M, mz], [mx, roofA - TALL_M, mz], wide * 0.75, 0.6, "steel-leg", 0.85);
+    far.beam([mx, FOOT_Y_M, mz], [mx, roofA - tall, mz], wide * 0.75, 0.6, "steel-leg", 0.85);
   });
 }
 
@@ -275,7 +290,11 @@ function assembled() {
   const near = new TownPainted();
   const far = new TownPainted();
   const feet: EastNorth[] = [];
-  for (const { line, wide, roof, stacked } of PLAN.walkways) walkway(near, far, line.map(toLocal), wide, roof, stacked !== true, feet);
+  PLAN.walkways.forEach(({ id, line, wide, roof, stacked }, at) => {
+    const below = stacked === true ? PLAN.walkways[at - 1] : undefined;
+    if (stacked === true && (below === undefined || JSON.stringify(below.line) !== JSON.stringify(line))) throw new Error(`${id} is stacked on no run below it`);
+    walkway(near, far, line.map(toLocal), wide, roof, below?.roof ?? null, feet);
+  });
   for (const stub of PLAN.stubs) finger(near, far, stub, feet);
   for (const deck of PLAN.decks) carDeck(near, far, deck, feet);
   dolphins(near, far);

@@ -8,7 +8,8 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Polygon
 
-from parking import AISLE_M, Parking, kerb_parking, room
+from furniture import CAFE_CHAIR_Z
+from parking import AISLE_M, ROADSIDE_CLEAR_M, Parking, kerb_parking, room, standing
 from test_roadside import east_road, roadside
 
 
@@ -61,6 +62,15 @@ class Kerbs(unittest.TestCase):
         np.testing.assert_allclose(nose_of(east_yaw), [1, 0], atol=1e-3)
         self.assertGreater(-west_z, 3 + 0.9)
         np.testing.assert_allclose(nose_of(west_yaw), [-1, 0], atol=1e-3)
+
+
+class Roadside(unittest.TestCase):
+    def test_a_car_keeps_clear_of_a_cafe_table_s_chairs_not_only_its_middle(self):
+        # A table at the origin facing north: its chairs north and south of it, along its z.
+        tree = standing({"models": {"cafe-set": [[0.0, 0.0, 0.0, 0.0]]}})
+        beside_chair = Polygon([(-0.9, CAFE_CHAIR_Z + 0.2), (0.9, CAFE_CHAIR_Z + 0.2), (0.9, CAFE_CHAIR_Z + 5.2), (-0.9, CAFE_CHAIR_Z + 5.2)])
+        self.assertGreater(beside_chair.distance(shapely.Point(0, 0)), ROADSIDE_CLEAR_M)
+        self.assertEqual(len(tree.query(beside_chair, predicate="dwithin", distance=ROADSIDE_CLEAR_M)), 1)
 
 
 class CarParks(unittest.TestCase):

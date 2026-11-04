@@ -1,5 +1,6 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
+import { FLAGS } from "../street/flags";
 import { dressForMooring, guardRails, type Mooring } from "./dress";
 import { farHull, house, Hull, lerp, type HullSpec } from "./hull";
 import { BoatMesh, finished, type BoatPart } from "./mesh";
@@ -49,9 +50,24 @@ function powerHull({ lengthM, halfBeamM, sternY, midY, bowY, rakeShare, belowM }
 /** A stool of a sort: a box with a padded top. */
 const seat = (mesh: BoatMesh, x: number, y: number, z: number, wide: number, deep: number, tall: number, part: BoatPart) => mesh.box([x - wide / 2, y, z - deep / 2], [x + wide / 2, y + tall, z + deep / 2], part, { open: true, shadeTop: 1.08 });
 
+/** The Åland flag on a staff at the stern, drooping a little towards the fly: rectangles at the law's edges, from the street's `FLAGS`. */
 function ensign(mesh: BoatMesh, z: number, y: number): void {
   mesh.tube([0, y - 0.1, z], [0, y + 1, z - 0.2], 0.012, 3, {}, "spar-wood");
-  mesh.face([[0, y + 0.98, z - 0.2], [0, y + 0.58, z - 0.14], [0.03, y + 0.5, z - 0.82], [0.05, y + 0.84, z - 0.86]], "sail-blue");
+  const [hoistTop, hoistFoot, flyFoot, flyTop]: V3[] = [[0, y + 0.98, z - 0.2], [0, y + 0.58, z - 0.14], [0.03, y + 0.5, z - 0.82], [0.05, y + 0.84, z - 0.86]];
+  const { fly, hoist } = FLAGS.aland;
+  const [flyEnd, hoistEnd] = [fly[fly.length - 1], hoist[hoist.length - 1]];
+  // A point on the cloth, `along` the fly from the staff and `down` from the head.
+  const at = (along: number, down: number): V3 => {
+    const [u, v] = [along / flyEnd, down / hoistEnd];
+    const blend = (axis: number) => (hoistTop[axis] * (1 - u) + flyTop[axis] * u) * (1 - v) + (hoistFoot[axis] * (1 - u) + flyFoot[axis] * u) * v;
+    return [blend(0), blend(1), blend(2)];
+  };
+  for (let column = 0; column + 1 < fly.length; column++) {
+    for (let row = 0; row + 1 < hoist.length; row++) {
+      const part = FLAGS.aland.field(column, row) as Extract<BoatPart, `flag-${string}`>;
+      mesh.face([at(fly[column], hoist[row]), at(fly[column], hoist[row + 1]), at(fly[column + 1], hoist[row + 1]), at(fly[column + 1], hoist[row])], part);
+    }
+  }
 }
 
 function mooredIn(near: BoatMesh, hull: Hull, mooring: Mooring, fenderCount: number): void {

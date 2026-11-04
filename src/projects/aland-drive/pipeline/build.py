@@ -28,6 +28,7 @@ import ground as ground_colour
 import landmarks as landmark_sites
 import laser
 import docks
+import farm
 import outbuildings
 import overview
 import parking
@@ -41,6 +42,7 @@ import town
 import vectors
 import raised
 import walls
+import seated
 import waterfront
 from give_way import give_way
 from progress import Progress, stage
@@ -173,6 +175,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     openings = []
     lifts = None
     sites = landmark_sites.Landmarks(tile)
+    sites.replace_also(farm.windmill_sites(tile))
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
@@ -180,6 +183,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         piers += docks.boardwalks(roads)
         quay_piers = docks.quays(roads, piers)
         roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
+        roads = sites.off_raised(roads, osm_file)
         lifts = raised.Lookup(raised.read(osm_file))
         meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
         roads, openings = meetings.roads, meetings.openings
@@ -302,6 +306,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         "models": placed.write(folder),
         "rock": rocks.MANIFEST,
         "landmarks": sites.places(solids.Heights(conformed, west, north)),
+        "nearSites": sites.places(solids.Heights(conformed, west, north), near_only=True),
         "buildingSheets": building_sheets(tile),
         "water": {
             "levelsFile": "water-levels.bin.gz",
@@ -352,7 +357,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "version": digest.hexdigest()[:12],
         "worldOrigin": first["worldOrigin"],
         "tileM": TILE_SIZE_M,
-        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"], **({"landmarks": manifest["landmarks"]} if manifest.get("landmarks") else {})} for manifest in manifests],
+        "tiles": [{"name": manifest["tile"], "west": manifest["bounds"]["west"], "north": manifest["bounds"]["north"], **({"landmarks": manifest["landmarks"]} if manifest.get("landmarks") else {}), **({"windmills": manifest["windmills"]} if manifest.get("windmills") else {})} for manifest in manifests],
         "start": {"tile": START_TILE if any(manifest["tile"] == START_TILE for manifest in manifests) else first["tile"], "chain": 0},
         "heights": first["heights"],
         "far": first["far"],
@@ -431,8 +436,11 @@ def main() -> None:
     build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     waterfront.bake_tiles(names, OUTPUT)
+    seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside, whose lamps and signs the cars keep clear of.
     parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    # After the roadside too, whose poles and walls the bales, tractors and sheep keep clear of.
+    farm.bake_tiles(names, OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

@@ -240,13 +240,13 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
 
 
 # What a kept copy of a tile's roadside objects holds: kept apart from the roads and buildings, so it can change alone.
-ROADSIDE_KEPT_VERSION = 1
-ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing"}, "power": {"pole"}}
+ROADSIDE_KEPT_VERSION = 2
+ROADSIDE_NODES = {"highway": {"street_lamp", "give_way", "stop", "bus_stop", "crossing", "traffic_signals"}, "power": {"pole"}, "place": {"village", "hamlet"}}
 ROADSIDE_WAYS = {"power": {"minor_line"}, "barrier": {"guard_rail"}}
 
 
 def _roadside(xml_files: list[Path]) -> dict:
-    """The API's lamps, poles, signs and stops as points, and its power lines and guard rails as lines, pole by pole."""
+    """The API's lamps, poles, signs, signals, stops and villages as points, and its power lines and guard rails as lines, pole by pole."""
     roots = [ElementTree.parse(path).getroot() for path in xml_files]
     tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
     wanted = lambda tags, kinds: any(tags.get(key) in values for key, values in kinds.items())
@@ -317,4 +317,44 @@ def osm_town_path(tile: Tile) -> Path:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_town(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
+
+
+# What a kept copy of a tile's street furniture and the places it gathers at holds: kept apart, as the roadside's is.
+FURNITURE_KEPT_VERSION = 1
+FURNITURE_TAGS = {
+    "amenity": {"bench", "waste_basket", "bicycle_parking", "cafe", "restaurant", "ice_cream", "bar", "pub", "fast_food", "school", "library", "college", "townhall", "ferry_terminal", "cinema"},
+    "leisure": {"outdoor_seating", "park"},
+    "shop": {"supermarket", "department_store", "mall"},
+}
+
+
+def _furniture(xml_files: list[Path]) -> dict:
+    """The API's benches, bins, bike parking, cafés and their terraces, parks and busy places, as points or outlines."""
+    roots = [ElementTree.parse(path).getroot() for path in xml_files]
+    tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+    wanted = lambda tags: any(tags.get(key) in values for key, values in FURNITURE_TAGS.items())
+    nodes: dict[str, dict] = {}
+    for root in roots:
+        for node in root.iter("node"):
+            nodes[node.get("id")] = {"lat": float(node.get("lat")), "lon": float(node.get("lon")), "tags": tags_of(node)}
+    elements = [{"type": "node", "id": int(id), "lat": node["lat"], "lon": node["lon"], "tags": node["tags"]} for id, node in nodes.items() if wanted(node["tags"])]
+    seen = set()
+    for root in roots:
+        for way in root.iter("way"):
+            tags = tags_of(way)
+            if way.get("id") in seen or not wanted(tags):
+                continue
+            seen.add(way.get("id"))
+            geometry = [{"lat": nodes[nd.get("ref")]["lat"], "lon": nodes[nd.get("ref")]["lon"]} for nd in way.findall("nd") if nd.get("ref") in nodes]
+            elements.append({"type": "way", "id": int(way.get("id")), "tags": tags, "geometry": geometry})
+    fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"version": FURNITURE_KEPT_VERSION, "asOf": fetched, "elements": elements}
+
+
+def osm_furniture_path(tile: Tile) -> Path:
+    path = RAW / "osm-furniture" / f"{tile.name}.json"
+    if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("version") == FURNITURE_KEPT_VERSION:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_furniture(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
     return path

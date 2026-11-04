@@ -1,13 +1,19 @@
 import { buildChurch } from "../facades/church";
 import { CHURCHES } from "../facades/churches";
-import type { Inks } from "../facades/paint";
+import FUEL from "../facades/fuel-stations.json";
+import { onBearing, painter, type Inks } from "../facades/paint";
+import { fuelFootprints, fuelStation, type FuelStation } from "../facades/roadside-shops";
+import { buildTerminal, FALSE_SOLID, TERMINAL_LEG_M, TERMINAL_ORIGIN, terminalFeet } from "../town-kit/terminal";
 import { LANDMARKS } from "./index";
 import type { Landmark } from "./landmark";
 
 /*
- * Every model that stands at a real place of its own, the stone churches and the landmarks, as the pipeline reads them
- * (`sites.json`, which `tools/landmark-sites.ts` writes from here and a test holds equal): where each stands, what it
- * takes the place of, and its plan, the far version's footprint, which is what the car hits and what "inside" means.
+ * Every model that stands at a real place of its own, as the pipeline reads them (`sites.json`, which
+ * `tools/landmark-sites.ts` writes from here and a test holds equal): where each stands, what it takes the place of,
+ * and its plan, the far version's footprint, which is what "inside" means and, unless it says otherwise, what the car
+ * hits. The stone churches and the landmarks stand from any distance. The Västerhamn terminal and the fuel stations
+ * are near only: drawn with their tile's detail, as the buildings round them are, and stopping the car only at their
+ * legs, islands, kiosks and posts, so the roads under a walkway or a canopy stay open.
  */
 
 /** What a site takes the place of: NLS solids by name, or every solid inside its plan. A generated shape under it always goes. */
@@ -22,6 +28,10 @@ export interface SiteRecord {
   replaces: Replaces;
   /** The far version's plan: corners, ETRS-TM35FIN metres, and its triangles, a wall's seen from above as a line. */
   plan: { corners: [number, number][]; triangles: [number, number, number][] };
+  /** What the car can't pass, where that isn't the plan: outlines, ETRS-TM35FIN metres. */
+  walls?: [number, number][][];
+  /** Drawn only with its tile's detail, not from the start. */
+  nearOnly?: true;
 }
 
 type HeightAt = (east: number, north: number) => number;
@@ -46,13 +56,14 @@ export function buildSite(id: string, inks: Inks, heightAt: HeightAt): Landmark 
   return landmark;
 }
 
-function planOf(landmark: Landmark): SiteRecord["plan"] {
-  const { positions, indices } = landmark.far;
-  const round = (metres: number) => Math.round(metres * 10) / 10;
+const round = (metres: number) => Math.round(metres * 10) / 10;
+
+/** A model's plan from above, its positions metres east and south (the scene's +z) of the site. */
+function planOf({ positions, indices }: { positions: ArrayLike<number>; indices: ArrayLike<number> }, east: number, north: number): SiteRecord["plan"] {
   const corners: [number, number][] = [];
   const known = new Map<string, number>();
   const corner = (vertex: number) => {
-    const point: [number, number] = [round(landmark.east + positions[vertex * 3]), round(landmark.north - positions[vertex * 3 + 2])];
+    const point: [number, number] = [round(east + positions[vertex * 3]), round(north - positions[vertex * 3 + 2])];
     const key = point.join();
     let at = known.get(key);
     if (at === undefined) {
@@ -68,13 +79,55 @@ function planOf(landmark: Landmark): SiteRecord["plan"] {
   return { corners, triangles };
 }
 
-/** Every site, in a fixed order: the landmarks, then the churches. */
+/** A rectangle in a model's own plan (x east, z south), as an outline of corners east and north of the site. */
+function outlineOf([west, south, east, north]: readonly number[], toPlan: (x: number, z: number) => readonly [number, number], siteEast: number, siteNorth: number): [number, number][] {
+  return [
+    [west, south],
+    [east, south],
+    [east, north],
+    [west, north],
+  ].map(([x, z]) => {
+    const [px, pz] = toPlan(x, z);
+    return [round(siteEast + px), round(siteNorth - pz)];
+  });
+}
+
+export const TERMINAL_SITE = "terminal";
+export const FUEL_SITE_PREFIX = "fuel-";
+
+/** The stations by site id. */
+export const FUEL_STATIONS = new Map((FUEL as unknown as FuelStation[]).map((station) => [`${FUEL_SITE_PREFIX}${station.osm}`, station]));
+
+/** The terminal's walkways stand on legs over the quay's roads: only its legs stop the car. */
+function terminalRecord(): SiteRecord {
+  const { east, north } = TERMINAL_ORIGIN;
+  const far = buildTerminal().far;
+  if (far === null) throw new Error("the terminal has no far version");
+  const half = TERMINAL_LEG_M / 2;
+  const walls = terminalFeet().map(([x, z]) => outlineOf([x - half, z - half, x + half, z + half], (px, pz) => [px, pz], east, north));
+  return { id: TERMINAL_SITE, east, north, baseM: 0, replaces: { solids: [FALSE_SOLID] }, plan: planOf({ positions: far.getAttribute("position").array, indices: far.getIndex()?.array ?? [] }, east, north), walls, nearOnly: true };
+}
+
+/** A station replaces whatever lies under its canopy, and stops the car at its pump islands and pylon. */
+function fuelRecord(id: string, station: FuelStation): SiteRecord {
+  const { east, north } = station;
+  const frame = onBearing(station.bearing);
+  const toPlan = (x: number, z: number) => {
+    const [px, , pz] = frame([x, 0, z]);
+    return [px, pz] as const;
+  };
+  const mesh = fuelStation(painter(() => "#ffffff"), station);
+  return { id, east, north, baseM: null, replaces: "inside", plan: planOf(mesh, east, north), walls: fuelFootprints(station).map((rectangle) => outlineOf(rectangle, toPlan, east, north)), nearOnly: true };
+}
+
+/** Every site, in a fixed order: the landmarks, the churches, the terminal, then the fuel stations. */
 export function siteRecords(): SiteRecord[] {
   const flat = () => 0;
   const landmarks = LANDMARKS().map((landmark) => {
     if (!(landmark.id in LANDMARK_REPLACES)) throw new Error(`${landmark.id} doesn't say what it replaces`);
-    return { id: landmark.id, east: landmark.east, north: landmark.north, baseM: landmark.baseM, replaces: LANDMARK_REPLACES[landmark.id], plan: planOf(landmark) };
+    return { id: landmark.id, east: landmark.east, north: landmark.north, baseM: landmark.baseM, replaces: LANDMARK_REPLACES[landmark.id], plan: planOf(landmark.far, landmark.east, landmark.north) };
   });
-  const churches = CHURCHES.map((spec) => ({ id: spec.id, east: spec.east, north: spec.north, baseM: null, replaces: { solids: spec.solids }, plan: planOf(buildChurch(spec, () => "#ffffff", flat)) }));
-  return [...landmarks, ...churches];
+  const churches = CHURCHES.map((spec) => ({ id: spec.id, east: spec.east, north: spec.north, baseM: null, replaces: { solids: spec.solids }, plan: planOf(buildChurch(spec, () => "#ffffff", flat).far, spec.east, spec.north) }));
+  const stations = [...FUEL_STATIONS].map(([id, station]) => fuelRecord(id, station));
+  return [...landmarks, ...churches, terminalRecord(), ...stations];
 }

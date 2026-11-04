@@ -27,6 +27,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point, Polygon
 
+from furniture import FOOTPRINTS, footprint
 from grid import Tile, tile_from_name
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
 from sources import osm_path
@@ -122,6 +123,13 @@ def unit(vector: np.ndarray) -> np.ndarray:
     return vector / max(float(np.hypot(*vector)), 1e-9)
 
 
+def standing(roadside_file: dict) -> shapely.STRtree:
+    """What stands beside the road: a lamp, pole or sign at its place, and street furniture by its whole footprint, since a café table and its chairs reach a metre either side."""
+    shapes = [footprint(model, np.array([place[0], -place[2]]), place[3]) if model in FOOTPRINTS else Point(place[0], -place[2]) for model, places in roadside_file.get("models", {}).items() for place in places]
+    shapes += [Point(post[0], -post[2]) for posts in roadside_file.get("signs", {}).values() for post in posts]
+    return shapely.STRtree(shapes)
+
+
 def points_tree(points: list[np.ndarray]) -> shapely.STRtree:
     return shapely.STRtree(shapely.points(np.array(points).reshape(-1, 2)))
 
@@ -145,9 +153,7 @@ class Parking:
                     quads.append(quad)
                     owners.append(chain)
         self.roads, self.owners = shapely.STRtree(quads), owners
-        standing = [np.array([place[0], -place[2]]) for places in roadside_file.get("models", {}).values() for place in places]
-        standing += [np.array([post[0], -post[2]]) for posts in roadside_file.get("signs", {}).values() for post in posts]
-        self.standing = points_tree(standing)
+        self.standing = standing(roadside_file)
         nodes = [element for element in roadside.osm["elements"] if element["type"] == "node"]
         self.crossings = points_tree([roadside.local(node) for node in nodes if node["tags"].get("highway") == "crossing"])
         self.bus_stops = points_tree([roadside.local(node) for node in nodes if node["tags"].get("highway") == "bus_stop"])

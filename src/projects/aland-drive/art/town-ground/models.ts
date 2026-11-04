@@ -1,6 +1,6 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { levelRing, Painted, runMotion, streetModel } from "../street/paint";
+import { levelRing, Painted, streetModel } from "../street/paint";
 
 /*
  * What stands on a town's ground: hedges, a run of low boxes `runSections` lays
@@ -39,7 +39,7 @@ export function buildHedge(): RoadsideModel {
     .face([[0, -SINK_M, -half], [HEDGE_M, -SINK_M, -half], [HEDGE_M, low, -half], [0, low, -half]], "leaf", 0.85)
     .face([[0, low, half], [HEDGE_M, low, half], [HEDGE_M, HEDGE_HIGH_M, 0], [0, HEDGE_HIGH_M, 0]], "leaf-lit")
     .face([[0, HEDGE_HIGH_M, 0], [HEDGE_M, HEDGE_HIGH_M, 0], [HEDGE_M, low, -half], [0, low, -half]], "leaf-lit");
-  return streetModel(near, far, HEDGE_SWAP_M, HEDGE_REACH_M, runMotion);
+  return streetModel(near, far, HEDGE_SWAP_M, HEDGE_REACH_M);
 }
 
 const BASIN_M = 2.6;

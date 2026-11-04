@@ -3,6 +3,7 @@
  * describes the rest). Every position in a tile is metres east and north of the
  * world origin. In the scene, east is +x, up is +y and north is -z.
  */
+import type { WindmillPlace } from "./tile-models";
 
 /** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
 export const FLAT_LIGHT = 0.8;
@@ -37,6 +38,10 @@ export interface TileManifest {
   people?: Record<string, { file: string }>;
   /** Cars parked in car parks and at kerbs. A tile built before them has none. */
   parked?: { file: string };
+  /** The post mills standing in the tile (`pipeline/farm.py`). A tile with none has none. */
+  windmills?: WindmillPlace[];
+  /** The Västerhamn terminal and the fuel stations standing in the tile, drawn with its detail. A tile built before them has none. */
+  nearSites?: LandmarkPlace[];
   /** The ground of town (`pipeline/town.py`): its surface image, and a class byte per road section. A tile built before it has none. */
   town?: { file: string; pixels: number; ribbons: string };
 }
@@ -87,6 +92,8 @@ export interface WorldTileEntry {
   north: number;
   /** The churches and landmarks standing in the tile (`pipeline/landmarks.py`). A tile built before them has none. */
   landmarks?: LandmarkPlace[];
+  /** The post mills standing in the tile, carried here so every mill on the island stands from the start. */
+  windmills?: WindmillPlace[];
 }
 
 /** A site's model, and its origin in the scene: where its art's origin goes, and a turn about it that takes its +z to (sin yaw, cos yaw). */
