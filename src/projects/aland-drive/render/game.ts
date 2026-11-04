@@ -130,10 +130,10 @@ export interface GameProbe {
   /** Puts the car at a distance along one of the start tile's chains, facing along it. */
   placeOnRoad: (chain: number, along: number) => void;
   setCamera: (mode: CameraMode) => void;
-  /** Moves the car to a showcase spot by its key, resolving once it's there, on loaded ground. */
-  jumpTo: (key: string) => Promise<void>;
+  /** Moves the car to a showcase spot by its id, resolving once it's there, on loaded ground. */
+  jumpTo: (id: string) => Promise<void>;
   /** Moves the car to a place near a road, in a car's view, resolving once it's there, on loaded ground. */
-  driveFrom: (spot: Omit<ShowcaseSpot, "key">) => Promise<void>;
+  driveFrom: (spot: Omit<ShowcaseSpot, "id">) => Promise<void>;
   /** Tiles at full detail, and what loading them has read. */
   stream: () => StreamStats;
   /** Loads the tiles round a place, wherever the car is, until `loadAround(null)`. */
@@ -235,6 +235,10 @@ export interface Game {
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
   setDevMenuOpen: (open: boolean) => void;
+  /** The showcase spots, for a dev menu to jump to. */
+  spots: readonly { id: string; name: string }[];
+  /** Closes the dev menu and jumps to a showcase spot. */
+  jumpTo: (id: string) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
   dispose: () => void;
@@ -851,7 +855,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "key">) => {
+  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "id">) => {
     if (jumping || mapFrom) return;
     jumping = true;
     const wanted = { done: 0, total: Math.max(stream.wanted(x, z), 1) };
@@ -874,9 +878,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onLoading?.({ done: wanted.total, total: wanted.total });
     events.onRoad?.(name);
   };
-  const jumpByKey = (key: string) => {
-    const spot = SHOWCASE.find((candidate) => candidate.key === key);
-    return spot ? jump(spot) : Promise.resolve();
+  const jumpTo = (id: string) => {
+    const spot = SHOWCASE.find((candidate) => candidate.id === id);
+    if (!spot) throw new Error(`no showcase spot ${id}`);
+    return jump(spot);
   };
 
   /** The view that fits a box, centred, whatever the screen's shape. */
@@ -969,7 +974,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(null);
     }
   };
-  const controls = startControls({ onAction, onMapAction, onDigit: (digit) => void jumpByKey(digit).catch(fail), onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
+  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
 
   const resize = () => {
     const { clientWidth, clientHeight } = container;
@@ -1250,7 +1255,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         }
         return points;
       },
-      jumpTo: jumpByKey,
+      jumpTo,
       driveFrom: async (spot) => {
         await jump(spot);
         setCamera("chase");
@@ -1291,6 +1296,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
     setDevMenuOpen,
+    spots: SHOWCASE.map(({ id, name }) => ({ id, name })),
+    jumpTo(id) {
+      setDevMenuOpen(false);
+      void jumpTo(id).catch(fail);
+    },
     whereabouts,
     dispose() {
       void renderer.setAnimationLoop(null);

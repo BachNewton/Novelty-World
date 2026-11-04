@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, MapPin, X } from "lucide-react";
+import { Check, MapPin, Navigation, X } from "lucide-react";
 import type { CarChoice } from "../render/game";
 import type { CarId } from "../sim/cars";
 
@@ -66,7 +66,22 @@ function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
   );
 }
 
-export function DevMenu({ cars, car, onCar, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; whereabouts: () => string; onClose: () => void }) {
+function SpotList({ spots, onJump }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void }) {
+  return (
+    <ul className="grid grid-cols-2 gap-1">
+      {spots.map(({ id, name }) => (
+        <li key={id}>
+          <button type="button" className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm" style={{ borderColor: INK }} onClick={() => { onJump(id); }}>
+            <Navigation aria-hidden className="size-4 shrink-0" />
+            <span className="grow">{name}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function DevMenu({ cars, car, onCar, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -82,6 +97,9 @@ export function DevMenu({ cars, car, onCar, whereabouts, onClose }: { cars: read
         </button>
         <Section title="Place">
           <CopyPlace whereabouts={whereabouts} />
+        </Section>
+        <Section title="Jump to">
+          <SpotList spots={spots} onJump={onJump} />
         </Section>
         <Section title="Cars">
           <CarList cars={cars} car={car} onCar={onCar} />

@@ -41,13 +41,11 @@ const isDevMenuKey = ({ key, code }: KeyboardEvent) => key === "~" || code === "
 export interface ControlsListener {
   onAction: (action: GameAction) => void;
   onMapAction: (action: MapAction) => void;
-  /** A number key: the digit, as a string. */
-  onDigit: (digit: string) => void;
   onDevMenu: (open: boolean) => void;
   onInputKind: (kind: InputKind) => void;
 }
 
-export function startControls({ onAction, onMapAction, onDigit, onDevMenu, onInputKind }: ControlsListener) {
+export function startControls({ onAction, onMapAction, onDevMenu, onInputKind }: ControlsListener) {
   const held = new Set<string>();
   let mapOpen = false;
   let devMenuOpen = false;
@@ -81,7 +79,6 @@ export function startControls({ onAction, onMapAction, onDigit, onDevMenu, onInp
     }
     const action = KEY_ACTIONS[event.code];
     if (action) onAction(action);
-    if (event.code.startsWith("Digit")) onDigit(event.code.slice(5));
   };
   const onKeyUp = (event: KeyboardEvent) => held.delete(event.code);
   const onBlur = () => {

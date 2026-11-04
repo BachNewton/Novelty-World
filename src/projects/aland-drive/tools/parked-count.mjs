@@ -52,7 +52,7 @@ const settle = () =>
     return { ...probe.counts(), parked: probe.parkedCounts() };
   }, SETTLE_FRAMES);
 
-const views = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.keyboard.press(`Digit${key}`) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
+const views = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.evaluate((id) => window.__alandDrive.jumpTo(id), key) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
 for (const { name, go } of views) {
   await go();
   const counts = await settle();
