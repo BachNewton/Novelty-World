@@ -1,6 +1,6 @@
 import type { Player, Room, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
-import { parseGuestMessage, parseHostMessage, wireState, type GuestMessage, type HostMessage } from "./protocol";
+import { parseGuestMessage, parseHostMessage, wireState, type ChallengeMessage, type GuestMessage, type HostMessage } from "./protocol";
 
 /*
  * The online world: one room on the relay that every player claims, so the
@@ -12,7 +12,13 @@ import { parseGuestMessage, parseHostMessage, wireState, type GuestMessage, type
  * world back within a send.
  *
  * Paused, the car stands still for everyone else: no steps, so nothing to send
- * but one state with no motion, sent again whenever someone new arrives.
+ * but one state with no motion, sent again whenever someone new arrives or
+ * the car is put somewhere.
+ *
+ * A co-op challenge's messages go the same way, to one player or to everyone:
+ * a guest sends each up, and the host hands it on to the one it's for, or to
+ * every other guest, naming who it's from. The host only relays: what a
+ * message means is `challenge/coop.ts`'s.
  */
 
 /** 20 a second at the simulation's 120 Hz. */
@@ -25,15 +31,19 @@ export interface OnlineEvents {
   onGone: (peerId: string) => void;
   /** Everyone else in the world, whenever that changes. */
   onPlayers: (others: readonly Player[]) => void;
+  /** A co-op challenge's message from another player, for this one or for everyone. */
+  onChallenge: (peerId: string, message: ChallengeMessage) => void;
 }
 
-export type OnlineRoom = Pick<Room<HostMessage, GuestMessage>, "start" | "stop" | "sendToHost" | "broadcast">;
+export type OnlineRoom = Pick<Room<HostMessage, GuestMessage>, "start" | "stop" | "sendToHost" | "sendTo" | "broadcast">;
 
 export interface OnlineWorld {
   start: () => void;
   stop: () => void;
-  /** Each frame, with the steps the simulation took in it and the car as it stands. */
-  send: (steps: number, state: CarState) => void;
+  /** Each frame, with the steps the simulation took in it, the car as it stands, and whether it was put somewhere since the last frame. */
+  send: (steps: number, state: CarState, placed?: boolean) => void;
+  /** A co-op challenge's message, to one player, or to everyone with `to` null. */
+  sendChallenge: (to: string | null, message: ChallengeMessage) => void;
   state: () => RoomState;
 }
 
@@ -46,6 +56,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   /** Send on the next frame whatever the count: someone new hasn't seen this car yet. */
   let owed = true;
   let sentStill = false;
+  /** Challenge messages wait out a reconnect, rather than being lost and leaving two clients on different attempts. */
+  const owedChallenges: { to: string | null; message: ChallengeMessage }[] = [];
 
   function forget(keep: ReadonlySet<string>): void {
     for (const peerId of known) {
@@ -55,11 +67,17 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     }
   }
 
+  // A message can outlive its sender by a moment on the wire.
+  const present = (peerId: string) => peerId !== state.selfId && state.players.some((player) => player.peerId === peerId);
+
   function hear(peerId: string, carState: CarState): void {
-    // A state can outlive its sender by a moment on the wire.
-    if (peerId === state.selfId || !state.players.some((player) => player.peerId === peerId)) return;
+    if (!present(peerId)) return;
     known.add(peerId);
     events.onCar(peerId, carState);
+  }
+
+  function hearChallenge(peerId: string, message: ChallengeMessage): void {
+    if (present(peerId)) events.onChallenge(peerId, message);
   }
 
   const room = createRoom({
@@ -72,6 +90,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       forget(new Set(others.map((player) => player.peerId)));
       if (next.players.map((player) => player.peerId).join() !== before) owed = true;
       events.onPlayers(others);
+      flushChallenges();
     },
     onGuestMessage(from, data) {
       const message = parseGuestMessage(data);
@@ -79,8 +98,18 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         console.warn("aland-drive online: dropping a malformed guest message", from.peerId, data);
         return;
       }
-      hear(from.peerId, message.state);
-      room.broadcast({ kind: "car", from: from.peerId, state: message.state }, from.peerId);
+      if (message.kind === "car") {
+        hear(from.peerId, message.state);
+        room.broadcast({ kind: "car", from: from.peerId, state: message.state }, from.peerId);
+        return;
+      }
+      const relayed: HostMessage = { kind: "challenge", from: from.peerId, message: message.message };
+      if (message.to === undefined) {
+        hearChallenge(from.peerId, message.message);
+        room.broadcast(relayed, from.peerId);
+      } else if (message.to === state.selfId) hearChallenge(from.peerId, message.message);
+      // One for a player who has just gone has no one to reach.
+      else if (state.players.some((player) => player.peerId === message.to)) room.sendTo(message.to, relayed);
     },
     onHostMessage(data) {
       const message = parseHostMessage(data);
@@ -88,9 +117,20 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         console.warn("aland-drive online: dropping a malformed host message", data);
         return;
       }
-      hear(message.from, message.state);
+      if (message.kind === "car") hear(message.from, message.state);
+      else hearChallenge(message.from, message.message);
     },
   });
+
+  function flushChallenges(): void {
+    const { selfId } = state;
+    if (state.status !== "connected" || selfId === null) return;
+    for (const { to, message } of owedChallenges.splice(0)) {
+      if (state.role === "guest") room.sendToHost(to === null ? { kind: "challenge", message } : { kind: "challenge", to, message });
+      else if (to === null) room.broadcast({ kind: "challenge", from: selfId, message });
+      else room.sendTo(to, { kind: "challenge", from: selfId, message });
+    }
+  }
 
   function transmit(carState: CarState): void {
     const wire = wireState(carState);
@@ -101,8 +141,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   return {
     start: () => room.start(),
     stop: () => room.stop(),
-    send(steps, carState) {
+    send(steps, carState, placed = false) {
       if (state.status !== "connected") return;
+      // A car put somewhere while paused (a retry's load, a test's hold) is somewhere else now for everyone.
+      if (placed) owed = true;
       if (steps === 0) {
         if (sentStill && !owed) return;
         transmit(still(carState));
@@ -116,6 +158,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       owedSteps = 0;
       owed = false;
       transmit(carState);
+    },
+    sendChallenge(to, message) {
+      owedChallenges.push({ to, message });
+      flushChallenges();
     },
     state: () => state,
   };

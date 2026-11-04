@@ -4,9 +4,11 @@ import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
 
 /*
  * What players send each other in the online world: each car's state, as its
- * own client has it, which names the car it is. A guest sends its own up; the
- * host hands each one on to every other guest, naming whose it is, and sends
- * its own down. Every payload off the wire is untrusted and parsed here.
+ * own client has it, which names the car it is, and the messages of a co-op
+ * challenge. A guest sends its own up; the host hands each one on to every
+ * other guest, or to the one player a challenge message is for, naming whose
+ * it is, and sends its own down. Every payload off the wire is untrusted and
+ * parsed here.
  */
 
 export const GAME = "aland-drive";
@@ -20,8 +22,26 @@ export interface CarMessage {
   state: CarState;
 }
 
-export type GuestMessage = { kind: "car" } & CarMessage;
-export type HostMessage = { kind: "car"; from: string } & CarMessage;
+/**
+ * A co-op challenge's messages (`challenge/coop.ts`), each naming the challenge
+ * and the attempt it's about. Invite, accept, decline: pairing. Start: the
+ * inviter has the pair, told to everyone so no third player is offered either.
+ * Retry: the attempt both go back for. Ready: this car is on its start place
+ * for the attempt. Result: this player's own time or speed. Lost: this client
+ * called the attempt lost on its own clock, with the results it had. Leave:
+ * out of the challenge, or an invite taken back.
+ */
+export type ChallengeMessage =
+  | { type: "invite" | "accept" | "decline" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
+  | { type: "start"; challenge: string; attempt: number; partner: string }
+  | { type: "result"; challenge: string; attempt: number; result: number }
+  | { type: "lost"; challenge: string; attempt: number; results: (number | null)[] };
+
+export type ChallengeType = ChallengeMessage["type"];
+
+/** A challenge message for one player, or for everyone when `to` is left out. */
+export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage };
+export type HostMessage = ({ kind: "car"; from: string } & CarMessage) | { kind: "challenge"; from: string; message: ChallengeMessage };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -106,14 +126,47 @@ function parseCar(value: Record<string, unknown>): CarMessage | null {
   return state && { state };
 }
 
+const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;
+/** More attempts than anyone makes, and well inside what a number counts exactly. */
+const MOST_ATTEMPTS = 1_000_000;
+const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
+const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
+  if (!isRecord(value)) return null;
+  const { type, challenge, attempt } = value;
+  if (!isName(challenge) || typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1 || attempt > MOST_ATTEMPTS) return null;
+  if (PLAIN_TYPES.has(type)) return { type: type as "invite", challenge, attempt };
+  if (type === "start") return isName(value.partner) ? { type, challenge, attempt, partner: value.partner } : null;
+  if (type === "result") return isResult(value.result) ? { type, challenge, attempt, result: value.result } : null;
+  if (type === "lost") {
+    const { results } = value;
+    if (!Array.isArray(results) || results.length < 1 || results.length > 2 || !results.every((each) => each === null || isResult(each))) return null;
+    return { type, challenge, attempt, results: results as (number | null)[] };
+  }
+  return null;
+}
+
 export function parseGuestMessage(value: unknown): GuestMessage | null {
-  if (!isRecord(value) || value.kind !== "car") return null;
+  if (!isRecord(value)) return null;
+  if (value.kind === "challenge") {
+    const message = parseChallengeMessage(value.message);
+    if (!message) return null;
+    if (value.to === undefined) return { kind: "challenge", message };
+    return isName(value.to) ? { kind: "challenge", to: value.to, message } : null;
+  }
+  if (value.kind !== "car") return null;
   const car = parseCar(value);
   return car && { kind: "car", ...car };
 }
 
 export function parseHostMessage(value: unknown): HostMessage | null {
-  if (!isRecord(value) || value.kind !== "car" || typeof value.from !== "string") return null;
+  if (!isRecord(value) || !isName(value.from)) return null;
+  if (value.kind === "challenge") {
+    const message = parseChallengeMessage(value.message);
+    return message && { kind: "challenge", from: value.from, message };
+  }
+  if (value.kind !== "car") return null;
   const car = parseCar(value);
   return car && { kind: "car", from: value.from, ...car };
 }

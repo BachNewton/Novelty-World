@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Flag, Gauge, Landmark, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -12,7 +12,7 @@ import { GameMenu } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
-import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
 import type { ChallengeKind } from "../challenge/types";
@@ -51,7 +51,6 @@ const HINTS = [
   { binding: BINDINGS.respawn, icon: RefreshCcw, label: "Back to the road" },
   { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
   { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
-  { binding: BINDINGS.mute, icon: Volume2, label: "Sound on or off" },
   { binding: BINDINGS.menu, icon: MenuIcon, label: "Game menu" },
 ];
 
@@ -64,11 +63,29 @@ const MAP_HINTS = [
 const ROAD_LABEL_FADE = "@keyframes aland-road-label { 0% { opacity: 0 } 12% { opacity: 1 } 75% { opacity: 1 } 100% { opacity: 0 } }";
 /** Long enough to read a place's note at an easy pace while driving. */
 const PLACE_CARD_S = 12;
+const NOTICE_S = 5;
+const NOTICE_LOOKS = {
+  left: { icon: LogOut, label: "Left the challenge" },
+  declined: { icon: X, label: "Declined" },
+  withdrawn: { icon: UserX, label: "Invite off" },
+} as const;
 
 /** The next turn as a distance: a driver reads tens of metres near, and tenths of a kilometre far. */
 function distanceText(metres: number): string {
   if (metres >= 1000) return `${(metres / 1000).toFixed(1)} km`;
   return `${Math.round(metres / 10) * 10} m`;
+}
+
+/** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
+function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
+  const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
+  return (
+    <div className="pointer-events-none absolute top-40 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}`, animation: `aland-road-label ${NOTICE_S}s ease-out forwards` }} role="status" aria-label="Co-op notice" title={label} onAnimationEnd={onDone}>
+      <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
+      <span>{notice.name}</span>
+      <Icon className="size-5 shrink-0" aria-label={label} />
+    </div>
+  );
 }
 
 /** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). */
@@ -101,8 +118,12 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const [finds, setFinds] = useState<Place[]>([]);
   const [placesFound, setPlacesFound] = useState<{ found: number; total: number } | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
-  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number } | null>(null);
-  const [offer, setOffer] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null } | null>(null);
+  const [offer, setOffer] = useState<ChallengeOffer | null>(null);
+  const [coop, setCoop] = useState<CoopReading | null>(null);
+  const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
+  const needsRow = useRef<HTMLDivElement>(null);
+  const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
   const gatesText = useRef<HTMLSpanElement>(null);
   const lights = useRef<(HTMLSpanElement | null)[]>([]);
@@ -119,18 +140,27 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
     const closed = () => cleanup.signal.aborted;
     let stop: (() => void) | null = null;
     let shownPlay = "";
-    let shownOffer: string | null = null;
-    const showChallenge = ({ challenge, offer: offered }: HudReading) => {
-      if (offered !== shownOffer) {
-        shownOffer = offered;
+    let shownOffer = "";
+    let shownCoop = "";
+    const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
+      const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
+      if (offerKey !== shownOffer) {
+        shownOffer = offerKey;
         setOffer(offered);
       }
-      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}` : "";
+      const coopKey = pairing ? `${pairing.kind}|${pairing.name}|${pairing.title}` : "";
+      if (coopKey !== shownCoop) {
+        shownCoop = coopKey;
+        setCoop(pairing);
+      }
+      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.partner ?? ""}` : "";
       if (play !== shownPlay) {
         shownPlay = play;
-        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target } : null);
+        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, partner: challenge.partner } : null);
       }
       if (!challenge) return;
+      if (needsRow.current) needsRow.current.style.display = challenge.needs === null ? "none" : "flex";
+      if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs)}`;
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       // One red light a second through the countdown, then all green for a second.
@@ -179,6 +209,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           onCarChange: setCarId,
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
+          onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { setFinds((waiting) => [...waiting, place]); },
           onPlacesFound: (found, total) => { setPlacesFound({ found, total }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
@@ -280,6 +311,16 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
                   <span key={index} ref={(light) => { lights.current[index] = light; }} className="size-6 rounded-full" style={{ background: SHADE, border: `2px solid ${INK}` }} />
                 ))}
               </div>
+              {playing.partner !== null && (
+                <div className="flex items-center gap-2 text-sm font-semibold" aria-label="Partner" title="Co-op">
+                  <Users className="size-4 shrink-0" style={{ color: PLAYER }} aria-hidden />
+                  <span>{playing.partner}</span>
+                </div>
+              )}
+              <div ref={needsRow} className="items-center gap-2 text-lg font-semibold tabular-nums" style={{ display: "none", color: ACCENT }}>
+                <Target className="size-5 shrink-0" aria-hidden />
+                <span ref={needsText} aria-label="Partner needs" />
+              </div>
               {playing.kind === "route" ? (
                 <>
                   <div className="flex items-baseline gap-2 tabular-nums">
@@ -300,12 +341,30 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
               )}
             </div>
           )}
-          {offer !== null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge here" title="In the game menu">
-              <Prompt binding={BINDINGS.menu} input={input} />
+          {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge here" title={offer.partner === null ? "Start" : "Solo or co-op"}>
+              <Prompt binding={BINDINGS.challenge} input={input} />
               <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
-              <span>{offer}</span>
+              <span>{offer.title}</span>
+              {offer.partner !== null && (
+                <span className="flex items-center gap-1" aria-label="Co-op with" title={`Co-op with ${offer.partner}`}>
+                  <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
+                  <span>{offer.partner}</span>
+                </span>
+              )}
             </div>
+          )}
+          {coop !== null && gameMenu === null && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}` }} aria-label={coop.kind === "invited" ? "Co-op invite" : "Co-op waiting"} title={coop.kind === "invited" ? "Join or decline" : coop.kind === "inviting" ? "Take the invite back" : "Joining"}>
+              {coop.kind !== "joining" && <Prompt binding={BINDINGS.challenge} input={input} />}
+              {coop.kind === "invited" ? <UserPlus className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden /> : <Hourglass className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />}
+              <span>{coop.name}</span>
+              <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
+              <span>{coop.title}</span>
+            </div>
+          )}
+          {notice !== null && !mapOpen && (
+            <CoopNotice key={notice.seen} notice={notice} onDone={() => { setNotice(null); }} />
           )}
           {others.length > 0 && playing === null && !mapOpen && camera !== "free" && (
             <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>

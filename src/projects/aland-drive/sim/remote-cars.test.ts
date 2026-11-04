@@ -79,4 +79,49 @@ describe("two players' cars", () => {
     expect(a.remotes.ghost("b")).toBe(false);
     a.dispose();
   });
+
+  it("a car put down where another player's stand-in stands touches it not at all until they're apart, and isn't thrown", () => {
+    const spot = route1.at(START_ALONG_M + 30);
+    const a = new Drive(world, route1.at(START_ALONG_M));
+    a.remotes.hear("b", { ...structuredClone(a.stateAt(1)), position: [spot.x, spot.y + 0.5, spot.z], velocity: [0, 0, 0], spin: [0, 0, 0] });
+    for (let step = 0; step < 10; step++) a.step(NO_INPUT);
+    expect(a.remotes.ghost("b")).toBe(false);
+    // A reset, or a retry on to the start line, lands this car on it.
+    a.placeAt(spot);
+    expect(a.remotes.ghost("b")).toBe(true);
+    let highestRise = 0;
+    for (let step = 0; step < 120; step++) {
+      a.step(NO_INPUT);
+      highestRise = Math.max(highestRise, a.stateAt(1).velocity[1]);
+    }
+    expect(speedOf(a.stateAt(1))).toBeLessThan(0.5);
+    expect(highestRise).toBeLessThan(0.5);
+    a.dispose();
+  });
+
+  it("two cars put back on a challenge's start places, a lane apart, stand still there through a countdown on both clients", () => {
+    const start = route1.at(START_ALONG_M);
+    const right = { x: Math.cos(start.heading), z: -Math.sin(start.heading) };
+    const lane = (by: number) => ({ ...start, x: start.x + by * right.x, z: start.z + by * right.z });
+    const places = [lane(1.5), lane(-1.5)];
+    const a = new Drive(world, route1.at(START_ALONG_M + 40));
+    const b = new Drive(world, route1.at(START_ALONG_M + 60));
+    const held: DriveInput = { ...NO_INPUT, handbrake: true };
+    // Both drive a while, then the retry puts each on its place while the other's stand-in is still where it was heard.
+    twoClients(a, b, 120, () => [{ ...NO_INPUT, throttle: 0.4 }, { ...NO_INPUT, throttle: 0.4 }]);
+    a.placeAt(places[0]);
+    b.placeAt(places[1]);
+    let highestRise = 0;
+    twoClients(a, b, 3 * 120, () => [held, held], () => {
+      highestRise = Math.max(highestRise, a.stateAt(1).velocity[1], b.stateAt(1).velocity[1]);
+    });
+    for (const [drive, place] of [[a, places[0]], [b, places[1]]] as const) {
+      const [x, , z] = drive.stateAt(1).position;
+      expect(Math.hypot(x - place.x, z - place.z)).toBeLessThan(0.3);
+      expect(drive.log.airborneSteps).toBe(0);
+    }
+    expect(highestRise).toBeLessThan(0.5);
+    a.dispose();
+    b.dispose();
+  });
 });

@@ -1,23 +1,17 @@
 import type { Server } from "node:http";
-import type { Page } from "@playwright/test";
-import type { Challenge } from "../src/projects/aland-drive/challenge/types";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
+import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
 import { expect, test } from "./test";
 
 /*
- * A solo challenge played through the game's own menu, on the fixture's one
- * tile. The list's challenges are elsewhere on the island, so the test lays a
- * Route of its own on the fixture's main road, through the game's own GPS
- * between two places on that road, and hands it to the page through the probe,
- * which puts it on the maps and in the world beside the list's. The simulation
- * is held and stepped by hand, so the countdown and the run play out the same
- * however fast the machine draws.
+ * A solo challenge played on the fixture's one tile, a Route of the test's own
+ * on its main road (`aland-drive-route.ts`), started from its ring by its own
+ * button. The simulation is held and stepped by hand, so the countdown and the
+ * run play out the same however fast the machine draws.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
 const FIXTURE_TILES = "src/projects/aland-drive/fixture";
-const STEPS_A_SECOND = 120;
-const COUNTDOWN_STEPS = 3 * STEPS_A_SECOND;
 const ID = "fixture-sprint";
 const TITLE = "Fixture sprint";
 const PREVIOUS_CAR = "skerry-gt";
@@ -38,74 +32,10 @@ test.afterAll(() => {
 test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(120_000);
 
-/** A place a distance along a line of (x, y, z) points, and the way the line runs there, anticlockwise from north. */
-function along(points: readonly number[], metres: number) {
-  let left = metres;
-  const count = points.length / 3;
-  for (let at = 0; at + 1 < count; at++) {
-    const [ax, az, bx, bz] = [points[at * 3], points[at * 3 + 2], points[at * 3 + 3], points[at * 3 + 5]];
-    const length = Math.hypot(bx - ax, bz - az);
-    if (left <= length || at + 2 === count) {
-      const share = Math.min(left / length, 1);
-      return { x: ax + share * (bx - ax), z: az + share * (bz - az), heading: Math.atan2(-(bx - ax), -(bz - az)) };
-    }
-    left -= length;
-  }
-  throw new Error("a line of one point");
-}
-
-function lengthOf(points: readonly number[]) {
-  let length = 0;
-  for (let at = 3; at < points.length; at += 3) length += Math.hypot(points[at] - points[at - 3], points[at + 2] - points[at - 1]);
-  return length;
-}
-
-/** A Route on the fixture's main road: the GPS's way between two places on it, a start just past the first, two gates and a finish short of the end. */
-async function layChallenge(page: Page): Promise<Challenge> {
-  await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });
-  const { waypoints, line } = await page.evaluate(() => {
-    const probe = window.__alandDrive;
-    if (!probe) throw new Error("no probe");
-    const ends = [300, 800].map((metres) => {
-      probe.placeOnRoad(0, metres);
-      const [x, , z] = probe.car().position;
-      return { x, z };
-    });
-    return { waypoints: ends, line: probe.routeThrough(ends.map(({ x, z }): [number, number] => [x, z])) };
-  });
-  const length = lengthOf(line);
-  expect(length).toBeGreaterThan(300);
-  const first = along(line, 15);
-  const right = { x: Math.cos(first.heading), z: -Math.sin(first.heading) };
-  const side = (by: number) => ({ x: first.x + by * right.x, z: first.z + by * right.z, heading: first.heading });
-  const gate = (metres: number) => ({ ...along(line, metres), halfWidthM: 12 });
-  const finishM = length - 40;
-  return {
-    id: ID,
-    title: TITLE,
-    kind: "route",
-    car: "sten",
-    where: "the fixture's main road",
-    waypoints,
-    starts: [side(1.5), side(-1.5)],
-    lengthM: finishM - 15,
-    gates: [gate(finishM / 3), gate((2 * finishM) / 3), gate(finishM)],
-    parS: 600,
-    targetS: 600,
-  };
-}
-
-const challenge = (page: Page) => page.evaluate(() => window.__alandDrive?.challenge() ?? null);
-const carAt = (page: Page) => page.evaluate(() => window.__alandDrive?.car().position ?? []);
-const offStart = async (page: Page, place: { x: number; z: number }) => {
-  const [x, , z] = await carAt(page);
-  return Math.hypot(x - place.x, z - place.z);
-};
-
-test("a solo Route: started from its ring, held through the countdown, driven to a pass, retried mid-run and left", async ({ page }) => {
+test("a solo Route: started from its ring by its button, held through the countdown, driven to a pass, retried mid-run and left", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
-  const laid = await layChallenge(page);
+  const { challenge: laid } = await layChallenge(page, { id: ID, title: TITLE, target: { s: 600 } });
   const [start] = laid.starts;
   await page.evaluate((added) => {
     const probe = window.__alandDrive;
@@ -117,12 +47,11 @@ test("a solo Route: started from its ring, held through the countdown, driven to
   }, laid);
   expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe(PREVIOUS_CAR);
 
-  // In the ring, the HUD says the menu has it, and the menu offers it.
+  // In the ring, the HUD prompts its button, and with no one else there it starts the challenge solo at once.
   await expect(page.getByLabel("Challenge here")).toContainText(TITLE);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press("KeyE");
+  await expect(page.getByLabel("Challenge here")).toBeHidden();
   const menu = page.getByRole("dialog", { name: "Game menu" });
-  await menu.getByRole("button", { name: `Start ${TITLE}` }).click();
-  await expect(menu).toBeHidden();
 
   // The start's tile is loaded, so the car is on the line at once, in the challenge's car.
   expect(await challenge(page)).toMatchObject({ id: ID, attempt: 1, phase: "countdown", clockS: -3 });

@@ -13,8 +13,11 @@ import type { Challenge, Gate } from "./types";
  * finish is the last gate. Solo, the run is lost once the clock passes the
  * target. In co-op the two times are averaged, so the run is lost once even the
  * best still possible can't make it: each player still driving takes at least
- * the clock's time. A Speed trap has no clock: it ends once everyone has crossed
- * the camera, and passes on the average speed there.
+ * the clock's time. Each client has its own clock, so only a client still
+ * timing a player of its own may call the loss, and it tells the partner,
+ * whose client takes it as it stands (`adoptLoss`): two clients never settle
+ * one attempt two ways. A Speed trap has no clock: it ends once everyone has
+ * crossed the camera, and passes on the average speed there.
  */
 
 export const COUNTDOWN_S = 3;
@@ -73,9 +76,9 @@ export function startRun(challenge: Challenge, players: 1 | 2, attempt = 1): Cha
   };
 }
 
-/** The next attempt: everyone back on the start line and the lights again. */
-export function retryRun(run: ChallengeRun): ChallengeRun {
-  return startRun(run.challenge, run.players.length as 1 | 2, run.attempt + 1);
+/** The next attempt, or a later one a partner has moved on to: everyone back on the start line and the lights again. */
+export function retryRun(run: ChallengeRun, attempt = run.attempt + 1): ChallengeRun {
+  return startRun(run.challenge, run.players.length as 1 | 2, attempt);
 }
 
 export function phaseOf(run: ChallengeRun): RunPhase {
@@ -120,7 +123,8 @@ function routeLost(run: ChallengeRun, targetS: number): boolean {
   return best > targetS;
 }
 
-function settle(run: ChallengeRun, events: RunEvent[]): ChallengeRun {
+/** `timedHere`: whether this client is timing a player still on the road, which is what lets it call a Route lost. */
+function settle(run: ChallengeRun, events: RunEvent[], timedHere: (player: number) => boolean): ChallengeRun {
   if (run.outcome) return run;
   const results = run.players.map(({ result }) => result);
   const average = averageOf(results);
@@ -128,7 +132,7 @@ function settle(run: ChallengeRun, events: RunEvent[]): ChallengeRun {
   let outcome: Outcome | null = null;
   if (challenge.kind === "route") {
     if (average !== null) outcome = { passed: average <= challenge.targetS, results, average };
-    else if (routeLost(run, challenge.targetS)) outcome = { passed: false, results, average: null };
+    else if (run.players.some(({ result }, index) => result === null && timedHere(index)) && routeLost(run, challenge.targetS)) outcome = { passed: false, results, average: null };
   } else if (average !== null) {
     outcome = { passed: average >= challenge.targetKmh, results, average };
   }
@@ -179,7 +183,7 @@ export function advanceRun(run: ChallengeRun, stepS: number, samples: readonly (
     const sample = samples[index];
     return sample ? stepPlayer(run, index, sample, stepS, events) : player;
   });
-  return { run: settle({ ...run, players, clockS: run.clockS + stepS }, events), events };
+  return { run: settle({ ...run, players, clockS: run.clockS + stepS }, events, (index) => samples[index] !== null), events };
 }
 
 /** A partner's own time or speed, as their client measured it, for this attempt. A report for another attempt, or for a result already in, changes nothing. */
@@ -187,7 +191,14 @@ export function reportResult(run: ChallengeRun, attempt: number, player: number,
   if (attempt !== run.attempt || run.outcome || run.players[player].result !== null) return { run, events: [] };
   const events: RunEvent[] = [{ kind: "result", player, result }];
   const players = run.players.map((each, index) => (index === player ? { ...each, result } : each));
-  return { run: settle({ ...run, players }, events), events };
+  return { run: settle({ ...run, players }, events, (index) => index !== player), events };
+}
+
+/** A partner's client called this attempt lost on its own clock, with the results it had: the attempt ends here as it ended there. */
+export function adoptLoss(run: ChallengeRun, attempt: number, results: readonly (number | null)[]): { run: ChallengeRun; events: RunEvent[] } {
+  if (attempt !== run.attempt || run.outcome || results.length !== run.players.length) return { run, events: [] };
+  const outcome: Outcome = { passed: false, results, average: null };
+  return { run: { ...run, outcome }, events: [{ kind: "over", outcome }] };
 }
 
 /**

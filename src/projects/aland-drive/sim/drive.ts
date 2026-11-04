@@ -222,6 +222,7 @@ export class Drive {
   placeAt(road: RoadPoint): void {
     this.loadGround(road);
     this.player.place(road);
+    this.remotes.placed(this.player.position);
     this.rapier.step();
     this.player.settled();
     this.placements++;

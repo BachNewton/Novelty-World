@@ -21,17 +21,20 @@ export const BINDINGS = {
   freeCamera: binding(null, "F"),
   map: binding("View", "M"),
   menu: binding("Menu", "Esc"),
-  mute: binding("X", "N"),
+  /** A challenge's start ring: start it, or choose solo or co-op; and join a co-op one you're asked to. */
+  challenge: binding("X", "E"),
+  /** Sound on or off has no prompt: it's in the game menu too. */
+  mute: binding(null, "N"),
   mapPick: binding("A", "Click"),
   mapClear: binding("X", "X"),
   mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "freeCamera" | "map" | "mute";
+export type GameAction = "respawn" | "freeCamera" | "map" | "mute" | "challenge";
 export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map", KeyN: "mute" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "map", X: "mute" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map", KeyN: "mute", KeyE: "challenge" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "map", X: "challenge" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", View: "close" };
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);

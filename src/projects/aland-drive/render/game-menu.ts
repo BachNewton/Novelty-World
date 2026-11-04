@@ -5,10 +5,13 @@ import type { ChallengeKind } from "../challenge/types";
  * whether opening it stops the drive. The game works it out each time the
  * menu opens, and the page draws each item by its id. After a challenge's
  * attempt it is the result card: how the attempt went, then Retry and Leave.
+ * The same dialog is a challenge's small choices on its own button: Solo or
+ * Co-op in a start ring with another player in it, and Join or Decline when
+ * another player asks.
  */
 
-/** Something the game menu can offer. Resume closes it. */
-export type MenuItemId = "resume" | "sound" | "start-solo" | "retry" | "leave";
+/** Something the game menu can offer. Resume and Cancel close it. */
+export type MenuItemId = "resume" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How an attempt went, as the result card shows it. */
 export interface MenuResult {
@@ -19,7 +22,12 @@ export interface MenuResult {
   target: number;
   /** The best kept for this challenge, this attempt included. */
   best: number | null;
+  /** Co-op: this player's own time or speed and the partner's, either null for a Route lost before that one's finish. The result is their average. */
+  team?: { own: number | null; partner: number | null; partnerName: string };
 }
+
+/** What the dialog is: the game menu, or one of a challenge's choices. */
+export type MenuKind = "menu" | "start" | "invite";
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -31,7 +39,10 @@ export interface GameMenu {
   /** The challenge the items are about: the one whose start the car is in, or the one being played. */
   challenge?: string;
   result?: MenuResult;
+  kind?: MenuKind;
+  /** The other player a co-op choice is about. */
+  partner?: string;
 }
 
-/** The menu while just driving. */
+/** The menu outside a challenge. */
 export const DRIVING_MENU: GameMenu = { items: ["resume", "sound"], back: "resume", pauses: true };

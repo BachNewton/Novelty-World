@@ -20,7 +20,10 @@ import { STEP_S } from "./tuning";
  * ground, so a car whose ground isn't loaded here can't fall through it. A
  * stand-in put somewhere rather than steered there (a first sight, a reset, a
  * jump) touches nothing until it's clear of every simulated car, or the two would start
- * inside each other and be thrown apart.
+ * inside each other and be thrown apart. The same goes the other way: this
+ * car put down near a stand-in (a reset, a challenge's retry on to the start
+ * line, where the partner's last state may still stand) leaves it touching
+ * nothing until the two are clear.
  */
 
 /** A state carries on by its own motion this long at most: past it the car has stopped sending (a paused map, a hidden tab). */
@@ -122,8 +125,17 @@ class RemoteCar {
     const [rx, ry, rz, rw] = state.rotation;
     this.body.setTranslation({ x, y, z }, true);
     this.body.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+    this.fade();
+  }
+
+  /** Touches nothing until it's clear of every simulated car. */
+  fade(): void {
     this.ghost = true;
     this.collider.setCollisionGroups(GHOST_GROUPS);
+  }
+
+  near(at: Vector3): boolean {
+    return Math.hypot(...difference(at, point(this.body.translation()))) <= CLEAR_M;
   }
 
   /** Steers the stand-in for the coming step. */
@@ -184,6 +196,11 @@ export class RemoteCars {
   /** Whether a car still touches nothing, having been put where it is. */
   ghost(id: string): boolean {
     return this.cars.get(id)?.ghost ?? true;
+  }
+
+  /** A simulated car has been put here rather than driven: every stand-in it could be inside touches nothing until they're apart. */
+  placed(at: Vector3): void {
+    for (const remote of this.cars.values()) if (remote.near(at)) remote.fade();
   }
 
   /** Before the world steps, with where every simulated car is. */
