@@ -5,7 +5,7 @@
 //   node src/projects/aland-drive/tools/showcase.mjs <folder> [--size=3440x1440] [--folder=<tiles>] [--keys=9,0]
 // ALAND_DRIVE_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { openGame } from "./game-page.mjs";
 import { serveTiles } from "./serve-tiles.mjs";
 
 const option = (name, otherwise) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;
@@ -16,24 +16,22 @@ const FRAMES_TO_SETTLE = 12;
 const KEYS = option("keys", "1,2,3,4,5,6,7,8,9,0").split(",");
 
 const tiles = await serveTiles(option("folder", "src/projects/aland-drive/.data/tiles"));
-const browser = await chromium.launch({ channel: "chromium", headless: true, args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] });
-const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
-page.on("pageerror", (error) => console.log(`thrown: ${error.stack ?? error.message}`));
-await page.goto(`${PAGE}?tiles=local:${tiles.port}`);
-await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
-await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 180000 });
+const { page, step, reported, close } = await openGame(`${PAGE}?tiles=local:${tiles.port}`, { width: WIDTH, height: HEIGHT, ready: () => window.__alandDrive?.mapReady() === true, cleanup: () => tiles.server.close() });
 
 for (const key of KEYS) {
-  await page.evaluate(async ([key, settle]) => {
-    const probe = window.__alandDrive;
-    probe.hold(true);
-    await probe.jumpTo(key);
-    const frame = probe.frames() + settle;
-    while (probe.frames() < frame) await new Promise(requestAnimationFrame);
-  }, [key, FRAMES_TO_SETTLE]);
-  await page.screenshot({ path: `${OUT}/showcase-${key}.png` });
-  console.log(key, JSON.stringify(await page.evaluate(() => ({ ...window.__alandDrive.counts(), walls: window.__alandDrive.stoneWallsDrawn(), car: window.__alandDrive.car().position.map(Math.round), log: window.__alandDrive.log().farGroundSteps }))));
+  const counts = await step(`showcase ${key}`, async () => {
+    await page.evaluate(async ([key, settle]) => {
+      const probe = window.__alandDrive;
+      probe.hold(true);
+      await probe.jumpTo(key);
+      const frame = probe.frames() + settle;
+      while (probe.frames() < frame) await new Promise(requestAnimationFrame);
+    }, [key, FRAMES_TO_SETTLE]);
+    await page.screenshot({ path: `${OUT}/showcase-${key}.png` });
+    return page.evaluate(() => ({ ...window.__alandDrive.counts(), walls: window.__alandDrive.stoneWallsDrawn(), car: window.__alandDrive.car().position.map(Math.round), log: window.__alandDrive.log().farGroundSteps }));
+  });
+  console.log(key, JSON.stringify(counts));
 }
-
-await browser.close();
-tiles.server.close();
+const problems = reported();
+if (problems) console.log(`The page reported:\n${problems}`);
+await close();
