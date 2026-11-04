@@ -1,5 +1,6 @@
-import { BufferAttribute, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, type Node, type Scene } from "three/webgpu";
-import { attribute, cameraProjectionMatrix, cameraViewMatrix, cos, exp, float, max, min, positionGeometry, select, sin, smoothstep, uniform, uv, varying, vec2, vec3, vec4 } from "three/tsl";
+import { BufferAttribute, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, MeshBasicNodeMaterial, Quaternion, Vector3 as Point, type Node, type Scene } from "three/webgpu";
+import { abs, attribute, cameraProjectionMatrix, cameraViewMatrix, cos, exp, float, max, min, positionGeometry, select, sin, smoothstep, uniform, uv, varying, vec2, vec3, vec4 } from "three/tsl";
+import { CARS } from "../sim/cars";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
 import type { Tread } from "../sim/car";
 import type { Condition, Surface } from "../sim/surfaces";
@@ -110,8 +111,15 @@ function randomFrom(seed: number) {
 const FLOATS = 4;
 const COLUMNS = ["tyreSpawn", "tyreFling", "tyreMotion", "tyreTint", "tyreShape"] as const;
 
+/** Where the car is drawn, as a matrix from the world into its own frame, and the half size of its body there. */
+interface CarBox {
+  toCar: Node<"mat4">;
+  centre: Node<"vec3">;
+  half: Node<"vec3">;
+}
+
 /** One pool: a ring of particles, the oldest written over first, as one instanced quad. */
-function pool(capacity: number, solid: boolean, clock: Node<"float">) {
+function pool(capacity: number, solid: boolean, clock: Node<"float">, car: CarBox) {
   const columns = COLUMNS.map(() => new Float32Array(capacity * FLOATS));
   const geometry = new InstancedBufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(Float32Array.from([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -144,7 +152,9 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
   const inView = cameraViewMatrix.mul(vec4(place, 1));
   const depth = inView.z.negate().max(0.01);
   const grown = solid ? startSize.mul(float(1).sub(smoothstep(float(0.7), float(1), lived))) : startSize.add(grow.mul(age));
-  const size = select(alive, min(grown, depth.mul(MOST_SIZE_PER_M)), float(0));
+  // The body hides a particle inside it from outside, but not through the glass, where dust would seem to fill the cabin.
+  const inCar = abs(car.toCar.mul(vec4(place, 1)).xyz.sub(car.centre)).lessThan(car.half).all();
+  const size = select(alive.and(inCar.not()), min(grown, depth.mul(MOST_SIZE_PER_M)), float(0));
   const turn = seed.mul(TAU).add(spin.mul(seed.sub(0.5).mul(2)).mul(age));
   const corner = positionGeometry.xy.mul(vec2(aspect, 1)).mul(size.mul(0.5));
   const turned = vec2(corner.x.mul(cos(turn)).sub(corner.y.mul(sin(turn))), corner.x.mul(sin(turn)).add(corner.y.mul(cos(turn))));
@@ -225,8 +235,15 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
 
 export function createTyreParticles(scene: Scene, colour: (token: string) => Linear) {
   const clock = uniform(0);
-  const puffs = pool(PUFF_POOL, false, clock);
-  const chips = pool(CHIP_POOL, true, clock);
+  const toCar = uniform(new Matrix4());
+  const centre = uniform(new Point());
+  const half = uniform(new Point());
+  const carAt = new Point();
+  const carTurn = new Quaternion();
+  const unscaled = new Point(1, 1, 1);
+  const car: CarBox = { toCar, centre, half };
+  const puffs = pool(PUFF_POOL, false, clock, car);
+  const chips = pool(CHIP_POOL, true, clock, car);
   scene.add(puffs.mesh, chips.mesh);
   const colours = new Map<string, Linear>();
   const colourOf = (kick: Kick, surface: Surface) => {
@@ -298,10 +315,14 @@ export function createTyreParticles(scene: Scene, colour: (token: string) => Lin
       });
       steps++;
     },
-    /** Before each frame is drawn, `share` of the way from the last step but one to the last, as the car is drawn. */
-    draw(share: number) {
+    /** Before each frame is drawn, `share` of the way from the last step but one to the last, with the car as it's drawn then. */
+    draw(share: number, drawn: CarState) {
       const now = (steps - 1 + share) * STEP_S;
       clock.value = now;
+      toCar.value.compose(carAt.set(...drawn.position), carTurn.set(...drawn.rotation), unscaled).invert();
+      const { halfSize, boxUpM } = CARS[drawn.car].car;
+      centre.value.set(0, boxUpM, 0);
+      half.value.set(...halfSize);
       alive = { puffs: puffs.show(now, shown), chips: chips.show(now, shown) };
     },
     /** Draws both pools whatever is alive, so their pipelines are built before the drive starts rather than at the first particle. */

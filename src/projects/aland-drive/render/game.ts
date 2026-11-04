@@ -71,7 +71,7 @@ import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../s
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
-import { CARS as TUNINGS, type CarId } from "../sim/cars";
+import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
 import { conditionAsked, type Condition, type Surface } from "../sim/surfaces";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -790,9 +790,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const askedRoad = askedAt ? world.roads.nearest(askedAt.x, askedAt.z) : undefined;
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
-  const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M));
+  const startCar = carAsked(window.location.search);
+  const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   drive.condition = conditionAsked(window.location.search);
-  let carSpec = PLAYER_CAR;
+  let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
   const tyres = createTyreParticles(scene, token);
   const cullCar = (culled: boolean) => {
@@ -1192,7 +1193,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const car = drive.stateAt(share);
     carView.draw(car);
-    tyres.draw(share);
+    tyres.draw(share, car);
     onlineWorld?.send(stepped, drive.stateAt(1));
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
