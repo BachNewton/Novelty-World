@@ -1,12 +1,15 @@
+import type { ChallengeBoard } from "../challenge/board";
 import type { Discovery } from "./discovery";
-import { drawCar, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
+import { drawCar, drawChallenges, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapInk, type MapPlayer, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
 /*
  * The car's place on the road network, as the drive goes on: the road it's on,
  * the GPS route and the next direction, and the mini map, which turns with the
- * car, with the places to find on it. Each frame hands it the car and it works
+ * car, with the places to find and the challenges' starts on it. A
+ * challenge's route is held as it is, never rerouted, since its gates are on
+ * it. Each frame hands it the car and it works
  * out what changed; nothing here has a clock.
  */
 
@@ -49,13 +52,15 @@ const MINI_RIM_PX = 12;
 
 export class Navigator {
   route: Route | null = null;
+  /** A challenge's route, which the car is sent back to rather than rerouted from. */
+  private held = false;
   private along = 0;
   private shownRoad = "";
   private pendingRoad = "";
   private pendingSince = { x: 0, z: 0 };
   private lastRoute = { x: Number.NaN, z: Number.NaN };
   private lastRead = { x: Number.NaN, z: Number.NaN };
-  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0, found: 0 };
+  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0, found: 0, challenges: 0 };
   private lastPlayers: readonly MapPlayer[] = [];
   /** How many other players the mini map last drew. */
   playersDrawn = 0;
@@ -69,6 +74,7 @@ export class Navigator {
     private readonly mini: HTMLCanvasElement,
     private readonly ink: MapInk,
     private readonly discovery: Discovery,
+    private readonly challenges: ChallengeBoard,
     private readonly events: NavigatorEvents,
   ) {
     const pen = mini.getContext("2d");
@@ -80,13 +86,22 @@ export class Navigator {
   setDestination(fromX: number, fromZ: number, headingClockwise: number, toX: number, toZ: number): boolean {
     const route = this.graph.route(fromX, fromZ, headingClockwise, toX, toZ);
     this.route = route;
+    this.held = false;
     this.along = 0;
     this.lastRoute = { x: fromX, z: fromZ };
     return route !== null;
   }
 
+  /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it. */
+  holdRoute(route: Route): void {
+    this.route = route;
+    this.held = true;
+    this.along = 0;
+  }
+
   clearRoute(): void {
     this.route = null;
+    this.held = false;
   }
 
   get alongRoute(): number {
@@ -118,7 +133,7 @@ export class Navigator {
       this.route = null;
       return null;
     }
-    if (off > OFF_ROUTE_M && Math.hypot(this.lastRoute.x - x, this.lastRoute.z - z) > REROUTE_EVERY_M) {
+    if (!this.held && off > OFF_ROUTE_M && Math.hypot(this.lastRoute.x - x, this.lastRoute.z - z) > REROUTE_EVERY_M) {
       this.setDestination(x, z, headingClockwise, end.x, end.z);
       return null;
     }
@@ -154,9 +169,9 @@ export class Navigator {
 
   private drawMini(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): void {
     const last = this.lastDraw;
-    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && last.found === this.discovery.revision && !this.playersMoved(players);
+    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision && last.found === this.discovery.revision && last.challenges === this.challenges.revision && !this.playersMoved(players);
     if (unchanged) return;
-    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision, found: this.discovery.revision };
+    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision, found: this.discovery.revision, challenges: this.challenges.revision };
     this.lastPlayers = players;
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
@@ -167,6 +182,7 @@ export class Navigator {
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
     drawPlaces(pen, view, this.discovery.places.map((place) => ({ place, found: this.discovery.isFound(place) })), MINI_PLACE_PX, ink, false);
+    drawChallenges(pen, view, this.challenges.marks(), MINI_PLACE_PX, ink, false);
     drawPlayers(pen, view, players, 8, ink, { circle: [width / 2, height / 2, width / 2 - MINI_RIM_PX] }, false);
     this.playersDrawn = players.length;
     drawCar(pen, view, x, z, headingClockwise, 9, ink);

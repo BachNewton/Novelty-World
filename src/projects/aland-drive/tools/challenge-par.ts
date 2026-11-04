@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { join } from "node:path";
-import { challengeLine } from "../challenge/line";
+import { challengeLine, runOn } from "../challenge/line";
 import { CHALLENGE_SPECS } from "../challenge/specs";
 import { challengeFrom, placesPrint, type PlacesEntry, type TargetsEntry } from "../challenge/measured";
 import { advanceRun, startRun, type ChallengeRun } from "../challenge/run";
@@ -28,7 +28,7 @@ import { speedOf } from "../sim/car-state";
 import { CARS } from "../sim/cars";
 import { Drive, initPhysics } from "../sim/drive";
 import { readWorld } from "../sim/read-tile";
-import { RoadLine } from "../sim/road-net";
+import type { RoadLine } from "../sim/road-net";
 import { STEP_S, WORLD } from "../sim/tuning";
 import type { World } from "../sim/world";
 
@@ -75,13 +75,6 @@ function tilesNear(line: RoadLine): Set<string> {
   return names;
 }
 
-/** The route and a straight run on past its end. */
-function runOn(line: RoadLine): RoadLine {
-  const end = line.at(line.length);
-  const points = Float32Array.from([...line.points, end.x - Math.sin(end.heading) * RUN_ON_M, 0, end.z - Math.cos(end.heading) * RUN_ON_M]);
-  return new RoadLine(points);
-}
-
 interface Measured {
   par: number;
   simS: number;
@@ -95,7 +88,7 @@ function measure(challenge: Challenge, line: RoadLine, world: World, gripShare: 
   if (!road) throw new Error(`${challenge.id}: no road at the start`);
   const drive = new Drive(world, { ...road, x: place.x, z: place.z, heading: place.heading }, challenge.car);
   const cornerG = Math.min(...CAR_LIMITS[challenge.car].corner.map(({ g }) => g));
-  const driven = runOn(line);
+  const driven = runOn(line, RUN_ON_M);
   const pilot = new Autopilot(driven, FLAT_OUT_MS, 0, 0, undefined, gripShare * cornerG * WORLD.gravity);
   // Unbeatable while measuring: a Route is only lost against its target, which par is what sets.
   const unbounded: Challenge = challenge.kind === "route" ? { ...challenge, targetS: Infinity } : { ...challenge, targetKmh: 0 };

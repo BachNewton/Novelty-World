@@ -55,6 +55,14 @@ import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { DRIVING_MENU, type GameMenu, type MenuItemId } from "./game-menu";
+import { createChallengeMarks } from "./challenge-marks";
+import { ChallengeBoard, ringCentre } from "../challenge/board";
+import { challengeRoute, runOn } from "../challenge/line";
+import { CHALLENGES } from "../challenge/list";
+import { PASSES_KEY } from "../challenge/passes";
+import { countdownLeftS, gatesPassed, phaseOf, type Outcome, type RunPhase } from "../challenge/run";
+import { ChallengeSession, type SessionHost } from "../challenge/session";
+import type { Challenge, ChallengeKind, StartPlace } from "../challenge/types";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -190,6 +198,40 @@ export interface GameProbe {
   /** How many of each sea mark are drawn round the camera. */
   seaMarksCounts: () => Record<string, number>;
   showSeaMarks: (shown: boolean) => void;
+  /** A challenge of the page's own beside the list's, such as one a test lays on its world's roads. */
+  addChallenge: (challenge: Challenge) => void;
+  /** Starts a challenge solo, wherever the car is, resolving once the car is on its start line. */
+  startChallenge: (id: string) => Promise<void>;
+  /** The challenge being played, as its run stands, or null. */
+  challenge: () => ChallengeProbe | null;
+  /** The scripted driver along the challenge's route, from where the car is on it. */
+  driveChallenge: (cruiseMS: number) => void;
+  /** The best kept for a challenge, or null if it hasn't been passed. */
+  challengeBest: (id: string) => number | null;
+}
+
+export interface ChallengeProbe {
+  id: string;
+  attempt: number;
+  /** "placing" while the car is on its way to the start line. */
+  phase: RunPhase | "placing";
+  clockS: number;
+  gates: { passed: number; of: number };
+  outcome: Outcome | null;
+}
+
+/** A challenge's run as the HUD shows it. */
+export interface ChallengeReading {
+  title: string;
+  kind: ChallengeKind;
+  phase: RunPhase | "placing";
+  /** Seconds until the green light. */
+  countdownS: number;
+  /** Seconds since the green light. */
+  clockS: number;
+  /** The time to beat, or the speed to reach. */
+  target: number;
+  gates: { passed: number; of: number };
 }
 
 export interface HudReading {
@@ -200,6 +242,10 @@ export interface HudReading {
   revs: number;
   /** The GPS's next direction. */
   cue: RouteCue | null;
+  /** The challenge being played. */
+  challenge: ChallengeReading | null;
+  /** The challenge whose start ring the car is in, which the game menu offers. */
+  offer: string | null;
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -325,6 +371,10 @@ const MAP_DETAIL_FROM_M = 3500;
 const MAP_MARGIN = 1.05;
 const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
+/** The scripted driver's line runs on past a challenge's finish, so it doesn't turn for the line's last point. */
+const CHALLENGE_RUN_ON_M = 150;
+/** The car on the start line and through the countdown: the handbrake, since the brake held at a standstill is reverse. */
+const HELD: DriveInput = { ...NO_INPUT, handbrake: true };
 
 export const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
 export const colorOf = (name: string) => {
@@ -658,6 +708,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const parkedCars = createParkedCars(scene, manifest.sun, hazed);
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const challengeBoard = new ChallengeBoard(CHALLENGES, { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
+  // Room for the list and a few of a page's own.
+  const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + 8);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const bridges = new Map<string, Mesh>();
@@ -801,6 +854,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   roadside.showAll(true);
   parkedCars.showAll(true);
   buildingAddOns.showAll(true);
+  challengeMarks.showAll(true);
   cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
@@ -819,6 +873,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   roadside.showAll(false);
   parkedCars.showAll(false);
   buildingAddOns.showAll(false);
+  challengeMarks.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -886,12 +941,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         load: () => storage.get<string[]>(FOUND_KEY),
         save: (ids) => { storage.set(FOUND_KEY, ids); },
       });
-      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, { onRoad: (name) => events.onRoad?.(name) });
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, challengeBoard, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
         ink,
         found,
+        challengeBoard,
         (x, z) => {
           pickDestination(x, z);
         },
@@ -919,8 +975,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "id">) => {
-    if (jumping || mapFrom) return;
+  /** Loads round a place, with the first load's bar, and puts the car there once it has landed. */
+  const loadRound = async (x: number, z: number, place: () => void) => {
     jumping = true;
     const wanted = { done: 0, total: Math.max(stream.wanted(x, z), 1) };
     events.onLoading?.({ ...wanted });
@@ -931,15 +987,21 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     loadingAround = { x, z };
     stream.update(x, z);
     await stream.settled();
-    const road = world.roads.nearest(x, z);
-    if (!road) throw new Error(`no road at the showcase spot ${name}`);
-    const heading = (-headingDeg * Math.PI) / 180;
-    drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
+    place();
     chaseCamera.snap();
     loadingAround = null;
     stream.onLanded = () => undefined;
     jumping = false;
     events.onLoading?.({ done: wanted.total, total: wanted.total });
+  };
+  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "id">) => {
+    if (jumping || mapFrom) return;
+    await loadRound(x, z, () => {
+      const road = world.roads.nearest(x, z);
+      if (!road) throw new Error(`no road at the showcase spot ${name}`);
+      const heading = (-headingDeg * Math.PI) / 180;
+      drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
+    });
     events.onRoad?.(name);
   };
   const jumpTo = (id: string) => {
@@ -993,14 +1055,99 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onDevMenuOpen?.(open);
   };
 
+  // The challenge being played, if any (`challenge/session.ts`): the run, the car from before, and the way back to the line.
+  let session: ChallengeSession | null = null;
+  // The challenge the open menu offers to start, from the ring the car was in as it opened.
+  let offered: Challenge | null = null;
+  const routes = new Map<string, ReturnType<typeof challengeRoute>>();
+  const routeOf = (challenge: Challenge) => {
+    if (!roadGraph) return null;
+    let route = routes.get(challenge.id);
+    if (!route) {
+      route = challengeRoute(roadGraph, challenge.waypoints);
+      routes.set(challenge.id, route);
+    }
+    return route;
+  };
+  /** The challenge whose start ring the car is in, while it's free to start one. */
+  const ringNow = () => {
+    if (session || cameraMode === "free") return null;
+    const { position } = drive.stateAt(1);
+    return challengeBoard.ringAt(position[0], position[2]);
+  };
+
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
-  const menuNow = (): GameMenu => DRIVING_MENU;
+  const menuNow = (): GameMenu => {
+    if (session) {
+      const { run, challenge } = session;
+      // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
+      return { items: ["resume", "retry", "leave"], back: "resume", pauses: run.players.length === 1, challenge: challenge.title };
+    }
+    offered = ringNow();
+    return offered ? { items: ["resume", "start-solo", "sound"], back: "resume", pauses: true, challenge: offered.title } : DRIVING_MENU;
+  };
+  const showMenu = (menu: GameMenu | null) => {
+    gameMenu = menu;
+    controls.setGameMenuOpen(menu !== null);
+    events.onGameMenu?.(menu);
+  };
   const setGameMenuOpen = (open: boolean) => {
     if (open === (gameMenu !== null) || (open && (mapFrom || jumping || devMenuOpen))) return;
-    gameMenu = open ? menuNow() : null;
-    controls.setGameMenuOpen(open);
-    events.onGameMenu?.(gameMenu);
+    showMenu(open ? menuNow() : null);
   };
+
+  let placedWaiters: (() => void)[] = [];
+  const sessionHost: SessionHost = {
+    carId: () => drive.carId,
+    setCar: (id) => {
+      setCar(id);
+    },
+    placeAt: ({ x, z, heading }: StartPlace, done) => {
+      const put = () => {
+        const road = world.roads.nearest(x, z);
+        if (!road) throw new Error(`no road at a challenge's start, ${x}, ${z}`);
+        drive.placeAt({ ...road, x, z, heading });
+        chaseCamera.snap();
+        // A scripted drive belongs to the attempt it was started in.
+        autopilot = null;
+        done();
+        const waiting = placedWaiters;
+        placedWaiters = [];
+        for (const resolve of waiting) resolve();
+      };
+      // Where the start's tiles are still loaded the car goes back at once; past them, the way a jump does.
+      if (stream.wanted(x, z) === 0) put();
+      else void loadRound(x, z, put).catch(fail);
+    },
+    showRoute: (challenge) => {
+      const route = challenge ? routeOf(challenge) : null;
+      if (route) navigator?.holdRoute(route);
+      else navigator?.clearRoute();
+      worldMap?.setRoute(route);
+    },
+    onOver: (challenge, outcome) => {
+      challengeBoard.record(challenge, outcome);
+      const [result] = outcome.results;
+      const best = challengeBoard.passOf(challenge)?.best ?? null;
+      const target = challenge.kind === "route" ? challenge.targetS : challenge.targetKmh;
+      showMenu({ items: ["retry", "leave"], back: "leave", pauses: true, challenge: challenge.title, result: { passed: outcome.passed, kind: challenge.kind, result: outcome.average ?? result, target, best } });
+    },
+  };
+  const startChallenge = (challenge: Challenge) => {
+    if (session) throw new Error(`${challenge.id} started during ${session.challenge.id}`);
+    if (jumping || mapFrom) throw new Error(`${challenge.id} started while the car was being moved`);
+    session = new ChallengeSession(challenge, sessionHost);
+    challengeMarks.showStarts(false);
+  };
+  const leaveChallenge = () => {
+    if (!session) throw new Error("Leave with no challenge being played");
+    session.leave();
+    session = null;
+    autopilot = null;
+    challengeMarks.setLine(null, "gate");
+    challengeMarks.showStarts(true);
+  };
+
   const pickMenuItem = (id: MenuItemId) => {
     switch (id) {
       case "resume":
@@ -1008,6 +1155,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         break;
       case "sound":
         useDriveSoundSettings.getState().toggleMuted();
+        break;
+      case "start-solo": {
+        const chosen = offered;
+        if (!chosen) throw new Error("Start picked with no challenge offered");
+        setGameMenuOpen(false);
+        startChallenge(chosen);
+        break;
+      }
+      case "retry":
+        if (!session) throw new Error("Retry picked with no challenge being played");
+        setGameMenuOpen(false);
+        session.retry();
+        break;
+      case "leave":
+        setGameMenuOpen(false);
+        leaveChallenge();
         break;
     }
   };
@@ -1057,7 +1220,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(null);
     }
   };
-  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onGameMenu: setGameMenuOpen, onInputKind: events.onInputKind });
+  // Closing the menu from the keyboard presses its way back: Resume, or Leave on a result card.
+  const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onGameMenu: (open) => (open ? setGameMenuOpen(true) : pickMenuItem(gameMenu?.back ?? "resume")), onInputKind: events.onInputKind });
 
   const resize = () => {
     const { clientWidth, clientHeight } = container;
@@ -1102,10 +1266,21 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   document.addEventListener("visibilitychange", hushWhenHidden);
 
   const nextInput = (): DriveInput => {
-    if (autopilot) lastInput = autopilot.input(drive.stateAt(1));
+    if (autopilot) return autopilot.input(drive.stateAt(1));
     // A menu that doesn't pause lets go of the car's controls.
-    else lastInput = cameraMode === "free" || gameMenu ? NO_INPUT : controls.read();
-    return lastInput;
+    return cameraMode === "free" || gameMenu ? NO_INPUT : controls.read();
+  };
+  let sampledPlacements = drive.placements;
+  /** One step of the simulation, and of the challenge being played: on the line and through the countdown the car is held on the handbrake, whatever the input. */
+  const simStep = (input: DriveInput) => {
+    lastInput = session?.holdsCar() ? HELD : input;
+    drive.step(lastInput);
+    // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
+    const placed = drive.placements !== sampledPlacements;
+    sampledPlacements = drive.placements;
+    if (!session) return;
+    const state = drive.stateAt(1);
+    session.step(STEP_S, { x: state.position[0], z: state.position[2], speedMS: speedOf(state), placed });
   };
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
@@ -1146,6 +1321,35 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return shown;
   };
 
+  let marksRevision = -1;
+  const readChallenge = (): ChallengeReading | null => {
+    if (!session) return null;
+    const { run, challenge, placing } = session;
+    return {
+      title: challenge.title,
+      kind: challenge.kind,
+      phase: placing ? "placing" : phaseOf(run),
+      countdownS: countdownLeftS(run),
+      clockS: Math.max(run.clockS, 0),
+      target: challenge.kind === "route" ? challenge.targetS : challenge.targetKmh,
+      gates: gatesPassed(run, session.seat),
+    };
+  };
+  /** The line the car is to cross next, standing in the world: a gate, the finish, or the camera. */
+  const showNextLine = () => {
+    if (!session || session.run.outcome) {
+      challengeMarks.setLine(null, "gate");
+      return;
+    }
+    const { challenge, run, seat } = session;
+    if (challenge.kind === "speed-trap") {
+      challengeMarks.setLine(run.players[seat].result === null ? challenge.camera : null, "camera");
+      return;
+    }
+    const next = run.players[seat].nextGate;
+    challengeMarks.setLine(next < challenge.gates.length ? challenge.gates[next] : null, next === challenge.gates.length - 1 ? "finish" : "gate");
+  };
+
   const detailSpotAt = new Vector3();
   /** This frame's camera as a view of the ground, for what's drawn over the render. */
   const mapViewOf = (height: number, turn: number): MapView => {
@@ -1180,7 +1384,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!held && !mapFrom && !jumping && !menuHolds) {
       owedSeconds += seconds;
       stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
-      for (let step = 0; step < stepped; step++) drive.step(nextInput());
+      for (let step = 0; step < stepped; step++) simStep(nextInput());
       owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
     }
@@ -1228,7 +1432,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (reached.length > 0) events.onPlacesFound?.(discovery.foundCount, discovery.places.length);
     }
     const engine = drive.engine();
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue });
+    const offer = lifted || jumping ? null : (ringNow()?.title ?? null);
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue, challenge: readChallenge(), offer });
+    if (challengeBoard.revision !== marksRevision) {
+      marksRevision = challengeBoard.revision;
+      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
+    }
+    showNextLine();
+    challengeMarks.update();
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
@@ -1310,7 +1521,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
       advance: (steps, input) => {
-        for (let step = 0; step < steps; step++) drive.step(input ?? nextInput());
+        for (let step = 0; step < steps; step++) simStep(input ?? nextInput());
         if (seaHeldAt !== null) seaHeldAt += steps * STEP_S;
       },
       startRoute: (chain, cruiseMS, from) => {
@@ -1399,6 +1610,35 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showBoatsUnderWay: boatsUnderWay.show,
       seaMarksCounts: seaMarks.counts,
       showSeaMarks: seaMarks.show,
+      addChallenge: (challenge) => {
+        challengeBoard.add(challenge);
+      },
+      startChallenge: (id) => {
+        const onLine = new Promise<void>((resolve) => {
+          placedWaiters.push(resolve);
+        });
+        startChallenge(challengeBoard.byId(id));
+        return onLine;
+      },
+      challenge: () => {
+        if (!session) return null;
+        const { run, challenge, placing, seat } = session;
+        return { id: challenge.id, attempt: run.attempt, phase: placing ? "placing" : phaseOf(run), clockS: run.clockS, gates: gatesPassed(run, seat), outcome: run.outcome };
+      },
+      driveChallenge: (cruiseMS) => {
+        if (!session) throw new Error("no challenge to drive");
+        const route = routeOf(session.challenge);
+        if (!route) throw new Error("no road network yet");
+        const { position } = drive.stateAt(1);
+        let from = 0;
+        for (let along = 0, nearest = Infinity; along <= route.line.length; along++) {
+          const point = route.line.at(along);
+          const distance = Math.hypot(point.x - position[0], point.z - position[2]);
+          if (distance < nearest) [nearest, from] = [distance, along];
+        }
+        autopilot = new Autopilot(runOn(route.line, CHALLENGE_RUN_ON_M), cruiseMS, from);
+      },
+      challengeBest: (id) => challengeBoard.passOf(challengeBoard.byId(id))?.best ?? null,
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
@@ -1449,6 +1689,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       parkedCars.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
+      challengeMarks.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();
       detail.dispose();

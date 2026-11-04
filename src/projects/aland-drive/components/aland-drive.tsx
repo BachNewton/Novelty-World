@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Landmark, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Flag, Gauge, Landmark, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Users, Volume2, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -14,6 +14,8 @@ import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
+import { resultText, timeText } from "../challenge/format";
+import type { ChallengeKind } from "../challenge/types";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -35,6 +37,9 @@ const ACCENT = "var(--color-aland-drive-ui-accent)";
 const REDLINE = "var(--color-aland-drive-ui-redline)";
 const PLAYER = "var(--color-aland-drive-ui-player)";
 const PLACE = "var(--color-aland-drive-ui-place)";
+const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
+const PASS = "var(--color-aland-drive-ui-pass)";
+const LIGHTS = 3;
 
 /** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
 const DIAL_SWEEP = 0.75;
@@ -95,6 +100,13 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   // Places found and not yet shown, the one on screen first.
   const [finds, setFinds] = useState<Place[]>([]);
   const [placesFound, setPlacesFound] = useState<{ found: number; total: number } | null>(null);
+  // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
+  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number } | null>(null);
+  const [offer, setOffer] = useState<string | null>(null);
+  const clockText = useRef<HTMLSpanElement>(null);
+  const gatesText = useRef<HTMLSpanElement>(null);
+  const lights = useRef<(HTMLSpanElement | null)[]>([]);
+  const lightsRow = useRef<HTMLDivElement>(null);
   useFrameStats();
 
   useEffect(() => {
@@ -106,7 +118,32 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
     // Asked again after each wait: the page may have closed while it waited.
     const closed = () => cleanup.signal.aborted;
     let stop: (() => void) | null = null;
-    const showSpeed = ({ speedKmh, gear, revs, cue: next }: HudReading) => {
+    let shownPlay = "";
+    let shownOffer: string | null = null;
+    const showChallenge = ({ challenge, offer: offered }: HudReading) => {
+      if (offered !== shownOffer) {
+        shownOffer = offered;
+        setOffer(offered);
+      }
+      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}` : "";
+      if (play !== shownPlay) {
+        shownPlay = play;
+        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target } : null);
+      }
+      if (!challenge) return;
+      if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
+      if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
+      // One red light a second through the countdown, then all green for a second.
+      const red = challenge.phase === "countdown" ? Math.min(LIGHTS, LIGHTS + 1 - Math.ceil(challenge.countdownS)) : 0;
+      const green = challenge.phase === "running" && challenge.clockS < 1;
+      if (lightsRow.current) lightsRow.current.style.display = challenge.phase === "countdown" || challenge.phase === "placing" || green ? "flex" : "none";
+      lights.current.forEach((light, index) => {
+        if (light) light.style.background = green ? PASS : index < red ? REDLINE : SHADE;
+      });
+    };
+    const showSpeed = (reading: HudReading) => {
+      const { speedKmh, gear, revs, cue: next } = reading;
+      showChallenge(reading);
       if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
@@ -232,7 +269,45 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
               </span>
             </div>
           )}
-          {others.length > 0 && !mapOpen && camera !== "free" && (
+          {playing !== null && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute top-3 right-6 flex min-w-56 flex-col gap-1 rounded-lg px-4 py-3" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge">
+              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
+                <Flag className="size-4 shrink-0" aria-hidden />
+                <span>{playing.title}</span>
+              </div>
+              <div ref={lightsRow} className="flex justify-center gap-2 py-1" aria-label="Start lights">
+                {Array.from({ length: LIGHTS }, (_, index) => (
+                  <span key={index} ref={(light) => { lights.current[index] = light; }} className="size-6 rounded-full" style={{ background: SHADE, border: `2px solid ${INK}` }} />
+                ))}
+              </div>
+              {playing.kind === "route" ? (
+                <>
+                  <div className="flex items-baseline gap-2 tabular-nums">
+                    <Timer className="size-5 shrink-0 self-center" aria-hidden />
+                    <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
+                    <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
+                    <Flag className="size-5 shrink-0" aria-hidden />
+                    <span ref={gatesText} aria-label="Gates passed">0 / 0</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
+                  <Gauge className="size-6 shrink-0" aria-hidden />
+                  <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>
+                </div>
+              )}
+            </div>
+          )}
+          {offer !== null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge here" title="In the game menu">
+              <Prompt binding={BINDINGS.menu} input={input} />
+              <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
+              <span>{offer}</span>
+            </div>
+          )}
+          {others.length > 0 && playing === null && !mapOpen && camera !== "free" && (
             <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>
               <Users className="size-5" style={{ color: PLAYER }} aria-hidden />
               <span>{others.length}</span>
@@ -248,7 +323,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           </ul>
         </>
       )}
-      {gameMenu !== null && dev !== null && <GameMenu menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
+      {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
       {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">

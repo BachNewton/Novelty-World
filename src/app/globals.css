@@ -514,6 +514,10 @@
   --color-aland-drive-church-door: #5b3a2a;
   --color-aland-drive-sun: #fff4e0;
   --color-aland-drive-edge: #e0653a;
+  --color-aland-drive-challenge-mark: #9a5cff;
+  --color-aland-drive-challenge-passed: #3fbf76;
+  --color-aland-drive-challenge-light: #f2f1ea;
+  --color-aland-drive-challenge-dark: #1e2024;
   --color-aland-drive-car-body: #c8372d;
   --color-aland-drive-car-glass: #1d2a33;
   --color-aland-drive-car-tyre: #17191b;
@@ -560,6 +564,8 @@
   --color-aland-drive-ui-redline: #ff5a4f;
   --color-aland-drive-ui-player: #5fd4e6;
   --color-aland-drive-ui-place: #f0739a;
+  --color-aland-drive-ui-challenge: #b07cff;
+  --color-aland-drive-ui-pass: #5ad68f;
   --color-aland-drive-lab-turned: #3ddc6e;
   --color-aland-drive-lab-outline: #ffc53d;
   --color-aland-drive-lab-cone: #4aa8ff;

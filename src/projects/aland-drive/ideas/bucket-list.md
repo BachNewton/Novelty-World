@@ -1,6 +1,6 @@
 # Bucket list challenges
 
-An idea with its main decisions taken, not yet built: Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View. The list of challenges, their targets and the open points at the end are still starting points.
+An idea with its main decisions taken, built in part (solo, both kinds; see the project's `CLAUDE.md`, Challenges): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View. The list of challenges, their targets and the open points at the end are still starting points.
 
 A challenge is a timed run on its own, so it needs no AI drivers and no traffic. It needs only what's there: the road network and its GPS routes, the car's state, the places, and the online world.
 
@@ -49,7 +49,7 @@ The game has no menu of its own yet. The controller's **Menu** button opens one,
 - **After a retry the cars are apart.** A stand-in put more than 6 m from where it was already touches nothing until it's clear of this car. Two places a lane apart are never inside each other, so that guard isn't needed here, and nothing is thrown at a green light.
 - **Everyone else in the world stays solid too**, so a player driving through can spoil an attempt. A retry is cheap.
 
-**Joining.** A challenge's start is on both maps for everyone. A player who drives into its start ring is offered it, solo or co-op. If they choose co-op and another player is in the ring, that player is asked to join, and A puts them in. Either can then start the first countdown. Two is the most a challenge takes: a third player in the ring isn't offered the co-op one until it's over.
+**Joining.** A challenge's start is on both maps for everyone. A player who drives into its start ring is offered it, solo or co-op, in the game menu, and the HUD shows that the menu has it. If they choose co-op and another player is in the ring, that player is asked to join, and A puts them in. Either can then start the first countdown. Two is the most a challenge takes: a third player in the ring isn't offered the co-op one until it's over.
 
 ## The first list
 
@@ -83,9 +83,9 @@ Forza's designers tuned their targets. Here they start from the simulation:
 ## What's built, in order
 
 1. **The game menu**, with View moved to the map. It's needed first, and it's worth having without challenges.
-2. **Solo Routes with retry**, a retry far from the start loading as a jump does, and the start rings on the maps: #1, #3, #5.
+2. **Solo challenges with retry**, a retry far from the start loading as a jump does, and the start rings on the maps. Built for both kinds and the whole first list at once, since a Speed trap solo needed nothing a Route didn't: the run already took both.
 3. **Co-op**: joining, two start places, the synced retry and the average. Its exit test is an e2e spec on the run's own relay. Two pages start a co-op Route. One retries mid-run, and both cars are back on their start places, counting down on the same attempt. Both retrying at once gives one attempt. A pass on the average of a fast run and a slow one counts for both.
-4. **Speed traps**: #4, #6, #10, #11.
+4. **Speed traps in co-op**: #4, #6, #10, #11 on the average, as the Routes; solo they are in with step 2.
 5. **Later:** blueprints, as FH3 had them, where a player picks a start, finish, kind and car on the world map. Then leaderboards.
 
 ## Still open
