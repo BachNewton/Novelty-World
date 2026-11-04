@@ -1,11 +1,12 @@
 """Lanes keep to the water: the rules a change to the routing can quietly break."""
 
+import dataclasses
 import math
 import unittest
 
 import numpy as np
 
-from sea_lanes import CELL_M, UNDER_KEEL_M, VESSELS, Water, berth_from, crossing, lane, rounded, smoothed
+from sea_lanes import CELL_M, UNDER_KEEL_M, VESSELS, Water, _hull_on_water, berth_from, check_berth_sweep, crossing, hull_clear_berth, lane, rounded, smoothed
 
 BOAT = VESSELS["keel"]
 
@@ -61,8 +62,8 @@ class Lanes(unittest.TestCase):
         free[250:262, 25:262] = True
         free[25:262, 250:262] = True
         water = Water(free, 0.0, 2400.0, {})
-        line = np.array([[250.0, 400.0], [2048.0, 400.0], [2048.0, 2000.0]])
-        self.assertIsNone(crossing(water, smoothed(water, line, 200, "test")))
+        line = np.array([[250.0, 352.0], [2048.0, 352.0], [2048.0, 2000.0]])
+        self.assertIsNone(crossing(water, smoothed(water, line, dataclasses.replace(BOAT, turn_m=200), "test"), BOAT.beam_m / 2))
 
     def test_a_keeled_boat_keeps_out_of_water_too_shallow_for_it(self):
         # Open water, with a charted shoal of 1.5 m across the straight way; a shallow boat may cross it.
@@ -95,6 +96,27 @@ class Lanes(unittest.TestCase):
         berth = berth_from(water, np.array([[1000.0, 1000.0], [0.0, 1000.0]]), ship, "test")
         self.assertLessEqual(berth[0] + ship.length_m / 2, 1000)
         self.assertGreater(berth[0] + ship.length_m / 2, 1000 - 16)
+
+    def test_a_berth_lies_on_the_water_at_the_heading_the_lane_leaves_it(self):
+        # The same quay, with the lane leaving it to the north-west: lying along that, the stern would be ashore.
+        free = np.ones((250, 250), dtype=bool)
+        free[:, 125:] = False
+        water = Water(free, 0.0, 2000.0, {})
+        ship = VESSELS["ship"]
+        line = hull_clear_berth(water, np.array([[995.0, 1000.0], [0.0, 1995.0]]), ship, "test")
+        heading = np.array([-1.0, 1.0]) / math.sqrt(2)
+        self.assertTrue(_hull_on_water(water, line[0], heading, ship))
+        self.assertLess(math.hypot(*(line[0] - [995.0, 1000.0])), ship.length_m)
+
+    def test_a_ship_alongside_must_lie_and_move_across_on_the_water(self):
+        free = np.ones((250, 250), dtype=bool)
+        free[:, 125:] = False
+        water = Water(free, 0.0, 2000.0, {})
+        ship = VESSELS["ship"]
+        line = np.array([[980.0, 1000.0], [0.0, 1000.0]])
+        check_berth_sweep(water, line, ship, 120, np.array([0.0, -1.0]), "test")
+        with self.assertRaises(ValueError):
+            check_berth_sweep(water, line, ship, 120, np.array([1.0, 0.0]), "test")
 
 
 if __name__ == "__main__":

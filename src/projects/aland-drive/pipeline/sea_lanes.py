@@ -353,7 +353,8 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
             row, column = water.cell(x, y)
             if not allowed[row - top, column - left]:
                 return False
-        return True
+        # Near a berth the allowed water is only a little wider than the hull, so its breadth is checked finely.
+        return crossing(water, np.array([a, b]), vessel.beam_m / 2) is None
 
     kept = [0]
     while kept[-1] < len(line) - 1:
@@ -393,22 +394,34 @@ def rounded(line: np.ndarray, turn_m: float) -> np.ndarray:
     return np.array(out)
 
 
-def crossing(water: Water, line: np.ndarray) -> tuple[float, float] | None:
-    """The first place, every 2 m along a lane, that isn't open water at the finest the data has."""
-    for x, y in _along(line, 2):
+def crossing(water: Water, line: np.ndarray, half_beam_m: float = 0) -> tuple[float, float] | None:
+    """The first place, every 2 m along a lane and `half_beam_m` either side of it, that isn't open water at the
+    finest the data has."""
+    for x, y in _breadth(_along(line, 2), half_beam_m):
         if not water.fine_water(x, y):
             return float(x), float(y)
     return None
 
 
-def smoothed(water: Water, line: np.ndarray, turn_m: float, what: str) -> np.ndarray:
-    """The line with its corners rounded as widely as the water lets them be; a lane that can't be fails the build."""
+def _breadth(points: np.ndarray, half_beam_m: float) -> np.ndarray:
+    """Each point, and the points `half_beam_m` either side of the line through them."""
+    if half_beam_m <= 0 or len(points) < 2:
+        return points
+    across = np.gradient(points, axis=0)
+    across = np.column_stack((-across[:, 1], across[:, 0])) / np.maximum(np.hypot(*across.T), 1e-9)[:, None]
+    return np.vstack((points, points + across * half_beam_m, points - across * half_beam_m))
+
+
+def smoothed(water: Water, line: np.ndarray, vessel: Vessel, what: str) -> np.ndarray:
+    """The line with its corners rounded as widely as the water lets them be, its hull's breadth on the water all
+    along; a lane that can't be fails the build."""
+    turn_m = vessel.turn_m
     while turn_m >= 4:
         out = rounded(line, turn_m)
-        if crossing(water, out) is None:
+        if crossing(water, out, vessel.beam_m / 2) is None:
             return out
         turn_m /= 2
-    place = crossing(water, line)
+    place = crossing(water, line, vessel.beam_m / 2)
     if place is not None:
         raise ValueError(f"{what} crosses land or a dock near ({place[0]:.0f}, {place[1]:.0f})")
     return line
@@ -454,6 +467,62 @@ def turn_room(water: Water, line: np.ndarray, vessel: Vessel, what: str) -> floa
     raise ValueError(f"{what}: nowhere to come round within its lane near ({line[0][0]:.0f}, {line[0][1]:.0f})")
 
 
+# `sea/motion.ts`'s: a chord of this share of the vessel's length either side of a place sets its heading.
+HEADING_REACH_SHARE = 0.35
+
+
+def _heading_at(points: np.ndarray, travelled: np.ndarray, at: int, reach: float) -> np.ndarray:
+    """The way a bow points along a line at a point, as the game reads it: the chord `reach` either side, held to the ends."""
+    back = points[np.searchsorted(travelled, travelled[at] - reach, side="left")]
+    ahead = points[min(np.searchsorted(travelled, travelled[at] + reach, side="left"), len(points) - 1)]
+    chord = ahead - back
+    return chord / max(float(np.hypot(*chord)), 1e-9)
+
+
+def hull_clear_berth(water: Water, line: np.ndarray, vessel: Vessel, what: str) -> np.ndarray:
+    """The line from the first place along it, from `line[0]`, where the hull lying at the line's own heading there,
+    as the game lays it, is all on the water: the lane's line can leave a quay at another angle than the way the
+    berth was found along."""
+    points = _along(line, 2)
+    travelled = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(points, axis=0).T))))
+    reach = vessel.length_m * HEADING_REACH_SHARE
+    for at in range(len(points)):
+        if travelled[at] > vessel.length_m * 2:
+            break
+        rest, rest_travelled = points[at:], travelled[at:] - travelled[at]
+        if _hull_on_water(water, points[at], _heading_at(rest, rest_travelled, 0, reach), vessel):
+            return np.vstack((points[at], line[np.searchsorted(_line_travelled(line), travelled[at], side="right"):]))
+    raise ValueError(f"{what}: no berth along its lane with the hull on the water near ({line[0][0]:.0f}, {line[0][1]:.0f})")
+
+
+def _cut_at(line: np.ndarray, distance: float) -> np.ndarray:
+    """The line's first `distance` metres."""
+    travelled = _line_travelled(line)
+    at = int(np.searchsorted(travelled, distance, side="right"))
+    if at >= len(line):
+        return line
+    share = (distance - travelled[at - 1]) / max(travelled[at] - travelled[at - 1], 1e-9)
+    return np.vstack((line[:at], line[at - 1] + (line[at] - line[at - 1]) * share))
+
+
+def _line_travelled(line: np.ndarray) -> np.ndarray:
+    return np.concatenate(([0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
+
+
+def check_berth_sweep(water: Water, line: np.ndarray, vessel: Vessel, turn_m: float, alongside: np.ndarray | None, what: str) -> None:
+    """Fails unless the hull is all on the water at every place between a berth, `line[0]`, and where the ship comes
+    round, `turn_m` along: pointing along the line as it backs in, or at the quay's heading as it moves across."""
+    points = _along(line, 2)
+    travelled = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(points, axis=0).T))))
+    reach = vessel.length_m * HEADING_REACH_SHARE
+    for at in range(0, len(points), 2):
+        if travelled[at] > turn_m:
+            break
+        heading = alongside if alongside is not None else _heading_at(points, travelled, at, reach)
+        if not _hull_on_water(water, points[at], heading, vessel):
+            raise ValueError(f"{what}: the hull meets land {travelled[at]:.0f} m out from its berth, at ({points[at][0]:.0f}, {points[at][1]:.0f})")
+
+
 def _cut_where_it_leaves(water: Water, line: np.ndarray) -> tuple[np.ndarray, bool]:
     """The line up to where it first leaves the water's grid, and whether it did."""
     points = _along(line, CELL_M)
@@ -474,7 +543,7 @@ FERRY_LINES: list[dict] = [
     {"name": "mariehamn-turku", "vessel": "ship", "ways": [693978436], "from": "mariehamn", "out": 140515780},
     {"name": "mariehamn-tallinn", "vessel": "ship", "ways": [694006261], "from": "mariehamn", "out": 694006261},
     {"name": "langnas-turku", "vessel": "ship", "ways": [1232401769], "out": 140515780},
-    {"name": "langnas-kapellskar", "vessel": "ship", "ways": [693978433], "out": 693978438},
+    {"name": "langnas-kapellskar", "vessel": "ship", "ways": [693978433], "out": 693978438, "berth_with": "langnas-turku"},
     {"name": "eckero-grisslehamn", "vessel": "ship-small", "ways": [296301127], "out": 296301127},
     {"name": "foglo", "vessel": "archipelago", "ways": [23103975]},
     {"name": "norra", "vessel": "archipelago", "ways": [172996629]},
@@ -490,10 +559,12 @@ FERRY_LINES: list[dict] = [
     {"name": "bjorkor", "vessel": "passenger", "ways": [1277782263]},
     {"name": "signilskar", "vessel": "passenger", "ways": [1277785063]},
 ]
+# A line with `berth_with` shares that line's way in, from its berth to where a ship comes round, so a ship calling
+# on one and leaving on the other neither jumps nor lies at another angle.
 # The double-ended ferries look the same either way, so they cross and come back without turning.
 DOUBLE_ENDED = {"archipelago", "cable"}
 # Västerhamn's ferry berth, as `FERRY_BERTH` in `art/town-kit/ferry.ts` has it from the 2025 photo: ships lie there
-# bow to the south, having come round in the channel and backed in. The mask draws the quay's edge a few metres
+# alongside the quay, bow to the south, having come round in the channel and moved across on to it. The mask draws the quay's edge a few metres
 # further out than the photo has the hull, so the berth slides off the quay until the hull is on the water (a test
 # holds it within 40 m of the art's).
 MARIEHAMN_BERTH = (107096 - 110000, 6682850 - 6690000)
@@ -513,7 +584,9 @@ def off_the_quay(water: Water, place: tuple[float, float], bearing_deg: float, v
     raise ValueError(f"{what}: no room for the hull within 40 m of its berth")
 
 
-def ferry_lane(water: Water, osm: Osm, official: list[np.ndarray], spec: dict) -> dict:
+def ferry_lane(water: Water, osm: Osm, official: list[np.ndarray], spec: dict, berthed: dict[str, tuple[np.ndarray, float]]) -> dict:
+    """A ferry line's lane; `berthed` holds the lines built before it, by name, each from its berth to where a
+    ship comes round, and how far that is."""
     vessel = VESSELS[spec["vessel"]]
     guide = np.vstack([osm.ferries[way][1] for way in spec["ways"]])
     if "out" in spec and np.hypot(*guide[0]) > np.hypot(*guide[-1]):
@@ -524,7 +597,10 @@ def ferry_lane(water: Water, osm: Osm, official: list[np.ndarray], spec: dict) -
     else:
         mapped = [guide]
     guides = [(official, OFFICIAL_PULL), (mapped, OSM_PULL)]
-    if spec.get("from") == "mariehamn":
+    shared, shared_turn_m = berthed.get(spec.get("berth_with", ""), (None, 0.0))
+    if shared is not None:
+        start = shared[-1]
+    elif spec.get("from") == "mariehamn":
         start = off_the_quay(water, MARIEHAMN_BERTH, MARIEHAMN_BEARING_DEG, vessel, spec["name"])
     else:
         start = berth_from(water, guide, vessel, spec["name"])
@@ -544,13 +620,31 @@ def ferry_lane(water: Water, osm: Osm, official: list[np.ndarray], spec: dict) -
     line = lane(water, start, goal, vessel, guides, berths, frame=[osm.ferries[way][1] for way in spec["ways"]])
     if line is None:
         raise ValueError(f"{spec['name']}: no water joins its ends")
-    line = smoothed(water, line, vessel.turn_m, spec["name"])
+    line = smoothed(water, line, vessel, spec["name"])
+    if shared is not None:
+        # The ship stops and comes round where the two ways part, so the corner there is never sailed.
+        line = np.vstack((shared[:-1], line))
+    alongside = spec.get("from") == "mariehamn"
+    single = spec["vessel"] not in DOUBLE_ENDED
+    if single:
+        # Mariehamn's ships lie alongside the quay, where the hull was slid on to the water at the quay's heading;
+        # every other berth lies along the lane, its hull on the water at the lane's heading.
+        if berths[0] and not alongside and shared is None:
+            line = hull_clear_berth(water, line, vessel, spec["name"])
+        if berths[1]:
+            line = hull_clear_berth(water, line[::-1], vessel, spec["name"])[::-1]
     ends = []
     for at, is_berth in zip((0, -1), berths):
         end: dict = {"kind": "berth" if is_berth else "open"}
-        if is_berth and spec["vessel"] not in DOUBLE_ENDED:
+        if is_berth and single:
             from_end = line if at == 0 else line[::-1]
-            end["turnM"] = round(turn_room(water, from_end, vessel, spec["name"]), 1)
+            end["turnM"] = round(shared_turn_m if shared is not None and at == 0 else turn_room(water, from_end, vessel, spec["name"]), 1)
+            heading = None
+            if alongside and at == 0:
+                bearing = math.radians(MARIEHAMN_BEARING_DEG)
+                heading = np.array([math.sin(bearing), math.cos(bearing)])
+                end["alongsideYaw"] = round(math.atan2(math.cos(bearing), math.sin(bearing)), 4)
+            check_berth_sweep(water, from_end, vessel, end["turnM"], heading, spec["name"])
         ends.append(end)
     return {"name": spec["name"], "vessel": spec["vessel"], "line": _scene_line(line), "ends": ends, **keeping_right(water, line, vessel, ends, spec["name"])}
 
@@ -639,7 +733,7 @@ def boat_lanes(water: Water, osm: Osm, official: list[np.ndarray]) -> list[dict]
                 continue
             name = f"trip-{len(lanes)}"
             try:
-                line = smoothed(water, line, vessel.turn_m, name)
+                line = smoothed(water, line, vessel, name)
             except ValueError as error:
                 print(f"  left out: {error}")
                 continue
@@ -660,9 +754,15 @@ def main() -> None:
     official = official_lines()
     print(f"water read: {len(official)} official navigation lines, {len(osm.ferries)} OSM ferry ways, {len(osm.fairways)} OSM fairways, {len(osm.anchorages)} anchorages")
     ferries, failed = [], []
+    berthed: dict[str, tuple[np.ndarray, float]] = {}
     for spec in FERRY_LINES:
         try:
-            ferries.append(ferry_lane(water, osm, official, spec))
+            ferries.append(ferry_lane(water, osm, official, spec, berthed))
+            built = ferries[-1]
+            if built["ends"][0]["kind"] == "berth" and "turnM" in built["ends"][0]:
+                grid = np.array(built["line"]).reshape(-1, 2) * [1, -1]
+                turn_m = built["ends"][0]["turnM"]
+                berthed[spec["name"]] = (_cut_at(grid, turn_m), turn_m)
         except ValueError as error:
             failed.append(str(error))
             continue

@@ -10,7 +10,7 @@
  */
 
 export type EndKind =
-  /** A quay. A single-ended ship stops off it, comes round and backs in, so it lies bow out. */
+  /** A quay. A single-ended ship stops off it and comes round, then backs in, so it lies bow out, or moves across on to it, so it lies alongside. */
   | "berth"
   /** Past every island: a ship sails on through it and is out of sight until it comes back. */
   | "open"
@@ -21,6 +21,8 @@ export interface LaneEnd {
   kind: EndKind;
   /** How far along the lane from a berth a single-ended ship comes round. */
   turnM?: number;
+  /** A ship that lies alongside the quay rather than bow out: the yaw it lies at, held while it moves across between the berth and where it comes round. */
+  alongsideYaw?: number;
 }
 
 export interface LaneData {
@@ -140,6 +142,8 @@ const SAMPLE_M = 4;
 const MOST_SAMPLES = 6000;
 /** A chord of this share of the boat's length either side sets its heading. */
 const HEADING_REACH_SHARE = 0.35;
+/** Moving across on to a quay or off it, on its thrusters, a ship makes this share of its harbour speed. */
+const ACROSS_SHARE = 0.25;
 
 /** One way along part of a lane, timed: the speed at each sample, and the time it's reached. */
 export class Passage {
@@ -148,6 +152,8 @@ export class Passage {
   readonly times: Float64Array;
   readonly seconds: number;
   readonly astern: boolean;
+  /** Held while it moves across, or left out to point along the lane. */
+  readonly yaw: number | undefined;
   private readonly stepM: number;
 
   constructor(
@@ -155,7 +161,7 @@ export class Passage {
     readonly from: number,
     readonly to: number,
     readonly handling: Handling,
-    options: { moving: [boolean, boolean]; astern: boolean },
+    options: { moving: [boolean, boolean]; astern: boolean; yaw?: number },
   ) {
     const distance = Math.abs(to - from);
     if (distance <= 0) throw new Error(`a passage along ${lane.data.name} goes nowhere`);
@@ -163,7 +169,7 @@ export class Passage {
     this.samples = Math.min(Math.max(Math.ceil(distance / SAMPLE_M), 2), MOST_SAMPLES) + 1;
     this.stepM = distance / (this.samples - 1);
     const { cruiseMs, harbourMs, harbourM, accelMs2, lateralMs2 } = handling;
-    const limit = new Float64Array(this.samples).fill(options.astern ? harbourMs : cruiseMs);
+    const limit = new Float64Array(this.samples).fill(options.yaw !== undefined ? harbourMs * ACROSS_SHARE : options.astern ? harbourMs : cruiseMs);
     const sAt = (sample: number) => from + way * sample * this.stepM;
     const berths = ([0, 1] as const).filter((end) => lane.end(end).kind === "berth").map((end) => (end === 0 ? 0 : lane.length));
     for (let sample = 0; sample < this.samples; sample++) {
@@ -188,6 +194,7 @@ export class Passage {
     }
     this.seconds = this.times[this.samples - 1];
     this.astern = options.astern;
+    this.yaw = options.yaw;
   }
 
   /** Where along the lane, and how fast, `seconds` into the passage. */
@@ -218,7 +225,7 @@ export class Passage {
     // To starboard of the way it travels: heading (cos yaw, -sin yaw) has its starboard at (sin yaw, cos yaw).
     const travel = this.to < this.from ? forward + Math.PI : forward;
     const keep = this.lane.keepRightAt(s);
-    return { x: x + Math.sin(travel) * keep, z: z + Math.cos(travel) * keep, yaw: backwards ? forward + Math.PI : forward, speedMs, shown: true };
+    return { x: x + Math.sin(travel) * keep, z: z + Math.cos(travel) * keep, yaw: this.yaw ?? (backwards ? forward + Math.PI : forward), speedMs, shown: true };
   }
 }
 
@@ -278,20 +285,38 @@ export class Voyage {
       if (!lane) throw new Error(`${name} sails lane ${leg.lane}, which there isn't`);
       const [fromEnd, toEnd] = leg.way === "out" ? ([0, 1] as const) : ([1, 0] as const);
       const [fromS, toS] = [fromEnd === 0 ? 0 : lane.length, toEnd === 0 ? 0 : lane.length];
-      const arrival = lane.end(toEnd);
-      const moving: [boolean, boolean] = [lane.end(fromEnd).kind === "open", arrival.kind === "open"];
-      const turns = arrival.kind === "berth" && !handling.doubleEnded;
-      if (turns) {
-        const turnM = arrival.turnM;
-        if (turnM === undefined) throw new Error(`${name}: lane ${lane.data.name}'s berth has no room to come round`);
-        const turnAt = toS + Math.sign(fromS - toS) * turnM;
-        const inward = new Passage(lane, fromS, turnAt, handling, { moving, astern: false });
+      const [departure, arrival] = [lane.end(fromEnd), lane.end(toEnd)];
+      const moving: [boolean, boolean] = [departure.kind === "open", arrival.kind === "open"];
+      const turnAt = (end: LaneEnd, endS: number, otherS: number) => {
+        if (end.turnM === undefined) throw new Error(`${name}: lane ${lane.data.name}'s berth has no room to come round`);
+        return endS + Math.sign(otherS - endS) * end.turnM;
+      };
+      const swing = (x: number, z: number, fromYaw: number, toYaw: number) => {
+        const seconds = handling.swingS * Math.max(Math.abs(shortTurn(fromYaw, toYaw)) / Math.PI, 0.25);
+        push({ kind: "hold", hold: { seconds, x, z, fromYaw, toYaw: fromYaw + shortTurn(fromYaw, toYaw), turnS: seconds, shown: true } });
+      };
+      const single = !handling.doubleEnded;
+      // A ship lying alongside moves across off the quay to where it comes round, and turns to the lane.
+      let startS = fromS;
+      if (single && departure.alongsideYaw !== undefined) {
+        startS = turnAt(departure, fromS, toS);
+        const across = new Passage(lane, fromS, startS, handling, { moving: [false, false], astern: false, yaw: departure.alongsideYaw });
+        push({ kind: "pass", passage: across });
+        const off = across.poseAt(across.seconds);
+        swing(off.x, off.z, departure.alongsideYaw, lane.yawAt(startS, handling.lengthM * HEADING_REACH_SHARE) + (toS < fromS ? Math.PI : 0));
+        moving[0] = false;
+      }
+      if (single && arrival.kind === "berth") {
+        const endAt = turnAt(arrival, toS, fromS);
+        const inward = new Passage(lane, startS, endAt, handling, { moving, astern: false });
         push({ kind: "pass", passage: inward });
         const facing = inward.poseAt(inward.seconds);
-        push({ kind: "hold", hold: { seconds: handling.swingS, x: facing.x, z: facing.z, fromYaw: facing.yaw, toYaw: facing.yaw - Math.PI, turnS: handling.swingS, shown: true } });
-        push({ kind: "pass", passage: new Passage(lane, turnAt, toS, handling, { moving: [false, false], astern: true }) });
+        // Bow out, it comes half round and backs in; alongside, it turns to the quay's line and moves across.
+        swing(facing.x, facing.z, facing.yaw, arrival.alongsideYaw ?? facing.yaw - Math.PI);
+        const yaw = arrival.alongsideYaw;
+        push({ kind: "pass", passage: new Passage(lane, endAt, toS, handling, { moving: [false, false], astern: yaw === undefined, yaw }) });
       } else {
-        push({ kind: "pass", passage: new Passage(lane, fromS, toS, handling, { moving, astern: false }) });
+        push({ kind: "pass", passage: new Passage(lane, startS, toS, handling, { moving, astern: false }) });
       }
       const last = this.steps[this.steps.length - 1];
       const arrived = last.kind === "pass" ? last.passage.poseAt(last.passage.seconds) : null;

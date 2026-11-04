@@ -8,15 +8,15 @@ import type { EndKind, LaneData, LaneEnd } from "./motion";
 
 const KINDS: readonly EndKind[] = ["berth", "open", "anchor"];
 
-type Raw = Omit<LaneData, "ends"> & { ends: { kind: string; turnM?: number }[] };
+type Raw = Omit<LaneData, "ends"> & { ends: { kind: string; turnM?: number; alongsideYaw?: number }[] };
 
 function laneOf({ ends, ...lane }: Raw): LaneData {
   return {
     ...lane,
-    ends: ends.map(({ kind, turnM }): LaneEnd => {
+    ends: ends.map(({ kind, ...end }): LaneEnd => {
       const known = KINDS.find((name) => name === kind);
       if (known === undefined) throw new Error(`lane ${lane.name} has an end of kind ${kind}`);
-      return turnM === undefined ? { kind: known } : { kind: known, turnM };
+      return { kind: known, ...end };
     }),
   };
 }

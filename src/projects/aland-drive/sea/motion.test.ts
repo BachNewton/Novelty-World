@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ferryPlace } from "../art/town-kit/index";
+import { FERRY_BERTH, ferryPlace, yawForBearing } from "../art/town-kit/index";
 import { LANES } from "./lanes";
 import { Lane, Passage, Voyage, type BoatPose, type Handling, type LaneData } from "./motion";
 import { HANDLING, sailings, SMALL_VESSELS } from "./timetable";
@@ -9,6 +9,8 @@ const DOUBLE: Handling = { ...SHIP, lengthM: 62, beamM: 14, cruiseMs: 5.5, harbo
 
 /** A berth at the origin, out east and then north-east to the open sea. */
 const OUT_TO_SEA: LaneData = { name: "out", vessel: "ship", line: [0, 0, 3000, 0, 6000, -1500], ends: [{ kind: "berth", turnM: 250 }, { kind: "open" }], keepRightM: 30, keepFromM: 528 };
+/** The same, with the quay running north and south, where a ship lies alongside, bow south. */
+const ALONGSIDE: LaneData = { ...OUT_TO_SEA, name: "alongside", ends: [{ kind: "berth", turnM: 250, alongsideYaw: -Math.PI / 2 }, { kind: "open" }] };
 const ACROSS: LaneData = { name: "across", vessel: "archipelago", line: [0, 0, 1500, 300, 4000, 300], ends: [{ kind: "berth" }, { kind: "berth" }], keepRightM: 10, keepFromM: 186 };
 const lanesOf = (...data: LaneData[]) => new Map(data.map((lane) => [lane.name, new Lane(lane)]));
 const wrapped = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -41,21 +43,39 @@ describe("a passage", () => {
   });
 });
 
-/** Every quarter second of a cycle and a little past it: no place or heading may jump. */
-function expectSmooth(voyage: Voyage, handling: Handling) {
-  const dt = 0.25;
+/**
+ * Every `dt` of a cycle and a little past it: where a place or heading jumps, if anywhere. A vessel keeping to
+ * starboard round a corner sails a longer arc than the line its speed is measured along, so a step that moves or
+ * turns more than its speed allows is looked at in eighths: smooth motion spreads over them, and a jump doesn't.
+ */
+function jumpIn(voyage: Voyage, handling: Handling, dt = 0.25): string | null {
+  const change = (a: BoatPose, b: BoatPose) => ({ moved: Math.hypot(b.x - a.x, b.z - a.z), turned: Math.abs(wrapped(b.yaw - a.yaw)) });
+  const jumps = (t: number, { moved, turned }: { moved: number; turned: number }) => {
+    let [most, before] = [{ moved: 0, turned: 0 }, voyage.poseAt(t - dt)];
+    for (let part = 1; part <= 8; part++) {
+      const now = voyage.poseAt(t - dt + (dt * part) / 8);
+      const step = change(before, now);
+      most = { moved: Math.max(most.moved, step.moved), turned: Math.max(most.turned, step.turned) };
+      before = now;
+    }
+    return most.moved > moved / 2 || most.turned > turned / 2;
+  };
   let before = voyage.poseAt(0);
   for (let t = dt; t <= voyage.periodS + 30; t += dt) {
     const now = voyage.poseAt(t);
     if (before.shown && now.shown) {
-      // Easing out to starboard of the lane adds a little sideways to the way it makes.
-      expect(Math.hypot(now.x - before.x, now.z - before.z)).toBeLessThanOrEqual(Math.max(now.speedMs, before.speedMs) * dt * 1.15 + 1e-3);
+      const step = change(before, now);
       // A double-ended ferry leaves by its other end, which looks the same: only it may turn about at once, and only standing.
-      if (!(handling.doubleEnded && before.speedMs === 0)) expect(Math.abs(wrapped(now.yaw - before.yaw))).toBeLessThan(0.03);
+      const turnsFreely = handling.doubleEnded && before.speedMs === 0;
+      const fast = step.moved > Math.max(now.speedMs, before.speedMs) * dt * 1.15 + 1e-3 || (!turnsFreely && step.turned >= 0.12 * dt);
+      if (fast && jumps(t, turnsFreely ? { ...step, turned: Infinity } : step)) return `${voyage.name} moves ${step.moved.toFixed(2)} m and turns ${step.turned.toFixed(3)} in ${dt} s at ${t} s`;
     }
     before = now;
   }
+  return null;
 }
+
+const expectSmooth = (voyage: Voyage, handling: Handling) => expect(jumpIn(voyage, handling)).toBeNull();
 
 describe("a voyage", () => {
   it("never jumps, through a cycle of coming in from sea, coming round, backing in, lying at the quay and going out", () => {
@@ -74,6 +94,20 @@ describe("a voyage", () => {
     expect(lying).not.toBeNull();
     // The lane leaves the berth along +x, so bow out is a yaw of 0.
     expect(Math.abs(wrapped(lying?.yaw ?? Math.PI))).toBeLessThan(0.02);
+  });
+
+  it("comes round off the quay to its line and moves across on to it, and off it the same way, without a jump", () => {
+    const voyage = new Voyage("ship", [{ lane: "alongside", way: "in", waitS: 1800 }, { lane: "alongside", way: "out" }], lanesOf(ALONGSIDE), SHIP, 0, 6 * 3600);
+    expectSmooth(voyage, SHIP);
+    let across = 0;
+    for (let t = 0; t < voyage.periodS; t += 5) {
+      const pose = voyage.poseAt(t);
+      if (!pose.shown || Math.hypot(pose.x, pose.z) > 250 - 1) continue;
+      // Within where it comes round, it only ever lies along the quay.
+      expect(Math.abs(wrapped(pose.yaw + Math.PI / 2))).toBeLessThan(1e-6);
+      if (pose.speedMs > 0) across++;
+    }
+    expect(across).toBeGreaterThan(0);
   });
 
   it("is out of sight between its calls, past the open end", () => {
@@ -146,10 +180,17 @@ describe("the island's timetable", () => {
     }
   });
 
-  it("berths Mariehamn's ships at the ferry art's berth, slid off the quay as the water is drawn", () => {
+  it("sails every voyage of the timetable without a jump, through calls that leave by another lane", () => {
+    for (const { voyage } of fleet) expect(jumpIn(voyage, voyage.handling, 1)).toBeNull();
+  });
+
+  it("berths Mariehamn's ships alongside the quay at the ferry art's berth, slid off it as the water is drawn", () => {
     const { x, z } = ferryPlace();
-    const berths = data.ferries.filter(({ name }) => name.startsWith("mariehamn-")).map(({ line }) => [line[0], line[1]]);
+    const yaw = yawForBearing(FERRY_BERTH.bearingDeg);
+    const lanes = data.ferries.filter(({ name }) => name.startsWith("mariehamn-"));
+    const berths = lanes.map(({ line }) => [line[0], line[1]]);
     expect(berths.length).toBe(3);
+    for (const { ends } of lanes) expect(Math.abs(wrapped((ends[0].alongsideYaw ?? Infinity) - yaw))).toBeLessThan(1e-3);
     for (const [bx, bz] of berths) {
       expect(Math.hypot(bx - x, bz - z)).toBeLessThan(40);
       expect(Math.hypot(bx - berths[0][0], bz - berths[0][1])).toBeLessThan(0.01);
