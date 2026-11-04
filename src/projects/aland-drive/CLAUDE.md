@@ -278,7 +278,7 @@ Tiles live in the public bucket `aland-drive-tiles` on the site's Supabase proje
 
 Nothing in the tests or tools touches that host: they serve tiles to themselves on localhost.
 
-**Data per drive**, counted by the bytes a local server really sent: starting the game is 18.8 MB (the overview, nine tiles' far data and the start tile's detail), the same whatever the island's size, of 313 MB published for 94 tiles. A tile is 5–8 MB in the country, about 1 MB in the outer sea tiles and up to 14 MB in Mariehamn. A tile once fetched comes from the browser's cache, and driving a route again fetches nothing. So a player's download is bounded by the map, not by the hours: 313 MB for one person seeing everything.
+**Data per drive**, counted by the bytes a local server really sent: starting the game is 18.8 MB (the overview, nine tiles' far data and the start tile's detail), the same whatever the island's size, of 406 MB published for 94 tiles. A tile is 5–8 MB in the country, about 1 MB in the outer sea tiles and up to 14 MB in Mariehamn. A tile once fetched comes from the browser's cache, and driving a route again fetches nothing. So a player's download is bounded by the map, not by the hours: 313 MB for one person seeing everything.
 
 Against Supabase Free's 5 GB of egress a month that's about 15 new players who see everything. Pro's 250 GB is fifty times that. R2 has no egress charge and 10 GB free. So stay on Supabase while the game is the owner's own, and move before it's shared widely: the move is a copy and one address.
 
