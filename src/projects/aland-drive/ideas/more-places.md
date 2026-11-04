@@ -4,6 +4,28 @@ An idea, not a plan: what the places to find (`map/places.ts`) left out, and why
 
 The first set is the forty places from `docs/HISTORY.md`, the modelled landmarks, three viewpoints and the two golf clubs. Positions below are scene metres from OpenStreetMap (© OpenStreetMap contributors, ODbL), read from the pipeline's raw data, and each needs a note checked to `HISTORY.md`'s standard before it goes in.
 
+## Places in the set with no art of their own
+
+A place worth finding is worth seeing when the car gets there, so each of these needs a model of its own, as the churches and landmarks have in `art/landmarks`. Until then it is whatever the data has at its site.
+
+| Place | What stands there now |
+|---|---|
+| Borgboda hillfort | Nothing: the data doesn't say where the rampart runs, so it needs a source for its line before it is built |
+| Lumparland church | A generic building, where the real one is a red wooden church |
+| Lemböte chapel | A ruin, so little or nothing |
+| Eckerö Post and Customs House | A generic building |
+| Ålands Jakt- och Fiskemuseum | A generic building |
+| Eckerö Sea Rescue Station | A generic building |
+| Önningeby museum | Generic buildings |
+| Vita Björn | A generic building |
+| Jan Karlsgården | Generic buildings for the open-air museum's farm |
+| Bomarsund Visitors Centre | A generic building |
+| Prästö old pilot cottage | A generic building |
+| Gustaf Erikson's home | A generic building |
+| Åland Maritime Museum | The 3D data's shape, which reads well, under generic walls |
+| Mariehamn post office | A generic building |
+| Eckerö Golf, Ålands Golfklubb | Only the fairways in the photo: no flags, greens or clubhouse |
+
 ## Found in the data, not in the first set
 
 | Place | Position | Why it might earn a place |
