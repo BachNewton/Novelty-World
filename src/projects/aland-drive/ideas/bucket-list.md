@@ -74,6 +74,14 @@ A first pass, built to prove the system (see the top: not a standard). Twelve ch
 
 A run of one to five minutes is what makes retries bearable, so #8 and #12 are measured first and cut to a leg if they're longer. The real post road is about 65 km. The roads and places are the point, so their names stay real. Only clubs, sponsors and brands are invented.
 
+## Ground, condition and the car's class
+
+Grip by surface and condition (`ideas/surface-grip.md`) gives challenges more to work with, and Forza's bucket lists already used both levers:
+
+- **The car's class against the ground.** Each car has a class (sports, road, rally, off-road), and the order of the cars changes with the ground: on gravel the sports cars and the V12 saloon are near the bottom, and the rally car and the four-by-fours lead. Forza handed you a car that suited its challenge or fought it ("Ignore the Road in a Bowler EXR S", a rally Lancia "Through a Forest at Night"). So a challenge's car can be chosen to fight its road, and a sports car on a gravel stage is what makes a challenge hard. The first list mostly matches car to road.
+- **A challenge names its condition.** Forza fixed a challenge's weather and time ("Drift an Enzo Ferrari in the Rain", "Outrun the Sun in a Ferrari F40"). The condition is one input to the physics today (dry, wet, snow or ice, from the dev menu or `?condition=`), so a challenge can carry its own: the run sets it on start for both players and gives back the world's on leaving. Each condition is a challenge of its own with its own target, not a scale on one target. Not built: every challenge runs in whatever condition the world is in, and the targets were measured dry.
+- **Par has to read the ground.** `tools/challenge-par.ts` corners at a share of the car's dry-asphalt grip wherever the road is, so on a gravel stage it overdrives the bends, and a target set on another condition would be meaningless. The racers' speed plan will read the limits table's row for the ground under each stretch, and the par tool should use it when the targets are redone.
+
 ## Targets are measured
 
 Forza's designers tuned their targets. Here they start from the simulation:

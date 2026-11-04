@@ -313,7 +313,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
                 {road.name}
               </div>
             )}
-            {finds.length > 0 && (
+            {finds.length > 0 && playing === null && (
               <div key={finds[0].id} className="pointer-events-none w-[min(32rem,90vw)] rounded-lg p-4" style={{ color: INK, background: SHADE, border: `2px solid ${PLACE}`, animation: `aland-road-label ${PLACE_CARD_S}s ease-out forwards` }} aria-live="polite" aria-label="Place found" onAnimationEnd={() => { setFinds((waiting) => waiting.slice(1)); }}>
                 <div className="flex items-center gap-2 text-xl font-semibold" style={{ color: PLACE }}>
                   <Landmark className="size-5 shrink-0" aria-hidden />
