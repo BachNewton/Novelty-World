@@ -112,7 +112,7 @@ const FLOATS = 4;
 const COLUMNS = ["tyreSpawn", "tyreFling", "tyreMotion", "tyreTint", "tyreShape"] as const;
 
 /** One pool: a ring of particles, the oldest written over first, as one instanced quad. */
-function pool(capacity: number, solid: boolean, clock: Node<"float">) {
+function pool(capacity: number, solid: boolean, clock: Node<"float">, hazed: (color: Node<"vec3">) => Node<"vec3">) {
   const columns = COLUMNS.map(() => new Float32Array(capacity * FLOATS));
   const geometry = new InstancedBufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(Float32Array.from([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -157,7 +157,7 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
   const round = across.length();
   const lit = float(0.82).add(uv().y.mul(0.3));
   const shade = varying(float(0.8).add(seed.mul(0.35)));
-  material.colorNode = tint.xyz.mul(solid ? lit.mul(shade) : lit);
+  material.colorNode = hazed(tint.xyz.mul(solid ? lit.mul(shade) : lit));
   material.maskNode = outsideCar(cameraWorldMatrix.mul(corner3).xyz);
   if (solid) {
     // A torn blade is its whole strip; anything else is a rough round bit.
@@ -226,10 +226,11 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
   };
 }
 
-export function createTyreParticles(scene: Scene, colour: (token: string) => Linear) {
+/** `hazed` is the world's light and haze at this hour, which every colour drawn goes through. */
+export function createTyreParticles(scene: Scene, colour: (token: string) => Linear, hazed: (color: Node<"vec3">) => Node<"vec3">) {
   const clock = uniform(0);
-  const puffs = pool(PUFF_POOL, false, clock);
-  const chips = pool(CHIP_POOL, true, clock);
+  const puffs = pool(PUFF_POOL, false, clock, hazed);
+  const chips = pool(CHIP_POOL, true, clock, hazed);
   scene.add(puffs.mesh, chips.mesh);
   const colours = new Map<string, Linear>();
   const colourOf = (kick: Kick, surface: Surface) => {

@@ -960,7 +960,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
-  const tyres = createTyreParticles(scene, token);
+  const tyres = createTyreParticles(scene, token, hazed);
   const cullCar = (culled: boolean) => {
     for (const object of carView.objects) {
       object.traverse((part) => {
