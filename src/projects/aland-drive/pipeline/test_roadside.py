@@ -1,12 +1,17 @@
 """Which side of the road things stand on and which way they face: the rules that are easy to get backwards."""
 
+import gzip
+import json
 import math
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import shapely
 
-from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Roadside
+from paving import JUNCTION_ACROSS, POINT_FLOATS
+from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Paved, Roadside, read_surface
 
 # A road running east along north = 0, 6 m of carriageway and 2 m of shoulder each side, flat at height 0.
 LENGTH_M = 200
@@ -154,3 +159,39 @@ class Rails(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]]) -> dict:
+    """A paved tile's road surface: the east road and a path north of it, then paving pieces of (corners, each corner's across, way)."""
+    path = east_road()
+    path.rings = path.rings + np.array([0.0, 20.0, 0.0])
+    rings = np.concatenate((east_road().rings, path.rings)).astype("<f4")
+    points = np.zeros((3 * len(pieces), POINT_FLOATS), dtype="<f4")
+    for index, (corners, across, way) in enumerate(pieces):
+        points[3 * index : 3 * index + 3, :2] = corners
+        points[3 * index : 3 * index + 3, 3] = across
+        points[3 * index : 3 * index + 3, 6] = way
+    triangles = np.arange(len(points), dtype="<u4")
+    (folder / "road-surface.bin.gz").write_bytes(gzip.compress(rings.tobytes() + bytes(len(rings)) + points.tobytes() + triangles.tobytes()))
+    chains = [{"sections": len(east_road().rings), "kind": "tertiary", "motor": True}, {"sections": len(path.rings), "kind": "footway", "motor": False}]
+    return {"roadSurface": {"file": "road-surface.bin.gz", "chains": chains, "paved": True, "aprons": {"points": len(points), "triangles": len(pieces), "areaPoints": 0, "pointFloats": POINT_FLOATS}}}
+
+
+class PavedTiles(unittest.TestCase):
+    def test_a_motor_roads_shoulder_is_clear_and_its_carriageway_paths_and_junctions_are_not(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest = paved_tile(Path(folder), [
+                # The east road's shoulder, south of it, as the paving draws it: from the carriageway's edge out.
+                ([(50, -3), (60, -3), (55, -5)], (1, 1, 2), 0),
+                # The path's paving, running on to the road past where its rings stop: a path has no shoulder, so its corners
+                # just past its edge read as a shoulder's.
+                ([(100, 3), (102, 3), (101, 8)], (2, 2, 0), 1),
+                # A junction's corner no way owns.
+                ([(150, 3), (154, 3), (152, 5)], (JUNCTION_ACROSS,) * 3, 0),
+            ])
+            paved = Paved(*read_surface(Path(folder), manifest))
+        # A sign stands a metre past the carriageway, on the shoulder.
+        self.assertTrue(paved.clear(np.array([55.0, -4.2]), 0.4, besides=0))
+        self.assertFalse(paved.clear(np.array([101.0, 5.0]), 0.4, besides=0))
+        self.assertFalse(paved.clear(np.array([152.0, 4.0]), 0.4, besides=0))
+
