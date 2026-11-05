@@ -90,7 +90,8 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
-import { conditionAsked, type Condition, type Surface } from "../sim/surfaces";
+import { type Condition, type Surface } from "../sim/surfaces";
+import { groundCondition } from "../climate/feed";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 import { tiledGround } from "../art/surfaces/tiled";
@@ -956,7 +957,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
   const startCar = carAsked(window.location.search);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
-  drive.condition = conditionAsked(window.location.search);
+  const ground = groundCondition(window.location.search, window.navigator.webdriver);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
@@ -1765,6 +1766,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
     if (!(lifted || held || jumping || menuHolds)) streetClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
+    drive.condition = ground.at(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     roadside.update(camera.position);
@@ -1903,6 +1905,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       tyreCounts: tyres.counts,
       showTyres: tyres.show,
       setCondition: (condition) => {
+        ground.hold(condition);
         drive.condition = condition;
       },
       online: () => {
@@ -2005,6 +2008,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     setCar,
     condition: () => drive.condition,
     setCondition: (condition) => {
+      ground.hold(condition);
       drive.condition = condition;
     },
     day: dayShown,

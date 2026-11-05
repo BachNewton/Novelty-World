@@ -21,7 +21,8 @@ The day and night, the seasons and the weather: what is decided, how the work is
 
 - **The day** (phase 1, `CLAUDE.md`, "The day"): Åland's real date and a fast hour from the world's clock (`time/day.ts`), the sun and moon over Åland (`time/sky-places.ts`), one live sun every material reads (`art/sun.ts`), the night's dial set from the sun's height and a winter night's dark below it (`render/day-and-night.ts`), the terrain's bake moved by the live sun (`render/terrain-light.ts`), and the night's lights in the game (`render/night-lights.ts`, lit rooms in the wall shader). `?date=`, `?hour=` and the dev menu's Day move a page's day.
 - **The sky** (`art/sky`): a summer and a golden-hour look, and the night's dusk and night looks between them by the sun's height, darkened further on a winter night. Clouds have a cover.
-- **The grip** by surface and condition (`sim/surfaces.ts`), set today from the dev menu or `?condition=`.
+- **The grip** by surface and condition (`sim/surfaces.ts`), set by the weather (`climate/`, below), or held by the dev menu or `?condition=`.
+- **The climate's logic** (`climate/`, below): the shared weather and the season's dials, pure and unit-tested, with nothing drawn yet.
 - **The aurora** (`art/night/aurora.ts`), built and not yet in the game: it waits for clear, dark winter nights, which need the weather and the seasons.
 
 ## Phases
@@ -62,6 +63,51 @@ The real numbers the later phases are built on, written into this doc's Referenc
 - Every placed layer says which seasons it belongs to and leaves on its own threshold.
 - The winter's art, a subagent per kit: snow over the land with the roads cleared and banked, bare broadleaves and snow on spruce, ice on the sea with boats laid up, the Advent and Christmas lights, the frozen sea as a surface to drive on, autumn's colours and fallen leaves; the aurora on clear dark nights; studs in the tyres' sound and particles.
 - Exit: a walk through the year, one date a month, seen by the owner in the running game.
+
+## The climate (the logic of phases 2 and 3)
+
+`climate/` is the logic half of the weather and the seasons: pure functions, no renderer, the same on every player's machine with nothing sent. The sky, the art and the sound read these values; none of them is drawn yet.
+
+**Time in.** Both take plain inputs, which the game's day (`time/day.ts`) will feed: the date (Åland's `CalendarDate`), how far through it real time is (0 to 1, so nothing seasonal jumps at midnight; a date a link holds sits at its noon), the hour shown, and the world's clock in game days (seconds over `GAME_DAY_S`), which is what the weather's fronts follow, so every player has the same sky whatever their hour. Until the day lands, `climate/feed.ts` reads all four off the world's clock itself (its own copy of the game day's length, and UTC+2 for the date); once it lands those come from the day instead. Nothing here works out a sun: darkness is the day's.
+
+**Exact arithmetic.** No `Math.sin`, `exp`, `pow` or the like anywhere in it (`climate/exact.test.ts` holds that): engines may round those each their own way, and two players' weather would part over a last bit. Random numbers are an integer hash (PCG) of whole numbers, eased between.
+
+**The weather** (`climate/weather.ts`, `weatherAt`), at a moment:
+
+| Value | Range | For |
+|---|---|---|
+| `cloudCover` | 0–1 | the sky's cloud, its light and its shadowless overcast |
+| `rain`, `snowfall` | 0–1 each | drawn near the camera; rain and wipers in the sound |
+| `fog` | 0–1 | the haze's thickness: the climate's fog stays under 0.6, 1 is a challenge's thick fog |
+| `windMS`, `windFromDeg` | m/s; degrees from **true** north | the sound, flags, trees, the sea; the grid's north is 6.25° off |
+| `temperatureC` | °C | breath, frost on glass, the sound of studs |
+| `roadWet`, `roadSnow`, `blackIce` | 0–1 each | wet roads darkening and shining, snow on the road, ice's sheen |
+| `aurora` | 0–1 | how strong an aurora is now, if the night is dark: the renderer multiplies it by its own darkness |
+| `condition` | dry, wet, snow, ice | the grip (`sim/surfaces.ts`); the drive reads it every frame |
+| `state` | clear, cloud, overcast, rain, snowfall, fog | a name for a readout or a sound's pick; a reading of the values, never a switch |
+
+How it works: the fronts and showers are one number wandering smoothly along the game days, and a game day is wet when it rises past a threshold; the threshold is read off that number's own spread (worked out once, the same everywhere), so the share of wet game days is the month's, eased between month middles, and leans on the real day's wetness. Cloud is the same fronts with a wandering of its own, held to the month's cloudier share the same way. Rain or snow is the temperature's: the day's mean on the real calendar (`climate/climate.ts`: the normal, the extra cold for play, this winter's hardness, the day's own wander) with the day's swing by the hour, bigger under a clear sky. Fog is a morning's (and now and then an evening's), chosen per shown day, light, gone by 13:00. The road remembers rain and meltwater for 5 game hours in summer and 12 in winter, and snow for 6 until it's ploughed; black ice is a wet road below freezing. The condition is snow over ice over wet over dry, each past a threshold on those values.
+
+**The season** (`climate/season.ts`, `seasonAt`), each a share of things, from the date:
+
+| Dial | Range | For |
+|---|---|---|
+| `leaves.leafed`, `leaves.turned` | shares 0–1 | each broadleaf tree in leaf and in its autumn colour; a tree's one threshold serves both, so it turns before it falls, and leafs out green |
+| `leaves.fallen` | 0–1 | fallen leaves along the verges and under the trees, gone by mid-December or under snow |
+| `snow.depthCm`, `snow.cover` | cm; share 0–1 | snow over the land, built by the cold wet real days and melted by mild ones and the spring sun |
+| `seaIce.reach`, `seaIce.drivable`, `seaIce.bayCm` | exposures 0–1; cm | the sea frozen out to that exposure, the ice that bears a car, and the bays' thickness; `iceAt(day, exposure)` gives any place's |
+| `lights.town`, `lights.homes`, `lights.windows` | shares 0–1 | Mariehamn's streets and Torget's tree, homes' Christmas lights, windows' candlesticks and stars |
+| `lights.adventCandles` | 0–4 | candles lit in a four-candle holder |
+| `auroraNightChance` | 0–0.12 | the chance a game night has one, which the weather draws |
+| `inSeason.terraces`, `grazing`, `boatsAfloat`, `bales` | shares 0–1 | placed things out in their season (`IN_SEASON`, a window each, which a new kind adds a row to) |
+
+**One by one.** A thing changes when the share of its kind passes its own threshold: `oneByOne(share, threshold)` is that thing's state from 0 to 1, over a sliver of the share, so a wood turns tree by tree. The threshold is the art's, rolled from the thing's place with `art/hash.ts` (`unitOf` on the GPU, `unitOfSeed` on the CPU, which agree), so a tree in a shader and a prop on the CPU change alike. Sea ice reads exposure the same way: a place's exposure (0 the most sheltered bay, 1 the open Sea of Åland) is its threshold against `reach` and `drivable`. Working out each place's exposure (how far it is from open water, say) is the sea art's job: nothing computes it yet.
+
+**What the tuning gives** (on six simulated years and thirty winters, `climate/rates.test.ts`): wet game days and cloudy time within a few points of each month's numbers; fog on two to five mornings a month in spring and autumn; snow lying from about December to March, 15–20 cm at its deepest, at least three weeks white in the mildest winter; ice in the bays in most winters, and the open sea frozen in about one in four. The road is dry about nine tenths of the time, wet the rest outside winter, with snow on it about one hour in twenty from December to February, and black ice rare, mostly in March's thaws. Each is a constant at the top of its module.
+
+**Where the drive takes it.** The game sets the ground's condition from the weather on every frame (`climate/feed.ts`'s `groundCondition`). `?condition=` or the dev menu's Ground holds one instead, until a reload. A tool's or a test's page (on `?tiles=`, or driven by automation) stays dry, so a measurement doesn't change with the hour it ran at, unless it asks with `?weather`. `?date=2027-01-20` holds the date, the same parameter the game's day reads, and the world's clock (`?sea=`) moves the weather with the boats.
+
+**`?weather-lab`** is the readout: every value at a date and hour (`?weather-lab&date=2027-01-20&hour=7`), stepping a day, a week or a month, the hour on a slider, and which of the date's game days; a strip of that game day hour by hour, and one of the whole year from July, the date marked, for the snow, the ice, the leaves, the lights and the terraces.
 
 ## Reference
 

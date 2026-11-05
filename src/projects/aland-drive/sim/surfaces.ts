@@ -36,10 +36,10 @@ export type CarClass = (typeof CAR_CLASSES)[number];
 
 export const isCondition = (name: string): name is Condition => (CONDITIONS as readonly string[]).includes(name);
 
-/** The condition a link asks for (`?condition=wet`), until weather sets it: dry when it asks for none. */
-export function conditionAsked(search: string): Condition {
+/** The condition a link holds (`?condition=wet`) in place of the weather's, or null when it asks for none. */
+export function conditionAsked(search: string): Condition | null {
   const asked = new URLSearchParams(search).get("condition");
-  if (asked === null) return "dry";
+  if (asked === null) return null;
   if (!isCondition(asked)) throw new Error(`?condition= takes ${CONDITIONS.join(", ")}, not ${asked}`);
   return asked;
 }
