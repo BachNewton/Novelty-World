@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, PARTS, seeded, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { MOTION_KINDS, MOTION_RANGE_M, type MotionKind } from "../street/paint";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside kit's `Model` writes the shapes, as it does for the rural and street
@@ -203,5 +204,5 @@ export class IdentityMesh {
 
 /** A model's versions, ready for `placeModel`. */
 export function identityModel(near: IdentityMesh, far: IdentityMesh | null, swapM: number, reachM: number, motion?: Motion): RoadsideModel {
-  return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
+  return measuredSwap({ near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM });
 }

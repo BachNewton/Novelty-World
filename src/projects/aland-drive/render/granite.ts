@@ -47,7 +47,7 @@ import { towardsSun } from "../art/sun";
 const LATTICE: Lattice = { stepM: 7, ends: [180, 230, 30], salt: 517.3 };
 /** The widest an outcrop reaches from its place: the kit's longest dome at its largest size. */
 const WIDEST_M = 9;
-const SWAP_M = 90;
+/** The band near and far versions trade pixels over, either side of the swap: the kit's, for its own size, times a place's size. */
 const SWAP_BAND = 0.15;
 
 /** The mapped rock's share at a place, from none to all, and at a corner, from where it sinks to where it lifts fully. */
@@ -103,8 +103,6 @@ const MOST_STONES = 0.85;
 const STONE_PARTS: RuralPart[] = ["field-stone", "field-stone-pink", "rapakivi"];
 /** Stones sit a little into the ground, as a share of their size. */
 const STONE_SINK = 0.05;
-/** Where a stone's rounded version hands over to its few-sided one. */
-const STONE_SWAP_M = 12;
 
 function tallest(shape: BufferGeometry): number {
   const position = shape.getAttribute("position");
@@ -140,9 +138,12 @@ export interface GraniteDrawn {
   triangles: number;
 }
 
+/** The outcrops and the field's stones, every one of which the LOD check measures. */
+export const graniteModels = () => ({ outcrops: SEEDS.map((seed) => buildOutcrop(seed)), stones: ROCK_SEEDS.map((seed) => buildBoulder(seed)) });
+
 export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: GraniteInputs) {
   const { rockAt, fieldsAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun } = inputs;
-  const models = SEEDS.map((seed) => buildOutcrop(seed));
+  const { outcrops: models, stones: boulders } = graniteModels();
   const fars = models.map(({ far }) => {
     if (far === null) throw new Error("The kit's outcrop has no far version");
     return far;
@@ -157,7 +158,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
   const stoneColours = uniformArray(STONE_PARTS.map((part) => ruralColours(linear)[RURAL_PARTS.indexOf(part)]), "vec3");
 
   const capacity = Math.ceil(placesWithin(reachOf(LATTICE), LATTICE.stepM) * MOST_OUTCROPS);
-  const nearCapacity = placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_M, LATTICE.stepM);
+  const nearCapacity = placesWithin(Math.max(...models.map(({ swapM }) => swapM)) * SIZES[1] * (1 + SWAP_BAND) + WIDEST_M, LATTICE.stepM);
 
   const planting = createPlanting(scene, renderer, {
     lattices: [LATTICE],
@@ -176,12 +177,12 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
             const kind = select(roll(seed, 9).lessThan(0.5), float(0), float(1)).toVar();
             const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10));
             const lift = mix(float(LIFTS_M[0]), float(LIFTS_M[1]), roll(seed, 13));
-            const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
             const remaining = left().toVar();
             const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const shape = vec4(lift, 0, 0, 0);
-            models.forEach((_, index) => {
+            models.forEach((model, index) => {
               If(kind.equal(index), () => {
+                const swap = smoothstep(size.mul(model.swapM * (1 - SWAP_BAND)), size.mul(model.swapM * (1 + SWAP_BAND)), distance).toVar();
                 If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, vec4(float(1).sub(swap), remaining, size, kind), shape]);
                 });
@@ -236,7 +237,6 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     },
   });
 
-  const boulders = ROCK_SEEDS.map((seed) => buildBoulder(seed));
   const stoneShapes = [
     ...boulders.map(({ far }) => {
       if (far === null) throw new Error("The kit's boulder has no far version");
@@ -245,7 +245,8 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     ...boulders.map(({ near }) => near),
   ];
   const stoneCapacity = Math.ceil((Math.min(placesWithin(reachOf(STONES), STONES.stepM), MOST_FIELD_M2 / STONES.stepM ** 2) * MOST_STONES * 1.5) / boulders.length);
-  const nearStoneCapacity = Math.ceil((placesWithin(STONE_SWAP_M * (1 + SWAP_BAND), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
+  const stoneSwapM = Math.max(...boulders.map(({ swapM }) => swapM)) * STONE_SIZES[1];
+  const nearStoneCapacity = Math.ceil((placesWithin(stoneSwapM * (1 + SWAP_BAND), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
   const stones = createPlanting(scene, renderer, {
     lattices: [STONES],
     widestM: STONE_SIZES[1],
@@ -263,11 +264,11 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
             const kind = roll(seed, 16).mul(boulders.length).floor().toVar();
             const part = roll(seed, 17).mul(STONE_PARTS.length).floor();
             const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
-            const swap = smoothstep(float(STONE_SWAP_M * (1 - SWAP_BAND)), float(STONE_SWAP_M * (1 + SWAP_BAND)), distance).toVar();
             const reach = size.mul(STONE_REACH_PER_SIZE).toVar();
             const remaining = float(1).sub(smoothstep(reach.mul(1 - STONE_DISSOLVING), reach, distance)).toVar();
-            boulders.forEach((_, index) => {
+            boulders.forEach((boulder, index) => {
               If(kind.equal(index), () => {
+                const swap = smoothstep(size.mul(boulder.swapM * (1 - SWAP_BAND)), size.mul(boulder.swapM * (1 + SWAP_BAND)), distance).toVar();
                 If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, vec4(float(1).sub(swap), remaining, size, part)]);
                 });

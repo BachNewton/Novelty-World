@@ -1,5 +1,5 @@
 import type { Mesh } from "three/webgpu";
-import type { RoadsideModel } from "../art/roadside/index";
+import { SWAP_SPREAD, type RoadsideModel } from "../art/roadside/index";
 
 /*
  * A placed model's near and far meshes each cost a draw call whether any of their places shows that version or not.
@@ -8,7 +8,7 @@ import type { RoadsideModel } from "../art/roadside/index";
  * and spread round its swap, so a version is never hidden while one of its places could show a pixel of it.
  */
 
-const NEAR_UNTIL = 1.25;
+const NEAR_UNTIL = (1 + SWAP_SPREAD) * 1.12;
 const FAR_FROM = 0.7;
 const GONE_PAST = 1.05;
 
