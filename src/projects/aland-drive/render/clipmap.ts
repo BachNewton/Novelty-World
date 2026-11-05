@@ -183,7 +183,8 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
     material.colorNode = groundColour(depth, fromShore);
-    // Where the cut ground is drawn instead, 0: the ring's ground and its water both leave the cell to it.
+    // Where the cut ground is drawn instead, 0: the ring's ground leaves the cell to it. Its water doesn't, since the cut
+    // ground meets the grid on its nodes and lies under the same water.
     const uncut = level === 0 ? float(1).sub(textureLoad(cutTexture, ivec2(floor(positionWorld.xz.sub(origin).div(ringStep)))).r.mul(exactAt(positionWorld.xz))) : float(1);
     if (level === 0) {
       material.opacityNode = uncut;
@@ -208,7 +209,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       waterMaterial.colorNode = waterColour(depth, fromShore);
       // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
       // the line is, smooth where a low shore's corners sit within centimetres of the water.
-      waterMaterial.opacityNode = wet.mul(step(float(0), fromShore)).mul(uncut);
+      waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));
       waterMaterial.alphaTest = 0.999;
       materials.push(waterMaterial);
       water = new Mesh(geometry, waterMaterial);

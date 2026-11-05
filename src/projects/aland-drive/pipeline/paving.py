@@ -145,18 +145,34 @@ class Piece:
 
 
 @dataclass
+class GroundCut:
+    cells: np.ndarray  # Row * cells + column of every 4 m cell whose ground is the cut mesh, not the grid's.
+    points: np.ndarray  # (x, y, z) of the cut ground.
+    triangles: np.ndarray  # The underpasses' walls last, which are drawn as concrete rather than ground.
+    walls: int
+
+
+@dataclass
 class Paved:
     chains: list[Chain]
-    conformed: np.ndarray  # The ground at every 2 m corner of the tile.
+    conformed: np.ndarray  # The ground at every 2 m corner of the tile, as the paving shapes it.
     points: np.ndarray  # (n, POINT_FLOATS), the car parks' last.
     triangles: np.ndarray
     area_points: int
-    cut_cells: np.ndarray  # Row * cells + column of every 4 m cell whose ground is the cut mesh, not the grid's.
-    cut_points: np.ndarray  # (x, y, z) of the cut ground.
-    cut_triangles: np.ndarray  # The underpasses' walls last, which are drawn as concrete rather than ground.
-    cut_walls: int
+    cut_from: shapely.Geometry  # The paving's outline on every level the cut ground meets.
+    cut_paving: np.ndarray  # (n, 3, 3) the paving's triangles the cut ground meets.
+    walls: tuple[np.ndarray, np.ndarray]  # The underpasses' walls' points and triangles.
     crosses: dict[int, "Cross"]  # How each way's paving spreads either side of its line.
     ground: Ground
+
+    def ground_cut(self, nodes: np.ndarray) -> GroundCut:
+        """The cut ground round the paving, meeting the grid on `nodes`: the tile's heights as finally written, after
+        whatever reshapes the ground once the roads are laid (the seabed under the water), so the two share every node."""
+        if nodes.shape != self.conformed[::NODE_STRIDE, ::NODE_STRIDE].shape:
+            raise ValueError(f"the cut ground needs the tile's {self.conformed[::NODE_STRIDE, ::NODE_STRIDE].shape} nodes, not {nodes.shape}")
+        cells, points, triangles = cut_ground(self.cut_from, self.cut_paving, nodes, self.ground.spacing * NODE_STRIDE, self.ground)
+        wall_points, wall_triangles = self.walls
+        return GroundCut(cells, np.concatenate((points, wall_points)), np.concatenate((triangles, wall_triangles + len(points))), len(wall_triangles))
 
 
 def station_levels(chain: Chain) -> np.ndarray:
@@ -1212,13 +1228,8 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     edges = paving_at_corners(outline, on_ground, ground)
     under = paving_at_corners(outline_of(below), below, ground)
     conformed = embanked(raw, np.where(np.isnan(edges), under, edges), ground.spacing)
-    nodes = conformed[::NODE_STRIDE, ::NODE_STRIDE]
-    step = ground.spacing * NODE_STRIDE
-    cells, cut_points, cut_triangles = cut_ground(shapely.union(outline, outline_of(below)), np.concatenate((below, on_ground)), nodes, step, ground)
-    wall_points, wall_triangles = underpass_walls(mesh, heights)
-    cut_triangles = np.concatenate((cut_triangles, wall_triangles + len(cut_points)))
-    cut_points = np.concatenate((cut_points, wall_points))
-    return Paved(chains, conformed, points, triangles, area_points, cells, cut_points, cut_triangles, len(wall_triangles), crosses, ground)
+    cut_from = shapely.union(outline, outline_of(below))
+    return Paved(chains, conformed, points, triangles, area_points, cut_from, np.concatenate((below, on_ground)), underpass_walls(mesh, heights), crosses, ground)
 
 
 def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:

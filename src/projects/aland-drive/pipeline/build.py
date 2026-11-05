@@ -150,8 +150,13 @@ def encode_paving(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray
     return gzip.compress(rings + tiers + points.astype("<f4").tobytes() + paved.triangles.astype("<u4").tobytes(), 9, mtime=0)
 
 
-def encode_ground_cut(paved: paving.Paved) -> bytes:
-    return gzip.compress(paved.cut_cells.astype("<u4").tobytes() + paved.cut_points.astype("<f4").tobytes() + paved.cut_triangles.astype("<u4").tobytes(), 9, mtime=0)
+def encode_ground_cut(cut: paving.GroundCut) -> bytes:
+    return gzip.compress(cut.cells.astype("<u4").tobytes() + cut.points.astype("<f4").tobytes() + cut.triangles.astype("<u4").tobytes(), 9, mtime=0)
+
+
+def as_written(nodes: np.ndarray) -> np.ndarray:
+    """Heights as `encode_heights` writes them, to the whole unit."""
+    return np.round(np.asarray(nodes, dtype=np.float64) / HEIGHT_UNIT_M) * HEIGHT_UNIT_M
 
 
 def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]], aprons: list[road_surface.Apron]) -> bytes:
@@ -190,6 +195,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     roads: list[dict] = []
     buildings: list[dict] = []
     surface_manifest = None
+    paved: paving.Paved | None = None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     openings = []
@@ -216,7 +222,6 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM, water=water_with_rim)
         ribbons = []
         aprons = []
-        paved = None
         if roads:
             areas = vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile)
             if with_paving:
@@ -239,10 +244,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         baked = [(ring, tier) for _, ring, tier, _ in ribbons]
         motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
         if paved is not None:
-            if not np.isfinite(paved.points).all() or not np.isfinite(paved.cut_points).all():
-                raise ValueError(f"{tile.name}: the paving or the ground cut round it came out with no height")
+            if not np.isfinite(paved.points).all():
+                raise ValueError(f"{tile.name}: the paving came out with no height")
             (folder / "road-surface.bin.gz").write_bytes(encode_paving(ribbons, paved))
-            (folder / "ground-cut.bin.gz").write_bytes(encode_ground_cut(paved))
             footprints = paving.footprint_ribbons(paved)
             baked += [(ring, tier) for ring, tier, _ in footprints]
             motor_roads += [(ring, tier) for ring, tier, motor in footprints if motor]
@@ -272,14 +276,6 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
             surface_manifest["paved"] = True
             surface_manifest["encoding"] = "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving: float32le points of (east, north, height, across, tier, along, way, class, cos 2θ, sin 2θ of the way it runs), then uint32le triangles"
             surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points, "pointFloats": paving.POINT_FLOATS}
-            surface_manifest["groundCut"] = {
-                "file": "ground-cut.bin.gz",
-                "cells": len(paved.cut_cells),
-                "points": len(paved.cut_points),
-                "triangles": len(paved.cut_triangles),
-                "walls": paved.cut_walls,
-                "encoding": "gzip of uint32le cells (row * cells + column of the 4 m height grid's cells, which the cut ground replaces), then float32le points of (east, north, height), then uint32le triangles, the last `walls` of them the underpasses' walls",
-            }
 
     levels = terrain.water_levels(mosaic, flat_water)
     # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.
@@ -298,6 +294,20 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     shore_nodes = terrain.height_nodes(np.round(shore, 1))
 
     nodes = terrain.height_nodes(conformed)
+    if paved is not None:
+        # Cut from the heights as written, after the seabed: the cut ground meets the grid on its own nodes.
+        cut = paved.ground_cut(as_written(nodes))
+        if not np.isfinite(cut.points).all():
+            raise ValueError(f"{tile.name}: the ground cut round the paving came out with no height")
+        (folder / "ground-cut.bin.gz").write_bytes(encode_ground_cut(cut))
+        surface_manifest["groundCut"] = {
+            "file": "ground-cut.bin.gz",
+            "cells": len(cut.cells),
+            "points": len(cut.points),
+            "triangles": len(cut.triangles),
+            "walls": cut.walls,
+            "encoding": "gzip of uint32le cells (row * cells + column of the 4 m height grid's cells, which the cut ground replaces), then float32le points of (east, north, height), then uint32le triangles, the last `walls` of them the underpasses' walls",
+        }
     level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
     (folder / "heights-far.bin.gz").write_bytes(encode_heights(nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))

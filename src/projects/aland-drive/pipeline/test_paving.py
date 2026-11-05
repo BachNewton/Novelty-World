@@ -81,18 +81,38 @@ class OneSurface(unittest.TestCase):
         ways = [road([(100, 600), (1100, 640)], "tertiary"), road([(600, 619), (600, 1000)]), road([(300, 200), (900, 1000)], "path", motor=False)]
         paved = paving.lay(ways, land(height=hilly))
         cover = paving.Cover(paved.points[paved.triangles][:, :, :3])
-        cut = paved.cut_points
+        ground_cut = paved.ground_cut(paved.conformed[:: paving.NODE_STRIDE, :: paving.NODE_STRIDE])
+        cut = ground_cut.points
         on_node = (np.abs(cut[:, 0] / 4 - np.round(cut[:, 0] / 4)) < 1e-6) & (np.abs(cut[:, 1] / 4 - np.round(cut[:, 1] / 4)) < 1e-6)
         edge = cut[~on_node & (cut[:, 2] > -100)]
         self.assertGreater(len(edge), 100)
         self.assertLess(np.nanmax(np.abs(cover.at(edge[:, :2]) - edge[:, 2])), 0.002)
         # Every cut cell is covered once, by its cut ground and the paving in it.
-        cells = paved.cut_cells
+        cells = ground_cut.cells
         size = int(TILE_M / 4)
         boxes = shapely.box(cells % size * 4.0, TILE_M - (cells // size + 1) * 4.0, (cells % size + 1) * 4.0, TILE_M - cells // size * 4.0)
-        cut_area = shapely.area(shapely.polygons(np.concatenate((cut[paved.cut_triangles][:, :, :2], cut[paved.cut_triangles][:, :1, :2]), axis=1))).sum()
+        cut_area = shapely.area(shapely.polygons(np.concatenate((cut[ground_cut.triangles][:, :, :2], cut[ground_cut.triangles][:, :1, :2]), axis=1))).sum()
         paving_in = shapely.intersection(shapely.union_all(shapely.polygons(np.concatenate((paved.points[paved.triangles][:, :, :2], paved.points[paved.triangles][:, :1, :2]), axis=1))), shapely.union_all(boxes)).area
         self.assertAlmostEqual(cut_area + paving_in, len(cells) * 16.0, delta=len(cells) * 16.0 * 1e-4)
+
+    def test_the_cut_ground_meets_the_grid_on_the_heights_it_is_given(self):
+        """The ground is reshaped after the roads are laid (the seabed is lowered under the water), so the cut ground must
+        take its nodes from the heights as written, not from the ground as the paving left it, or it stands over the grid."""
+        # Its ends off the grid's lines, so no edge of the paving runs through a node.
+        paved = paving.lay([road([(102, 601), (1098, 601)], "tertiary")], land())
+        nodes = paved.conformed[:: paving.NODE_STRIDE, :: paving.NODE_STRIDE].astype(np.float64)
+        # Lower the ground south of the road's margin, as a seabed would.
+        nodes[int((TILE_M - 590) / 4) :, :] -= 2.0
+        ground_cut = paved.ground_cut(nodes)
+        corners = ground_cut.points[ground_cut.triangles]
+        # The ground's own triangles, not the upright faces closing it against the paving, whose corners take the paving's heights.
+        one, two = corners[:, 1, :2] - corners[:, 0, :2], corners[:, 2, :2] - corners[:, 0, :2]
+        flat = np.abs(one[:, 0] * two[:, 1] - one[:, 1] * two[:, 0]) > 1e-6
+        cut = corners[flat].reshape(-1, 3)
+        column, row = cut[:, 0] / 4, (TILE_M - cut[:, 1]) / 4
+        on_node = (np.abs(column - np.round(column)) < 1e-6) & (np.abs(row - np.round(row)) < 1e-6)
+        self.assertGreater(on_node.sum(), 100)
+        np.testing.assert_allclose(cut[on_node, 2], nodes[np.round(row[on_node]).astype(int), np.round(column[on_node]).astype(int)], atol=1e-3)
 
     def test_ways_at_different_heights_side_by_side_are_never_joined_by_a_cliff(self):
         """A street along a bank with a road below it: their outlines touch, but joined, the lower one is dragged up the bank or
@@ -252,7 +272,8 @@ class Underpasses(unittest.TestCase):
         deck = paved.points[(paved.points[:, 6].astype(int) == chains["primary"]) & (np.abs(paved.points[:, 0] - 600) < 5)]
         self.assertGreater(len(under), 0)
         self.assertLessEqual(under[:, 2].max(), deck[:, 2].min() - paving.UNDERPASS_CLEAR_M + 0.01)
-        upright = paved.cut_points[paved.cut_triangles]
+        ground_cut = paved.ground_cut(paved.conformed[:: paving.NODE_STRIDE, :: paving.NODE_STRIDE])
+        upright = ground_cut.points[ground_cut.triangles]
         rise = upright[:, :, 2].max(1) - upright[:, :, 2].min(1)
         across = np.hypot(*(upright[:, :, :2].max(1) - upright[:, :, :2].min(1)).T)
         self.assertTrue(((rise > 1) & (across < 4)).any())
