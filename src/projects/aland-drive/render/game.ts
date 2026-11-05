@@ -887,7 +887,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
     season,
   });
-  const parkedCars = createParkedCars(scene, sun, hazed);
+  const parkedCars = createParkedCars(scene, sun, hazed, season);
   // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
   const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
   const winterLights = createWinterLights(scene, night, season, {
@@ -899,7 +899,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
   const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
-  const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
+  const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST, season);
   let trafficWanted = 0;
   // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
   let trafficFilled = false;

@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttri
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, seedOf, unitOf } from "../art/hash";
-import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigsOpen } from "../art/leaves";
 import { seasonNodes, type SeasonLook } from "../art/season";
 import { flatNormal } from "../art/flat-normal";
 import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, LEAF_ROLL, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, SNOW_ROLL, SPECIES_ROLL, STAND_ROLL } from "./tree-place";
@@ -124,8 +124,6 @@ const HUE_ROLL = 0.07;
 /** How much snow a bare broadleaf's twigs hold, against a conifer's crown, and how much each tree's own share varies. */
 const TWIG_SNOW = 0.4;
 const SNOW_ROLLED: [number, number] = [0.65, 1];
-/** The share of a bare crown's pixels left open, so it reads as a see-through mass of twigs rather than a solid one. */
-const BARE_OPEN = 0.5;
 
 /** A stand for a scene with no tile: Åland's own mix of pine, spruce and birch, at every place. */
 const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
@@ -441,13 +439,15 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
     const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
     // Birch and broadleaf let the sun through; conifers don't.
-    const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy.mul(varying(inLeaf)), float(0));
+    const inLeafHere = varying(inLeaf);
+    const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy.mul(inLeafHere), float(0));
     const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
     const ownShade = varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
     const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
-    const open = varying(float(1).sub(inLeaf).mul(BARE_OPEN)).mul(leafy);
+    // How far up the crown, back from its rounded direction, which carries it: a shader has only so many values to hand on.
+    const open = twigsOpen(float(1).sub(inLeafHere).mul(leafy), rounded.y.div(ROUNDNESS).add(CROWN_MIDDLE), rounded);
     material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(twigPattern.greaterThanEqual(open)).and(outsideCar());
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
