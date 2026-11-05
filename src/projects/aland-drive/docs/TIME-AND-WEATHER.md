@@ -14,11 +14,10 @@ The day and night, the seasons and the weather: what is decided, how the work is
 
 ## What already exists
 
-- **The night** (`art/night`): one dial from day to the deepest Nordic night, with lit windows, OSM lamps (`lights.json`), sea lights and lighthouses, headlights, glows and the aurora, and its exact replacements for the game in `integration.mjs`, written against older code. Not in the game.
-- **The sky** (`art/sky`): a summer and a golden-hour look; the night adds dusk and night looks. Clouds have a cover.
+- **The day** (phase 1, `CLAUDE.md`, "The day"): Åland's real date and a fast hour from the world's clock (`time/day.ts`), the sun and moon over Åland (`time/sky-places.ts`), one live sun every material reads (`art/sun.ts`), the night's dial set from the sun's height and a winter night's dark below it (`render/day-and-night.ts`), the terrain's bake moved by the live sun (`render/terrain-light.ts`), and the night's lights in the game (`render/night-lights.ts`, lit rooms in the wall shader). `?date=`, `?hour=` and the dev menu's Day move a page's day.
+- **The sky** (`art/sky`): a summer and a golden-hour look, and the night's dusk and night looks between them by the sun's height, darkened further on a winter night. Clouds have a cover.
 - **The grip** by surface and condition (`sim/surfaces.ts`), set today from the dev menu or `?condition=`.
-- **The world's clock** (`sea/clock.ts`), real seconds, which a time of day is worked out from.
-- **The constraint:** the sun is one fixed direction, `manifest.sun`, baked into the terrain's 2 m shading (sun, cast shadow and open sky) and handed as a constant to every material. A moving sun means the lighting stops trusting that bake.
+- **The aurora** (`art/night/aurora.ts`), built and not yet in the game: it waits for clear, dark winter nights, which need the weather and the seasons.
 
 ## Phases
 
@@ -34,6 +33,17 @@ The real numbers the later phases are built on, written into this doc's Referenc
 - The sun as a value every material reads, not a constant, and a lighting model for the terrain under a moving sun: what the 2 m bake can still carry (open sky, fine relief) and what it can't (cast shadows from one direction). Decided by screenshots against the current look and by the floor's frame cost, not by taste.
 - The night integrated (`art/night/integration.mjs`, `docs/HANDOFF.md`, "Night"), driven by the sun's height rather than its own dial: lamps, windows, sea lights, headlights, the water's `seaAtHour`. Headlamps, brake and reverse lights go into `CarState` so other players' cars show them.
 - Exit: one game day passes on today's date and on midsummer's and midwinter's, the owner sees each in the running game, and the frame cost is measured.
+
+**Landed.** The terrain keeps its bake and is moved by how much more or less each slope faces the live sun than the baked one (`relit`), chosen from screenshots of three ways (the bake as it was, a flat dimming, and this) at the bake's own sun, a low north-east morning sun and a west evening one: identical to today where the sun stands where it was baked, and on Åland's low relief the cast shadows left where the bake put them show little. It costs four height reads per terrain vertex and a few sums per pixel. The night's lights add 5 draw calls and 30–70 k triangles at Mariehamn at night, and nothing by day.
+
+**What the later phases hang off:**
+
+- **`GameTime`** (`time/day.ts`): the date, the local hour, the instant whose sky is shown, and the sun's and moon's places. The weather is a function of the world's clock and the date; the seasons' dials of the date. Both read the same `DayClock` the render does, so a page's `?date=` moves them too.
+- **The night's dials** (`art/night/night.ts`): `amount` (by the sun's height), `dark` (a winter night past midsummer's), `late` (the clock's small hours), and `lampsOn`. Overcast and rain lower the light and bring the lamps on early by adding to these, never by a dial of their own; the aurora shows on `dark` nights the weather leaves clear.
+- **The sky's look** (`render/day-and-night.ts`): each frame the look for the hour, darkened for the night, with the real sun in it. The weather's overcast and storm looks blend over it there, and its cloud cover is the look's `cloudCover`.
+- **`hazedAtHour`** (`render/game.ts`): the one function every colour goes through, the hour's light then the headlights then the haze. Fog thickens the haze there (`hazeM`), wet roads darken and shine where it tints, and snow cover is a change to a surface's colour before it.
+- **The live sun** (`art/sun.ts`): its length is the sun's strength, so cloud cover dims direct light by shortening it, for every material at once.
+- **The condition** (`drive.condition`, `sim/surfaces.ts`): the weather sets it where the dev menu does today.
 
 ### 2. Weather (after 1)
 
