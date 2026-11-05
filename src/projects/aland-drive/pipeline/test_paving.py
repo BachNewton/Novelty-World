@@ -147,7 +147,9 @@ class Underpasses(unittest.TestCase):
         path = paved.points[paved.points[:, 6].astype(int) == chains["cycleway"]]
         # The deck reaches its carriageway and shoulder either side of its line: the path's points under it stand at its edges.
         primary = paved.chains[chains["primary"]]
-        under = path[np.abs(path[:, 1] - 600) < paving.reach_of(primary).max() + 0.05]
+        # Over the underpass the deck is the carriageway alone, with no shoulder: the path's points under it stand at its edges.
+        self.assertLess(float(paved.reaches[primary.index][np.abs(primary.xy[:, 0] - 600) < 1].max()), float(primary.half.max()) + 0.01)
+        under = path[np.abs(path[:, 1] - 600) < primary.half.max() + 0.05]
         deck = paved.points[(paved.points[:, 6].astype(int) == chains["primary"]) & (np.abs(paved.points[:, 0] - 600) < 5)]
         self.assertGreater(len(under), 0)
         self.assertLessEqual(under[:, 2].max(), deck[:, 2].min() - paving.UNDERPASS_CLEAR_M + 0.01)

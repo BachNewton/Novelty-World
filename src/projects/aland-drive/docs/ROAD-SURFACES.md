@@ -90,7 +90,8 @@ Ribbons as separate meshes, aprons and their tuck, shoulders and their cap and s
 - **The game keeps every triangle of paving.** Its rule dropping "cliffs" (a steep triangle rising over 1.2 m) was for ribbons diving through each other, which one surface can't; on paving it cut thin triangles out of steep paths and left holes.
 - **Cut ground meets two heights at an underpass's portal.** Each corner of cut ground takes the height of the paving its own triangle borders, and an upright face closes any gap left along an edge, between two triangles of cut ground or between cut ground and paving. An underpass's walls are concrete, as the bridges are.
 - **An underpass in the open is a way like any other** to the banks and cuttings beside it; left out, the ground was stretched from its floor up to the raw land.
-- **Geometry alone can't say what lies between two ways.** Closing gaps narrower than 3 m and a fixed shoulder per class are guesses that kept needing retuning: too little paving left seams, too much lost sidewalks and genuinely separate roads. The next step reads the aerial photo at its full 0.5 m, at build time, for where the surface really is hard.
+- **A deck has no verge.** Where a road passes over an underpass, its paving stops at its carriageway's edge; with its shoulder the opening was a long dark box.
+- **The photo confirmed the geometry rather than improving it.** Closing gaps narrower than 3 m and a fixed shoulder per class looked like guesses, so a trial read the aerial photo at its full 0.5 m for where the ground is really hard: gaps paved only where the photo shows them hard, and each road's edge as wide as its hard ground. The owner saw almost no difference, and the narrower edges lost kerb paving the owner liked, so it was dropped. No open source measures Åland's street widths either: Digiroad's are the NLS road classes turned into constants, and the NLS class files most town streets as 4–5 m by rule.
 
 ### Trying it
 

@@ -123,6 +123,7 @@ class Paved:
     cut_points: np.ndarray  # (x, y, z) of the cut ground.
     cut_triangles: np.ndarray  # The underpasses' walls last, which are drawn as concrete rather than ground.
     cut_walls: int
+    reaches: dict[int, np.ndarray]  # How far each way's paving reaches from its line.
     ground: Ground
 
 
@@ -141,6 +142,24 @@ def reach_of(chain: Chain) -> np.ndarray:
     """How far a way's paving reaches from its line at each station: a motor road's shoulder is part of it, where a town
     street has its kerb and paving and a country road its stone edge; a path's ends at its edge."""
     return chain.half + (chain.shoulder if chain.motor else 0)
+
+
+def bare_decks(chains: list[Chain], levels: dict[int, np.ndarray], reaches: dict[int, np.ndarray], prints: dict[int, dict[int, shapely.Geometry]], tile: shapely.Polygon) -> None:
+    """Where a road passes over an underpass, its paving stops at its carriageway's edge: a deck has no verge, and a
+    shoulder's width over the opening only makes the underpass a long dark box."""
+    under = shapely.union_all([by_level[BELOW] for by_level in prints.values() if BELOW in by_level])
+    if under.is_empty:
+        return
+    shapely.prepare(under)
+    for chain in chains:
+        if chain.index not in prints or not chain.motor or (levels[chain.index] == BELOW).any():
+            continue
+        reach = reaches[chain.index][:, None] * chain.normal
+        across = shapely.linestrings(np.stack((chain.xy + reach, chain.xy - reach), axis=1))
+        over = ndimage.binary_dilation(shapely.intersects(under, across), iterations=1)
+        if over.any():
+            reaches[chain.index] = np.where(over, chain.half, reaches[chain.index])
+            prints[chain.index] = footprints(chain, levels[chain.index], tile, reaches[chain.index])
 
 
 def footprints(chain: Chain, levels: np.ndarray, tile: shapely.Polygon, reach_m: np.ndarray | None = None) -> dict[int, shapely.Geometry]:
@@ -735,7 +754,7 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
     return points, triangles
 
 
-def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground) -> tuple[np.ndarray, np.ndarray, int]:
+def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, reaches: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray, int]:
     """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, and which way.
 
     A corner shared by pieces of different ways is one point for each, at one place and height, so each piece keeps its own
@@ -761,7 +780,7 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
             if who >= 0:
                 offset = ((xy[mine] - chain.xy[station]) * chain.normal[station]).sum(-1)
                 # As a ribbon's: 1 at the carriageway's edge, 2 at the shoulder's.
-                half, shoulder = chain.half[station], np.maximum(reach_of(chain)[station] - chain.half[station], 1e-6)
+                half, shoulder = chain.half[station], np.maximum(reaches[chain_index][station] - chain.half[station], 1e-6)
                 past = np.maximum(np.abs(offset) - half, 0)
                 across[mine] = np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past / shoulder, 0, 2)
                 along[mine] = _paint_along(chain, ground)[station]
@@ -797,7 +816,9 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     tile = _tile_box(ground)
     laid = [chain for chain in chains if len(chain.xy) >= 2]
     levels = {chain.index: station_levels(chain) for chain in laid}
-    prints = {chain.index: footprints(chain, levels[chain.index], tile) for chain in laid}
+    reaches = {chain.index: reach_of(chain) for chain in laid}
+    prints = {chain.index: footprints(chain, levels[chain.index], tile, reaches[chain.index]) for chain in laid}
+    bare_decks(laid, levels, reaches, prints, tile)
     dipped_under_decks(chains, levels, prints)
     kept_apart(chains, prints)
     # Polygons only, and empty as a polygon is, whatever clipping left: a collection has no boundary to cut along.
@@ -812,7 +833,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas))
     surfaces = Surfaces(chains, ground)
     heights = solve_heights(mesh, surfaces, ground)
-    points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground)
+    points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, reaches)
 
     raw = ground.tile_corners()
     on_ground = _level_triangles(mesh, heights, GROUND)
@@ -828,7 +849,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     wall_points, wall_triangles = underpass_walls(mesh, heights)
     cut_triangles = np.concatenate((cut_triangles, wall_triangles + len(cut_points)))
     cut_points = np.concatenate((cut_points, wall_points))
-    return Paved(chains, conformed, points, triangles, area_points, cells, cut_points, cut_triangles, len(wall_triangles), ground)
+    return Paved(chains, conformed, points, triangles, area_points, cells, cut_points, cut_triangles, len(wall_triangles), reaches, ground)
 
 
 def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:
