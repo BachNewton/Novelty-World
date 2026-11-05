@@ -266,13 +266,13 @@ export async function checkAll(catalogues: Record<string, { artModels: () => Art
   return results;
 }
 
-/** One model's two versions from a view, side by side at the floor screen's pixels, for a look by eye. */
-export async function pictureOf(catalogues: Record<string, { artModels: () => ArtModel[] }>, name: string, azimuthDeg: number, elevationDeg: number): Promise<string> {
+/** One model's two versions from a view, side by side at the floor screen's pixels, for a look by eye: at its own swap, or one tried. */
+export async function pictureOf(catalogues: Record<string, { artModels: () => ArtModel[] }>, name: string, azimuthDeg: number, elevationDeg: number, swapM?: number): Promise<string> {
   const [kit, model] = name.split(": ");
   const entry = catalogues[kit].artModels().find((candidate) => candidate.name === model);
   if (entry === undefined) throw new Error(`no ${name}`);
   const view = { azimuthDeg, elevationDeg };
-  const [near, far] = [await draw(entry, "near", view), await draw(entry, "far", view)];
+  const [near, far] = [await draw(entry, "near", view, swapM), await draw(entry, "far", view, swapM)];
   const size = near.seen.width;
   const canvas = document.createElement("canvas");
   [canvas.width, canvas.height] = [size * 2, size];

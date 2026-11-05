@@ -1,7 +1,7 @@
 // Every kit's models, near and far, drawn as the game draws them on WebGPU in headless full Chromium, and compared at
 // the swap (`page.ts`): a far version that changes shape or colour from its near version is noticed when it swaps.
 //
-//   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--picture=<kit: model>@<azimuth>,<elevation> ...]
+//   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...]
 //
 // It finds the kits by their catalogues, needs no dev server and no tiles, and never touches a browser of the owner's.
 // A model whose outline moves, or whose look changes by FLIP, more than `NOTICED` allows is noticed, and the run fails
@@ -34,7 +34,7 @@ writeFileSync(
     `import { checkAll, pictureOf } from ${JSON.stringify(join(here, "page.ts").replaceAll("\\", "/"))};`,
     ...kits.map((kit, index) => `import * as kit${index} from ${JSON.stringify(join(art, kit, "catalogue.ts").replaceAll("\\", "/"))};`),
     `const catalogues = { ${kits.map((kit, index) => `${JSON.stringify(kit)}: kit${index}`).join(", ")} };`,
-    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts) => checkAll(catalogues, part, parts), pictureOf: (name, azimuth, elevation) => pictureOf(catalogues, name, azimuth, elevation) } });`,
+    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts) => checkAll(catalogues, part, parts), pictureOf: (name, azimuth, elevation, swap) => pictureOf(catalogues, name, azimuth, elevation, swap) } });`,
   ].join("\n"),
 );
 await build({ entryPoints: [entry], bundle: true, format: "esm", target: "esnext", outfile: join(OUT, ".page.js"), tsconfig: join(art, "../../../../tsconfig.json"), logLevel: "error" });
@@ -92,9 +92,9 @@ if (flags.includes("--write")) {
 console.log(`${results.length} models with a far version, ${noticed.length} change at the swap`);
 for (const wanted of pictures) {
   const [name, view] = wanted.split("@");
-  const [azimuth, elevation] = view.split(",").map(Number);
-  const data = await page.evaluate(({ name, azimuth, elevation }) => window.__lod.pictureOf(name, azimuth, elevation), { name, azimuth, elevation });
-  const file = join(OUT, `${name.replace(/[^\w]+/g, "-")}-${azimuth}-${elevation}.png`);
+  const [azimuth, elevation, swap] = view.split(",").map(Number);
+  const data = await page.evaluate(({ name, azimuth, elevation, swap }) => window.__lod.pictureOf(name, azimuth, elevation, swap), { name, azimuth, elevation, swap });
+  const file = join(OUT, `${name.replace(/[^\w]+/g, "-")}-${azimuth}-${elevation}${swap === undefined ? "" : `-at-${swap}`}.png`);
   writeFileSync(file, Buffer.from(data.split(",")[1], "base64"));
   console.log(file);
 }
