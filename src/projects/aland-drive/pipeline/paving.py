@@ -18,7 +18,7 @@ from scipy import ndimage, sparse
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
-from path_surfaces import NONE, way_class
+from path_surfaces import HARD_SURFACES, NONE, SLAB, way_class
 from roads import (
     APRON_ACROSS,
     APRON_CORNER_M,
@@ -111,6 +111,12 @@ SIDEWALK_SEAM_RUN_M = 40.0
 WORN_NEIGHBOURS = 32
 # Of a street's shoulder beside a sidewalk, the kerb's strip: past it, to the sidewalk, is the sidewalk's.
 KERB_STRIP_M = 0.3
+# Narrower than this, a sidewalk is the smoothing's own tail, not a band of paving.
+LEAST_WALK_M = 0.01
+# A sidewalk OSM maps on its street's own way rather than as a way of its own: this wide where it gives no width, and at
+# most this wide where it does.
+TAGGED_SIDEWALK_M = 2.0
+TAGGED_SIDEWALK_MOST_M = 5.0
 # A way meeting another at more than this sine of their angle, about 30 degrees, crosses it rather than running beside it.
 CROSSING_SINE = 0.5
 # A way passing under another keeps this much room under the deck above it.
@@ -200,6 +206,58 @@ def cross_of(chain: Chain) -> Cross:
     return Cross(chain.half.copy(), chain.half.copy(), reach.copy(), reach.copy(), none, none.copy())
 
 
+def tagged_sidewalks(chain: Chain) -> tuple[np.ndarray, np.ndarray]:
+    """The sidewalks a street's own OSM ways map on it, at each station: their widths, and their surfaces' classes, on the
+    chain's left and on its right."""
+    width = np.zeros((len(chain.xy), 2))
+    surface = np.full((len(chain.xy), 2), NONE)
+    for index, edge in enumerate(chain.edges):
+        mine = np.flatnonzero(chain.edge_at == index)
+        sides = _sidewalk_sides(edge.road)
+        if not len(mine) or not sides:
+            continue
+        # OSM names a side as its way runs, which may be against the chain.
+        line = shapely.LineString(edge.road["line"])
+        along = shapely.line_locate_point(line, shapely.points(chain.xy[mine]))
+        ahead = shapely.get_coordinates(shapely.line_interpolate_point(line, np.minimum(along + 1, line.length)))
+        behind = shapely.get_coordinates(shapely.line_interpolate_point(line, np.maximum(along - 1, 0)))
+        forwards = float(((ahead - behind) * chain.tangent[mine]).sum()) >= 0
+        for side, (wide, kind) in sides.items():
+            column = 0 if (side == "left") == forwards else 1
+            width[mine, column], surface[mine, column] = wide, kind
+    return width, surface
+
+
+def _sidewalk_sides(road: dict) -> dict[str, tuple[float, int]]:
+    """The sidewalks OSM maps on a way, by its side as the way runs, each one's width and surface class. `separate` says
+    one is mapped as a way of its own, which `along_sidewalks` finds beside the street."""
+    sides = set()
+    if road.get("sidewalk") in ("both", "yes") or road.get("sidewalk:both") == "yes":
+        sides |= {"left", "right"}
+    elif road.get("sidewalk") in ("left", "right"):
+        sides.add(road["sidewalk"])
+    for side in ("left", "right"):
+        if road.get(f"sidewalk:{side}") == "yes":
+            sides.add(side)
+        elif road.get(f"sidewalk:{side}") in ("no", "none", "separate"):
+            sides.discard(side)
+    found = {}
+    for side in sides:
+        keys = (f"sidewalk:{side}:", "sidewalk:both:", "sidewalk:")
+        width = next((metres for metres in (_metres(road.get(key + "width")) for key in keys) if metres is not None), TAGGED_SIDEWALK_M)
+        surface = next((HARD_SURFACES[road[key + "surface"]] for key in keys if road.get(key + "surface") in HARD_SURFACES), SLAB)
+        found[side] = (min(width, TAGGED_SIDEWALK_MOST_M), surface)
+    return found
+
+
+def _metres(value) -> float | None:
+    try:
+        metres = float(str(value).removesuffix("m").strip())
+    except ValueError:
+        return None
+    return metres if metres > 0 else None
+
+
 def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> set[int]:
     """A street's paving stops where a path running alongside it begins: a mapped sidewalk says where the street's edge is.
 
@@ -209,21 +267,24 @@ def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> set[int]:
     shoulder, it faded to the photo's colour, a pale band between the street and its sidewalk. Into a tile's edge, which
     both tiles must cut alike, the street keeps its class's.
 
+    A sidewalk the street's own tags map, on a side with no path beside it, widens the street's paving past the kerb's strip
+    by the sidewalk's width, and that band is the sidewalk.
+
     Returns the sidewalks: the paths that run beside a street, and those OSM tags as one.
     """
     paths = [chain for chain in chains if not chain.motor and len(chain.xy) >= 2]
     sidewalks = {chain.index for chain in paths if chain.tag("footway") == "sidewalk"}
-    if not paths:
-        return sidewalks
-    owners = np.concatenate([np.full(len(chain.xy), chain.index) for chain in paths])
-    xy = np.concatenate([chain.xy for chain in paths])
-    tangent = np.concatenate([chain.tangent for chain in paths])
-    half = np.concatenate([chain.half for chain in paths])
+    # With no path on the tile, one far off stands in, so a street's tagged sidewalks are still laid.
+    owners = np.concatenate([np.full(len(chain.xy), chain.index) for chain in paths]) if paths else np.full(1, JUNCTION)
+    xy = np.concatenate([chain.xy for chain in paths]) if paths else np.full((1, 2), 1e12)
+    tangent = np.concatenate([chain.tangent for chain in paths]) if paths else np.array([[1.0, 0.0]])
+    half = np.concatenate([chain.half for chain in paths]) if paths else np.zeros(1)
     tree = cKDTree(xy)
     for chain in chains:
         if not chain.motor or chain.index not in crosses:
             continue
         cross = crosses[chain.index]
+        tagged, _ = tagged_sidewalks(chain)
         radius = float(max(cross.reach_left.max(), cross.reach_right.max()) + half.max() + STATION_M)
         _, near = tree.query(chain.xy, k=SIDEWALK_NEIGHBOURS, distance_upper_bound=radius)
         found = near < len(xy)
@@ -240,18 +301,22 @@ def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> set[int]:
             from_seam = np.minimum(from_seam, np.abs(distance - distance[station]))
         own = np.clip(from_seam / SIDEWALK_SEAM_RUN_M, 0, 1)
         sides = []
-        for sign, carriageway, paving in ((1, cross.half_left, cross.reach_left), (-1, cross.half_right, cross.reach_right)):
+        for column, (sign, carriageway, paving) in enumerate(((1, cross.half_left, cross.reach_left), (-1, cross.half_right, cross.reach_right))):
             beside_here = np.where(beside & (sign * across > 0), inner, np.inf)
             edge = beside_here.min(axis=1)
             # A path in the carriageway's middle is a line drawn on the road, not a sidewalk beside it.
             edge = np.where(edge < SIDEWALK_LEAST_SHARE * chain.half, np.inf, edge)
-            target = np.minimum(paving, edge)
             sidewalks |= set(owners[near[np.isfinite(edge), beside_here[np.isfinite(edge)].argmin(axis=1)]].tolist())
-            # A sidewalk near enough that the strip to it is paved.
-            walk = np.where(edge <= paving + GAP_PAVED_M, np.maximum(target - carriageway - KERB_STRIP_M, 0), 0)
+            # A sidewalk near enough that the strip to it is paved, or one the street's tags map where none is drawn.
+            mapped = np.where(edge <= paving + GAP_PAVED_M, np.maximum(np.minimum(paving, edge) - carriageway - KERB_STRIP_M, 0), 0)
+            tag = np.where(np.isinf(edge), tagged[:, column], 0)
+            walk = np.where(tag > 0, tag, mapped)
+            target = np.where(tag > 0, carriageway + KERB_STRIP_M + tag, np.minimum(paving, edge))
             held = ndimage.gaussian_filter1d(paving + own * (target - paving), SIDEWALK_SMOOTH_STATIONS, mode="nearest")
+            widened = ndimage.gaussian_filter1d(own * tag, SIDEWALK_SMOOTH_STATIONS, mode="nearest") > LEAST_WALK_M
             walk = ndimage.gaussian_filter1d(own * walk, SIDEWALK_SMOOTH_STATIONS, mode="nearest")
-            reach = np.minimum(paving, held)
+            walk = np.where(walk > LEAST_WALK_M, walk, 0)
+            reach = np.where(widened, held, np.minimum(paving, held))
             sides.append((np.minimum(carriageway, held), reach, np.clip(walk, 0, np.maximum(reach - carriageway, 0))))
         crosses[chain.index] = Cross(sides[0][0], sides[1][0], sides[0][1], sides[1][1], sides[0][2], sides[1][2])
     return sidewalks
@@ -1051,6 +1116,13 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
                 shoulder = np.maximum(np.where(kerbed, chain.shoulder[station], np.where(left, cross.reach_left[station], cross.reach_right[station]) - half), 1e-6)
                 past = np.maximum(np.abs(offset) - half, 0)
                 across[mine] = np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past / shoulder, 0, 2)
+                # A sidewalk with no path beside it to wear is the one the street's tags map.
+                if walk[mine].any():
+                    _, kinds = tagged_sidewalks(chain)
+                    kind = np.where(left, kinds[station, 0], kinds[station, 1])
+                    tagged = walk[mine] & (kind != NONE)
+                    surface[mine[tagged]] = kind[tagged]
+                    across[mine[tagged]] = np.where(left[tagged], 1, -1) * OWN_SURFACE_ACROSS
                 along[mine] = _paint_along(chain, ground)[station]
         if who >= 0:
             mine = at[worn[at]]

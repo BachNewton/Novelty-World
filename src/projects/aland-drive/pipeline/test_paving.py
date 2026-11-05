@@ -159,6 +159,23 @@ class OneSurface(unittest.TestCase):
         self.assertTrue((corners[crossing][:, :, 6].astype(int) == chains["footway"].index).all())
         self.assertTrue((corners[crossing][:, :, 7] == path_surfaces.SLAB).all())
 
+    def test_a_sidewalk_tagged_on_a_street_is_laid_beside_it_on_its_side(self):
+        """OSM maps many of Mariehamn's sidewalks on the street's own way, and they were left out, the street a bare strip of
+        asphalt between kerbs. OSM names a side as its way runs: this one runs west, so its left is the south."""
+        street = road([(1100, 600), (100, 600)], **{"sidewalk": "left", "sidewalk:left:width": "3"})
+        paved = paving.lay([street], land())
+        chain = paved.chains[0]
+        corners = paved.points[paved.triangles]
+        cover = paving.Cover(corners[:, :, :3])
+        kerb = chain.half.max() + paving.KERB_STRIP_M
+        self.assertTrue(np.isfinite(cover.at(np.array([[600.0, 600 - kerb - 2.9]]))).all())
+        self.assertTrue(np.isnan(cover.at(np.array([[600.0, 600 + kerb + 1.5]]))).all())
+        middle = corners[:, :, :2].mean(axis=1)
+        band = corners[(middle[:, 1] < 600 - kerb - 0.05) & (np.abs(middle[:, 0] - 600) < 300)]
+        self.assertGreater(len(band), 10)
+        self.assertTrue((band[:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue((np.abs(band[:, :, 3]) < 1).all())
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")
