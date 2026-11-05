@@ -316,6 +316,8 @@ export interface HudReading {
   /** The challenge whose start ring the car is in, which its button starts. */
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
+  /** The day this page shows: its date (as `?date=` takes it), the hour, and whether the sun is up. */
+  clock: { date: string; hour: number; sunUp: boolean };
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -1750,7 +1752,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue, challenge: readChallenge(), offer, coop: readCoop() });
+    const shown = day.time();
+    const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
       challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));

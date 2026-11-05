@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, RefreshCcw, Hand, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { ArrowUp, CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -70,6 +70,17 @@ const NOTICE_LOOKS = {
   withdrawn: { icon: UserX, label: "Invite off" },
 } as const;
 
+/** A date as `?date=` takes it, as a driver reads one: "Mon 21 Dec". */
+function dayText(date: string): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** The hour as a 24-hour clock: "14:05". */
+function hourText(hour: number): string {
+  const minutes = Math.floor(hour * 60);
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
 /** The next turn as a distance: a driver reads tens of metres near, and tenths of a kilometre far. */
 function distanceText(metres: number): string {
   if (metres >= 1000) return `${(metres / 1000).toFixed(1)} km`;
@@ -96,6 +107,10 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
   const revArc = useRef<SVGCircleElement>(null);
   const revNeedle = useRef<SVGLineElement>(null);
   const miniMap = useRef<HTMLCanvasElement>(null);
+  const dateShown = useRef<HTMLSpanElement>(null);
+  const hourShown = useRef<HTMLSpanElement>(null);
+  const sunIcon = useRef<SVGSVGElement>(null);
+  const moonIcon = useRef<SVGSVGElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
   const cueArrow = useRef<HTMLDivElement>(null);
@@ -144,6 +159,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
     let shownPlay = "";
     let shownOffer = "";
     let shownCoop = "";
+    let shownDate = "";
     const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
       const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
       if (offerKey !== shownOffer) {
@@ -176,8 +192,15 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       });
     };
     const showSpeed = (reading: HudReading) => {
-      const { speedKmh, gear, revs, cue: next } = reading;
+      const { speedKmh, gear, revs, cue: next, clock } = reading;
       showChallenge(reading);
+      if (clock.date !== shownDate && dateShown.current) {
+        shownDate = clock.date;
+        dateShown.current.textContent = dayText(clock.date);
+      }
+      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
+      if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
+      if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
       if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
@@ -257,6 +280,18 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
         </div>
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
+      {/* The day over the mini map, as wide as it: date, and the hour with the sun or the moon. */}
+      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Date and time">
+        <span className="flex items-center gap-1" title="Date">
+          <CalendarDays className="size-5 shrink-0" aria-hidden />
+          <span ref={dateShown} aria-label="Date" />
+        </span>
+        <span className="flex items-center gap-1" title="Time">
+          <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
+          <Moon ref={moonIcon} className="size-5 shrink-0" style={{ display: "none" }} aria-hidden />
+          <span ref={hourShown} aria-label="Time" />
+        </span>
+      </div>
       <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
       {started && !noWebGpu && (
         <>

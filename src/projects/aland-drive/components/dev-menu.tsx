@@ -33,7 +33,7 @@ function CarList({ cars, car, onCar }: { cars: readonly CarChoice[]; car: CarId;
     current.current?.focus();
   }, []);
   return (
-    <ul className="grid grid-cols-2 gap-1">
+    <ul className="flex flex-col gap-1">
       {cars.map(({ id, name, paint }) => (
         <li key={id}>
           <button
@@ -178,23 +178,26 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, 
         role="dialog"
         aria-modal
         aria-label="Dev menu"
-        className="absolute top-14 right-6 flex w-80 max-w-full flex-col gap-3 rounded-lg p-3"
+        className="absolute top-14 right-6 grid max-h-[calc(100vh-4.5rem)] w-[min(60rem,calc(100vw-3rem))] grid-cols-3 gap-5 overflow-y-auto rounded-lg p-4"
         style={{ background: SHADE, color: INK }}
         onClick={(event) => { event.stopPropagation(); }}
       >
         <button type="button" aria-label="Close" title="Close" className="absolute top-2 right-2 cursor-pointer" onClick={onClose}>
           <X className="size-5" />
         </button>
-        <Section title="Place">
-          <CopyPlace whereabouts={whereabouts} />
-          <WorldSwitch />
-        </Section>
-        <Section title="Ground">
-          <ConditionChoice condition={condition} onCondition={onCondition} />
-        </Section>
-        <Section title="Day">
-          <DayChoice day={day} onDay={onDay} />
-        </Section>
+        {/* Three columns, so it fits a screen's height: the world's day and ground, where to go, and what to drive. */}
+        <div className="flex flex-col gap-4">
+          <Section title="Place">
+            <CopyPlace whereabouts={whereabouts} />
+            <WorldSwitch />
+          </Section>
+          <Section title="Day">
+            <DayChoice day={day} onDay={onDay} />
+          </Section>
+          <Section title="Ground">
+            <ConditionChoice condition={condition} onCondition={onCondition} />
+          </Section>
+        </div>
         <Section title="Jump to">
           <SpotList spots={spots} onJump={onJump} />
         </Section>
