@@ -79,6 +79,9 @@ FLAT_TRIANGLE_M2 = 1e-6
 # Ways' surfaces are compared at points this far apart round where they meet, and at most this many of them.
 AGREE_SAMPLE_M = 2.0
 AGREE_SAMPLES = 24
+# A gap is judged a piece of this lattice at a time: judged whole, a strip running a hundred metres between a street and
+# its path was left as ground all along wherever the two disagreed at any one place on it.
+GAP_PIECE_M = 4.0
 # Two ways that touch stand this far apart in height, along most of where they touch, when one is on a bank above the other.
 BANK_STEP_M = 1.0
 # A way whose surface disagrees with a greater one it touches stands this far back from it, leaving room for a bank.
@@ -323,14 +326,27 @@ def _agree(ways: list[Chain], shape: shapely.Geometry) -> bool:
     return len(ways) < 2 or float(_apart(ways, shape).max()) <= GAP_MOST_STEP_M
 
 
+def _pieces(gap: shapely.Polygon) -> list[shapely.Polygon]:
+    """A gap cut on a lattice of the world, so a long strip is judged stretch by stretch where it lies."""
+    west, south, east, north = (np.array(gap.bounds) / GAP_PIECE_M).tolist()
+    columns, rows = (cells.ravel() * GAP_PIECE_M for cells in np.meshgrid(np.arange(np.floor(west), np.ceil(east)), np.arange(np.floor(south), np.ceil(north))))
+    cut = shapely.intersection(gap, shapely.box(columns, rows, columns + GAP_PIECE_M, rows + GAP_PIECE_M))
+    return [piece for piece in shapely.get_parts(cut) if isinstance(piece, shapely.Polygon) and not piece.is_empty]
+
+
 def _between_ways(gaps: shapely.Geometry, chains: list[Chain], prints: list[shapely.Geometry]) -> list[shapely.Polygon]:
-    """The gaps closed between ways at heights near enough to pave: farther apart, one is on a bank or over the other."""
+    """The gaps closed between ways at heights near enough to pave: farther apart, one is on a bank or over the other.
+
+    Each piece is judged by the ways its gap lies between that reach it: a lattice line along a strip leaves pieces
+    touching one side only, and a way the gap touches only at its far end says nothing of the ground here."""
     tree = shapely.STRtree(prints)
     kept = []
     for part in _flat(gaps):
-        beside = [chains[index] for index in tree.query(part, predicate="dwithin", distance=SLIVER_M * 4)]
-        if beside and _agree(beside, part):
-            kept.append(part)
+        between = set(tree.query(part, predicate="dwithin", distance=SLIVER_M * 4).tolist())
+        for piece in _pieces(part):
+            beside = [chains[index] for index in tree.query(piece, predicate="dwithin", distance=GAP_PAVED_M).tolist() if index in between]
+            if beside and _agree(beside, piece):
+                kept.append(piece)
     return kept
 
 

@@ -113,6 +113,21 @@ class OneSurface(unittest.TestCase):
             own = paved.points[paved.points[:, 6].astype(int) == chain.index]
             self.assertLess(np.abs(own[:, 2] - chain.plane(own[:, :2])).max(), 0.1, chain.kind_name)
 
+    def test_a_narrow_strip_beside_a_street_is_paved_where_the_two_agree_though_they_part_further_on(self):
+        """Judged whole, the strip between a street and its path was left as ground, a pale band all along it, because the
+        path climbs a bank at its far end."""
+
+        def bank_at_the_end(east, north):
+            return 10 + np.where(north > 604, 1.5 * np.clip((east - 900) / 40, 0, 1), 0)
+
+        street = road([(100, 600), (1100, 600)])
+        path = road([(100, 606.75), (1100, 606.75)], "footway", motor=False)
+        paved = paving.lay([street, path], land(height=bank_at_the_end))
+        cover = paving.Cover(paved.points[paved.triangles][:, :, :3])
+        strip = 600 + paved.crosses[paved.chains[0].index].reach_left.max() + 1.0
+        self.assertTrue(np.isfinite(cover.at(np.array([[east, strip] for east in (300.0, 500.0, 700.0)]))).all())
+        self.assertTrue(np.isnan(cover.at(np.array([[1050.0, strip]]))).all())
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")
