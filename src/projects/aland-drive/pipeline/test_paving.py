@@ -101,9 +101,23 @@ class OneSurface(unittest.TestCase):
         primary, residential = chains["primary"], chains["residential"]
         corners = paved.points[paved.triangles]
         middle = corners[:, :, :2].mean(axis=1)
-        mouth = (np.abs(middle[:, 0] - 600) < residential.half.min()) & (middle[:, 1] > 600 + primary.half.max()) & (middle[:, 1] < 600 + paving.reach_of(primary).max())
+        mouth = (np.abs(middle[:, 0] - 600) < residential.half.min()) & (middle[:, 1] > 600 + primary.half.max()) & (middle[:, 1] < 600 + paved.crosses[primary.index].reach_left.max())
         self.assertGreater(int(mouth.sum()), 0)
         self.assertTrue((corners[mouth][:, :, 6].astype(int) == residential.index).all())
+
+    def test_a_sidewalk_mapped_close_to_a_wide_street_keeps_its_width_and_the_street_stops_at_it(self):
+        """By its class a main road reaches 7.5 m of carriageway and its shoulders round OSM's line: over a sidewalk mapped
+        4 m away, which was left a sliver, its width wandering with the gap between the two lines."""
+        street = road([(100, 600), (1100, 600)], "primary")
+        sidewalk = road([(100, 604), (1100, 604)], "footway", motor=False)
+        paved = paving.lay([street, sidewalk], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        corners = paved.points[paved.triangles]
+        owned = paving.Cover(corners[corners[:, 0, 6].astype(int) == chains["footway"].index][:, :, :3])
+        across = np.column_stack((np.full(9, 600.0), np.linspace(603.1, 604.9, 9)))
+        self.assertTrue(np.isfinite(owned.at(across)).all())
+        middle = len(chains["primary"].xy) // 2
+        self.assertAlmostEqual(float(paved.crosses[chains["primary"].index].reach_left[middle]), 3.0, delta=0.05)
 
     def test_laying_the_roads_never_moves_a_row_of_heights_a_neighbour_shares(self):
         ground = land(height=hilly)
@@ -148,7 +162,8 @@ class Underpasses(unittest.TestCase):
         # The deck reaches its carriageway and shoulder either side of its line: the path's points under it stand at its edges.
         primary = paved.chains[chains["primary"]]
         # Over the underpass the deck is the carriageway alone, with no shoulder: the path's points under it stand at its edges.
-        self.assertLess(float(paved.reaches[primary.index][np.abs(primary.xy[:, 0] - 600) < 1].max()), float(primary.half.max()) + 0.01)
+        over = np.abs(primary.xy[:, 0] - 600) < 1
+        self.assertLess(float(max(paved.crosses[primary.index].reach_left[over].max(), paved.crosses[primary.index].reach_right[over].max())), float(primary.half.max()) + 0.01)
         under = path[np.abs(path[:, 1] - 600) < primary.half.max() + 0.05]
         deck = paved.points[(paved.points[:, 6].astype(int) == chains["primary"]) & (np.abs(paved.points[:, 0] - 600) < 5)]
         self.assertGreater(len(under), 0)
@@ -158,6 +173,20 @@ class Underpasses(unittest.TestCase):
         across = np.hypot(*(upright[:, :, :2].max(1) - upright[:, :, :2].min(1)).T)
         self.assertTrue(((rise > 1) & (across < 4)).any())
 
+    def test_two_paths_tagged_as_tunnels_past_the_road_share_one_floor_under_it_and_are_on_the_ground_beyond(self):
+        """OSM tags an underpass's ways well past the road over them: below all that way, each ran in a trench of its own,
+        with a ridge of land between them."""
+        # The cycleway is tagged far past the road; the footway beside it only where it passes under.
+        footway = [road([(601.5, 450), (601.5, 590)], "footway", motor=False), road([(601.5, 590), (601.5, 610)], "footway", motor=False, tunnel="yes"), road([(601.5, 610), (601.5, 750)], "footway", motor=False)]
+        ways = [road([(100, 600), (1100, 600)], "primary"), road([(598, 450), (598, 750)], "cycleway", motor=False, tunnel="yes"), *footway]
+        paved = paving.lay(ways, land())
+        corners = paved.points[paved.triangles]
+        deck = corners[corners[:, :, 6].astype(int) == [chain.index for chain in paved.chains if chain.kind_name == "primary"][0]][:, 2].min()
+        floor = corners[(corners[:, :, 2] < deck - paving.UNDERPASS_CLEAR_M + 0.01).all(axis=1)]
+        # Under the road, between the two paths' own outlines, is the shared floor.
+        self.assertTrue(np.isfinite(paving.Cover(floor[:, :, :3]).at(np.array([[599.75, 600.0]]))).all())
+        # Away from the road both are on the ground, one paving with the strip between them, not two trenches.
+        self.assertTrue(np.isfinite(paving.Cover(corners[:, :, :3]).at(np.array([[599.75, 650.0], [599.75, 550.0]]))).all())
 
 if __name__ == "__main__":
     unittest.main()

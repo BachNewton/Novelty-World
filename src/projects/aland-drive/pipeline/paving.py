@@ -89,6 +89,17 @@ STIFFNESS = 1.0
 SMOOTHNESS = 1.0
 # Far weaker than anything else: only gives a point no way owns a height to start from.
 FLOATING_WEIGHT = 1e-6
+# A path within this sine of a street's direction, about 20 degrees, runs alongside it; the nearest of so many of its
+# stations round each of the street's is looked at. A sidewalk nearer the street's line than this share of its half-width
+# is a line drawn on the road, and the street's edges ease over this many stations where one starts or ends, and back to
+# the class's own over the run into a tile's edge.
+SIDEWALK_SINE = 0.35
+SIDEWALK_NEIGHBOURS = 16
+SIDEWALK_LEAST_SHARE = 0.5
+SIDEWALK_SMOOTH_STATIONS = 2.0
+SIDEWALK_SEAM_RUN_M = 40.0
+# A way meeting another at more than this sine of their angle, about 30 degrees, crosses it rather than running beside it.
+CROSSING_SINE = 0.5
 # A way passing under another keeps this much room under the deck above it.
 UNDERPASS_CLEAR_M = 2.5
 # How deep a deck's edge is drawn over an underpass, and how far under the deck an underpass's walls stop.
@@ -123,12 +134,13 @@ class Paved:
     cut_points: np.ndarray  # (x, y, z) of the cut ground.
     cut_triangles: np.ndarray  # The underpasses' walls last, which are drawn as concrete rather than ground.
     cut_walls: int
-    reaches: dict[int, np.ndarray]  # How far each way's paving reaches from its line.
+    crosses: dict[int, "Cross"]  # How each way's paving spreads either side of its line.
     ground: Ground
 
 
 def station_levels(chain: Chain) -> np.ndarray:
-    """Each station's level: above on a span, below on a stretch OSM tags as a tunnel, the ground's everywhere else."""
+    """Each station's level as OSM tags it: above on a span, below on a stretch tagged as a tunnel, the ground's everywhere
+    else. `under_others` then keeps a tunnel below only where it passes under another way."""
     tunnel = np.array([chain.edges[index].road.get("tunnel") not in (None, "no", "building_passage") for index in chain.edge_at])
     return np.where(chain.span, ABOVE, np.where(tunnel, BELOW, GROUND))
 
@@ -138,13 +150,110 @@ def _quads(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return shapely.buffer(shapely.polygons(rings), 0)
 
 
-def reach_of(chain: Chain) -> np.ndarray:
-    """How far a way's paving reaches from its line at each station: a motor road's shoulder is part of it, where a town
-    street has its kerb and paving and a country road its stone edge; a path's ends at its edge."""
-    return chain.half + (chain.shoulder if chain.motor else 0)
+@dataclass
+class Cross:
+    """How a way's paving spreads either side of its line at each station: to its carriageway's edge, and to its paving's
+    edge past that, on its left and on its right."""
+
+    half_left: np.ndarray
+    half_right: np.ndarray
+    reach_left: np.ndarray
+    reach_right: np.ndarray
+
+    @property
+    def carriageway(self) -> tuple[np.ndarray, np.ndarray]:
+        return self.half_left, self.half_right
+
+    @property
+    def paving(self) -> tuple[np.ndarray, np.ndarray]:
+        return self.reach_left, self.reach_right
 
 
-def bare_decks(chains: list[Chain], levels: dict[int, np.ndarray], reaches: dict[int, np.ndarray], prints: dict[int, dict[int, shapely.Geometry]], tile: shapely.Polygon) -> None:
+def cross_of(chain: Chain) -> Cross:
+    """A way's own cross-section by its class: a motor road's shoulder is part of its paving, where a town street has its
+    kerb and paving and a country road its stone edge; a path's ends at its edge."""
+    reach = chain.half + (chain.shoulder if chain.motor else 0)
+    return Cross(chain.half.copy(), chain.half.copy(), reach.copy(), reach.copy())
+
+
+def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> None:
+    """A street's paving stops where a path running alongside it begins: a mapped sidewalk says where the street's edge is.
+
+    By its class alone a street is a guessed width centred on OSM's line, which can reach over its sidewalk, and the
+    greater way takes what the two share: the sidewalk was left a sliver, bitten at every crossing. Its edge line and kerb
+    now stand where the sidewalk starts. Into a tile's edge, which both tiles must cut alike, the street keeps its class's.
+    """
+    paths = [chain for chain in chains if not chain.motor and len(chain.xy) >= 2]
+    if not paths:
+        return
+    xy = np.concatenate([chain.xy for chain in paths])
+    tangent = np.concatenate([chain.tangent for chain in paths])
+    half = np.concatenate([chain.half for chain in paths])
+    tree = cKDTree(xy)
+    for chain in chains:
+        if not chain.motor or chain.index not in crosses:
+            continue
+        cross = crosses[chain.index]
+        radius = float(max(cross.reach_left.max(), cross.reach_right.max()) + half.max() + STATION_M)
+        _, near = tree.query(chain.xy, k=SIDEWALK_NEIGHBOURS, distance_upper_bound=radius)
+        found = near < len(xy)
+        near = np.where(found, near, 0)
+        offset = xy[near] - chain.xy[:, None]
+        across = (offset * chain.normal[:, None]).sum(-1)
+        along = (offset * chain.tangent[:, None]).sum(-1)
+        sine = np.abs(chain.tangent[:, None, 0] * tangent[near][..., 1] - chain.tangent[:, None, 1] * tangent[near][..., 0])
+        beside = found & (np.abs(along) <= STATION_M) & (sine < SIDEWALK_SINE)
+        inner = np.abs(across) - half[near]
+        from_seam = np.full(len(chain.xy), np.inf)
+        distance = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(chain.xy, axis=0).T))))
+        for station in chain.seam_stations:
+            from_seam = np.minimum(from_seam, np.abs(distance - distance[station]))
+        own = np.clip(from_seam / SIDEWALK_SEAM_RUN_M, 0, 1)
+        sides = []
+        for sign, carriageway, paving in ((1, cross.half_left, cross.reach_left), (-1, cross.half_right, cross.reach_right)):
+            edge = np.where(beside & (sign * across > 0), inner, np.inf).min(axis=1)
+            # A path in the carriageway's middle is a line drawn on the road, not a sidewalk beside it.
+            edge = np.where(edge < SIDEWALK_LEAST_SHARE * chain.half, np.inf, edge)
+            held = np.minimum(paving, edge)
+            held = paving + own * (held - paving)
+            held = ndimage.gaussian_filter1d(held, SIDEWALK_SMOOTH_STATIONS, mode="nearest")
+            sides.append((np.minimum(carriageway, held), np.minimum(paving, held)))
+        crosses[chain.index] = Cross(sides[0][0], sides[1][0], sides[0][1], sides[1][1])
+
+
+
+
+def under_others(chains: list[Chain], levels: dict[int, np.ndarray], crosses: dict[int, Cross], tile: shapely.Polygon) -> None:
+    """A stretch tagged as a tunnel is below only where another way's paving stands over it, and a station either side.
+
+    OSM tags the whole of an underpass's way, often well past the road over it; left below there, a path runs in a trench
+    of its own beside the one it shares the underpass with. Off the crossing it's on the ground, like any way.
+    """
+    over = [footprints(chain, levels[chain.index], tile, crosses[chain.index].paving).get(GROUND) for chain in chains]
+    chains_by_index = {chain.index: chain for chain in chains}
+    owners = [chain.index for chain, shape in zip(chains, over) if shape is not None]
+    if not owners:
+        return
+    tree = shapely.STRtree([shape for shape in over if shape is not None])
+    for chain in chains:
+        tagged = levels[chain.index] == BELOW
+        if not tagged.any():
+            continue
+        at, held = tree.query(shapely.points(chain.xy), predicate="within")
+        under = np.zeros(len(chain.xy), dtype=bool)
+        for station, index in zip(at, held):
+            other = chains_by_index[owners[index]]
+            if other.index == chain.index:
+                continue
+            # Over it, not beside it: a way crossing it is a deck; one running alongside is its neighbour in the underpass.
+            theirs = other.tangent[other.tree.query(chain.xy[station])[1]]
+            if abs(float(chain.tangent[station][0] * theirs[1] - chain.tangent[station][1] * theirs[0])) > CROSSING_SINE:
+                under[station] = True
+        under = ndimage.binary_dilation(under, iterations=1)
+        levels[chain.index] = np.where(tagged & ~under, GROUND, levels[chain.index])
+
+
+def bare_decks(chains: list[Chain], levels: dict[int, np.ndarray], crosses: dict[int, Cross], prints: dict[int, dict[int, shapely.Geometry]], tile: shapely.Polygon) -> None:
     """Where a road passes over an underpass, its paving stops at its carriageway's edge: a deck has no verge, and a
     shoulder's width over the opening only makes the underpass a long dark box."""
     under = shapely.union_all([by_level[BELOW] for by_level in prints.values() if BELOW in by_level])
@@ -154,19 +263,18 @@ def bare_decks(chains: list[Chain], levels: dict[int, np.ndarray], reaches: dict
     for chain in chains:
         if chain.index not in prints or not chain.motor or (levels[chain.index] == BELOW).any():
             continue
-        reach = reaches[chain.index][:, None] * chain.normal
-        across = shapely.linestrings(np.stack((chain.xy + reach, chain.xy - reach), axis=1))
+        cross = crosses[chain.index]
+        across = shapely.linestrings(np.stack((chain.xy + cross.reach_left[:, None] * chain.normal, chain.xy - cross.reach_right[:, None] * chain.normal), axis=1))
         over = ndimage.binary_dilation(shapely.intersects(under, across), iterations=1)
         if over.any():
-            reaches[chain.index] = np.where(over, chain.half, reaches[chain.index])
-            prints[chain.index] = footprints(chain, levels[chain.index], tile, reaches[chain.index])
+            crosses[chain.index] = Cross(cross.half_left, cross.half_right, np.where(over, cross.half_left, cross.reach_left), np.where(over, cross.half_right, cross.reach_right))
+            prints[chain.index] = footprints(chain, levels[chain.index], tile, crosses[chain.index].paving)
 
 
-def footprints(chain: Chain, levels: np.ndarray, tile: shapely.Polygon, reach_m: np.ndarray | None = None) -> dict[int, shapely.Geometry]:
-    """A way's outline on each level it's on: every station, its cut ends included, since the merge is the join. It reaches
-    as far as the way's paving does, or `reach_m` from its line."""
-    reach = (reach_of(chain) if reach_m is None else reach_m)[:, None] * chain.normal
-    left, right, level = chain.xy + reach, chain.xy - reach, levels
+def footprints(chain: Chain, levels: np.ndarray, tile: shapely.Polygon, sides: tuple[np.ndarray, np.ndarray]) -> dict[int, shapely.Geometry]:
+    """A way's outline on each level it's on, reaching `sides` to its left and right: every station, its cut ends included,
+    since the merge is the join."""
+    left, right, level = chain.xy + sides[0][:, None] * chain.normal, chain.xy - sides[1][:, None] * chain.normal, levels
     last = len(chain.xy) - 1
     if 0 in chain.seam_stations:
         out = -chain.tangent[0] * SEAM_REACH_M
@@ -320,16 +428,30 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     owner = np.where(owner == JUNCTION, by_shoulder, owner)
     owner[(owner == JUNCTION) & shapely.contains(areas.buffer(SLIVER_M), middles)] = AREA
     found = [Piece(face, int(who), GROUND) for face, who in zip(faces, owner)]
+    found += _below_pieces(chains, prints, paved)
     for index, by_level in prints.items():
-        for level, shape in by_level.items():
-            if level == BELOW:
-                # Cut where the ground's paving passes over it, so its points stand under the deck's edges and its walls rise from them.
-                lines = shapely.union_all([shape.boundary, shapely.intersection(paved.boundary, shape)], grid_size=GRID_M)
-                cut = shapely.get_parts(shapely.polygonize(shapely.get_parts(shapely.segmentize(lines, LONGEST_SECTION_M))))
-                found += [Piece(part, index, level) for part in cut if shape.buffer(SLIVER_M).contains(part.point_on_surface())]
-            elif level != GROUND:
-                found += [Piece(part, index, level) for part in _flat(shapely.segmentize(shape, LONGEST_SECTION_M))]
+        if ABOVE in by_level:
+            found += [Piece(part, index, ABOVE) for part in _flat(shapely.segmentize(by_level[ABOVE], LONGEST_SECTION_M))]
     return found
+
+
+def _below_pieces(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], paved: shapely.Geometry) -> list[Piece]:
+    """The underpasses' paving, merged as the ground's is: two paths sharing an underpass are one floor. It's cut where the
+    ground's paving passes over it, so its points stand under the deck's edges and its walls rise from them."""
+    below = {index: by_level[BELOW] for index, by_level in prints.items() if BELOW in by_level}
+    if not below:
+        return []
+    indices = list(below)
+    laid = shapely.union_all(list(below.values()))
+    joined = _between_ways(_rounded(laid, GAP_PAVED_M / 2), [chains[index] for index in indices], [below[index] for index in indices])
+    shape = shapely.union_all([laid, *joined])
+    lines = [shape.boundary, shapely.intersection(paved.boundary, shape)] + [shapely.intersection(part.boundary, shape) for part in below.values()]
+    linework = shapely.segmentize(shapely.union_all([line for line in lines if not line.is_empty], grid_size=GRID_M), LONGEST_SECTION_M)
+    faces = shapely.get_parts(shapely.polygonize(shapely.get_parts(linework)))
+    middles = shapely.point_on_surface(faces)
+    inside = shapely.contains(shape.buffer(SLIVER_M), middles)
+    owner = _greatest(chains, below, middles[inside])
+    return [Piece(face, int(who), BELOW) for face, who in zip(faces[inside], owner)]
 
 
 @dataclass
@@ -736,14 +858,16 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
     def segments(line: shapely.Geometry) -> np.ndarray:
         return np.array([pair for part in shapely.get_parts(line) for pair in zip(part.coords[:-1], part.coords[1:])]).reshape(-1, 2, 2)
 
+    # Only under a deck: where an underpass's floor rises to meet its own way out in the open, the two meet, with nothing over them.
     for pair in segments(shapely.intersection(under.boundary, over)):
         low = below_cover.at(pair)
         high = deck_cover.at(pair) - DECK_DEPTH_M
-        if not (np.isnan(low).any() or np.isnan(high).any()):
+        if not (np.isnan(low).any() or np.isnan(high).any()) and (high - low).min() > UNDERPASS_CLEAR_M / 2:
             quads.append(np.array([[*pair[0], low[0]], [*pair[1], low[1]], [*pair[1], high[1]], [*pair[0], high[0]]]))
     for pair in segments(shapely.intersection(over.boundary, under)):
         top = deck_cover.at(pair)
-        if not np.isnan(top).any():
+        floor = below_cover.at(pair)
+        if not (np.isnan(top).any() or np.isnan(floor).any()) and (top - floor).min() > UNDERPASS_CLEAR_M / 2:
             quads.append(np.array([[*pair[0], top[0]], [*pair[1], top[1]], [*pair[1], top[1] - DECK_DEPTH_M], [*pair[0], top[0] - DECK_DEPTH_M]]))
     if not quads:
         return np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64)
@@ -754,7 +878,7 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
     return points, triangles
 
 
-def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, reaches: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray, int]:
+def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, crosses: dict[int, Cross]) -> tuple[np.ndarray, np.ndarray, int]:
     """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, and which way.
 
     A corner shared by pieces of different ways is one point for each, at one place and height, so each piece keeps its own
@@ -780,7 +904,9 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
             if who >= 0:
                 offset = ((xy[mine] - chain.xy[station]) * chain.normal[station]).sum(-1)
                 # As a ribbon's: 1 at the carriageway's edge, 2 at the shoulder's.
-                half, shoulder = chain.half[station], np.maximum(reaches[chain_index][station] - chain.half[station], 1e-6)
+                cross = crosses[chain_index]
+                half = np.maximum(np.where(offset >= 0, cross.half_left[station], cross.half_right[station]), 1e-6)
+                shoulder = np.maximum(np.where(offset >= 0, cross.reach_left[station], cross.reach_right[station]) - half, 1e-6)
                 past = np.maximum(np.abs(offset) - half, 0)
                 across[mine] = np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past / shoulder, 0, 2)
                 along[mine] = _paint_along(chain, ground)[station]
@@ -816,9 +942,11 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     tile = _tile_box(ground)
     laid = [chain for chain in chains if len(chain.xy) >= 2]
     levels = {chain.index: station_levels(chain) for chain in laid}
-    reaches = {chain.index: reach_of(chain) for chain in laid}
-    prints = {chain.index: footprints(chain, levels[chain.index], tile, reaches[chain.index]) for chain in laid}
-    bare_decks(laid, levels, reaches, prints, tile)
+    crosses = {chain.index: cross_of(chain) for chain in laid}
+    along_sidewalks(laid, crosses)
+    under_others(laid, levels, crosses, tile)
+    prints = {chain.index: footprints(chain, levels[chain.index], tile, crosses[chain.index].paving) for chain in laid}
+    bare_decks(laid, levels, crosses, prints, tile)
     dipped_under_decks(chains, levels, prints)
     kept_apart(chains, prints)
     # Polygons only, and empty as a polygon is, whatever clipping left: a collection has no boundary to cut along.
@@ -827,13 +955,13 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     carriageways = {}
     for chain in laid:
         if GROUND in prints[chain.index]:
-            carriageway = footprints(chain, levels[chain.index], tile, chain.half).get(GROUND)
+            carriageway = footprints(chain, levels[chain.index], tile, crosses[chain.index].carriageway).get(GROUND)
             if carriageway is not None:
                 carriageways[chain.index] = _polygonal(shapely.intersection(carriageway, prints[chain.index][GROUND]))
     mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas))
     surfaces = Surfaces(chains, ground)
     heights = solve_heights(mesh, surfaces, ground)
-    points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, reaches)
+    points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses)
 
     raw = ground.tile_corners()
     on_ground = _level_triangles(mesh, heights, GROUND)
@@ -849,7 +977,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     wall_points, wall_triangles = underpass_walls(mesh, heights)
     cut_triangles = np.concatenate((cut_triangles, wall_triangles + len(cut_points)))
     cut_points = np.concatenate((cut_points, wall_points))
-    return Paved(chains, conformed, points, triangles, area_points, cells, cut_points, cut_triangles, len(wall_triangles), reaches, ground)
+    return Paved(chains, conformed, points, triangles, area_points, cells, cut_points, cut_triangles, len(wall_triangles), crosses, ground)
 
 
 def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:
