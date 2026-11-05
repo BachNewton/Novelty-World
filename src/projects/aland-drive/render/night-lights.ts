@@ -2,6 +2,7 @@ import type { Scene, WebGPURenderer } from "three/webgpu";
 import { createCarGlows, createGlows, createLampLight, createSeaBeams, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
 import { uniform } from "three/tsl";
 import { placesOf } from "../art/marina/places";
+import { LIGHTS_ON_MARKS } from "./lights-on-marks";
 
 /*
  * The night's lights in the game (`art/night`): every lamp beside the roads, the sea's lights from OSM with the great
@@ -38,11 +39,11 @@ export interface NightLights {
 }
 
 export function createNightLights(scene: Scene, night: Night, { onAland }: { onAland: boolean }): NightLights {
-  const sea = onAland ? seaLightGlows() : { glows: [], rhythms: [] };
+  const sea = onAland ? seaLightGlows(LIGHTS_ON_MARKS) : { glows: [], rhythms: [] };
   const fixed = [...sea.glows, ...(onAland ? harbourGlows(placesOf("marina")) : [])];
   const glows = createGlows(night, fixed, sea.rhythms, fixed.length + LAMPS_MOST);
   const pools = createLampLight(night, LAMPS_MOST);
-  const beams = onAland ? createSeaBeams(night) : null;
+  const beams = onAland ? createSeaBeams(night, LIGHTS_ON_MARKS) : null;
   const cars = createCarGlows(night, CARS_MOST);
   const meshes = [glows.mesh, cars.mesh, ...(beams ? [beams.mesh] : [])];
   scene.add(...meshes);
