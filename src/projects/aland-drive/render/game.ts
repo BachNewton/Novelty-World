@@ -92,6 +92,8 @@ import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { groundCondition } from "../climate/feed";
+import { createSeasonFeed } from "./season-feed";
+import type { SeasonDials } from "../art/season";
 import { fitTyres, tyresOn } from "../garage/tyres";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -220,6 +222,8 @@ export interface GameProbe {
   day: () => DayShown;
   /** Moves this page's day: another date (null for today's), an hour that runs on from there, or holds it. */
   setDay: (change: DayChange) => void;
+  /** The season's dials as drawn, from the day's date (`art/season.ts`). */
+  season: () => SeasonDials;
   /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
   showNightLights: (shown: boolean) => void;
   /** Every boat under way, where it was last drawn. */
@@ -642,6 +646,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   scene.add(sky.mesh);
   const day = createDayAndNight(sky, window.location.search, seaSeconds());
   const { sun, night } = day;
+  const seasonFeed = createSeasonFeed(day.time(), seaSeconds());
+  const { season } = seasonFeed;
   // The bake holds the sun at the manifest's one place. Under the live sun its light is moved by how much more or less
   // the ground faces the sun now than it faced that one (`render/terrain-light.ts`).
   const terrainLight = terrainLightAsked(window.location.search);
@@ -1677,6 +1683,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (hour !== undefined) day.clock.setHour(hour, now);
     if (holdHour !== undefined) day.clock.hold(holdHour, now);
     day.update(now, 0);
+    seasonFeed.update(day.time(), now);
   };
 
   const lampsAt = new Vector3();
@@ -1793,6 +1800,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     showRibbons(spot);
     landmarks.update(spot);
     day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds);
+    seasonFeed.update(day.time(), seaHeldAt ?? seaNow());
     if (roadside.lampRevision() !== lampRevision) {
       lampRevision = roadside.lampRevision();
       nightLights.setLamps(roadside.lamps());
@@ -1945,6 +1953,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
       day: dayShown,
       setDay,
+      season: () => season.current(),
       showNightLights: (shown) => {
         nightLights.show(shown);
         headlights.cones.visible = shown;
