@@ -1,8 +1,9 @@
-import { BufferAttribute, BufferGeometry, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, type Node } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Matrix4, Mesh, type Node } from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildDistant } from "./body";
 import { axleY, buildCarParts, groundY, type CarSpec } from "./build";
+import { distantLamps, lampOptions, lampSpots, worldLamps } from "./indicators";
 import { SURFACES, type Soup } from "./mesh";
 import { geometryOf, worldCarMaterial } from "./material";
 import { type Sun } from "../sun";
@@ -12,7 +13,7 @@ import { type Sun } from "../sun";
  * many there are, with paint, a little height, a roof rack and the plate's band
  * per instance. Body and wheels are one geometry with its origin on the road, so
  * a world car's wheels don't turn: they have no spokes to see. Moving one writes
- * four numbers.
+ * four numbers, and its indicators one more (`signal`, see `worldCarMaterial`).
  */
 
 /** Past this a car is its stand-in, and past `REACH_M` it's gone. */
@@ -62,6 +63,12 @@ export function lookOf(spec: CarSpec, seed: number): CarLook {
   };
 }
 
+function withLamps(soup: Soup): BufferGeometry {
+  const geometry = geometryOf(soup);
+  geometry.setAttribute("carOption", new BufferAttribute(lampOptions(soup), 1));
+  return geometry;
+}
+
 function withOptions(soup: Soup): BufferGeometry {
   const geometry = geometryOf(soup);
   const [rack, band] = [SURFACES.indexOf("rack"), SURFACES.indexOf("plateBand")];
@@ -69,11 +76,36 @@ function withOptions(soup: Soup): BufferGeometry {
   return geometry;
 }
 
+const PER_VERTEX = ["position", "normal", "carColour", "carFinish", "carOption"] as const;
+
+/**
+ * A shape's per-vertex attributes in one buffer. A WebGPU pipeline may read at most eight vertex buffers, and an
+ * instanced world car reads four more of its own (place, paint, look and signal).
+ */
+function packed(geometry: BufferGeometry): BufferGeometry {
+  const sources = PER_VERTEX.map((name) => geometry.getAttribute(name));
+  const stride = sources.reduce((sum, source) => sum + source.itemSize, 0);
+  const count = sources[0].count;
+  const data = new Float32Array(count * stride);
+  for (let vertex = 0; vertex < count; vertex++) {
+    let at = vertex * stride;
+    for (const source of sources) for (let component = 0; component < source.itemSize; component++) data[at++] = source.getComponent(vertex, component);
+  }
+  const buffer = new InterleavedBuffer(data, stride);
+  const out = new BufferGeometry();
+  let offset = 0;
+  PER_VERTEX.forEach((name, index) => {
+    out.setAttribute(name, new InterleavedBufferAttribute(buffer, sources[index].itemSize, offset));
+    offset += sources[index].itemSize;
+  });
+  return out;
+}
+
 /** One car's world model, its origin on the road under its middle. */
 export function worldGeometry(spec: CarSpec): BufferGeometry {
   const parts = buildCarParts(spec, "far", true);
   const road = groundY(spec);
-  const pieces: BufferGeometry[] = [withOptions(parts.body)];
+  const pieces: BufferGeometry[] = [withOptions(parts.body), withLamps(worldLamps(lampSpots(parts.body)))];
   const wheel = withOptions(parts.wheel);
   for (const z of spec.body.axleZ) {
     for (const side of [-1, 1]) {
@@ -84,15 +116,17 @@ export function worldGeometry(spec: CarSpec): BufferGeometry {
   }
   const joined = mergeGeometries(pieces);
   joined.translate(0, -road, 0);
-  return joined;
+  return packed(joined);
 }
 
-/** One car's stand-in, about thirty triangles of its outline. */
+/** One car's stand-in, about thirty triangles of its outline, and its indicators' lenses. */
 export function distantGeometry(spec: CarSpec): BufferGeometry {
   const road = groundY(spec);
-  const geometry = withOptions(buildDistant(spec.body, road));
+  const stand = buildDistant(spec.body, road);
+  const spots = lampSpots(buildCarParts(spec, "far", true).body);
+  const geometry = mergeGeometries([withOptions(stand), withLamps(distantLamps(stand, spots))]);
   geometry.translate(0, -road, 0);
-  return geometry;
+  return packed(geometry);
 }
 
 export const triangleCounts = (spec: CarSpec) => ({
@@ -109,6 +143,8 @@ export interface FleetCar {
   /** Radians anticlockwise, the same as `headingOf`. */
   yaw: number;
   seed: number;
+  /** Its indicators, as `worldCarMaterial` reads them: off when left out. */
+  signal?: number;
 }
 
 const placedMaterials = new Map<string, ReturnType<typeof worldCarMaterial>>();
@@ -126,10 +162,11 @@ export function placeWorldCar(spec: CarSpec, seed: number, version: "near" | "fa
   const look = lookOf(spec, seed);
   const { r, g, b } = themeColor(`--color-aland-drive-${look.paint}`);
   const geometry = new InstancedBufferGeometry();
-  for (const name of ["position", "normal", "carColour", "carFinish", "carOption"]) geometry.setAttribute(name, shape.getAttribute(name));
+  for (const name of PER_VERTEX) geometry.setAttribute(name, shape.getAttribute(name));
   geometry.setAttribute("place", new InstancedBufferAttribute(new Float32Array([0, 0, 0, 0]), 4));
   geometry.setAttribute("paint", new InstancedBufferAttribute(new Float32Array([r, g, b]), 3));
   geometry.setAttribute("look", new InstancedBufferAttribute(new Float32Array([look.height, look.rack ? 1 : 0, look.plateBand ? 1 : 0]), 3));
+  geometry.setAttribute("signal", new InstancedBufferAttribute(new Float32Array([0]), 1));
   geometry.instanceCount = 1;
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
@@ -147,10 +184,11 @@ export function fullestSeed(spec: CarSpec): number {
 
 interface Batch {
   places: InstancedBufferAttribute;
+  signals: InstancedBufferAttribute;
   meshes: Mesh[];
 }
 
-/** Every car given, on a few draw calls: two per model. `meshes` go in the scene; `move` shifts one car. */
+/** Every car given, on a few draw calls: two per model. `meshes` go in the scene; `move` shifts one car and `signal` sets its indicators. */
 export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">) {
   const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM: SWAP_M, reachM: REACH_M });
   const materials = { world: tier("world"), distant: tier("distant") };
@@ -165,7 +203,9 @@ export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (col
     places.setUsage(DynamicDrawUsage);
     const paints = new InstancedBufferAttribute(new Float32Array(own.length * 3), 3);
     const looks = new InstancedBufferAttribute(new Float32Array(own.length * 3), 3);
-    const batch: Batch = { places, meshes: [] };
+    const signals = new InstancedBufferAttribute(Float32Array.from(own, (car) => car.signal ?? 0), 1);
+    signals.setUsage(DynamicDrawUsage);
+    const batch: Batch = { places, signals, meshes: [] };
     own.forEach((car, index) => {
       const look = lookOf(spec, car.seed);
       const { r, g, b } = themeColor(`--color-aland-drive-${look.paint}`);
@@ -180,14 +220,11 @@ export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (col
     ] as const;
     for (const [shape, material] of parts) {
       const geometry = new InstancedBufferGeometry();
-      geometry.setAttribute("position", shape.getAttribute("position"));
-      geometry.setAttribute("normal", shape.getAttribute("normal"));
-      geometry.setAttribute("carColour", shape.getAttribute("carColour"));
-      geometry.setAttribute("carFinish", shape.getAttribute("carFinish"));
-      geometry.setAttribute("carOption", shape.getAttribute("carOption"));
+      for (const name of PER_VERTEX) geometry.setAttribute(name, shape.getAttribute(name));
       geometry.setAttribute("place", places);
       geometry.setAttribute("paint", paints);
       geometry.setAttribute("look", looks);
+      geometry.setAttribute("signal", signals);
       geometry.instanceCount = own.length;
       geometries.push(geometry);
       const mesh = new Mesh(geometry, material);
@@ -197,13 +234,23 @@ export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (col
     }
   }
 
+  const known = (car: FleetCar) => {
+    const found = batches.get(car);
+    if (!found) throw new Error(`${car.spec.name} is not in this fleet`);
+    return found;
+  };
+
   return {
     meshes,
     move(car: FleetCar, x: number, y: number, z: number, yaw: number) {
-      const known = batches.get(car);
-      if (!known) throw new Error(`${car.spec.name} is not in this fleet`);
-      known.batch.places.setXYZW(known.index, x, y, z, yaw);
-      known.batch.places.needsUpdate = true;
+      const { batch, index } = known(car);
+      batch.places.setXYZW(index, x, y, z, yaw);
+      batch.places.needsUpdate = true;
+    },
+    signal(car: FleetCar, signal: number) {
+      const { batch, index } = known(car);
+      batch.signals.setX(index, signal);
+      batch.signals.needsUpdate = true;
     },
     dispose() {
       geometries.forEach((geometry) => {

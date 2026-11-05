@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside kit's way of writing a model, with the boats' paints and the two
@@ -184,7 +185,7 @@ export interface Finish {
 
 export function finished({ near, far, swapM, reachM, rock, heelDeg = 0, lee = 1 }: Finish): RoadsideModel {
   const move = heeled(heelDeg, lee);
-  return { near: near.build(rock, move), far: far.build(rock, move), swapM, reachM };
+  return measuredSwap({ near: near.build(rock, move), far: far.build(rock, move), swapM, reachM });
 }
 
 /** How many triangles a geometry draws. */

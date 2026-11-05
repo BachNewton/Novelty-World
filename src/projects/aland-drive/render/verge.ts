@@ -1,11 +1,11 @@
-import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
+import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { attribute, cos, dot, float, floor, fract, If, int, min, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, unitOf } from "../art/hash";
 import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
-import { STREET_PARTS, streetColours, streetPaint, streetPalette, type StreetPart } from "../art/street";
+import { STREET_PARTS, streetPaint, streetPalette } from "../art/street";
 import { MOTION_RANGE_M } from "../art/street/paint";
-import { buildGrassTuft, buildSeedGrass, buildVergeCard, buildWildflowers } from "../art/street/verge";
+import { buildGrassTuft, buildSeedGrass, buildWildflowers } from "../art/street/verge";
 import type { RoadsideModel } from "../art/roadside/models";
 import { groundFloor, groundKinds } from "../art/surfaces";
 import type { LandAt } from "./tile-reads";
@@ -21,11 +21,10 @@ import type { WallDistance } from "./wall-clearing";
  *
  * It's a planting (`planting.ts`): each frame a pass goes through the places within
  * reach and keeps those beside a road, on dry ground that isn't paving, rock or a town's mown ground,
- * cheapest test first. Survivors go into a list for each model near the camera, and past that into
- * one list of a three-point card in the near tuft's own colours, its green and, in its
- * middle blade, as much of its straw as the tuft has, or for a flower one tipped with
- * its colour, so the swap changes the shape and not the colours. They trade
- * pixels over a band. A tuft takes the colour and the baked shade of the ground it
+ * cheapest test first. Survivors go into a list for each model near the camera, and past its
+ * swap into a list of that model's own far version: both as the kit draws them, at the swap the
+ * LOD check measured for them (`art/lod-swaps.ts`), so what the check passed is what the game
+ * draws. They trade pixels over a band. A tuft takes the colour and the baked shade of the ground it
  * stands on, and more of it with distance, which is what makes the grass and the
  * photo one thing.
  *
@@ -43,7 +42,6 @@ const LATTICES: Lattice[] = [
 ];
 /** The farthest any of its plants stands from the camera. */
 const REACH_M = Math.max(...LATTICES.map(reachOf));
-const SWAP_M = 34;
 const SWAP_BAND = 0.12;
 
 /** The mask's level that says a road is near, and how much of one fades the verge in. At 16 m it reaches about 20 m from a carriageway. */
@@ -74,11 +72,6 @@ const MATCHES = [140, 420] as const;
 const FOOT_SHADE = 0.6;
 const FOOT_M = 0.45;
 const FIRST_PETAL = STREET_PARTS.indexOf("petal-white");
-/** The pale and seed-head paints of a tuft, which stand out of the green as gold. */
-const STRAW: readonly StreetPart[] = ["grass-pale", "grass-seed"];
-const STRAW_BLADE = STREET_PARTS.indexOf("grass-pale");
-/** One blade of a far card's three is a third of it. */
-const CARD_BLADES = 3;
 const WIND_SPEED = 1.25;
 const WIND_WAVES = 0.8;
 const SINK_M = 0.04;
@@ -87,7 +80,8 @@ const SINK_M = 0.04;
  * Through the year (Reference, Leaves): the grass goes to straw as the leaves come down and greens again in the last
  * days of April, tuft by tuft; a flower blooms from leaf-out until the leaves turn, its heads folding away outside that;
  * fallen leaves lie at the tufts' feet; and deep snow buries a tuft, each at a depth of its own, since snow lays
- * grass flat long before it's as deep as the grass is tall.
+ * grass flat long before it's as deep as the grass is tall. Near and far versions both wear the kit's paint, so one
+ * rule serves both.
  */
 const STRAW_ROLL = 31;
 const BLOOM_ROLL = 32;
@@ -106,46 +100,19 @@ const BURIED_CM: [number, number] = [3, 24];
 
 /** A tuft in a list is three rows of four floats. */
 const ROWS = 3;
-const FAR_DRAW = 0;
-const FAR_HEADS_DRAW = 1;
-const FAR_SPIRES_DRAW = 2;
-const FAR_DRAWS = 3;
-/** Of `STANDS`, one in each kind of flower, and in those `FLOWER_SHARE` of tufts: so never more than this share of places has a far flower. */
-const MOST_FAR_FLOWERS = 0.2;
 
 interface Kind {
   model: RoadsideModel;
-  /** How tall its far card stands. */
-  tallM: number;
-  /** The paint of its far card's flowers. */
-  tip?: StreetPart;
-  /** Its far card: heads held up on stems, or tall spires. */
-  card?: "heads" | "spires";
+  /** The most of the places within reach this kind can be: of `STANDS`, one in each flower, and in those `FLOWER_SHARE` of tufts. */
+  most: number;
 }
 
-/** What a tuft's blades, stems and leaves average to, by the area each covers, in the paint's own light: its green, its straw, and how much of it is straw. */
-function tuftColours(shape: BufferGeometry, colours: Colour[]) {
-  const position = shape.getAttribute("position");
-  const tint = shape.getAttribute("tint");
-  const order = shape.getIndex();
-  const corner = (at: number) => order?.getX(at) ?? at;
-  const triangle = new Triangle();
-  const green = { sum: new Colour(), area: 0 };
-  const straw = { sum: new Colour(), area: 0 };
-  const strawParts = STRAW.map((part) => STREET_PARTS.indexOf(part));
-  for (let at = 0; at < (order?.count ?? position.count); at += 3) {
-    const first = corner(at);
-    const part = Math.round(tint.getX(first) * 255);
-    if (part >= FIRST_PETAL) continue;
-    triangle.setFromAttributeAndIndices(position, first, corner(at + 1), corner(at + 2));
-    const area = triangle.getArea();
-    const into = strawParts.includes(part) ? straw : green;
-    into.sum.addScaledVector(colours[part], area * ((tint.getY(first) * 255) / 128));
-    into.area += area;
-  }
-  const strawShare = straw.area / (green.area + straw.area);
-  return { green: green.sum.divideScalar(green.area), straw: straw.area > 0 ? straw.sum.divideScalar(straw.area) : green.sum.clone(), strawShare };
-}
+/** The verge's models, every one of which the LOD check measures. */
+export const vergeKinds = (): Kind[] => [
+  { model: buildGrassTuft(), most: 1 },
+  { model: buildSeedGrass(), most: 0.4 },
+  ...(["daisy", "buttercup", "cow-parsley", "lupine", "fireweed"] as const).map((kind) => ({ model: buildWildflowers(kind), most: 0.08 })),
+];
 
 export interface VergeInputs {
   landAt: LandAt;
@@ -186,32 +153,22 @@ export interface Verge {
 }
 
 export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, clearanceAt, lightOf, linear, hazed, litterColour, tileM, season }: VergeInputs): Verge {
-  const kinds: Kind[] = [
-    { model: buildGrassTuft(), tallM: 0.62 },
-    { model: buildSeedGrass(), tallM: 0.8 },
-    { model: buildWildflowers("daisy"), tallM: 0.62, tip: "petal-white", card: "heads" },
-    { model: buildWildflowers("buttercup"), tallM: 0.55, tip: "petal-yellow", card: "heads" },
-    { model: buildWildflowers("cow-parsley"), tallM: 1.05, tip: "petal-white", card: "heads" },
-    { model: buildWildflowers("lupine"), tallM: 0.9, tip: "petal-lupine", card: "spires" },
-    { model: buildWildflowers("fireweed"), tallM: 1.05, tip: "petal-fireweed", card: "spires" },
-  ];
+  const kinds = vergeKinds();
   const flowers = kinds.length - 2;
-  const firstSpires = kinds.findIndex(({ card }) => card === "spires");
+  const farOf = ({ far }: RoadsideModel) => {
+    if (far === null) throw new Error("A verge kit model has no far version");
+    return far;
+  };
 
   const seconds = uniform(0);
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const far = LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0);
-  const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + 1, stepM), 0);
+  // A model's swap is for its own size, and a tuft is drawn at its size and spread wider: its change on screen grows with both.
+  const nearOf = ({ swapM }: RoadsideModel) => LATTICES.reduce((sum, { stepM }) => sum + placesWithin(swapM * SIZES[1] * WIDE * (1 + SWAP_BAND) + 1, stepM), 0);
 
-  const tallOf = uniformArray(kinds.map(({ tallM }) => tallM), "float");
+  const swapOf = uniformArray(kinds.map(({ model }) => model.swapM), "float");
   const spreadOfKind = uniformArray(kinds.map(({ model }) => spreadOf(model.near) * WIDE), "float");
-  const tipOf = uniformArray(kinds.map(({ tip }) => (tip === undefined ? -1 : STREET_PARTS.indexOf(tip))), "float");
-  const colours = streetColours(linear);
-  const tufts = kinds.map(({ model }) => tuftColours(model.near, colours));
-  const greenOf = uniformArray(tufts.map(({ green }) => green));
-  // A straw blade is a third of a card: so a tuft a third straw has it all straw, and one a sixth straw has it half.
-  const strawOf = uniformArray(tufts.map(({ green, straw, strawShare }) => green.clone().lerp(straw, Math.min(1, strawShare * CARD_BLADES))));
   const palette = streetPalette(linear);
   const paint = streetPaint(palette);
   const seasons = seasonNodes(season);
@@ -221,8 +178,8 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
     widestM: WIDEST_TUFT_M,
-    shapes: [buildVergeCard("grass"), buildVergeCard("heads"), buildVergeCard("spires"), ...kinds.map(({ model }) => model.near)],
-    capacities: [far, Math.ceil(far * MOST_FAR_FLOWERS), Math.ceil(far * MOST_FAR_FLOWERS), ...kinds.map(() => near)],
+    shapes: [...kinds.map(({ model }) => farOf(model)), ...kinds.map(({ model }) => model.near)],
+    capacities: [...kinds.map(({ most }) => Math.ceil(far * most)), ...kinds.map(({ model }) => nearOf(model))],
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
       const chance = roll(seed, 4).toVar();
@@ -247,7 +204,8 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
               const kind = select(isFlower, stand.add(2), select(roll(seed, 9).lessThan(SEED_SHARE), float(1), float(0))).toVar();
               // Thinner towards the edge of a verge, by the place and never by the distance.
               const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10)).mul(float(1).sub(smoothstep(float(0.75), float(1), turn))).toVar();
-              const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
+              const swapM = (swapOf.element(int(round(kind))) as unknown as Node<"float">).mul(size).mul(WIDE);
+              const swap = smoothstep(swapM.mul(1 - SWAP_BAND), swapM.mul(1 + SWAP_BAND), distance).toVar();
               const spread = size.mul(spreadOfKind.element(int(round(kind))) as unknown as Node<"float">).toVar();
               const clearOfWalls = wallDistanceAt(place).greaterThan(spread.add(STONE_WALL_HALF_WIDE_M)).and(clearOfBuildings(clearanceAt, place, spread));
               const remaining = left().toVar();
@@ -255,22 +213,13 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
               const photo = land.broad.pow(vec3(2.2)).toVar();
               const colour = vec4(groundFloor(photo, litterColour, groundKinds(photo)), lightOf(land.shade)).toVar();
 
-              If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
-                const card = vec4(size.mul(tallOf.element(int(round(kind))) as unknown as Node<"float">), float(1).sub(swap), remaining, kind).toVar();
-                If(isFlower.and(kind.lessThan(firstSpires)), () => {
-                  write(FAR_HEADS_DRAW, [standing, colour, card]);
-                })
-                  .ElseIf(isFlower, () => {
-                    write(FAR_SPIRES_DRAW, [standing, colour, card]);
-                  })
-                  .Else(() => {
-                    write(FAR_DRAW, [standing, colour, card]);
+              kinds.forEach((_, index) => {
+                If(kind.equal(index), () => {
+                  If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
+                    write(index, [standing, colour, vec4(size, float(1).sub(swap), remaining, 0)]);
                   });
-              });
-              If(clearOfWalls.and(swap.lessThan(1)), () => {
-                kinds.forEach((_, index) => {
-                  If(kind.equal(index), () => {
-                    write(index + FAR_DRAWS, [standing, colour, vec4(size, float(0), float(1).sub(swap), 0)]);
+                  If(clearOfWalls.and(swap.lessThan(1)), () => {
+                    write(kinds.length + index, [standing, colour, vec4(size, float(0), float(1).sub(swap), 0)]);
                   });
                 });
               });
@@ -284,7 +233,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const size = carried.x;
       const part = round(tint.r.mul(255));
       const isPetal = part.greaterThanEqual(FIRST_PETAL);
-      const isFar = index < FAR_DRAWS;
+      const isFar = index < kinds.length;
       const local = positionGeometry;
       const phase = rollPhase(standing.xz).add(seconds.mul(WIND_SPEED)).add(local.x.mul(-WIND_WAVES));
       const sway = tint.b.mul(MOTION_RANGE_M).mul(sin(phase));
@@ -302,15 +251,10 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const strawRoll = tuftRoll(STRAW_ROLL);
       const strawed = min(changeOf(float(1).sub(seasons.leafed), mix(float(STRAWS_FROM), float(1), strawRoll)), changeOf(seasons.turned, strawRoll)).mul(STRAW_SHARE);
       const littered = changeOf(seasons.fallen, tuftRoll(LITTER_ROLL)).mul(float(1).sub(smoothstep(float(0), float(LITTER_M), local.y.mul(size)))).mul(LITTER_SHARE);
+      const painted = select(isPetal, paint, mix(mix(paint, straw.mul(tint.g.mul(255 / 128)), strawed), fallenLeaves, littered));
 
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const foot = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), local.y.mul(size))), float(1), matched);
-      // A card is one list for every kind, so it takes its paints from the tuft's kind.
-      const kindOf = varying(int(round(carried.w)));
-      const tip = palette.element(int(tipOf.element(kindOf) as unknown as Node<"float">)) as unknown as Node<"vec3">;
-      const body = mix(greenOf.element(kindOf) as unknown as Node<"vec3">, strawOf.element(kindOf) as unknown as Node<"vec3">, select(part.equal(STRAW_BLADE), float(1), float(0)));
-      const summer = isFar ? mix(body, tip, select(isPetal, float(1), float(0))) : paint;
-      const painted = select(isPetal, summer, mix(mix(summer, straw.mul(isFar ? float(1) : tint.g.mul(255 / 128)), strawed), fallenLeaves, littered));
       // A flower holds its colour longer than the grass round it.
       const groundShare = mix(mix(float(GROUND_SHARE), float(1), matched), matched.mul(matched), select(isPetal, float(1), float(0)));
       // The ground's share is the spring photo's colour, so it goes to straw with the grass.
@@ -333,7 +277,8 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
     show: planting.show,
     drawn() {
       const tufts = planting.counts();
-      return { far: tufts[FAR_DRAW] + tufts[FAR_HEADS_DRAW] + tufts[FAR_SPIRES_DRAW], near: tufts.slice(FAR_DRAWS).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(tufts) };
+      const sum = (counts: number[]) => counts.reduce((total, count) => total + count, 0);
+      return { far: sum(tufts.slice(0, kinds.length)), near: sum(tufts.slice(kinds.length)), triangles: planting.triangles(tufts) };
     },
     dispose: planting.dispose,
   };

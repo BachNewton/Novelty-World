@@ -77,7 +77,7 @@ const PAINT: Record<Part, { from: string; to?: string; share?: number; gain?: nu
 
 /** The light every placed kit shares: the sky's, the sun's on a face turned to it, and a darker last metre to the ground, as the buildings have. */
 export const KIT_LIGHT = { ambient: 0.68, sunShare: 0.5, footShade: 0.72, footM: 1.1 } as const;
-/** Each place swaps somewhere in this share of the distance, so they don't all go on one line. */
+/** Each place swaps somewhere in this share past its model's swap, so they don't all go on one line, and none nearer than the swap measured (`lod-swaps.ts`). */
 export const SWAP_SPREAD = 0.2;
 /** The band two versions trade pixels over, as a share either side of the swap. */
 const SWAP_BAND = 0.1;
@@ -124,7 +124,7 @@ function placing(isNear: boolean) {
   const reach = attribute<"vec2">("reach", "vec2");
   const distance = place.xz.sub(cameraPosition.xz).length();
   const roll = rollOf(place.xz);
-  const swap = reach.x.mul(float(1).sub(roll.mul(SWAP_SPREAD)));
+  const swap = reach.x.mul(float(1).add(roll.mul(SWAP_SPREAD)));
   const end = reach.y.mul(float(1).sub(roll.mul(SWAP_SPREAD * 0.5)));
   const shown = isNear ? distance.lessThan(swap.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(swap.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const scale = select(shown, fit.x, float(0));

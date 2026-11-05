@@ -265,7 +265,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
   const roll = unitOf(seed, 1);
   // What a pixel reads of its place's roll, from the seed passed down from the vertex: read from the place itself, it is zero there.
   const placeRoll = roll;
-  const swap = reach.x.mul(float(1).sub(roll.mul(SWAP_SPREAD)));
+  const swap = reach.x.mul(float(1).add(roll.mul(SWAP_SPREAD)));
   const dissolveFrom = swap.mul(1 - DISSOLVE_SHARE);
   const shown = isNear ? distance.lessThan(swap) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reach.y));
   // A place's own edge of the reach, so a whole field doesn't rise on one line.

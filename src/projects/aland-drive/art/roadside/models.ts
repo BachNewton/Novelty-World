@@ -1,5 +1,6 @@
 import type { BufferGeometry } from "three/webgpu";
 import { Model, type Part, type V3 } from "./mesh";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The small objects along a road. Each stands on its origin with y up. Things in
@@ -17,7 +18,7 @@ export interface RoadsideModel {
   reachM: number;
 }
 
-const model = (near: Model, far: Model | null, swapM: number, reachM: number): RoadsideModel => ({ near: near.build(), far: far?.build() ?? null, swapM, reachM });
+const model = (near: Model, far: Model | null, swapM: number, reachM: number): RoadsideModel => measuredSwap({ near: near.build(), far: far?.build() ?? null, swapM, reachM });
 
 /** A galvanised road lamp, its arm reaching out over the road. */
 export function buildStreetLamp(): RoadsideModel {
