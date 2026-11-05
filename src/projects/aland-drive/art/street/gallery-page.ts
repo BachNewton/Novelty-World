@@ -154,8 +154,8 @@ look("flowers", "daisy, buttercup, lupine, fireweed, cow parsley", station(2) + 
 // verge's flower card, which the game stands in its place past the swap, at that flower's height.
 const whites = (["daisy", "cow-parsley"] as const).flatMap((kind) => {
   const model = buildWildflowers(kind);
-  const card = { ...model, near: buildVergeCard(true), far: null };
-  return [model, { ...model, near: model.far ?? model.near, far: null }, card].map((version, index) => ({ version, scale: index === 2 ? (kind === "daisy" ? 0.55 : 0.95) : 1 }));
+  const card = { ...model, near: buildVergeCard("heads"), far: null };
+  return [model, { ...model, near: model.far ?? model.near, far: null }, card].map((version, index) => ({ version, scale: index === 2 ? (kind === "daisy" ? 0.62 : 1.05) : 1 }));
 });
 whites.forEach(({ version, scale }, index) => add(version, [{ x: station(2) + 40 + index * 1.1, y: 0, z: VERGE_Z + 1.5, scale }]));
 look("flowers-white", "daisy and cow parsley: near, far, the verge's card", station(2) + 42.75, [0, 0.8, 1.2], [0, 0.45, VERGE_Z + 1.5], 30);

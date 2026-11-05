@@ -82,8 +82,9 @@ const SINK_M = 0.04;
 /** A tuft in a list is three rows of four floats. */
 const ROWS = 3;
 const FAR_DRAW = 0;
-const FAR_FLOWER_DRAW = 1;
-const FAR_DRAWS = 2;
+const FAR_HEADS_DRAW = 1;
+const FAR_SPIRES_DRAW = 2;
+const FAR_DRAWS = 3;
 /** Of `STANDS`, one in each kind of flower, and in those `FLOWER_SHARE` of tufts: so never more than this share of places has a far flower. */
 const MOST_FAR_FLOWERS = 0.2;
 
@@ -91,8 +92,10 @@ interface Kind {
   model: RoadsideModel;
   /** How tall its far card stands. */
   tallM: number;
-  /** The paint of its far card's tips. */
+  /** The paint of its far card's flowers. */
   tip?: StreetPart;
+  /** Its far card: heads held up on stems, or tall spires. */
+  card?: "heads" | "spires";
 }
 
 /** What a tuft's blades, stems and leaves average to, by the area each covers, in the paint's own light: its green, its straw, and how much of it is straw. */
@@ -157,13 +160,14 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
-    { model: buildWildflowers("daisy"), tallM: 0.55, tip: "petal-white" },
-    { model: buildWildflowers("buttercup"), tallM: 0.5, tip: "petal-yellow" },
-    { model: buildWildflowers("cow-parsley"), tallM: 0.95, tip: "petal-white" },
-    { model: buildWildflowers("lupine"), tallM: 0.9, tip: "petal-lupine" },
-    { model: buildWildflowers("fireweed"), tallM: 1.05, tip: "petal-fireweed" },
+    { model: buildWildflowers("daisy"), tallM: 0.62, tip: "petal-white", card: "heads" },
+    { model: buildWildflowers("buttercup"), tallM: 0.55, tip: "petal-yellow", card: "heads" },
+    { model: buildWildflowers("cow-parsley"), tallM: 1.05, tip: "petal-white", card: "heads" },
+    { model: buildWildflowers("lupine"), tallM: 0.9, tip: "petal-lupine", card: "spires" },
+    { model: buildWildflowers("fireweed"), tallM: 1.05, tip: "petal-fireweed", card: "spires" },
   ];
   const flowers = kinds.length - 2;
+  const firstSpires = kinds.findIndex(({ card }) => card === "spires");
 
   const seconds = uniform(0);
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
@@ -185,8 +189,8 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
     widestM: WIDEST_TUFT_M,
-    shapes: [buildVergeCard(false), buildVergeCard(true), ...kinds.map(({ model }) => model.near)],
-    capacities: [far, Math.ceil(far * MOST_FAR_FLOWERS), ...kinds.map(() => near)],
+    shapes: [buildVergeCard("grass"), buildVergeCard("heads"), buildVergeCard("spires"), ...kinds.map(({ model }) => model.near)],
+    capacities: [far, Math.ceil(far * MOST_FAR_FLOWERS), Math.ceil(far * MOST_FAR_FLOWERS), ...kinds.map(() => near)],
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
       const chance = roll(seed, 4).toVar();
@@ -220,11 +224,15 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
 
               If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                 const card = vec4(size.mul(tallOf.element(int(round(kind))) as unknown as Node<"float">), float(1).sub(swap), remaining, kind).toVar();
-                If(isFlower, () => {
-                  write(FAR_FLOWER_DRAW, [standing, colour, card]);
-                }).Else(() => {
-                  write(FAR_DRAW, [standing, colour, card]);
-                });
+                If(isFlower.and(kind.lessThan(firstSpires)), () => {
+                  write(FAR_HEADS_DRAW, [standing, colour, card]);
+                })
+                  .ElseIf(isFlower, () => {
+                    write(FAR_SPIRES_DRAW, [standing, colour, card]);
+                  })
+                  .Else(() => {
+                    write(FAR_DRAW, [standing, colour, card]);
+                  });
               });
               If(clearOfWalls.and(swap.lessThan(1)), () => {
                 kinds.forEach((_, index) => {
@@ -280,7 +288,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
     show: planting.show,
     drawn() {
       const tufts = planting.counts();
-      return { far: tufts[FAR_DRAW] + tufts[FAR_FLOWER_DRAW], near: tufts.slice(FAR_DRAWS).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(tufts) };
+      return { far: tufts[FAR_DRAW] + tufts[FAR_HEADS_DRAW] + tufts[FAR_SPIRES_DRAW], near: tufts.slice(FAR_DRAWS).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(tufts) };
     },
     dispose: planting.dispose,
   };

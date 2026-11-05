@@ -137,18 +137,6 @@
     "swapM": 45,
     "cure": "far version"
   },
-  "street: wildflowers daisy": {
-    "deviation": 10,
-    "look": 0.435,
-    "swapM": 34,
-    "cure": "far version"
-  },
-  "street: wildflowers cow-parsley": {
-    "deviation": 9,
-    "look": 0.5,
-    "swapM": 34,
-    "cure": "far version"
-  },
   "town-kit: village sign": {
     "deviation": 4,
     "look": 0.616,
@@ -248,12 +236,6 @@
   "street: grass tuft": {
     "deviation": 14,
     "look": 0.573,
-    "swapM": 34,
-    "cure": "far version"
-  },
-  "street: wildflowers buttercup": {
-    "deviation": 9.5,
-    "look": 0.454,
     "swapM": 34,
     "cure": "far version"
   },

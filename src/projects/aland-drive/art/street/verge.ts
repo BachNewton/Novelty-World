@@ -40,9 +40,55 @@ function farCard(tall: number, wide: number, part: StreetPart, tip?: StreetPart,
   return card;
 }
 
-/** One far clump for a whole verge, a metre tall: grass with a straw blade in the middle, and for a flower, tips in a petal paint for whatever a place's flower is. */
-export function buildVergeCard(flower: boolean): BufferGeometry {
-  return farCard(1, 0.4, "grass", flower ? "petal-white" : undefined, 0.14, "grass-pale").build();
+/** Where a flower card's heads stand, across as a share of the clump's spread and up as a share of its height, as the near clump's stems hold them. */
+const CARD_HEADS = [
+  [-1, 0.8],
+  [-0.35, 0.98],
+  [0.4, 0.9],
+  [1, 0.76],
+] as const;
+/** A flower clump's leaves at its foot, across as a share of its spread and up as a share of its height. */
+const CARD_LEAVES = [
+  [-0.35, 0.5],
+  [0, 0.58],
+  [0.35, 0.46],
+] as const;
+
+/**
+ * A clump of flowers with heads from afar: the near clump simplified, a low tuft of leaves with flat heads held up
+ * above it on stems, as wide and as high as the near heads, never green points with a fleck on each. It's two cards
+ * crossed, so a clump seen side on still stands there. `spread` is how far out from the middle the heads reach.
+ * Leaves, stems and heads that cross each stand their own `LAYER_M` off the card, or they'd fight for its plane.
+ */
+function headsCard(tall: number, spread: number, petal: StreetPart, size: number): Painted {
+  const card = new Painted();
+  for (const turned of [false, true]) {
+    const at = (across: number, up: number, layer: number): V3 => (turned ? [layer * LAYER_M, up, across] : [across, up, layer * LAYER_M]);
+    // The outer leaves don't reach each other, so only the middle one needs a layer of its own.
+    CARD_LEAVES.forEach(([x, height], leaf) => card.face([at((x - 0.3) * spread, -SINK_M, leaf % 2), at((x + 0.3) * spread, -SINK_M, leaf % 2), at(x * 1.4 * spread, height * tall, leaf % 2)], "stem", 0.92));
+    const stemLayer = 2;
+    CARD_HEADS.forEach(([x, height], index) => {
+      const [across, up] = [x * spread, height * tall];
+      card.face([at(across * 0.4 - 0.012, tall * 0.3, stemLayer + (index % 2)), at(across * 0.4 + 0.012, tall * 0.3, stemLayer + (index % 2)), at(across, up, stemLayer + (index % 2))], "stem");
+      card.face([at(across - size, up, stemLayer + 2), at(across, up - size * 0.35, stemLayer + 2), at(across + size, up, stemLayer + 2), at(across, up + size * 0.45, stemLayer + 2)], petal, 1.05);
+    });
+  }
+  return card;
+}
+
+/** How far apart a flower card's crossing parts stand. */
+const LAYER_M = 0.01;
+
+/** How far a flower's heads reach from its middle: the near clump's stems lean out to this. */
+const HEADS_SPREAD_M = 0.2;
+
+/**
+ * One far clump for a whole verge, a metre tall: grass with a straw blade in the middle; a flower with heads, in a
+ * petal paint for whatever a place's flower is; or the spires of a tall flower, tipped the same way.
+ */
+export function buildVergeCard(kind: "grass" | "heads" | "spires"): BufferGeometry {
+  if (kind === "heads") return headsCard(1, HEADS_SPREAD_M / 0.62, "petal-white", 0.085).build();
+  return farCard(1, 0.4, "grass", kind === "spires" ? "petal-white" : undefined, 0.14, "grass-pale").build();
 }
 
 const GRASS_BLADES = 16;
@@ -121,14 +167,14 @@ export function buildWildflowers(kind: Wildflower, seed = 5): RoadsideModel {
       head(near, top, size, petal);
       if (kind === "daisy") near.face([[top[0] - 0.014, top[1] + 0.014, top[2]], [top[0] + 0.014, top[1] + 0.014, top[2]], [top[0], top[1] + 0.03, top[2]]], "flower-eye");
     }
-    return streetModel(near, farCard(tallM * 0.6, 0.18, "stem", petal), VERGE_SWAP_M, VERGE_REACH_M, bends);
+    return streetModel(near, headsCard(tallM, HEADS_SPREAD_M, petal, size), VERGE_SWAP_M, VERGE_REACH_M, bends);
   }
   if (kind === "cow-parsley") {
     foot(near, random, 0.5);
     for (const top of stems(near, random, 5, 1.05, 0.26)) {
       head(near, top, 0.075 + random() * 0.025, "petal-white");
     }
-    return streetModel(near, farCard(0.8, 0.2, "stem", "petal-white"), VERGE_SWAP_M, VERGE_REACH_M, bends);
+    return streetModel(near, headsCard(1.05, HEADS_SPREAD_M * 0.75, "petal-white", 0.11), VERGE_SWAP_M, VERGE_REACH_M, bends);
   }
   const part = kind === "lupine" ? "petal-lupine" : "petal-fireweed";
   const tall = kind === "lupine" ? 1 : 1.2;
