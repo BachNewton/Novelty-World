@@ -1,4 +1,4 @@
 export { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, FARM_FENCE_M, POLE_CONDUCTORS, SIGN_PLATE_Y_M, SIGN_PLATE_Z_M, TOWN_FENCE_M, type RoadsideModel } from "./models";
 export { createSignKit, SIGN_REACH_M, type SignKit } from "./signs";
 export { buildBridge, buildGangway, buildPier, buildPontoon, type BridgeSize, type HarbourSize } from "./structures";
-export { facetLight, footShade, KIT_LIGHT, placeModel, placeSignPlates, placeVersion, placeSigns, placeWires, roadsideMaterials, rollOf, screenPattern, seedAt, signPlacing, signSheetUv, SWAP_SPREAD, toSunOf, wireMaterial, type Placement, type RoadsideInputs, type RoadsideMaterials, type SignPlacement, type WireSpan } from "./material";
+export { facetLight, footShade, KIT_LIGHT, placeModel, placeSignPlates, placeVersion, placeSigns, placeWires, roadsideMaterials, rollOf, screenPattern, seedAt, signPlacing, signSheetUv, SWAP_SPREAD, wireMaterial, type Placement, type RoadsideInputs, type RoadsideMaterials, type SignPlacement, type WireSpan } from "./material";

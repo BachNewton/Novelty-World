@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CONDITIONS, SURFACES } from "../sim/surfaces";
+import { CONDITIONS, SURFACES, TYRES } from "../sim/surfaces";
 import { kicksOf, type TyreRead } from "./tyre-kicks";
 
-const kinds = (read: TyreRead) => kicksOf(read).rates.map(([kick]) => kick);
+const kinds = (read: Omit<TyreRead, "tyres"> & Partial<TyreRead>) => kicksOf({ tyres: "summer", ...read }).rates.map(([kick]) => kick);
 const dryAsphalt = { surface: "asphalt", condition: "dry" } as const;
 
 describe("what a tyre throws up", () => {
@@ -26,6 +26,6 @@ describe("what a tyre throws up", () => {
   });
 
   it("throws nothing from a wheel that's still or off the ground, whatever it's on", () => {
-    for (const condition of CONDITIONS) for (const surface of SURFACES) expect(kinds({ surface, condition, rollMS: 0, slideMS: 0, demand: 0 })).toEqual([]);
+    for (const tyres of TYRES) for (const condition of CONDITIONS) for (const surface of SURFACES) expect(kinds({ surface, condition, tyres, rollMS: 0, slideMS: 0, demand: 0 })).toEqual([]);
   });
 });

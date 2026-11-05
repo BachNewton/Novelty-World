@@ -4,6 +4,7 @@ import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../
 import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, LINDEN_SEEDS, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 import { createTownRoadside, TOWN_MODELS, type TownLooks } from "./town-roadside";
+import type { LampKind, LampSpot } from "../art/night";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
@@ -52,6 +53,9 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   "viewing-tower": { build: buildViewingTower, kit: "identity" },
   "viewpoint-platform": { build: buildViewpointPlatform, kit: "identity" },
 };
+
+/** The lamps the night lights, by the model that holds each. */
+const LAMPS: Record<string, LampKind> = { lamp: "road", "town-lamp": "town" };
 
 /** How far the camera moves before the near lists are written again, and how far past its range each holds its places. */
 const NEAR_MARGIN_M = 60;
@@ -156,8 +160,10 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
   };
 
   const town = createTownRoadside(looks.town, swap);
+  let lampRevision = 0;
 
   const rebuild = (tile: TileRoadside) => {
+    if (Object.keys(tile.models).some((name) => name in LAMPS)) lampRevision++;
     rebuildModels(new Set(Object.keys(tile.models)));
     town.rebuild([...tiles.values()], Object.keys(tile.models));
     if (tile.wires.length > 0) rebuildWires();
@@ -197,6 +203,12 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
       hidden = !shown;
       for (const [mesh, has] of placed) visibility(mesh, has);
     },
+    /** Every lamp on the loaded tiles, for the night to light. */
+    lamps(): LampSpot[] {
+      return [...tiles.values()].flatMap((tile) => Object.entries(LAMPS).flatMap(([name, kind]) => (name in tile.models ? roadsidePlaces(tile.models[name]).map(({ x, y, z, yaw }) => ({ kind, x, y, z, yaw })) : [])));
+    },
+    /** Moves on whenever the lamps change. */
+    lampRevision: () => lampRevision,
     /** How many places each list holds across the loaded tiles, signs as posts, and the seats on the furniture. */
     counts() {
       const counted: Record<string, number> = Object.fromEntries(models.map(({ name }) => [name, [...tiles.values()].reduce((sum, tile) => sum + (name in tile.models ? tile.models[name].length / ROADSIDE_FLOATS : 0), 0)]));

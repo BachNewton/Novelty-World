@@ -105,9 +105,10 @@ export interface Clipmap {
 
 /**
  * A colour for the ground or the water, given how deep the water is there (the water's level less the ground's, below 0
- * above the water) and how far the shore is (out into the water, below 0 on land).
+ * above the water), how far the shore is (out into the water, below 0 on land), and the way the ground faces, smooth
+ * across the mesh's triangles.
  */
-export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">) => Node<"vec3">;
+export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">, up: Node<"vec3">) => Node<"vec3">;
 
 /** What rises from the ground far off (the forest's canopy), given a place and the ring's level. */
 export type TerrainLift = (place: Node<"vec2">, level: number) => Node<"float">;
@@ -166,10 +167,17 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     // Dry nodes sit hundreds of metres down, so a depth that mixes in one is far below zero: land.
     const depth = varying(waterLevel.sub(ground));
     const fromShore = varying(mix(textureLoad(shoreTexture, ivec2(grid)).r, textureLoad(shoreTexture, ivec2(grid.sub(odd))).r, fold));
+    // The ground's slope across the node's neighbours, on its own lattice and on the coarser one it folds to.
+    const slopeAt = (node: Node<"vec2">, apart: number) => {
+      const height = (column: number, row: number) => textureLoad(texture, ivec2(node.add(vec2(column, row)).clamp(0, CELLS))).r;
+      return vec2(height(apart, 0).sub(height(-apart, 0)), height(0, apart).sub(height(0, -apart))).div(2 * apart * ringStep);
+    };
+    const slope = mix(slopeAt(grid, 1), slopeAt(grid.sub(odd), 2), fold);
+    const up = varying(vec3(slope.x.negate(), 1, slope.y.negate()));
 
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
-    material.colorNode = groundColour(depth, fromShore);
+    material.colorNode = groundColour(depth, fromShore, up.normalize());
     materials.push(material);
 
     const geometry = new BufferGeometry();
@@ -186,7 +194,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
       const waterMaterial = new MeshBasicNodeMaterial();
       waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
-      waterMaterial.colorNode = waterColour(depth, fromShore);
+      waterMaterial.colorNode = waterColour(depth, fromShore, vec3(0, 1, 0));
       // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
       // the line is, smooth where a low shore's corners sit within centimetres of the water.
       waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));

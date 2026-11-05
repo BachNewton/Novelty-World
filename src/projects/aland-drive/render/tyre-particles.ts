@@ -3,7 +3,7 @@ import { attribute, cameraProjectionMatrix, cameraViewMatrix, cameraWorldMatrix,
 import { outsideCar } from "../art/car-volume";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
 import type { Tread } from "../sim/car";
-import type { Condition, Surface } from "../sim/surfaces";
+import type { Condition, Surface, Tyre } from "../sim/surfaces";
 import { STEP_S } from "../sim/tuning";
 import { kicksOf, PUFFS, type Kick, type Puff } from "./tyre-kicks";
 
@@ -69,6 +69,7 @@ const LOOKS: Record<Kick, Look> = {
   clod: { lifeS: 1.4, drag: 1.2, rise: -GRAVITY, sizeM: 0.07, growMS: 0, opacity: 1, follow: 0.3, upMS: 2.6, scatterMS: 1.5, thrown: 0.5, aspect: 1, spin: 6 },
   blade: { lifeS: 1.5, drag: 2.5, rise: -3, sizeM: 0.08, growMS: 0, opacity: 1, follow: 0.35, upMS: 2, scatterMS: 1.4, thrown: 0.4, aspect: 0.2, spin: 8 },
   grit: { lifeS: 0.9, drag: 1.5, rise: -GRAVITY, sizeM: 0.02, growMS: 0, opacity: 1, follow: 0.2, upMS: 1.5, scatterMS: 1.4, thrown: 0.5, aspect: 1, spin: 6 },
+  ice: { lifeS: 0.8, drag: 1.5, rise: -GRAVITY, sizeM: 0.018, growMS: 0, opacity: 1, follow: 0.2, upMS: 1.3, scatterMS: 1.2, thrown: 0.5, aspect: 1, spin: 6 },
 };
 
 /** Each kind's colour token, and the surface's own where it differs: dust is the colour of the ground it rose from. */
@@ -81,6 +82,7 @@ const TOKENS: Record<Kick, string | Partial<Record<Surface, string>>> = {
   clod: "tyre-earth",
   blade: "town-lawn",
   grit: "church-granite-grey",
+  ice: "tyre-snow",
 };
 
 export interface Linear {
@@ -112,7 +114,7 @@ const FLOATS = 4;
 const COLUMNS = ["tyreSpawn", "tyreFling", "tyreMotion", "tyreTint", "tyreShape"] as const;
 
 /** One pool: a ring of particles, the oldest written over first, as one instanced quad. */
-function pool(capacity: number, solid: boolean, clock: Node<"float">) {
+function pool(capacity: number, solid: boolean, clock: Node<"float">, hazed: (color: Node<"vec3">) => Node<"vec3">) {
   const columns = COLUMNS.map(() => new Float32Array(capacity * FLOATS));
   const geometry = new InstancedBufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(Float32Array.from([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -157,7 +159,7 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
   const round = across.length();
   const lit = float(0.82).add(uv().y.mul(0.3));
   const shade = varying(float(0.8).add(seed.mul(0.35)));
-  material.colorNode = tint.xyz.mul(solid ? lit.mul(shade) : lit);
+  material.colorNode = hazed(tint.xyz.mul(solid ? lit.mul(shade) : lit));
   material.maskNode = outsideCar(cameraWorldMatrix.mul(corner3).xyz);
   if (solid) {
     // A torn blade is its whole strip; anything else is a rough round bit.
@@ -226,10 +228,11 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">) {
   };
 }
 
-export function createTyreParticles(scene: Scene, colour: (token: string) => Linear) {
+/** `hazed` is the world's light and haze at this hour, which every colour drawn goes through. */
+export function createTyreParticles(scene: Scene, colour: (token: string) => Linear, hazed: (color: Node<"vec3">) => Node<"vec3">) {
   const clock = uniform(0);
-  const puffs = pool(PUFF_POOL, false, clock);
-  const chips = pool(CHIP_POOL, true, clock);
+  const puffs = pool(PUFF_POOL, false, clock, hazed);
+  const chips = pool(CHIP_POOL, true, clock, hazed);
   scene.add(puffs.mesh, chips.mesh);
   const colours = new Map<string, Linear>();
   const colourOf = (kick: Kick, surface: Surface) => {
@@ -286,12 +289,12 @@ export function createTyreParticles(scene: Scene, colour: (token: string) => Lin
 
   return {
     /** After each step of the simulation: what each wheel of the car just threw up. A wheel off the ground reads still, and throws nothing. */
-    step(treads: readonly Readonly<Tread>[], surfaces: readonly Surface[], condition: Condition, car: CarState) {
+    step(treads: readonly Readonly<Tread>[], surfaces: readonly Surface[], condition: Condition, tyres: Tyre, car: CarState) {
       const frame = { velocity: car.velocity, nose: rotate(car.rotation, [0, 0, -1]), right: rotate(car.rotation, [1, 0, 0]), up: rotate(car.rotation, [0, 1, 0]) };
       treads.forEach((tread, wheel) => {
         const debts = owed[wheel];
         const surface = surfaces[wheel];
-        const { rates, rub } = kicksOf({ surface, condition, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand });
+        const { rates, rub } = kicksOf({ surface, condition, tyres, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand });
         for (const kick of debts.keys()) if (!rates.some(([thrown]) => thrown === kick)) debts.delete(kick);
         for (const [kick, perS] of rates) {
           let debt = (debts.get(kick) ?? random()) + perS * STEP_S;

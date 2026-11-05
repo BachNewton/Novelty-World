@@ -1,10 +1,11 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { placeSeed, unitOf } from "../hash";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
 import { flatNormal } from "../flat-normal";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * Every roadside object draws through the same two materials (near and far) and
@@ -26,7 +27,7 @@ export interface RoadsideInputs {
   linear: (name: string) => Vector3;
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
 }
 
 export interface Placement {
@@ -83,17 +84,10 @@ const SWAP_BAND = 0.1;
 /** The share of its reach over which the last version dissolves. */
 const LEAVE_SHARE = 0.15;
 
-/** The way to the sun, for a shader. */
-export function toSunOf({ azimuthDeg, elevationDeg }: RoadsideInputs["sun"]) {
-  const azimuth = (azimuthDeg * Math.PI) / 180;
-  const elevation = (elevationDeg * Math.PI) / 180;
-  return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-}
-
 /** A flat-shaded face's own normal, and the kit's light on it. */
 export function facetLight(sun: RoadsideInputs["sun"]) {
   const normal = flatNormal();
-  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(toSunOf(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
+  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(towardsSun(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
 }
 
 /** Darker in the last metre to the ground: 1 above it. */

@@ -19,10 +19,10 @@ beforeAll(initPhysics);
 describe("the table of the cars' limits", () => {
   // One car through every manoeuvre: about 40,000 steps of the simulation.
   it("is what the simulation measures now: if not, run tools/car-limits.ts", { timeout: 60_000 }, () => {
-    expect(measureCar(DEFAULT_CAR)).toEqual(CAR_LIMITS[DEFAULT_CAR].grounds["dry-asphalt"]);
+    expect(measureCar(DEFAULT_CAR)).toEqual(CAR_LIMITS[DEFAULT_CAR].grounds["dry-asphalt-summer"]);
   });
 
   it("is what the simulation measures now on wet gravel: if not, run tools/car-limits.ts", { timeout: 60_000 }, () => {
-    expect(measureCar(DEFAULT_CAR, testPad("gravel"), "wet")).toEqual(CAR_LIMITS[DEFAULT_CAR].grounds["wet-gravel"]);
+    expect(measureCar(DEFAULT_CAR, testPad("gravel"), "wet")).toEqual(CAR_LIMITS[DEFAULT_CAR].grounds["wet-gravel-summer"]);
   });
 });

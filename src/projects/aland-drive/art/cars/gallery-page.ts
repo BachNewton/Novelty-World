@@ -1,7 +1,7 @@
 import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer } from "three/webgpu";
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import type { CarState } from "../../sim/car-state";
+import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
 import { buildCarArt, createCarModel, type CarLights } from "./model";
 import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
@@ -28,6 +28,7 @@ const restState = ({ id, ride }: CarSpec, steer: number, roll: number): CarState
   steer,
   suspension: [ride.sagM, ride.sagM, ride.sagM, ride.sagM],
   roll,
+  lamps: LAMPS_OFF,
 });
 
 export interface Shot {

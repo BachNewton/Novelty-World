@@ -2,6 +2,7 @@ import type { InstancedBufferGeometry, Mesh, Node, Scene } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
 import { worldCarMaterial } from "../art/cars/material";
+import { type Sun } from "../art/sun";
 import { WORLD_CARS } from "../art/cars/specs";
 import type { LaneTraffic } from "../traffic/lane-driver";
 import { instanced, write, type Car } from "./parked-cars";
@@ -15,7 +16,7 @@ import { PARKED_CARS } from "./parked-places";
 
 export const TRAFFIC_KINDS = PARKED_CARS.length;
 
-export function createLaneTrafficView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
+export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
   const materials = {
     world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M }),
     distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M }),

@@ -1,5 +1,5 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
@@ -7,6 +7,7 @@ import { flatNormal } from "../art/flat-normal";
 import { groundFloor, groundKinds, rockFloor } from "../art/surfaces";
 import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
+import { towardsSun } from "../art/sun";
 
 /*
  * Åland's granite where it breaks through the ground: bare domes and slabs along the
@@ -149,9 +150,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
   });
   const tallsOf = uniformArray(models.map(({ near }) => tallest(near)), "float");
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const lightOn = (normal: Node<"vec3">) => float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const graniteColour = ruralColours(linear)[RURAL_PARTS.indexOf("rapakivi")];

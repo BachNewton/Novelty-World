@@ -2,7 +2,7 @@ import { speedOf, type CarState, type Rotation, type Vector3 } from "../sim/car-
 import type { DriveInput } from "../sim/car";
 import type { EngineRead } from "../sim/gearbox";
 import { CARS, DEFAULT_CAR } from "../sim/cars";
-import { SURFACES, type Condition, type Surface } from "../sim/surfaces";
+import { SURFACES, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -30,6 +30,8 @@ export interface DriveAudioState {
   wheels: readonly Surface[];
   /** The state of every surface at once. */
   condition: Condition;
+  /** What the car's wheels are shod with: studs tick on a bare road. */
+  tyres: Tyre;
   /** How far each wheel has risen into its arch, as `CarState` has it. */
   suspension: readonly [number, number, number, number];
   place: Place;
@@ -70,7 +72,7 @@ export function slipOf(car: CarState, handbrake: boolean): number {
 }
 
 /** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "place" | "paused" | "engine">): DriveAudioState {
+export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "paused" | "engine">): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
@@ -174,6 +176,8 @@ export interface Mix {
   sprayRate: number;
   snowLevel: number;
   snowRate: number;
+  studsLevel: number;
+  studsRate: number;
 
   squealLevel: number;
   squealHz: number;
@@ -227,6 +231,11 @@ const UNDER: Record<Condition, { roll: number; rumble: number; spray: number; sn
   snow: { roll: 0.15, rumble: 0.6, spray: 0, snow: 0.4, squeal: 0, squeak: 0.14, hiss: 0.5, hissHz: 3600, scrabble: 0.4, thrown: 0 },
   ice: { roll: 0.06, rumble: 0.25, spray: 0, snow: 0, squeal: 0, squeak: 0, hiss: 1.6, hissHz: 5500, scrabble: 0.1, thrown: 0 },
 };
+
+/** How loud studs tick on each surface, rolled over at full speed: only a hard, bare one rings to them. */
+const STUDS_ON: Record<Surface, number> = { asphalt: 0.16, rock: 0.1, gravel: 0, grass: 0 };
+/** And in each condition: water dulls them, snow buries them, and on ice they bite in with a duller crunch. */
+const STUDS_UNDER: Record<Condition, number> = { dry: 1, wet: 0.7, snow: 0, ice: 0.45 };
 
 /** The share of the car's tyres on each surface: a wheel in the air is on none, so two wheels on gravel are half gravel and a car on two wheels is half as loud. */
 export function wheelShares(wheels: readonly Surface[], suspension: readonly number[]): Record<Surface, number> {
@@ -323,6 +332,8 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
     sprayRate: 0.6 + 0.9 * speed,
     snowLevel: tyreShare * under.snow * grounded * (rolling + 0.8 * scrub),
     snowRate: 0.5 + 1.0 * speed + 0.3 * scrub,
+    studsLevel: state.tyres === "studded" && !bike ? stage * STUDS_UNDER[state.condition] * rolling * on((surface) => STUDS_ON[surface]) : 0,
+    studsRate: 0.4 + 1.2 * speed,
 
     squealLevel: tyreShare * under.squeal * scrub * on((surface) => SLIDE[surface].squeal),
     squealHz: 840 + 300 * clamp(slip) + 70 * wander,

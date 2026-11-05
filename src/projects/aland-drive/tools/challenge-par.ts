@@ -23,7 +23,7 @@ import { decodeRoadGraph, RoadGraph, type RoadMapFile } from "../map/road-graph"
 import type { WorldManifest } from "../render/tile";
 import { Autopilot, type SpeedPlan } from "../sim/autopilot";
 import { NO_INPUT } from "../sim/car";
-import { CAR_LIMITS, groundOf, tuningPrint } from "../sim/car-limits";
+import { limitsOn, tuningPrint } from "../sim/car-limits";
 import { speedOf } from "../sim/car-state";
 import { CARS } from "../sim/cars";
 import { Drive, initPhysics } from "../sim/drive";
@@ -94,9 +94,8 @@ function tilesNear(line: RoadLine): Set<string> {
  * asphalt or gravel as the road is laid, and the limits table's least grip there, dry, cornering and braking.
  */
 function speedPlan(challenge: Challenge, line: RoadLine, world: World, eased: readonly Eased[]): SpeedPlan {
-  const limits = CAR_LIMITS[challenge.car].grounds;
   const least = (bands: readonly { g: number }[]) => Math.min(...bands.map(({ g }) => g)) * WORLD.gravity;
-  const grips = { asphalt: limits[groundOf("dry", "asphalt")], gravel: limits[groundOf("dry", "gravel")] };
+  const grips = { asphalt: limitsOn(challenge.car, "dry", "asphalt"), gravel: limitsOn(challenge.car, "dry", "gravel") };
   const grip = {
     asphalt: { cornerMS2: least(grips.asphalt.corner), brakeMS2: least(grips.asphalt.braking) },
     gravel: { cornerMS2: least(grips.gravel.corner), brakeMS2: least(grips.gravel.braking) },

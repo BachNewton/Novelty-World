@@ -4,11 +4,15 @@
  * world origin. In the scene, east is +x, up is +y and north is -z.
  */
 import type { WindmillPlace } from "./tile-models";
+import { type SunPlace } from "../art/sun";
 
 /** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
 export const FLAT_LIGHT = 0.8;
 /** The photo already holds most of its own relief, so the baked shading only adds to it. */
 export const SHADE_SHARE = 0.65;
+/** The baked shading's sum, as `pipeline/terrain.py` bakes it: this much of the sun's light on the ground, and this much of the open sky's. */
+export const BAKED_SUN_SHARE = 0.85;
+export const BAKED_SKY_SHARE = 0.38;
 
 /** A photo with its light in it, as the render draws it: RGBA in, sRGB bytes, and one shade byte for each pixel. */
 export function litPhoto(ground: Uint8Array, shade: Uint8Array, gamma: number): Uint8ClampedArray<ArrayBuffer> {
@@ -72,7 +76,7 @@ export interface WorldManifest {
   water: { levelsFile: string; farLevelsFile: string; shoreFile: string; farShoreFile: string; dryLevel: number };
   overview: OverviewFormat;
   map: { file: string };
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: SunPlace;
   attribution: string[];
 }
 

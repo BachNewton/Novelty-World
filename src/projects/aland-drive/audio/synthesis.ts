@@ -214,6 +214,32 @@ export function snowLoop(): Loop {
   return { rate: HIGH_RATE, channels };
 }
 
+/**
+ * Studded tyres on a bare road: each stud ticks as it meets the ground, in a pattern that repeats every turn of
+ * the wheel, so four wheels of them make a fast, hard ticking with a hum at its rate. A second is four turns.
+ */
+export function studsLoop(): Loop {
+  const next = random(67);
+  const seconds = 1;
+  const turns = 4;
+  const studs = 64;
+  const turnS = seconds / turns;
+  const channels = [samplesOf(seconds, HIGH_RATE), samplesOf(seconds, HIGH_RATE)];
+  for (let wheel = 0; wheel < 4; wheel++) {
+    const pan = wheel % 2 === 0 ? -0.5 : 0.5;
+    const phase = next() * turnS;
+    const pattern = Array.from({ length: studs }, (_, stud) => ({ at: (stud + 0.3 * (next() - 0.5)) / studs, hz: 2600 + 3400 * next(), level: 0.5 + 0.5 * next() }));
+    for (let turn = 0; turn < turns; turn++) {
+      for (const { at, hz, level } of pattern) {
+        const decayS = 0.00035;
+        addPanned(channels, HIGH_RATE, phase + (turn + at) * turnS, decayS * 6, pan, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+      }
+    }
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
 /** Water off a wet road: a bright hiss that surges as the tread wrings it out, droplets against the arches, and a low wash. */
 export function sprayLoop(): Loop {
   const next = random(67);

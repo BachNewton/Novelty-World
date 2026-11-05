@@ -53,6 +53,24 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+test("the game menu's Tyres changes the car's tyres in turn, and the car keeps them after a reload", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  const menu = page.getByRole("dialog", { name: "Game menu" });
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("summer");
+
+  await page.keyboard.press("Escape");
+  await menu.getByRole("button", { name: "Summer tyres" }).click();
+  await expect(menu.getByRole("button", { name: "Winter tyres" })).toBeVisible();
+  await menu.getByRole("button", { name: "Winter tyres" }).click();
+  await expect(menu.getByRole("button", { name: "Studded tyres" })).toBeFocused();
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+
+  await page.reload();
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+});
+
 test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes it", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
