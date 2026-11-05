@@ -216,6 +216,37 @@ class OneSurface(unittest.TestCase):
         self.assertTrue((band[:, :, 7] == path_surfaces.SLAB).all())
         self.assertTrue((np.abs(band[:, :, 3]) < 1).all())
 
+    def test_a_corner_between_a_drive_and_a_sidewalk_is_drawn_as_the_drive_s_shoulder(self):
+        """Paving no way's outline holds wore the nearest path's surface, so the rounded corners where a drive meets a
+        sidewalk wore its dark asphalt: sharp flaps standing out beyond the drive's pale shoulder."""
+        street = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        sidewalk = road([(100, 605.5), (600, 605.5), (1100, 605.5)], "footway", motor=False, footway="sidewalk", surface="asphalt")
+        drive = road([(600, 600), (600, 605.5), (600, 640)], "service")
+        paved = paving.lay([street, sidewalk, drive], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        footways = [chain.index for chain in paved.chains if chain.kind_name == "footway"]
+        edge = max(float(chain.xy[:, 1].max() + chain.half.max()) for chain in paved.chains if chain.kind_name == "footway")
+        points = paved.points
+        beyond = (points[:, 1] > edge + 0.05) & (np.abs(points[:, 0] - 600) < 10) & (np.abs(points[:, 0] - 600) > chains["service"].half.max() + 0.05)
+        self.assertGreater(int(beyond.sum()), 0)
+        worn = np.isin(points[:, 6].astype(int), footways) & (np.abs(points[:, 3]) < 1)
+        self.assertFalse((beyond & worn).any())
+
+    def test_a_path_lends_its_surface_only_across_paving(self):
+        """A corner of two streets wore the asphalt of a cycleway beside one of them, a few metres off across the grass:
+        a dark flap."""
+        street = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 700)])
+        cycleway = road([(591.75, 611), (591.75, 700)], "cycleway", motor=False, surface="asphalt")
+        paved = paving.lay([street, side, cycleway], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        points = paved.points
+        reach = paved.crosses[chains["tertiary"].index].reach_left.max()
+        corner = (points[:, 1] > 600 + reach + 0.05) & (points[:, 1] < 610) & (points[:, 0] < 600 - paved.crosses[chains["residential"].index].reach_left.max() - 0.05)
+        self.assertGreater(int(corner.sum()), 0)
+        worn = (points[:, 6].astype(int) == chains["cycleway"].index) & (np.abs(points[:, 3]) < 1)
+        self.assertFalse((corner & worn).any())
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")

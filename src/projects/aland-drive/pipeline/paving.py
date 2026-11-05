@@ -670,7 +670,8 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     linework = shapely.segmentize(shapely.union_all([line for line in lines if not line.is_empty], grid_size=GRID_M), LONGEST_SECTION_M)
     faces = shapely.get_parts(shapely.polygonize(shapely.get_parts(linework)))
     middles = shapely.point_on_surface(faces)
-    inside = shapely.contains(paved.buffer(SLIVER_M), middles)
+    on_paving = paved.buffer(SLIVER_M)
+    inside = shapely.contains(on_paving, middles)
     faces, middles = faces[inside], middles[inside]
     owner = _greatest(chains, carriageways, middles)
     by_shoulder = _greatest(chains, ground_prints, middles)
@@ -685,7 +686,7 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     borrows = (owner == JUNCTION) | walk
     if borrows.any():
         xy = shapely.get_coordinates(middles[borrows])
-        look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, crosses, owner[borrows], xy))
+        look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, crosses, owner[borrows], xy), on_paving)
     found = [Piece(face, int(who), GROUND, bool(on_walk), int(worn)) for face, who, on_walk, worn in zip(faces, owner, walk, look)]
     found += _below_pieces(chains, prints, paved)
     for index, by_level in prints.items():
@@ -695,23 +696,31 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
 
 
 def _streets_run(chains: list[Chain], crosses: dict[int, Cross], owner: np.ndarray, xy: np.ndarray) -> np.ndarray:
-    """The way the street a piece lies beside runs: its owner's, or the nearest motor way's."""
+    """The way the street a piece lies beside runs: its owner's, or the nearest motor way's whose paving is within a closed
+    gap of it; none, (0, 0), where no street is."""
     streets = [chains[index] for index in crosses if chains[index].motor]
     runs = np.zeros((len(xy), 2))
     if not streets:
         return runs
     tangents = np.concatenate([chain.tangent for chain in streets])
-    runs[:] = tangents[cKDTree(np.concatenate([chain.xy for chain in streets])).query(xy)[1]]
+    reach = np.concatenate([np.maximum(*crosses[chain.index].paving) for chain in streets])
+    distance, nearest = cKDTree(np.concatenate([chain.xy for chain in streets])).query(xy)
+    beside = distance <= reach[nearest] + GAP_PAVED_M + STATION_M
+    runs[beside] = tangents[nearest[beside]]
     for who in np.unique(owner[owner >= 0]):
         mine = owner == who
         runs[mine] = chains[who].tangent[chains[who].tree.query(xy[mine])[1]]
     return runs
 
 
-def _paths_worn(chains: list[Chain], crosses: dict[int, Cross], xy: np.ndarray, runs: np.ndarray) -> np.ndarray:
+def _paths_worn(chains: list[Chain], crosses: dict[int, Cross], xy: np.ndarray, runs: np.ndarray, on_paving: shapely.Geometry) -> np.ndarray:
     """For each point, the path whose surface a piece there wears: of the paths whose paving lies within a closed gap of
-    it, the nearest running alongside the street beside it, else the nearest; or JUNCTION. A whole piece wears one, or
-    its triangles would blend two."""
+    it, the nearest running alongside the street beside it, or with no street beside it the nearest, with only paving
+    between the two; or JUNCTION. A whole piece wears one, or its triangles would blend two.
+
+    Beside a street, only a path alongside it lends its surface, and only across paving: a corner where a drive or a
+    crossing meets a sidewalk, or a corner of two streets with a cycleway a few metres off across the grass, wore the
+    path's dark asphalt and stood out as a sharp flap beyond the pale paving round it."""
     paths = [chains[index] for index in crosses if not chains[index].motor]
     found = np.full(len(xy), JUNCTION)
     if not paths or not len(xy):
@@ -719,16 +728,21 @@ def _paths_worn(chains: list[Chain], crosses: dict[int, Cross], xy: np.ndarray, 
     owners = np.concatenate([np.full(len(chain.xy), chain.index) for chain in paths])
     reach = np.concatenate([np.maximum(*crosses[chain.index].paving) for chain in paths])
     tangent = np.concatenate([chain.tangent for chain in paths])
+    points = np.concatenate([chain.xy for chain in paths])
     count = min(WORN_NEIGHBOURS, len(owners))
-    distance, near = cKDTree(np.concatenate([chain.xy for chain in paths])).query(xy, k=count)
+    distance, near = cKDTree(points).query(xy, k=count)
     distance, near = distance.reshape(len(xy), count), near.reshape(len(xy), count)
     within = distance <= reach[near] + GAP_PAVED_M + STATION_M
     sine = np.abs(runs[:, None, 0] * tangent[near][..., 1] - runs[:, None, 1] * tangent[near][..., 0])
-    alongside = within & ((sine < SIDEWALK_SINE) | ~np.any(runs, axis=1)[:, None])
+    street = np.any(runs, axis=1)
+    alongside = within & ((sine < SIDEWALK_SINE) | ~street[:, None])
     # Neighbours come nearest first.
-    pick = np.where(alongside.any(axis=1), alongside.argmax(axis=1), within.argmax(axis=1))
-    chosen = within.any(axis=1)
-    found[chosen] = owners[near[chosen, pick[chosen]]]
+    pick = alongside.argmax(axis=1)
+    chosen = np.flatnonzero(alongside.any(axis=1))
+    station = near[chosen, pick[chosen]]
+    shapely.prepare(on_paving)
+    across = shapely.covered_by(shapely.linestrings(np.stack((xy[chosen], points[station]), axis=1)), on_paving)
+    found[chosen[across]] = owners[station[across]]
     return found
 
 
