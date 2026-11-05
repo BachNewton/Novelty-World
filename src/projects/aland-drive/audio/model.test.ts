@@ -3,7 +3,7 @@ import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from 
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop } from "./synthesis";
+import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -15,6 +15,7 @@ const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
   slip: 0,
   wheels: ["asphalt", "asphalt", "asphalt", "asphalt"],
   condition: "dry",
+  tyres: "summer",
   suspension: [0.11, 0.11, 0.11, 0.11],
   place: { forest: 0, shore: 0, town: 0 },
   ...changes,
@@ -166,7 +167,7 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);

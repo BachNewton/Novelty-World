@@ -21,6 +21,13 @@
  * four-by-four wins. Every class is the car as tuned on dry asphalt, because a
  * car's own numbers already say how it does there. A class is one field of a
  * car, so a tuning shop could later move a car between them.
+ *
+ * And each car runs on tyres the player fitted: summer, winter friction or
+ * studded. The surface table is the ground on the tyre made for it, summer
+ * tyres in the dry and the wet and winter tyres in snow and on ice, and a tyre
+ * reshapes that again: summer tyres on snow or ice are clearly worse and let go
+ * sooner, but still drive; studs are the best on ice and a little worse on a
+ * bare road. Summer tyres in the dry are the car as tuned.
  */
 
 export const SURFACES = ["asphalt", "gravel", "grass", "rock"] as const;
@@ -34,6 +41,12 @@ export const CAR_CLASSES = ["sports", "road", "rally", "offroad"] as const;
 /** What a car was built for: low and stiff on sticky tyres, an ordinary car, a car for gravel stages, or one for no road at all. */
 export type CarClass = (typeof CAR_CLASSES)[number];
 
+export const TYRES = ["summer", "winter", "studded"] as const;
+/** What a car's wheels are shod with: the player's choice, fitted at home or at a car shop. */
+export type Tyre = (typeof TYRES)[number];
+
+export const isTyre = (name: string): name is Tyre => (TYRES as readonly string[]).includes(name);
+
 export const isCondition = (name: string): name is Condition => (CONDITIONS as readonly string[]).includes(name);
 
 /** The condition a link holds (`?condition=wet`) in place of the weather's, or null when it asks for none. */
@@ -41,6 +54,14 @@ export function conditionAsked(search: string): Condition | null {
   const asked = new URLSearchParams(search).get("condition");
   if (asked === null) return null;
   if (!isCondition(asked)) throw new Error(`?condition= takes ${CONDITIONS.join(", ")}, not ${asked}`);
+  return asked;
+}
+
+/** The tyres a link asks for (`?tyres=studded`), for the car the drive starts in: none when it asks for none. */
+export function tyresAsked(search: string): Tyre | null {
+  const asked = new URLSearchParams(search).get("tyres");
+  if (asked === null) return null;
+  if (!isTyre(asked)) throw new Error(`?tyres= takes ${TYRES.join(", ")}, not ${asked}`);
   return asked;
 }
 
@@ -120,14 +141,52 @@ const CLASS_GRIP: Readonly<Record<CarClass, { surfaces: Readonly<Record<Surface,
   },
 };
 
-function classGrip(carClass: CarClass, condition: Condition, surface: Surface): SurfaceGrip {
+/** How a tyre fares in a condition, against the tyre made for it: times the ground's grip, its peak slip and its hold-on past the peak. */
+interface TyreInCondition {
+  grip: number;
+  peakSlip: number;
+  holdOn: number;
+}
+
+const MADE_FOR_IT: TyreInCondition = { grip: 1, peakSlip: 1, holdOn: 1 };
+
+/**
+ * Each tyre in each condition. Real summer tyres keep about half a winter tyre's grip in snow and on ice, and
+ * studs about double a summer tyre's on ice; the gaps are squeezed as the surfaces' are, so a summer tyre in
+ * winter is a slow, loose drive rather than a stuck one. It peaks sooner and lets go further: the slide is the
+ * thing that warns a player to change tyres. A winter tyre's soft, siped tread squirms a little on a bare road,
+ * and studs lift the rubber off it a little more.
+ */
+const TYRE_GRIP: Readonly<Record<Tyre, Readonly<Record<Condition, TyreInCondition>>>> = {
+  summer: {
+    dry: MADE_FOR_IT,
+    wet: MADE_FOR_IT,
+    snow: { grip: 0.62, peakSlip: 0.8, holdOn: 0.5 },
+    ice: { grip: 0.7, peakSlip: 0.85, holdOn: 0.5 },
+  },
+  winter: {
+    dry: { grip: 0.95, peakSlip: 1.05, holdOn: 1 },
+    wet: { grip: 0.97, peakSlip: 1.05, holdOn: 1 },
+    snow: MADE_FOR_IT,
+    ice: MADE_FOR_IT,
+  },
+  studded: {
+    dry: { grip: 0.92, peakSlip: 1.05, holdOn: 1 },
+    wet: { grip: 0.94, peakSlip: 1.05, holdOn: 1 },
+    snow: { grip: 1.04, peakSlip: 1, holdOn: 1.05 },
+    ice: { grip: 1.45, peakSlip: 1.05, holdOn: 1.2 },
+  },
+};
+
+function groundGrip(carClass: CarClass, tyre: Tyre, condition: Condition, surface: Surface): SurfaceGrip {
   const ground = SURFACE_GRIP[condition][surface];
   const { surfaces, conditions } = CLASS_GRIP[carClass];
   const on = surfaces[surface];
+  const shod = TYRE_GRIP[tyre][condition];
   return {
-    grip: ground.grip * on.grip * conditions[condition],
-    peakSlip: ground.peakSlip,
-    holdOn: Math.min(1, ground.holdOn * on.holdOn),
+    grip: ground.grip * on.grip * conditions[condition] * shod.grip,
+    peakSlip: ground.peakSlip * shod.peakSlip,
+    holdOn: Math.min(1, ground.holdOn * on.holdOn * shod.holdOn),
     rolling: ground.rolling * on.rolling,
     rollingPerMS: ground.rollingPerMS * on.rolling,
   };
@@ -135,9 +194,9 @@ function classGrip(carClass: CarClass, condition: Condition, surface: Surface): 
 
 const each = <Key extends string, Value>(keys: readonly Key[], value: (key: Key) => Value) => Object.fromEntries(keys.map((key) => [key, value(key)])) as Record<Key, Value>;
 
-/** What a tyre of each class has on each surface in each condition, worked out once: the car reads it every step for every wheel. */
-export const GROUND_GRIP: Readonly<Record<CarClass, Readonly<Record<Condition, Readonly<Record<Surface, SurfaceGrip>>>>>> = each(CAR_CLASSES, (carClass) =>
-  each(CONDITIONS, (condition) => each(SURFACES, (surface) => classGrip(carClass, condition, surface))),
+/** What each tyre on a car of each class has on each surface in each condition, worked out once: the car reads it every step for every wheel. */
+export const GROUND_GRIP: Readonly<Record<CarClass, Readonly<Record<Tyre, Readonly<Record<Condition, Readonly<Record<Surface, SurfaceGrip>>>>>>>> = each(CAR_CLASSES, (carClass) =>
+  each(TYRES, (tyre) => each(CONDITIONS, (condition) => each(SURFACES, (surface) => groundGrip(carClass, tyre, condition, surface)))),
 );
 
 /** What the steering and the yaw assist read: the grip and peak slip under the grounded wheels, on average. */

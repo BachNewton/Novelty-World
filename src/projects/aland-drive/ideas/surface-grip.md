@@ -49,7 +49,17 @@ Dry asphalt is the car exactly as tuned: a grip of one, no change to the curve, 
 - **Rally**: tyres and long travel that keep a gravel slide going, and bite in snow.
 - **Off-road**: tall, knobbly tyres that barely notice grass or gravel, and the most bite in snow.
 
-**The racers' table has a row per ground.** `tools/car-limits.ts` measures every car on a test pad of each surface, in each condition: sixteen rows a car. The racers' speed plan reads the row for the ground under each stretch of its route. The table's print covers the surfaces' grip as well as the cars' tuning, so changing either asks for the table to be measured again.
+**Each car runs on the tyres the player fitted**: summer, winter friction (studless) or studded. It's the player's choice, not the law's (`docs/TIME-AND-WEATHER.md`, Decided), so the winter is something to prepare for: a car caught on snow or ice on summer tyres handles poorly. The surface table above is each ground on the tyre made for it, summer tyres in the dry and the wet and winter tyres in snow and on ice, and a tyre is one more row on top, times the grip, the slip it peaks at and how much it keeps past the peak in each condition:
+
+- **Summer**: the car as tuned in the dry and the wet. In snow and on ice about two thirds of a winter tyre's grip, peaking sooner and keeping half as much in a slide, so it is slow and loose, never stuck. Real summer tyres keep about half a winter tyre's grip there; the gap is squeezed as the surfaces' are.
+- **Winter friction**: the snow and ice rows as they are; a few percent worse on a bare road, its soft, siped tread squirming a little.
+- **Studded**: the best on ice by far, about 1.45 times a friction tyre (real studs about halve the braking distance of summer tyres on slippery ice), a touch better in snow, and a little worse again than friction tyres on a bare road, the studs lifting the rubber off it.
+
+A car's class still applies on top, so a sports car on studs is still worse in snow than the rally car on studs. `sim/tyres.test.ts` holds the order on every surface for every class: on ice studs, then friction, then summer; in snow both winter tyres over summer; on a bare road summer, then friction, then studs; summer tyres in winter between half and four fifths of a winter tyre's grip; and summer tyres on dry asphalt the car exactly as tuned.
+
+The tyres are a field of the car, which keeps them until they're changed. Until homes and car shops exist they're the game menu's Tyres item (Esc or a pad's Menu, outside a challenge), which steps through the three, kept per car in this browser (`garage/tyres.ts`, which a home's garage or a shop will call), or `?tyres=studded` in a link for the car the drive starts in. Studs are heard and seen: they tick and hum on a bare road in the tyre sound, duller on ice, and on ice they throw chips of it. The tyres aren't in `CarState`: another player's car is a stand-in with no tyres of its own, and only the player's car throws particles.
+
+**The racers' table has a row per ground.** `tools/car-limits.ts` measures every car on a test pad of each surface, in each condition, on summer tyres in the dry and the wet and on each of the three in snow and on ice, where the choice is the point: thirty-two rows a car. The racers' speed plan reads the row for the ground under each stretch of its route. The table's print covers the surfaces' grip as well as the cars' tuning, so changing either asks for the table to be measured again.
 
 ## What was measured
 
@@ -79,28 +89,36 @@ Those are before car classes. With them, every car's sideways grip at 60 km/h, b
 
 The Berg's own grip is so low that on dry gravel it only draws level with the best road cars; it leads them on grass and snow.
 
-Every car's sixteen rows are in `sim/car-limits.json`.
+On each set of tyres, sideways grip at 60 km/h and metres to stop from 100, for a car of each class:
+
+| Ground | Tyres | Skerry GT (sports) | Ström (road) | Grus (rally) | Berg (off-road) |
+|---|---|---|---|---|---|
+| Snow on asphalt | Summer | 0.27 g, 127 m | 0.35 g, 104 m | 0.46 g, 78 m | 0.31 g, 111 m |
+| | Winter | 0.44 g, 80 m | 0.56 g, 65 m | 0.73 g, 49 m | 0.49 g, 71 m |
+| | Studded | 0.46 g, 77 m | 0.58 g, 62 m | 0.75 g, 47 m | 0.51 g, 68 m |
+| Ice on asphalt | Summer | 0.19 g, 183 m | 0.21 g, 170 m | 0.25 g, 138 m | 0.17 g, 200 m |
+| | Winter | 0.27 g, 131 m | 0.30 g, 120 m | 0.36 g, 98 m | 0.24 g, 145 m |
+| | Studded | 0.39 g, 91 m | 0.44 g, 83 m | 0.52 g, 68 m | 0.34 g, 102 m |
+
+Winter tyres in snow and on ice are the rows the table had before tyres, to the last digit, and summer tyres in the dry and the wet are too.
+
+Every car's thirty-two rows are in `sim/car-limits.json`.
 
 ## Open
 
+- **The tyres.** Whether summer tyres in winter are punishing enough to make changing them worth it without being a chore, and whether studs on ice feel like the reward they should; the gaps are first guesses.
 - **The classes.** Which car is in which, and how far apart the classes are, are first guesses to judge in the game, as is whether the Berg should lead the road cars on gravel too.
 - **The feel.** Every number is a starting point for the owner to judge against the reference games: whether gravel lets go early enough and holds a slide well enough, whether grass punishes enough without spinning the car, whether wet asphalt is too forgiving, whether ice at a quarter of the grip is fun or a chore.
 - **Ice's top speed.** With no rolling resistance on ice, a car on ice still reaches its dry top speed in a straight line, given time: true of real ice, but whether it plays well is the owner's call.
 - **The autopilot** maps a wheel angle to steering by the dry lock, so on a loose surface it steers a little less than it means to and corrects as it goes. The racer that grows out of it should read the footing.
 
-## Later: tyres, winter and the feel against TDU
+## Later: winter and the feel against TDU
 
 Decided as directions, not built. None of it is needed until the owner picks it up.
 
-**Tyres are an input of their own, beside the condition.** Snow and ice today assume no particular tyre (ice keeps about a quarter of a car's dry grip, snow about half), which misses the main thing about a Finnish winter: winter tyres are the law and most drivers run studs. So a tyre is one of summer, winter friction (studless) or studded, and the season sets it, not the driver: studded in snow and ice, summer in dry and wet, with a dev switch and a link parameter to try the others. Against summer tyres:
+**What the racers fit.** A racer is a car added beside the player's, on summer tyres unless it's given others. Once there are seasons, the racers fit the season's tyres, and the speed plan reads the table's rows for them.
 
-- **Studded**: much better on ice, roughly double the grip (Sweden's road research institute measured studs halving the braking distance on very slippery ice), much better in snow, a little worse on dry and wet asphalt.
-- **Winter friction**: better on ice but well short of studs, about level with studs in snow, a little worse on dry and wet asphalt.
-- A car's class still applies on top: a sports car on studs is still worse in snow than the rally car on studs.
-- The racers' table assumes the season's tyres, so it keeps one row per ground, and the AI drives what the law puts on the cars.
-- Åland makes its own road traffic law; its dates for winter tyres and studs weren't found (mainland Finland: winter tyres from 1 November to 31 March as conditions require, studs allowed then). They matter once there are seasons.
-
-**What the tyres are heard and seen as.** Studs tick and hum on bare asphalt, a sound of their own beside each surface's. The tyre particles take the winter too: powder in snow, ice chips under studs, slush in a thaw.
+**Slush in a thaw** is the one winter particle not yet thrown, waiting on the weather to have a thaw.
 
 **The art of winter** is the rest of the season, already in `docs/PLAN.md`'s Depth: snow over the land with the roads cleared and banked, snow on spruce, bare deciduous trees, ice on the sea, and the car itself carrying snow and road salt.
 

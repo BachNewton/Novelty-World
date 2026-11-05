@@ -1,6 +1,6 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
-import { GROUND_GRIP, type Condition, type Surface } from "./surfaces";
+import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
 import table from "./car-limits.json";
 
 /*
@@ -8,8 +8,8 @@ import table from "./car-limits.json";
  * (`measure-limits.ts`, run by `tools/car-limits.ts`): its grip in steady
  * corners, its braking and its pull, by speed. The racers plan their speeds
  * from it, so each drives its own car as that car can be driven. A car has a
- * row for every ground, each surface in each condition, measured on a pad of
- * that surface alone. Each car's entry carries a print of the tuning and the
+ * row for every ground, each surface in each condition on each set of tyres
+ * that matters there, measured on a pad of that surface alone. Each car's entry carries a print of the tuning and the
  * surfaces' grip it was measured with, and a test holds the two together, so a
  * change to either asks for the table to be measured again.
  */
@@ -38,17 +38,30 @@ export interface CarLimits {
   reachedKmh: number;
 }
 
-/** A surface in a condition, as the table names its rows. */
-export type Ground = `${Condition}-${Surface}`;
+/** A surface in a condition on a set of tyres, as the table names its rows. */
+export type Ground = `${Condition}-${Surface}-${Tyre}`;
 
-export const groundOf = (condition: Condition, surface: Surface): Ground => `${condition}-${surface}`;
+export const groundOf = (condition: Condition, surface: Surface, tyres: Tyre = "summer"): Ground => `${condition}-${surface}-${tyres}`;
 
-/** A short print of a car's tuning and of every surface's grip: any change to a number changes it. */
+/**
+ * The tyres each condition is measured on: summer tyres in the dry and the wet, since no racer fits winter tyres
+ * for a summer's day, and every set in snow and on ice, where the choice is the point.
+ */
+export const MEASURED_TYRES: Readonly<Record<Condition, readonly Tyre[]>> = { dry: ["summer"], wet: ["summer"], snow: TYRES, ice: TYRES };
+
+/** A short print of a car's tuning and of every surface's grip on every tyre: any change to a number changes it. */
 export function tuningPrint(tuning: CarTuning): string {
   let hash = 0x811c9dc5;
   for (const character of JSON.stringify([tuning, GROUND_GRIP[tuning.class]])) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Record<Ground, CarLimits> }>> = table;
+export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = table;
 
+
+/** A car's limits on one ground: a ground the table doesn't measure is a mistake in the caller, not a gap to fill. */
+export function limitsOn(id: CarId, condition: Condition, surface: Surface, tyres: Tyre = "summer"): CarLimits {
+  const limits = CAR_LIMITS[id].grounds[groundOf(condition, surface, tyres)];
+  if (!limits) throw new Error(`the limits table measures no ${tyres} tyres in ${condition} on ${surface}: see MEASURED_TYRES`);
+  return limits;
+}
