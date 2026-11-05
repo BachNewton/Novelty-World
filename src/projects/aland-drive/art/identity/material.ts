@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, varying, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
@@ -109,7 +110,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   // A thin part's share is taken from within its version's own share of the pattern, so the two don't eat into each other.
   const traded = isNear ? pattern.greaterThanEqual(share).and(pattern.lessThan(mix(share, float(1), thinLeft))) : pattern.lessThan(share.mul(thinLeft));
   const leaving = smoothstep(end.mul(1 - LEAVE_SHARE), end, distance);
-  material.maskNode = traded.and(kept).and(pattern.greaterThanEqual(leaving));
+  material.maskNode = traded.and(kept).and(pattern.greaterThanEqual(leaving)).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

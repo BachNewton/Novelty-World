@@ -1,5 +1,6 @@
 import { DoubleSide, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import type { RoadsideInputs } from "../roadside/material";
 import type { Crowd } from "./crowd";
 import { PARTS } from "./parts";
@@ -125,7 +126,7 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMat
   const lit = float(AMBIENT).add(normal.dot(uniform(toSunOf(inputs.sun))).max(0).mul(SUN_SHARE));
   const grounded = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), positionWorld.y.sub(place.y)));
   material.colorNode = inputs.hazed(painted.mul(lit.mul(grounded)));
-  material.maskNode = isNear ? pattern().greaterThanEqual(share) : pattern().lessThan(share);
+  material.maskNode = (isNear ? pattern().greaterThanEqual(share) : pattern().lessThan(share)).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

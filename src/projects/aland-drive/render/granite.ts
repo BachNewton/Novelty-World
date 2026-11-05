@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
 import { flatNormal } from "../art/flat-normal";
@@ -230,7 +231,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       material.colorNode = hazed(floor.mul(crystals).mul(lightOf(close.shade)).mul(relit));
 
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },
@@ -297,7 +298,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       material.colorNode = hazed(painted.mul(lightOf(close.shade)).mul(lightOn(upward)));
 
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       return material;
     },
   });

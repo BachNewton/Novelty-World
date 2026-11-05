@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
@@ -406,7 +407,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
-    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y));
+    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(outsideCar());
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;

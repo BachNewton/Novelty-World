@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
@@ -231,7 +232,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const coloured = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))).mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },

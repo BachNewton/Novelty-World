@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { placeSeed, unitOf } from "../hash";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside";
 import { BOAT_PARTS, KIND, PAINT, SAIL_KINDS } from "./mesh";
@@ -104,7 +105,7 @@ function placedMaterial(inputs: BoatInputs, isNear: boolean, underWay: boolean):
   const isLine = kind.equal(KIND.line).or(kind.equal(KIND.fast));
   const lineLeft = float(1).sub(smoothstep(reach.x.mul(LINE_FADE_FROM), reach.x.mul(1 - SWAP_BAND), distance));
   const traded = isNear ? pattern.greaterThanEqual(swapShare) : pattern.lessThan(swapShare);
-  material.maskNode = traded.and(isLine.not().or(pattern.lessThan(lineLeft)));
+  material.maskNode = traded.and(isLine.not().or(pattern.lessThan(lineLeft))).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

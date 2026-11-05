@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Node } from "three/webgpu";
 import { abs, attribute, cameraPosition, cos, float, floor, Fn, fract, fwidth, If, int, max, mix, positionGeometry, positionWorld, round, select, sign, sin, smoothstep, step, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { facetLight, footShade, screenPattern, seedAt, SWAP_SPREAD, type RoadsideInputs, type RoadsideMaterials } from "../roadside/index";
 import { band } from "../surfaces";
@@ -280,7 +281,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
 
   const blend = varying(smoothstep(dissolveFrom, swap, distance));
   const dither = screenPattern();
-  material.maskNode = isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend);
+  material.maskNode = (isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend)).and(outsideCar());
 
   const palette = uniformArray(ruralColours(linear));
   const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;

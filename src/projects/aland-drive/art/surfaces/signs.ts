@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicNodeMaterial, SRGBColorSpace, Vector3, type Node } from "three/webgpu";
 import { float, frontFacing, normalWorld, select, texture, uniform, uv, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Sun } from "./detail";
 import { GLYPHS, SIGN_ART, type SignInk } from "./sign-art";
@@ -443,7 +444,7 @@ export interface SignPlacing {
 function placed(material: MeshBasicNodeMaterial, placing: SignPlacing | undefined): Node<"vec3"> {
   if (placing === undefined) return normalWorld;
   material.positionNode = placing.position;
-  material.maskNode = placing.mask;
+  material.maskNode = placing.mask.and(outsideCar());
   return placing.normal;
 }
 

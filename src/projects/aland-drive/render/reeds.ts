@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { cos, dot, float, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
 import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
@@ -185,7 +186,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
       const coloured = mix(painted, look.rgb, mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(varying(coloured.mul(look.w)));
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },

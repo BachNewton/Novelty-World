@@ -42,6 +42,7 @@ import { stateFromCar } from "../audio/model";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
+import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
@@ -901,6 +902,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   drive.condition = conditionAsked(window.location.search);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
+  fitCarVolume(carView.art);
   const tyres = createTyreParticles(scene, token);
   const cullCar = (culled: boolean) => {
     for (const object of carView.objects) {
@@ -1385,6 +1387,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, manifest.sun, spec);
+    fitCarVolume(carView.art);
     events.onCarChange?.(id);
   };
 
@@ -1600,7 +1603,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const car = drive.stateAt(share);
     carView.draw(car);
-    tyres.draw(share, car);
+    placeCarVolume(car);
+    tyres.draw(share);
     onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements);
     sentPlacements = drive.placements;
     const players = drawRemotes(share);

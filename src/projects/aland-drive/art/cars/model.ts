@@ -123,6 +123,7 @@ export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevation
   const view = carOnRoad(scene, sun, art);
   return {
     ...view,
+    art,
     dispose() {
       view.dispose();
       art.dispose();

@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { attribute, cos, dot, float, floor, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { placeSeed, unitOf } from "../art/hash";
 import { STREET_PARTS, streetColours, streetPaint, streetPalette, type StreetPart } from "../art/street";
 import { MOTION_RANGE_M } from "../art/street/paint";
@@ -278,7 +279,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const lit = varying(mix(painted, colour.rgb, groundShare).mul(colour.w).mul(foot));
       const live = varying(vec2(carried.y, carried.z));
       material.colorNode = hazed(lit);
-      material.maskNode = isFar ? pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)) : pattern.lessThan(live.y);
+      material.maskNode = (isFar ? pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)) : pattern.lessThan(live.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },

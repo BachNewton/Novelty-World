@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { placeSeed, unitOf } from "../hash";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
@@ -156,7 +157,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const { position, mask, foot } = placing(isNear);
   const material = new MeshBasicNodeMaterial();
   material.positionNode = position;
-  material.maskNode = mask;
+  material.maskNode = mask.and(outsideCar());
   material.colorNode = inputs.hazed(paintOf(inputs, foot));
   material.side = DoubleSide;
   return material;
