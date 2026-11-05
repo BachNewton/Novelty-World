@@ -600,8 +600,9 @@ def kept_apart(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry
             del prints[lesser.index][GROUND]
 
 
-def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) -> list[shapely.Geometry]:
-    """Where a way ends on another, its corners rounded, by the sine of their angle squared so a shallow merge keeps its sharp nose."""
+def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) -> list[tuple[shapely.Geometry, bool]]:
+    """Where a way ends on another, its corners rounded, by the sine of their angle squared so a shallow merge keeps its sharp
+    nose; and whether a street is one of the two."""
     found = []
     for chain in chains:
         for parent, _, at_start in chain.landings:
@@ -618,20 +619,21 @@ def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) ->
             # Only what lies between the two: closing them together also rounds the inside of the other's own bends.
             corner = shapely.union_all([part for part in _flat(corner) if all(part.distance(ground_prints[way.index]) < SLIVER_M * 4 for way in (chain, parent))])
             if not corner.is_empty and _agree([chain, parent], corner):
-                found.append(corner)
+                found.append((corner, chain.motor or parent.motor))
     return found
 
 
-def ground_shape(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], areas: shapely.Geometry, tile: shapely.Polygon) -> shapely.Geometry:
-    """Everything paved on the ground's level, with its junctions' corners and the narrow gaps between ways paved too."""
+def ground_shape(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], areas: shapely.Geometry, tile: shapely.Polygon) -> tuple[shapely.Geometry, shapely.Geometry]:
+    """Everything paved on the ground's level, with its junctions' corners and the narrow gaps between ways paved too; and
+    the corners of junctions with a street."""
     ground_prints = {index: by_level[GROUND] for index, by_level in prints.items() if GROUND in by_level}
     laid = shapely.union_all([*ground_prints.values(), areas])
     inner = tile.buffer(-EDGE_BAND_M, join_style="mitre")
     gaps = shapely.intersection(_rounded(laid, GAP_PAVED_M / 2), inner)
     indices = list(ground_prints)
     joined = _between_ways(gaps, [chains[index] for index in indices], [ground_prints[index] for index in indices]) if indices else []
-    corners = [shapely.intersection(corner, inner) for corner in _corners(chains, ground_prints)]
-    return shapely.union_all([laid, *joined, *corners])
+    corners = [(shapely.intersection(corner, inner), street) for corner, street in _corners(chains, ground_prints)]
+    return shapely.union_all([laid, *joined, *(corner for corner, _ in corners)]), shapely.union_all([corner for corner, street in corners if street])
 
 
 def _greatest(chains: list[Chain], shapes: dict[int, shapely.Geometry], middles: np.ndarray) -> np.ndarray:
@@ -649,7 +651,7 @@ def _greatest(chains: list[Chain], shapes: dict[int, shapely.Geometry], middles:
     return owner
 
 
-def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int], sections: list[SeamSection], tile: shapely.Polygon) -> list[Piece]:
+def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int], sections: list[SeamSection], street_corners: shapely.Geometry, tile: shapely.Polygon) -> list[Piece]:
     """The paved shape cut along every way's outline, carriageway, kerb and centre line, each piece owned by the greatest way
     whose carriageway holds it, or failing that the greatest whose shoulder does: a road's shoulder never runs across the
     mouth of another road that joins it. A street's piece past its kerb, where it has one, is its sidewalk's.
@@ -685,7 +687,9 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
         mine = np.flatnonzero(owner == index)
         walk[mine] = ~shapely.contains(kerb.buffer(SLIVER_M), middles[mine])
     look = np.full(len(faces), JUNCTION)
-    borrows = (owner == JUNCTION) | walk
+    # A junction's corner with a street is drawn as the shoulders round it: wearing a path's surface, a sidewalk's flare
+    # round a side street's corner stood out as a dark flap beyond the street's pale paving.
+    borrows = ((owner == JUNCTION) & ~shapely.contains(street_corners.buffer(SLIVER_M), middles)) | walk
     if borrows.any():
         xy = shapely.get_coordinates(middles[borrows])
         look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, crosses, owner[borrows], xy), on_paving)
@@ -1337,7 +1341,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     held_to_seams(prints, sections, tile)
     # Polygons only, and empty as a polygon is, whatever clipping left: a collection has no boundary to cut along.
     areas = shapely.MultiPolygon(_flat(shapely.simplify(shapely.intersection(areas, tile), OUTLINE_WITHIN_M)))
-    shape = ground_shape(chains, prints, areas, tile)
+    shape, street_corners = ground_shape(chains, prints, areas, tile)
     carriageways = {}
     for chain in laid:
         if GROUND in prints[chain.index]:
@@ -1354,7 +1358,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
                 # A seam section has no sidewalk: its kerb is all its paving.
                 own = [section.shape for section in sections if section.chain.index == chain.index and section.level == GROUND]
                 kerbs[chain.index] = on_seams(_polygonal(shapely.intersection(kerb, prints[chain.index][GROUND])), own, tile)
-    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, tile))
+    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile))
     surfaces = Surfaces(chains, ground)
     heights = solve_heights(mesh, surfaces, ground, sections)
     points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses)

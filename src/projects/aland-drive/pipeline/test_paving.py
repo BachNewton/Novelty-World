@@ -232,6 +232,21 @@ class OneSurface(unittest.TestCase):
         worn = np.isin(points[:, 6].astype(int), footways) & (np.abs(points[:, 3]) < 1)
         self.assertFalse((beyond & worn).any())
 
+    def test_a_corner_with_a_street_wears_no_path_s_surface(self):
+        """A sidewalk's corner round a side street wore the asphalt of a crossing that runs alongside the side street over
+        the main one: a dark flap beyond the side street's pale paving."""
+        street = road([(100, 600), (595, 600), (600, 600), (1100, 600)], "tertiary")
+        sidewalk = road([(100, 607.5), (595, 607.5), (600, 607.5), (1100, 607.5)], "footway", motor=False, footway="sidewalk", surface="asphalt")
+        crossing = road([(595, 600), (595, 607.5)], "footway", motor=False, footway="crossing", surface="asphalt")
+        side = road([(600, 600), (600, 607.5), (600, 700)])
+        paved = paving.lay([street, sidewalk, crossing, side], land())
+        footways = [chain.index for chain in paved.chains if chain.kind_name == "footway"]
+        points = paved.points
+        beyond = (points[:, 1] > 607.5 + 1.05) & (np.abs(points[:, 0] - 600) < 8)
+        self.assertGreater(int(beyond.sum()), 0)
+        worn = np.isin(points[:, 6].astype(int), footways) & (np.abs(points[:, 3]) < 1)
+        self.assertFalse((beyond & worn).any())
+
     def test_a_path_lends_its_surface_only_across_paving(self):
         """A corner of two streets wore the asphalt of a cycleway beside one of them, a few metres off across the grass:
         a dark flap."""
