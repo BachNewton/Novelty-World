@@ -110,7 +110,8 @@ async function draw(entry: ArtModel, version: "near" | "far", view: (typeof VIEW
   camera.updateMatrixWorld();
   const scene = new Scene();
   scene.background = new Color(KEY[0] / 255, KEY[1] / 255, KEY[2] / 255);
-  for (const mesh of placeVersion(model, version, [{ x: 0, y: 0, z: 0 }], materialsOf(drawn.materials))) scene.add(mesh);
+  const meshes = "materials" in drawn ? placeVersion(model, version, [{ x: 0, y: 0, z: 0 }], materialsOf(drawn.materials)) : drawn.place(version, model.swapM, inputs);
+  for (const mesh of meshes) scene.add(mesh);
   const target = new RenderTarget(fine, fine);
   renderer.setRenderTarget(target);
   renderer.render(scene, camera);

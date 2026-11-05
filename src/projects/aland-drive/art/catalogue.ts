@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry } from "three";
+import { BufferAttribute, BufferGeometry, type Object3D } from "three";
 import type { RoadsideMaterials, RoadsideModel } from "./roadside/index";
 import type { StreetInputs } from "./street/material";
 
@@ -20,12 +20,18 @@ export interface ArtModel {
   laid?: { alongM?: number; flips?: boolean };
   /** False for what isn't stood on the ground at `groundY`: a part in its own pivot's frame, a box hung on a wall. */
   onGround?: boolean;
-  /** How the game draws it, where a kit places it by its materials: so its near and far versions can be drawn as it shows them. */
-  drawn?: { model: RoadsideModel; materials: KitMaterials };
+  /**
+   * How the game draws it, so its near and far versions can be drawn as it shows them: by its kit's materials, as
+   * the roadside places it, or by a placer of its own where it draws another way.
+   */
+  drawn?: { model: RoadsideModel; materials: KitMaterials } | { model: RoadsideModel; place: OwnPlacer };
 }
 
 /** A kit's materials for its models' near and far versions. */
 export type KitMaterials = (inputs: StreetInputs) => RoadsideMaterials;
+
+/** One version of a model drawn as the game draws it, at the origin, with its swap at `swapM`. */
+export type OwnPlacer = (version: "near" | "far", swapM: number, inputs: StreetInputs) => Object3D[];
 
 /** A model with a near and far version, as most kits build them, drawn by its kit's materials. */
 export const nearFar = (name: string, model: RoadsideModel, materials?: KitMaterials): ArtModel => ({ name, geometries: { near: model.near, far: model.far }, drawn: materials && { model, materials } });
