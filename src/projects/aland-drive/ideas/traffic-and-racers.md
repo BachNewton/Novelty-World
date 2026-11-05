@@ -226,7 +226,7 @@ Each piece is small enough for one session, and says what it needs first. Racers
 **The bubble, then life on the roads** (needs 9 and 10)
 
 11. **The bubble**: spawning and despawning out of sight round the player, by density. **Its first users are the cyclists**, which settle it: always kinematic, on path lanes and road edges, the simplest traffic there is. Walkers follow on the same lanes once the people layer can walk.
-12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels.
+12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels. Begun: cars on the lanes follow, slow for bends and limits, and give way, drawn by the fleet, in the lane lab only (`traffic/lane-driver.ts`); no lights, no turning wheels, no signals' phases yet, and a stand-in spawner in place of the bubble.
 13. **Traffic and the player**: the reactions above, stand-ins near a simulated car, a car once hit. Needs 1.
 14. **Shared traffic**: traffic on the nearest-player rule, with spawning by whoever keeps a stretch of lane, so players together see one traffic. Traffic isn't turned on online until this is in. Needs 6 and 13.
 15. **Density by place and time, sound, and the settings that scale it down.**

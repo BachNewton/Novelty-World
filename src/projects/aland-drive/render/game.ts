@@ -4,7 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
-import { LaneTraffic } from "../traffic/lane-driver";
+import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
 import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
 import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
@@ -145,6 +145,8 @@ export interface GameProbe {
   traffic: (count: number) => void;
   /** The cars driving the lanes, and how many of them are stopped giving way. */
   trafficCounts: () => { cars: number; waiting: number };
+  /** Every car driving the lanes, as the driver holds it. */
+  trafficCars: () => LaneCar[];
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -412,6 +414,8 @@ const MOST_STEPS_A_FRAME = 12;
 const TRAFFIC_MOST = 200;
 const TRAFFIC_REACH_M = 400;
 const TRAFFIC_NEAREST_M = 150;
+/** It steps once every this many of the simulation's steps: cars with no physics need no more, and are drawn between steps. */
+const TRAFFIC_EVERY = 4;
 const EDGE_WALL_HEIGHT_M = 2.5;
 const EDGE_WALL_STEP_M = 40;
 const DASH_SHARE = 0.34;
@@ -796,6 +800,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let trafficWanted = 0;
   // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
   let trafficFilled = false;
+  let trafficSteps = 0;
   const trafficFocus = { x: 0, z: 0 };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
@@ -1485,12 +1490,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
     drive.step(lastInput);
-    if (trafficWanted > 0) {
+    trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
+    if (trafficWanted > 0 && trafficSteps === 0) {
       const player = drive.stateAt(1);
       laneTraffic.setPlayer(player.position[0], player.position[2], { x: player.velocity[0], z: player.velocity[2] }, speedOf(player));
       laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
       trafficFilled ||= laneTraffic.count() >= trafficWanted;
-      laneTraffic.step(STEP_S);
+      laneTraffic.step(STEP_S * TRAFFIC_EVERY);
     }
     tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
@@ -1714,7 +1720,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     parkedCars.update(camera.position);
     trafficFocus.x = camera.position.x;
     trafficFocus.z = camera.position.z;
-    laneTrafficView.draw(laneTraffic, share);
+    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY);
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1765,6 +1771,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         trafficFilled = false;
         if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
       },
+      trafficCars: () => [...laneTraffic.all()],
       trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length }),
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,

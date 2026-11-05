@@ -109,6 +109,16 @@ class Lanes(unittest.TestCase):
         self.assertTrue(drive.yields)
         self.assertIn(connector(lanes, "straight", 0, 0, "east"), lanes.connectors[connector(lanes, "left", 1, 0)].yields)
 
+    def test_a_loop_drive_lying_in_one_junction_never_gives_way_to_the_traffic_behind_it(self):
+        loop = road(1, "service", 4, (-4, -3.05), (0, -6), half=1.5)
+        back = road(1, "service", 4, (0, -6), (4, -3.05), half=1.5)
+        loop.rings = np.concatenate([loop.rings, back.rings[1:]])
+        loop.__post_init__()
+        lanes = lane_map([road(0, "tertiary", 2, (-200, 0), (200, 0)), loop])
+        for found in lanes.connectors:
+            for other in found.yields:
+                self.assertNotEqual(lanes.connectors[other].target, found.source, "a turn out of a lane gives way to the turn feeding it")
+
     def test_traffic_on_a_ring_goes_round_and_an_entry_gives_way_to_it_even_where_the_ring_closes(self):
         corners = 48
         circle = [(30 * np.cos(2 * np.pi * k / corners), 30 * np.sin(2 * np.pi * k / corners)) for k in range(corners + 1)]

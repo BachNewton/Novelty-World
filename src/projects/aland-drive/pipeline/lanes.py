@@ -680,6 +680,9 @@ class LaneMap:
                 if arm_one.phase is not None and arm_two.phase is not None and arm_one.phase != arm_two.phase:
                     continue
                 yielder = self.who_yields(arm_one, one, arm_two, other)
+                # A lane short enough to lie in its junction at both ends: the turn feeding it is behind the turn leaving it, not across it.
+                if (yielder == 1 and other.target == one.source) or (yielder == 2 and one.target == other.source):
+                    continue
                 if yielder == 1:
                     one.yields.append(first + j)
                 elif yielder == 2:

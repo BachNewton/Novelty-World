@@ -130,9 +130,14 @@ export class LaneTraffic {
     this.around.forget(id);
   }
 
-  /** Where the player's car is, so traffic follows it and gives way to it; off every lane, it's nowhere. */
+  /**
+   * Where the player's car is, so traffic follows it and gives way to it while it drives; off every lane it's nowhere.
+   * A stopped one is nowhere too: nothing here yet drives round a car standing in the road, so traffic behind it would
+   * wait for good.
+   */
   setPlayer(x: number, z: number, heading: { x: number; z: number }, speedMS: number): void {
-    this.player = Math.hypot(heading.x, heading.z) > 1e-6 && this.around.match("player", x, z, heading) ? { speedMS } : null;
+    this.player = speedMS > SLOWEST_MS && this.around.match("player", x, z, heading) ? { speedMS } : null;
+    if (!this.player) this.around.forget("player");
   }
 
   /** Keeps `count` cars on the road lanes within `reach` of a place: takes away those gone past it, and puts down one more if there are too few, no nearer than `nearest`. */
