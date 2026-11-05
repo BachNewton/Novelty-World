@@ -128,6 +128,37 @@ class OneSurface(unittest.TestCase):
         self.assertTrue(np.isfinite(cover.at(np.array([[east, strip] for east in (300.0, 500.0, 700.0)]))).all())
         self.assertTrue(np.isnan(cover.at(np.array([[1050.0, strip]]))).all())
 
+    def test_between_a_street_and_its_sidewalk_past_the_kerb_is_the_sidewalk(self):
+        """Drawn as shoulders, the street's own past its kerb and the strip paved on to the sidewalk faded to the photo's
+        colour: a pale band all along the street."""
+        street = road([(100, 600), (1100, 600)])
+        sidewalk = road([(100, 606.75), (1100, 606.75)], "footway", motor=False, footway="sidewalk")
+        paved = paving.lay([street, sidewalk], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        footway = chains["footway"]
+        kerb = 600 + chains["residential"].half.max() + paving.KERB_STRIP_M
+        corners = paved.points[paved.triangles]
+        north = corners[:, :, 1].mean(axis=1)
+        strip = corners[(north > kerb + 0.05) & (north < 606.75 - footway.half.max() - 0.05) & (np.abs(corners[:, :, 0].mean(axis=1) - 600) < 300)]
+        self.assertGreater(len(strip), 10)
+        self.assertTrue((strip[:, :, 6].astype(int) == footway.index).all())
+        self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue((np.abs(strip[:, :, 3]) < 1).all())
+
+    def test_a_sidewalk_carries_on_across_a_driveway(self):
+        """A driveway's asphalt cut every sidewalk it crossed; real ones carry their slabs across the drive's mouth."""
+        street = road([(100, 600), (1100, 600)])
+        sidewalk = road([(100, 604.5), (1100, 604.5)], "footway", motor=False, footway="sidewalk")
+        drive = road([(600, 600), (600, 640)], "service")
+        paved = paving.lay([street, sidewalk, drive], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        crossing = (np.abs(middle[:, 0] - 600) < chains["service"].half.min() - 0.1) & (np.abs(middle[:, 1] - 604.5) < chains["footway"].half.min() - 0.1)
+        self.assertGreater(int(crossing.sum()), 0)
+        self.assertTrue((corners[crossing][:, :, 6].astype(int) == chains["footway"].index).all())
+        self.assertTrue((corners[crossing][:, :, 7] == path_surfaces.SLAB).all())
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")

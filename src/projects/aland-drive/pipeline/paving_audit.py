@@ -49,6 +49,7 @@ STEEP_GRADE = 0.35
 # A tilt under this much rise is a sliver of a triangle, its slope unseen.
 STEEP_RISE_M = 0.15
 STEP_M = 0.05
+EDGE_INSIDE_M = 0.1
 SIDEWALK_SINE = 0.35
 SIDEWALK_BESIDE_M = 6.0
 SIDEWALK_SHARE = 0.5
@@ -162,7 +163,9 @@ def paths_under_streets(chains, points, triangles) -> list[Place]:
         if chain.motor or chain.line is None:
             continue
         for ring in (1, 3):
-            line = shapely.LineString(chain.rings[:, ring, :2])
+            # Just inside the edge: on it, a sample lies on the line between two pieces, in neither.
+            edge = chain.rings[:, ring, :2] + EDGE_INSIDE_M * (chain.rings[:, 2, :2] - chain.rings[:, ring, :2]) / np.maximum(np.hypot(*(chain.rings[:, 2, :2] - chain.rings[:, ring, :2]).T), 1e-9)[:, None]
+            line = shapely.LineString(edge)
             if line.length < 1:
                 continue
             samples = shapely.get_coordinates(shapely.segmentize(line, 1.0))
@@ -187,11 +190,14 @@ def paths_under_streets(chains, points, triangles) -> list[Place]:
     return found
 
 
-def sidewalk_tags(name: str, chains, bounds) -> list[Place]:
-    """Streets whose OSM way maps a sidewalk on itself, with no path drawn beside it on that side, in metres."""
+def sidewalk_tags(name: str, chains, bounds, points) -> list[Place]:
+    """Streets whose OSM way maps a sidewalk on itself, with no path drawn beside it on that side, in metres: a path's line,
+    or a street's own paving wearing a path's surface (the sidewalk its tags map)."""
     osm = json.loads((RAW / "osm" / f"{name}.json").read_text(encoding="utf-8"))
     paths = [chain for chain in chains if not chain.motor and chain.line is not None]
-    xy = np.concatenate([chain.rings[:, 2, :2] for chain in paths])
+    way = points[:, WAY].astype(int)
+    worn = points[(way >= 0) & (points[:, CLASS] != 0) & np.array([chains[index].motor if index >= 0 else False for index in way]), :2]
+    xy = np.concatenate([chain.rings[:, 2, :2] for chain in paths] + [worn])
     tree = cKDTree(xy)
     tile = shapely.box(bounds["west"], bounds["south"], bounds["east"], bounds["north"])
     found = []
@@ -235,7 +241,7 @@ def audit(name: str, tiles: Path) -> list[Place]:
     found += clustered(steep(points, triangles))
     found += clustered(steps(cut_points, cut_triangles))
     found += clustered(paths_under_streets(chains, points, triangles))
-    found += sidewalk_tags(name, chains, manifest["bounds"])
+    found += sidewalk_tags(name, chains, manifest["bounds"], points)
     return found
 
 
