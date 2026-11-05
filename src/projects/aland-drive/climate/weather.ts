@@ -194,11 +194,7 @@ export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weath
   const { roadWet, roadSnow } = roadAt(sky, seasonDay, hour, gameDays);
   const blackIce = roadWet * smoothstep(0.5, -1.5, sky.temperatureC) * (1 - smoothstep(0.1, 0.4, roadSnow));
 
-  const condition: Condition = roadSnow > 0.15 ? "snow" : blackIce > 0.3 ? "ice" : roadWet > 0.1 ? "wet" : "dry";
-  const state: WeatherState =
-    sky.fog > 0.2 ? "fog" : sky.snowfall > 0.1 ? "snowfall" : sky.rain > 0.1 ? "rain" : sky.cloudCover > 0.85 ? "overcast" : sky.cloudCover > 0.35 ? "cloud" : "clear";
-
-  return {
+  return withReading({
     cloudCover: sky.cloudCover,
     rain: sky.rain,
     snowfall: sky.snowfall,
@@ -210,9 +206,15 @@ export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weath
     roadSnow,
     blackIce,
     aurora: sky.aurora,
-    condition,
-    state,
-  };
+  });
+}
+
+/** The weather's values with what they read as: the ground's condition and the state's name. */
+export function withReading(values: Omit<Weather, "condition" | "state">): Weather {
+  const { cloudCover, rain, snowfall, fog, roadWet, roadSnow, blackIce } = values;
+  const condition: Condition = roadSnow > 0.15 ? "snow" : blackIce > 0.3 ? "ice" : roadWet > 0.1 ? "wet" : "dry";
+  const state: WeatherState = fog > 0.2 ? "fog" : snowfall > 0.1 ? "snowfall" : rain > 0.1 ? "rain" : cloudCover > 0.85 ? "overcast" : cloudCover > 0.35 ? "cloud" : "clear";
+  return { ...values, condition, state };
 }
 
 /** Whether a game day had rain or snow, read as the calibration reads it: for the tests and the readout. */

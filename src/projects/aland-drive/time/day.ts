@@ -134,6 +134,11 @@ export class DayClock {
     return this.heldAt !== null;
   }
 
+  /** Whether a date is set here rather than today's. */
+  get dateHeld() {
+    return this.date !== null;
+  }
+
   get shared() {
     return this.date === null && this.shiftHours === 0 && this.heldAt === null;
   }
