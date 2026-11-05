@@ -21,8 +21,8 @@ export const LAMPS_ON_FROM = 0.46;
 const LAMPS_ON_FULL = 0.6;
 /** How much colour the deepest night takes from a surface: the eye's own loss of colour in the dark. */
 const COLOUR_LOST_AT_NIGHT = 0.5;
-/** What a moonless winter night leaves of the deepest midsummer night's light, on the land and in the sky. */
-export const DARKEST_LIGHT = 0.4;
+/** What a moonless winter night leaves of the deepest midsummer night's light, on the land and in the sky: never so little that the road is hard to read, for an arcade game. */
+export const DARKEST_LIGHT = 0.55;
 /** With the sun gone, this share of the baked light's contrast stays, standing in for the open sky mixed into it. */
 const SHADE_KEPT_AT_NIGHT = 0.3;
 const LUMA = [0.2126, 0.7152, 0.0722] as const;

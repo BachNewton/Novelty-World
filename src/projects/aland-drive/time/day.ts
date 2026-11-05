@@ -10,7 +10,7 @@ import { moonPlace, sunPlace, type MoonPlace, type SkyPlace } from "./sky-places
  */
 
 /** How long a game day lasts, in real seconds: a starting value, tuned by the owner in the game. */
-export const GAME_DAY_S = 3600;
+export const GAME_DAY_S = 1800;
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
