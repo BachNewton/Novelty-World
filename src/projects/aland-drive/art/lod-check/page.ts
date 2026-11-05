@@ -3,18 +3,30 @@ import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "t
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { ArtModel, KitMaterials } from "../catalogue";
 import { placeVersion, type RoadsideMaterials } from "../roadside/index";
+import { flip, type LinearPicture } from "./flip";
 
 /*
  * Each model's near and far versions drawn as the game draws them, at the size the swap gives them on the floor
  * screen, from all round: the near version well inside its range and the far just past the swap, so each is whole,
- * each framed to the same metres a pixel. A version that changes shape or colour at the swap is noticed, so the two
- * pictures are compared: the share of the outline one covers and the other doesn't, and how far apart their colours
- * are block by block.
+ * each framed to the same metres a pixel. Two established measures say whether the swap is noticed:
+ *
+ * - Shape, as Simplygon judges a level of detail: how far the far version's outline lies from the near one's, in
+ *   pixels of the floor's screen, from the side where it lies furthest. Not the very furthest pixel, which a speck
+ *   or a hairline decides: the distance all but a fiftieth of what either covers keeps within, so a part counts once
+ *   it's a share of the model, a leg or a mast. A deviation shrinks in step with distance, so it says outright what
+ *   swap would hide it.
+ * - Look, by FLIP (`flip.ts`): how different the two pictures are to a person at the floor's viewing distance, over
+ *   what the model covers, from its colours after the eye's contrast sensitivity and from its edges and points.
+ *
+ * So a change has two cures: a later swap, for the near version's cost over more ground, or a far version that
+ * matches. A model that changes is told the earliest swap, up to twice its own, that hides both; past that, the far
+ * version is what's wrong.
  */
 
-/** The floor's screen: 1440 pixels tall under the game's 60° view. */
+/** The floor's screen: 1440 pixels tall under the game's 60° view, a 34-inch 3440×1440 seen from 70 cm. */
 const SCREEN_ROWS = 1440;
 const FIELD_OF_VIEW = 60;
+const PIXELS_PER_DEGREE = ((0.7 * 3440) / 0.8) * (Math.PI / 180);
 const SUN = { azimuthDeg: 215, elevationDeg: 30 };
 const HAZE_M = 16000;
 /**
@@ -25,8 +37,22 @@ const NEAR_AT = 0.6;
 const FAR_AT = 1.3;
 const FAR_OF_REACH = 0.4;
 const VIEWS = [3, 25].flatMap((elevationDeg) => Array.from({ length: 8 }, (_, step) => ({ azimuthDeg: step * 45, elevationDeg })));
-/** Block of pixels whose mean colours are compared. */
-const BLOCK = 4;
+/**
+ * What a swap may change, set where art matched by hand and accepted in the game (lamps, poles, sheds, bales, sheep,
+ * cows, boulders, lindens, the stone wall) stays and what the owner has seen change (the daisy's flat head turning
+ * pointed, a cyclist turning into a pole) doesn't: an outline that moves 6 pixels, a sheep's legs, and FLIP's mean
+ * between the stone wall's and a deck chair's. Simplygon's own rule of thumb, a pixel, is for a mesh simplified by
+ * machine, with no crossfade to soften the swap.
+ */
+export const NOTICED = { deviationPx: 6, look: 0.55 };
+/** The latest swap tried as a cure, as a multiple of the model's own: the near version over four times the ground. */
+const LATEST_SWAP = 2;
+const SWAPS_TRIED = [1.25, 1.5, 2];
+/** The outline is measured on pictures this many times finer than the floor's screen, so a deviation reads under a pixel. */
+const FINER = 2;
+const LARGEST = 1024;
+/** The share of what either version covers that may lie further off than the deviation. */
+const STRAY = 0.02;
 /** A readback's rows are padded to 256 bytes, so a square this many pixels a side reads back as it was drawn. */
 const ROW_PIXELS = 64;
 
@@ -54,20 +80,27 @@ const materialsOf = (make: KitMaterials) => {
   return made;
 };
 
-interface Picture {
-  size: number;
-  pixels: Uint8Array;
+/** A version as drawn: what it covers on the fine picture, and how it looks at the floor screen's own pixels. */
+interface Drawn {
+  fine: number;
+  finer: number;
+  covers: Uint8Array;
+  seen: LinearPicture;
+  /** What it covers at the floor screen's pixels. */
+  shows: Uint8Array;
 }
 
-async function draw(entry: ArtModel, version: "near" | "far", view: (typeof VIEWS)[number]): Promise<Picture> {
+async function draw(entry: ArtModel, version: "near" | "far", view: (typeof VIEWS)[number], swapM?: number): Promise<Drawn> {
   const drawn = entry.drawn;
   if (drawn === undefined) throw new Error(`${entry.name} has no way to be drawn`);
-  const { model } = drawn;
+  const model = swapM === undefined ? drawn.model : { ...drawn.model, swapM };
   const box = new Box3().setFromBufferAttribute(model.near.getAttribute("position") as BufferAttribute);
   const middle = box.getCenter(new Vector3());
   const radius = box.getSize(new Vector3()).length() / 2;
   const metresPerPixel = (2 * model.swapM * Math.tan((FIELD_OF_VIEW * Math.PI) / 360)) / SCREEN_ROWS;
-  const size = Math.min(1024, Math.max(ROW_PIXELS, Math.ceil(((2.2 * radius) / metresPerPixel + 4) / ROW_PIXELS) * ROW_PIXELS));
+  const size = Math.min(LARGEST, Math.max(ROW_PIXELS, Math.ceil(((2.2 * radius) / metresPerPixel + 4) / ROW_PIXELS) * ROW_PIXELS));
+  const finer = Math.max(1, Math.min(FINER, Math.floor(LARGEST / size)));
+  const fine = size * finer;
   const distance = version === "near" ? model.swapM * NEAR_AT : Math.min(model.swapM * FAR_AT, model.swapM + (model.reachM - model.swapM) * FAR_OF_REACH);
   const [azimuth, elevation] = [(view.azimuthDeg * Math.PI) / 180, (view.elevationDeg * Math.PI) / 180];
   const way = new Vector3(Math.cos(elevation) * Math.sin(azimuth), Math.sin(elevation), Math.cos(elevation) * Math.cos(azimuth));
@@ -78,134 +111,179 @@ async function draw(entry: ArtModel, version: "near" | "far", view: (typeof VIEW
   const scene = new Scene();
   scene.background = new Color(KEY[0] / 255, KEY[1] / 255, KEY[2] / 255);
   for (const mesh of placeVersion(model, version, [{ x: 0, y: 0, z: 0 }], materialsOf(drawn.materials))) scene.add(mesh);
-  const target = new RenderTarget(size, size);
+  const target = new RenderTarget(fine, fine);
   renderer.setRenderTarget(target);
   renderer.render(scene, camera);
-  const pixels = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, size, size)) as Uint8Array;
+  const pixels = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, fine, fine)) as Uint8Array;
   renderer.setRenderTarget(null);
   target.dispose();
-  return { size, pixels };
+  // Read back in linear light; the background stands as the sky the model is seen against.
+  const sky = linear("sky");
+  const covers = new Uint8Array(fine * fine);
+  const rgb = new Float32Array(size * size * 3);
+  const shows = new Uint8Array(size * size);
+  for (let at = 0; at < fine * fine; at++) {
+    const keyed = pixels[at * 4] === KEY[0] && pixels[at * 4 + 1] === KEY[1] && pixels[at * 4 + 2] === KEY[2];
+    const coarse = Math.floor(Math.floor(at / fine) / finer) * size + Math.floor((at % fine) / finer);
+    const shade = keyed ? [sky.x, sky.y, sky.z] : [pixels[at * 4] / 255, pixels[at * 4 + 1] / 255, pixels[at * 4 + 2] / 255];
+    for (let k = 0; k < 3; k++) rgb[coarse * 3 + k] += shade[k] / (finer * finer);
+    if (keyed) continue;
+    covers[at] = 1;
+    shows[coarse] = 1;
+  }
+  return { fine, finer, covers, seen: { width: size, height: size, rgb }, shows };
 }
 
-const covered = ({ pixels }: Picture, at: number) => pixels[at * 4] !== KEY[0] || pixels[at * 4 + 1] !== KEY[1] || pixels[at * 4 + 2] !== KEY[2];
-
-/** What a pixel covers, grown by one: an outline a pixel off isn't a change of shape. */
-function grown(picture: Picture): Uint8Array {
-  const { size } = picture;
-  const out = new Uint8Array(size * size);
-  for (let row = 0; row < size; row++) {
-    for (let column = 0; column < size; column++) {
-      if (!covered(picture, row * size + column)) continue;
-      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-        const [r, c] = [row + dr, column + dc];
-        if (r >= 0 && c >= 0 && r < size && c < size) out[r * size + c] = 1;
+/** Each pixel's squared distance to the nearest one covered: Felzenszwalb and Huttenlocher's exact transform. */
+function distances(covers: Uint8Array, side: number): Float64Array {
+  const out = Float64Array.from(covers, (on) => (on ? 0 : 1e12));
+  const f = new Float64Array(side);
+  const hull = new Int32Array(side);
+  const bounds = new Float64Array(side + 1);
+  const pass = (start: number, stride: number) => {
+    for (let k = 0; k < side; k++) f[k] = out[start + k * stride];
+    let top = 0;
+    [hull[0], bounds[0], bounds[1]] = [0, -Infinity, Infinity];
+    for (let q = 1; q < side; q++) {
+      let s = (f[q] + q * q - (f[hull[top]] + hull[top] * hull[top])) / (2 * q - 2 * hull[top]);
+      while (s <= bounds[top]) {
+        top--;
+        s = (f[q] + q * q - (f[hull[top]] + hull[top] * hull[top])) / (2 * q - 2 * hull[top]);
       }
+      top++;
+      [hull[top], bounds[top], bounds[top + 1]] = [q, s, Infinity];
     }
-  }
+    let k = 0;
+    for (let q = 0; q < side; q++) {
+      while (bounds[k + 1] < q) k++;
+      out[start + q * stride] = (q - hull[k]) ** 2 + f[hull[k]];
+    }
+  };
+  for (let row = 0; row < side; row++) pass(row * side, 1);
+  for (let column = 0; column < side; column++) pass(column, side);
   return out;
 }
 
-/** A colour as read back, in linear light 0 to 255, in CIELAB. */
-function lab([r, g, b]: number[]): number[] {
-  const [lr, lg, lb] = [r / 255, g / 255, b / 255];
-  const xyz = [(0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.95047, 0.2126 * lr + 0.7152 * lg + 0.0722 * lb, (0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.08883];
-  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
-  const [fx, fy, fz] = xyz.map(f);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-/** How much the outline changes, as a share of what either covers, and how far apart the colours are where both cover. */
-function compare(near: Picture, far: Picture) {
-  const { size } = near;
-  const [nearGrown, farGrown] = [grown(near), grown(far)];
-  let [either, lost, gained] = [0, 0, 0];
-  for (let at = 0; at < size * size; at++) {
-    const [n, f] = [covered(near, at), covered(far, at)];
-    if (n || f) either++;
-    if (n && !farGrown[at]) lost++;
-    if (f && !nearGrown[at]) gained++;
-  }
-  let [weight, distance] = [0, 0];
-  for (let row = 0; row < size; row += BLOCK) {
-    for (let column = 0; column < size; column += BLOCK) {
-      const sums = [near, far].map((picture) => {
-        const sum = [0, 0, 0, 0];
-        for (let r = row; r < row + BLOCK; r++) for (let c = column; c < column + BLOCK; c++) {
-          const at = r * size + c;
-          if (!covered(picture, at)) continue;
-          for (let k = 0; k < 3; k++) sum[k] += picture.pixels[at * 4 + k];
-          sum[3]++;
-        }
-        return sum;
-      });
-      const shared = Math.min(sums[0][3], sums[1][3]);
-      if (shared === 0) continue;
-      const [a, b] = sums.map((sum) => lab(sum.slice(0, 3).map((value) => value / sum[3])));
-      distance += Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) * shared;
-      weight += shared;
+/**
+ * How far apart two outlines lie, in pixels of the floor's screen: how far from the other version all but `STRAY` of
+ * what either covers lies. A version with nothing in view is as far off as the picture is wide.
+ */
+function deviation(near: Drawn, far: Drawn): number {
+  const side = near.fine;
+  const [toNear, toFar] = [distances(near.covers, side), distances(far.covers, side)];
+  // Counted by whole fine pixels of distance, the furthest bin holding all that's off the picture.
+  const counts = new Uint32Array(side + 1);
+  let total = 0;
+  for (let at = 0; at < side * side; at++) {
+    for (const [mine, theirs] of [[far.covers, toNear], [near.covers, toFar]] as const) {
+      if (!mine[at]) continue;
+      counts[Math.min(side, Math.ceil(Math.sqrt(theirs[at])))]++;
+      total++;
     }
   }
-  return { changed: lost + gained, either, distance, weight };
+  let [within, bin] = [0, 0];
+  while (bin < side && (within += counts[bin]) < total * (1 - STRAY)) bin++;
+  return bin / near.finer;
+}
+
+/** FLIP's error summed over what either version shows, and how many pixels that is. */
+function look(near: Drawn, far: Drawn): { error: number; pixels: number } {
+  const errors = flip(near.seen, far.seen, PIXELS_PER_DEGREE);
+  let [error, pixels] = [0, 0];
+  for (let at = 0; at < errors.length; at++) {
+    if (!near.shows[at] && !far.shows[at]) continue;
+    error += errors[at];
+    pixels++;
+  }
+  return { error, pixels };
 }
 
 export interface LodResult {
   name: string;
-  /** The share of the outline that changes, 0 to 1, over every view: a sliver seen end on weighs as little as it shows. */
-  shape: number;
-  /** The mean colour difference where both cover, in CIE76 ΔE, over every view. */
-  colour: number;
+  /** How far the outline moves at the swap, in pixels of the floor's screen, at the view where it moves most. */
+  deviation: number;
+  /** FLIP's mean error over what the model covers, over every view. */
+  look: number;
   /** The view where each changes most, as azimuth and elevation in degrees, to look at. */
-  shapeView: [number, number];
-  colourView: [number, number];
-  /** Pixels the two cover between them, on average over the views: what a model a handful of pixels across has to show. */
+  deviationView: [number, number];
+  lookView: [number, number];
+  /** Pixels the two cover between them, on average over the views. */
   pixels: number;
+  swapM: number;
+  reachM: number;
+  /** For a model whose change is noticed: the earliest swap tried that hides it, or null where none up to twice its own does. */
+  hiddenAtM?: number | null;
 }
 
-/** Every drawn model of these catalogues with a far version, compared. */
-export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>): Promise<LodResult[]> {
+export const noticed = (result: Pick<LodResult, "deviation" | "look">) => result.deviation > NOTICED.deviationPx || result.look > NOTICED.look;
+
+async function measure(entry: ArtModel, swapM?: number) {
+  let [most, error, pixels, worstLook] = [-1, 0, 0, -1];
+  let [deviationView, lookView]: [number, number][] = [
+    [0, 0],
+    [0, 0],
+  ];
+  for (const view of VIEWS) {
+    const [near, far] = [await draw(entry, "near", view, swapM), await draw(entry, "far", view, swapM)];
+    const moved = deviation(near, far);
+    if (moved > most) [most, deviationView] = [moved, [view.azimuthDeg, view.elevationDeg]];
+    const seen = look(near, far);
+    [error, pixels] = [error + seen.error, pixels + seen.pixels];
+    if (seen.pixels > 0 && seen.error / seen.pixels > worstLook) [worstLook, lookView] = [seen.error / seen.pixels, [view.azimuthDeg, view.elevationDeg]];
+  }
+  const round = (value: number, places: number) => Number(value.toFixed(places));
+  return { deviation: round(most, 2), look: round(pixels === 0 ? 0 : error / pixels, 3), deviationView, lookView, pixels: Math.round(pixels / VIEWS.length) };
+}
+
+/**
+ * Every drawn model of these catalogues with a far version, compared, and each noticed one tried at later swaps: this
+ * page's `part` of `parts`, so several pages share the work.
+ */
+export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>, part: number, parts: number): Promise<LodResult[]> {
   const results: LodResult[] = [];
+  let index = 0;
   for (const [kit, { artModels }] of Object.entries(catalogues)) {
     for (const entry of artModels()) {
       if (entry.drawn === undefined || entry.drawn.model.far === null) continue;
-      const total = { changed: 0, either: 0, distance: 0, weight: 0 };
-      let [mostShape, mostColour] = [-1, -1];
-      const result: LodResult = { name: `${kit}: ${entry.name}`, shape: 0, colour: 0, shapeView: [0, 0], colourView: [0, 0], pixels: 0 };
-      for (const view of VIEWS) {
-        const found = compare(await draw(entry, "near", view), await draw(entry, "far", view));
-        for (const key of ["changed", "either", "distance", "weight"] as const) total[key] += found[key];
-        if (found.changed > mostShape) [mostShape, result.shapeView] = [found.changed, [view.azimuthDeg, view.elevationDeg]];
-        if (found.distance > mostColour) [mostColour, result.colourView] = [found.distance, [view.azimuthDeg, view.elevationDeg]];
+      if (index++ % parts !== part) continue;
+      const { swapM, reachM } = entry.drawn.model;
+      const result: LodResult = { name: `${kit}: ${entry.name}`, ...(await measure(entry)), swapM, reachM };
+      if (noticed(result)) {
+        result.hiddenAtM = null;
+        // A deviation shrinks in step with distance, so the outline alone says how far the swap must go.
+        const outlineHidden = swapM * Math.max(1, result.deviation / NOTICED.deviationPx);
+        const tried = [outlineHidden, ...SWAPS_TRIED.map((factor) => swapM * factor)].filter((at) => at >= outlineHidden && at > swapM && at <= swapM * LATEST_SWAP && at < reachM * 0.8).sort((a, b) => a - b);
+        for (const at of tried) {
+          if (!noticed(await measure(entry, at))) {
+            result.hiddenAtM = Math.ceil(at);
+            break;
+          }
+        }
       }
-      result.shape = total.either === 0 ? 0 : total.changed / total.either;
-      result.colour = total.weight === 0 ? 0 : total.distance / total.weight;
-      result.pixels = Math.round(total.either / VIEWS.length);
       results.push(result);
     }
   }
   return results;
 }
 
-/** One model's two versions from a view, side by side on the page's canvas, for a look by eye. */
+/** One model's two versions from a view, side by side at the floor screen's pixels, for a look by eye. */
 export async function pictureOf(catalogues: Record<string, { artModels: () => ArtModel[] }>, name: string, azimuthDeg: number, elevationDeg: number): Promise<string> {
   const [kit, model] = name.split(": ");
   const entry = catalogues[kit].artModels().find((candidate) => candidate.name === model);
   if (entry === undefined) throw new Error(`no ${name}`);
   const view = { azimuthDeg, elevationDeg };
   const [near, far] = [await draw(entry, "near", view), await draw(entry, "far", view)];
+  const size = near.seen.width;
   const canvas = document.createElement("canvas");
-  [canvas.width, canvas.height] = [near.size * 2, near.size];
+  [canvas.width, canvas.height] = [size * 2, size];
   const pen = canvas.getContext("2d");
   if (pen === null) throw new Error("no 2D canvas");
-  [near, far].forEach(({ size, pixels }, index) => {
+  const shown = (v: number) => Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
+  [near, far].forEach(({ seen }, index) => {
     const image = pen.createImageData(size, size);
-    // Read back in linear light, so turned to the screen's colours to be seen.
-    const shown = (value: number) => {
-      const v = value / 255;
-      return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
-    };
-    for (let row = 0; row < size; row++) {
-      const line = pixels.subarray(row * size * 4, (row + 1) * size * 4);
-      for (let at = 0; at < line.length; at++) image.data[row * size * 4 + at] = at % 4 === 3 ? 255 : shown(line[at]);
+    for (let at = 0; at < size * size; at++) {
+      for (let k = 0; k < 3; k++) image.data[at * 4 + k] = shown(seen.rgb[at * 3 + k]);
+      image.data[at * 4 + 3] = 255;
     }
     pen.putImageData(image, index * size, 0);
   });

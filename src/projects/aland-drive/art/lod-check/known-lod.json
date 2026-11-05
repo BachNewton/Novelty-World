@@ -1,214 +1,554 @@
 {
+  "boats: folkboat": {
+    "deviation": 17,
+    "look": 0.387,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "boats: large": {
+    "deviation": 18.5,
+    "look": 0.376,
+    "swapM": 200,
+    "cure": "far version"
+  },
   "boats: galeas": {
-    "shape": 0.187,
-    "colour": 21.3
+    "deviation": 16.5,
+    "look": 0.483,
+    "swapM": 240,
+    "cure": "far version"
   },
-  "boats: rib": {
-    "shape": 0.21,
-    "colour": 21.3
+  "boats: launch": {
+    "deviation": 16,
+    "look": 0.43,
+    "swapM": 110,
+    "cure": "far version"
   },
-  "boats: rescue": {
-    "shape": 0.078,
-    "colour": 24.1
+  "identity: upturned boat": {
+    "deviation": 9.5,
+    "look": 0.413,
+    "swapM": 70,
+    "cure": "swap at 111 m"
   },
-  "boats: pilot": {
-    "shape": 0.054,
-    "colour": 21.4
-  },
-  "boats: passenger": {
-    "shape": 0.053,
-    "colour": 19.2
-  },
-  "identity: deck chair": {
-    "shape": 0.223,
-    "colour": 28.3
-  },
-  "identity: bonfire stack": {
-    "shape": 0.256,
-    "colour": 18.8
-  },
-  "identity: orchard ladder": {
-    "shape": 0.432,
-    "colour": 7
-  },
-  "identity: open-farm sign": {
-    "shape": 0.248,
-    "colour": 24.3
-  },
-  "identity: cyclist with bike": {
-    "shape": 0.305,
-    "colour": 46.1
+  "identity: farm stall": {
+    "deviation": 7,
+    "look": 0.279,
+    "swapM": 70,
+    "cure": "swap at 82 m"
   },
   "identity: cyclist standing": {
-    "shape": 0.173,
-    "colour": 41.3
+    "deviation": 4.5,
+    "look": 0.706,
+    "swapM": 45,
+    "cure": "far version"
   },
-  "identity: bicycle": {
-    "shape": 0.491,
-    "colour": 37.2
-  },
-  "identity: touring rack": {
-    "shape": 0.307,
-    "colour": 38.8
-  },
-  "identity: wooden daymark": {
-    "shape": 0.326,
-    "colour": 27.8
-  },
-  "identity: viewing tower": {
-    "shape": 0.371,
-    "colour": 13.1
-  },
-  "identity: viewpoint platform": {
-    "shape": 0.456,
-    "colour": 18.2
+  "identity: net heap": {
+    "deviation": 9,
+    "look": 0.453,
+    "swapM": 40,
+    "cure": "swap at 60 m"
   },
   "marina: finger pontoon": {
-    "shape": 0.453,
-    "colour": 5
-  },
-  "marina: walkway gate": {
-    "shape": 0.694,
-    "colour": 20
+    "deviation": 12,
+    "look": 0.649,
+    "swapM": 90,
+    "cure": "far version"
   },
   "marina: dinghy rack": {
-    "shape": 0.285,
-    "colour": 36.1
+    "deviation": 9,
+    "look": 0.819,
+    "swapM": 60,
+    "cure": "far version"
   },
-  "marina: rail trolley": {
-    "shape": 0.459,
-    "colour": 4.9
+  "marina: guest harbour sign": {
+    "deviation": 23,
+    "look": 0.402,
+    "swapM": 80,
+    "cure": "far version"
   },
-  "marina: flag mast": {
-    "shape": 0.169,
-    "colour": 21.5
+  "marina: hull on stocks": {
+    "deviation": 23,
+    "look": 0.646,
+    "swapM": 130,
+    "cure": "far version"
   },
-  "marina: cradle": {
-    "shape": 0.566,
-    "colour": 4.4
+  "marina: leading front yellow-red": {
+    "deviation": 19,
+    "look": 0.092,
+    "swapM": 150,
+    "cure": "far version"
   },
-  "marina: mast rack": {
-    "shape": 0.385,
-    "colour": 17.2
-  },
-  "marina: sawn timber stack": {
-    "shape": 0.048,
-    "colour": 17.2
-  },
-  "marina: steam box": {
-    "shape": 0.368,
-    "colour": 6.4
-  },
-  "marina: spar safe": {
-    "shape": 0,
-    "colour": 31.5
-  },
-  "marina: pillar safe": {
-    "shape": 0.06,
-    "colour": 36.4
+  "marina: leading front white-red": {
+    "deviation": 19,
+    "look": 0.088,
+    "swapM": 150,
+    "cure": "far version"
   },
   "marina: admiralty anchor": {
-    "shape": 0.259,
-    "colour": 8.5
+    "deviation": 19,
+    "look": 0.539,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "marina: figurehead": {
+    "deviation": 6.5,
+    "look": 0.28,
+    "swapM": 40,
+    "cure": "swap at 44 m"
   },
   "roadside: farm fence": {
-    "shape": 0.299,
-    "colour": 3.4
+    "deviation": 128,
+    "look": 0.576,
+    "swapM": 90,
+    "cure": "far version"
   },
-  "roadside: bus shelter": {
-    "shape": 0.128,
-    "colour": 19.5
+  "roadside: pier 32 × 3 m": {
+    "deviation": 7,
+    "look": 0.348,
+    "swapM": 220,
+    "cure": "swap at 275 m"
   },
-  "rural: tractor": {
-    "shape": 0.05,
-    "colour": 26
+  "rural: boathouse red": {
+    "deviation": 9.5,
+    "look": 0.362,
+    "swapM": 180,
+    "cure": "swap at 285 m"
   },
-  "rural: reed bed": {
-    "shape": 0.411,
-    "colour": 14.6
-  },
-  "rural: jetty section": {
-    "shape": 0.393,
-    "colour": 3.1
+  "rural: bush sallow": {
+    "deviation": 6.5,
+    "look": 0.49,
+    "swapM": 70,
+    "cure": "swap at 76 m"
   },
   "rural: jetty head": {
-    "shape": 0.341,
-    "colour": 3.6
+    "deviation": 13,
+    "look": 0.559,
+    "swapM": 120,
+    "cure": "far version"
   },
-  "street: guard rail": {
-    "shape": 0.324,
-    "colour": 3.5
+  "rural: sailboat moored": {
+    "deviation": 10,
+    "look": 0.435,
+    "swapM": 130,
+    "cure": "swap at 217 m"
   },
-  "street: guard rail end": {
-    "shape": 0.391,
-    "colour": 4.2
-  },
-  "street: guard rail return": {
-    "shape": 0.607,
-    "colour": 4.3
-  },
-  "street: grass tuft": {
-    "shape": 0.371,
-    "colour": 7.4
-  },
-  "street: grass tuft short": {
-    "shape": 0.386,
-    "colour": 6.2
-  },
-  "street: seed grass": {
-    "shape": 0.316,
-    "colour": 11.4
+  "street: reflector post": {
+    "deviation": 64,
+    "look": 0.246,
+    "swapM": 45,
+    "cure": "far version"
   },
   "street: wildflowers daisy": {
-    "shape": 0.356,
-    "colour": 5.2
-  },
-  "street: wildflowers buttercup": {
-    "shape": 0.337,
-    "colour": 5.1
-  },
-  "street: wildflowers lupine": {
-    "shape": 0.333,
-    "colour": 5.6
-  },
-  "street: wildflowers fireweed": {
-    "shape": 0.329,
-    "colour": 5.5
+    "deviation": 10,
+    "look": 0.435,
+    "swapM": 34,
+    "cure": "far version"
   },
   "street: wildflowers cow-parsley": {
-    "shape": 0.393,
-    "colour": 2.8
-  },
-  "street: bike rack": {
-    "shape": 0.574,
-    "colour": 3.9
-  },
-  "town-kit: terminal": {
-    "shape": 0.502,
-    "colour": 6.4
-  },
-  "town-kit: window box red": {
-    "shape": 0.011,
-    "colour": 25.7
-  },
-  "town-kit: window box white": {
-    "shape": 0.016,
-    "colour": 19.1
-  },
-  "town-kit: bicycle bike-red": {
-    "shape": 0.633,
-    "colour": 15.2
-  },
-  "town-kit: bicycle bike-blue": {
-    "shape": 0.633,
-    "colour": 11.7
-  },
-  "town-kit: bicycle bike-black": {
-    "shape": 0.633,
-    "colour": 9.8
+    "deviation": 9,
+    "look": 0.5,
+    "swapM": 34,
+    "cure": "far version"
   },
   "town-kit: village sign": {
-    "shape": 0.419,
-    "colour": 19.4
+    "deviation": 4,
+    "look": 0.616,
+    "swapM": 320,
+    "cure": "swap at 640 m"
+  },
+  "boats: rib": {
+    "deviation": 5.5,
+    "look": 0.601,
+    "swapM": 100,
+    "cure": "swap at 200 m"
+  },
+  "identity: bicycle": {
+    "deviation": 128,
+    "look": 0.934,
+    "swapM": 40,
+    "cure": "far version"
+  },
+  "marina: walkway gate": {
+    "deviation": 24,
+    "look": 0.892,
+    "swapM": 40,
+    "cure": "far version"
+  },
+  "marina: slipway": {
+    "deviation": 15,
+    "look": 0.427,
+    "swapM": 110,
+    "cure": "far version"
+  },
+  "marina: flag mast": {
+    "deviation": 18.5,
+    "look": 0.315,
+    "swapM": 130,
+    "cure": "far version"
+  },
+  "marina: leading rear yellow-red": {
+    "deviation": 23.5,
+    "look": 0.083,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "marina: leading rear white-red": {
+    "deviation": 23.5,
+    "look": 0.078,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "marina: stockless anchor": {
+    "deviation": 8,
+    "look": 0.492,
+    "swapM": 70,
+    "cure": "swap at 94 m"
+  },
+  "marina: wheel sign": {
+    "deviation": 7,
+    "look": 0.478,
+    "swapM": 50,
+    "cure": "swap at 59 m"
+  },
+  "roadside: town fence": {
+    "deviation": 64,
+    "look": 0.367,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "roadside: pier 60 × 8 m": {
+    "deviation": 7.5,
+    "look": 0.294,
+    "swapM": 220,
+    "cure": "swap at 275 m"
+  },
+  "rural: boathouse tarred": {
+    "deviation": 9.5,
+    "look": 0.359,
+    "swapM": 180,
+    "cure": "swap at 285 m"
+  },
+  "rural: shore slab 24": {
+    "deviation": 6.5,
+    "look": 0.401,
+    "swapM": 170,
+    "cure": "swap at 185 m"
+  },
+  "rural: pier section": {
+    "deviation": 13.5,
+    "look": 0.402,
+    "swapM": 160,
+    "cure": "far version"
+  },
+  "street: guard rail": {
+    "deviation": 128,
+    "look": 0.333,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "street: grass tuft": {
+    "deviation": 14,
+    "look": 0.573,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: wildflowers buttercup": {
+    "deviation": 9.5,
+    "look": 0.454,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: midsummer pole": {
+    "deviation": 10,
+    "look": 0.421,
+    "swapM": 140,
+    "cure": "far version"
+  },
+  "town-kit: terminal": {
+    "deviation": 219,
+    "look": 0.54,
+    "swapM": 700,
+    "cure": "far version"
+  },
+  "town-kit: bicycle bike-red": {
+    "deviation": 14.5,
+    "look": 0.781,
+    "swapM": 28,
+    "cure": "far version"
+  },
+  "boats: cruiser": {
+    "deviation": 18.5,
+    "look": 0.344,
+    "swapM": 170,
+    "cure": "far version"
+  },
+  "boats: double-ender": {
+    "deviation": 12.5,
+    "look": 0.358,
+    "swapM": 190,
+    "cure": "far version"
+  },
+  "boats: allmogebat": {
+    "deviation": 42.5,
+    "look": 0.377,
+    "swapM": 110,
+    "cure": "far version"
+  },
+  "boats: fishing": {
+    "deviation": 8.5,
+    "look": 0.453,
+    "swapM": 130,
+    "cure": "swap at 260 m"
+  },
+  "identity: deck chair": {
+    "deviation": 14.5,
+    "look": 0.564,
+    "swapM": 45,
+    "cure": "far version"
+  },
+  "identity: open-farm sign": {
+    "deviation": 9.5,
+    "look": 0.626,
+    "swapM": 60,
+    "cure": "swap at 120 m"
+  },
+  "identity: touring rack": {
+    "deviation": 17,
+    "look": 0.795,
+    "swapM": 45,
+    "cure": "far version"
+  },
+  "identity: wooden daymark": {
+    "deviation": 19,
+    "look": 0.664,
+    "swapM": 160,
+    "cure": "far version"
+  },
+  "identity: viewing tower": {
+    "deviation": 8,
+    "look": 0.653,
+    "swapM": 200,
+    "cure": "far version"
+  },
+  "marina: rail trolley": {
+    "deviation": 17,
+    "look": 0.761,
+    "swapM": 60,
+    "cure": "far version"
+  },
+  "marina: cradle": {
+    "deviation": 17,
+    "look": 0.873,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "marina: log stack": {
+    "deviation": 6.5,
+    "look": 0.412,
+    "swapM": 60,
+    "cure": "swap at 65 m"
+  },
+  "marina: boat shed row": {
+    "deviation": 9,
+    "look": 0.247,
+    "swapM": 150,
+    "cure": "swap at 225 m"
+  },
+  "marina: leading front red-yellow": {
+    "deviation": 19,
+    "look": 0.097,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "marina: leading front red-white": {
+    "deviation": 19,
+    "look": 0.095,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "marina: propeller": {
+    "deviation": 10.5,
+    "look": 0.483,
+    "swapM": 70,
+    "cure": "swap at 140 m"
+  },
+  "roadside: bus shelter": {
+    "deviation": 6.5,
+    "look": 0.479,
+    "swapM": 130,
+    "cure": "swap at 141 m"
+  },
+  "rural: juniper spreading": {
+    "deviation": 11,
+    "look": 0.539,
+    "swapM": 60,
+    "cure": "swap at 110 m"
+  },
+  "rural: reed bed": {
+    "deviation": 192,
+    "look": 0.633,
+    "swapM": 90,
+    "cure": "far version"
+  },
+  "street: guard rail end": {
+    "deviation": 12.5,
+    "look": 0.49,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "street: grass tuft short": {
+    "deviation": 25.5,
+    "look": 0.557,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: wildflowers lupine": {
+    "deviation": 9.5,
+    "look": 0.478,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: bike rack": {
+    "deviation": 21,
+    "look": 0.68,
+    "swapM": 42,
+    "cure": "far version"
+  },
+  "town-kit: bicycle bike-blue": {
+    "deviation": 14.5,
+    "look": 0.762,
+    "swapM": 28,
+    "cure": "far version"
+  },
+  "identity: drying nets": {
+    "deviation": 8.5,
+    "look": 0.211,
+    "swapM": 70,
+    "cure": "swap at 100 m"
+  },
+  "identity: bonfire stack": {
+    "deviation": 10.5,
+    "look": 0.639,
+    "swapM": 80,
+    "cure": "far version"
+  },
+  "identity: orchard ladder": {
+    "deviation": 55,
+    "look": 0.555,
+    "swapM": 35,
+    "cure": "far version"
+  },
+  "identity: cyclist with bike": {
+    "deviation": 6,
+    "look": 0.757,
+    "swapM": 45,
+    "cure": "far version"
+  },
+  "identity: picnic table": {
+    "deviation": 8.5,
+    "look": 0.424,
+    "swapM": 45,
+    "cure": "swap at 64 m"
+  },
+  "identity: viewpoint platform": {
+    "deviation": 20.5,
+    "look": 0.683,
+    "swapM": 100,
+    "cure": "far version"
+  },
+  "marina: fuel berth": {
+    "deviation": 7,
+    "look": 0.407,
+    "swapM": 150,
+    "cure": "swap at 175 m"
+  },
+  "marina: travel lift": {
+    "deviation": 8,
+    "look": 0.399,
+    "swapM": 150,
+    "cure": "swap at 200 m"
+  },
+  "marina: boat in cradle": {
+    "deviation": 10.5,
+    "look": 0.256,
+    "swapM": 110,
+    "cure": "swap at 193 m"
+  },
+  "marina: mast rack": {
+    "deviation": 19.5,
+    "look": 0.569,
+    "swapM": 60,
+    "cure": "far version"
+  },
+  "marina: steam box": {
+    "deviation": 15.5,
+    "look": 0.591,
+    "swapM": 50,
+    "cure": "far version"
+  },
+  "marina: pillar safe": {
+    "deviation": 2.5,
+    "look": 0.631,
+    "swapM": 110,
+    "cure": "far version"
+  },
+  "marina: leading rear red-yellow": {
+    "deviation": 23.5,
+    "look": 0.083,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "marina: leading rear red-white": {
+    "deviation": 23.5,
+    "look": 0.082,
+    "swapM": 150,
+    "cure": "far version"
+  },
+  "rural: windmill": {
+    "deviation": 9.5,
+    "look": 0.378,
+    "swapM": 320,
+    "cure": "swap at 640 m"
+  },
+  "rural: bush hazel": {
+    "deviation": 7,
+    "look": 0.538,
+    "swapM": 70,
+    "cure": "swap at 82 m"
+  },
+  "rural: jetty section": {
+    "deviation": 18,
+    "look": 0.582,
+    "swapM": 120,
+    "cure": "far version"
+  },
+  "street: guard rail return": {
+    "deviation": 16.5,
+    "look": 0.5,
+    "swapM": 70,
+    "cure": "far version"
+  },
+  "street: seed grass": {
+    "deviation": 11,
+    "look": 0.474,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: wildflowers fireweed": {
+    "deviation": 11,
+    "look": 0.505,
+    "swapM": 34,
+    "cure": "far version"
+  },
+  "street: café set": {
+    "deviation": 14.5,
+    "look": 0.396,
+    "swapM": 36,
+    "cure": "far version"
+  },
+  "town-kit: bicycle bike-black": {
+    "deviation": 14.5,
+    "look": 0.781,
+    "swapM": 28,
+    "cure": "far version"
   }
 }
