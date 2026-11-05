@@ -1,8 +1,9 @@
-import type { Scene } from "three/webgpu";
-import { buildCarArt, carOnRoad, type CarArt } from "../art/cars/model";
+import type { Node, Scene } from "three/webgpu";
+import { buildCarArt, carOnRoad, type CarArt, type CarLights } from "../art/cars/model";
 import { CARS } from "../art/cars/specs";
-import type { CarState } from "../sim/car-state";
+import type { CarLamps, CarState } from "../sim/car-state";
 import type { CarId } from "../sim/cars";
+import { type Sun } from "../art/sun";
 
 /*
  * Other players' cars, drawn with the same art as the car being driven, one
@@ -14,7 +15,10 @@ import type { CarId } from "../sim/cars";
 
 type View = ReturnType<typeof carOnRoad>;
 
-export function createRemoteCarViews(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }) {
+/** A car's lamps as its art lights them. */
+export const lightsOf = ({ head, brake, reverse }: CarLamps): CarLights => ({ headlights: head, brake, reversing: reverse });
+
+export function createRemoteCarViews(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">) {
   const arts = new Map<CarId, CarArt>();
   const views = new Map<string, { car: CarId; view: View }>();
 
@@ -48,10 +52,11 @@ export function createRemoteCarViews(scene: Scene, sun: { azimuthDeg: number; el
         return;
       }
       if (!shown) {
-        shown = { car, view: carOnRoad(scene, sun, artFor(car)) };
+        shown = { car, view: carOnRoad(scene, sun, artFor(car), { hazed }) };
         views.set(id, shown);
       }
       shown.view.draw(state);
+      shown.view.setLights(lightsOf(state.lamps));
     },
     /** Whether a car was drawn on the last frame. */
     drawn: (id: string) => views.has(id),

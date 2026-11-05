@@ -1,5 +1,5 @@
 import { type Node } from "three/webgpu";
-import { cameraPosition, float, mix, normalize, positionWorld, vec3 } from "three/tsl";
+import { cameraPosition, float, mix, normalize, positionWorld } from "three/tsl";
 import { flatNormal } from "../art/flat-normal";
 
 /*
@@ -18,11 +18,6 @@ const SKY_SHARE: [down: number, up: number] = [0.42, 0.92];
 const BACKLIGHT = 0.4;
 const BACKLIGHT_FOCUS = 3;
 const FACET_SHARE = 0.5;
-
-export const towardsSun = ({ azimuthDeg, elevationDeg }: { azimuthDeg: number; elevationDeg: number }) => {
-  const [way, up] = [(azimuthDeg * Math.PI) / 180, (elevationDeg * Math.PI) / 180];
-  return vec3(Math.sin(way) * Math.cos(up), Math.sin(up), -Math.cos(way) * Math.cos(up));
-};
 
 /** The light on a pixel of leaves, from the plant's rounded direction there (a varying, out from its middle) and how much of it lets the sun through. */
 export function foliageLight(toSun: Node<"vec3">, rounded: Node<"vec3">, seeThrough: Node<"float">): Node<"float"> {

@@ -2,6 +2,7 @@ import { Vector3, type Node, type UniformNode } from "three/webgpu";
 import { dot, float, mix, smoothstep, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { skyLooks, type SkyLook } from "../sky/sky";
+import "./tokens.css";
 
 /*
  * The one dial the night hangs on. `amount` runs from full day (0) to the deepest of the short Nordic summer night (1),

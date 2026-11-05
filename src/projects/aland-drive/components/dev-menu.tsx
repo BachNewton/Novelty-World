@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, CloudRain, FlaskConical, MapPin, Navigation, TreePine, Snowflake, Sun, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
-import type { CarChoice } from "../render/game";
+import { CalendarDays, Check, CloudRain, FlaskConical, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
+import type { CarChoice, DayChange, DayShown } from "../render/game";
+import { parseDate } from "../time/day";
 import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
 import { playgroundAsked, playgroundLink } from "../playground/place";
@@ -99,6 +100,50 @@ function ConditionChoice({ condition, onCondition }: { condition: Condition; onC
   );
 }
 
+const clockText = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
+
+/** The day this page draws: another date, an hour, or the hour held still. Today's shared day is the start. */
+function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayChange) => void }) {
+  const [shown, setShown] = useState(day);
+  const change = (next: DayChange) => {
+    onDay(next);
+    setShown(day());
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <label className="flex grow items-center gap-2 text-sm">
+          <CalendarDays aria-hidden className="size-4 shrink-0" />
+          <span className="sr-only">Date</span>
+          <input
+            type="date"
+            value={shown.date}
+            className="grow rounded border-2 bg-transparent px-1"
+            style={{ borderColor: INK }}
+            onChange={(event) => {
+              if (event.target.value !== "") change({ date: parseDate(event.target.value) });
+            }}
+          />
+        </label>
+        <button type="button" title="Today, as every player has it" aria-label="Today" className="cursor-pointer rounded border-2 px-2 py-1 text-xs" style={{ borderColor: shown.shared ? ACCENT : INK }} onClick={() => { change({ date: null }); }}>
+          Today
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <button type="button" title={shown.held ? "Let the hour run" : "Hold the hour"} aria-label={shown.held ? "Let the hour run" : "Hold the hour"} className="cursor-pointer" onClick={() => { change({ held: !shown.held }); }}>
+          {shown.held ? <Play className="size-4" /> : <Pause className="size-4" />}
+        </button>
+        <input type="range" aria-label="Hour" min={0} max={23.75} step={0.25} value={shown.hour} className="grow" style={{ accentColor: ACCENT }} onChange={(event) => { change({ hour: Number(event.target.value) }); }} />
+        <span className="w-12 text-right text-sm tabular-nums">{clockText(shown.hour)}</span>
+      </div>
+      <div className="flex items-center gap-2 text-xs" title="The sun's height over the horizon">
+        <Sunrise aria-hidden className="size-4" />
+        <span className="tabular-nums">{shown.sun.elevationDeg.toFixed(1)}°</span>
+      </div>
+    </div>
+  );
+}
+
 /** Over to the playground, a made-up map for trying the car, or back to Åland. */
 function WorldSwitch() {
   const inPlayground = playgroundAsked(window.location.search);
@@ -126,7 +171,7 @@ function SpotList({ spots, onJump }: { spots: readonly { id: string; name: strin
   );
 }
 
-export function DevMenu({ cars, car, onCar, condition, onCondition, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -146,6 +191,9 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, spots, onJum
         </Section>
         <Section title="Ground">
           <ConditionChoice condition={condition} onCondition={onCondition} />
+        </Section>
+        <Section title="Day">
+          <DayChoice day={day} onDay={onDay} />
         </Section>
         <Section title="Jump to">
           <SpotList spots={spots} onJump={onJump} />

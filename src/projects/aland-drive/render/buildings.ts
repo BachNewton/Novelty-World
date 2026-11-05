@@ -1,11 +1,12 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Texture } from "three/webgpu";
-import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniform, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniformArray, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
 import { facadeArt } from "../art/facades/facade";
 import { PAINT_STYLE } from "../art/landmarks/kit";
 import IDS from "../art/facades/facade-ids.json";
+import { towardsSun, type Sun } from "../art/sun";
 
 /*
  * Buildings, a mesh per 600 m cell. Their walls have no art of their own: boards,
@@ -114,10 +115,8 @@ function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }
   return mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall));
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: { azimuthDeg: number; elevationDeg: number }, art: { detail: Texture; sheet: SignSheet }): MeshBasicNodeMaterial {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet }): MeshBasicNodeMaterial {
+  const toSun = towardsSun(sun);
 
   const facade = attribute<"vec4">("facade", "vec4");
   const tint = attribute<"vec4">("tint", "vec4");

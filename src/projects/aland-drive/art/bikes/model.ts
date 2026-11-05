@@ -8,6 +8,7 @@ import { bikeGeometry, bikeMaterial } from "./material";
 import { poseBike, restMotion, stepMotion, type RideInput, type RideMotion } from "./rig";
 import type { BikeSpec } from "./specs";
 import "./tokens.css";
+import { type Sun } from "../sun";
 
 /*
  * A bike to draw, from a position, a rotation and a `RideInput`: the rig makes
@@ -52,7 +53,7 @@ export interface BikeViewOptions {
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }
 
-export function createBikeModel(art: BikeArt, sun: { azimuthDeg: number; elevationDeg: number }, options: BikeViewOptions = {}) {
+export function createBikeModel(art: BikeArt, sun: Sun, options: BikeViewOptions = {}) {
   const { spec } = art;
   const { material, setPose, setSlot } = bikeMaterial({ sun, hazed: options.hazed });
 

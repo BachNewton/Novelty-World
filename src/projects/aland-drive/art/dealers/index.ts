@@ -1,6 +1,6 @@
 import { CARS } from "../cars/specs";
 import { groundY, type CarSpec } from "../cars/build";
-import type { CarState } from "../../sim/car-state";
+import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId } from "./exteriors";
 import type { Interior, InteriorId } from "./interiors";
 
@@ -41,6 +41,7 @@ export function restingCar(spec: CarSpec, at: CarSlot["at"], yaw: number): CarSt
     car: spec.id ?? "skerry-gt",
     suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
     roll: 0,
+    lamps: LAMPS_OFF,
   };
 }
 

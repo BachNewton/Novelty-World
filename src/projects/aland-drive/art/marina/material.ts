@@ -1,10 +1,11 @@
-import { Vector3, Vector4, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, float, floor, fract, int, mix, positionGeometry, positionWorld, round, select, smoothstep, uniform, uniformArray } from "three/tsl";
+import { Vector4, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, float, floor, fract, int, mix, positionGeometry, positionWorld, round, select, smoothstep, uniformArray } from "three/tsl";
 import { seedOf, unitOf } from "../hash";
 import { streetMaterials, type StreetInputs } from "../street";
 import { MARINA_PARTS, PAINT } from "./paint";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The street's two materials, so these models grow, dissolve and move exactly as the
@@ -23,9 +24,7 @@ const BOARDS = 2;
 const BOARDS_GONE_M = 90;
 
 function paint({ linear, sun }: Pick<StreetInputs, "linear" | "sun">, isNear: boolean): Node<"vec3"> {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const palette = uniformArray(MARINA_PARTS.map((part) => {
     const { from, to, share, gain, float: floats, boards } = { to: undefined, share: 0, gain: 1, float: false, boards: false, ...PAINT[part] };
     const colour = linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
