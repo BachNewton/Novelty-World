@@ -253,7 +253,8 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         first += chain["sections"]
     aprons = surface["aprons"]
     start = sections * RINGS * 12 + sections
-    points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * APRON_FLOATS, offset=start).reshape(-1, APRON_FLOATS)
+    floats = aprons.get("pointFloats", APRON_FLOATS)
+    points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * floats, offset=start).reshape(-1, floats)
     triangles = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.nbytes).reshape(-1, 3)
     return [chain for chain in chains if len(chain.rings) > 1], [Polygon(points[triangle, :2]) for triangle in triangles]
 

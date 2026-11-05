@@ -122,8 +122,9 @@ def read_tile(folder: Path) -> tuple[dict, np.ndarray, list[Chain], np.ndarray, 
         first += chain["sections"]
     start = sections * RINGS * 12 + sections
     count = surface["aprons"]["points"]
-    points = np.frombuffer(data, "<f4", count=count * APRON_FLOATS, offset=start).reshape(-1, APRON_FLOATS).astype(np.float64)
-    triangles = np.frombuffer(data, "<u4", count=surface["aprons"]["triangles"] * 3, offset=start + count * APRON_FLOATS * 4).reshape(-1, 3)
+    floats = surface["aprons"].get("pointFloats", APRON_FLOATS)
+    points = np.frombuffer(data, "<f4", count=count * floats, offset=start).reshape(-1, floats).astype(np.float64)
+    triangles = np.frombuffer(data, "<u4", count=surface["aprons"]["triangles"] * 3, offset=start + count * floats * 4).reshape(-1, 3)
     return manifest, nodes, chains, points, triangles
 
 

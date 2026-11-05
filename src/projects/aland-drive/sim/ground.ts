@@ -86,6 +86,10 @@ export class GroundBlocks {
     world.forRoadsInBlock(column, row, (ribbon, triangle) => {
       road.push({ positions: ribbon.positions, indices: ribbon.indices, triangle });
     });
+    // Where the paving cuts the ground, the cut ground's triangles stand in for the grid's.
+    world.forCutInBlock(column, row, (cut, triangle) => {
+      road.push({ positions: cut.positions, indices: cut.indices, triangle });
+    });
     const walls: { from: Float32Array; at: number }[] = [];
     world.forWallsInBlock(column, row, (from, at) => {
       walls.push({ from, at });
@@ -102,9 +106,13 @@ export class GroundBlocks {
         vertices[at + 2] = (top + r) * stepM;
       }
     }
-    indices.set(this.patch);
+    let next = 0;
+    for (let cell = 0; cell < BLOCK_CELLS * BLOCK_CELLS; cell++) {
+      if (world.isCut(left + (cell % BLOCK_CELLS), top + Math.floor(cell / BLOCK_CELLS))) continue;
+      indices.set(this.patch.subarray(cell * 6, cell * 6 + 6), next);
+      next += 6;
+    }
     let vertex = across * across;
-    let next = this.patch.length;
     for (const { positions, indices: ribbonIndices, triangle } of road) {
       for (let corner = 0; corner < 3; corner++) {
         const from = ribbonIndices[triangle + corner] * 3;
@@ -122,6 +130,6 @@ export class GroundBlocks {
       next += 6;
     }
     this.built++;
-    return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
+    return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices.subarray(0, next)).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
   }
 }

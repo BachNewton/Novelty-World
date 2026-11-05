@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
@@ -125,6 +125,8 @@ export interface GameProbe {
   /** Shows the bushes, junipers and young birches or leaves them out, to see what they do. */
   showShrubs: (shown: boolean) => void;
   showGranite: (shown: boolean) => void;
+  /** Shows the ground the paving cuts through or leaves it out, to see what it does. */
+  showCutGround: (shown: boolean) => void;
   stoneWallsDrawn: () => StoneWallsDrawn;
   car: () => CarState;
   log: () => DriveLog;
@@ -547,6 +549,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  // The ground the paving cuts through, coloured as the terrain is, drawn where the innermost ring leaves its cells out.
+  const cutPlace = positionGeometry.xz;
+  const cutMaterial = new MeshBasicNodeMaterial();
+  cutMaterial.colorNode = terrainColour(varying(clipmap.waterLevelAt(0, cutPlace).sub(positionGeometry.y)), varying(clipmap.shoreAt(0, cutPlace)));
+  cutMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
+  cutMaterial.alphaTest = 0.5;
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt,
@@ -618,6 +626,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const concrete = colorOf("wall-pale");
   bridgeMaterial.colorNode = hazed(mix(mix(concrete, colorOf("wall-plinth"), smoothstep(float(0.5), float(0.6), part)), concrete.mul(0.45), smoothstep(float(1.5), float(1.6), part)));
   bridgeMaterial.side = 2;
+  // An underpass's walls are the bridge's concrete, drawn where the cut ground is.
+  const underpassMaterial = new MeshBasicNodeMaterial();
+  underpassMaterial.colorNode = hazed(concrete);
+  underpassMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
+  underpassMaterial.alphaTest = 0.5;
+  underpassMaterial.side = 2;
   // Bridges come with tiles, mid-drive, so one stands in to have its pipeline built with the rest.
   const bridgeStandIn = new BufferGeometry();
   bridgeStandIn.setAttribute("position", new BufferAttribute(new Float32Array(9), 3));
@@ -653,6 +667,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
+  const cutGrounds = new Map<string, Mesh>();
+  let cutShown = true;
   const bridges = new Map<string, Mesh>();
   let meshBytes = 0;
   const meshBytesOf = (detail: TileDetail, dress: RoadAttributes, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
@@ -673,6 +689,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const meshes = ribbonMeshes(detail, roadDress, townRibbons, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
+        if (detail.cut.indices.length > 0) {
+          const geometry = new BufferGeometry();
+          geometry.setAttribute("position", new BufferAttribute(detail.cut.positions, 3));
+          geometry.setIndex(new BufferAttribute(detail.cut.indices, 1));
+          const ground = detail.cut.indices.length - detail.cut.walls * 3;
+          geometry.addGroup(0, ground, 0);
+          geometry.addGroup(ground, detail.cut.walls * 3, 1);
+          const mesh = new Mesh(geometry, [cutMaterial, underpassMaterial]);
+          mesh.frustumCulled = false;
+          mesh.visible = cutShown;
+          scene.add(mesh);
+          cutGrounds.set(detail.name, mesh);
+        }
         const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial);
         scene.add(solids.group);
         buildings.set(detail.name, solids);
@@ -712,6 +741,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.remove(meshes.group);
         for (const { mesh } of meshes.cells) mesh.geometry.dispose();
         ribbons.delete(detail.name);
+        const cut = cutGrounds.get(detail.name);
+        if (cut) {
+          scene.remove(cut);
+          cut.geometry.dispose();
+          cutGrounds.delete(detail.name);
+        }
         const solids = buildings.get(detail.name);
         if (!solids) throw new Error(`${detail.name} has no buildings to release`);
         scene.remove(solids.group);
@@ -1272,6 +1307,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       graniteDrawn: granite.drawn,
       showShrubs: shrubs.show,
       showGranite: granite.show,
+      showCutGround: (shown) => {
+        cutShown = shown;
+        for (const mesh of cutGrounds.values()) mesh.visible = shown;
+      },
       stoneWallsDrawn: stoneWalls.drawn,
       car: () => drive.stateAt(1),
       log: () => drive.log,

@@ -40,11 +40,15 @@ Every attempt above is a layer over the one before: aprons hide the gaps between
 
 ## The design: paving first, then its heights, then the ground round it
 
-Proposed, not yet approved. Nothing below is built.
+On trial on the two Mariehamn tiles (`pipeline/paving.py`, `build.py --paving`), with the game drawing either kind of tile. The owner judged the second trial the biggest improvement yet; "What the trial taught" below holds the rules it added.
 
 ### 1. Where paving is, in plan
 
-Each way's footprint (its centre line, widened by its class's width) is merged with every other's into **one paved shape per level**. A junction, a merge, a way ending on another, a sidewalk along its street and a paved area are all just parts of the shape, with nothing left to join: issue 1 has no seams to make.
+Each way's footprint (its centre line, widened by its class's width, and for a motor road by its shoulder, where the kerb and paving or the stone edge is drawn) is merged with every other's into **one paved shape per level**. A junction, a merge, a way ending on another, a sidewalk along its street and a paved area are all just parts of the shape, with nothing left to join: issue 1 has no seams to make.
+
+**One shape is not one look.** The shape is cut along every way's own outline and carriageway, and each piece belongs to the greatest way whose carriageway holds it, or failing that the greatest whose shoulder does, so a sidewalk beside its street stays the sidewalk's to the street's edge, with the sidewalk's surface and the street's paint ending on one clean line, and a side road keeps its own surface through the main road's shoulder. A piece no way's outline holds (a junction's rounded corner, a narrow gap closed between two ways) is drawn as the shoulders round it.
+
+**Ways join only where their surfaces agree.** A gap is closed and a corner rounded only where the ways either side stand within 0.4 m of each other all across it, and two ways whose outlines touch but stand a metre or more apart along most of where they touch stay apart: the lesser stands back from the greater, and the land between them is a bank. Joined anyway, the lower way is dragged up the bank, or the paving between them is a cliff.
 
 **Levels** answer issue 2. Every way is on the ground's level except across a **crossing span**: where a way tagged bridge passes over another, the span is on the level above; where a way tagged tunnel passes under another, the span is on the level below. Off its span the same way is on the ground level, so a bridge's approaches are embankments and an underpass's are cuttings, laid like any other way. Two ways crossing untagged, both on the ground, are a junction, as OSM means them. Åland has no stacked interchanges, so three levels (below, ground, above) are enough; a fourth is an error the build stops on.
 
@@ -54,9 +58,9 @@ The shape is clipped to the tile, and its edge on the tile's edge is cut at poin
 
 Each way keeps the profile it has now: smoothed along its length by its class's wavelength, pinned to a greater way where it joins one, held over its bridge spans. That part is sound and stays. The new part is how the paving between centre lines gets its height.
 
-Each way's own cross-section (its centre's height, its crown, its camber) gives a height anywhere near it. A point of paving takes **a blend of the cross-sections of the ways near it**, each weighted by how close it is, the greater way weighted more. Inside one way's own footprint that is only its own cross-section; in a junction, a merge or a sidewalk beside its street the blend runs smoothly from one to the other. Paving's height is then one continuous surface by construction, with no step for anything to cover. A kerb, if wanted later, is a deliberate offset in that blend, not an accident of two overlapping roads.
+Each way's own cross-section (its centre's height, its crown, its camber) gives a height anywhere near it. The paving's heights come from **one least-squares solve**: each point leans towards its own way's cross-section, as stiffly as that way's rank (a main road hardly bends, a path bends over several metres), and each edge between two points keeps the difference the greater of their two ways has between them. Inside one way's own piece that is only its own cross-section, crown and all; where two ways' surfaces disagree, at a junction, a merge or a sidewalk beside its street, the lesser bends smoothly to meet the greater, and a piece no way owns hangs between its neighbours. Paving's height is then one continuous surface by construction, with no step for anything to cover. A kerb, if wanted later, is a deliberate offset in that solve, not an accident of two overlapping roads.
 
-A span on another level takes only its own way's cross-section and is never blended with the level it crosses. An underpass's span is dipped to keep a clearance under the deck above it, and drawn with walls and a roof where it runs beneath.
+A span on another level takes only its own way's cross-section and is never blended with the level it crosses. An underpass's own profile is dipped, smoothly as its class bends, to keep a clearance under the deck above it, and walls rise from its edges to under the deck where it runs beneath, with the deck's edge drawn down over it.
 
 ### 3. The ground, built round the paving
 
@@ -79,6 +83,14 @@ The rest of the game reads the ground as the regular grid, and keeps doing so:
 ### What goes away
 
 Ribbons as separate meshes, aprons and their tuck, shoulders and their cap and skips, the gap fillers, the paved-area pieces (a paved area is part of the shape), levelling, pressing, the smoothing near ways, and the audit's exemptions. The audit's kinds mostly vanish with them: gaps, lips, through, flicker and plates can't happen on one shape with one height per point. What's left to measure is the surface's own folds (a kink in a blend, an embankment too steep for its limit) and where the drawn ground and the grid other things read come apart.
+
+### What the trial taught
+
+- **A road's edge carries its look.** Without shoulders the kerbs and sidewalk paving went, so a motor road's paving includes its shoulder; a path has none, since its shoulder made the old pale slabs.
+- **The game keeps every triangle of paving.** Its rule dropping "cliffs" (a steep triangle rising over 1.2 m) was for ribbons diving through each other, which one surface can't; on paving it cut thin triangles out of steep paths and left holes.
+- **Cut ground meets two heights at an underpass's portal.** Each corner of cut ground takes the height of the paving its own triangle borders, and an upright face closes any gap left along an edge, between two triangles of cut ground or between cut ground and paving. An underpass's walls are concrete, as the bridges are.
+- **An underpass in the open is a way like any other** to the banks and cuttings beside it; left out, the ground was stretched from its floor up to the raw land.
+- **Geometry alone can't say what lies between two ways.** Closing gaps narrower than 3 m and a fixed shoulder per class are guesses that kept needing retuning: too little paving left seams, too much lost sidewalks and genuinely separate roads. The next step reads the aerial photo at its full 0.5 m, at build time, for where the surface really is hard.
 
 ### Trying it
 

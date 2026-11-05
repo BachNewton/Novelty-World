@@ -24,7 +24,15 @@ export function litPhoto(ground: Uint8Array, shade: Uint8Array, gamma: number): 
 export interface TileManifest {
   tile: string;
   bounds: { west: number; south: number; east: number; north: number };
-  roadSurface: { file: string; chains: RoadChain[]; aprons?: { points: number; triangles: number; areaPoints?: number } };
+  roadSurface: {
+    file: string;
+    chains: RoadChain[];
+    aprons?: { points: number; triangles: number; areaPoints?: number; pointFloats?: number };
+    /** The roads laid as one paved surface (`pipeline/paving.py`): the aprons are the whole drawn surface, and the chains' rings only say where each way runs. */
+    paved?: boolean;
+    /** The ground the paving cuts through, drawn in place of the grid's cells it lists. */
+    groundCut?: { file: string; cells: number; points: number; triangles: number; walls: number };
+  };
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
   /** Boathouses and sheds drawn by the rural kit on real footprints. A tile built before them has none. */
   models?: { file: string };
@@ -133,6 +141,10 @@ export const fieldPixelsOf = (world: WorldManifest) => world.rock?.fieldPixels ?
 export const RING_POINTS = 5;
 const RING_FLOATS = RING_POINTS * 3;
 const APRON_POINT_FLOATS = 5;
+/** A point of paving also says how far along its way it is, and which way: `pipeline/paving.py`'s `POINT_FLOATS`. */
+const PAVING_POINT_FLOATS = 7;
+/** A point of paving that's a car park's, not any way's. */
+export const AREA_WAY = -2;
 
 export interface RoadAprons {
   firstPoint: number;
@@ -141,6 +153,9 @@ export interface RoadAprons {
   /** Per point, as `RibbonMesh`'s. */
   across: Float32Array;
   tiers: Float32Array;
+  /** Per point of paving: metres of paint along its way, and the way, an index into `chains` or `AREA_WAY`. Empty for aprons. */
+  along: Float32Array;
+  ways: Int32Array;
   indices: Uint32Array;
 }
 
@@ -150,8 +165,10 @@ export interface RoadSurface {
   /** Each section's tier, an index into `ROAD_TIERS`. */
   tiers: Uint8Array;
   chains: (RoadChain & { first: number })[];
-  /** The junction aprons: their points follow the chains' in `rings`, and they number their triangles from there. */
+  /** The junction aprons, or the whole paving: their points follow the chains' in `rings`, and they number their triangles from there. */
   aprons: RoadAprons;
+  /** Whether the aprons are the whole paving, and the chains' rings aren't drawn. */
+  paved: boolean;
 }
 
 export const ROAD_TIERS = ["main", "minor", "track"] as const;
@@ -223,10 +240,11 @@ export function patchIndices(cells: number): Uint32Array {
 export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): RoadSurface {
   const sections = manifest.roadSurface.chains.reduce((sum, chain) => sum + chain.sections, 0);
   const floats = sections * RING_FLOATS;
-  const { points, triangles, areaPoints = 0 } = manifest.roadSurface.aprons ?? { points: 0, triangles: 0 };
+  const { points, triangles, areaPoints = 0, pointFloats = APRON_POINT_FLOATS } = manifest.roadSurface.aprons ?? { points: 0, triangles: 0 };
+  if (pointFloats !== APRON_POINT_FLOATS && pointFloats !== PAVING_POINT_FLOATS) throw new Error(`${manifest.tile}: apron points of ${pointFloats} floats`);
   const baked = new Float32Array(data, 0, floats);
   const apronsAt = floats * 4 + sections;
-  if (data.byteLength !== apronsAt + points * APRON_POINT_FLOATS * 4 + triangles * 12) throw new Error(`${manifest.tile}: expected ${sections} road sections and ${points} apron points, got ${data.byteLength} bytes`);
+  if (data.byteLength !== apronsAt + points * pointFloats * 4 + triangles * 12) throw new Error(`${manifest.tile}: expected ${sections} road sections and ${points} apron points, got ${data.byteLength} bytes`);
   const rings = new Float32Array(floats + points * 3);
   for (let at = 0; at < floats; at += 3) {
     rings[at] = baked[at];
@@ -240,15 +258,53 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     return placed;
   });
   // After a byte per section, so not on a boundary a typed array can view.
-  const apronPoints = new Float32Array(data.slice(apronsAt, apronsAt + points * APRON_POINT_FLOATS * 4));
+  const apronPoints = new Float32Array(data.slice(apronsAt, apronsAt + points * pointFloats * 4));
+  const paving = pointFloats === PAVING_POINT_FLOATS;
   const across = new Float32Array(points);
   const tiers = new Float32Array(points);
+  const along = new Float32Array(paving ? points : 0);
+  const ways = new Int32Array(paving ? points : 0);
   for (let point = 0; point < points; point++) {
-    const at = point * APRON_POINT_FLOATS;
+    const at = point * pointFloats;
     rings.set([apronPoints[at], apronPoints[at + 2], -apronPoints[at + 1]], floats + point * 3);
     across[point] = apronPoints[at + 3];
     tiers[point] = apronPoints[at + 4];
+    if (paving) {
+      along[point] = apronPoints[at + 5];
+      ways[point] = apronPoints[at + 6];
+    }
   }
-  const indices = new Uint32Array(data.slice(apronsAt + points * APRON_POINT_FLOATS * 4));
-  return { rings, tiers: new Uint8Array(data, floats * 4, sections), chains, aprons: { firstPoint: sections * RING_POINTS, firstAreaPoint: sections * RING_POINTS + points - areaPoints, across, tiers, indices } };
+  const indices = new Uint32Array(data.slice(apronsAt + points * pointFloats * 4));
+  return {
+    rings,
+    tiers: new Uint8Array(data, floats * 4, sections),
+    chains,
+    aprons: { firstPoint: sections * RING_POINTS, firstAreaPoint: sections * RING_POINTS + points - areaPoints, across, tiers, along, ways, indices },
+    paved: manifest.roadSurface.paved === true,
+  };
+}
+
+/** The ground the paving cuts through: which of the height grid's cells it replaces, and its triangles in scene space. */
+export interface GroundCut {
+  /** Row * cells + column of each cell of the tile's height grid drawn and collided with as these triangles instead. */
+  cells: Uint32Array;
+  positions: Float32Array;
+  indices: Uint32Array;
+  /** How many of the last triangles are underpasses' walls, drawn as concrete. */
+  walls: number;
+}
+
+export function decodeGroundCut(data: ArrayBuffer, manifest: TileManifest): GroundCut {
+  const cut = manifest.roadSurface.groundCut;
+  if (!cut) return { cells: new Uint32Array(0), positions: new Float32Array(0), indices: new Uint32Array(0), walls: 0 };
+  if (data.byteLength !== cut.cells * 4 + cut.points * 12 + cut.triangles * 12) throw new Error(`${manifest.tile}: expected ${cut.cells} cut cells and ${cut.points} points, got ${data.byteLength} bytes`);
+  const cells = new Uint32Array(data, 0, cut.cells);
+  const points = new Float32Array(data, cut.cells * 4, cut.points * 3);
+  const positions = new Float32Array(points.length);
+  for (let at = 0; at < points.length; at += 3) {
+    positions[at] = points[at];
+    positions[at + 1] = points[at + 2];
+    positions[at + 2] = -points[at + 1];
+  }
+  return { cells, positions, indices: new Uint32Array(data, cut.cells * 4 + cut.points * 12, cut.triangles * 3), walls: cut.walls };
 }

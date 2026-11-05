@@ -22,7 +22,8 @@ function junction(kind: string, tier: number, sealed?: boolean): RoadSurface {
   return {
     rings: Float32Array.from([...main, ...lesser]),
     tiers: Uint8Array.from([...Array<number>(21).fill(0), ...Array<number>(6).fill(tier)]),
-    aprons: { firstPoint: 27 * 5, firstAreaPoint: Infinity, across: new Float32Array(), tiers: new Float32Array(), indices: new Uint32Array() },
+    aprons: { firstPoint: 27 * 5, firstAreaPoint: Infinity, across: new Float32Array(), tiers: new Float32Array(), along: new Float32Array(), ways: new Int32Array(), indices: new Uint32Array() },
+    paved: false,
     chains: [
       { sections: 21, kind: "primary", motor: true, first: 0 },
       { sections: 6, kind, motor: true, first: 21, sealed },

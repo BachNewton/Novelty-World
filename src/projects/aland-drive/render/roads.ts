@@ -61,7 +61,8 @@ export function paintAlong(length: number, startsOnEdge: boolean, endsOnEdge: bo
 
 export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"]): RibbonMesh {
   const vertices = surface.rings.length / 3;
-  const quads = surface.chains.reduce((sum, chain) => sum + (chain.sections - 1) * (RING_POINTS - 1), 0);
+  // Paved, the rings only say where each way runs: the paving is the whole surface.
+  const quads = surface.paved ? 0 : surface.chains.reduce((sum, chain) => sum + (chain.sections - 1) * (RING_POINTS - 1), 0);
   const { aprons } = surface;
   const across = new Float32Array(vertices);
   const along = new Float32Array(vertices);
@@ -88,7 +89,7 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
         along[ring + point] = distances[section] * scale + offset;
         tiers[ring + point] = surface.tiers[chain.first + section];
       }
-      if (section === chain.sections - 1) continue;
+      if (section === chain.sections - 1 || surface.paved) continue;
       for (let lane = 0; lane < RING_POINTS - 1; lane++) {
         const here = ring + lane;
         const ahead = here + RING_POINTS;
@@ -103,9 +104,12 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
   }
   across.set(aprons.across, aprons.firstPoint);
   tiers.set(aprons.tiers, aprons.firstPoint);
+  along.set(aprons.along, aprons.firstPoint);
   for (let at = 0; at < aprons.indices.length; at += 3) {
     const [a, b, c] = [aprons.indices[at] + aprons.firstPoint, aprons.indices[at + 1] + aprons.firstPoint, aprons.indices[at + 2] + aprons.firstPoint];
-    if (hasArea(surface.rings, a, b, c)) {
+    // The paving is one surface on each level, built without folds or cliffs: a steep path's thin triangle is its own, and
+    // leaving it out would leave a hole.
+    if (surface.paved || hasArea(surface.rings, a, b, c)) {
       indices.set([a, b, c], next);
       next += 3;
     }

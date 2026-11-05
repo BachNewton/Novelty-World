@@ -1,4 +1,4 @@
-import { decodeRoadSurface, surfaceHeight, type HeightGrid, type RoadSurface, type TileManifest, type WorldManifest } from "../render/tile";
+import { decodeGroundCut, decodeRoadSurface, surfaceHeight, type GroundCut, type HeightGrid, type RoadSurface, type TileManifest, type WorldManifest } from "../render/tile";
 import { bridgeKit, type BridgeKit } from "../render/bridges";
 import { ribbonMesh, type RibbonMesh } from "../render/roads";
 import { RoadNet, tileRoads, type TileRoads } from "./road-net";
@@ -44,6 +44,10 @@ export interface TileDetail {
   ribbon: RibbonMesh;
   roads: TileRoads;
   blockRoads: BlockRoads;
+  /** The ground the paving cuts through, and which of the height grid's cells it replaces, 1 for each: none on a tile laid before the paving. */
+  cut: GroundCut;
+  cutCells: Uint8Array;
+  blockCut: BlockRoads;
   /** The tile's bridges as drawn. */
   bridges: BridgeKit;
   /** What the car can't pass, `WALL_FLOATS` to a wall: the outlines of the tile's buildings and the sides of its bridges. */
@@ -115,7 +119,7 @@ function blockWalls(walls: Float32Array, west: number, north: number, tileM: num
   return { first, items, blocksAcross };
 }
 
-function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: number): BlockRoads {
+function blockRoads(ribbon: { positions: Float32Array; indices: Uint32Array }, west: number, north: number, tileM: number): BlockRoads {
   const blocks = Math.round(tileM / BLOCK_M);
   const blocksAcross = blocks + 2 * BLOCK_RIM;
   const lists = Array.from({ length: blocksAcross * blocksAcross }, (): number[] => []);
@@ -150,8 +154,11 @@ function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: numb
   return { first, triangles, blocksAcross };
 }
 
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0)): TileDetail {
+export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), cutBytes: ArrayBuffer = new ArrayBuffer(0)): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest);
+  const cut = decodeGroundCut(cutBytes, manifest);
+  const cutCells = new Uint8Array((grid.nodes - 1) * (grid.nodes - 1));
+  for (const cell of cut.cells) cutCells[cell] = 1;
   const ribbon = ribbonMesh(surface, manifest.bounds);
   const bridges = bridgeKit(surface, grid);
   const allWallsHere = allWalls(walls, bridges.rails);
@@ -169,6 +176,9 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
     ribbon,
     roads: tileRoads(surface, column, row, tileM),
     blockRoads: blockRoads(ribbon, manifest.bounds.west, manifest.bounds.north, tileM),
+    cut,
+    cutCells,
+    blockCut: blockRoads(cut, manifest.bounds.west, manifest.bounds.north, tileM),
     bridges,
     walls: allWallsHere,
     blockWalls: blockWalls(allWallsHere, manifest.bounds.west, manifest.bounds.north, tileM),
@@ -331,6 +341,13 @@ export class World {
     return north + down * (south - north);
   }
 
+  /** Whether a cell of the 4 m lattice, named by its north-west node, is drawn and collided with as the paving's cut ground rather than the grid's two triangles. */
+  isCut(column: number, row: number): boolean {
+    const tile = this.tiles.get(tileKey(Math.floor(column / this.tileCells), Math.floor(row / this.tileCells)));
+    if (!tile?.detail) return false;
+    return tile.detail.cutCells[(row - tile.row * this.tileCells) * this.tileCells + column - tile.column * this.tileCells] === 1;
+  }
+
   /** The drawn water surface at a node of the 4 m lattice, from the best detail loaded there, or `dryLevel` where there's none. */
   waterLevel(column: number, row: number): number {
     const tile = this.tileOfNode(column, row);
@@ -385,6 +402,20 @@ export class World {
       if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
       const block = row * blocksAcross + column;
       for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.ribbon, triangles[entry]);
+    }
+  }
+
+  /** Every loaded tile's cut ground triangles crossing a block. */
+  forCutInBlock(blockColumn: number, blockRow: number, visit: (cut: GroundCut, triangle: number) => void): void {
+    const blocks = Math.round(this.tileM / BLOCK_M);
+    for (const { detail } of this.tiles.values()) {
+      if (!detail) continue;
+      const { first, triangles, blocksAcross } = detail.blockCut;
+      const column = blockColumn - detail.column * blocks + BLOCK_RIM;
+      const row = blockRow - detail.row * blocks + BLOCK_RIM;
+      if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
+      const block = row * blocksAcross + column;
+      for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.cut, triangles[entry]);
     }
   }
 

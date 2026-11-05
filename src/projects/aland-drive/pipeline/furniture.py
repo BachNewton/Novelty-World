@@ -140,8 +140,9 @@ class Surface:
                         triangles += [np.array([a[left], b[left], b[right]]), np.array([a[left], b[right], a[right]])]
             aprons = surface["aprons"]
             start = sections * 15 * 4 + sections
-            points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * 5, offset=start).reshape(-1, 5)[:, :3].astype(np.float64)
-            corners = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + aprons["points"] * 20).reshape(-1, 3)
+            floats = aprons.get("pointFloats", 5)
+            points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * floats, offset=start).reshape(-1, floats)[:, :3].astype(np.float64)
+            corners = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + aprons["points"] * floats * 4).reshape(-1, 3)
             triangles += list(points[corners])
         self.triangles = triangles
         self.tree = shapely.STRtree([Polygon(triangle[:, :2]) for triangle in triangles]) if triangles else None

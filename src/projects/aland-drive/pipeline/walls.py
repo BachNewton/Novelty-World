@@ -273,8 +273,9 @@ def road_surface(folder: Path, manifest: dict) -> tuple[list[Polygon], np.ndarra
     at = sections * 15 * 4 + sections
     aprons = surface.get("aprons", {})
     count = aprons.get("points", 0)
-    points = np.frombuffer(data, "<f4", count=count * 5, offset=at).reshape(-1, 5)[:, :2].astype(np.float64) + WORLD_ORIGIN
-    triangles = np.frombuffer(data, "<u4", count=aprons.get("triangles", 0) * 3, offset=at + count * 5 * 4).reshape(-1, 3)
+    floats = aprons.get("pointFloats", 5)
+    points = np.frombuffer(data, "<f4", count=count * floats, offset=at).reshape(-1, floats)[:, :2].astype(np.float64) + WORLD_ORIGIN
+    triangles = np.frombuffer(data, "<u4", count=aprons.get("triangles", 0) * 3, offset=at + count * floats * 4).reshape(-1, 3)
     shapes += [Polygon(points[triangle]) for triangle in triangles]
     return shapes, np.array(centres), np.array(centre_tiers, np.uint8)
 

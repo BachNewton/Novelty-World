@@ -84,7 +84,8 @@ class Aprons:
         data = gzip.decompress((folder / surface["file"]).read_bytes())
         start = sections * RINGS * 12 + sections
         aprons = surface["aprons"]
-        points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * APRON_FLOATS, offset=start).reshape(-1, APRON_FLOATS).astype(np.float64)
+        floats = aprons.get("pointFloats", APRON_FLOATS)
+        points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * floats, offset=start).reshape(-1, floats).astype(np.float64)
         indices = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.size * 4).reshape(-1, 3)
         self.triangles = points[indices][:, :, :3]
         self.tree = shapely.STRtree(shapely.polygons(np.concatenate((self.triangles[:, :, :2], self.triangles[:, :1, :2]), axis=1)))

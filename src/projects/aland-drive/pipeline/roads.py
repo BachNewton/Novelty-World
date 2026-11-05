@@ -244,6 +244,7 @@ class Chain:
     right: np.ndarray = field(default=None)
     centre: np.ndarray = field(default=None)
     span: np.ndarray = field(default=None)  # True on stations held up over a gap.
+    edge_at: np.ndarray = field(default=None)  # Which of its edges each station lies on.
     kept: np.ndarray = field(default=None)  # Stations left once the ends are cut to the roads they land on.
     full_left: np.ndarray = field(default=None)  # (x, y) of the left edge at every station, the cut ones included.
     full_right: np.ndarray = field(default=None)
@@ -577,6 +578,7 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     chain.xy, chain.tangent, chain.normal, chain.half = xy, tangent, normal, half
     chain.crown, chain.bank = crown, bank
     chain.span = span
+    chain.edge_at = which
     chain.shoulder = shoulder
     chain.blend = blend
     chain.tier = np.array([TIERS.index(kind.tier) for kind in kinds], dtype=np.uint8)
