@@ -128,3 +128,26 @@ export function decodeLanes(file: LanesFile): TileLanes {
 }
 
 export const laneTransfers = (lanes: TileLanes): ArrayBuffer[] => [lanes.points.buffer as ArrayBuffer];
+
+/** A line's length along the ground, in metres. */
+export function lineLength(points: Float32Array, line: LaneLine): number {
+  let length = 0;
+  for (let at = line.first; at < line.first + line.count - 1; at++) length += Math.hypot(points[at * 3 + 3] - points[at * 3], points[at * 3 + 5] - points[at * 3 + 2]);
+  return length;
+}
+
+/** The place metres along a line, held to its ends, and the way it runs there on the ground. */
+export function pointAlong(points: Float32Array, line: LaneLine, along: number): { x: number; y: number; z: number; dx: number; dz: number } {
+  let left = Math.max(0, along);
+  let last = { x: points[line.first * 3], y: points[line.first * 3 + 1], z: points[line.first * 3 + 2], dx: 0, dz: -1 };
+  for (let at = line.first; at < line.first + line.count - 1; at++) {
+    const [x0, y0, z0, x1, y1, z1] = points.subarray(at * 3, at * 3 + 6);
+    const length = Math.hypot(x1 - x0, z1 - z0);
+    if (length < 1e-6) continue;
+    const share = Math.min(1, left / length);
+    last = { x: x0 + (x1 - x0) * share, y: y0 + (y1 - y0) * share, z: z0 + (z1 - z0) * share, dx: (x1 - x0) / length, dz: (z1 - z0) / length };
+    if (left <= length) return last;
+    left -= length;
+  }
+  return last;
+}

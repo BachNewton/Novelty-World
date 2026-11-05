@@ -1,5 +1,5 @@
 import type { LaneNet } from "./lane-net";
-import type { Connector, LaneLine } from "./lane-map";
+import { lineLength, type Connector, type LaneLine } from "./lane-map";
 
 /*
  * Knowing what's around: every vehicle near the player, whatever drives it, each
@@ -32,12 +32,6 @@ const ON_LANE_M = 6;
 const SAME_WAY = Math.cos(Math.PI / 3);
 
 const keyOf = ({ tile, index, connector }: Pick<OnLane, "tile" | "index" | "connector">) => `${tile}:${connector ? "c" : "l"}${index}`;
-
-function lengthOf(points: Float32Array, line: LaneLine): number {
-  let length = 0;
-  for (let at = line.first; at < line.first + line.count - 1; at++) length += Math.hypot(points[at * 3 + 3] - points[at * 3], points[at * 3 + 5] - points[at * 3 + 2]);
-  return length;
-}
 
 /** The nearest point of a line to a place: metres off it, metres along it, and whether the line runs within a turn of `heading`. */
 function nearestOn(points: Float32Array, line: LaneLine, x: number, z: number, heading: { x: number; z: number } | null) {
@@ -117,13 +111,14 @@ export class Around {
     return this.places.get(id);
   }
 
-  private length(place: Pick<OnLane, "tile" | "index" | "connector">): number {
+  /** A lane's or connector's length in metres. */
+  length(place: Pick<OnLane, "tile" | "index" | "connector">): number {
     const key = keyOf(place);
     const known = this.lengths.get(key);
     if (known !== undefined) return known;
     const tile = this.net.tile(place.tile);
     if (!tile) throw new Error(`${place.tile} has no lanes loaded`);
-    const length = lengthOf(tile.points, place.connector ? tile.connectors[place.index] : tile.lanes[place.index]);
+    const length = lineLength(tile.points, place.connector ? tile.connectors[place.index] : tile.lanes[place.index]);
     this.lengths.set(key, length);
     return length;
   }

@@ -4,6 +4,8 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
+import { LaneTraffic } from "../traffic/lane-driver";
+import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
 import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
@@ -139,6 +141,10 @@ export interface GameProbe {
   lanes: () => LaneNet;
   /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
   showLanes: (shown: boolean) => void;
+  /** Keeps this many cars driving the lanes round the camera, with none at 0. */
+  traffic: (count: number) => void;
+  /** The cars driving the lanes, and how many of them are stopped giving way. */
+  trafficCounts: () => { cars: number; waiting: number };
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -402,6 +408,10 @@ export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
+/** The lane lab's traffic: at most this many cars, kept within a reach of the camera, and once they're all out, new ones put down no nearer than this. */
+const TRAFFIC_MOST = 200;
+const TRAFFIC_REACH_M = 400;
+const TRAFFIC_NEAREST_M = 150;
 const EDGE_WALL_HEIGHT_M = 2.5;
 const EDGE_WALL_STEP_M = 40;
 const DASH_SHARE = 0.34;
@@ -781,6 +791,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const parkedCars = createParkedCars(scene, manifest.sun, hazed);
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
+  const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
+  const laneTrafficView = createLaneTrafficView(scene, manifest.sun, hazed, TRAFFIC_MOST);
+  let trafficWanted = 0;
+  // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
+  let trafficFilled = false;
+  const trafficFocus = { x: 0, z: 0 };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const challengeBoard = new ChallengeBoard(CHALLENGES, { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
@@ -1469,6 +1485,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
     drive.step(lastInput);
+    if (trafficWanted > 0) {
+      const player = drive.stateAt(1);
+      laneTraffic.setPlayer(player.position[0], player.position[2], { x: player.velocity[0], z: player.velocity[2] }, speedOf(player));
+      laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
+      trafficFilled ||= laneTraffic.count() >= trafficWanted;
+      laneTraffic.step(STEP_S);
+    }
     tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
     const placed = drive.placements !== sampledPlacements;
@@ -1689,6 +1712,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
+    trafficFocus.x = camera.position.x;
+    trafficFocus.z = camera.position.z;
+    laneTrafficView.draw(laneTraffic, share);
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1734,6 +1760,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showParked: parkedCars.show,
       lanes: () => laneNet,
       showLanes: laneOverlay.show,
+      traffic: (count) => {
+        trafficWanted = Math.min(count, TRAFFIC_MOST);
+        trafficFilled = false;
+        if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
+      },
+      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length }),
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -1965,6 +1997,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       roadside.dispose();
       parkedCars.dispose();
       laneOverlay.dispose();
+      laneTrafficView.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
       challengeMarks.dispose();

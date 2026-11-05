@@ -18,7 +18,8 @@ import { PARKED_CARS, PARKED_FLOATS, parkedAt, type TileParked } from "./parked-
 const LISTS = { world: { reachM: SWAP_M, marginM: 40 }, distant: { reachM: REACH_M, marginM: 150 } } as const;
 type List = keyof typeof LISTS;
 
-interface Car {
+/** A world car's place, paint and look, as a list draws it. */
+export interface Car {
   x: number;
   y: number;
   z: number;
@@ -34,10 +35,11 @@ interface Model {
   distant: Mesh<InstancedBufferGeometry> | null;
 }
 
-function instanced(shape: BufferGeometry, cars: readonly Car[], material: MeshBasicNodeMaterial): Mesh<InstancedBufferGeometry> {
+/** A list of world cars of one model, with room for `room` of them. */
+export function instanced(shape: BufferGeometry, cars: readonly Car[], material: MeshBasicNodeMaterial, room = cars.length): Mesh<InstancedBufferGeometry> {
   const geometry = new InstancedBufferGeometry();
   for (const name of ["position", "normal", "carColour", "carFinish", "carOption"]) geometry.setAttribute(name, shape.getAttribute(name));
-  const size = Math.max(cars.length, 1);
+  const size = Math.max(room, cars.length, 1);
   geometry.setAttribute("place", new InstancedBufferAttribute(new Float32Array(size * 4), 4));
   geometry.setAttribute("paint", new InstancedBufferAttribute(new Float32Array(size * 3), 3));
   geometry.setAttribute("look", new InstancedBufferAttribute(new Float32Array(size * 3), 3));
@@ -48,7 +50,7 @@ function instanced(shape: BufferGeometry, cars: readonly Car[], material: MeshBa
 }
 
 /** Writes cars into a list from its start; the list draws only those. */
-function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[]) {
+export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[]) {
   const { geometry } = mesh;
   const [place, paint, look] = (["place", "paint", "look"] as const).map((name) => geometry.getAttribute(name) as InstancedBufferAttribute);
   cars.forEach((car, index) => {
