@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STEP_S } from "../sim/tuning";
-import { LaneTraffic } from "./lane-driver";
+import { LaneTraffic, SIGNAL } from "./lane-driver";
 import { decodeLanes } from "./lane-map";
 import { LaneNet } from "./lane-net";
 import { junctionTile, overTheSeam } from "./test-lanes";
@@ -41,6 +41,40 @@ describe("cars driving the lanes", () => {
     }
     expect(turning.place).toMatchObject({ index: 1, connector: false });
     expect(sharpest).toBeLessThan(0.05);
+  });
+
+  it("steer through a turn on their wheels and keep close to the lane", () => {
+    const cars = traffic();
+    const turning = cars.spawn({ tile: "A", index: 2, connector: false, along: 40 }, 8);
+    let furthest = 0;
+    for (let step = 0; step < 20 / STEP_S && cars.count() === 1 && turning.place.index !== 1; step++) {
+      cars.step(STEP_S);
+      // The lane under the car runs north (the side road) and then east: whichever it's on, how far the car is off it.
+      const off = turning.place.connector ? 0 : turning.place.index === 2 ? Math.abs(turning.pose.x - 100) : Math.abs(turning.pose.z);
+      furthest = Math.max(furthest, off);
+    }
+    expect(turning.place).toMatchObject({ index: 1 });
+    expect(furthest).toBeLessThan(0.75);
+  });
+
+  it("signal a turn before its junction, and nothing going straight on", () => {
+    const cars = traffic();
+    const turning = cars.spawn({ tile: "A", index: 2, connector: false, along: 30 }, 8);
+    const straight = cars.spawn({ tile: "A", index: 0, connector: false, along: 30 }, 8);
+    const signalled = { turning: new Set<number>(), straight: new Set<number>() };
+    let signalledFrom = 0;
+    for (let step = 0; step < 15 / STEP_S && cars.count() === 2; step++) {
+      cars.step(STEP_S);
+      signalled.turning.add(turning.signal);
+      signalled.straight.add(straight.signal);
+      if (turning.signal === SIGNAL.right && !turning.place.connector) signalledFrom = Math.max(signalledFrom, 95 - turning.place.along);
+    }
+    expect(signalled.turning).toContain(SIGNAL.right);
+    expect(signalled.turning).not.toContain(SIGNAL.left);
+    expect([...signalled.straight]).toEqual([SIGNAL.off]);
+    // Signalled for the last 35 m or 4 s, whichever is further: not the whole lane and not only at the line.
+    expect(signalledFrom).toBeGreaterThan(30);
+    expect(signalledFrom).toBeLessThan(55);
   });
 
   it("keep a turn waiting at its line while something it gives way to is coming, then let it go", () => {

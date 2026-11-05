@@ -1,11 +1,15 @@
+import { lookAheadM, pursuit } from "../sim/autopilot";
 import { Around, type OnLane, type Seen } from "./around";
-import { pointAlong, type TileLanes } from "./lane-map";
+import { alongNearest, pointAlong, type TileLanes } from "./lane-map";
 import type { LaneNet } from "./lane-net";
 
 /*
- * Cars that drive the lane map: each one a place on a lane or a connector and a
- * speed, with no physics. A car follows its lane, picks a way on at each
- * junction, keeps its distance from what's ahead of it by the intelligent driver
+ * Cars that drive the lane map: each one a place on a lane or a connector, a
+ * speed, and a body with steered front wheels and no physics. The body is
+ * steered along the lanes by the driver every computer-driven car shares
+ * (`pursuit`, the autopilot's), so traffic turns as a racer does, its wheels
+ * turning at a real car's pace. A car follows its lane, picks a way on at each
+ * junction and signals it before it turns, keeps its distance from what's ahead of it by the intelligent driver
  * model, slows for bends and lower limits before it reaches them, and stops at
  * a junction's line while anything its turn gives way to is coming. Spawning is
  * the simplest there is: a number of cars kept on the lanes round a place, put
@@ -13,8 +17,16 @@ import type { LaneNet } from "./lane-net";
  */
 
 const LENGTH_M = 4.6;
-/** Front axle to rear: a car is drawn with both on its way, so it swings round a bend as a real one does rather than turning at each corner of the line. */
+/** Front axle to rear, a mid-sized car's. */
 const WHEELBASE_M = 2.7;
+/** How far the front wheels turn, and how fast: a real car's lock, at a calm hand's pace. */
+const LOCK = 0.6;
+const STEER_RATE = 0.9;
+/** A driver aims this near at walking pace, so a tight junction isn't cut over its corner. */
+const SHORTEST_LOOK_M = 4;
+/** A turn is signalled from this far before its junction, or this many seconds at the car's speed if that's further. */
+const SIGNAL_M = 35;
+const SIGNAL_S = 4;
 /** The intelligent driver model's numbers: pull away, comfortable braking, time gap, gap at a standstill. */
 const PULL = 1.4;
 const BRAKE = 2.2;
@@ -41,14 +53,29 @@ export interface Pose {
   yaw: number;
 }
 
+/** What a car's indicators show, as the world cars' material reads it. */
+export const SIGNAL = { off: 0, left: 1, right: 2 } as const;
+
+interface Body {
+  /** The rear axle's middle on the ground, and the way the car faces, radians anticlockwise from north. */
+  x: number;
+  z: number;
+  heading: number;
+  /** The front wheels' angle, positive to the right. */
+  wheels: number;
+}
+
 export interface LaneCar {
   id: string;
   place: OnLane;
   speedMS: number;
   /** The connector it will take at its lane's end, once chosen. */
   next: number | null;
-  /** The line it drove before this one, where its rear axle may still be. */
-  behind: Line | null;
+  body: Body;
+  /** Its indicators: `SIGNAL`'s. */
+  signal: number;
+  /** How far the middle of the car is from its place on its lane, as its wheels steer it round. */
+  offLaneM: number;
   /** Stopped at a junction's line for what it gives way to. */
   waiting: boolean;
   model: number;
@@ -123,7 +150,8 @@ export class LaneTraffic {
   spawn(place: OnLane, speedMS: number, model = Math.floor(this.random() * this.kinds), seed = Math.floor(this.random() * 2 ** 31)): LaneCar {
     const id = `lane-car-${this.made++}`;
     const pose = this.poseAt(place);
-    const car: LaneCar = { id, place, speedMS, next: null, behind: null, waiting: false, model, seed, pose, last: pose };
+    const body = { x: pose.x + Math.sin(pose.yaw) * (WHEELBASE_M / 2), z: pose.z + Math.cos(pose.yaw) * (WHEELBASE_M / 2), heading: pose.yaw, wheels: 0 };
+    const car: LaneCar = { id, place, speedMS, next: null, waiting: false, model, seed, body, signal: SIGNAL.off, offLaneM: 0, pose, last: pose };
     this.cars.set(id, car);
     this.around.put(id, place);
     return car;
@@ -167,20 +195,35 @@ export class LaneTraffic {
     for (const car of [...this.cars.values()]) {
       car.last = car.pose;
       car.speedMS = Math.max(0, car.speedMS + (pulls.get(car.id) ?? 0) * seconds);
-      car.place = { ...car.place, along: car.place.along + car.speedMS * seconds };
-      while (car.place.along > this.around.length(car.place)) {
+      if (this.endsHere(car, this.route(car)) && car.speedMS < SLOWEST_MS && this.around.length(car.place) - car.place.along < STANDSTILL_M + LENGTH_M) {
+        this.remove(car.id);
+        continue;
+      }
+      const travelled = car.speedMS * seconds;
+      this.drive(car, travelled);
+      // Where the car now is on its way is found from its body, as the autopilot finds itself on its line, never counted
+      // on from where it was: a car steered round a corner covers a little less ground than its line, and would drift.
+      const middle = this.middleOf(car.body);
+      // Never back: a car only moves on along its way, so it can't lose its place and chase a point behind it.
+      let along = this.nearestOn(car.place, middle, car.place.along, car.place.along + travelled + 2);
+      while (along > this.around.length(car.place)) {
+        const past = along - this.around.length(car.place);
         const onward = this.onward(car);
         if (!onward) break;
-        car.behind = car.place;
-        car.place = { ...onward, along: car.place.along - this.around.length(car.place) };
+        car.place = { ...onward, along: 0 };
+        along = this.nearestOn(car.place, middle, 0, past + 2);
       }
-      if (car.place.along > this.around.length(car.place)) {
+      if (along > this.around.length(car.place)) {
         // The lane leads off the loaded tiles, or nowhere.
         this.remove(car.id);
         continue;
       }
+      car.place = { ...car.place, along };
       this.around.put(car.id, car.place);
-      car.pose = this.carPose(car);
+      const ground = this.onWay(car, 0);
+      car.pose = { ...middle, y: ground.y, yaw: car.body.heading };
+      car.offLaneM = Math.hypot(middle.x - ground.x, middle.z - ground.z);
+      car.signal = this.signalOf(car);
     }
   }
 
@@ -192,24 +235,47 @@ export class LaneTraffic {
     return { x: last.x + (pose.x - last.x) * share, y: last.y + (pose.y - last.y) * share, z: last.z + (pose.z - last.z) * share, yaw: last.yaw + turn * share };
   }
 
-  /** A car's pose from its two axles' places on its way: the rear on its line or the one before, the front on the lines ahead. */
-  private carPose(car: LaneCar): Pose {
-    const rear = this.onWay(car, -WHEELBASE_M / 2);
-    const front = this.onWay(car, WHEELBASE_M / 2);
-    return poseOf({ x: (rear.x + front.x) / 2, y: (rear.y + front.y) / 2, z: (rear.z + front.z) / 2, dx: front.x - rear.x, dz: front.z - rear.z });
+  /** Steers a car's body towards a point ahead on its way, and moves it on its wheels by `travelled` metres. */
+  private drive(car: LaneCar, travelled: number): void {
+    const { body } = car;
+    const target = this.onWay(car, lookAheadM(car.speedMS, SHORTEST_LOOK_M) - WHEELBASE_M / 2);
+    const wanted = Math.max(-LOCK, Math.min(LOCK, pursuit(body, body.heading, target, WHEELBASE_M)));
+    const seconds = travelled / Math.max(car.speedMS, 1e-6);
+    body.wheels += Math.max(-STEER_RATE * seconds, Math.min(STEER_RATE * seconds, wanted - body.wheels));
+    // Heading runs anticlockwise; the wheels steer clockwise.
+    body.heading -= (travelled / WHEELBASE_M) * Math.tan(body.wheels);
+    body.x -= Math.sin(body.heading) * travelled;
+    body.z -= Math.cos(body.heading) * travelled;
   }
 
-  /** The place `offset` metres along a car's way from where it is, ahead through the lines it has chosen or back into the one before. */
+  /** The middle of a car on the ground, half its wheelbase ahead of its rear axle. */
+  private middleOf(body: Body): { x: number; z: number } {
+    return { x: body.x - Math.sin(body.heading) * (WHEELBASE_M / 2), z: body.z - Math.cos(body.heading) * (WHEELBASE_M / 2) };
+  }
+
+  private nearestOn(line: Line, at: { x: number; z: number }, from: number, to: number): number {
+    const tile = this.tileOf(line);
+    return alongNearest(tile.points, line.connector ? tile.connectors[line.index] : tile.lanes[line.index], at.x, at.z, from, to);
+  }
+
+  /** Which way a car signals: the turn it is in, or the one coming within its signalling distance. */
+  private signalOf(car: LaneCar): number {
+    const tile = this.tileOf(car.place);
+    let turn: string | null = null;
+    if (car.place.connector) turn = tile.connectors[car.place.index].turn;
+    else if (car.next !== null && this.around.length(car.place) - car.place.along < Math.max(SIGNAL_M, car.speedMS * SIGNAL_S)) turn = tile.connectors[car.next].turn;
+    return turn === "right" ? SIGNAL.right : turn === "left" ? SIGNAL.left : SIGNAL.off;
+  }
+
+  /** The place `offset` metres ahead along a car's way from where it is, through the lines it has chosen. */
   private onWay(car: LaneCar, offset: number): { x: number; y: number; z: number } {
     let along = car.place.along + offset;
-    // A tile let go behind a car takes its rear axle's line with it; the rear then rests at its own line's start.
-    if (along < 0 && car.behind && this.net.tile(car.behind.tile)) return this.pointOn(car.behind, this.around.length(car.behind) + along);
-    for (const line of this.route(car)) {
+    const lines = this.route(car);
+    for (const line of lines) {
       const length = this.around.length(line);
       if (along <= length) return this.pointOn(line, along);
       along -= length;
     }
-    const lines = this.route(car);
     const last = lines[lines.length - 1];
     return this.pointOn(last, this.around.length(last) + along);
   }
@@ -230,15 +296,16 @@ export class LaneTraffic {
     return tile;
   }
 
-  /** The connector a car takes at its lane's end: any way on, turning round only where nothing else leads on. */
+  /**
+   * The connector a car takes at its lane's end: any way on. A dead end's turning round is a U-turn tighter than any car
+   * can make on its wheels (a real driver backs and fills), so there a car's trip ends instead: it stops and is gone.
+   */
   private choose(car: LaneCar): number | null {
     if (car.place.connector) return null;
     if (car.next !== null) return car.next;
     const tile = this.tileOf(car.place);
-    const ways = tile.lanes[car.place.index].next;
-    const onward = ways.filter((index) => tile.connectors[index].turn !== "back");
-    const from = onward.length > 0 ? onward : ways;
-    car.next = from.length > 0 ? from[Math.floor(this.random() * from.length)] : null;
+    const onward = tile.lanes[car.place.index].next.filter((index) => tile.connectors[index].turn !== "back");
+    car.next = onward.length > 0 ? onward[Math.floor(this.random() * onward.length)] : null;
     return car.next;
   }
 
@@ -257,6 +324,11 @@ export class LaneTraffic {
     }
     const next = this.choose(car);
     return next === null ? null : { tile: place.tile, index: next, connector: true };
+  }
+
+  /** Whether a car's way ends at its lane's end: a dead end, not a seam to the next tile. */
+  private endsHere(car: LaneCar, route: Line[]): boolean {
+    return route.length === 1 && !car.place.connector && !this.tileOf(car.place).lanes[car.place.index].seamEnd;
   }
 
   /** The lines a car will drive next, as far as it has chosen: its own, its connector and the lane after, or a seam's other half. */
@@ -340,6 +412,7 @@ export class LaneTraffic {
     const leader = this.leader(car, route);
     if (leader) obstacles.push({ gap: leader.gap - LENGTH_M, speedMS: (leader.id === "player" ? this.player : this.cars.get(leader.id))?.speedMS ?? 0 });
     car.waiting = false;
+    if (this.endsHere(car, route)) obstacles.push({ gap: Math.max(0.1, this.around.length(car.place) - car.place.along), speedMS: 0 });
     const next = car.place.connector ? null : car.next;
     if (next !== null && this.tileOf(car.place).connectors[next].yields.length > 0) {
       const toLine = this.around.length(car.place) - car.place.along - STOP_BACK_M;

@@ -266,6 +266,23 @@ def cornered(start: np.ndarray, into: np.ndarray, corner: np.ndarray, end: np.nd
     return np.concatenate([straight_run(start, near)[:-1], arc, straight_run(far, end)[1:]])
 
 
+def tightest_radius(points: np.ndarray) -> float:
+    """The tightest bend along a line on the ground, as a circle's radius in metres: how sharp a car must turn to follow it,
+    measured as the turn over each `RADIUS_RUN_M` of it, so points a hair apart don't read as a hairpin."""
+    steps = np.hypot(*np.diff(points[:, :2], axis=0).T)
+    along = np.concatenate([[0.0], np.cumsum(steps)])
+    if along[-1] < 2 * RADIUS_RUN_M:
+        return math.inf
+    stations = np.arange(0.0, along[-1], RADIUS_RUN_M / 4)
+    xs, zs = np.interp(stations, along, points[:, 0]), np.interp(stations, along, points[:, 1])
+    headings = np.unwrap(np.arctan2(np.diff(zs), np.diff(xs)))
+    turns = np.abs(headings[4:] - headings[:-4])
+    return math.inf if len(turns) == 0 else float(RADIUS_RUN_M / max(float(turns.max()), 1e-9))
+
+
+RADIUS_RUN_M = 2.0
+# A car can't turn tighter than this, the middle of a mid-sized car at its lock with a little to spare: no turn asks it to.
+TURN_RADIUS_M = 5.0
 # How much of the room either side of a corner a turn may round it by, widest first: the widest that stays on the paving.
 ROUNDINGS = (1.0, 0.8, 0.6, 0.45, 0.3, 0.2, 0.1, 0.0)
 # A turn's line keeps this close to the paving: the middle of a lane, not a wheel.
@@ -667,6 +684,9 @@ class LaneMap:
     def connector(self, junction: int, source: int, target: int, arms: tuple[int, int], dead_end: bool, bend: bool) -> None:
         come, go = self.lanes[source], self.lanes[target]
         into = unit(come.points[-1, :2] - come.points[-2, :2])
+        # Into itself only on round, as a ring's lane goes: on a stub with both ends in one junction its start lies behind its end, and that way is backwards.
+        if source == target and float((come.points[0, :2] - come.points[-1, :2]) @ into) < 0:
+            return
         out = unit(go.points[1, :2] - go.points[0, :2])
         turn, angle = turn_of(into, out)
         # Where two roads meet and nothing else, the way on is the only one, however sharply it doubles back.
@@ -695,10 +715,10 @@ class LaneMap:
         self.connectors.append(Connector(junction, source, target, points, "back" if dead_end else turn, arms))
 
     def turn_on_paving(self, start: np.ndarray, into: np.ndarray, end: np.ndarray, out: np.ndarray, dead_end: bool) -> np.ndarray:
-        """A turn that stays on the paving: the smooth curve from one lane to the next where that's on it, else one built from the two
-        roads, in along its lane's line and out along the next one's with the corner where they meet rounded as widely as the paving
-        allows, else the curve swung out less. A turn that stays on at none of them keeps the one that leaves it least: that is the road
-        surface's fault, which the audit lists. Turning round at a dead end stands in for however a driver turns in a drive, and is the
+        """A turn a car can drive that stays on the paving: the smooth curve from one lane to the next where that's on it, else one built
+        from the two roads, in along its lane's line and out along the next one's with the corner where they meet rounded as widely as
+        the paving allows, else the curve swung out less, never tighter than a car's turning circle. A turn that stays on at none of
+        them keeps the one that leaves it least: that is the road surface's fault, which the audit lists. Turning round at a dead end stands in for however a driver turns in a drive, and is the
         plain curve."""
         smooth = hermite(start, into, end, out)
         if dead_end:
@@ -710,8 +730,12 @@ class LaneMap:
             room = min(float(np.hypot(*(corner - start))), float(np.hypot(*(end - corner))))
             tries += [cornered(start, into, corner, end, out, room * share) for share in ROUNDINGS]
         tries += [hermite(start, into, end, out, share) for share in ROUNDINGS[1:] if share > 0]
-        best, least = tries[0], math.inf
-        for ground in tries:
+        drivable = [ground for ground in tries if tightest_radius(ground) >= TURN_RADIUS_M]
+        if not drivable:
+            # The lanes' ends leave no room for a car's turning circle: the gentlest turn there is.
+            return max(tries, key=tightest_radius)
+        best, least = drivable[0], math.inf
+        for ground in drivable:
             off = float(self.surface.off_paving(ground).max())
             if off <= ON_PAVING_M:
                 return ground
@@ -786,6 +810,9 @@ class LaneMap:
                 worst = int(np.argmax(off))
                 lane = self.lanes[connector.source]
                 self.issue("off-road", connector.points[worst], f"{self.movement(connector)} leaves the drawn road by {connector.off_m:.1f} m", connector.off_m, self.on_path(connector))
+            tightest = tightest_radius(connector.points[:, :2])
+            if tightest < TURN_RADIUS_M and not self.on_path(connector):
+                self.issue("tight", connector.points[len(connector.points) // 2], f"{self.movement(connector)} turns tighter than a car can, a {tightest:.1f} m circle", TURN_RADIUS_M - tightest, False)
             self.check_line(connector.points, None, self.movement(connector), self.on_path(connector))
         for lane in self.lanes:
             if lane is not None:

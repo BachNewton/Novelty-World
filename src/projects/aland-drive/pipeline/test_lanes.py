@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from lanes import LaneMap, Rules
+from lanes import TURN_RADIUS_M, LaneMap, Rules, tightest_radius
 from roadside import RINGS, Chain
 
 BOX = (-1000.0, -1000.0, 1000.0, 1000.0)
@@ -109,7 +109,7 @@ class Lanes(unittest.TestCase):
         self.assertTrue(drive.yields)
         self.assertIn(connector(lanes, "straight", 0, 0, "east"), lanes.connectors[connector(lanes, "left", 1, 0)].yields)
 
-    def test_a_loop_drive_lying_in_one_junction_never_gives_way_to_the_traffic_behind_it(self):
+    def test_a_loop_drive_lying_in_one_junction_never_gives_way_to_the_traffic_behind_it_nor_leads_back_into_itself(self):
         loop = road(1, "service", 4, (-4, -3.05), (0, -6), half=1.5)
         back = road(1, "service", 4, (0, -6), (4, -3.05), half=1.5)
         loop.rings = np.concatenate([loop.rings, back.rings[1:]])
@@ -118,6 +118,7 @@ class Lanes(unittest.TestCase):
         for found in lanes.connectors:
             for other in found.yields:
                 self.assertNotEqual(lanes.connectors[other].target, found.source, "a turn out of a lane gives way to the turn feeding it")
+        self.assertFalse([found for found in lanes.connectors if found.source == found.target], "the drive leads back into itself, backwards")
 
     def test_traffic_on_a_ring_goes_round_and_an_entry_gives_way_to_it_even_where_the_ring_closes(self):
         corners = 48
@@ -151,15 +152,23 @@ class Lanes(unittest.TestCase):
         paved = lane_map(east_west_with_side_road(short_of_m=5), aprons=corner)
         self.assertFalse([issue for issue in paved.issues if issue["kind"] == "off-road"])
 
-    def test_a_turn_through_a_narrow_mouth_keeps_to_the_paving_rather_than_cutting_the_corner_over_the_grass(self):
-        # The side road's mouth is paved only as wide as the road itself, so a curve swinging from its lane to the street's cuts the corner.
-        mouth = [np.array([[x0, y0, 0.0], [x1, y1, 0.0], [x2, y2, 0.0]]) for (x0, y0), (x1, y1), (x2, y2) in (((-2.5, -3), (2.5, -3), (2.5, -8.2)), ((-2.5, -3), (2.5, -8.2), (-2.5, -8.2)))]
-        lanes = lane_map(east_west_with_side_road(short_of_m=5), aprons=mouth)
-        turns = [found for found in lanes.connectors if found.turn in ("left", "right")]
-        self.assertTrue(turns)
-        for found in turns:
-            self.assertLessEqual(float(lanes.surface.off_paving(found.points).max()), 0.1, f"the {found.turn} turn leaves the paving")
+    def test_a_turn_through_a_drives_mouth_is_one_a_car_can_make_and_keeps_to_the_paving_where_there_is_room(self):
+        def mouth(half: float) -> list[np.ndarray]:
+            return [np.array([[x0, y0, 0.0], [x1, y1, 0.0], [x2, y2, 0.0]]) for (x0, y0), (x1, y1), (x2, y2) in (((-half, -3), (half, -3), (half, -8.2)), ((-half, -3), (half, -8.2), (-half, -8.2)))]
 
+        def turns(half: float) -> list:
+            lanes = lane_map(east_west_with_side_road(short_of_m=5), aprons=mouth(half))
+            found = [(lanes.surface, turn) for turn in lanes.connectors if turn.turn in ("left", "right")]
+            self.assertTrue(found)
+            return found
+
+        # Paved only as wide as the drive: no car turns into the street without running over the edge, and the turn is still one it can make.
+        for _, turn in turns(2.5):
+            self.assertGreaterEqual(tightest_radius(turn.points[:, :2]), TURN_RADIUS_M, f"the {turn.turn} turn is tighter than a car can turn")
+        # Flared as a real mouth is, there's room, and the turn keeps to it.
+        for surface, turn in turns(3.5):
+            self.assertGreaterEqual(tightest_radius(turn.points[:, :2]), TURN_RADIUS_M, f"the {turn.turn} turn is tighter than a car can turn")
+            self.assertLessEqual(float(surface.off_paving(turn.points).max()), 0.1, f"the {turn.turn} turn leaves the paving")
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,7 @@ const LEGEND = [
 
 const KIND_NAMES: Record<LaneIssueKind, string> = {
   "off-road": "Off the road",
+  tight: "Too tight to turn",
   buried: "Under another road",
   step: "Steps",
   kink: "Kinks",

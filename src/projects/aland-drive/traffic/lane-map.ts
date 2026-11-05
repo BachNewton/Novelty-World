@@ -12,7 +12,7 @@ export type Turn = "straight" | "left" | "right" | "back";
 export type JunctionKind = "roundabout" | "signals" | "stop" | "give-way" | "drive" | "right" | "join" | "end";
 
 /** Where a lane or connector can't sit cleanly on the drawn road. */
-export type LaneIssueKind = "off-road" | "buried" | "step" | "kink" | "unreachable";
+export type LaneIssueKind = "off-road" | "tight" | "buried" | "step" | "kink" | "unreachable";
 
 export interface LaneIssue {
   kind: LaneIssueKind;
@@ -150,4 +150,27 @@ export function pointAlong(points: Float32Array, line: LaneLine, along: number):
     left -= length;
   }
   return last;
+}
+
+/**
+ * How far along a line the nearest point to a place lies, looking only between `from` and `to` metres along it so a
+ * line that comes back near itself isn't confused. Past the line's end it runs on along its last step, so a car
+ * past the end reads further than the line's length.
+ */
+export function alongNearest(points: Float32Array, line: LaneLine, x: number, z: number, from: number, to: number): number {
+  let best = { off: Infinity, along: from };
+  let travelled = 0;
+  const last = line.first + line.count - 2;
+  for (let at = line.first; at <= last; at++) {
+    const [x0, , z0, x1, , z1] = points.subarray(at * 3, at * 3 + 6);
+    const length = Math.hypot(x1 - x0, z1 - z0);
+    if (length > 1e-6 && travelled + length >= from && travelled <= to) {
+      const raw = ((x - x0) * (x1 - x0) + (z - z0) * (z1 - z0)) / (length * length);
+      const share = Math.max(at === line.first ? -Infinity : 0, Math.min(at === last ? Infinity : 1, raw));
+      const off = Math.hypot(x - (x0 + (x1 - x0) * share), z - (z0 + (z1 - z0) * share));
+      if (off < best.off) best = { off, along: travelled + share * length };
+    }
+    travelled += length;
+  }
+  return Math.max(from, Math.min(to, best.along));
 }

@@ -50,7 +50,7 @@ export function createLaneTrafficView(scene: Scene, sun: { azimuthDeg: number; e
       const seen = new Set<string>();
       for (const car of traffic.all()) {
         seen.add(car.id);
-        byModel[car.model].push({ ...traffic.poseBetween(car, share), ...lookFor(car.id, car.model, car.seed) });
+        byModel[car.model].push({ ...traffic.poseBetween(car, share), ...lookFor(car.id, car.model, car.seed), signal: car.signal });
       }
       for (const id of looks.keys()) if (!seen.has(id)) looks.delete(id);
       models.forEach(({ lists }, model) => {

@@ -6,6 +6,7 @@ import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
 import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
 import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
+import { indicatorClock } from "../art/cars/material";
 import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
@@ -1714,7 +1715,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       seaMarks.update(spot.x, spot.z, camera.position);
     }
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
-    if (!(lifted || held || jumping || menuHolds)) streetClock.value += seconds;
+    if (!(lifted || held || jumping || menuHolds)) {
+      streetClock.value += seconds;
+      indicatorClock.value += seconds;
+    }
     regattas.update(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
