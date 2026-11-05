@@ -1,6 +1,6 @@
 # Car traffic and AI racers
 
-A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), and so is the grip by surface the racers need, and nothing else. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
+A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), so is the grip by surface the racers need, and so are the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10), as the project's `CLAUDE.md` describes; the rest isn't. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
 
 The two are designed together because they stand on the same foundation, and because the obvious framing, cheap cars for traffic and real cars for racers, needed testing against the code before either is built. It holds, with three corrections the code forced:
 
@@ -226,7 +226,7 @@ Each piece is small enough for one session, and says what it needs first. Racers
 **The bubble, then life on the roads** (needs 9 and 10)
 
 11. **The bubble**: spawning and despawning out of sight round the player, by density. **Its first users are the cyclists**, which settle it: always kinematic, on path lanes and road edges, the simplest traffic there is. Walkers follow on the same lanes once the people layer can walk.
-12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels.
+12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels. Begun: cars on the lanes follow, slow for bends and limits, and give way, drawn by the fleet, in the lane lab only (`traffic/lane-driver.ts`); no lights, no turning wheels, no signals' phases yet, and a stand-in spawner in place of the bubble.
 13. **Traffic and the player**: the reactions above, stand-ins near a simulated car, a car once hit. Needs 1.
 14. **Shared traffic**: traffic on the nearest-player rule, with spawning by whoever keeps a stretch of lane, so players together see one traffic. Traffic isn't turned on online until this is in. Needs 6 and 13.
 15. **Density by place and time, sound, and the settings that scale it down.**
