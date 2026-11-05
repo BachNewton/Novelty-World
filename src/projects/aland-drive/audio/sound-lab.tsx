@@ -235,7 +235,7 @@ function Volume() {
 export function SoundLab() {
   return (
     <Lab
-      title="Åland Drive sounds"
+      title="Åland Drive Unlimited sounds"
       intro={
         <>
           The drive runs here as it does in the game, through the same sound. Start it and move the sliders: floor it to hear the gears, hold the revs to sit on one note. The one-shots are below. Edit the engines in{" "}

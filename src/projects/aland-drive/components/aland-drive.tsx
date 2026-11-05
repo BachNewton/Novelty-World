@@ -395,12 +395,12 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
-          <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>
+          <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>
         </div>
       )}
       {noWebGpu && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK }}>
-          <p className="max-w-sm text-lg">Åland Drive needs a browser with WebGPU, such as a recent Chrome, Edge or Safari.</p>
+          <p className="max-w-sm text-lg">Åland Drive Unlimited needs a browser with WebGPU, such as a recent Chrome, Edge or Safari.</p>
         </div>
       )}
     </div>
