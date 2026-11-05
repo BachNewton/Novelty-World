@@ -28,6 +28,21 @@ describe("cars driving the lanes", () => {
     expect(reached).toContain("B");
   });
 
+  it("turn through a junction a little each step, swinging round on their axles rather than at each corner of the line", () => {
+    const cars = traffic();
+    const turning = cars.spawn({ tile: "A", index: 2, connector: false, along: 70 }, 6);
+    let sharpest = 0;
+    for (let step = 0; step < 15 / STEP_S && cars.count() === 1; step++) {
+      const before = turning.pose.yaw;
+      cars.step(STEP_S);
+      let turn = turning.pose.yaw - before;
+      turn -= Math.round(turn / (2 * Math.PI)) * 2 * Math.PI;
+      sharpest = Math.max(sharpest, Math.abs(turn));
+    }
+    expect(turning.place).toMatchObject({ index: 1, connector: false });
+    expect(sharpest).toBeLessThan(0.05);
+  });
+
   it("keep a turn waiting at its line while something it gives way to is coming, then let it go", () => {
     const cars = traffic();
     const main = cars.spawn({ tile: "A", index: 0, connector: false, along: 20 }, 70 / 3.6);
