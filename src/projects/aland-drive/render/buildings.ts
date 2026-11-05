@@ -3,7 +3,8 @@ import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mi
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
-import { facadeArt } from "../art/facades/facade";
+import { facadeArt, WallLight, wallParts } from "../art/facades/facade";
+import { farWindowLight, windowLight, type Night } from "../art/night";
 import { PAINT_STYLE } from "../art/landmarks/kit";
 import IDS from "../art/facades/facade-ids.json";
 import { towardsSun, type Sun } from "../art/sun";
@@ -14,7 +15,9 @@ import { towardsSun, type Sun } from "../art/sun";
  * facade's real width and eaves, so they fit whatever size the wall is, and blur
  * into the wall's average far off rather than fading, so they neither shimmer nor
  * pop. The pipeline's tint says which look a wall has: one of the three plain
- * styles here, or one of `art/facades`, with a shop from `art/surfaces`.
+ * styles here, or one of `art/facades`, with a shop from `art/surfaces`. At night
+ * their rooms light (`art/night/windows.ts`), added after the haze and the hour's
+ * light, which would dim them.
  */
 
 /** Styles and palette as the pipeline numbers them. Styles from the villa on are `art/facades`. */
@@ -57,10 +60,11 @@ interface WallInput {
   tall: Node<"float">;
   colour: (name: string) => Node<"vec3">;
   linear: (name: string) => Vector3;
+  night: Night;
 }
 
-/** The pipeline's own three styles: timber, plaster and boards. */
-function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }: WallInput): Node<"vec3"> {
+/** The pipeline's own three styles: timber, plaster and boards, with what their lit windows add. */
+function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night }: WallInput) {
   const style = round(tint.a.mul(255));
   const isStyle = (name: keyof typeof STYLE) => abs(style.sub(STYLE[name])).lessThan(0.5);
   const pixel = wide.add(tall);
@@ -112,10 +116,16 @@ function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }
   const glazed = max(pane.mul(onFacade), gablePane.mul(gable)).mul(hasWindows);
   const withWindows = mix(mix(trimmed, trim, framed), skyInGlass, glazed);
   const withDoor = mix(mix(withWindows, trim, doorFrame), colour("wall-door"), doorHere);
-  return mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall));
+  const building = round(tint.b.mul(255)).add(round(tint.r.mul(255)).mul(256));
+  const windowsShow = float(1).sub(smoothstep(float(WINDOW.halfTall * 0.2), float(WINDOW.halfTall * 0.6), tall));
+  const paneId = floor(along.div(bay)).add(floor(up.div(storey)).mul(37));
+  const rooms = windowLight(night, { id: paneId, building, up: inStorey.div(WINDOW.halfTall * 2).add(0.5), shown: windowsShow }).mul(pane.mul(onFacade).mul(hasWindows));
+  const glow = rooms.add(farWindowLight(night, building, windowsShow).mul(hasWindows));
+  return WallLight(mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall)), glow);
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet }): MeshBasicNodeMaterial {
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night }): MeshBasicNodeMaterial {
+  const { night } = art;
   const toSun = towardsSun(sun);
 
   const facade = attribute<"vec4">("facade", "vec4");
@@ -139,6 +149,7 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
     const tall = fwidth(up).toVar();
     const reads = select(dFdx(along).lessThan(0), float(-1), float(1)).toVar();
     const drawn = vec3(0).toVar();
+    const glow = vec3(0).toVar();
     // A model's own paint is drawn after this, as it is: no wall of its own.
     If(style.greaterThan(PAINT_STYLE - 0.5), () => undefined).ElseIf(style.greaterThan(FACADE_STYLES_FROM - 0.5), () => {
       const red = round(tint.r.mul(255));
@@ -146,18 +157,22 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
       const front = floor(red.div(32));
       const door = step(127.5, green);
       const shown = select(front.greaterThan(FRONT_PLATE - 0.5), front, front.mul(door));
-      const wall = facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear });
+      const { colour: wall, glow: lights } = wallParts(facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night }));
+      glow.assign(lights);
       drawn.assign(shopfront({ along, up, width, eaves, fromDoor: along.sub(width.mul(0.5)), front: shown, word: green.mod(128), wide, tall, reads, wall, colour, sky: colour("sky"), sheet: art.sheet }));
     }).ElseIf(style.greaterThan(0.5), () => {
-      drawn.assign(plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear }));
+      const plain = wallParts(plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night }));
+      drawn.assign(plain.colour);
+      glow.assign(plain.glow);
     });
-    return drawn;
+    return WallLight(drawn, glow);
   })();
+  const wall = wallParts(walls);
 
   const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
   const material = new MeshBasicNodeMaterial();
   const painted = style.greaterThan(PAINT_STYLE - 0.5);
-  material.colorNode = hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, walls.mul(nearGround))).mul(lit));
+  material.colorNode = hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, wall.colour.mul(nearGround))).mul(lit)).add(wall.glow);
   material.side = 2;
   return material;
 }

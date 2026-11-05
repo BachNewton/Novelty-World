@@ -33,7 +33,7 @@ export const LAMP_LOOKS: Record<LampKind, LampLook> = {
 const POOL_CELLS = 5;
 const POOL_LIFT_M = 0.42;
 /** Gone by here: a pool is a thing seen on the road ahead, and the halo carries the lamp further off. */
-const POOL_REACH_M = 700;
+export const POOL_REACH_M = 700;
 const LAMP_MIN_PIXELS = 3;
 const POOL_FLOATS = 4;
 const MIN_POOL_FADE = 0.55;
@@ -83,30 +83,46 @@ function gridGeometry() {
   return geometry;
 }
 
-/** The ground's height at a place, for a vertex shader: the clipmap's `groundAt`. Without one a pool lies flat at its lamp's foot. */
-export type GroundAt = (place: Node<"vec2">) => F;
+/**
+ * The ground's height at a place, for a vertex shader: the clipmap's `groundAt`, good within `reachM` of the camera.
+ * Past that, or without one, a pool lies flat at its lamp's foot.
+ */
+export interface GroundAt {
+  at: (place: Node<"vec2">) => F;
+  reachM: number;
+}
 
-export function createLampPools(night: Night, spots: readonly LampSpot[], groundAt?: GroundAt) {
-  const places = new Float32Array(spots.length * POOL_FLOATS);
-  const tints = new Float32Array(spots.length * POOL_FLOATS);
-  spots.forEach((spot, at) => {
-    const look = LAMP_LOOKS[spot.kind];
-    const head = headOf(spot);
-    const { r, g, b } = nightRgb(look.token);
-    places.set([head.x, spot.y, head.z, look.poolM], at * POOL_FLOATS);
-    tints.set([r * look.poolLight, g * look.poolLight, b * look.poolLight, roll(spot.x, spot.z) * 0.8], at * POOL_FLOATS);
-  });
+export function createLampPools(night: Night, capacity: number, groundAt?: GroundAt) {
+  const places = new Float32Array(capacity * POOL_FLOATS);
+  const tints = new Float32Array(capacity * POOL_FLOATS);
   const geometry = gridGeometry();
-  geometry.instanceCount = spots.length;
-  geometry.setAttribute("poolPlace", new InstancedBufferAttribute(places, POOL_FLOATS));
-  geometry.setAttribute("poolTint", new InstancedBufferAttribute(tints, POOL_FLOATS));
+  geometry.instanceCount = 0;
+  const placeAttribute = new InstancedBufferAttribute(places, POOL_FLOATS);
+  const tintAttribute = new InstancedBufferAttribute(tints, POOL_FLOATS);
+  geometry.setAttribute("poolPlace", placeAttribute);
+  geometry.setAttribute("poolTint", tintAttribute);
+  /** The lamps whose pools are drawn: all of them, each time the list changes. */
+  const set = (spots: readonly LampSpot[]) => {
+    if (spots.length > capacity) throw new Error(`${spots.length} lamp pools, and room for ${capacity}`);
+    spots.forEach((spot, at) => {
+      const look = LAMP_LOOKS[spot.kind];
+      const head = headOf(spot);
+      const { r, g, b } = nightRgb(look.token);
+      places.set([head.x, spot.y, head.z, look.poolM], at * POOL_FLOATS);
+      tints.set([r * look.poolLight, g * look.poolLight, b * look.poolLight, roll(spot.x, spot.z) * 0.8], at * POOL_FLOATS);
+    });
+    geometry.instanceCount = spots.length;
+    placeAttribute.needsUpdate = true;
+    tintAttribute.needsUpdate = true;
+  };
 
   const place = attribute<"vec4">("poolPlace", "vec4");
   const tint = attribute<"vec4">("poolTint", "vec4");
   const spot = vec2(place.x.add(positionGeometry.x.mul(place.w)), place.z.add(positionGeometry.z.mul(place.w)));
   const hour = smoothstep(tint.w.mul(0.6), tint.w.mul(0.6).add(0.4), night.lampsOn);
-  const shown = float(1).sub(smoothstep(float(POOL_REACH_M * MIN_POOL_FADE), float(POOL_REACH_M), place.xyz.sub(cameraPosition).length())).mul(hour);
-  const height = groundAt ? groundAt(spot) : place.y;
+  const fromCamera = place.xyz.sub(cameraPosition).length();
+  const shown = float(1).sub(smoothstep(float(POOL_REACH_M * MIN_POOL_FADE), float(POOL_REACH_M), fromCamera)).mul(hour);
+  const height = groundAt ? select(fromCamera.lessThan(groundAt.reachM), groundAt.at(spot), place.y) : place.y;
 
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, side: 2 });
   // A pool that isn't lit has no size, so day pays for its vertices only.
@@ -121,6 +137,7 @@ export function createLampPools(night: Night, spots: readonly LampSpot[], ground
   mesh.renderOrder = 1005;
   return {
     mesh,
+    set,
     dispose() {
       geometry.dispose();
       material.dispose();

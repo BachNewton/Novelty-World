@@ -38,7 +38,7 @@ export interface WindowPane {
 /** 1 for a room lit now. */
 function roomLit(night: Night, room: Node<"uint">): F {
   const onAt = mix(float(ROOM_LIT_FROM), float(ROOM_LIT_TO), unitOf(room, 2));
-  const off = select(unitOf(room, 3).greaterThan(STILL_UP), float(1), float(0)).mul(smoothstep(float(0.8), float(1), night.amount));
+  const off = select(unitOf(room, 3).greaterThan(STILL_UP), float(1), float(0)).mul(night.late);
   return smoothstep(onAt, onAt.add(ROOM_ON_WIDTH), night.amount).mul(float(1).sub(off));
 }
 
@@ -56,7 +56,7 @@ export function windowLight(night: Night, { id, building, up, shown }: WindowPan
 /** Added to a wall past where its panes have faded: a house with people in it, warm and faint, so a town doesn't go dark at a distance. */
 export function farWindowLight(night: Night, building: F, shown: F): V3 {
   const fill = unitOf(seedOf(building), 6).mul(0.7).add(0.3);
-  const evening = night.lampsOn.mul(float(1).sub(smoothstep(float(0.8), float(1), night.amount).mul(0.45)));
+  const evening = night.lampsOn.mul(float(1).sub(night.late.mul(0.45)));
   return nightColour("window-warm").mul(homeIn(building).mul(fill).mul(evening).mul(float(1).sub(shown)).mul(FAR_GLOW));
 }
 

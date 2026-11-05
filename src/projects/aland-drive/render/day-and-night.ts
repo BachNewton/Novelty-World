@@ -1,5 +1,6 @@
-import { createNight, skyAtHour, NIGHT_STOPS, type Night } from "../art/night";
-import type { Sky } from "../art/sky/sky";
+import { createNight, DARKEST_LIGHT, skyAtHour, NIGHT_STOPS, type Night } from "../art/night";
+import type { MoonPlace } from "../time/sky-places";
+import type { Sky, SkyLook } from "../art/sky/sky";
 import { createLiveSun, type LiveSun } from "../art/sun";
 import { DayClock, dayAsked, type GameTime } from "../time/day";
 
@@ -30,6 +31,43 @@ export function nightAmount(elevationDeg: number) {
   return NIGHT_STOPS.night;
 }
 
+/** Where the night is fully dark, as the astronomers count it: the sun this far under the horizon. */
+const FULL_DARK_DEG = -18;
+/** A full moon well up takes this share of the dark away. */
+const MOON_LIGHTS = 0.5;
+const MOON_UP_DEG = 12;
+
+const smooth = (share: number) => {
+  const clamped = Math.min(1, Math.max(0, share));
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
+/** How far a night has gone past Åland's midsummer night towards full dark, 0 to 1, lightened by the moon when it's up. */
+export function darkness(elevationDeg: number, moon: MoonPlace) {
+  const deep = HEIGHT_AT_STOP[HEIGHT_AT_STOP.length - 1][0];
+  const dark = smooth((deep - elevationDeg) / (deep - FULL_DARK_DEG));
+  const moonlit = moon.lit * smooth((moon.elevationDeg + 1) / (MOON_UP_DEG + 1));
+  return dark * (1 - MOON_LIGHTS * moonlit);
+}
+
+/** How late it is by the clock, for the rooms that go dark: rising from 22:00 to 01:00, and gone again from 04:00 to 06:00. */
+export function lateness(hour: number) {
+  const sinceTen = (hour - 22 + 24) % 24;
+  if (sinceTen < 3) return smooth(sinceTen / 3);
+  if (sinceTen < 6) return 1;
+  return 1 - smooth((sinceTen - 6) / 2);
+}
+
+const SKY_COLOURS = ["zenith", "horizon", "horizonSun", "band", "bandSun", "glow", "cloudLit", "cloudShade", "cloudRim", "landLight"] as const;
+
+/** A sky look taken towards a winter night's dark. */
+function darkened(look: SkyLook, dark: number): SkyLook {
+  const by = 1 + (DARKEST_LIGHT - 1) * dark;
+  const next = { ...look };
+  for (const name of SKY_COLOURS) next[name] = look[name].clone().multiplyScalar(by);
+  return next;
+}
+
 export interface DayAndNight {
   clock: DayClock;
   sun: LiveSun;
@@ -54,7 +92,9 @@ export function createDayAndNight(sky: Sky, search: string, startSeconds: number
   const show = () => {
     sun.setSun(time.sun);
     night.amount.value = nightAmount(time.sun.elevationDeg);
-    sky.setLook({ ...lookAtHour(night.amount.value), sun: time.sun });
+    night.dark.value = darkness(time.sun.elevationDeg, time.moon);
+    night.late.value = lateness(time.hour);
+    sky.setLook({ ...darkened(lookAtHour(night.amount.value), night.dark.value), sun: time.sun });
   };
   show();
   return {

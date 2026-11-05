@@ -7,6 +7,7 @@
 // ETRS-TM35FIN metres and degrees (bearing clockwise from grid north, pitch up from level).
 //   node src/projects/aland-drive/tools/day-look.mjs --out=<folder> --views="5;8" --days=2026-06-21@12,2026-06-21@23.5 [--lights=baked,relit] [--size=WxH]
 
+/* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";

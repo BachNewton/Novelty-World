@@ -17,10 +17,12 @@ export type NightLook = keyof typeof NIGHT_STOPS;
 export type F = Node<"float">;
 export type V3 = Node<"vec3">;
 
-const LAMPS_ON_FROM = 0.46;
+export const LAMPS_ON_FROM = 0.46;
 const LAMPS_ON_FULL = 0.6;
 /** How much colour the deepest night takes from a surface: the eye's own loss of colour in the dark. */
 const COLOUR_LOST_AT_NIGHT = 0.5;
+/** What a moonless winter night leaves of the deepest midsummer night's light, on the land and in the sky. */
+export const DARKEST_LIGHT = 0.4;
 /** With the sun gone, this share of the baked light's contrast stays, standing in for the open sky mixed into it. */
 const SHADE_KEPT_AT_NIGHT = 0.3;
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
@@ -30,6 +32,10 @@ export interface Night {
   amount: UniformNode<"float", number>;
   /** Seconds, for what blinks and sweeps: the game's clock, so a held game holds them too. */
   seconds: UniformNode<"float", number>;
+  /** Past the deepest midsummer night, how much further a winter night has gone towards full dark: 0 to 1. */
+  dark: UniformNode<"float", number>;
+  /** How late in the night it is by the clock: 0 through the evening, 1 in the small hours, when rooms go dark. */
+  late: UniformNode<"float", number>;
   /** 0 by day, 1 once lamps are lit: they come on towards the end of the golden hour. */
   lampsOn: F;
   /** A colour for each of the four looks, as this hour's. */
@@ -56,7 +62,7 @@ export function createNight(start = 0): Night {
     const toNight = smoothstep(float(NIGHT_STOPS.dusk), float(NIGHT_STOPS.night), amount);
     return mix(mix(mix(day, golden, toGolden), dusk, toDusk), night, toNight);
   };
-  return { amount, seconds: uniform(0), lampsOn: smoothstep(float(LAMPS_ON_FROM), float(LAMPS_ON_FULL), amount), across };
+  return { amount, seconds: uniform(0), dark: uniform(0), late: uniform(0), lampsOn: smoothstep(float(LAMPS_ON_FROM), float(LAMPS_ON_FULL), amount), across };
 }
 
 /** What the light does to a surface at this hour. The golden hour's is `art/sky`'s own, so land and sky agree there. */
@@ -65,7 +71,7 @@ function tinted(night: Night, colour: V3, dusk: string, deep: string): V3 {
   const light = night.across(vec3(1, 1, 1), vec3(x, y, z), nightColour(dusk), nightColour(deep));
   const luma = dot(colour, vec3(LUMA[0], LUMA[1], LUMA[2]));
   const lost = smoothstep(float(NIGHT_STOPS.golden), float(NIGHT_STOPS.night), night.amount).mul(COLOUR_LOST_AT_NIGHT);
-  return mix(colour, vec3(luma, luma, luma), lost).mul(light);
+  return mix(colour, vec3(luma, luma, luma), lost).mul(light).mul(mix(float(1), float(DARKEST_LIGHT), night.dark));
 }
 
 export const landAtHour = (night: Night, colour: V3) => tinted(night, colour, "land-dusk", "land-deep");
