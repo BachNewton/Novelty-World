@@ -1228,7 +1228,7 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
                 surface[mine] = classes[chain.edge_at[station]]
                 run[mine] = _way_runs(chain)[chain.edge_at[station]]
             if who == JUNCTION or (who >= 0 and chain_index != who):
-                along[mine] = _paint_along(chain, ground)[station]
+                along[mine] = _along(chain, ground, xy[mine], station)
             if who >= 0 and chain_index == who:
                 offset = ((xy[mine] - chain.xy[station]) * chain.normal[station]).sum(-1)
                 # As a ribbon's: 1 at the carriageway's edge, 2 at the shoulder's.
@@ -1249,7 +1249,7 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
                     tagged = walk[mine] & (kind != NONE)
                     surface[mine[tagged]] = kind[tagged]
                     across[mine[tagged]] = np.where(left[tagged], 1, -1) * OWN_SURFACE_ACROSS
-                along[mine] = _paint_along(chain, ground)[station]
+                along[mine] = _along(chain, ground, xy[mine], station)
         if who >= 0:
             mine = at[worn[at]]
             way[mine] = path[mine]
@@ -1279,6 +1279,14 @@ def _way_runs(chain: Chain) -> np.ndarray:
         snapped = np.round(mean / (2 * RUN_STEP)) * 2 * RUN_STEP
         runs[edge] = np.cos(snapped), np.sin(snapped)
     return runs
+
+
+def _along(chain: Chain, ground: Ground, xy: np.ndarray, station: np.ndarray) -> np.ndarray:
+    """How far along a way points lie, as its paint counts: from their nearest stations, by how far past each they lie.
+    A station's own distance alone moves in 2 m steps, and treads laid across it ran askew between a way's middle and edges."""
+    distance = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(chain.xy, axis=0).T))))
+    lies = distance[station] + ((xy - chain.xy[station]) * chain.tangent[station]).sum(-1)
+    return np.interp(lies, distance, _paint_along(chain, ground))
 
 
 def _paint_along(chain: Chain, ground: Ground) -> np.ndarray:

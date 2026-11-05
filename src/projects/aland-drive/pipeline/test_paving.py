@@ -86,6 +86,17 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(len(path), 100)
         self.assertLessEqual(float(np.abs(path[:, 3]).max()), 1.0)
 
+    def test_a_point_is_as_far_along_its_way_as_it_lies(self):
+        """Each point took its nearest station's distance along, in 2 m steps, so the treads of a flight of steps, laid
+        across that distance, ran askew between its middle and its edges: stripes and chevrons."""
+        start, end = np.array([300.0, 300.0]), np.array([420.0, 460.0])
+        paved = paving.lay([road([start, end], "steps", motor=False)], land())
+        run = (end - start) / np.linalg.norm(end - start)
+        along = (paved.points[:, :2] - start) @ run
+        inside = (along > 1) & (along < np.linalg.norm(end - start) - 1)
+        self.assertGreater(int(inside.sum()), 10)
+        np.testing.assert_allclose(paved.points[inside, 5], along[inside], atol=0.02)
+
     def test_the_ground_meets_the_paving_on_the_paving_s_own_points(self):
         ways = [road([(100, 600), (1100, 640)], "tertiary"), road([(600, 619), (600, 1000)]), road([(300, 200), (900, 1000)], "path", motor=False)]
         paved = paving.lay(ways, land(height=hilly))
