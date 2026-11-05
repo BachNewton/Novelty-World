@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside";
 import { BOAT_PARTS, KIND, PAINT, SAIL_KINDS } from "./mesh";
 import "./tokens.css";
@@ -45,7 +46,8 @@ const HEAVE_M = 0.05;
 const FLUTTER_M = 0.05;
 const FLUTTER_SPEED = 7;
 
-const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+/** A boat's own roll, from a seed made in the vertex stage, so every pixel of it reads the same. */
+const rollOf = (place: Node<"vec2">) => unitOf(varying(placeSeed(place)), 1);
 const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {

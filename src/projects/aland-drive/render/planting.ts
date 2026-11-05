@@ -1,5 +1,6 @@
 import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, fract, If, instanceIndex, mix, sin, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, If, instanceIndex, mix, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M } from "./tree-place";
 import { viewSides } from "./view-sides";
 
@@ -66,7 +67,8 @@ export function bandColours(shape: BufferGeometry, colours: Colour[], tops: read
 
 export const reachOf = ({ ends }: Lattice) => ends[1] + ends[2];
 export const placesWithin = (metres: number, stepM: number) => Math.ceil(Math.PI * (metres / stepM + 2) ** 2);
-export const roll = (cell: Node<"vec2">, a: number, b: number) => fract(sin(dot(cell, vec2(a, b))).mul(43758.5453));
+/** A lattice place's roll, the same bits on every GPU (`art/hash.ts`): its seed is its cell, offset by its lattice's salt. */
+export const roll = (seed: Node<"vec2">, salt: number) => unitOf(seedOf(seed.x, seed.y), salt);
 
 /** How far a shape spreads from its foot, across the ground. */
 /** Whether a plant spreading this far from its foot stands clear of every building, by the clearing round them less what a read of it may be off by. */
@@ -149,7 +151,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
     const cull = Fn(() => {
       const cell = vec2(instanceIndex.mod(placesAcross), instanceIndex.div(placesAcross)).add(anchor).toVar();
       const seed = cell.add(salt).toVar();
-      const jitter = vec2(roll(seed, 12.9898, 78.233), roll(seed, 39.346, 11.135)).sub(0.5).mul(JITTER * stepM);
+      const jitter = vec2(roll(seed, 1), roll(seed, 2)).sub(0.5).mul(JITTER * stepM);
       const place = cell.mul(stepM).add(jitter).toVar();
       const distance = place.sub(camera2d).length().toVar();
       const perhapsSeen = view.sides.map(({ plane, rough }) => dot(plane.xz, place).add(rough).greaterThanEqual(0)).reduce((all, side) => all.and(side));
@@ -162,7 +164,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
           lattice,
           seenOn: (ground) => view.sides.map(({ plane }) => dot(plane.xyz, vec3(place.x, ground, place.y)).add(plane.w).add(widestM).greaterThanEqual(0)).reduce((all, side) => all.and(side)),
           left: () => {
-            const dissolves = mix(float(ends[0]), float(ends[1]), roll(seed, 61.9, 13.3)).toVar();
+            const dissolves = mix(float(ends[0]), float(ends[1]), roll(seed, 3)).toVar();
             return float(1).sub(smoothstep(dissolves, dissolves.add(ends[2]), distance));
           },
           write: (shape, carried) => {

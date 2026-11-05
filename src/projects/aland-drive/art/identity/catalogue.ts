@@ -1,6 +1,8 @@
+import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/models";
 import { buildCableFerry, buildFerryCable, buildFishingHut, buildKummel, buildLighthouse, buildNetHeap, buildViewingTower, buildViewpointPlatform, buildWoodenDaymark } from "./harbour";
 import { buildAppleCrates, buildAppleTree, buildBicycle, buildBonfireStack, buildCottage, buildCyclist, buildDeckChair, buildDryingNets, buildFarmStall, buildHarvestFlag, buildOpenFarmSign, buildOrchardLadder, buildPicnicTable, buildSauna, buildTouringRack, buildUpturnedBoat } from "./summer";
+import { identityMaterials } from "./material";
 
 export interface Entry {
   name: string;
@@ -44,3 +46,5 @@ export function catalogue(): Entry[] {
     building("viewpoint platform", buildViewpointPlatform(), 320),
   ];
 }
+
+export const artModels = (): ArtModel[] => catalogue().map(({ name, model }) => nearFar(name, model, identityMaterials));

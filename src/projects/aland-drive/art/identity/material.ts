@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, varying, vec3 } from "three/tsl";
+import { seedOf, unitOf } from "../hash";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
 import type { StreetInputs } from "../street/index";
@@ -92,7 +93,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const metres = vec3(x, local.y, local.z).mul(fit.x);
   const along = metres.x.add(metres.z).div(BOARD_M);
   const seam = float(1).sub(smoothstep(float(0.02), float(0.09), abs(fract(along).sub(0.5)).sub(0.5).abs()));
-  const tone = fract(sin(floor(along).mul(127.1)).mul(43758.5453));
+  const tone = unitOf(seedOf(floor(along)), 1);
   const boarded = base.mul(mix(float(0.92), float(1.07), tone)).mul(float(1).sub(seam.mul(0.45).mul(float(1).sub(gone(0.04, away)))));
   const surfaced = isNear ? select(patternIs(code, "boards"), boarded, base) : base;
   material.colorNode = hazed(surfaced.mul(lit).mul(grounded));

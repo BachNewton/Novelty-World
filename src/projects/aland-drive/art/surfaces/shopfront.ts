@@ -1,5 +1,6 @@
-import { abs, float, floor, fract, max, min, mix, select, sin, smoothstep, step, texture, vec2 } from "three/tsl";
+import { abs, float, floor, fract, max, min, mix, select, smoothstep, step, texture, vec2 } from "three/tsl";
 import type { Node } from "three/webgpu";
+import { seedOf, unitOf } from "../hash";
 import { band, pulses } from "./coverage";
 import { WORD_ASPECT, WORD_COLUMNS, WORD_PIXELS, type SignSheet } from "./signs";
 
@@ -58,7 +59,6 @@ export interface ShopInput {
   sheet: SignSheet;
 }
 
-const hash = (value: Node<"float">) => fract(sin(value.mul(91.345)).mul(47453.5453));
 
 /**
  * Drawn inside the wall shader's branch for its style, so it reads no derivatives of its own: the sign's texture is read
@@ -66,8 +66,9 @@ const hash = (value: Node<"float">) => fract(sin(value.mul(91.345)).mul(47453.54
  */
 export function shopfront({ along, up, width, eaves, fromDoor, front, word, wide, tall, reads, wall, colour, sky, sheet }: ShopInput): Node<"vec3"> {
   const pixel = wide.add(tall);
-  const roll = hash(width.mul(3.1).add(eaves.mul(7.7)));
-  const roll2 = hash(roll.add(1.3));
+  // The wall's width and eaves to the centimetre: a pixel reads them blended across the face, a hair off what's stored.
+  const wallSeed = seedOf(width.mul(100).add(0.5), eaves.mul(100).add(0.5));
+  const roll2 = unitOf(wallSeed, 2);
   const shows = float(1).sub(smoothstep(float(GONE[0]), float(GONE[1]), pixel));
   const below = (value: Node<"float">, edge: Node<"float"> | number) => band(value, -1000, edge, pixel);
   const between = (value: Node<"float">, from: Node<"float"> | number, to: Node<"float"> | number) => band(value, from, to, pixel);

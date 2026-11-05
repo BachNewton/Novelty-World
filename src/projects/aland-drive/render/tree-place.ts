@@ -1,8 +1,9 @@
 /*
  * Where a tree stands, as numbers: the lattice, its jitter and the rolls, shared by
  * the forest's shader (`forest.ts`) and what checks it from outside a browser
- * (`tools/tree-check.ts`). A shader's floats are 32-bit, so the rolls here are too.
+ * (`tools/tree-check.ts`).
  */
+import { seedOfWhole, unitOfSeed } from "../art/hash";
 
 import { CROWN_REACH } from "./tree-shapes";
 
@@ -11,12 +12,10 @@ export const FAR_STEP_M = 12;
 /** How far a tree moves off its lattice place, as a share of a near cell. */
 export const JITTER = 0.8;
 export const SHORTEST_M = 3;
-export const JITTER_ROLLS: [x: [number, number], z: [number, number]] = [
-  [12.9898, 78.233],
-  [39.346, 11.135],
-];
-export const HEIGHT_ROLL: [number, number] = [93.989, 67.345];
-export const STAND_ROLL: [number, number] = [61.73, 83.19];
+/** The salts of a place's rolls (`art/hash.ts`): its jitter east and south, its height and whether it stands. */
+export const JITTER_ROLLS: [x: number, z: number] = [1, 2];
+export const HEIGHT_ROLL = 3;
+export const STAND_ROLL = 4;
 /** A tree's height over the canopy image's. A place reads the canopy's surface from a 2013 scan, not a treetop today, and MS-NFI 2023's mean height is 1.2 times that. */
 export const HEIGHT_RANGE: [number, number] = [1.05, 1.35];
 /** What the forest averages over the canopy image, for whatever stands in for its trees. */
@@ -39,12 +38,9 @@ export function tallestClear(clearanceM: number): number {
   return (clearanceM - CLEARING_SLACK_M) / CROWN_REACH;
 }
 
-const f = Math.fround;
-
-export function rollAt(column: number, row: number, [a, b]: [number, number]): number {
-  const dot = f(f(f(column) * f(a)) + f(f(row) * f(b)));
-  const value = f(f(Math.sin(dot)) * f(43758.5453));
-  return f(value - Math.floor(value));
+/** A lattice place's roll, as the forest's compute pass makes it: the same bits on every GPU. */
+export function rollAt(column: number, row: number, salt: number): number {
+  return unitOfSeed(seedOfWhole(column, row), salt);
 }
 
 /** Bilinear, as the GPU reads a clamped image with pixels `metres` across, at a place in metres from its corner. */

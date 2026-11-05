@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, dot, float, floor, Fn, fract, If, int, mix, positionGeometry, round, sin, smoothstep, step, uniform, uniformArray, vec2 } from "three/tsl";
+import { abs, attribute, float, floor, Fn, fract, If, int, mix, positionGeometry, round, sin, smoothstep, step, uniform, uniformArray, vec2 } from "three/tsl";
+import { seedOf, unitOf } from "../hash";
 import type { RoadsideInputs } from "../roadside/index";
 import { INTERIOR_PARTS, paintOf, SURFACES, type Surface } from "./paint";
 import "./tokens.css";
@@ -17,7 +18,7 @@ const AMBIENT_SHARE = 0.62;
 const ROLL_OFF = 0.28;
 
 const surfaceIs = (kind: Node<"float">, name: Surface) => kind.equal(SURFACES.indexOf(name));
-const hash = (at: Node<"vec2">) => fract(sin(dot(at, vec2(12.9898, 78.233))).mul(43758.5453));
+const hash = (at: Node<"vec2">) => unitOf(seedOf(at.x, at.y), 0);
 const lump = (at: Node<"vec2">) => sin(at.x.add(sin(at.y.mul(1.7)).mul(1.3))).mul(sin(at.y.add(sin(at.x.mul(1.3)).mul(1.1))));
 /** 1 on a joint between units of `along`, fading to 0 within `width` of a unit. */
 const joint = (along: Node<"float">, width: number) => float(1).sub(smoothstep(float(0), float(width), float(0.5).sub(abs(fract(along).sub(0.5)))));

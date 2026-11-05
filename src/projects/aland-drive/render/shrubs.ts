@@ -1,5 +1,5 @@
 import { DoubleSide, MeshBasicNodeMaterial, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
@@ -168,7 +168,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
     rows: ROWS,
     visit({ seed, place, distance, lattice, seenOn, left, write }) {
       const isBushes = lattice === LATTICES[BUSHES];
-      const chance = roll(seed, 93.989, 67.345).toVar();
+      const chance = roll(seed, 4).toVar();
       const land = landAt(place);
       If(land.dry.greaterThan(LEAST_DRY).and(roadsAt(place, 1).lessThan(ROAD_CLEAR)).and(shoreAt(place, REACH_M).lessThanEqual(0)), () => {
         const here = canopyAt(place, 0);
@@ -181,17 +181,17 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
         If(chance.lessThan(bushes.add(junipers)), () => {
           const ground = groundAt(place).toVar();
           If(seenOn(ground), () => {
-            const pick = roll(seed, 54.1, 18.7);
+            const pick = roll(seed, 9);
             const near = waterAt(place, AROUND_MIP).greaterThan(WATER_NEAR);
             const bush = select(near.and(pick.lessThan(SALLOW_NEAR_WATER)), float(SALLOW), select(pick.lessThan(0.5), float(HAZEL), float(HAZEL + 1)));
             const kind = (isBushes ? select(chance.lessThan(bushes), bush, select(pick.lessThan(0.5), float(JUNIPER), float(JUNIPER + 1))) : select(pick.lessThan(0.5), float(BIRCH), float(BIRCH + 1))).toVar();
-            const size = mix(lowOf.element(int(kind)) as unknown as Node<"float">, highOf.element(int(kind)) as unknown as Node<"float">, roll(seed, 73.31, 29.47)).toVar();
+            const size = mix(lowOf.element(int(round(kind))) as unknown as Node<"float">, highOf.element(int(round(kind))) as unknown as Node<"float">, roll(seed, 10)).toVar();
             const swapM = SWAPS_M[isBushes ? BUSHES : BIRCHES];
             const swap = smoothstep(float(swapM * (1 - SWAP_BAND)), float(swapM * (1 + SWAP_BAND)), distance).toVar();
-            const spread = size.mul(spreadOfKind.element(int(kind)) as unknown as Node<"float">).toVar();
+            const spread = size.mul(spreadOfKind.element(int(round(kind))) as unknown as Node<"float">).toVar();
             const clearOfWalls = (isBushes ? wallDistanceAt(place).greaterThan(spread.add(STONE_WALL_HALF_WIDE_M)) : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M)).and(clearOfBuildings(clearanceAt, place, spread));
             const remaining = left().toVar();
-            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const look = vec4(land.broad.pow(vec3(2.2)), lightOf(land.shade)).toVar();
             kinds.forEach((each, index) => {
               if (LATTICES[each.lattice] !== lattice) return;
@@ -215,10 +215,10 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const material = new MeshBasicNodeMaterial();
       material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
       const isFar = index < kinds.length;
-      const kind = int(live.w);
+      const kind = varying(int(round(live.w)));
       // The model's own height, before the plant's size, picks the band, as it did when the bands were measured.
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
-      const painted = isFar ? (bandsOf.element(int(live.w.mul(BANDS).add(band))) as unknown as Node<"vec3">) : paint;
+      const painted = isFar ? (bandsOf.element(int(round(live.w.mul(BANDS).add(band)))) as unknown as Node<"vec3">) : paint;
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const radial = normalize(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).add(vec2(1e-4, 0)));
       const up = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).clamp(0, 1);
