@@ -247,6 +247,19 @@ class OneSurface(unittest.TestCase):
         worn = (points[:, 6].astype(int) == chains["cycleway"].index) & (np.abs(points[:, 3]) < 1)
         self.assertFalse((corner & worn).any())
 
+    def test_a_junction_s_corners_are_only_between_its_two_ways(self):
+        """Rounding a side road's corners with the loop street it joins also rounded the inside of the loop's own corner
+        nearby, on its far side: a flap of paving reaching into the block."""
+        loop = road([(500, 500), (700, 500), (700, 700), (515, 700), (500, 700), (500, 500)])
+        side = road([(515, 700), (515, 800)], "unclassified")
+        paved = paving.lay([loop, side], land())
+        ring = next(chain for chain in paved.chains if chain.kind_name == "residential")
+        own = paving.footprints(ring, np.zeros(len(ring.xy), dtype=int), shapely.box(0, 0, TILE_M, TILE_M), paved.crosses[ring.index].paving)[paving.GROUND]
+        corners = paved.points[paved.triangles]
+        paving_drawn = shapely.union_all(shapely.polygons(np.concatenate((corners[:, :, :2], corners[:, :1, :2]), axis=1)))
+        # Inside the block's corner by the junction, nothing past the loop's own paving.
+        self.assertLess(paving_drawn.difference(own.buffer(0.01)).intersection(shapely.box(501, 670, 530, 699)).area, 0.05)
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")

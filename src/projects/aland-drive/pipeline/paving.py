@@ -615,6 +615,8 @@ def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) ->
             zone = shapely.Point(here).buffer(float(chain.half[end] + parent.half.max()) + 3 * radius)
             local = shapely.intersection(shapely.union(ground_prints[chain.index], ground_prints[parent.index]), zone.buffer(radius))
             corner = shapely.intersection(_rounded(local, radius), zone)
+            # Only what lies between the two: closing them together also rounds the inside of the other's own bends.
+            corner = shapely.union_all([part for part in _flat(corner) if all(part.distance(ground_prints[way.index]) < SLIVER_M * 4 for way in (chain, parent))])
             if not corner.is_empty and _agree([chain, parent], corner):
                 found.append(corner)
     return found
