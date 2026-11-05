@@ -256,6 +256,57 @@ class Seams(unittest.TestCase):
         self.assertGreaterEqual(len(here), 2)
         np.testing.assert_allclose(here, there, atol=0.002)
 
+    def test_what_only_one_tile_sees_near_the_edge_changes_nothing_on_it(self):
+        """Each tile sees only its own side of the edge: a sidewalk beside a street there, a path a street's chain carries on
+        into, a junction just past the edge, a way running beside the edge without crossing it. Shaped by any of them, the
+        paving on the edge differed between the two tiles, in where it reaches and how high it stands."""
+
+        def world(east, north):
+            return 12 + 0.01 * east + 0.004 * north + 0.3 * np.sin(east / 9 + north / 13)
+
+        ways = [
+            ("residential", [(900, 600), (1500, 604)]),
+            # Beside the street on the west tile only, stopping short of the edge.
+            ("footway", [(1000, 605.5), (1196, 605.8)]),
+            # A street the west tile's chain carries on into a path across the edge.
+            ("residential", [(1100, 650), (1190, 650)]),
+            ("footway", [(1190, 650), (1400, 652)]),
+            # A path crossing the edge that ends, just past it, on a road the west tile can't see.
+            ("cycleway", [(1000, 520), (1211, 521)]),
+            ("secondary", [(1211, 450), (1211, 580)]),
+            # A service road beside the edge, its paving reaching over it, on the west tile only.
+            ("service", [(1198.5, 690), (1198.5, 760)]),
+        ]
+
+        def tile_roads(west):
+            roads = []
+            for kind, line in ways:
+                whole = np.array(line, dtype=float)
+                # Tiles are 6 km to `clip_line`: these two meet at TILE_M, the only edge any way crosses.
+                for part in clip_line(whole, Tile("T", int(TILE_M) - TILE_SIZE_M if west == 0 else int(TILE_M), 0)):
+                    ends = [end for end in (part[0], part[-1]) if abs(end[0] - TILE_M) < 1e-6]
+                    seams = [[round(end[0] - west, 2), round(end[1], 2), *seam_direction(whole, end)] for end in ends]
+                    roads.append(road(np.round(part - [west, 0], 2), kind, motor=kind not in ("footway", "cycleway"), **({"seams": seams} if seams else {})))
+            return roads
+
+        def edge_surface(paved, x):
+            north = np.arange(400, 800, 0.01)
+            cut = paved.ground_cut(paved.conformed[:: paving.NODE_STRIDE, :: paving.NODE_STRIDE])
+            inward = 1e-3 if x == 0 else -1e-3
+            at = np.column_stack((np.full(len(north), x + inward), north))
+            drawn = paving.Cover(paved.points[paved.triangles][:, :, :3]).at(at)
+            ground = paving.Cover(cut.points[cut.triangles[: len(cut.triangles) - cut.walls]]).at(at)
+            points = paved.points[np.abs(paved.points[:, 0] - x) < 1e-3][:, 1:3]
+            return drawn, np.where(np.isnan(drawn), ground, drawn), np.unique(np.round(points, 3), axis=0)
+
+        west_drawn, west_surface, west_points = edge_surface(paving.lay(tile_roads(0), land(height=world)), TILE_M)
+        east_drawn, east_surface, east_points = edge_surface(paving.lay(tile_roads(TILE_M), land(height=world, west=TILE_M)), 0)
+        np.testing.assert_array_equal(np.isnan(west_drawn), np.isnan(east_drawn))
+        self.assertGreater(int((~np.isnan(west_drawn)).sum()), 1000)
+        np.testing.assert_array_equal(west_points, east_points)
+        both = ~np.isnan(west_surface) & ~np.isnan(east_surface)
+        np.testing.assert_allclose(west_surface[both], east_surface[both], atol=0.002)
+
 
 class Underpasses(unittest.TestCase):
     def test_a_path_through_a_tunnel_keeps_clear_of_the_road_over_it_and_has_walls(self):

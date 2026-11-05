@@ -92,6 +92,8 @@ KEEP_APART_M = 0.5
 EDGE_BAND_M = 8.0
 # A way ending on a tile's edge runs on past it this far before its outline is cut there, so both tiles cut it alike.
 SEAM_REACH_M = 4.0
+# Within this of a tile's edge the paving is only the seam sections of the ways that cross it, which both tiles lay alike.
+SEAM_BAND_M = 1.0
 # A way's own surface holds its pieces this stiffly, halving with each rank down: a main road hardly bends, a path bends
 # over several metres to meet it.
 STIFFNESS = 1.0
@@ -216,8 +218,12 @@ class Cross:
 
 def cross_of(chain: Chain) -> Cross:
     """A way's own cross-section by its class: a motor road's shoulder is part of its paving, where a town street has its
-    kerb and paving and a country road its stone edge; a path's ends at its edge."""
-    reach = chain.half + (chain.shoulder if chain.motor else 0)
+    kerb and paving and a country road its stone edge; a path's ends at its edge.
+
+    Whether a station is a motor road's is its own OSM way's: a chain carries on through a junction into a path, and which
+    ways a chain holds depends on the tile, so a path ending on a tile's edge would have a shoulder on one tile only."""
+    motor = np.array([chain.edges[index].road["motor"] for index in chain.edge_at], dtype=bool)
+    reach = chain.half + np.where(motor, chain.shoulder, 0)
     none = np.zeros(len(chain.half))
     return Cross(chain.half.copy(), chain.half.copy(), reach.copy(), reach.copy(), none, none.copy())
 
@@ -315,7 +321,9 @@ def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> set[int]:
         distance = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(chain.xy, axis=0).T))))
         for station in chain.seam_stations:
             from_seam = np.minimum(from_seam, np.abs(distance - distance[station]))
-        own = np.clip(from_seam / SIDEWALK_SEAM_RUN_M, 0, 1)
+        # Applied once the edges are smoothed, which would otherwise carry a sidewalk's width on to the seam's own stations:
+        # the paving there, and as far past the edge as its outline runs on, is the class's, which both tiles cut alike.
+        own = np.clip((from_seam - SEAM_REACH_M) / SIDEWALK_SEAM_RUN_M, 0, 1)
         sides = []
         for column, (sign, carriageway, paving) in enumerate(((1, cross.half_left, cross.reach_left), (-1, cross.half_right, cross.reach_right))):
             beside_here = np.where(beside & (sign * across > 0), inner, np.inf)
@@ -328,12 +336,14 @@ def along_sidewalks(chains: list[Chain], crosses: dict[int, Cross]) -> set[int]:
             tag = np.where(np.isinf(edge), tagged[:, column], 0)
             walk = np.where(tag > 0, tag, mapped)
             target = np.where(tag > 0, carriageway + KERB_STRIP_M + tag, np.minimum(paving, edge))
-            held = ndimage.gaussian_filter1d(paving + own * (target - paving), SIDEWALK_SMOOTH_STATIONS, mode="nearest")
-            widened = ndimage.gaussian_filter1d(own * tag, SIDEWALK_SMOOTH_STATIONS, mode="nearest") > LEAST_WALK_M
-            walk = ndimage.gaussian_filter1d(own * walk, SIDEWALK_SMOOTH_STATIONS, mode="nearest")
-            walk = np.where(walk > LEAST_WALK_M, walk, 0)
+            held = ndimage.gaussian_filter1d(target, SIDEWALK_SMOOTH_STATIONS, mode="nearest")
+            widened = ndimage.gaussian_filter1d(tag, SIDEWALK_SMOOTH_STATIONS, mode="nearest") > LEAST_WALK_M
+            walk = ndimage.gaussian_filter1d(walk, SIDEWALK_SMOOTH_STATIONS, mode="nearest")
             reach = np.where(widened, held, np.minimum(paving, held))
-            sides.append((np.minimum(carriageway, held), reach, np.clip(walk, 0, np.maximum(reach - carriageway, 0))))
+            narrowed = np.minimum(carriageway, held)
+            reach, narrowed, walk = paving + own * (reach - paving), carriageway + own * (narrowed - carriageway), own * walk
+            walk = np.where(walk > LEAST_WALK_M, walk, 0)
+            sides.append((narrowed, reach, np.clip(walk, 0, np.maximum(reach - narrowed, 0))))
         crosses[chain.index] = Cross(sides[0][0], sides[1][0], sides[0][1], sides[1][1], sides[0][2], sides[1][2])
     return sidewalks
 
@@ -386,6 +396,105 @@ def bare_decks(chains: list[Chain], levels: dict[int, np.ndarray], crosses: dict
         if over.any():
             crosses[chain.index] = Cross(cross.half_left, cross.half_right, np.where(over, cross.half_left, cross.reach_left), np.where(over, cross.half_right, cross.reach_right), np.where(over, 0, cross.walk_left), np.where(over, 0, cross.walk_right))
             prints[chain.index] = footprints(chain, levels[chain.index], tile, crosses[chain.index].paving)
+
+
+@dataclass
+class SeamSection:
+    """A way's paving where it crosses a tile's edge, from what both tiles see the same: its station on the edge and its
+    class's own cross-section there, run on SEAM_REACH_M either way along it."""
+
+    chain: Chain
+    station: int
+    level: int
+    rank: int
+    half_left: float
+    half_right: float
+    shape: shapely.Polygon
+    carriageway: shapely.Polygon
+    line: shapely.LineString
+
+    def holds(self, xy: np.ndarray) -> tuple[bool, float]:
+        """Whether a point is in this section's carriageway, and how far across the way it lies."""
+        across = float((xy - self.chain.xy[self.station]) @ self.chain.normal[self.station])
+        return -self.half_right <= across <= self.half_left, across
+
+    def height(self, xy: np.ndarray) -> float:
+        """The seam section's surface: its centre's height with its crown, level past the carriageway, and no banking. Not
+        what easing on to a junction added, since a junction near the edge may be on one tile only."""
+        chain, station = self.chain, self.station
+        across = float(np.clip((xy - chain.xy[station]) @ chain.normal[station], -chain.half[station], chain.half[station]))
+        return float(chain.height[station] - chain.crown[station] * abs(across))
+
+
+def seam_sections(chains: list[Chain], levels: dict[int, np.ndarray]) -> list[SeamSection]:
+    """Every way's section where it crosses a tile's edge, by the class of the OSM way it crosses on."""
+    found = []
+    for chain in chains:
+        if not chain.seam_stations:
+            continue
+        cross = cross_of(chain)
+        for station in chain.seam_stations:
+            along, normal, middle = chain.tangent[station] * SEAM_REACH_M, chain.normal[station], chain.xy[station]
+
+            def strip(left: float, right: float) -> shapely.Polygon:
+                return shapely.Polygon([middle + normal * left - along, middle + normal * left + along, middle - normal * right + along, middle - normal * right - along])
+
+            shape = strip(cross.reach_left[station], cross.reach_right[station])
+            carriageway = strip(cross.half_left[station], cross.half_right[station])
+            line = shapely.LineString([middle - along, middle + along])
+            rank = chain.edges[chain.edge_at[station]].kind.rank
+            found.append(SeamSection(chain, station, int(levels[chain.index][station]), rank, float(cross.half_left[station]), float(cross.half_right[station]), shape, carriageway, line))
+    return found
+
+
+def held_to_seams(prints: dict[int, dict[int, shapely.Geometry]], sections: list[SeamSection], tile: shapely.Polygon) -> None:
+    """Every way's paving on the band along the tile's edge is its seam sections alone.
+
+    What a way's paving is near the edge otherwise comes from what this tile sees: a sidewalk beside it, a deck over an
+    underpass, a way running along the edge without crossing it, none of which the neighbour may see. On the edge itself
+    both tiles must lay the same, so there the paving is each crossing's own section, by its class.
+    """
+    for index, by_level in prints.items():
+        for level in list(by_level):
+            shape = on_seams(by_level[level], [section.shape for section in sections if section.chain.index == index and section.level == level], tile)
+            if shape.is_empty:
+                del by_level[level]
+            else:
+                by_level[level] = shape
+    for section in sections:
+        if section.level not in prints.setdefault(section.chain.index, {}):
+            prints[section.chain.index][section.level] = on_seams(shapely.Polygon(), [section.shape], tile)
+
+
+def on_seams(shape: shapely.Geometry, seams: list[shapely.Geometry], tile: shapely.Polygon) -> shapely.Geometry:
+    """A shape as this tile has it away from the edge, and on the band along it the seam sections' alone."""
+    inner = tile.buffer(-SEAM_BAND_M, join_style="mitre")
+    band = shapely.difference(tile, inner)
+    found = shapely.union(shapely.intersection(shape, inner), shapely.intersection(shapely.union_all(seams), band)) if seams else shapely.intersection(shape, inner)
+    return found if shapely.get_dimensions(shape) == 1 else _polygonal(found)
+
+
+def seam_targets(sections: list[SeamSection], xy: np.ndarray) -> np.ndarray:
+    """The height at each point on a tile's edge from the seam sections that hold it, NaN where none does: of those, the
+    greatest way whose carriageway holds it, or failing that the greatest whose shoulder does, then the nearest its own
+    line, so a junction on the edge is decided alike from either side."""
+    found = np.full(len(xy), np.nan)
+    if not sections or not len(xy):
+        return found
+    tree = shapely.STRtree([section.shape for section in sections])
+    # The paving's outline is cut on a grid of GRID_M, so a point at a section's side may lie just past it.
+    at, which = tree.query(shapely.points(xy), predicate="dwithin", distance=GRID_M)
+    best: dict[int, tuple] = {}
+    for point, index in zip(at.tolist(), which.tolist()):
+        section = sections[index]
+        inside, across = section.holds(xy[point])
+        middle = section.chain.xy[section.station]
+        key = (not inside, section.rank, round(abs(across), 3), round(float(middle[0]), 2), round(float(middle[1]), 2))
+        if point not in best or key < best[point][0]:
+            best[point] = (key, section)
+    for point, (_, section) in best.items():
+        found[point] = section.height(xy[point])
+    return found
 
 
 def footprints(chain: Chain, levels: np.ndarray, tile: shapely.Polygon, sides: tuple[np.ndarray, np.ndarray]) -> dict[int, shapely.Geometry]:
@@ -460,9 +569,13 @@ def _between_ways(gaps: shapely.Geometry, chains: list[Chain], prints: list[shap
     return kept
 
 
-def kept_apart(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]]) -> None:
+def kept_apart(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], tile: shapely.Polygon) -> None:
     """Two ways whose outlines touch but whose surfaces don't agree there stay apart: the lesser stands back from the greater,
-    and the land between them is a bank. A way and the one it ends on are joined by its own profile, which meets the other's."""
+    and the land between them is a bank. A way and the one it ends on are joined by its own profile, which meets the other's.
+
+    Not near a tile's edge, as no gap is closed there: whether two ways stand apart is judged from where they touch, and
+    each tile sees only its own side of that, so the neighbour may not cut the lesser way back as this tile does."""
+    inner = tile.buffer(-EDGE_BAND_M, join_style="mitre")
     indices = [index for index, by_level in prints.items() if GROUND in by_level]
     if len(indices) < 2:
         return
@@ -481,7 +594,8 @@ def kept_apart(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry
         # bends it to meet the street: a bank is a step of metres, along most of where the two touch.
         if meet.is_empty or float(np.median(_apart([greater, lesser], meet))) <= BANK_STEP_M:
             continue
-        prints[lesser.index][GROUND] = _polygonal(shapely.simplify(shapely.difference(prints[lesser.index][GROUND], prints[greater.index][GROUND].buffer(KEEP_APART_M)), OUTLINE_WITHIN_M))
+        apart = shapely.intersection(prints[greater.index][GROUND].buffer(KEEP_APART_M), inner)
+        prints[lesser.index][GROUND] = _polygonal(shapely.simplify(shapely.difference(prints[lesser.index][GROUND], apart), OUTLINE_WITHIN_M))
         if prints[lesser.index][GROUND].is_empty:
             del prints[lesser.index][GROUND]
 
@@ -533,7 +647,7 @@ def _greatest(chains: list[Chain], shapes: dict[int, shapely.Geometry], middles:
     return owner
 
 
-def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int]) -> list[Piece]:
+def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int], sections: list[SeamSection], tile: shapely.Polygon) -> list[Piece]:
     """The paved shape cut along every way's outline, carriageway, kerb and centre line, each piece owned by the greatest way
     whose carriageway holds it, or failing that the greatest whose shoulder does: a road's shoulder never runs across the
     mouth of another road that joins it. A street's piece past its kerb, where it has one, is its sidewalk's.
@@ -549,7 +663,8 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
         for first, last in _runs(levels[index] == GROUND):
             if last > first:
                 line = shapely.simplify(shapely.LineString(chain.xy[first : last + 1]), OUTLINE_WITHIN_M)
-                lines.append(shapely.intersection(line, paved))
+                lines.append(shapely.intersection(on_seams(line, [], tile), paved))
+    lines += [shapely.intersection(on_seams(shapely.LineString(), [section.line], tile), paved) for section in sections if section.level == GROUND]
     # On a grid as fine as the outlines are kept to, before it's cut: lines that nearly meet become one, and no two pieces overlap.
     # Long straight edges are cut so a profile's bend still shows along them: once, on the shared lines, so two pieces cut theirs alike.
     linework = shapely.segmentize(shapely.union_all([line for line in lines if not line.is_empty], grid_size=GRID_M), LONGEST_SECTION_M)
@@ -719,17 +834,7 @@ class Surfaces:
         return heights
 
 
-def _seam_plane(chain: Chain, xy: np.ndarray) -> float:
-    """A way's surface at a point on the tile's edge, read off its seam section, which the neighbour has too: a nearer station
-    of its own could lie on either side of the edge, and the two tiles would differ."""
-    if not chain.seam_stations:
-        return float(chain.plane(xy[None])[0])
-    station = min(chain.seam_stations, key=lambda at: float(np.hypot(*(chain.xy[at] - xy))))
-    across = np.clip((xy - chain.xy[station]) @ chain.normal[station], -chain.half[station], chain.half[station])
-    return float(chain.height[station] + chain.eased[station] - chain.crown[station] * abs(across) + chain.bank[station] * across)
-
-
-def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground) -> np.ndarray:
+def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground, sections: list[SeamSection]) -> np.ndarray:
     """One height per point of paving, from one least-squares solve: levels share no points, so each solves on its own.
 
     Each point leans towards its owner's surface, as stiffly as its owner's rank allows; each edge keeps the difference the
@@ -749,14 +854,18 @@ def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground) -> np.ndarray:
     target = surfaces.of(reading, mesh.xy)
     weight = np.where(unowned, FLOATING_WEIGHT, STIFFNESS * 2.0 ** -np.minimum(point_rank, AREA_RANK))
 
-    # A point on the tile's edge is the seam's, which the neighbour reads alike.
+    # A point on the tile's edge is its seam section's, which the neighbour reads alike, or a car park's land, which both see.
     size = ground.size_m
     east, north = mesh.xy[:, 0] - ground.west, ground.north - mesh.xy[:, 1]
     on_edge = np.minimum.reduce([east, north, size - east, size - north]) < 1e-3
     weight[on_edge] = PIN_WEIGHT
-    for point in np.flatnonzero(on_edge):
-        if reading[point] >= 0:
-            target[point] = _seam_plane(chains[reading[point]], mesh.xy[point])
+    edge_points = np.flatnonzero(on_edge)
+    seam = seam_targets(sections, mesh.xy[edge_points])
+    held = ~np.isnan(seam)
+    target[edge_points[held]] = seam[held]
+    loose = edge_points[~held & (reading[edge_points] != AREA)]
+    if len(loose):
+        raise ValueError(f"paving at ({mesh.xy[loose[0], 0]:.2f}, {mesh.xy[loose[0], 1]:.2f}) on the tile's edge is in no way's seam section")
     target[on_edge] = np.round(target[on_edge], 3)
 
     pairs = np.sort(np.concatenate([mesh.triangles[:, [0, 1]], mesh.triangles[:, [1, 2]], mesh.triangles[:, [2, 0]]]), axis=1)
@@ -1198,7 +1307,9 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     prints = {chain.index: footprints(chain, levels[chain.index], tile, crosses[chain.index].paving) for chain in laid}
     bare_decks(laid, levels, crosses, prints, tile)
     dipped_under_decks(chains, levels, prints)
-    kept_apart(chains, prints)
+    kept_apart(chains, prints, tile)
+    sections = seam_sections(laid, levels)
+    held_to_seams(prints, sections, tile)
     # Polygons only, and empty as a polygon is, whatever clipping left: a collection has no boundary to cut along.
     areas = shapely.MultiPolygon(_flat(shapely.simplify(shapely.intersection(areas, tile), OUTLINE_WITHIN_M)))
     shape = ground_shape(chains, prints, areas, tile)
@@ -1207,17 +1318,20 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
         if GROUND in prints[chain.index]:
             carriageway = footprints(chain, levels[chain.index], tile, crosses[chain.index].carriageway).get(GROUND)
             if carriageway is not None:
-                carriageways[chain.index] = _polygonal(shapely.intersection(carriageway, prints[chain.index][GROUND]))
+                own = [section.carriageway for section in sections if section.chain.index == chain.index and section.level == GROUND]
+                carriageways[chain.index] = on_seams(_polygonal(shapely.intersection(carriageway, prints[chain.index][GROUND])), own, tile)
     kerbs = {}
     for chain in laid:
         cross = crosses[chain.index]
         if GROUND in prints[chain.index] and (cross.walk_left.any() or cross.walk_right.any()):
             kerb = footprints(chain, levels[chain.index], tile, cross.kerb).get(GROUND)
             if kerb is not None:
-                kerbs[chain.index] = _polygonal(shapely.intersection(kerb, prints[chain.index][GROUND]))
-    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks))
+                # A seam section has no sidewalk: its kerb is all its paving.
+                own = [section.shape for section in sections if section.chain.index == chain.index and section.level == GROUND]
+                kerbs[chain.index] = on_seams(_polygonal(shapely.intersection(kerb, prints[chain.index][GROUND])), own, tile)
+    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, tile))
     surfaces = Surfaces(chains, ground)
-    heights = solve_heights(mesh, surfaces, ground)
+    heights = solve_heights(mesh, surfaces, ground, sections)
     points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses)
 
     raw = ground.tile_corners()
@@ -1248,6 +1362,12 @@ def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, 
         outer_left, outer_right = left[:, :2] + shoulder, right[:, :2] - shoulder
         outer = [np.column_stack((xy, surface_height(nodes, step, ground.west, ground.north, xy))) for xy in (outer_left, outer_right)]
         rings = np.stack((outer[0], left, centre, right, outer[1]), axis=1)
+        # A seam's section reaches over the edge, where the paving is the neighbour's: it is the seam's own, as on a ribbon tile.
+        for end in (0, -1):
+            if keep[end] in chain.seam_stations:
+                rings[end, 1:4] = chain.left[end], chain.centre[end], chain.right[end]
+                rings[end, [0, 4], 2] = ground.sample(rings[end, [0, 4], :2])
+                rings[end] = np.round(rings[end], 3)
         distance = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(chain.centre[:, :2], axis=0).T))))
         thin = _thin_sections(rings, distance)
         span = chain.span[keep]
