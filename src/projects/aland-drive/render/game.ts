@@ -377,7 +377,8 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
   const tier = new BufferAttribute(ribbon.tiers, 1);
   const roadInfo = new BufferAttribute(dress.surface, 4);
   const roadMark = new BufferAttribute(dress.mark, 2);
-  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3), 3);
+  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3, detail.surface.aprons), 3);
+  const townRun = new BufferAttribute(ribbon.runs, 2);
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z }) => {
     const geometry = new BufferGeometry();
@@ -388,6 +389,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
     geometry.setAttribute("roadInfo", roadInfo);
     geometry.setAttribute("roadMark", roadMark);
     geometry.setAttribute("townBits", townBits);
+    geometry.setAttribute("townRun", townRun);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -612,7 +614,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const dressed = dressRoad({ place: positionWorld.xz, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
   // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
-  const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const townRoad = townRibbon({ place: positionWorld.xz, toCamera, along, angle: townAngle, run: attribute<"vec2">("townRun", "vec2"), bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
   const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
   // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
   const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
@@ -672,7 +674,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const bridges = new Map<string, Mesh>();
   let meshBytes = 0;
   const meshBytesOf = (detail: TileDetail, dress: RoadAttributes, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
-    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
+    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.runs.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
   const meshBytesByTile = new Map<string, number>();
   let failed = false;
   const fail = (error: Error) => {

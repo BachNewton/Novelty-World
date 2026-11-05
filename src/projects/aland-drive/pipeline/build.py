@@ -270,7 +270,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         if paved is not None:
             # The paving is the drawn surface; each way's rings stay for what places things beside a road.
             surface_manifest["paved"] = True
-            surface_manifest["encoding"] = "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving: float32le points of (east, north, height, across, tier, along, way), then uint32le triangles"
+            surface_manifest["encoding"] = "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving: float32le points of (east, north, height, across, tier, along, way, class, cos 2θ, sin 2θ of the way it runs), then uint32le triangles"
             surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points, "pointFloats": paving.POINT_FLOATS}
             surface_manifest["groundCut"] = {
                 "file": "ground-cut.bin.gz",

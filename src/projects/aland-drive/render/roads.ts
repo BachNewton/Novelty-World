@@ -22,6 +22,8 @@ export interface RibbonMesh {
   along: Float32Array;
   /** Each vertex's tier, as an index into `ROAD_TIERS`. */
   tiers: Float32Array;
+  /** Two floats a vertex: the way its way runs, as `RoadAprons`' `runs`. Zero on a ribbon, which takes the town image's way instead. */
+  runs: Float32Array;
   indices: Uint32Array;
   cells: RibbonCell[];
 }
@@ -67,6 +69,7 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
   const across = new Float32Array(vertices);
   const along = new Float32Array(vertices);
   const tiers = new Float32Array(vertices);
+  const runs = new Float32Array(vertices * 2);
   const indices = new Uint32Array(quads * 6 + aprons.indices.length);
   const onEdge = (ring: number) => {
     const centre = (ring + CENTRE) * 3;
@@ -105,6 +108,7 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
   across.set(aprons.across, aprons.firstPoint);
   tiers.set(aprons.tiers, aprons.firstPoint);
   along.set(aprons.along, aprons.firstPoint);
+  runs.set(aprons.runs, aprons.firstPoint * 2);
   for (let at = 0; at < aprons.indices.length; at += 3) {
     const [a, b, c] = [aprons.indices[at] + aprons.firstPoint, aprons.indices[at + 1] + aprons.firstPoint, aprons.indices[at + 2] + aprons.firstPoint];
     // The paving is one surface on each level, built without folds or cliffs: a steep path's thin triangle is its own, and
@@ -115,7 +119,7 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
     }
   }
   const kept = indices.slice(0, next);
-  return { positions: surface.rings, across, along, tiers, indices: kept, cells: ribbonCells(surface.rings, kept) };
+  return { positions: surface.rings, across, along, tiers, runs, indices: kept, cells: ribbonCells(surface.rings, kept) };
 }
 
 function ribbonCells(positions: Float32Array, indices: Uint32Array): RibbonCell[] {

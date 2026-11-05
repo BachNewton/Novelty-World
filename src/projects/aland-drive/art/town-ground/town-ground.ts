@@ -1,4 +1,4 @@
-import { abs, cos, dFdx, dFdy, dot, float, floor, fract, fwidth, max, min, mix, select, sin, smoothstep, texture, vec2, vec3 } from "three/tsl";
+import { abs, atan, cos, dFdx, dFdy, dot, float, floor, fract, fwidth, max, min, mix, select, sin, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
 
 /*
@@ -12,7 +12,7 @@ import type { Node, Texture } from "three/webgpu";
  * average tone, and past `FADE` the whole thing goes back to the photo.
  */
 
-/** Bits of a class: red, green, blue. These match `pipeline/town_ground.py`. Steps are a ribbon's only. */
+/** Bits of a class: red, green, blue. These match `pipeline/path_surfaces.py`. Steps are a way's only. */
 export const CLASS = { none: 0b000, steps: 0b001, bed: 0b011, lawn: 0b010, gravel: 0b100, slab: 0b110, tarmac: 0b101, cobble: 0b111 } as const;
 const RANGE_M = [4, 4, 16] as const;
 
@@ -216,6 +216,8 @@ export interface RibbonInput {
   along: Node<"float">;
   /** The surface image's angle here, so paving runs straight on from the terrain's. */
   angle: Node<"float">;
+  /** The way's own direction, as the cosine and sine of twice its angle, which the paving carries and a ribbon doesn't: zero takes `angle`. */
+  run: Node<"vec2">;
   /** The class's three bits, red, green, blue, from `townRibbonBits`. */
   bits: Node<"vec3">;
   /** What the road's own dress drew. */
@@ -236,12 +238,13 @@ function treads(along: Node<"float">, tone: Node<"vec4">, colour: Colour, shown:
 }
 
 /** A street or path's own surface, on its ribbon, on the same lattice as the terrain's paving beside it. */
-export function townRibbon({ place, toCamera, along, angle, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
+export function townRibbon({ place, toCamera, along, angle, run: wayRun, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
   const tone = texture(detail, place.div(COARSE_M).add(vec2(0.61, 0.17)));
   const fineTone = texture(detail, place.div(FINE_M).add(vec2(0.13, 0.57)));
   const [isR, isG, isB] = [bits.r.greaterThan(0.5), bits.g.greaterThan(0.5), bits.b.greaterThan(0.5)];
-  const run: Run = { ...runOf(place, angle), tone, colour, shown };
+  const wayAngle = fract(atan(wayRun.y, wayRun.x).div(2 * Math.PI));
+  const run: Run = { ...runOf(place, select(wayRun.length().greaterThan(0.5), wayAngle, angle)), tone, colour, shown };
   const paved = select(isB, setts(run), slabs(run));
   const soft = select(isG, lawned(tone, fineTone, tone.a, colour, shown), select(isB, tarmac(run, float(0)).mul(WALKED_TARMAC), gravelled(tone, fineTone, tone.a, colour, shown)));
   const isSteps = isB.and(isR.or(isG).not());
@@ -251,16 +254,17 @@ export function townRibbon({ place, toCamera, along, angle, bits, carriageway, c
 }
 
 /**
- * Each ribbon vertex's class as three floats, from a class per section, for `vertices` in all: the aprons that follow
- * the sections have none. They interpolate, and a shader's test at a half makes a clean change between sections.
+ * Each ribbon vertex's class as three floats, for `vertices` in all: from a class per section, the town bake's, and a
+ * class per point of the paving that follows the sections, its ways' own. Junction aprons have none. They interpolate,
+ * and a shader's test at a half makes a clean change between sections.
  */
-export function townRibbonBits(classes: Uint8Array, ringPoints: number, vertices: number): Float32Array {
-  if (classes.length * ringPoints > vertices) throw new Error(`${classes.length} sections' classes for ${vertices} vertices`);
+export function townRibbonBits(sections: Uint8Array, ringPoints: number, vertices: number, paving: { firstPoint: number; classes: Uint8Array }): Float32Array {
+  if (sections.length * ringPoints > vertices || paving.firstPoint + paving.classes.length > vertices) throw new Error(`classes for more than ${vertices} vertices`);
   const bits = new Float32Array(vertices * 3);
-  classes.forEach((surface, section) => {
-    for (let point = 0; point < ringPoints; point++) {
-      bits.set([(surface >> 2) & 1, (surface >> 1) & 1, surface & 1], (section * ringPoints + point) * 3);
-    }
+  const write = (surface: number, vertex: number) => bits.set([(surface >> 2) & 1, (surface >> 1) & 1, surface & 1], vertex * 3);
+  sections.forEach((surface, section) => {
+    for (let point = 0; point < ringPoints; point++) write(surface, section * ringPoints + point);
   });
+  paving.classes.forEach((surface, point) => write(surface, paving.firstPoint + point));
   return bits;
 }

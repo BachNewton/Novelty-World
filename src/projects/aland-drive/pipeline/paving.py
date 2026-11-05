@@ -18,6 +18,7 @@ from scipy import ndimage, sparse
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
+from path_surfaces import NONE, way_class
 from roads import (
     APRON_ACROSS,
     APRON_CORNER_M,
@@ -58,8 +59,11 @@ JUNCTION_RANK = 99
 JUNCTION_ACROSS = 1.5
 # Room for every way's index when an owner and its rank are packed into one number.
 OWNER_CODES = 1_000_000
-# The floats each point of paving carries: east, north, height, across, tier, along, and its way (or JUNCTION, AREA).
-POINT_FLOATS = 7
+# The floats each point of paving carries: east, north, height, across, tier, along, its way (or JUNCTION, AREA), the
+# class its way's own tags give it (`path_surfaces`), and the way its way runs, as the cosine and sine of twice its angle.
+POINT_FLOATS = 10
+# A way's run is snapped to steps of this, as the town's paving is (`town_ground.ALIGN_STEP`).
+RUN_STEP = np.pi / 64
 
 # Paving's outline is kept within this of each way's, which drops the 2 m stations along a straight run.
 OUTLINE_WITHIN_M = 0.02
@@ -879,7 +883,9 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
 
 
 def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, crosses: dict[int, Cross]) -> tuple[np.ndarray, np.ndarray, int]:
-    """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, and which way.
+    """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, which way,
+    what that way is paved with, and which way it runs, as the cosine and sine of twice its angle: paving looks the same
+    turned half round, and a doubled angle has no jump for a triangle to blend across.
 
     A corner shared by pieces of different ways is one point for each, at one place and height, so each piece keeps its own
     way's look up to its edge. A car park's points come last.
@@ -892,6 +898,8 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     tier = np.full(len(unique), TIERS.index("minor"), dtype=float)
     along = np.zeros(len(unique))
     way = owner.astype(float)
+    surface = np.full(len(unique), NONE, dtype=float)
+    run = np.zeros((len(unique), 2))
     nearest = surfaces.nearest(xy)
     for who in np.unique(owner):
         at = np.flatnonzero(owner == who)
@@ -901,6 +909,10 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
             mine = at[reading == chain_index]
             station = chain.tree.query(xy[mine])[1]
             tier[mine] = chain.tier[station]
+            if who != AREA:
+                classes = np.array([way_class(edge.road, edge.road["motor"]) for edge in chain.edges], dtype=float)
+                surface[mine] = classes[chain.edge_at[station]]
+                run[mine] = _way_runs(chain)[chain.edge_at[station]]
             if who >= 0:
                 offset = ((xy[mine] - chain.xy[station]) * chain.normal[station]).sum(-1)
                 # As a ribbon's: 1 at the carriageway's edge, 2 at the shoulder's.
@@ -917,8 +929,23 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     order = np.argsort(owner == AREA, kind="stable")
     rank = np.empty_like(order)
     rank[order] = np.arange(len(order))
-    points = np.column_stack((xy, heights[point], across, tier, along, way))[order]
+    points = np.column_stack((xy, heights[point], across, tier, along, way, surface, run))[order]
     return points, rank[index].reshape(-1, 3), int((owner == AREA).sum())
+
+
+def _way_runs(chain: Chain) -> np.ndarray:
+    """Each of a way's OSM ways' one direction, as the cosine and sine of twice its angle, snapped to `RUN_STEP`.
+
+    One exact value for all of an OSM way: the game lays slabs and setts on axes turned by it, in world metres, so an angle
+    that changed by a hair across a triangle would turn a lattice thousands of metres from its origin into arcs."""
+    doubled = 2 * np.arctan2(chain.tangent[:, 1], chain.tangent[:, 0])
+    runs = np.zeros((len(chain.edges), 2))
+    for edge in np.unique(chain.edge_at):
+        mine = chain.edge_at == edge
+        mean = np.arctan2(np.sin(doubled[mine]).sum(), np.cos(doubled[mine]).sum())
+        snapped = np.round(mean / (2 * RUN_STEP)) * 2 * RUN_STEP
+        runs[edge] = np.cos(snapped), np.sin(snapped)
+    return runs
 
 
 def _paint_along(chain: Chain, ground: Ground) -> np.ndarray:

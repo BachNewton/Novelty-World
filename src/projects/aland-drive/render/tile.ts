@@ -141,8 +141,8 @@ export const fieldPixelsOf = (world: WorldManifest) => world.rock?.fieldPixels ?
 export const RING_POINTS = 5;
 const RING_FLOATS = RING_POINTS * 3;
 const APRON_POINT_FLOATS = 5;
-/** A point of paving also says how far along its way it is, and which way: `pipeline/paving.py`'s `POINT_FLOATS`. */
-const PAVING_POINT_FLOATS = 7;
+/** A point of paving also says how far along its way it is, which way, its way's class and the way it runs: `pipeline/paving.py`'s `POINT_FLOATS`. */
+const PAVING_POINT_FLOATS = 10;
 /** A point of paving that's a car park's, not any way's. */
 export const AREA_WAY = -2;
 
@@ -156,6 +156,10 @@ export interface RoadAprons {
   /** Per point of paving: metres of paint along its way, and the way, an index into `chains` or `AREA_WAY`. Empty for aprons. */
   along: Float32Array;
   ways: Int32Array;
+  /** Per point of paving: what its way's own tags pave it with, a class of `art/town-ground`'s `CLASS`. Empty for aprons. */
+  classes: Uint8Array;
+  /** Per point of paving, two floats: the cosine and sine of twice the angle its way runs at, in (east, north). Empty for aprons. */
+  runs: Float32Array;
   indices: Uint32Array;
 }
 
@@ -264,6 +268,8 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
   const tiers = new Float32Array(points);
   const along = new Float32Array(paving ? points : 0);
   const ways = new Int32Array(paving ? points : 0);
+  const classes = new Uint8Array(paving ? points : 0);
+  const runs = new Float32Array(paving ? points * 2 : 0);
   for (let point = 0; point < points; point++) {
     const at = point * pointFloats;
     rings.set([apronPoints[at], apronPoints[at + 2], -apronPoints[at + 1]], floats + point * 3);
@@ -272,6 +278,9 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     if (paving) {
       along[point] = apronPoints[at + 5];
       ways[point] = apronPoints[at + 6];
+      classes[point] = apronPoints[at + 7];
+      runs[point * 2] = apronPoints[at + 8];
+      runs[point * 2 + 1] = apronPoints[at + 9];
     }
   }
   const indices = new Uint32Array(data.slice(apronsAt + points * pointFloats * 4));
@@ -279,7 +288,7 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     rings,
     tiers: new Uint8Array(data, floats * 4, sections),
     chains,
-    aprons: { firstPoint: sections * RING_POINTS, firstAreaPoint: sections * RING_POINTS + points - areaPoints, across, tiers, along, ways, indices },
+    aprons: { firstPoint: sections * RING_POINTS, firstAreaPoint: sections * RING_POINTS + points - areaPoints, across, tiers, along, ways, classes, runs, indices },
     paved: manifest.roadSurface.paved === true,
   };
 }

@@ -11,6 +11,7 @@ import unittest
 import numpy as np
 import shapely
 
+import path_surfaces
 import paving
 from grid import TILE_SIZE_M, Tile
 from roads import Ground
@@ -55,6 +56,26 @@ class OneSurface(unittest.TestCase):
         for x, y, z in np.round(paved.points[:, :3], 3):
             places.setdefault((x, y), set()).add(z)
         self.assertTrue(all(len(heights) == 1 for heights in places.values()))
+
+    def test_each_point_wears_its_own_way_s_surface_and_runs_its_way(self):
+        street = road([(100, 600), (1100, 600)])
+        # One chain of two OSM ways: a sidewalk that's slabs, then a plain footway on to the north-east.
+        sidewalk = road([(100, 603.5), (600, 603.5)], "footway", motor=False, footway="sidewalk")
+        footway = road([(600, 603.5), (900, 903.5)], "footway", motor=False)
+        paved = paving.lay([street, sidewalk, footway], land())
+        way = paved.points[:, 6].astype(int)
+        surface = paved.points[:, 7]
+        east, north = paved.points[:, 0], paved.points[:, 1]
+        chains = {chain.kind_name: chain.index for chain in paved.chains}
+        self.assertTrue((surface[way == chains["residential"]] == path_surfaces.NONE).all())
+        on_sidewalk = (way == chains["footway"]) & (east < 590) & (north > 602)
+        on_footway = (way == chains["footway"]) & (north > 620)
+        self.assertTrue(on_sidewalk.any() and on_footway.any())
+        self.assertTrue((surface[on_sidewalk] == path_surfaces.SLAB).all())
+        self.assertTrue((surface[on_footway] == path_surfaces.TARMAC).all())
+        # East is an angle of 0; north-east doubles to a quarter turn.
+        np.testing.assert_allclose(paved.points[on_sidewalk, 8:10], [[1, 0]] * on_sidewalk.sum(), atol=1e-6)
+        np.testing.assert_allclose(paved.points[on_footway, 8:10], [[0, 1]] * on_footway.sum(), atol=1e-6)
 
     def test_the_ground_meets_the_paving_on_the_paving_s_own_points(self):
         ways = [road([(100, 600), (1100, 640)], "tertiary"), road([(600, 619), (600, 1000)]), road([(300, 200), (900, 1000)], "path", motor=False)]
