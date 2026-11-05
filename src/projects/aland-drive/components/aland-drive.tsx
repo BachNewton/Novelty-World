@@ -88,8 +88,8 @@ function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () 
   );
 }
 
-/** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). */
-export function AlandDrive({ solo = false }: { solo?: boolean }) {
+/** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). A lab hears of the game once it's started. */
+export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStarted?: (probe: GameProbe) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const speedText = useRef<HTMLSpanElement>(null);
   const gearText = useRef<HTMLSpanElement>(null);
@@ -222,6 +222,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
           return;
         }
         window.__alandDrive = game.probe;
+        onStarted?.(game.probe);
         setDev(game);
         setCarId(game.probe.carId());
         setStarted(true);
@@ -241,7 +242,7 @@ export function AlandDrive({ solo = false }: { solo?: boolean }) {
       cleanup.abort();
       stop?.();
     };
-  }, [solo]);
+  }, [solo, onStarted]);
 
   const stillLoading = !started && !noWebGpu && failure === null;
 
