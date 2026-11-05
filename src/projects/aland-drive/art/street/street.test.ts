@@ -1,13 +1,16 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { spreadOf } from "../../render/planting";
 import type { RoadsideModel } from "../roadside/models";
 import { FLAGS } from "./flags";
 import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildParasol, buildPlanter, buildPlanterRound } from "./furniture";
 import { buildBollard, buildHarbourCrane, buildSailboat } from "./harbour";
 import { buildFlagpole } from "./flags";
-import { buildLinden } from "./linden";
+import { buildLinden, LINDEN_SEEDS } from "./linden";
 import { buildMidsummerPole } from "./midsummer";
 import { rowAlong, runSections, treeRow } from "./place";
-import { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, buildSpeedCamera, GUARD_RAIL_M } from "./road";
+import { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, GUARD_RAIL_M } from "./road";
 import { buildGrassTuft, buildSeedGrass, buildWildflowers } from "./verge";
 
 const triangles = (geometry: RoadsideModel["near"] | null) => (geometry?.index?.count ?? 0) / 3;
@@ -19,7 +22,6 @@ describe("street triangle budgets", () => {
     railEnd: buildGuardRailEnd(),
     railReturn: buildGuardRailReturn(),
     reflector: buildReflectorPost(),
-    camera: buildSpeedCamera(),
     grass: buildGrassTuft(),
     seedGrass: buildSeedGrass(),
     lupine: buildWildflowers("lupine"),
@@ -101,5 +103,15 @@ describe("placing along a line", () => {
   it("gives a tree row the same trees every time", () => {
     const row = { heightM: 14, heightSpreadM: 1.5, seed: 4 };
     expect(treeRow(east, 9, 6, row)).toEqual(treeRow(east, 9, 6, row));
+  });
+});
+
+describe("lindens", () => {
+  it("reach out from their trunks as far as the dressing keeps them off buildings", () => {
+    const python = readFileSync(resolve(__dirname, "../../pipeline/dressing.py"), "utf8");
+    const planned = Number(/^LINDEN_REACH = ([\d.]+)$/m.exec(python)?.[1]);
+    const widest = Math.max(...LINDEN_SEEDS.flatMap((seed) => [buildLinden(seed).near, buildLinden(seed).far].map((shape) => (shape ? spreadOf(shape) : 0))));
+    expect(widest).toBeLessThanOrEqual(planned);
+    expect(widest).toBeGreaterThan(planned - 0.01);
   });
 });

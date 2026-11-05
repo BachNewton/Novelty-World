@@ -37,6 +37,7 @@ from grid import Tile, tile_from_name, to_local
 from landmarks import Landmarks
 from people import Figure, roll, seed_of, write
 from roadside import Heights, Paved, read_surface
+from progress import Progress
 
 SOURCE = "waterfront"
 # Placed from OSM's piers and buildings, so the list is ODbL, as the docks are.
@@ -389,9 +390,11 @@ def bake(name: str, tiles: Path) -> dict:
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
     """Adds the waterfront's people to built tiles: after the docks, which they stand on. A tile the mirror hasn't is sea, and has none."""
-    for name in (name for name in names if (tiles / name / "tile.json").exists()):
+    built = [name for name in names if (tiles / name / "tile.json").exists()]
+    progress = Progress("waterfront", len(built))
+    for name in built:
         entry = bake(name, tiles)
-        print(name, entry["count"], "people")
+        progress.finished(f"{name} ({entry['count']} people)")
 
 
 def main() -> None:

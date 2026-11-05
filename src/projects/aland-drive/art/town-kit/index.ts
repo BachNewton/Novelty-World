@@ -1,5 +1,6 @@
 export { buildBicycle, type BikeFrame } from "./bicycle";
 export { buildBalticFerry, FERRY_BERTH, ferryPlace, sceneOf, yawForBearing } from "./ferry";
+export { buildRoadFerry } from "./road-ferry";
 export { buildHangingLamp, buildTownLamp, buildWindowBox } from "./lamps";
 export { namePlateMaterial, placeTrafficLights, townMaterials, trafficLightMaterials, type SignalPlacement, type TownMaterials } from "./material";
 export { TOWN_PARTS, type TownPart } from "./paint";

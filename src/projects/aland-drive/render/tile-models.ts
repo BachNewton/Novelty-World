@@ -116,6 +116,8 @@ export interface TileRoadside {
    * two `sit-cafe` chairs facing each other across it. Nobody sits on them yet.
    */
   seats: Partial<Record<SeatPose, Float32Array>>;
+  /** Each place's own size, in order, for a model drawn at one (a linden by its height); absent for the rest, which are 1. */
+  scales: Record<string, Float32Array>;
   /** Each traffic light's start in its cycle, 0 to 1, in the order of the `traffic-light` places. */
   signalPhases: Float32Array;
   /** Each street-name post's two blades, in the order of the `name-post` places. */
@@ -143,6 +145,8 @@ export interface RoadsideFile {
   walls: number[][];
   /** Absent from a tile baked before the furniture. */
   seats?: Partial<Record<SeatPose, number[][]>>;
+  /** Absent from a tile baked before the town dressing. */
+  scales?: Record<string, number[]>;
   /** A tile baked before the town's signals and names were placed has none of them. */
   signalPhases?: number[];
   /** A post's blades as yaw and name, then yaw and name. */
@@ -172,6 +176,7 @@ function alongside<T>(file: RoadsideFile, model: string, values: readonly T[]): 
 }
 
 export function decodeRoadside(file: RoadsideFile): TileRoadside {
+  const scales = Object.fromEntries(Object.entries(file.scales ?? {}).map(([name, sizes]) => [name, Float32Array.from(alongside(file, name, sizes))]));
   return {
     models: columns(file.models),
     signs: columns(file.signs),
@@ -181,5 +186,6 @@ export function decodeRoadside(file: RoadsideFile): TileRoadside {
     streetNames: alongside(file, "name-post", file.streetNames ?? []).map(([yaw, name, crossingYaw, crossing]) => [{ yaw, name }, { yaw: crossingYaw, name: crossing }]),
     villageNames: [...alongside(file, "village-sign", file.villageNames ?? [])],
     seats: columns(file.seats ?? {}),
+    scales,
   };
 }

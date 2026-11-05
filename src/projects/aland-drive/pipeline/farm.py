@@ -59,6 +59,7 @@ from landmarks import Site
 from rocks import Heights
 from sources import osm_xml
 from walls import roll
+from progress import Progress
 
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 FIELD, MEADOW = 32611, 32800
@@ -490,6 +491,7 @@ def bake(tile: Tile, folder: Path) -> tuple[dict, list[list[float]]]:
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
     """Adds the countryside to built tiles, once their roadside is there to keep clear of."""
+    progress = Progress("farm", len(names))
     for name in names:
         folder = tiles / name
         listed, mills = bake(tile_from_name(name), folder)
@@ -500,7 +502,7 @@ def bake_tiles(names: list[str], tiles: Path) -> None:
             manifest["windmills"] = mills
         (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         counts = {model: count for model, count in listed["count"].items() if is_farm(model)}
-        print(name, len(mills), "windmills", json.dumps(counts))
+        progress.finished(f"{name} ({len(mills)} windmills, {json.dumps(counts)})")
 
 
 def main() -> None:

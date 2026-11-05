@@ -2,6 +2,7 @@ import { speedOf, type CarState, type Rotation, type Vector3 } from "../sim/car-
 import type { DriveInput } from "../sim/car";
 import type { EngineRead } from "../sim/gearbox";
 import { CARS, DEFAULT_CAR } from "../sim/cars";
+import { SURFACES, type Condition, type Surface } from "../sim/surfaces";
 import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -9,9 +10,6 @@ import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
  * each frame, the jolts heard in the car's motion, and the levels
  * and pitches all of that asks for. `graph.ts` plays what this says.
  */
-
-export type Surface = "asphalt" | "gravel" | "grass";
-export const SURFACES: readonly Surface[] = ["asphalt", "gravel", "grass"];
 
 /** How much of each place is round the car, 0 to 1. Places overlap: a shore town is both. */
 export interface Place {
@@ -28,7 +26,10 @@ export interface DriveAudioState {
   handbrake: boolean;
   /** How hard the tyres are sliding, 0 to 1. */
   slip: number;
-  surface: Surface;
+  /** What each wheel is on, as the simulation has it: front left, front right, rear left, rear right. */
+  wheels: readonly Surface[];
+  /** The state of every surface at once. */
+  condition: Condition;
   /** How far each wheel has risen into its arch, as `CarState` has it. */
   suspension: readonly [number, number, number, number];
   place: Place;
@@ -69,7 +70,7 @@ export function slipOf(car: CarState, handbrake: boolean): number {
 }
 
 /** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "surface" | "place" | "paused" | "engine">): DriveAudioState {
+export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "place" | "paused" | "engine">): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
@@ -132,6 +133,16 @@ export function readJolts(past: Jolts, state: DriveAudioState, dt: number): { jo
   return { jolts: { suspension: state.suspension, recentSpeedMS, handbrake: state.handbrake, stopped, sinceHitS }, heard };
 }
 
+/**
+ * How many of something heard at `perS` a second on average land in a frame of `dt`, with what's left over
+ * carried to the next: `random` (0 to 1) scatters them, so a stream of stones doesn't tick like a clock.
+ */
+export function landing(carry: number, perS: number, dt: number, random: number): { count: number; carry: number } {
+  const due = carry + perS * dt * 2 * random;
+  const count = Math.floor(due);
+  return { count, carry: due - count };
+}
+
 // ---- The mix ----
 
 /** A voice's level, and what it's tuned to. Levels are linear, before the master volume. */
@@ -157,10 +168,23 @@ export interface Mix {
   gravelRate: number;
   grassLevel: number;
   grassRate: number;
+  rockLevel: number;
+  rockRate: number;
+  sprayLevel: number;
+  sprayRate: number;
+  snowLevel: number;
+  snowRate: number;
 
   squealLevel: number;
   squealHz: number;
+  squeakLevel: number;
+  squeakHz: number;
   hissLevel: number;
+  hissHz: number;
+  /** Stones thrown into the arches, a second: the graph plays them as one-shots. */
+  stonesPerS: number;
+  /** Turf thrown up, a second. */
+  clodsPerS: number;
 
   windLowLevel: number;
   windLowHz: number;
@@ -176,11 +200,43 @@ export interface Mix {
 /** Wind and tyres are full at the speed that's flat out for the vehicle: a bicycle hears them much sooner. */
 const fullSpeedOf = (vehicle: VehicleId) => (vehicle === "bike" ? BIKE.fullSpeedMS : 55);
 
-const TYRES: Record<Surface, { road: number; gravel: number; grass: number; rumble: number; squeal: number; hiss: number }> = {
-  asphalt: { road: 0.24, gravel: 0, grass: 0, rumble: 0.2, squeal: 0.12, hiss: 0.1 },
-  gravel: { road: 0.05, gravel: 0.5, grass: 0, rumble: 0.34, squeal: 0, hiss: 0.2 },
-  grass: { road: 0, gravel: 0, grass: 0.45, rumble: 0.3, squeal: 0, hiss: 0.1 },
+/** What a tyre rolling on each surface sounds of, dry: tarmac's roar, the low rumble, each loose ground's own bed, and stones thrown up just rolling, a second at full speed. */
+const ROLL: Record<Surface, { road: number; rumble: number; gravel: number; grass: number; rock: number; stones: number }> = {
+  asphalt: { road: 0.24, rumble: 0.2, gravel: 0, grass: 0, rock: 0, stones: 0 },
+  rock: { road: 0.08, rumble: 0.36, gravel: 0, grass: 0, rock: 0.4, stones: 0 },
+  gravel: { road: 0.05, rumble: 0.34, gravel: 0.5, grass: 0, rock: 0, stones: 1.5 },
+  grass: { road: 0, rumble: 0.3, gravel: 0, grass: 0.45, rock: 0, stones: 0 },
 };
+
+/** A full slide on each surface: tarmac squeals, and loose ground scrabbles in its own bed and spits stones or turf into the arches, a second. */
+const SLIDE: Record<Surface, { squeal: number; hiss: number; scrabble: number; stones: number; clods: number }> = {
+  asphalt: { squeal: 0.12, hiss: 0.1, scrabble: 0, stones: 0, clods: 0 },
+  rock: { squeal: 0.05, hiss: 0.14, scrabble: 0.16, stones: 5, clods: 0 },
+  gravel: { squeal: 0, hiss: 0.2, scrabble: 0.2, stones: 14, clods: 0 },
+  grass: { squeal: 0, hiss: 0.1, scrabble: 0.12, stones: 0, clods: 7 },
+};
+
+/**
+ * What each condition does to all of that, as it lies on every surface at once. Water hisses and sprays off
+ * every surface, dulls the rest and keeps most stones down; snow covers the ground with its own soft crunch
+ * and squeaks in a slide; ice is near silent rolling, and hisses thin in a slide.
+ */
+const UNDER: Record<Condition, { roll: number; rumble: number; spray: number; snow: number; squeal: number; squeak: number; hiss: number; hissHz: number; scrabble: number; thrown: number }> = {
+  dry: { roll: 1, rumble: 1, spray: 0, snow: 0, squeal: 1, squeak: 0, hiss: 1, hissHz: 3000, scrabble: 1, thrown: 1 },
+  wet: { roll: 0.6, rumble: 0.85, spray: 0.32, snow: 0, squeal: 0.3, squeak: 0, hiss: 1.8, hissHz: 2200, scrabble: 0.8, thrown: 0.6 },
+  snow: { roll: 0.15, rumble: 0.6, spray: 0, snow: 0.4, squeal: 0, squeak: 0.14, hiss: 0.5, hissHz: 3600, scrabble: 0.4, thrown: 0 },
+  ice: { roll: 0.06, rumble: 0.25, spray: 0, snow: 0, squeal: 0, squeak: 0, hiss: 1.6, hissHz: 5500, scrabble: 0.1, thrown: 0 },
+};
+
+/** The share of the car's tyres on each surface: a wheel in the air is on none, so two wheels on gravel are half gravel and a car on two wheels is half as loud. */
+export function wheelShares(wheels: readonly Surface[], suspension: readonly number[]): Record<Surface, number> {
+  const shares = Object.fromEntries(SURFACES.map((surface) => [surface, 0])) as Record<Surface, number>;
+  wheels.forEach((surface, wheel) => {
+    if (suspension[wheel] > 0) shares[surface] += 1 / wheels.length;
+  });
+  return shares;
+}
+
 const BIKE_TYRE_SHARE = 0.5;
 
 const WIND_LOW = 0.7;
@@ -220,16 +276,20 @@ function engineMix({ spec, read }: { spec: EngineSpec; read: EngineRead }, heldR
 }
 
 export function mix({ state, engine, time, wander }: MixInputs): Mix {
-  const { speedMS, surface, slip, vehicle, place } = state;
+  const { speedMS, slip, vehicle, place } = state;
   const bike = vehicle === "bike";
   const full = fullSpeedOf(vehicle);
   const speed = clamp(speedMS / full);
   const rolling = Math.pow(clamp(speedMS / (full * 0.55)), 0.75);
-  const grounded = state.suspension.some((wheel) => wheel > 0) ? 1 : 0;
   const stage = state.paused === true ? 0 : 1;
-  const tyre = TYRES[surface];
-  const tyreShare = (bike ? BIKE_TYRE_SHARE : 1) * grounded * stage;
+  const shares = wheelShares(state.wheels, state.suspension);
+  const on = (value: (surface: Surface) => number) => SURFACES.reduce((sum, surface) => sum + shares[surface] * value(surface), 0);
+  const under = UNDER[state.condition];
+  const tyreShare = (bike ? BIKE_TYRE_SHARE : 1) * stage;
+  const grounded = on(() => 1);
   const scrub = speedMS > 1 ? Math.pow(clamp(slip), 1.3) : 0;
+  const rolled = tyreShare * under.roll * rolling;
+  const scrabbled = tyreShare * under.scrabble * scrub;
   const gust = 1 + 0.16 * Math.sin(time * 0.71) + 0.1 * Math.sin(time * 1.93 + 1);
 
   const pedalling = bike && state.throttle > 0.02 && speedMS > 0.3;
@@ -249,18 +309,29 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
     freewheelLevel: bike && !pedalling ? stage * 0.3 * clamp(speedMS / 1.5) : 0,
     freewheelRate: Math.max(wheelTurnsHz / BIKE.renderedTurnsHz, 0.1),
 
-    asphaltLevel: tyreShare * tyre.road * rolling,
+    asphaltLevel: rolled * on((surface) => ROLL[surface].road),
     asphaltHz: 420 + 1000 * speed,
-    rumbleLevel: tyreShare * tyre.rumble * rolling * (bike ? 0.4 : 1),
+    rumbleLevel: tyreShare * under.rumble * rolling * on((surface) => ROLL[surface].rumble) * (bike ? 0.4 : 1),
     rumbleHz: (bike ? 140 : 70) + 150 * speed,
-    gravelLevel: tyreShare * (tyre.gravel * rolling + (surface === "gravel" ? 0.2 * scrub : 0)),
+    gravelLevel: rolled * on((surface) => ROLL[surface].gravel) + scrabbled * shares.gravel * SLIDE.gravel.scrabble,
     gravelRate: 0.45 + 1.15 * speed + 0.3 * scrub,
-    grassLevel: tyreShare * (tyre.grass * rolling + (surface === "grass" ? 0.12 * scrub : 0)),
+    grassLevel: rolled * on((surface) => ROLL[surface].grass) + scrabbled * shares.grass * SLIDE.grass.scrabble,
     grassRate: 0.5 + 1.1 * speed,
+    rockLevel: rolled * on((surface) => ROLL[surface].rock) + scrabbled * shares.rock * SLIDE.rock.scrabble,
+    rockRate: 0.5 + 1.1 * speed + 0.25 * scrub,
+    sprayLevel: tyreShare * under.spray * grounded * (rolling + 0.6 * scrub),
+    sprayRate: 0.6 + 0.9 * speed,
+    snowLevel: tyreShare * under.snow * grounded * (rolling + 0.8 * scrub),
+    snowRate: 0.5 + 1.0 * speed + 0.3 * scrub,
 
-    squealLevel: tyreShare * tyre.squeal * scrub,
+    squealLevel: tyreShare * under.squeal * scrub * on((surface) => SLIDE[surface].squeal),
     squealHz: 840 + 300 * clamp(slip) + 70 * wander,
-    hissLevel: tyreShare * tyre.hiss * scrub,
+    squeakLevel: tyreShare * under.squeak * scrub * grounded,
+    squeakHz: 620 + 380 * clamp(slip) + 60 * wander,
+    hissLevel: tyreShare * under.hiss * scrub * on((surface) => SLIDE[surface].hiss),
+    hissHz: under.hissHz,
+    stonesPerS: tyreShare * under.thrown * on((surface) => ROLL[surface].stones * speed + SLIDE[surface].stones * scrub),
+    clodsPerS: tyreShare * under.thrown * scrub * on((surface) => SLIDE[surface].clods),
 
     windLowLevel: stage * WIND_LOW * Math.pow(speed, 1.5) * gust,
     windLowHz: 170 + 620 * speed,

@@ -19,6 +19,20 @@ const CORNER_MS2 = 9;
 const THROTTLE_PER_MS = 0.5;
 const SEARCH_M = 40;
 const SEARCH_STEP_M = 2;
+/** How finely a speed plan reads the road ahead, and how much further than a stop it looks. */
+const PLAN_STEP_M = 4;
+const PLAN_MARGIN_M = 30;
+/** Seconds of the speed it carries before the brakes bite, so it never plans a stop to the last metre. */
+const PLAN_REACTION_S = 0.25;
+/** Throttle and brake for each metre a second off the planned speed: firmer than a cruise's, so it brakes late and hard. */
+const PLAN_PER_MS = 2;
+
+/** The grip a driver can count on at each place along its line: the ground there, for the car being driven. */
+export interface SpeedPlan {
+  gripAt(along: number): { cornerMS2: number; brakeMS2: number };
+  /** The least braking anywhere, which sets how far ahead it has to look. */
+  leastBrakeMS2: number;
+}
 
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
@@ -35,6 +49,12 @@ export class Autopilot {
     private readonly endsWithinM = 60,
     /** Tighter for a slow, narrow corner, which a long look cuts. */
     private readonly shortestLookM = SHORTEST_LOOK_M,
+    /**
+     * Without one, it takes every bend at one sideways pull whatever the car, slowing
+     * as soon as a bend comes into view. With one, it brakes for each bend as late as the
+     * ground's grip allows, as a measure of a car's real pace needs.
+     */
+    private readonly plan?: SpeedPlan,
   ) {
     this.along = from;
   }
@@ -68,19 +88,45 @@ export class Autopilot {
     // Pure pursuit's arc to the target, as the wheels' angle. Heading runs anticlockwise; steering, clockwise.
     const wheels = Math.atan((2 * wheelBaseOf(CARS[car.car]) * Math.sin(-off)) / distance);
 
-    let allowed = this.cruiseMS;
-    for (let step = 1; step <= LOOK_STEPS; step++) {
-      const reach = this.along + (step / LOOK_STEPS) * Math.max(speed * SPEED_LOOK_S, 40);
-      const bend = Math.abs(wrap(this.line.at(reach + 12).heading - this.line.at(reach - 12).heading)) / 24;
-      if (bend > 1e-5) allowed = Math.min(allowed, Math.sqrt(CORNER_MS2 / bend));
-    }
-
+    const allowed = this.plan ? this.planned(speed, this.plan) : this.cruising(speed);
     const error = allowed - speed;
+    const gain = this.plan ? PLAN_PER_MS : THROTTLE_PER_MS;
     return {
-      throttle: Math.max(0, Math.min(1, error * THROTTLE_PER_MS)),
-      brake: Math.max(0, Math.min(1, -error * THROTTLE_PER_MS)),
+      throttle: Math.max(0, Math.min(1, error * gain)),
+      brake: Math.max(0, Math.min(1, -error * gain)),
       steer: Math.max(-1, Math.min(1, wheels / steerLimit(CARS[car.car], speed, false))),
       handbrake: false,
     };
+  }
+
+  private bendAt(along: number): number {
+    return Math.abs(wrap(this.line.at(along + 12).heading - this.line.at(along - 12).heading)) / 24;
+  }
+
+  /** The slowest any bend in the next few seconds asks for. */
+  private cruising(speed: number): number {
+    let allowed = this.cruiseMS;
+    for (let step = 1; step <= LOOK_STEPS; step++) {
+      const bend = this.bendAt(this.along + (step / LOOK_STEPS) * Math.max(speed * SPEED_LOOK_S, 40));
+      if (bend > 1e-5) allowed = Math.min(allowed, Math.sqrt(CORNER_MS2 / bend));
+    }
+    return allowed;
+  }
+
+  /** The fastest it can go here and still brake to every bend ahead in time, on the grip of the ground under each. */
+  private planned(speed: number, plan: SpeedPlan): number {
+    let allowed = this.cruiseMS;
+    const brakingHere = plan.gripAt(this.along).brakeMS2;
+    const horizon = (speed * speed) / (2 * plan.leastBrakeMS2) + speed * PLAN_REACTION_S + PLAN_MARGIN_M;
+    for (let ahead = 0; ahead <= horizon; ahead += PLAN_STEP_M) {
+      const along = this.along + ahead;
+      const bend = this.bendAt(along);
+      if (bend <= 1e-5) continue;
+      const { cornerMS2, brakeMS2 } = plan.gripAt(along);
+      const braking = Math.max(ahead - speed * PLAN_REACTION_S, 0);
+      // It brakes from here to the bend, so on the poorer of the two grounds.
+      allowed = Math.min(allowed, Math.sqrt(cornerMS2 / bend + 2 * Math.min(brakeMS2, brakingHere) * braking));
+    }
+    return allowed;
   }
 }

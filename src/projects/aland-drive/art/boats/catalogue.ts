@@ -1,8 +1,10 @@
+import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/models";
 import { buildOptimist, buildSingleHander } from "./dinghies";
 import { buildFishingBoat, buildLaunch, buildPassengerBoat, buildPilotBoat, buildRescueBoat, buildRib } from "./motor";
 import { buildAllmogebat, buildDoubleEnder, buildGaleas } from "./traditional";
 import { buildCruiser, buildFolkboat, buildLargeCruiser } from "./yachts";
+import { boatMaterials } from "./material";
 
 /*
  * Every boat in the kit in each state it comes in, with its triangle limits and its
@@ -52,3 +54,5 @@ export const CATALOGUE: readonly Entry[] = [
   entry("pilot", "pilot boat", 16.3, 7.6, false, () => buildPilotBoat()),
   entry("passenger", "archipelago passenger boat", 19.2, 8, false, () => buildPassengerBoat()),
 ];
+
+export const artModels = (): ArtModel[] => CATALOGUE.map(({ name, model }) => nearFar(name, model(), boatMaterials));

@@ -44,6 +44,8 @@ export interface TileManifest {
   windmills?: WindmillPlace[];
   /** The Västerhamn terminal and the fuel stations standing in the tile, drawn with its detail. A tile built before them has none. */
   nearSites?: LandmarkPlace[];
+  /** The ground of town (`pipeline/town.py`): its surface image, and a class byte per road section. A tile built before it has none. */
+  town?: { file: string; pixels: number; ribbons: string };
 }
 
 /** What `world.json` says about the whole of what's been built. */
@@ -58,8 +60,12 @@ export interface WorldManifest {
   far: { nodes: number; stepM: number; heightsFile: string; shadeFile: string; shadePixels: number };
   shade: { file: string; pixels: number; gamma: number };
   mask: { file: string; pixels: number };
+  /** The size of every tile's town image, which sizes its layers; absent while no tile has one. */
+  town?: { pixels: number };
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
+  /** Each canopy pixel's signed distance to the nearest building, (byte - zero) × unitM metres, negative inside (`pipeline/clearing.py`), on every tile or none: tiles built before it clear nothing round buildings. */
+  clearing?: { file: string; pixels: number; unitM: number; zero: number };
   stands: { file: string; pixels: number };
   /** Each 4 m pixel's share of rock, then each 8 m pixel's share of boulder field (`pipeline/rocks.py`), on every tile or none. */
   rock?: { file: string; pixels: number; fieldPixels: number };

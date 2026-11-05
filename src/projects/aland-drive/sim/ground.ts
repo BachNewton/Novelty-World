@@ -1,15 +1,20 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { patchIndices } from "../render/tile";
 import { WORLD_GROUPS } from "./groups";
+import { SURFACES, type Condition, type Surface } from "./surfaces";
 import { BLOCK_M, WALL_FLOATS, type World } from "./world";
 
 /*
  * What the car can touch: the drawn triangles themselves, ground and road, in
  * square blocks on one lattice for the whole world, with only the blocks round
- * the car loaded into Rapier. A block doesn't care which tile its heights or
+ * the simulated cars loaded into Rapier. A block doesn't care which tile its heights or
  * roads come from, so a tile's edge is nothing to the car. The block is a
  * triangle mesh rather than Rapier's heightfield because a mesh is the same
  * triangles as the render by construction, diagonal included.
+ *
+ * Each block knows what each of its triangles is, so a wheel's ray tells it
+ * the surface under that wheel: a road triangle is its road's, the ground the
+ * world's. The condition is every surface's at once, as weather would set it.
  */
 
 const BLOCK_CELLS = 30;
@@ -20,8 +25,19 @@ const WALL_TALL_M = 6;
 
 const blockKey = (row: number, column: number) => row * 65536 + column;
 
+/** A loaded block's triangles in the order its mesh has them: the ground's, then each road triangle's surface, then the walls'. */
+interface BlockSurfaces {
+  triangles: number;
+  groundTriangles: number;
+  roads: Uint8Array;
+}
+
 export class GroundBlocks {
   private readonly loaded = new Map<number, { collider: RAPIER.Collider; stamp: number }>();
+  /** By collider handle. */
+  private readonly surfaces = new Map<number, BlockSurfaces>();
+  /** What the weather has made of every surface. */
+  condition: Condition = "dry";
   private readonly patch = patchIndices(BLOCK_CELLS);
   private readonly stepM: number;
   /** Colliders built since the start: what moving round the world has cost. */
@@ -38,6 +54,7 @@ export class GroundBlocks {
     const block = this.loaded.get(key);
     if (!block) return;
     this.rapier.removeCollider(block.collider, false);
+    this.surfaces.delete(block.collider.handle);
     this.loaded.delete(key);
   }
 
@@ -50,21 +67,38 @@ export class GroundBlocks {
     return stamp;
   }
 
-  /** Loads the blocks round a point and lets go of the rest. New detail under a block rebuilds it, so the car stands on the best ground known; detail landing anywhere else costs the car nothing. */
-  around(x: number, z: number): void {
-    const column = Math.floor(x / BLOCK_M);
-    const row = Math.floor(z / BLOCK_M);
+  /** What a wheel's ray landed on: the road triangle's surface, or the ground's own where it hit the land. */
+  surfaceUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): Surface {
+    const block = this.surfaces.get(hit.collider.handle);
+    // Not a block: the world's edge, whose wall no wheel rolls on but one may brush.
+    if (!block || hit.featureId === undefined) return this.world.groundSurface(x, z);
+    // Rapier numbers a triangle hit from beneath as its index plus the mesh's count, and a ribbon may be wound either way.
+    const road = (hit.featureId % block.triangles) - block.groundTriangles;
+    return road >= 0 && road < block.roads.length ? SURFACES[block.roads[road]] : this.world.groundSurface(x, z);
+  }
+
+  /** How many blocks are loaded now. */
+  get loadedBlocks(): number {
+    return this.loaded.size;
+  }
+
+  /** Loads the blocks round some places, the cars, and lets go of the rest: cars close together share theirs. New detail under a block rebuilds it, so a car stands on the best ground known; detail landing anywhere else costs nothing. */
+  around(places: readonly { x: number; z: number }[]): void {
     const wanted = new Set<number>();
-    for (let r = row - REACH_BLOCKS; r <= row + REACH_BLOCKS; r++) {
-      for (let c = column - REACH_BLOCKS; c <= column + REACH_BLOCKS; c++) {
-        if (!this.world.tileAt((c + 0.5) * BLOCK_M, (r + 0.5) * BLOCK_M)) continue;
-        const key = blockKey(r, c);
-        wanted.add(key);
-        const stamp = this.stampOf(r, c);
-        const block = this.loaded.get(key);
-        if (block?.stamp === stamp) continue;
-        this.letGo(key);
-        this.loaded.set(key, { collider: this.build(r, c), stamp });
+    for (const { x, z } of places) {
+      const column = Math.floor(x / BLOCK_M);
+      const row = Math.floor(z / BLOCK_M);
+      for (let r = row - REACH_BLOCKS; r <= row + REACH_BLOCKS; r++) {
+        for (let c = column - REACH_BLOCKS; c <= column + REACH_BLOCKS; c++) {
+          const key = blockKey(r, c);
+          if (wanted.has(key) || !this.world.tileAt((c + 0.5) * BLOCK_M, (r + 0.5) * BLOCK_M)) continue;
+          wanted.add(key);
+          const stamp = this.stampOf(r, c);
+          const block = this.loaded.get(key);
+          if (block?.stamp === stamp) continue;
+          this.letGo(key);
+          this.loaded.set(key, { collider: this.build(r, c), stamp });
+        }
       }
     }
     for (const key of this.loaded.keys()) {
@@ -76,8 +110,10 @@ export class GroundBlocks {
     const { world, stepM } = this;
     const across = BLOCK_CELLS + 1;
     const road: { positions: Float32Array; indices: Uint32Array; triangle: number }[] = [];
-    world.forRoadsInBlock(column, row, (ribbon, triangle) => {
+    const roadSurfaces: number[] = [];
+    world.forRoadsInBlock(column, row, (ribbon, triangle, surface) => {
       road.push({ positions: ribbon.positions, indices: ribbon.indices, triangle });
+      roadSurfaces.push(surface);
     });
     const walls: { from: Float32Array; at: number }[] = [];
     world.forWallsInBlock(column, row, (from, at) => {
@@ -115,6 +151,8 @@ export class GroundBlocks {
       next += 6;
     }
     this.built++;
-    return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
+    const collider = this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
+    this.surfaces.set(collider.handle, { triangles: indices.length / 3, groundTriangles: this.patch.length / 3, roads: Uint8Array.from(roadSurfaces) });
+    return collider;
   }
 }

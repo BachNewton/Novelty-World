@@ -18,6 +18,7 @@ export const PAINT = {
   "mark-yellow": { from: "mark-yellow", float: true },
   "mark-black": { from: "mark-black", gain: 1.1, float: true },
   "mark-white": { from: "mark-white", float: true },
+  "mark-orange": { from: "mark-orange", float: true },
   "mark-lens": { from: "car-lamp", float: true },
   "float-hull": { from: "wall-plinth", gain: 0.55, float: true },
   deck: { from: "wall-grey", to: "wall-door", share: 0.2, gain: 1.05, float: true },

@@ -1,5 +1,5 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
 import { flatNormal } from "../art/flat-normal";
@@ -166,19 +166,19 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     capacities: [...models.map(() => capacity), ...models.map(() => nearCapacity)],
     rows: 3,
     visit({ seed, place, distance, seenOn, left, write }) {
-      const chance = roll(seed, 41.3, 17.9).toVar();
+      const chance = roll(seed, 12).toVar();
       If(landAt(place).dry.greaterThan(LEAST_DRY).and(roadsAt(place, 0).lessThan(ROAD_CLEAR)), () => {
         const rock = smoothstep(float(ROCK_HERE[0]), float(ROCK_HERE[1]), rockAt(place, 0));
         const open = float(1).sub(smoothstep(float(TREES_M[0]), float(TREES_M[1]), canopyAt(place, 0)));
         If(chance.lessThan(rock.mul(mix(float(UNDER_TREES), float(1), open)).mul(PLACED)), () => {
           const ground = groundAt(place).toVar();
           If(seenOn(ground), () => {
-            const kind = select(roll(seed, 54.1, 18.7).lessThan(0.5), float(0), float(1)).toVar();
-            const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47));
-            const lift = mix(float(LIFTS_M[0]), float(LIFTS_M[1]), roll(seed, 11.7, 83.1));
+            const kind = select(roll(seed, 9).lessThan(0.5), float(0), float(1)).toVar();
+            const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10));
+            const lift = mix(float(LIFTS_M[0]), float(LIFTS_M[1]), roll(seed, 13));
             const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
             const remaining = left().toVar();
-            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const shape = vec4(lift, 0, 0, 0);
             models.forEach((_, index) => {
               If(kind.equal(index), () => {
@@ -201,7 +201,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const offset = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(size).toVar();
       const spot = standing.xz.add(offset).toVar();
       const ground = groundOnMeshAt(spot).toVar();
-      const profile = local.y.div(tallsOf.element(int(live.w)) as unknown as Node<"float">);
+      const profile = local.y.div(tallsOf.element(int(round(live.w))) as unknown as Node<"float">);
       const reaches = smoothstep(float(ROCK_EDGE[0]), float(ROCK_EDGE[1]), rockAt(spot, 0))
         .mul(float(1).sub(smoothstep(float(ROAD_SINKS[0]), float(ROAD_SINKS[1]), roadsAt(spot, 0))))
         .mul(float(1).sub(smoothstep(float(WATER_SINKS[0]), float(WATER_SINKS[1]), waterAt(spot, 0))));
@@ -253,16 +253,16 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     capacities: [...boulders.map(() => stoneCapacity), ...boulders.map(() => nearStoneCapacity)],
     rows: 2,
     visit({ seed, place, distance, seenOn, write }) {
-      const chance = roll(seed, 23.9, 71.3).toVar();
+      const chance = roll(seed, 14).toVar();
       If(landAt(place).dry.greaterThan(LEAST_DRY).and(roadsAt(place, 0).lessThan(ROAD_CLEAR)), () => {
         const field = smoothstep(float(FIELD_HERE[0]), float(FIELD_HERE[1]), fieldsAt(place));
         If(chance.lessThan(field.mul(MOST_STONES)), () => {
-          const size = mix(float(STONE_SIZES[0]), float(STONE_SIZES[1]), roll(seed, 37.7, 5.9));
+          const size = mix(float(STONE_SIZES[0]), float(STONE_SIZES[1]), roll(seed, 15));
           const ground = groundOnMeshAt(place).sub(size.mul(STONE_SINK)).toVar();
           If(seenOn(ground), () => {
-            const kind = roll(seed, 63.1, 44.7).mul(boulders.length).floor().toVar();
-            const part = roll(seed, 8.3, 91.1).mul(STONE_PARTS.length).floor();
-            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+            const kind = roll(seed, 16).mul(boulders.length).floor().toVar();
+            const part = roll(seed, 17).mul(STONE_PARTS.length).floor();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const swap = smoothstep(float(STONE_SWAP_M * (1 - SWAP_BAND)), float(STONE_SWAP_M * (1 + SWAP_BAND)), distance).toVar();
             const reach = size.mul(STONE_REACH_PER_SIZE).toVar();
             const remaining = float(1).sub(smoothstep(reach.mul(1 - STONE_DISSOLVING), reach, distance)).toVar();
@@ -290,7 +290,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const facing = flatNormal();
       const upward = select(facing.y.lessThan(0), facing.negate(), facing);
       const close = closeLandAt(positionWorld.xz);
-      const base = stoneColours.element(int(varying(live.w))) as unknown as Node<"vec3">;
+      const base = stoneColours.element(varying(int(round(live.w)))) as unknown as Node<"vec3">;
       const away = positionWorld.sub(cameraPosition).length();
       const foot = varying(local.y.mul(live.z).add(0.05).max(0).mul(MOSS_FOOT));
       const painted = rapakivi({ colour }, base, varying(turned.add(standing.w.mul(37))), away, abs(upward.y), foot);

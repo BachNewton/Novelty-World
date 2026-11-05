@@ -1,0 +1,415 @@
+{
+  "bikes: Ejder Stad far": {
+    "far part 1": 2
+  },
+  "bikes: Ejder Tur far": {
+    "far part 1": 1
+  },
+  "bikes: Ejder Grus far": {
+    "far part 1": 2
+  },
+  "bikes: Ejder Sund far": {
+    "far part 1": 2
+  },
+  "boats: folkboat": {
+    "near": 4
+  },
+  "boats: folkboat-sailing": {
+    "near": 4
+  },
+  "boats: cruiser": {
+    "near": 4
+  },
+  "boats: cruiser-sailing": {
+    "near": 4
+  },
+  "boats: large": {
+    "near": 4
+  },
+  "boats: large-sailing": {
+    "near": 4
+  },
+  "boats: double-ender": {
+    "near": 8
+  },
+  "boats: galeas": {
+    "near": 8
+  },
+  "boats: galeas-sailing": {
+    "near": 4
+  },
+  "boats: fishing": {
+    "near": 2
+  },
+  "boats: rescue": {
+    "near": 58
+  },
+  "boats: pilot": {
+    "near": 65
+  },
+  "cars: Skerry GT hero": {
+    "body": 120
+  },
+  "cars: Ljus hero": {
+    "body": 89
+  },
+  "cars: Ljus hero wheel": {
+    "wheel": 204
+  },
+  "cars: Fjärd hero": {
+    "body": 89
+  },
+  "cars: Sund hero": {
+    "body": 173
+  },
+  "cars: Holm hero": {
+    "body": 38
+  },
+  "cars: Holm far": {
+    "body": 4
+  },
+  "cars: Kobb hero": {
+    "body": 155
+  },
+  "cars: Sälta hero": {
+    "body": 40
+  },
+  "cars: Sälta far": {
+    "body": 2
+  },
+  "cars: Vik hero": {
+    "body": 76
+  },
+  "cars: Sten hero": {
+    "body": 53
+  },
+  "cars: Berg hero": {
+    "body": 62
+  },
+  "cars: Ström hero": {
+    "body": 44
+  },
+  "cars: Ankar hero": {
+    "body": 46
+  },
+  "cars: Bris hero": {
+    "body": 54
+  },
+  "cars: Bris far": {
+    "body": 2
+  },
+  "cars: Grus hero": {
+    "body": 58
+  },
+  "cars: world Raggare": {
+    "near": 2
+  },
+  "cars: world Vakt": {
+    "near": 1
+  },
+  "cars: world Nio": {
+    "near": 1
+  },
+  "cars: world Nu": {
+    "near": 1
+  },
+  "cars: world Puls": {
+    "near": 1
+  },
+  "dealers: exterior village-garage": {
+    "exterior": 26
+  },
+  "dealers: exterior town-dealer": {
+    "exterior": 1
+  },
+  "dealers: exterior waterfront-showroom": {
+    "exterior": 14
+  },
+  "dealers: exterior tyre-shop": {
+    "exterior": 1
+  },
+  "dealers: interior village-garage": {
+    "interior": 182
+  },
+  "dealers: interior town-dealer": {
+    "interior": 98
+  },
+  "dealers: interior waterfront-showroom": {
+    "interior": 115
+  },
+  "homes: cottage living": {
+    "room": 486
+  },
+  "homes: cottage kitchen": {
+    "room": 315
+  },
+  "homes: cottage sauna": {
+    "room": 92
+  },
+  "homes: cottage bedroom": {
+    "room": 257
+  },
+  "homes: cottage garage": {
+    "room": 95
+  },
+  "homes: farmhouse": {
+    "near": 1
+  },
+  "homes: farmhouse living": {
+    "room": 571
+  },
+  "homes: farmhouse kitchen": {
+    "room": 411
+  },
+  "homes: farmhouse sauna": {
+    "room": 88
+  },
+  "homes: farmhouse bedroom": {
+    "room": 383
+  },
+  "homes: farmhouse garage": {
+    "room": 550
+  },
+  "homes: villa": {
+    "near": 4,
+    "far": 3
+  },
+  "homes: villa living": {
+    "room": 361
+  },
+  "homes: villa kitchen": {
+    "room": 145
+  },
+  "homes: villa sauna": {
+    "room": 90
+  },
+  "homes: villa bedroom": {
+    "room": 149
+  },
+  "homes: villa garage": {
+    "room": 94
+  },
+  "homes: waterfront": {
+    "near": 5,
+    "far": 4
+  },
+  "homes: waterfront living": {
+    "room": 290
+  },
+  "homes: waterfront kitchen": {
+    "room": 169
+  },
+  "homes: waterfront sauna": {
+    "room": 86
+  },
+  "homes: waterfront bedroom": {
+    "room": 129
+  },
+  "homes: waterfront garage": {
+    "room": 116
+  },
+  "identity: upturned boat": {
+    "near": 4
+  },
+  "identity: summer cottage": {
+    "near": 18
+  },
+  "identity: deck chair": {
+    "near": 16
+  },
+  "identity: farm stall": {
+    "near": 5
+  },
+  "identity: apple crates": {
+    "near": 1,
+    "near on its ground": 6
+  },
+  "identity: harvest flag": {
+    "near": 2
+  },
+  "identity: cyclist with bike": {
+    "near": 22
+  },
+  "identity: bicycle": {
+    "near": 16
+  },
+  "identity: touring rack": {
+    "near": 58
+  },
+  "identity: picnic table": {
+    "near": 48
+  },
+  "identity: cable ferry": {
+    "near": 256
+  },
+  "landmarks: Mariehamns stadshus": {
+    "near": 9
+  },
+  "marina: walkway gate": {
+    "near": 16,
+    "far on its ground": 4
+  },
+  "marina: water pedestal": {
+    "near": 24
+  },
+  "marina: harbour hut": {
+    "near": 8
+  },
+  "marina: fuel berth": {
+    "near": 24
+  },
+  "marina: launching trolley": {
+    "near": 8
+  },
+  "marina: travel lift": {
+    "near": 32
+  },
+  "marina: boat in cradle": {
+    "near on its ground": 4,
+    "far on its ground": 4
+  },
+  "marina: boat under blue tarp": {
+    "near": 11,
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
+  },
+  "marina: boat under green tarp": {
+    "near": 11,
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
+  },
+  "marina: boat shrink-wrapped": {
+    "near": 3,
+    "near on its ground": 4,
+    "far": 3,
+    "far on its ground": 4
+  },
+  "marina: hull on stocks": {
+    "near": 287,
+    "far": 15
+  },
+  "marina: steam box": {
+    "near": 4
+  },
+  "marina: smithy": {
+    "near": 2
+  },
+  "marina: ropewalk shed": {
+    "near": 32
+  },
+  "marina: spar special": {
+    "near": 8,
+    "far": 8
+  },
+  "marina: pillar special": {
+    "near": 8,
+    "far": 8
+  },
+  "marina: pilot station": {
+    "near": 14
+  },
+  "marina: smokehouse": {
+    "near": 5
+  },
+  "marina: admiralty anchor": {
+    "near": 32
+  },
+  "marina: stockless anchor": {
+    "near": 32
+  },
+  "marina: figurehead": {
+    "near": 4
+  },
+  "marina: wheel sign": {
+    "near": 32
+  },
+  "marina: mooring ring": {
+    "near": 12
+  },
+  "people: walk 1": {
+    "far": 1
+  },
+  "people: walk 2": {
+    "far": 1
+  },
+  "people: walk 3": {
+    "far": 2
+  },
+  "people: walk 4": {
+    "far": 2
+  },
+  "people: walk 5": {
+    "far": 1
+  },
+  "people: walk 6": {
+    "far": 2
+  },
+  "people: walk 7": {
+    "near": 6
+  },
+  "people: sit-cafe 2": {
+    "near": 1
+  },
+  "people: sunbathe 2": {
+    "near": 1
+  },
+  "roadside: pier 32 × 3 m": {
+    "near": 348,
+    "far": 8
+  },
+  "roadside: pier 60 × 8 m": {
+    "near": 648,
+    "far": 8
+  },
+  "roadside: pontoon 24 × 2.6 m": {
+    "near": 267
+  },
+  "rural: boathouse red": {
+    "near": 2
+  },
+  "rural: boathouse tarred": {
+    "near": 2
+  },
+  "rural: reed bed": {
+    "near": 106,
+    "far": 15
+  },
+  "rural: woodshed": {
+    "near": 3
+  },
+  "rural: rowing boat": {
+    "far": 1
+  },
+  "rural: sailboat moored": {
+    "far": 1
+  },
+  "rural: sailboat sailing": {
+    "far": 1
+  },
+  "street: wildflowers lupine": {
+    "far": 3
+  },
+  "street: wildflowers fireweed": {
+    "far": 3
+  },
+  "street: bench": {
+    "near": 16
+  },
+  "street: café set": {
+    "far": 12
+  },
+  "street: harbour crane": {
+    "near": 4
+  },
+  "town-ground: fountain": {
+    "near": 59
+  },
+  "town-kit: terminal": {
+    "near": 30
+  },
+  "town-kit: village sign": {
+    "near": 12
+  }
+}

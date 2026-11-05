@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
 import { flatNormal } from "../flat-normal";
@@ -98,7 +99,9 @@ export function facetLight(sun: RoadsideInputs["sun"]) {
 export const footShade = (foot: Node<"float">) => mix(float(KIT_LIGHT.footShade), float(1), smoothstep(float(0), float(KIT_LIGHT.footM), foot));
 
 /** A place's pseudo-random share, the same every time it's asked. */
-export const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+/** A place's own seed, made in the vertex stage from the place as stored, so every pixel of its model reads the same one. */
+export const seedAt = (place: Node<"vec2">): Node<"uint"> => varying(placeSeed(place));
+export const rollOf = (place: Node<"vec2">) => unitOf(seedAt(place), 1);
 
 /** Interleaved gradient noise: an even spread of thresholds over the screen, the same every frame for a still pixel. */
 export const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
@@ -216,12 +219,17 @@ function instanceBuffers(model: RoadsideModel, places: readonly Placement[]) {
 }
 
 /** A model at all its places: one or two meshes to add to the scene, which then need nothing further. */
-export function placeModel(model: RoadsideModel, places: readonly Placement[], { near, far }: RoadsideMaterials): Mesh[] {
-  const buffers = instanceBuffers(model, places);
-  const meshes = [new Mesh(instanced(model.near, buffers, places.length), near)];
-  if (model.far !== null) meshes.push(new Mesh(instanced(model.far, buffers, places.length), far));
-  for (const mesh of meshes) mesh.frustumCulled = false;
-  return meshes;
+export function placeModel(model: RoadsideModel, places: readonly Placement[], materials: RoadsideMaterials): Mesh[] {
+  return [...placeVersion(model, "near", places, materials), ...placeVersion(model, "far", places, materials)];
+}
+
+/** One version of a model at its places, for lists that hold different places: none for a far version the model hasn't. */
+export function placeVersion(model: RoadsideModel, version: "near" | "far", places: readonly Placement[], materials: RoadsideMaterials): Mesh[] {
+  const geometry = model[version];
+  if (geometry === null) return [];
+  const mesh = new Mesh(instanced(geometry, instanceBuffers(model, places), places.length), materials[version]);
+  mesh.frustumCulled = false;
+  return [mesh];
 }
 
 export interface SignPlacement extends Placement {

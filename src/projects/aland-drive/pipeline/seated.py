@@ -6,7 +6,7 @@ after the other, so a seat's partner is the one beside it in the list. Each benc
 rolls from where it stands whether anyone is there, and whether it's one or a pair:
 
 - **A café table** is busy anywhere, since its terrace is out because the place is open,
-  and busier in town (the roadside's own test: 20 buildings within 120 m). A taken table
+  and busier in town (`built_up.py`'s test, the roadside's too). A taken table
   is as often a pair, facing each other across it, as someone alone.
 - **A bench** is quieter, much more so out of town, a park's included, now and then a
   pair side by side, and its sitters lean older.
@@ -22,11 +22,11 @@ import json
 from pathlib import Path
 
 import numpy as np
-import shapely
-from shapely.geometry import Polygon
 
 from people import Figure, roll, seed_of, write
-from roadside import BUILT_UP_BUILDINGS, BUILT_UP_M, FILE
+from roadside import FILE
+from built_up import built_up_of
+from progress import Progress
 
 SOURCE = "seated"
 # Placed from OSM's benches, cafés and buildings, so the list is ODbL, as the roadside is.
@@ -57,22 +57,10 @@ def bake_seats(seats: dict[str, list[list[float]]], built_up) -> list[Figure]:
     return figures
 
 
-class Town:
-    """The roadside's test for a town: enough buildings near."""
-
-    def __init__(self, folder: Path):
-        entry = folder / "buildings.json"
-        rings = json.loads(entry.read_text(encoding="utf-8"))["buildings"] if entry.exists() else []
-        self.tree = shapely.STRtree([Polygon(building["ring"]) for building in rings if len(building["ring"]) >= 4])
-
-    def __call__(self, point: np.ndarray) -> bool:
-        return len(self.tree.query(shapely.Point(point), predicate="dwithin", distance=BUILT_UP_M)) >= BUILT_UP_BUILDINGS
-
-
 def figures_of(folder: Path) -> list[Figure]:
     entry = folder / FILE
     seats = json.loads(entry.read_text(encoding="utf-8")).get("seats", {}) if entry.exists() else {}
-    return bake_seats(seats, Town(folder)) if any(seats.values()) else []
+    return bake_seats(seats, built_up_of(folder.name)) if any(seats.values()) else []
 
 
 def bake(name: str, tiles: Path) -> dict:
@@ -82,9 +70,11 @@ def bake(name: str, tiles: Path) -> dict:
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
     """Seats people on built tiles: after the roadside, which writes the seats. A tile the mirror hasn't is sea, and has none."""
-    for name in (name for name in names if (tiles / name / "tile.json").exists()):
+    built = [name for name in names if (tiles / name / "tile.json").exists()]
+    progress = Progress("seated", len(built))
+    for name in built:
         entry = bake(name, tiles)
-        print(name, entry["count"], "seated")
+        progress.finished(f"{name} ({entry['count']} seated)")
 
 
 def main() -> None:

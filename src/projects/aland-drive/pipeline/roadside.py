@@ -14,7 +14,9 @@ surface and OSM's road tags:
 - mailboxes at the mouth of a country drive that leads to a house, outside a town.
 
 Street furniture (benches, bins, bike racks, café terraces) and the seats on it
-are `furniture.py`'s, placed in the same lists once these stand.
+are `furniture.py`'s, and town dressing (lindens, flag and midsummer poles, fences,
+planters, picnic tables, viewpoints) `dressing.py`'s, placed in the same lists once
+these stand: what OSM maps first, then the furniture, then what rules place.
 A built-up place's lesser streets get the town's post-top lamp, not the road's. The
 town's things come from OSM where it maps them: traffic lights at its signal nodes,
 a village's sign where a road comes into it, and street names at a town junction of
@@ -41,12 +43,14 @@ from pathlib import Path
 import numpy as np
 import shapely
 
+import dressing
 import furniture
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES
 from progress import Progress
+from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
 from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 
@@ -147,9 +151,6 @@ SHELTER_ALONG_M = 4.0
 # A drive's mouth: its end within this of the greater road's carriageway.
 MOUTH_M = 8.0
 HOUSE_NEAR_DRIVE_M = 60.0
-# Built up: this many buildings within this of a drive's mouth. A town's post goes through the door.
-BUILT_UP_BUILDINGS = 20
-BUILT_UP_M = 120.0
 MAILBOX_OUT_M = 1.6
 MAILBOX_ALONG_M = (5.0, 7.0)
 MAILBOX_APART_M = 0.45
@@ -341,6 +342,7 @@ def along_yaw(east: float, north: float) -> float:
 class Roadside:
     def __init__(self, tile: Tile, folder: Path, tiles: Path):
         self.tile = tile
+        self.tiles = tiles
         self.manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
         bounds = self.manifest["bounds"]
         self.box = (bounds["west"], bounds["south"], bounds["east"], bounds["north"])
@@ -352,8 +354,11 @@ class Roadside:
         buildings = json.loads((folder / "buildings.json").read_text(encoding="utf-8"))["buildings"] if (folder / "buildings.json").exists() else []
         self.buildings = [Polygon(building["ring"]) for building in buildings if len(building["ring"]) >= 4]
         self.building_tree = shapely.STRtree(self.buildings)
+        self.town = built_up_of(tile.name)
         self.osm = json.loads(osm_roadside_path(tile).read_text(encoding="utf-8"))
         self.models: dict[str, list[list[float]]] = {}
+        # A model drawn at a size of its own (a linden by its height) has one for every place, in order.
+        self.scales: dict[str, list[float]] = {}
         self.signs: dict[str, list[list[float]]] = {}
         self.wires: list[list[float]] = []
         self.walls: list[list[float]] = []
@@ -402,8 +407,13 @@ class Roadside:
                 return spot
         return None
 
-    def place(self, model: str, point: np.ndarray, height: float, yaw: float, stretch: float = 1.0, shear: float = 0.0) -> None:
-        self.models.setdefault(model, []).append([round(float(point[0]), 2), round(height, 2), round(float(-point[1]), 2), round(yaw, 4), round(stretch, 3), round(shear, 4)])
+    def place(self, model: str, point: np.ndarray, height: float, yaw: float, stretch: float = 1.0, shear: float = 0.0, scale: float | None = None) -> None:
+        places = self.models.setdefault(model, [])
+        if (scale is not None) != (model in self.scales) and places:
+            raise ValueError(f"{model} is placed both with a size of its own and without")
+        places.append([round(float(point[0]), 2), round(height, 2), round(float(-point[1]), 2), round(yaw, 4), round(stretch, 3), round(shear, 4)])
+        if scale is not None:
+            self.scales.setdefault(model, []).append(scale)
 
     def sign(self, name: str, point: np.ndarray, height: float, face: np.ndarray) -> bool:
         if any(np.hypot(*(point - post)) < SIGN_APART_M for post in self.posts):
@@ -448,7 +458,8 @@ class Roadside:
             along += spacing
 
     def built_up(self, point: np.ndarray) -> bool:
-        return len(self.building_tree.query(Point(point), predicate="dwithin", distance=BUILT_UP_M)) >= BUILT_UP_BUILDINGS
+        """In town, by `built_up.py`'s test. A town's post goes through the door, and its streets are lit."""
+        return self.town(point)
 
     def lit(self, chain: Chain, along: float) -> bool:
         """OSM's word, and a town's street where it has none: OSM leaves most of Mariehamn's untagged."""
@@ -926,11 +937,15 @@ class Roadside:
         self.name_posts()
         self.villages()
         self.mailboxes(landings)
-        seats = furniture.place(self)
+        street = furniture.Furniture(self)
+        dressed = dressing.Dressing(street)
+        dressed.place_mapped()
+        seats = street.place()
+        dressed.place_rules()
         # Last, so an edge post makes way for everything else at the roadside.
         placed = [np.array([place[0], -place[2]]) for name in ("rail", "rail-end", "mailbox", "bus-shelter") for place in self.models.get(name, [])]
         self.edge_posts(placed + self.posts)
-        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats, **self.town_lists()}
+        return {**LICENCE, "asOf": self.osm["asOf"], "models": self.models, "signs": self.signs, "wires": self.wires, "walls": self.walls, "seats": seats, "scales": self.scales, **self.town_lists()}
 
     def town_lists(self) -> dict:
         """Each in the order of its model's places: a head's start in its cycle, a name post's two blades (yaw and name each), a village sign's name."""

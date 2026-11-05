@@ -53,6 +53,7 @@ const manifest = {
   mask: { file: "", pixels: 1500 },
   ground: { file: "", pixels: 3000, farFile: "", farPixels: 750 },
   canopy: { file: "", pixels: 1500, unitM: 0.25 },
+  clearing: { file: "", pixels: 1500, unitM: 0.125, zero: 64 },
   stands: { file: "", pixels: 125 },
   water: { levelsFile: "", farLevelsFile: "", shoreFile: "", farShoreFile: "", dryLevel: DRY_LEVEL_M },
   overview: { west: -TILE_M, north: TILE_M, columns: 2, rows: 2, stepM: 80, unitM: 0.01, heightsFile: "", imageFile: "", imageWidth: 1, imageHeight: 1 },
@@ -100,7 +101,7 @@ function twoTiles(withEastDetail = true, walls?: Float32Array): World {
 beforeAll(initPhysics);
 
 const downOn = (drive: Drive, x: number, z: number) => {
-  drive.ground.around(x, z);
+  drive.ground.around([{ x, z }]);
   drive.rapier.step();
   const hit = drive.rapier.castRay(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
   if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
@@ -122,6 +123,17 @@ function flatOut(world: World): { fastest: number; furthest: number } {
   drive.dispose();
   return { fastest, furthest };
 }
+
+describe("the surface under the wheels", () => {
+  // The two tiles' ribbons run opposite ways, so one is wound face down: Rapier numbers a hit on it differently.
+  it.each([-2400, 2400])("is the road's on a ribbon either way it's wound, at x = %i", (x) => {
+    const onRoad = (at: number) => landHeight(at, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
+    const drive = new Drive(twoTiles(), new RoadLine(Float32Array.of(x, onRoad(x), ROAD_Z, x + 100, onRoad(x + 100), ROAD_Z)).at(0));
+    for (let step = 0; step < 10; step++) drive.step(NO_INPUT);
+    expect(drive.player.surfaces()).toEqual(["asphalt", "asphalt", "asphalt", "asphalt"]);
+    drive.dispose();
+  });
+});
 
 describe("a building", () => {
   it("stops the car at top speed: the wall is thinner than a step, and the car mustn't come out the far side", () => {

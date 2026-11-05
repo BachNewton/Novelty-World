@@ -1,6 +1,7 @@
 import { all, float, greaterThanEqual, int, ivec2, lessThan, select, smoothstep, texture, textureLoad, vec2, vec4 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import type { TerrainLift } from "./clipmap";
+import type { WorldManifest } from "./tile";
 import type { TileLayers } from "./tile-layers";
 import { MEAN_HEIGHT, ROAD_MASK_MIP } from "./tree-place";
 
@@ -18,10 +19,13 @@ const CANOPY_RISE_FULL_M = 40;
 /** The far photo's level that says what a whole patch is, past a narrow verge's own colour: 32 m. */
 const WIDE_LAND_MIP = 2;
 
+/** How a world without the clearing round buildings reads its filler, every pixel the farthest a byte says. */
+const NO_CLEARING = { unitM: 0.125, zero: 64 };
+
 /** What `tileReads` says of the ground at a place. */
 export type LandAt = (place: Node<"vec2">) => { broad: Node<"vec3">; wide: Node<"vec3">; shade: Node<"float">; dry: Node<"float"> };
 
-export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number) {
+export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number, { unitM: clearingUnitM, zero }: Pick<NonNullable<WorldManifest["clearing"]>, "unitM" | "zero"> = NO_CLEARING) {
   const slotOf = (place: Node<"vec2">) => {
     const inTiles = place.div(tileM);
     const tile = inTiles.floor();
@@ -39,10 +43,23 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const units = texture(layers.canopy, uv).depth(layer).level(float(mip)).r.mul(255);
       return select(held, units.mul(canopyUnitM), float(0));
     },
+    /** Metres from a place to the nearest building's outline, below zero inside one, as far as the image tells apart. Over a tile not held, as far. */
+    clearanceAt(place: Node<"vec2">) {
+      const { uv, layer, held } = slotOf(place);
+      const metres = texture(layers.canopy, uv).depth(layer).level(float(0)).g.mul(255).sub(zero).mul(clearingUnitM);
+      return select(held, metres, float((255 - zero) * clearingUnitM));
+    },
     /** The stand at a place: the shares of pine, spruce and birch, then the density. Over a tile not held, no trees. */
     standsAt(place: Node<"vec2">) {
       const { uv, layer, held } = slotOf(place);
       return select(held, texture(layers.stands, uv).depth(layer).level(float(0)), vec4(0));
+    },
+    /** Whether a place is the town's hard ground (`art/town-ground`): gravel, paving, setts, tarmac or steps, not a lawn or a bed. Over a tile without detail, no. */
+    pavedAt(place: Node<"vec2">) {
+      const { uv, nearLayer, nearHeld } = slotOf(place);
+      const mask = texture(layers.townNear, uv).depth(nearLayer).level(float(0));
+      const [red, green, blue] = [mask.r, mask.g, mask.b].map((channel) => smoothstep(float(0.49), float(0.51), channel));
+      return select(nearHeld, red.max(blue.mul(float(1).sub(green))), float(0));
     },
     roadsAt(place: Node<"vec2">, mip: number = ROAD_MASK_MIP) {
       const { uv, layer, held } = slotOf(place);

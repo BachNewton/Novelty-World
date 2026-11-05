@@ -11,7 +11,7 @@ import { seaSeconds } from "../sea/clock";
  * past 1.5 km, so every course keeps 1.6 km from any land joined to a road: no
  * car can come near enough to see a fleet vanish.
  *
- * Every fleet sails by the sea's clock (`sea/clock.ts`), UTC, wrapped at a day, not
+ * Every fleet sails by the world's clock (`sea/clock.ts`), wrapped at 24 hours, not
  * by the game's own time: every player sees the same boats in the same places, and
  * pausing the game doesn't stop the race.
  */
@@ -26,9 +26,9 @@ export const COURSES: readonly RegattaCourse[] = [
 ];
 
 
-export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">) {
+export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">, courses: readonly RegattaCourse[] = COURSES) {
   const time = uniform(seaSeconds() % DAY_S);
-  const fleets = COURSES.map((course) => buildRegatta({ ...inputs, time }, course));
+  const fleets = courses.map((course) => buildRegatta({ ...inputs, time }, course));
   for (const fleet of fleets) scene.add(fleet);
   return {
     /** The sea's clock, which a tool may hold. */

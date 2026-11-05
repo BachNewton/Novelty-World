@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside";
 import { BOAT_PARTS, KIND, PAINT, SAIL_KINDS } from "./mesh";
 import "./tokens.css";
@@ -45,7 +46,8 @@ const HEAVE_M = 0.05;
 const FLUTTER_M = 0.05;
 const FLUTTER_SPEED = 7;
 
-const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+/** A boat's own roll, from a seed made in the vertex stage, so every pixel of it reads the same. */
+const rollOf = (place: Node<"vec2">) => unitOf(varying(placeSeed(place)), 1);
 const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {
@@ -63,14 +65,15 @@ function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {
   return painted.mul(float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
 }
 
-function placedMaterial(inputs: BoatInputs, isNear: boolean): MeshBasicNodeMaterial {
+function placedMaterial(inputs: BoatInputs, isNear: boolean, underWay: boolean): MeshBasicNodeMaterial {
   const place = attribute<"vec4">("place", "vec4");
   const fit = attribute<"vec4">("fit", "vec4");
   const reach = attribute<"vec2">("reach", "vec2");
   const tint = attribute<"vec4">("tint", "vec4");
   const kind = round(tint.a.mul(255));
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const roll = rollOf(place.xz);
+  // A boat under way moves every frame, so its own roll rides in the fit's spare shear and depth, which no boat reads.
+  const roll = underWay ? rollOf(fit.zw) : rollOf(place.xz);
 
   const grown = float(1).sub(smoothstep(reach.y.mul(1 - GROW_SHARE), reach.y, distance));
   const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(reach.y));
@@ -106,7 +109,11 @@ function placedMaterial(inputs: BoatInputs, isNear: boolean): MeshBasicNodeMater
   return material;
 }
 
-/** The kit's materials, made once for the game; all its boats share them and go through the roadside kit's `placeModel`. */
-export function boatMaterials(inputs: BoatInputs): RoadsideMaterials {
-  return { near: placedMaterial(inputs, true), far: placedMaterial(inputs, false) };
+/**
+ * The kit's materials, made once for the game; all its boats share them and go through the roadside kit's
+ * `placeModel`. `underWay` is for boats whose place changes every frame: each rocks to a seed of its own, given as
+ * its placement's `shear` and `depth`, rather than to where it is.
+ */
+export function boatMaterials(inputs: BoatInputs, { underWay = false } = {}): RoadsideMaterials {
+  return { near: placedMaterial(inputs, true, underWay), far: placedMaterial(inputs, false, underWay) };
 }

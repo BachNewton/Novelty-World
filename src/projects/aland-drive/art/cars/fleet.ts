@@ -110,6 +110,40 @@ export interface FleetCar {
   seed: number;
 }
 
+const placedMaterials = new Map<string, ReturnType<typeof worldCarMaterial>>();
+
+/**
+ * One world car alone at the origin, its world model or its stand-in, drawn by the parked cars' own material with its
+ * swap at `swapM`: as the game shows it, for a check that compares the two.
+ */
+export function placeWorldCar(spec: CarSpec, seed: number, version: "near" | "far", swapM: number, sun: { azimuthDeg: number; elevationDeg: number }, hazed?: (color: Node<"vec3">) => Node<"vec3">): Mesh[] {
+  const tier = version === "near" ? "world" : "distant";
+  const key = `${tier} ${swapM}`;
+  let material = placedMaterials.get(key);
+  if (material === undefined) placedMaterials.set(key, (material = worldCarMaterial({ sun, hazed, tier, swapM, reachM: REACH_M })));
+  const shape = version === "near" ? worldGeometry(spec) : distantGeometry(spec);
+  const look = lookOf(spec, seed);
+  const { r, g, b } = themeColor(`--color-aland-drive-${look.paint}`);
+  const geometry = new InstancedBufferGeometry();
+  for (const name of ["position", "normal", "carColour", "carFinish", "carOption"]) geometry.setAttribute(name, shape.getAttribute(name));
+  geometry.setAttribute("place", new InstancedBufferAttribute(new Float32Array([0, 0, 0, 0]), 4));
+  geometry.setAttribute("paint", new InstancedBufferAttribute(new Float32Array([r, g, b]), 3));
+  geometry.setAttribute("look", new InstancedBufferAttribute(new Float32Array([look.height, look.rack ? 1 : 0, look.plateBand ? 1 : 0]), 3));
+  geometry.instanceCount = 1;
+  const mesh = new Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  return [mesh];
+}
+
+/** The first seed whose car carries everything it can: a rack, where it may have one, and the plate's band. */
+export function fullestSeed(spec: CarSpec): number {
+  for (let seed = 0; seed < 1000; seed++) {
+    const look = lookOf(spec, seed);
+    if ((look.rack || spec.livery === true) && look.plateBand) return seed;
+  }
+  throw new Error(`no seed gives ${spec.name} a rack and a band`);
+}
+
 interface Batch {
   places: InstancedBufferAttribute;
   meshes: Mesh[];

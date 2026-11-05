@@ -4,7 +4,7 @@
 // Prereq: a dev server. Usage: node src/projects/aland-drive/tools/forest-count.mjs [--folder=<tiles>] [--size=3440x1440] [--keys=2,4] [--shots=<folder>]
 // ALAND_DRIVE_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { openGame, settleFrames } from "./game-page.mjs";
 import { serveTiles } from "./serve-tiles.mjs";
 
 const option = (name, otherwise) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;
@@ -16,45 +16,27 @@ const PAGE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-game
 const SETTLE_FRAMES = 30;
 
 const { server, port } = await serveTiles(FOLDER);
-const browser = await chromium.launch({ channel: "chromium", headless: true, args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] });
-const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
-const problems = [];
-page.on("console", (message) => {
-  if (message.type() === "error" || message.type() === "warning") problems.push(`${message.type()}: ${message.text()}`);
-});
-page.on("pageerror", (error) => problems.push(`thrown: ${error.stack ?? error.message}`));
-await page.goto(`${PAGE}?tiles=local:${port}`, { waitUntil: "load" });
-await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
-await page.waitForFunction(() => window.__alandDrive !== undefined || document.body.innerText.includes("rror"), null, { timeout: 180000 }).catch(() => problems.push("no game in time"));
-if (!(await page.evaluate(() => window.__alandDrive !== undefined))) {
-  console.log((await page.locator("body").innerText()).slice(0, 2000));
-  console.log([...new Set(problems)].slice(0, 12).join("\n"));
-  await browser.close();
-  server.close();
-  process.exit(1);
-}
+const { page, step, reported, close } = await openGame(`${PAGE}?tiles=local:${port}`, { width: WIDTH, height: HEIGHT, cleanup: () => server.close() });
 
-const settle = () =>
-  page.evaluate(async (frames) => {
+const settle = async () => {
+  await settleFrames(page, SETTLE_FRAMES);
+  return page.evaluate(() => {
     const probe = window.__alandDrive;
-    for (const until = probe.frames() + frames; probe.frames() < until; ) await new Promise(requestAnimationFrame);
-    while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
-    for (const until = probe.frames() + frames; probe.frames() < until; ) {
-      probe.counts();
-      await new Promise(requestAnimationFrame);
-    }
     return { ...probe.counts(), forest: probe.forestDrawn(), verge: probe.vergeDrawn(), reeds: probe.reedsDrawn(), shrubs: probe.shrubsDrawn(), granite: probe.graniteDrawn() };
-  }, SETTLE_FRAMES);
+  });
+};
 
 for (const key of KEYS) {
-  await page.keyboard.press(`Digit${key}`);
-  const counts = await settle();
-  await page.evaluate(() => window.__alandDrive.showVerge(false));
-  const plain = await settle();
-  await page.evaluate(() => window.__alandDrive.showVerge(true));
+  const [counts, plain] = await step(`view ${key}`, async () => {
+    await page.evaluate((id) => window.__alandDrive.jumpTo(id), key);
+    const shown = await settle();
+    await page.evaluate(() => window.__alandDrive.showVerge(false));
+    const without = await settle();
+    await page.evaluate(() => window.__alandDrive.showVerge(true));
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/view-${key}.png` });
+    return [shown, without];
+  });
   console.log(`view ${key}:`, JSON.stringify(counts), `without the verge: ${plain.drawCalls} draws, ${plain.triangles} triangles`);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/view-${key}.png` });
 }
-console.log([...new Set(problems)].slice(0, 12).join("\n") || "no errors or warnings");
-await browser.close();
-server.close();
+console.log(reported() || "no errors or warnings");
+await close();

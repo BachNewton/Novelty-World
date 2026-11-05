@@ -1,9 +1,9 @@
 import { audioContext, listenForAudioUnlock, renderSound, SoundPlayer, unlockAudio, type SoundSettings } from "@/shared/lib/sound";
 import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
+import { landing, mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, shoreBed, townBed, type Loop } from "./synthesis";
+import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rockLoop, shoreBed, snowLoop, sprayLoop, townBed, type Loop } from "./synthesis";
 import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -194,9 +194,15 @@ interface Rig {
   windHigh: ReturnType<typeof noiseBand>;
   gravel: ReturnType<typeof looped>;
   grass: ReturnType<typeof looped>;
+  rock: ReturnType<typeof looped>;
+  spray: ReturnType<typeof looped>;
+  snow: ReturnType<typeof looped>;
   squealTones: OscillatorNode[];
   squealFilter: BiquadFilterNode;
   squealLevel: GainNode;
+  squeakTones: OscillatorNode[];
+  squeakFilter: BiquadFilterNode;
+  squeakLevel: GainNode;
   forest: GainNode;
   shore: GainNode;
   gulls: GainNode;
@@ -217,6 +223,9 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
 
   const gravel = looped(context, gravelLoop(), master);
   const grass = looped(context, grassLoop(), master);
+  const rock = looped(context, rockLoop(), master);
+  const spray = looped(context, sprayLoop(), master);
+  const snow = looped(context, snowLoop(), master);
   const forest = looped(context, forestBed(), master);
   const shore = looped(context, shoreBed(), master);
   const gulls = looped(context, gullsBed(), master);
@@ -231,6 +240,21 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     tone.start();
     return tone;
   });
+
+  // Rubber on cold snow sticks and lets go: a squeak chopped by a fast flutter.
+  const squeakFilter = new BiquadFilterNode(context, { type: "bandpass", frequency: 1200, Q: 3 });
+  const flutter = new GainNode(context, { gain: 0.5 });
+  const squeakLevel = new GainNode(context, { gain: 0 });
+  squeakFilter.connect(flutter).connect(squeakLevel).connect(master);
+  const squeakTones = [-9, 11].map((detune) => {
+    const tone = new OscillatorNode(context, { type: "triangle", detune, frequency: 620 });
+    tone.connect(squeakFilter);
+    tone.start();
+    return tone;
+  });
+  const stickSlip = new OscillatorNode(context, { type: "sawtooth", frequency: 19 });
+  stickSlip.connect(new GainNode(context, { gain: 0.5 })).connect(flutter.gain);
+  stickSlip.start();
 
   const { ZZFX } = await import("zzfx");
   const buffers = new Map<SoundId, AudioBuffer>();
@@ -263,16 +287,22 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     windHigh: noiseBand(context, noise, master, "bandpass", 0.6),
     gravel,
     grass,
+    rock,
+    spray,
+    snow,
     squealTones,
     squealFilter,
     squealLevel,
+    squeakTones,
+    squeakFilter,
+    squeakLevel,
     forest: forest.level,
     shore: shore.level,
     gulls: gulls.level,
     town: town.level,
     ticks: toBuffer(freewheelLoop()),
     cycles: new Map(),
-    sources: [raw, gravel.source, grass.source, forest.source, shore.source, gulls.source, town.source, ...squealTones],
+    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
 
@@ -296,6 +326,8 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
   let since = STEER_EVERY_S;
   let wander = 0;
   let last: Mix | null = null;
+  let stones = 0;
+  let clods = 0;
 
   const ready = (async () => {
     const audio = context ?? (await audioContext());
@@ -340,11 +372,20 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     to(built.gravel.source.playbackRate, mixed.gravelRate);
     to(built.grass.level.gain, mixed.grassLevel, SURFACE_FOLLOW_S);
     to(built.grass.source.playbackRate, mixed.grassRate);
+    to(built.rock.level.gain, mixed.rockLevel, SURFACE_FOLLOW_S);
+    to(built.rock.source.playbackRate, mixed.rockRate);
+    to(built.spray.level.gain, mixed.sprayLevel, SURFACE_FOLLOW_S);
+    to(built.spray.source.playbackRate, mixed.sprayRate);
+    to(built.snow.level.gain, mixed.snowLevel, SURFACE_FOLLOW_S);
+    to(built.snow.source.playbackRate, mixed.snowRate);
     to(built.squealLevel.gain, mixed.squealLevel, 0.05);
     for (const tone of built.squealTones) to(tone.frequency, mixed.squealHz);
     to(built.squealFilter.frequency, mixed.squealHz * 2);
+    to(built.squeakLevel.gain, mixed.squeakLevel, 0.05);
+    for (const tone of built.squeakTones) to(tone.frequency, mixed.squeakHz);
+    to(built.squeakFilter.frequency, mixed.squeakHz * 2);
     to(built.hiss.level.gain, mixed.hissLevel, 0.05);
-    to(built.hiss.filter.frequency, 3000);
+    to(built.hiss.filter.frequency, mixed.hissHz, 0.3);
     to(built.windLow.level.gain, mixed.windLowLevel, 0.12);
     to(built.windLow.filter.frequency, mixed.windLowHz, 0.12);
     to(built.windHigh.level.gain, mixed.windHighLevel, 0.12);
@@ -370,6 +411,14 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
       const read = readJolts(jolts, state, dt);
       jolts = read.jolts;
       if (state.paused !== true) for (const jolt of read.heard) hear(jolt, rig.player);
+      if (last !== null && state.paused !== true) {
+        const thrown = landing(stones, last.stonesPerS, dt, Math.random());
+        stones = thrown.carry;
+        for (let i = 0; i < thrown.count; i++) rig.player.play("stone");
+        const torn = landing(clods, last.clodsPerS, dt, Math.random());
+        clods = torn.carry;
+        for (let i = 0; i < torn.count; i++) rig.player.play("clod");
+      }
 
       since += dt;
       if (since < STEER_EVERY_S) return;

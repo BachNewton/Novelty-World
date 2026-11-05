@@ -1,19 +1,23 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Car, type DriveInput } from "./car";
+import { Car, NO_INPUT, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
-import { blendCarStates, headingOf, speedOf, type CarState } from "./car-state";
+import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
 import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
 import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
+import type { Condition, Surface } from "./surfaces";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
 
 /*
- * One car in the world, stepped at a fixed rate and shaped for drawing between
- * steps. It holds no clock: given the same inputs it plays out the same, which
- * is what the scripted drive and the tests rely on. Rendering reads `stateAt`.
+ * The cars in the world, stepped at a fixed rate and shaped for drawing between
+ * steps: the player's, and any others the game drives itself (racers, a traffic
+ * car once it's hit), each a full car from its own input in the same Rapier
+ * world, so they all touch each other and the ground is loaded round every one.
+ * It holds no clock: given the same inputs it plays out the same, which is what
+ * the scripted drive and the tests rely on. Rendering reads `stateAt`.
  */
 
 /** What a drive has done, counted step by step. */
@@ -43,70 +47,52 @@ export async function initPhysics(): Promise<void> {
   await RAPIER.init();
 }
 
-export class Drive {
-  readonly rapier: RAPIER.World;
-  readonly ground: GroundBlocks;
-  private car: Car;
-  /** Other players' cars, which this one can hit. */
-  readonly remotes: RemoteCars;
+/** One simulated car: its body, the input it's driven by, its last two steps and what it has done. */
+export class SimulatedCar {
+  /** What the car is driven by on the coming steps, held until it's changed, as a pad's sticks are. */
+  input: DriveInput = NO_INPUT;
+  log = emptyLog();
+  /** Out of the world for one step after it's put down: a collider made since the last step isn't found by a ray until the world steps, so its ground isn't there to it yet. */
+  private landing = false;
   private before!: CarState;
   private after!: CarState;
   private readonly recentVerticalSpeeds: number[] = [];
-  private touching = [true, true, true, true];
-  /** Times the car has been put somewhere rather than driven there. */
-  placements = 0;
-  log = emptyLog();
+  private readonly touching = [true, true, true, true];
 
   constructor(
+    private car: Car,
     private readonly world: World,
-    start: RoadPoint,
-    car: CarId = DEFAULT_CAR,
-  ) {
-    this.rapier = new RAPIER.World({ x: 0, y: -PHYSICS.gravity, z: 0 });
-    this.rapier.timestep = STEP_S;
-    this.ground = new GroundBlocks(this.rapier, world);
-    this.addWalls();
-    this.car = new Car(this.rapier, car);
-    this.remotes = new RemoteCars(this.rapier);
-    this.placeAt(start);
-  }
+  ) {}
 
-  /** A wall on every side of a tile that has no tile beyond it: the world's deliberate end. */
-  private addWalls(): void {
-    const { tileM } = this.world;
-    const { wallHeightM: tall, wallThicknessM: thick } = PHYSICS;
-    const half = tileM / 2;
-    const wall = (x: number, z: number, halfX: number, halfZ: number) => {
-      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
-    };
-    for (const { column, row } of this.world.all()) {
-      const west = column * tileM;
-      const top = row * tileM;
-      if (!this.world.has(column - 1, row)) wall(west - thick, top + half, thick, half + 2 * thick);
-      if (!this.world.has(column + 1, row)) wall(west + tileM + thick, top + half, thick, half + 2 * thick);
-      if (!this.world.has(column, row - 1)) wall(west + half, top - thick, half + 2 * thick, thick);
-      if (!this.world.has(column, row + 1)) wall(west + half, top + tileM + thick, half + 2 * thick, thick);
-    }
-  }
-
-  placeAt(road: RoadPoint): void {
-    this.ground.around(road.x, road.z);
-    this.car.place([road.x, road.y, road.z], road.heading);
-    this.rapier.step();
-    this.before = this.after = this.car.state();
-    this.recentVerticalSpeeds.length = 0;
-    this.placements++;
-  }
-
-  /** The car being driven. */
-  get carId(): CarId {
+  get id(): CarId {
     return this.car.id;
   }
 
-  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
-  setCar(id: CarId): void {
+  /** Where the car was at the end of the last step. */
+  get position(): Vector3 {
+    return this.after.position;
+  }
+
+  place(road: RoadPoint): void {
+    this.car.place([road.x, road.y, road.z], road.heading);
+    this.settled();
+  }
+
+  /** Starts the car's motion over from where its body is now. */
+  settled(): void {
+    this.before = this.after = this.car.state();
+    this.recentVerticalSpeeds.length = 0;
+  }
+
+  /** Sits out the coming step, touching nothing. */
+  land(): void {
+    this.landing = true;
+    this.car.body.setEnabled(false);
+  }
+
+  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId): void {
     if (id === this.car.id) return;
-    const next = new Car(this.rapier, id);
+    const next = new Car(rapier, id, ground);
     next.takeOver(this.car);
     this.car.remove();
     this.car = next;
@@ -114,19 +100,31 @@ export class Drive {
     this.before = { ...this.before, car: id };
   }
 
-  /** The engine as it stands after the last step, and whether the car is in reverse. */
+  remove(): void {
+    this.car.remove();
+  }
+
   engine(): EngineRead & { reversing: boolean } {
     return { ...this.car.engine, reversing: this.car.reversing };
   }
 
-  /** Back to the nearest road, facing the way along it nearest the way the car faced. */
-  respawn(): void {
+  /** What each wheel was on the last time it touched: front left, front right, rear left, rear right. */
+  surfaces(): readonly Surface[] {
+    return this.car.surfaces;
+  }
+
+  /** How each wheel's tyre met the ground on the last step, in the same order. */
+  treads(): readonly Readonly<Tread>[] {
+    return this.car.treads;
+  }
+
+  /** The nearest road, facing the way along it nearest the way the car faces. */
+  nearestRoad(): RoadPoint {
     const { position, rotation } = this.car.state();
     const road = this.world.roads.nearest(position[0], position[2]);
     if (!road) throw new Error(`no road loaded anywhere near ${position[0]}, ${position[2]}`);
     const facingAlong = Math.cos(headingOf(rotation) - road.heading) >= 0;
-    this.placeAt({ ...road, heading: facingAlong ? road.heading : road.heading + Math.PI });
-    this.log.respawns++;
+    return { ...road, heading: facingAlong ? road.heading : road.heading + Math.PI };
   }
 
   private overWater(x: number, z: number): boolean {
@@ -135,20 +133,23 @@ export class Drive {
     return !road || road.distance > 6;
   }
 
-  step(input: DriveInput): void {
+  /** Before the world steps. */
+  push(): void {
     this.before = this.after;
+    if (this.landing) return;
     const { position } = this.before;
-    this.ground.around(position[0], position[2]);
-    this.car.step(input);
+    this.car.step(this.input);
     if (this.overWater(position[0], position[2])) this.car.addDrag(PHYSICS.waterDrag);
-    this.remotes.steer(position);
-    this.rapier.step();
-    this.remotes.settle();
-    this.after = this.car.state();
-    this.record();
   }
 
-  private record(): void {
+  /** After the world steps. */
+  record(): void {
+    if (this.landing) {
+      this.landing = false;
+      this.car.body.setEnabled(true);
+      return;
+    }
+    this.after = this.car.state();
     const log = this.log;
     const { position, velocity } = this.after;
     log.steps++;
@@ -173,6 +174,152 @@ export class Drive {
   /** The car a share of the way from the last step to this one. */
   stateAt(share: number): CarState {
     return blendCarStates(this.before, this.after, share);
+  }
+}
+
+const placeOf = ([x, , z]: Vector3) => ({ x, z });
+
+export class Drive {
+  readonly rapier: RAPIER.World;
+  readonly ground: GroundBlocks;
+  /** The player's car. */
+  readonly player: SimulatedCar;
+  /** Every other simulated car, in the order they were added, which is the order they step in. */
+  private readonly others: SimulatedCar[] = [];
+  /** Other players' cars, which the simulated cars can hit. */
+  readonly remotes: RemoteCars;
+  /** Times the player's car has been put somewhere rather than driven there. */
+  placements = 0;
+
+  constructor(
+    private readonly world: World,
+    start: RoadPoint,
+    car: CarId = DEFAULT_CAR,
+  ) {
+    this.rapier = new RAPIER.World({ x: 0, y: -PHYSICS.gravity, z: 0 });
+    this.rapier.timestep = STEP_S;
+    this.ground = new GroundBlocks(this.rapier, world);
+    this.addWalls();
+    this.player = new SimulatedCar(new Car(this.rapier, car, this.ground), world);
+    this.remotes = new RemoteCars(this.rapier);
+    this.placeAt(start);
+  }
+
+  /** A wall on every side of a tile that has no tile beyond it: the world's deliberate end. */
+  private addWalls(): void {
+    const { tileM } = this.world;
+    const { wallHeightM: tall, wallThicknessM: thick } = PHYSICS;
+    const half = tileM / 2;
+    const wall = (x: number, z: number, halfX: number, halfZ: number) => {
+      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
+    };
+    for (const { column, row } of this.world.all()) {
+      const west = column * tileM;
+      const top = row * tileM;
+      if (!this.world.has(column - 1, row)) wall(west - thick, top + half, thick, half + 2 * thick);
+      if (!this.world.has(column + 1, row)) wall(west + tileM + thick, top + half, thick, half + 2 * thick);
+      if (!this.world.has(column, row - 1)) wall(west + half, top - thick, half + 2 * thick, thick);
+      if (!this.world.has(column, row + 1)) wall(west + half, top + tileM + thick, half + 2 * thick, thick);
+    }
+  }
+
+  /** The ground round the player's car and every other, with somewhere a car is about to be put. */
+  private loadGround(player: { x: number; z: number }, extra?: { x: number; z: number }): void {
+    const places = [player, ...this.others.map(({ position }) => placeOf(position))];
+    if (extra) places.push(extra);
+    this.ground.around(places);
+  }
+
+  placeAt(road: RoadPoint): void {
+    this.loadGround(road);
+    this.player.place(road);
+    this.remotes.placed(this.player.position);
+    this.rapier.step();
+    this.player.settled();
+    this.placements++;
+  }
+
+  /**
+   * Another simulated car, put still on the road. It drives from its own `input`
+   * and touches the player's car, every other simulated car and other players'
+   * stand-ins. It sits out its first step while its ground reaches Rapier's
+   * queries, so adding a car moves nothing else.
+   */
+  addCar(road: RoadPoint, id: CarId = DEFAULT_CAR): SimulatedCar {
+    this.loadGround(placeOf(this.player.position), road);
+    const car = new SimulatedCar(new Car(this.rapier, id, this.ground), this.world);
+    car.place(road);
+    car.land();
+    this.others.push(car);
+    return car;
+  }
+
+  removeCar(car: SimulatedCar): void {
+    const at = this.others.indexOf(car);
+    if (at < 0) throw new Error(`a ${car.id} that isn't in this drive`);
+    car.remove();
+    this.others.splice(at, 1);
+  }
+
+  /** The other simulated cars, in the order they step. */
+  cars(): readonly SimulatedCar[] {
+    return this.others;
+  }
+
+  /** What the player's car has done. */
+  get log(): DriveLog {
+    return this.player.log;
+  }
+
+  set log(log: DriveLog) {
+    this.player.log = log;
+  }
+
+  /** The car being driven. */
+  get carId(): CarId {
+    return this.player.id;
+  }
+
+  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
+  setCar(id: CarId): void {
+    this.player.swap(this.rapier, this.ground, id);
+  }
+
+  /** What the weather has made of every surface, for every car: dry until something says otherwise. */
+  get condition(): Condition {
+    return this.ground.condition;
+  }
+
+  set condition(condition: Condition) {
+    this.ground.condition = condition;
+  }
+
+  /** The engine as it stands after the last step, and whether the car is in reverse. */
+  engine(): EngineRead & { reversing: boolean } {
+    return this.player.engine();
+  }
+
+  /** Back to the nearest road, facing the way along it nearest the way the car faced. */
+  respawn(): void {
+    this.placeAt(this.player.nearestRoad());
+    this.log.respawns++;
+  }
+
+  /** One step of every car: the player's from this input, the others from their own. */
+  step(input: DriveInput): void {
+    this.player.input = input;
+    this.loadGround(placeOf(this.player.position));
+    const cars = [this.player, ...this.others];
+    for (const car of cars) car.push();
+    this.remotes.steer(cars.map(({ position }) => position));
+    this.rapier.step();
+    this.remotes.settle();
+    for (const car of cars) car.record();
+  }
+
+  /** The player's car a share of the way from the last step to this one. */
+  stateAt(share: number): CarState {
+    return this.player.stateAt(share);
   }
 
   dispose(): void {

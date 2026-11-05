@@ -19,8 +19,11 @@ import { STEP_S } from "./tuning";
  * A stand-in touches only the car being driven (`groups.ts`): no gravity, no
  * ground, so a car whose ground isn't loaded here can't fall through it. A
  * stand-in put somewhere rather than steered there (a first sight, a reset, a
- * jump) touches nothing until it's clear of this car, or the two would start
- * inside each other and be thrown apart.
+ * jump) touches nothing until it's clear of every simulated car, or the two would start
+ * inside each other and be thrown apart. The same goes the other way: this
+ * car put down near a stand-in (a reset, a challenge's retry on to the start
+ * line, where the partner's last state may still stand) leaves it touching
+ * nothing until the two are clear.
  */
 
 /** A state carries on by its own motion this long at most: past it the car has stopped sending (a paused map, a hidden tab). */
@@ -122,12 +125,21 @@ class RemoteCar {
     const [rx, ry, rz, rw] = state.rotation;
     this.body.setTranslation({ x, y, z }, true);
     this.body.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+    this.fade();
+  }
+
+  /** Touches nothing until it's clear of every simulated car. */
+  fade(): void {
     this.ghost = true;
     this.collider.setCollisionGroups(GHOST_GROUPS);
   }
 
+  near(at: Vector3): boolean {
+    return Math.hypot(...difference(at, point(this.body.translation()))) <= CLEAR_M;
+  }
+
   /** Steers the stand-in for the coming step. */
-  steer(car: Vector3): void {
+  steer(cars: readonly Vector3[]): void {
     this.since++;
     const target = carriedOn(this.heard, this.since);
     this.target = target;
@@ -138,7 +150,8 @@ class RemoteCar {
     const angular = add(target.spin, capped(spinBetween([x, y, z, w], target.rotation), MOST_TURN_CORRECTION / PULL_PER_S), PULL_PER_S);
     this.body.setLinvel({ x: linear[0], y: linear[1], z: linear[2] }, true);
     this.body.setAngvel({ x: angular[0], y: angular[1], z: angular[2] }, true);
-    if (this.ghost && Math.hypot(...difference(point(this.body.translation()), car)) > CLEAR_M) {
+    const at = point(this.body.translation());
+    if (this.ghost && cars.every((car) => Math.hypot(...difference(at, car)) > CLEAR_M)) {
       this.ghost = false;
       this.collider.setCollisionGroups(REMOTE_GROUPS);
     }
@@ -185,9 +198,14 @@ export class RemoteCars {
     return this.cars.get(id)?.ghost ?? true;
   }
 
-  /** Before the world steps, with where the car being driven is. */
-  steer(car: Vector3): void {
-    for (const remote of this.cars.values()) remote.steer(car);
+  /** A simulated car has been put here rather than driven: every stand-in it could be inside touches nothing until they're apart. */
+  placed(at: Vector3): void {
+    for (const remote of this.cars.values()) if (remote.near(at)) remote.fade();
+  }
+
+  /** Before the world steps, with where every simulated car is. */
+  steer(cars: readonly Vector3[]): void {
+    for (const remote of this.cars.values()) remote.steer(cars);
   }
 
   /** After the world steps. */

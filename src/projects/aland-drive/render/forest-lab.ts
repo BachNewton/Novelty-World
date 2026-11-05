@@ -128,7 +128,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     return mix(washed, ink, line(from).add(line(to)).clamp(0, 1).mul(bandsShown));
   }, land);
 
-  const reads = tileReads(layers, tileM, manifest.canopy.unitM);
+  const reads = tileReads(layers, tileM, manifest.canopy.unitM, manifest.clearing);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, () => marked, () => colorOf("water-deep"), canopyLift(reads.canopyAt, lodSpot, knobs.forestReach));
 
   const isView = (view: ForestLabView) => abs(viewShown.sub(VIEWS.indexOf(view))).lessThan(0.5);
@@ -139,6 +139,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     standsAt: reads.standsAt,
     groundAt: clipmap.groundBlendedAt,
     roads: { at: reads.roadsAt, tileM },
+    clearanceAt: reads.clearanceAt,
     colour: colorOf,
     hazed: (color) => color,
     sun: manifest.sun,
@@ -157,8 +158,8 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     world,
     fetcher,
     {
-      place({ detail, shade, ground }, done) {
-        layers.placeNear(world.named(detail.name), shade, ground, manifest, done);
+      place({ detail, shade, ground, town }, done) {
+        layers.placeNear(world.named(detail.name), shade, ground, town, manifest, done);
       },
       release(detail) {
         layers.releaseNear(world.named(detail.name));

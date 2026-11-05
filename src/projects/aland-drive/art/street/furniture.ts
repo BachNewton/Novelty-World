@@ -16,7 +16,7 @@ const BENCH_WIDE_M = 1.8;
 // Past where the gaps between its slats are under a pixel, so the far bench's solid seat and back can't be told from them.
 const BENCH_SWAP_M = 70;
 
-/** A park bench: dark iron ends under wooden slats. Far off, a seat and a back on the same iron legs, open beneath as the near one is. */
+/** A park bench: dark iron ends under wooden slats. Far off, a seat and the back's three slats on the same iron legs, open beneath and between as the near one is. */
 export function buildBench(): RoadsideModel {
   const half = BENCH_WIDE_M / 2;
   const near = new Painted();
@@ -35,9 +35,11 @@ export function buildBench(): RoadsideModel {
     const [y, z] = [0.56 + slat * 0.115, -0.235 - slat * 0.033];
     near.beam([-half, y, z], [half, y, z], 0.085, 0.03, "bench-wood", 0.92, 1.05);
   }
-  const far = new Painted()
-    .beam([-half, 0.455, 0.022], [half, 0.455, 0.022], 0.55, 0.03, "bench-wood", 0.8, 1.12)
-    .beam([-half, 0.675, -0.268], [half, 0.675, -0.268], 0.03, 0.315, "bench-wood", 0.75, 0.85);
+  const far = new Painted().beam([-half, 0.455, 0.022], [half, 0.455, 0.022], 0.55, 0.03, "bench-wood", 0.8, 1.12);
+  for (let slat = 0; slat < 3; slat++) {
+    const [y, z] = [0.56 + slat * 0.115, -0.235 - slat * 0.033];
+    far.face([[-half, y - 0.0425, z], [half, y - 0.0425, z], [half, y + 0.0425, z], [-half, y + 0.0425, z]], "bench-wood", 0.95);
+  }
   for (const x of [-half + 0.14, half - 0.14]) {
     far.beam([x, -SINK_M, 0.25], [x, 0.44, 0.22], 0.05, 0.05, "iron").beam([x, -SINK_M, -0.2], [x, 0.84, -0.33], 0.05, 0.04, "iron");
   }
@@ -55,8 +57,10 @@ export function buildBin(): RoadsideModel {
     .face(levelRing([0, low, 0], radius, 7), "iron", 0.6)
     .face([[-0.1, high - 0.02, radius + 0.022], [0.1, high - 0.02, radius + 0.022], [0.1, high - 0.13, radius + 0.022], [-0.1, high - 0.13, radius + 0.022]], "iron");
   const far = new Painted()
-    .tube([0, low, 0], [0, high + 0.05, 0], radius, 3, {}, "park-green")
+    .tube([0, low, 0], [0, high, 0], radius, 3, {}, "park-green")
+    .tube([0, high, 0], [0, high + 0.05, 0], radius * 1.09, 3, {}, "steel")
     .tube([0, high + 0.05, 0], [0, high + 0.17, 0], radius * 1.05, 3, { radiusTo: 0.05, cap: true, shadeTo: 1.15 }, "park-green")
+    .face([[-0.1, high - 0.02, radius + 0.022], [0.1, high - 0.02, radius + 0.022], [0.1, high - 0.13, radius + 0.022], [-0.1, high - 0.13, radius + 0.022]], "iron")
     .tube([0, -SINK_M, 0.24], [0, low, 0.24], 0.04, 3, {}, "iron");
   return streetModel(near, far, SWAP_M, REACH_M);
 }
@@ -78,7 +82,7 @@ export function buildBikeRack(): RoadsideModel {
       near.tube([x + from[0], from[1], from[2]], [x + to[0], to[1], to[2]], 0.026, 3, {}, "steel");
     }
   }
-  const far = new Painted();
+  const far = new Painted().face([[-0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.055, 0], [-0.1, 0.055, 0]], "steel", 0.85);
   for (let hoop = 0; hoop < HOOPS; hoop++) {
     const x = hoop * HOOP_BAY_M;
     far.face([[x, -SINK_M, -half], [x, top, -half], [x, top, half], [x, -SINK_M, half], [x, -SINK_M, half - 0.05], [x, top - 0.05, half - 0.05], [x, top - 0.05, -half + 0.05], [x, -SINK_M, -half + 0.05]], "steel", 0.9);
@@ -118,33 +122,35 @@ export function buildCafeSet(): RoadsideModel {
   const far = new Painted()
     .face(levelRing([0, TABLE_TALL_M, 0], TABLE_RADIUS_M, 5), "cafe-top")
     .tube([0, 0, 0], [0, TABLE_TALL_M, 0], 0.05, 3, {}, "cafe-frame");
+  // Each chair a seat, its back's panel and its legs, open between as the near chair is: a solid back to the ground reads as a block.
   for (const side of [-1, 1]) {
     const z = side * 0.82;
-    far.face([[-0.2, 0, z], [0.2, 0, z], [0.18, 0.84, z], [-0.18, 0.84, z]], "cafe-frame").face([[-0.2, 0.46, z], [0.2, 0.46, z], [0.2, 0.46, z - side * 0.4], [-0.2, 0.46, z - side * 0.4]], "cafe-frame", 1.2);
+    far
+      .face([[-0.18, 0.64, z], [0.18, 0.64, z], [0.18, 0.84, z], [-0.18, 0.84, z]], "cafe-frame", 1.15)
+      .face([[-0.2, 0.46, z], [0.2, 0.46, z], [0.2, 0.46, z - side * 0.4], [-0.2, 0.46, z - side * 0.4]], "cafe-frame", 1.2);
+    for (const x of [-0.19, 0.17]) far.face([[x, 0, z], [x + 0.03, 0, z], [x + 0.03, 0.84, z], [x, 0.84, z]], "cafe-frame");
+    for (const x of [-0.19, 0.17]) far.face([[x, 0, z - side * 0.38], [x + 0.03, 0, z - side * 0.38], [x + 0.03, 0.46, z - side * 0.38], [x, 0.46, z - side * 0.38]], "cafe-frame");
   }
   return streetModel(near, far, CAFE_SWAP_M, CAFE_REACH_M);
 }
 
 const PARASOL_SIDES = 8;
 
-/** A square-ish market parasol with a valance, in cream and the red of the town. */
+/** One panel of a parasol's canopy and its valance, cream and red by turns, the valance the other colour. */
+function canopy(into: Painted, corner: V3, next: V3, top: V3, rim: number, index: number): Painted {
+  const [panel, valance]: StreetPart[] = index % 2 === 0 ? ["canvas", "canvas-trim"] : ["canvas-trim", "canvas"];
+  return into.face([corner, next, top], panel, 1.08).face([corner, next, [next[0], rim - 0.14, next[2]], [corner[0], rim - 0.14, corner[2]]], valance, 0.92);
+}
+
+/** A square-ish market parasol with a valance, in cream and the red of the town. Far off, the same canopy and valance in the same colours, without the spokes. */
 export function buildParasol(): RoadsideModel {
   const [tall, rim, radius] = [2.75, 2.15, 1.5];
   const edge = levelRing([0, rim, 0], radius, PARASOL_SIDES);
   const top: V3 = [0, tall, 0];
   const near = new Painted().tube([0, -SINK_M, 0], [0, tall + 0.1, 0], 0.024, 4, { cap: true }, "steel");
-  edge.forEach((corner, index) => {
-    const next = edge[(index + 1) % PARASOL_SIDES];
-    near
-      .face([corner, next, top], index % 2 === 0 ? "canvas" : "canvas-trim", 1.08)
-      .face([corner, next, [next[0], rim - 0.14, next[2]], [corner[0], rim - 0.14, corner[2]]], index % 2 === 0 ? "canvas-trim" : "canvas", 0.92)
-      .spike([0, rim - 0.5, 0], corner, 0.012, "steel", 0.8);
-  });
-  const far = new Painted().tube([0, -SINK_M, 0], [0, rim, 0], 0.05, 3, {}, "steel");
-  edge.forEach((corner, index) => {
-    if (index % 2 === 0) far.face([corner, edge[(index + 2) % PARASOL_SIDES], top], "canvas", 1.05);
-  });
-  far.face([edge[0], edge[2], edge[4], edge[6]], "canvas", 1.05);
+  edge.forEach((corner, index) => canopy(near, corner, edge[(index + 1) % PARASOL_SIDES], top, rim, index).spike([0, rim - 0.5, 0], corner, 0.012, "steel", 0.8));
+  const far = new Painted().tube([0, -SINK_M, 0], [0, rim, 0], 0.04, 3, {}, "steel");
+  edge.forEach((corner, index) => canopy(far, corner, edge[(index + 1) % PARASOL_SIDES], top, rim, index));
   return streetModel(near, far, CAFE_SWAP_M, CAFE_REACH_M);
 }
 

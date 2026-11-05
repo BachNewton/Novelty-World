@@ -4,9 +4,9 @@
  * in the bottom 16, and two colliders touch only when each is a member of a
  * group the other touches.
  *
- * The ground, the buildings' walls and the world's edge are the world. The car
- * being driven touches everything. Another player's car (`remote-cars.ts`)
- * touches the car being driven and nothing else: its own client keeps it on the
+ * The ground, the buildings' walls and the world's edge are the world. A
+ * simulated car, the player's or one the game drives, touches everything.
+ * Another player's car (`remote-cars.ts`) touches the simulated cars and nothing else: its own client keeps it on the
  * ground, so here it has no ground to fall through, and two other cars meeting
  * is for their own clients to work out.
  */

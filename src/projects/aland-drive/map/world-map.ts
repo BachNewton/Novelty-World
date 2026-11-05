@@ -1,4 +1,6 @@
-import { drawCar, drawNames, drawPlayers, drawRoads, drawRoute, type MapInk, type MapPlayer, type MapView } from "./draw";
+import type { ChallengeBoard } from "../challenge/board";
+import type { Discovery } from "./discovery";
+import { drawCar, drawChallenges, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, placeAt, type MapInk, type MapPlayer, type MapView } from "./draw";
 import type { MapTarget } from "../render/map-camera";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -8,8 +10,8 @@ import type { RoadGraph, Route } from "./road-graph";
  * from the car to a view of the main island, north up. This holds how far along
  * that flight things are, and takes the mouse and a pad to zoom, pan and pick once
  * it has arrived: none of that moves the flight, so zooming can't leave the map.
- * It draws the road network, route, names and car on a clear canvas above the
- * render. Roads keep a width on screen, so they stay legible from any height, and
+ * It draws the road network, route, names, the places to find and the car on a
+ * clear canvas above the render, with the challenges' starts. A pick on a place routes to the place itself, and on a challenge to its start ring. Roads keep a width on screen, so they stay legible from any height, and
  * the canvas fades in with altitude as the car becomes too small to see.
  */
 
@@ -40,6 +42,9 @@ const ROADS_THICKEN_FROM_SCALE = 0.02;
 const PLAYER_REDRAW_PX = 2;
 /** Other players stay this far inside the canvas's edge. */
 const PLAYER_MARGIN_PX = 16;
+const PLACE_PX = 10;
+/** A found place's note, under the cursor, wraps at this width. */
+const NOTE_WIDTH_PX = 300;
 
 export class WorldMap {
   /** How far along the camera's flight things are, 0 at the car and 1 at the map, and which way it's going. */
@@ -61,6 +66,8 @@ export class WorldMap {
   private drawnPlayers: readonly MapPlayer[] = [];
   /** How many other players the map last drew. */
   playersDrawn = 0;
+  private drawnFound = -1;
+  private drawnChallenges = -1;
   private dragFrom: { x: number; y: number; moved: boolean } | null = null;
   private readonly pen: CanvasRenderingContext2D;
   private readonly abort = new AbortController();
@@ -69,6 +76,8 @@ export class WorldMap {
     private readonly canvas: HTMLCanvasElement,
     private readonly graph: RoadGraph,
     private readonly ink: MapInk,
+    private readonly discovery: Discovery,
+    private readonly challenges: ChallengeBoard,
     private readonly onPick: (x: number, z: number) => void,
     private readonly onLeave: () => void,
   ) {
@@ -142,7 +151,8 @@ export class WorldMap {
 
   private pickAt(x: number, y: number): void {
     if (!this.view || this.flight < 1) return;
-    const [worldX, worldZ] = this.view.toWorld(x, y);
+    const place = placeAt(this.view, this.challenges.marks(), x, y, PLACE_PX + 4) ?? placeAt(this.view, this.discovery.places, x, y, PLACE_PX + 4);
+    const [worldX, worldZ] = place ? [place.x, place.z] : this.view.toWorld(x, y);
     this.onPick(worldX, worldZ);
   }
 
@@ -209,6 +219,7 @@ export class WorldMap {
   draw(view: MapView, shown: number): void {
     this.view = view;
     this.canvas.style.opacity = String(shown);
+    if (this.drawnFound !== this.discovery.revision || this.drawnChallenges !== this.challenges.revision) this.stale = true;
     if (shown === 0 || !this.stale) return;
     this.stale = false;
     const { pen, graph, ink, cursor, car } = this;
@@ -219,6 +230,12 @@ export class WorldMap {
     drawRoads(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 1, ink, Math.min(1, 0.5 + ROADS_THICKEN_FROM_SCALE / view.scale));
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 0, zoomedIn ? ALL_NAMES : streets ? STREET_NAMES : MAIN_NAMES, ink);
+    const { discovery } = this;
+    drawPlaces(pen, view, discovery.places.map((place) => ({ place, found: discovery.isFound(place) })), PLACE_PX, ink, streets);
+    this.drawnFound = discovery.revision;
+    const challenges = this.challenges.marks();
+    drawChallenges(pen, view, challenges, PLACE_PX, ink, streets);
+    this.drawnChallenges = this.challenges.revision;
     drawPlayers(pen, view, this.players, 10, ink, { margin: PLAYER_MARGIN_PX }, true);
     this.drawnPlayers = this.players;
     this.playersDrawn = this.players.length;
@@ -229,7 +246,55 @@ export class WorldMap {
       pen.beginPath();
       pen.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
       pen.stroke();
+      const challenge = placeAt(view, challenges, cursor.x, cursor.y, PLACE_PX + 4);
+      const place = challenge ? null : placeAt(view, discovery.places, cursor.x, cursor.y, PLACE_PX + 4);
+      if (challenge) this.drawCard({ name: challenge.title, note: null, colour: challenge.passed ? ink.pass : ink.challenge }, cursor.x, cursor.y);
+      else if (place) {
+        const found = discovery.isFound(place);
+        this.drawCard({ name: place.name, note: found ? place.note : null, colour: found ? ink.place : ink.ink }, cursor.x, cursor.y);
+      }
     }
+  }
+
+  /** A name by the cursor, in its colour, with a note under it where there is one: a found place's. */
+  private drawCard({ name, note, colour }: { name: string; note: string | null; colour: string }, x: number, y: number): void {
+    const { pen, ink, view } = this;
+    if (!view) return;
+    pen.font = "600 14px system-ui, sans-serif";
+    const nameWidth = pen.measureText(name).width;
+    const lines = [{ text: name, bold: true }];
+    if (note !== null) {
+      pen.font = "400 13px system-ui, sans-serif";
+      let current = "";
+      for (const word of note.split(" ")) {
+        const next = current === "" ? word : `${current} ${word}`;
+        if (pen.measureText(next).width > NOTE_WIDTH_PX && current !== "") {
+          lines.push({ text: current, bold: false });
+          current = word;
+        } else current = next;
+      }
+      if (current !== "") lines.push({ text: current, bold: false });
+    }
+    const pad = 10;
+    const lineHeight = 18;
+    const width = Math.max(nameWidth, note !== null ? NOTE_WIDTH_PX : 0) + pad * 2;
+    const height = lines.length * lineHeight + pad * 2 - 4;
+    const left = Math.min(x + 18, view.width - width - 4);
+    const top = Math.min(y + 18, view.height - height - 4);
+    pen.globalAlpha = 0.92;
+    pen.fillStyle = ink.shade;
+    pen.fillRect(left, top, width, height);
+    pen.globalAlpha = 1;
+    pen.strokeStyle = colour;
+    pen.lineWidth = 1.5;
+    pen.strokeRect(left, top, width, height);
+    pen.textAlign = "left";
+    pen.textBaseline = "top";
+    lines.forEach(({ text, bold }, index) => {
+      pen.font = bold ? "600 14px system-ui, sans-serif" : "400 13px system-ui, sans-serif";
+      pen.fillStyle = bold ? colour : ink.ink;
+      pen.fillText(text, left + pad, top + pad + index * lineHeight);
+    });
   }
 
   dispose(): void {
