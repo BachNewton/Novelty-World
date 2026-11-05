@@ -1238,9 +1238,10 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
                 # Short of a sidewalk, a shoulder is a kerb's strip, counted in the class's own shoulder's metres as the game
                 # reads them, so the kerb is drawn where it stands.
                 kerbed = np.where(left, cross.walk_left[station], cross.walk_right[station]) > 0
-                shoulder = np.maximum(np.where(kerbed, chain.shoulder[station], np.where(left, cross.reach_left[station], cross.reach_right[station]) - half), 1e-6)
-                past = np.maximum(np.abs(offset) - half, 0)
-                across[mine] = np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past / shoulder, 0, 2)
+                shoulder = np.where(kerbed, chain.shoulder[station], np.where(left, cross.reach_left[station], cross.reach_right[station]) - half)
+                # With no shoulder (a path, a deck), a point a hair past the edge, where the outline is simplified, is on the edge.
+                past = np.where(shoulder > OUTLINE_WITHIN_M, np.maximum(np.abs(offset) - half, 0) / np.maximum(shoulder, OUTLINE_WITHIN_M), 0)
+                across[mine] = np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past, 0, 2)
                 # A sidewalk with no path beside it to wear is the one the street's tags map.
                 if walk[mine].any():
                     _, kinds = tagged_sidewalks(chain)

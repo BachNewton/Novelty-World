@@ -77,6 +77,15 @@ class OneSurface(unittest.TestCase):
         np.testing.assert_allclose(paved.points[on_sidewalk, 8:10], [[1, 0]] * on_sidewalk.sum(), atol=1e-6)
         np.testing.assert_allclose(paved.points[on_footway, 8:10], [[0, 1]] * on_footway.sum(), atol=1e-6)
 
+    def test_a_path_has_no_shoulder_to_draw_at_its_edge(self):
+        """A path's outline is kept within a couple of centimetres of its edge, and a point a hair past it was drawn as a
+        shoulder's far side: every triangle from its middle to that point faded to the photo's colour, a pale lens."""
+        bend = [(300 + 200 * np.sin(step / 20), 300 + step * 6.0) for step in range(80)]
+        paved = paving.lay([road(bend, "footway", motor=False)], land(height=hilly))
+        path = paved.points[paved.points[:, 6].astype(int) == paved.chains[0].index]
+        self.assertGreater(len(path), 100)
+        self.assertLessEqual(float(np.abs(path[:, 3]).max()), 1.0)
+
     def test_the_ground_meets_the_paving_on_the_paving_s_own_points(self):
         ways = [road([(100, 600), (1100, 640)], "tertiary"), road([(600, 619), (600, 1000)]), road([(300, 200), (900, 1000)], "path", motor=False)]
         paved = paving.lay(ways, land(height=hilly))
