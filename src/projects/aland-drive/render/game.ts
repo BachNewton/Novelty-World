@@ -427,7 +427,6 @@ export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
 export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
-const POOLS_ON_GROUND_M = 280;
 /** Where the headlamps sit off the car's origin, which rides at its axles' height. */
 const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
@@ -685,8 +684,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
   scene.add(headlights.cones);
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground });
   // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
-  const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
+  const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)).add(nightLights.lightOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);
   const seaHazed = hazedAtHour(seaAtHour);
 
@@ -828,8 +828,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
   });
   const parkedCars = createParkedCars(scene, sun, hazed);
-  // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
-  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
   let lampRevision = -1;
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
@@ -988,6 +986,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   cullCar(false);
   nightLights.showAll(true);
   await renderer.compileAsync(scene, camera);
+  await nightLights.compile(renderer);
   await forest.compile();
   await verge.compile();
   await reeds.compile();
@@ -1775,7 +1774,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       lampRevision = roadside.lampRevision();
       nightLights.setLamps(roadside.lamps());
     }
-    nightLights.update(camera.position);
+    nightLights.update(renderer, camera.position);
     aimHeadlights(car);
     sky.update(camera.position, seconds);
     tiledFollows(camera.position.x, camera.position.z);
