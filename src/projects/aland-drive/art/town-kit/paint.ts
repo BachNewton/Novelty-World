@@ -59,6 +59,10 @@ export const TOWN_PARTS = [
   "ferry-funnel-top",
   "ferry-lifeboat",
   "ferry-steel",
+  "spruce",
+  "spruce-shade",
+  "spruce-bark",
+  "tree-star",
 ] as const;
 
 export type TownPart = (typeof TOWN_PARTS)[number];

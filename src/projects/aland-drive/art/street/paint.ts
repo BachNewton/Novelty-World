@@ -68,6 +68,10 @@ export const STREET_PARTS = [
   "spar",
   "sail-cover",
   "rigging",
+  // A linden's own leaves, last, so the street's material can turn a linden's and no other's (`lindenThroughYear`).
+  "linden-leaf",
+  "linden-leaf-lit",
+  "linden-leaf-under",
 ] as const;
 
 export type StreetPart = (typeof STREET_PARTS)[number];

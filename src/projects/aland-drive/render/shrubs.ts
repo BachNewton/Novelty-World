@@ -1,7 +1,11 @@
 import { DoubleSide, MeshBasicNodeMaterial, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { cos, dot, float, fract, If, int, mix, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
-import { buildBirch, buildBush, buildJuniper, ruralColours, ruralPaint } from "../art/rural";
+import { buildBirch, buildBush, buildJuniper, RURAL_PARTS, ruralColours, ruralPaint, type RuralPart } from "../art/rural";
+import { flatNormal } from "../art/flat-normal";
+import { placeSeed, unitOf } from "../art/hash";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
+import { seasonNodes, type SeasonLook } from "../art/season";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
 import { foliageLight } from "./foliage-light";
@@ -79,6 +83,27 @@ const TOP_LIGHT = 1.05;
 const BRIGHTNESS_ROLL = [0.86, 1.12] as const;
 const HUE_ROLL = 0.07;
 
+/*
+ * Through the year hazel, sallow and birch turn and go bare as the forest's broadleaves do (`art/leaves.ts`), each on
+ * a threshold rolled from its place, to a narrower, see-through mass of twigs; a juniper stays green. Snow lies on what
+ * faces up, a juniper's whole and a bare bush's lightly.
+ */
+const LEAF_PARTS: readonly RuralPart[] = ["bush-lit", "sallow-lit", "birch-leaf"];
+/** When each kind's leaves go, as a span of the season's shares, and their autumn colour; a juniper keeps its needles. */
+const LEAVES_GO: readonly ({ goes: [number, number]; autumn: string } | null)[] = [
+  { goes: [0.1, 0.8], autumn: "autumn-birch" },
+  { goes: [0.1, 0.8], autumn: "autumn-birch" },
+  { goes: [0.3, 0.95], autumn: "autumn-ash" },
+  null,
+  null,
+  { goes: [0, 0.85], autumn: "autumn-birch" },
+  { goes: [0, 0.85], autumn: "autumn-birch" },
+];
+const LEAF_ROLL = 21;
+const SNOW_ROLL = 22;
+const TWIG_SNOW = 0.4;
+const BARE_OPEN = 0.5;
+
 const ROWS = 3;
 const BANDS = 5;
 /** Edges and rock are a small part of what's in reach: lists hold this share of its places. */
@@ -116,6 +141,8 @@ export interface ShrubInputs {
   linear: (name: string) => Vector3;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   sun: RoadsideInputs["sun"];
+  /** The season the bushes turn and fall by and the snow lies in; summer if none. */
+  season?: SeasonLook;
 }
 
 export interface ShrubsDrawn {
@@ -132,7 +159,7 @@ export interface Shrubs {
   dispose: () => void;
 }
 
-export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, clearanceAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
+export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, clearanceAt, lightOf, linear, hazed, sun, season }: ShrubInputs): Shrubs {
   const kinds: Kind[] = [
     { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
     { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
@@ -149,7 +176,23 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
   const tallOf = kinds.map(({ model }) => tallest(model.near));
-  const bandsOf = uniformArray(kinds.flatMap(({ model }, index) => bandColours(model.near, colours, Array.from({ length: BANDS }, (_, band) => (tallOf[index] * (band + 1)) / BANDS + (band === BANDS - 1 ? 100 : 0)))));
+  const seasons = seasonNodes(season);
+  // A bare bush's open pixels are a band of the same pattern, so the two versions in a crossfade leave the same ones open.
+  const twigPattern = fract(pattern.add(0.5));
+  const leafParts = LEAF_PARTS.map((part) => RURAL_PARTS.indexOf(part));
+  // A far version's bands in its near version's colours, with its leaves as they are in summer, autumn, bare and spring.
+  const bandsAs = (leafAs: (kind: number) => Vector3 | null) =>
+    uniformArray(
+      kinds.flatMap(({ model }, index) => {
+        const leaf = leafAs(index);
+        const painted = colours.map((colour, part) => (leaf !== null && LEAVES_GO[index] !== null && leafParts.includes(part) ? leaf : colour));
+        return bandColours(model.near, painted, Array.from({ length: BANDS }, (_, band) => (tallOf[index] * (band + 1)) / BANDS + (band === BANDS - 1 ? 100 : 0)));
+      }),
+    );
+  const bandsOf = bandsAs(() => null);
+  const autumnBandsOf = bandsAs((kind) => linear(LEAVES_GO[kind]?.autumn ?? "autumn-birch"));
+  const twigBandsOf = bandsAs(() => linear("tree-twig"));
+  const freshBandsOf = bandsAs(() => linear("tree-fresh"));
   const tallsOf = uniformArray(tallOf, "float");
   const lowOf = uniformArray(kinds.map(({ sizes }) => sizes[0]), "float");
   const highOf = uniformArray(kinds.map(({ sizes }) => sizes[1]), "float");
@@ -215,25 +258,49 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const size = live.z;
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
-      material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
       const isFar = index < kinds.length;
+      const leafy = LEAVES_GO[index % kinds.length];
+      const tint = attribute<"vec4">("tint", "vec4");
+      const part = round(tint.r.mul(255));
+      const isLeaf = leafy === null ? float(0) : leafParts.reduce<Node<"float">>((is, at) => select(part.equal(at), float(1), is), float(0));
+      const seasonRoll = (salt: number) => unitOf(placeSeed(standing.xz), salt);
+      const leaves = leavesOf(seasons, leafy === null ? float(0) : mix(float(leafy.goes[0]), float(leafy.goes[1]), seasonRoll(LEAF_ROLL)));
+      const inLeaf = (leafy === null ? float(1) : leaves.inLeaf).toVar();
+      // A bare bush's twigs spread less than its leaves did.
+      const [x, z] = [local.x.mul(mix(float(1), mix(float(BARE_SPREAD), float(1), inLeaf), isLeaf)), local.z.mul(mix(float(1), mix(float(BARE_SPREAD), float(1), inLeaf), isLeaf))];
+      material.positionNode = vec3(standing.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
       const kind = varying(int(round(live.w)));
       // The model's own height, before the plant's size, picks the band, as it did when the bands were measured.
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
-      const painted = isFar ? (bandsOf.element(int(round(live.w.mul(BANDS).add(band)))) as unknown as Node<"vec3">) : paint;
+      const turned = leafy === null ? float(0) : leaves.turned;
+      const fresh = leafy === null ? float(0) : leaves.fresh.mul(FRESH_SHARE);
+      const asNow = (summer: Node<"vec3">, autumn: Node<"vec3">, twig: Node<"vec3">, spring: Node<"vec3">) => mix(twig, mix(mix(summer, spring, fresh), autumn, turned), inLeaf);
+      const shadeOf = tint.g.mul(255 / 128);
+      const bandOf = (bands: typeof bandsOf) => bands.element(int(round(live.w.mul(BANDS).add(band)))) as unknown as Node<"vec3">;
+      const tokenAt = (name: string) => vec3(linear(name)).mul(shadeOf);
+      const painted = varying(
+        isFar
+          ? asNow(bandOf(bandsOf), bandOf(autumnBandsOf), bandOf(twigBandsOf), bandOf(freshBandsOf))
+          : leafy === null
+            ? paint
+            : mix(paint, asNow(paint, tokenAt(leafy.autumn), tokenAt("tree-twig"), tokenAt("tree-fresh")), isLeaf),
+      );
+      const snowHeld = varying(snowHeldOf(seasons, seasonRoll(SNOW_ROLL)).mul(leafy === null ? float(1) : float(1).sub(inLeaf).mul(TWIG_SNOW)));
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const radial = normalize(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).add(vec2(1e-4, 0)));
       const up = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).clamp(0, 1);
       const rounded = varying(vec3(radial.x, up.sub(MIDDLE).mul(ROUNDNESS), radial.y));
-      const seeThrough = select(kind.equal(JUNIPER).or(kind.equal(JUNIPER + 1)), float(0), float(1));
+      const seeThrough = select(kind.equal(JUNIPER).or(kind.equal(JUNIPER + 1)), float(0), varying(inLeaf));
       const plantRoll = fract(standing.w.mul(7.31));
       const ownShade = varying(mix(float(FOOT_LIGHT), float(TOP_LIGHT), up).mul(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), plantRoll)));
       const hue = varying(fract(plantRoll.mul(3.17)).sub(0.5).mul(2 * HUE_ROLL));
       const lit = foliageLight(toSun, rounded, seeThrough).mul(ownShade);
-      const coloured = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))).mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
+      const snowed = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), vec3(linear("tree-snow")), snowHeld.mul(snowOnFace(flatNormal().y)));
+      const coloured = mix(snowed.mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
+      const open = varying(float(1).sub(inLeaf).mul(isLeaf).mul(BARE_OPEN));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(twigPattern.greaterThanEqual(open)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },

@@ -33,6 +33,31 @@ export const GNARL = 0.05;
 export type TreeKind = "spruce" | "pine" | "birch" | "round" | "upright";
 export const TREE_KINDS: TreeKind[] = ["spruce", "pine", "birch", "round", "upright"];
 
+/**
+ * The broadleaf species each shape stands for, through the year (Reference, Leaves): the share of its shape's trees
+ * each is, when its leaves go as a span of the season's shares (an early one turns and falls among the first, the oak
+ * last), and its autumn colour's token. Birch is its own shape.
+ */
+export interface Species {
+  share: number;
+  goes: [from: number, to: number];
+  autumn: string;
+}
+
+export const SPECIES: Record<"birch" | "round" | "upright", Species[]> = {
+  birch: [{ share: 1, goes: [0, 0.85], autumn: "autumn-birch" }],
+  round: [
+    { share: 0.5, goes: [0.6, 1], autumn: "autumn-oak" },
+    { share: 0.25, goes: [0.15, 0.8], autumn: "autumn-maple" },
+    { share: 0.25, goes: [0.05, 0.6], autumn: "autumn-ash" },
+  ],
+  upright: [
+    { share: 0.4, goes: [0.15, 0.75], autumn: "autumn-alder" },
+    { share: 0.35, goes: [0.05, 0.8], autumn: "autumn-aspen" },
+    { share: 0.25, goes: [0, 0.6], autumn: "autumn-rowan" },
+  ],
+};
+
 /** The young keep their branches to the ground, the grown clear their trunks, and the old carry a small crown high up. */
 const STAGED: Record<TreeKind, [young: Rings, grown: Rings, old: Rings]> = {
   spruce: [

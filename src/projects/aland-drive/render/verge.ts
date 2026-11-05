@@ -1,7 +1,8 @@
 import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { attribute, cos, dot, float, floor, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cos, dot, float, floor, fract, If, int, min, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, unitOf } from "../art/hash";
+import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
 import { STREET_PARTS, streetColours, streetPaint, streetPalette, type StreetPart } from "../art/street";
 import { MOTION_RANGE_M } from "../art/street/paint";
 import { buildGrassTuft, buildSeedGrass, buildVergeCard, buildWildflowers } from "../art/street/verge";
@@ -82,6 +83,27 @@ const WIND_SPEED = 1.25;
 const WIND_WAVES = 0.8;
 const SINK_M = 0.04;
 
+/*
+ * Through the year (Reference, Leaves): the grass goes to straw as the leaves come down and greens again in the last
+ * days of April, tuft by tuft; a flower blooms from leaf-out until the leaves turn, its heads folding away outside that;
+ * fallen leaves lie at the tufts' feet; and deep snow buries a tuft, each at a depth of its own, since snow lays
+ * grass flat long before it's as deep as the grass is tall.
+ */
+const STRAW_ROLL = 31;
+const BLOOM_ROLL = 32;
+const LITTER_ROLL = 33;
+const BURIED_ROLL = 34;
+/** A tuft goes to straw once this share of the broadleaves or more is bare, by its roll. */
+const STRAWS_FROM = 0.55;
+const STRAW_SHARE = 0.85;
+/** A flower's bloom, by its roll, against the share in leaf and not yet turned. */
+const BLOOMS: [number, number] = [0.15, 0.85];
+/** Fallen leaves at a tuft's foot, up to this high, and how much of it they cover. */
+const LITTER_M = 0.3;
+const LITTER_SHARE = 0.75;
+/** The snow's depth that buries a tuft, from the first to the last. */
+const BURIED_CM: [number, number] = [3, 24];
+
 /** A tuft in a list is three rows of four floats. */
 const ROWS = 3;
 const FAR_DRAW = 0;
@@ -144,6 +166,8 @@ export interface VergeInputs {
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   litterColour: Node<"vec3">;
   tileM: number;
+  /** The season the grass, flowers and fallen leaves follow; summer if none. */
+  season?: SeasonLook;
 }
 
 export interface VergeDrawn {
@@ -161,7 +185,7 @@ export interface Verge {
   dispose: () => void;
 }
 
-export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, clearanceAt, lightOf, linear, hazed, litterColour, tileM }: VergeInputs): Verge {
+export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt, shoreAt, wallDistanceAt, clearanceAt, lightOf, linear, hazed, litterColour, tileM, season }: VergeInputs): Verge {
   const kinds: Kind[] = [
     { model: buildGrassTuft(), tallM: 0.62 },
     { model: buildSeedGrass(), tallM: 0.8 },
@@ -190,6 +214,9 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
   const strawOf = uniformArray(tufts.map(({ green, straw, strawShare }) => green.clone().lerp(straw, Math.min(1, strawShare * CARD_BLADES))));
   const palette = streetPalette(linear);
   const paint = streetPaint(palette);
+  const seasons = seasonNodes(season);
+  const straw = vec3(linear("autumn-straw"));
+  const fallenLeaves = vec3(linear("autumn-litter"));
 
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
@@ -264,8 +291,17 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const z = local.z.add(sway);
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
-      const wide = size.mul(WIDE);
-      material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(z.mul(yawSin)).mul(wide)), standing.y.add(local.y.mul(size)), standing.z.add(z.mul(yawCos).sub(local.x.mul(yawSin)).mul(wide)));
+      const tuftRoll = (salt: number) => unitOf(placeSeed(standing.xz), salt);
+      const buried = select(seasons.snowDepthCm.greaterThan(mix(float(BURIED_CM[0]), float(BURIED_CM[1]), tuftRoll(BURIED_ROLL))), float(0), float(1));
+      const bloom = changeOf(seasons.leafed.mul(float(1).sub(seasons.turned)), mix(float(BLOOMS[0]), float(BLOOMS[1]), tuftRoll(BLOOM_ROLL)));
+      // Out of bloom a flower's heads fold to nothing at its foot, leaving its leaves.
+      const shown = select(isPetal, bloom, float(1)).mul(buried);
+      const wide = size.mul(WIDE).mul(shown);
+      material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(z.mul(yawSin)).mul(wide)), standing.y.add(local.y.mul(size).mul(shown)), standing.z.add(z.mul(yawCos).sub(local.x.mul(yawSin)).mul(wide)));
+      // It browns as the leaves come down, and greens as the trees lose their autumn colour, before they leaf out.
+      const strawRoll = tuftRoll(STRAW_ROLL);
+      const strawed = min(changeOf(float(1).sub(seasons.leafed), mix(float(STRAWS_FROM), float(1), strawRoll)), changeOf(seasons.turned, strawRoll)).mul(STRAW_SHARE);
+      const littered = changeOf(seasons.fallen, tuftRoll(LITTER_ROLL)).mul(float(1).sub(smoothstep(float(0), float(LITTER_M), local.y.mul(size)))).mul(LITTER_SHARE);
 
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const foot = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), local.y.mul(size))), float(1), matched);
@@ -273,10 +309,13 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const kindOf = varying(int(round(carried.w)));
       const tip = palette.element(int(tipOf.element(kindOf) as unknown as Node<"float">)) as unknown as Node<"vec3">;
       const body = mix(greenOf.element(kindOf) as unknown as Node<"vec3">, strawOf.element(kindOf) as unknown as Node<"vec3">, select(part.equal(STRAW_BLADE), float(1), float(0)));
-      const painted = isFar ? mix(body, tip, select(isPetal, float(1), float(0))) : paint;
+      const summer = isFar ? mix(body, tip, select(isPetal, float(1), float(0))) : paint;
+      const painted = select(isPetal, summer, mix(mix(summer, straw.mul(isFar ? float(1) : tint.g.mul(255 / 128)), strawed), fallenLeaves, littered));
       // A flower holds its colour longer than the grass round it.
       const groundShare = mix(mix(float(GROUND_SHARE), float(1), matched), matched.mul(matched), select(isPetal, float(1), float(0)));
-      const lit = varying(mix(painted, colour.rgb, groundShare).mul(colour.w).mul(foot));
+      // The ground's share is the spring photo's colour, so it goes to straw with the grass.
+      const ground = mix(colour.rgb, straw.mul(colour.rgb.dot(vec3(1 / 3)).div(straw.dot(vec3(1 / 3)))), strawed);
+      const lit = varying(mix(painted, ground, groundShare).mul(colour.w).mul(foot));
       const live = varying(vec2(carried.y, carried.z));
       material.colorNode = hazed(lit);
       material.maskNode = (isFar ? pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)) : pattern.lessThan(live.y)).and(outsideCar());

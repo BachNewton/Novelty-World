@@ -120,7 +120,8 @@ export function createLiveSeason(start: SeasonDials): LiveSeason {
 /** The season's dials for a shader. */
 export function seasonNodes(season: SeasonLook = SUMMER): SeasonNodes {
   if (isLive(season)) return season.uniforms;
-  return Object.fromEntries(DIAL_NAMES.map((name) => [name, float(season[name])])) as SeasonNodes;
+  const dial = (value: number): Node<"float"> => float(value);
+  return Object.fromEntries(DIAL_NAMES.map((name) => [name, dial(season[name])])) as SeasonNodes;
 }
 
 /** The season's dials as the CPU sees them now. */

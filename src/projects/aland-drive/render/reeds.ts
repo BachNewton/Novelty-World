@@ -1,7 +1,9 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { cos, dot, float, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cos, dot, float, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
-import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
+import { buildReedClump, RURAL_PARTS, ruralColours, ruralPaint } from "../art/rural";
+import { placeSeed, unitOf } from "../art/hash";
+import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
 import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
@@ -81,6 +83,13 @@ const SEEDS = [1, 2, 3];
 /** Shores in view are a small part of what's in reach: lists hold this share of its places. */
 const MOST_CLUMPS = 0.1;
 
+/**
+ * This year's green goes to straw with the autumn, clump by clump, once this share of the broadleaves or more is bare,
+ * and the bed stands straw-gold through the winter, out of the snow and the ice, until the new green in May.
+ */
+const STRAWS_FROM = 0.3;
+const STRAW_ROLL = 41;
+
 /** The far clump is painted by height in these bands, each the near clump's own mean colour there. */
 const BAND_TOPS_M = [0.4, 0.9, 1.4, 1.9, 3.2];
 
@@ -99,6 +108,8 @@ export interface ReedInputs {
   lightOf: (shade: Node<"float">) => Node<"float">;
   linear: (name: string) => Vector3;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
+  /** The season the green goes to straw by; summer if none. */
+  season?: SeasonLook;
 }
 
 export interface ReedsDrawn {
@@ -115,12 +126,16 @@ export interface Reeds {
   dispose: () => void;
 }
 
-export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, clearanceAt, lightOf, linear, hazed }: ReedInputs): Reeds {
+export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, clearanceAt, lightOf, linear, hazed, season }: ReedInputs): Reeds {
   const clumps = SEEDS.map((seed) => buildReedClump(seed));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
   const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours, BAND_TOPS_M)));
+  const [green, straw] = [RURAL_PARTS.indexOf("reed-green"), RURAL_PARTS.indexOf("reed-straw")];
+  const strawColours = colours.map((colour, part) => (part === green ? colours[straw] : colour));
+  const strawBandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, strawColours, BAND_TOPS_M)));
+  const seasons = seasonNodes(season);
   const spreadOfClump = uniformArray(clumps.map(({ near }) => spreadOf(near)), "float");
 
   const far = Math.ceil(LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0) * MOST_CLUMPS);
@@ -181,9 +196,17 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
       const isFar = index < FAR_DRAWS;
       // The model's own height, before the clump's size, picks the band, as it did when the bands were measured.
       const band = BAND_TOPS_M.slice(0, -1).reduce((at: Node<"float">, top) => at.add(select(local.y.greaterThanEqual(top), float(1), float(0))), float(0));
-      const painted = isFar ? (bandsOf.element(int(round(live.w.mul(BAND_TOPS_M.length).add(band)))) as unknown as Node<"vec3">) : paint;
+      const strawed = changeOf(float(1).sub(seasons.leafed), mix(float(STRAWS_FROM), float(1), unitOf(placeSeed(standing.xz), STRAW_ROLL)));
+      const bandAt = int(round(live.w.mul(BAND_TOPS_M.length).add(band)));
+      const tint = attribute<"vec4">("tint", "vec4");
+      const strawPaint = select(round(tint.r.mul(255)).equal(green), vec3(colours[straw]).mul(tint.g.mul(255 / 128)), paint);
+      const painted = isFar
+        ? mix(bandsOf.element(bandAt) as unknown as Node<"vec3">, strawBandsOf.element(bandAt) as unknown as Node<"vec3">, strawed)
+        : mix(paint, strawPaint, strawed);
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
-      const coloured = mix(painted, look.rgb, mix(float(GROUND_SHARE), float(1), matched));
+      // The photo is spring's, so the bed it shows goes to straw with the clumps.
+      const photo = mix(look.rgb, vec3(colours[straw]).mul(look.rgb.dot(vec3(1 / 3)).div((colours[straw].x + colours[straw].y + colours[straw].z) / 3)), strawed);
+      const coloured = mix(painted, photo, mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(varying(coloured.mul(look.w)));
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());

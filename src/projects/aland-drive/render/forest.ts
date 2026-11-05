@@ -1,9 +1,12 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
-import { seedOf, unitOf } from "../art/hash";
-import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
-import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
+import { placeSeed, seedOf, unitOf } from "../art/hash";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
+import { seasonNodes, type SeasonLook } from "../art/season";
+import { flatNormal } from "../art/flat-normal";
+import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, LEAF_ROLL, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, SNOW_ROLL, SPECIES_ROLL, STAND_ROLL } from "./tree-place";
+import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, SPECIES, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
 import { foliageLight } from "./foliage-light";
 import { towardsSun } from "../art/sun";
 import { viewSides } from "./view-sides";
@@ -118,6 +121,12 @@ const BRIGHTNESS_ROLL: [number, number] = [0.86, 1.12];
 /** How far a tree's leaves lean yellow or blue, either way. */
 const HUE_ROLL = 0.07;
 
+/** How much snow a bare broadleaf's twigs hold, against a conifer's crown, and how much each tree's own share varies. */
+const TWIG_SNOW = 0.4;
+const SNOW_ROLLED: [number, number] = [0.65, 1];
+/** The share of a bare crown's pixels left open, so it reads as a see-through mass of twigs rather than a solid one. */
+const BARE_OPEN = 0.5;
+
 /** A stand for a scene with no tile: Åland's own mix of pine, spruce and birch, at every place. */
 const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
 
@@ -210,6 +219,8 @@ export interface ForestInputs {
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   sun: Sun;
+  /** The season the broadleaves turn and fall by and the snow lies in; summer if none. */
+  season?: SeasonLook;
   /** The forest lab's colours in place of a tree's own. The game passes none, and its shaders hold none of this. */
   paint?: (tree: PaintedTree) => Node<"vec3">;
 }
@@ -244,15 +255,29 @@ export interface Forest {
   dispose: () => void;
 }
 
-export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, clearanceAt, colour, hazed, sun, paint }: ForestInputs): Forest {
+export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, clearanceAt, colour, hazed, sun, season, paint }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
   const anchor = uniform(new Vector2());
   const placesAcross = uniform(1, "uint");
   const view = viewSides(WORLD_HEIGHTS_M, WIDEST_CROWN_M);
   const { sides } = view;
   const toSun = towardsSun(sun);
+  const seasons = seasonNodes(season);
+  // A tree's species within its shape, as when its leaves go and their autumn colour: the first that fits wins.
+  const speciesOf = (kind: Node<"float">, pick: Node<"float">) =>
+    (["birch", "round", "upright"] as const)
+      .flatMap((shape) => SPECIES[shape].map((species, at, all) => ({ ...species, shape, below: at === all.length - 1 ? 2 : all.slice(0, at + 1).reduce((sum, { share }) => sum + share, 0) })))
+      .reduceRight(
+        (chosen, { shape, below, goes, autumn }) => {
+          const is = kind.equal(kindAt(shape)).and(pick.lessThan(below));
+          return { goes: select(is, vec2(...goes), chosen.goes), autumn: select(is, colour(autumn), chosen.autumn) };
+        },
+        { goes: vec2(0, 1) as Node<"vec2">, autumn: colour("tree-birch") },
+      );
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
+  // A bare crown's open pixels are a band of the same pattern, so the two versions in a crossfade leave the same ones open.
+  const twigPattern = fract(pattern.add(0.5));
 
   const turnedShape = turned(NEAR_RINGS, NEAR_SIDES, false);
   const coneShape = turned(FAR_RINGS, FAR_SIDES, true);
@@ -371,6 +396,15 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
     const yaw = carried.x;
     const unit = attribute<"vec3">("position", "vec3");
+
+    // The season: a broadleaf turns, then goes bare to a narrower twig crown, and leafs out fresh; a conifer only holds snow.
+    const seasonRoll = (salt: number) => unitOf(placeSeed(place), salt);
+    const broadleaf = kind.greaterThan(kindAt("birch").sub(0.5));
+    const species = speciesOf(kind, seasonRoll(SPECIES_ROLL));
+    const leaves = leavesOf(seasons, mix(species.goes.x, species.goes.y, seasonRoll(LEAF_ROLL)));
+    const inLeaf = select(broadleaf, leaves.inLeaf, float(1)).toVar();
+    const inCrown = name === "cone" ? float(1) : select(unit.y.greaterThan(TRUNK_RINGS - 0.5), float(1), float(0));
+    const twigs = mix(float(1), mix(float(BARE_SPREAD), float(1), inLeaf), inCrown);
     const radial = vec2(unit.x.mul(cos(yaw)).sub(unit.z.mul(sin(yaw))), unit.x.mul(sin(yaw)).add(unit.z.mul(cos(yaw))));
     const table = storage(shapes, "vec4", shapes.count).toReadOnly();
     const shapeAt = (row: Node<"float">) => table.element(uint(row.mul(rings).add(unit.y)));
@@ -380,7 +414,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     // Those left past the thinning fill out to cover for the rest, so the forest keeps its weight.
     const filling = smoothstep(knobs.fullReach.add(THINNING[0]), knobs.fullReach.add(bandEnd(THINNING)), place.sub(cameraSpot).length());
     const fill = name === "cone" ? mix(float(1), sqrt(float(1).div(knobs.farDensity)), filling).mul(CONE_FILL) : float(1);
-    const width = shape.y.mul(fill).mul(treeRoll.sub(0.5).mul(2 * CROWN_SPREAD).add(1));
+    const width = shape.y.mul(fill).mul(treeRoll.sub(0.5).mul(2 * CROWN_SPREAD).add(1)).mul(twigs);
     // A rock pine's rings wander from straight, each its own way, though its foot stays where it grew.
     const wander = vec2(sin(unit.y.mul(2.1).add(yaw)), cos(unit.y.mul(1.3).add(yaw.mul(2)))).mul(rocky).mul(GNARL).mul(smoothstep(float(0), float(0.3), rise));
     const across = radial.mul(width).add(growing.zw.mul(rise).mul(rise)).add(wander).mul(height);
@@ -389,27 +423,32 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
     const live = varying(carried.zw);
     const kindHere = varying(kind);
-    const ofKind = (colours: Record<TreeKind, Node<"vec3">>) => TREE_KINDS.slice(1).reduce((picked, other, at) => select(kindHere.greaterThan(at + 0.5), colours[other], picked), colours.spruce);
+    const ofKind = (colours: Record<TreeKind, Node<"vec3">>, which: Node<"float"> = kindHere) => TREE_KINDS.slice(1).reduce((picked, other, at) => select(which.greaterThan(at + 0.5), colours[other], picked), colours.spruce);
     // Sharp at once, or a crown's underside takes the colour of the trunk it spreads from.
     const leafy = name === "cone" ? float(1) : smoothstep(float(0), float(0.08), varying(unit.y.sub(TRUNK_RINGS - 1).clamp(0, 1)));
-    const leaf = ofKind({ spruce: colour("tree-spruce"), pine: colour("tree-pine"), birch: colour("tree-birch"), round: colour("tree-round"), upright: colour("tree-upright") });
+    const summer = ofKind({ spruce: colour("tree-spruce"), pine: colour("tree-pine"), birch: colour("tree-birch"), round: colour("tree-round"), upright: colour("tree-upright") }, kind);
+    const turnedTo = mix(mix(summer, colour("tree-fresh"), leaves.fresh.mul(FRESH_SHARE)), species.autumn, leaves.turned);
+    const leaf = varying(select(broadleaf, mix(colour("tree-twig"), turnedTo, inLeaf), summer));
+    const snowHeld = varying(snowHeldOf(seasons, seasonRoll(SNOW_ROLL)).mul(select(broadleaf, float(1).sub(inLeaf).mul(TWIG_SNOW), float(1))).mul(mix(float(SNOW_ROLLED[0]), float(SNOW_ROLLED[1]), treeRoll)));
     const riseHere = varying(rise);
     // A pine's bark turns from grey-brown to fox red up its trunk, and a birch's is dark at the foot.
     const pineBark = mix(colour("tree-bark"), colour("tree-pine-bark"), smoothstep(float(0.08), float(0.34), riseHere));
     const birchBark = mix(colour("tree-bark"), colour("tree-birch-bark"), smoothstep(float(0.03), float(0.1), riseHere));
     const bark = ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") });
     const hue = varying(fract(treeRoll.mul(7.31)).sub(0.5).mul(2 * HUE_ROLL));
-    const natural = mix(bark, leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), leafy);
+    const crown = mix(leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), colour("tree-snow"), snowHeld.mul(snowOnFace(flatNormal().y)));
+    const natural = mix(bark, crown, leafy);
     const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
     const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
     // Birch and broadleaf let the sun through; conifers don't.
-    const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy, float(0));
+    const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy.mul(varying(inLeaf)), float(0));
     const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
     const ownShade = varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
     const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
-    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(outsideCar());
+    const open = varying(float(1).sub(inLeaf).mul(BARE_OPEN)).mul(leafy);
+    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(twigPattern.greaterThanEqual(open)).and(outsideCar());
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;

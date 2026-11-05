@@ -1,22 +1,43 @@
-import type { Mesh, Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
-import { bakeCrowd, crowdMeshes, crowdOf, peopleMaterials, type CrowdArrays } from "../art/people/index";
+import type { Mesh, MeshBasicNodeMaterial, Node, Scene } from "three/webgpu";
+import { attribute, float, select, uniform } from "three/tsl";
+import { crowdMeshes, crowdOf, peopleMaterials, type CrowdArrays } from "../art/people/index";
 import type { RoadsideInputs } from "../art/roadside/index";
+import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
+import { SEASON_KINDS, tileCrowd } from "./tile-people";
 
 /*
  * The people the pipeline placed (`pipeline/people.py`), each tile's baked in its worker
  * as one crowd (`render/tile-people.ts`): three draws a tile with anyone on it, landing
  * and leaving with the tile's detail. Every figure's detail is its own, by its distance
- * in the kit's shader, so a tile's crowd is never swapped whole.
+ * in the kit's shader, so a tile's crowd is never swapped whole. Someone there only in
+ * a season (a café's sitters, a sunbather, someone at a boat) folds to their place in
+ * the vertex shader out of it, by the season each vertex carries (`tile-people.ts`).
  */
 
-export function createPeople(scene: Scene, inputs: RoadsideInputs) {
+/** A copy of one of the kit's materials whose people fold away out of their season. */
+function seasonal(material: MeshBasicNodeMaterial, season: SeasonLook): MeshBasicNodeMaterial {
+  const placed = material.positionNode;
+  if (placed === null) throw new Error("the people's material has no positionNode to fold");
+  const place = attribute<"vec4">("place", "vec4");
+  const kept = attribute<"vec2">("season", "vec2");
+  const dials = seasonNodes(season);
+  const kind = kept.x.round();
+  const share = SEASON_KINDS.reduce<Node<"float">>((chosen, { dial }, at) => select(kind.equal(at + 1), dials[dial], chosen), float(1));
+  const copy = material.clone();
+  copy.positionNode = select(kind.equal(0).or(changeOf(share, kept.y).greaterThan(0.5)), placed, place.xyz);
+  return copy;
+}
+
+export function createPeople(scene: Scene, inputs: RoadsideInputs, season?: SeasonLook) {
   const time = uniform(0);
-  const materials = peopleMaterials({ ...inputs, time });
+  const kit = peopleMaterials({ ...inputs, time });
+  const materials = season === undefined ? kit : { near: seasonal(kit.near, season), far: seasonal(kit.far, season), shadow: seasonal(kit.shadow, season) };
   const crowds = new Map<string, { meshes: Mesh[]; figures: number; triangles: number }>();
   let shown = true;
   // One figure out of sight, so the materials' pipelines are built with the rest before the drive.
-  const standIn = crowdMeshes(bakeCrowd([{ x: 0, y: -1e4, z: 0, seed: 0, pose: "stand" }]), materials);
+  const standInArrays = tileCrowd([{ figures: [[0, -1e4, 0, 0, "stand", 0]] }]);
+  if (standInArrays === null) throw new Error("the stand-in crowd has no one in it");
+  const standIn = crowdMeshes(crowdOf(standInArrays), materials);
   for (const mesh of standIn) {
     mesh.visible = false;
     scene.add(mesh);

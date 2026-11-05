@@ -1,6 +1,7 @@
-import { float, mix, select, smoothstep } from "three/tsl";
+import { float, If, mix, select, smoothstep } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { seedOf, unitOf } from "../hash";
+import { farDressing, windowDressing, type PaneFrame, type WinterWall } from "./festive";
 import { nightColour, type F, type Night, type V3 } from "./night";
 
 /*
@@ -33,6 +34,8 @@ export interface WindowPane {
   up: F;
   /** 1 while panes can be seen, 0 once they've faded to wall. */
   shown: F;
+  /** The season's lights, and the pane in its own metres, for a wall whose windows may hold a candlestick or a star. */
+  winter?: { wall: WinterWall; frame: PaneFrame };
 }
 
 /** 1 for a room lit now. */
@@ -43,21 +46,31 @@ function roomLit(night: Night, room: Node<"uint">): F {
 }
 
 /** Added to a wall's colour after its haze, wherever the pane's mask is. */
-export function windowLight(night: Night, { id, building, up, shown }: WindowPane): V3 {
+export function windowLight(night: Night, { id, building, up, shown, winter }: WindowPane): V3 {
   const room = seedOf(id, building);
   const lit = roomLit(night, room).mul(homeIn(building));
   const hue = unitOf(room, 4);
   const warm = mix(mix(nightColour("window-amber"), nightColour("window-warm"), hue.mul(3).clamp(0, 1)), nightColour("window-pale"), hue.sub(0.4).mul(1.6).clamp(0, 1));
   const colour: V3 = select(hue.greaterThan(1 - SCREEN_SHARE), nightColour("window-screen").mul(0.75), warm);
   const shade = mix(float(PANE_FOOT), float(1), up.clamp(0, 1)).mul(unitOf(room, 5).mul(0.55).add(0.55));
-  return colour.mul(lit).mul(shade).mul(GLOW).mul(shown);
+  const roomLight = colour.mul(lit).mul(shade).mul(GLOW).mul(shown);
+  if (winter === undefined) return roomLight;
+  // Out of season every wall skips the dressing's sums: the dial is a uniform, so the branch is the same for every pixel.
+  const light = roomLight.toVar();
+  If(winter.wall.season.lightsWindows.greaterThan(0), () => {
+    const { glow, cover } = windowDressing(night, winter.wall, building, room, winter.frame);
+    light.assign(roomLight.mul(float(1).sub(cover)).add(glow.mul(shown)));
+  });
+  return light;
 }
 
 /** Added to a wall past where its panes have faded: a house with people in it, warm and faint, so a town doesn't go dark at a distance. */
-export function farWindowLight(night: Night, building: F, shown: F): V3 {
+export function farWindowLight(night: Night, building: F, shown: F, winter?: WinterWall): V3 {
   const fill = unitOf(seedOf(building), 6).mul(0.7).add(0.3);
   const evening = night.lampsOn.mul(float(1).sub(night.late.mul(0.45)));
-  return nightColour("window-warm").mul(homeIn(building).mul(fill).mul(evening).mul(float(1).sub(shown)).mul(FAR_GLOW));
+  const rooms = nightColour("window-warm").mul(homeIn(building).mul(fill).mul(evening).mul(FAR_GLOW));
+  const dressed = winter === undefined ? rooms : rooms.add(farDressing(night, winter, building));
+  return dressed.mul(float(1).sub(shown));
 }
 
 /** A sign, or a shopfront's lit board: its own colour by day, the same colour lit from within after dark, with the night's sign white where `mask` says the lettering is. */

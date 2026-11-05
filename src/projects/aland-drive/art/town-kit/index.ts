@@ -1,4 +1,5 @@
 export { buildBicycle, type BikeFrame } from "./bicycle";
+export { buildChristmasTree, CHRISTMAS_TREE_TALL_M, christmasTreeLights } from "./christmas-tree";
 export { buildBalticFerry, FERRY_BERTH, ferryPlace, sceneOf, yawForBearing } from "./ferry";
 export { buildRoadFerry } from "./road-ferry";
 export { buildHangingLamp, buildTownLamp, buildWindowBox } from "./lamps";

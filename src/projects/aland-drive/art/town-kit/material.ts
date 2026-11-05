@@ -65,6 +65,10 @@ const PAINT: Record<TownPart, { from: string; to?: string; share?: number; gain?
   "ferry-funnel-top": { from: "car-tyre", gain: 1.5 },
   "ferry-lifeboat": { from: "ferry-lifeboat" },
   "ferry-steel": { from: "wall-grey", to: "wall-plinth", share: 0.4 },
+  spruce: { from: "tree-spruce", gain: 1.05 },
+  "spruce-shade": { from: "tree-spruce", gain: 0.62 },
+  "spruce-bark": { from: "tree-pine-bark", gain: 0.85 },
+  "tree-star": { from: "plate-yellow", to: "wall-trim", share: 0.3, gain: 1.1 },
 };
 
 const AMBIENT = 0.68;

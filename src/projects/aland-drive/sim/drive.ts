@@ -123,6 +123,11 @@ export class SimulatedCar {
     return this.car.surfaces;
   }
 
+  /** The condition of what each wheel was on, in the same order: the weather's, or ice on the frozen sea. */
+  conditions(): readonly Condition[] {
+    return this.car.conditions;
+  }
+
   /** How each wheel's tyre met the ground on the last step, in the same order. */
   treads(): readonly Readonly<Tread>[] {
     return this.car.treads;
@@ -138,7 +143,7 @@ export class SimulatedCar {
   }
 
   private overWater(x: number, z: number): boolean {
-    if (!this.world.isWater(x, z)) return false;
+    if (!this.world.isWater(x, z) || this.world.bearsCar(x, z)) return false;
     const road = this.world.roads.nearest(x, z);
     return !road || road.distance > 6;
   }

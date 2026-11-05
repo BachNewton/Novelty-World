@@ -4,6 +4,8 @@ import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { facetLight, footShade, screenPattern, seedAt, SWAP_SPREAD, type RoadsideInputs, type RoadsideMaterials } from "../roadside/index";
 import { band } from "../surfaces";
+import { snowfall, snowOnTop } from "../surfaces/snow";
+import type { SeasonLook } from "../season";
 import { BRACES, GABLE_PAINTS, TRIM_WIDTHS } from "./buildings";
 import { HIDE_GONE_M } from "./farm";
 import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPart } from "./mesh";
@@ -29,6 +31,10 @@ import { PAINT, PAINTED_FROM, PATTERNS, RURAL_PARTS, type Pattern, type RuralPar
 const DISSOLVE_SHARE = 0.18;
 /** How much of its reach a place takes to grow to full size. */
 const GROW_SHARE = 0.2;
+
+/** The range each place's snow threshold is rolled in: a shed's roof, a deck or a stone's top whitens with the land round it. */
+const SNOW_FROM = [0.08, 0.8] as const;
+const SNOW_SALT = 5531;
 
 /** The share of Åland sheep whose horns are kept: ewes of the landrace can have them. */
 const HORNED = 0.2;
@@ -247,7 +253,7 @@ function gablePainted(base: Node<"vec3">, paint: (part: RuralPart) => Node<"vec3
   return mix(mix(doored, paint("glass"), glass), trim, glazingBar);
 }
 
-function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
+function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonLook | undefined): MeshBasicNodeMaterial {
   const { linear, colour, hazed, sun } = inputs;
   const place = attribute<"vec4">("place", "vec4");
   const fit = attribute<"vec4">("fit", "vec4");
@@ -339,12 +345,15 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
         return painted;
       })();
 
-  material.colorNode = hazed(surfaced.mul(lit).mul(grounded));
+  // An animal is out only in its season, and wears no snow: everything else takes it on what faces up, each place on its own threshold.
+  const animal = kind.equal(pattern("fleece")).or(kind.equal(pattern("hide")));
+  const snowed = select(animal, surfaced, snowOnTop(surfaced, snowfall(season, colour), normal.y, mix(float(SNOW_FROM[0]), float(SNOW_FROM[1]), unitOf(seed, SNOW_SALT))));
+  material.colorNode = hazed(snowed.mul(lit).mul(grounded));
   material.side = DoubleSide;
   return material;
 }
 
 /** The kit's materials, made once for the game; all its models share them, and `placeModel` takes them as they are. */
-export function ruralMaterials(inputs: RoadsideInputs): RoadsideMaterials {
-  return { near: placedMaterial(inputs, true), far: placedMaterial(inputs, false) };
+export function ruralMaterials(inputs: RoadsideInputs, season?: SeasonLook): RoadsideMaterials {
+  return { near: placedMaterial(inputs, true, season), far: placedMaterial(inputs, false, season) };
 }
