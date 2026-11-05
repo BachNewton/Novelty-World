@@ -151,6 +151,15 @@ class Lanes(unittest.TestCase):
         paved = lane_map(east_west_with_side_road(short_of_m=5), aprons=corner)
         self.assertFalse([issue for issue in paved.issues if issue["kind"] == "off-road"])
 
+    def test_a_turn_through_a_narrow_mouth_keeps_to_the_paving_rather_than_cutting_the_corner_over_the_grass(self):
+        # The side road's mouth is paved only as wide as the road itself, so a curve swinging from its lane to the street's cuts the corner.
+        mouth = [np.array([[x0, y0, 0.0], [x1, y1, 0.0], [x2, y2, 0.0]]) for (x0, y0), (x1, y1), (x2, y2) in (((-2.5, -3), (2.5, -3), (2.5, -8.2)), ((-2.5, -3), (2.5, -8.2), (-2.5, -8.2)))]
+        lanes = lane_map(east_west_with_side_road(short_of_m=5), aprons=mouth)
+        turns = [found for found in lanes.connectors if found.turn in ("left", "right")]
+        self.assertTrue(turns)
+        for found in turns:
+            self.assertLessEqual(float(lanes.surface.off_paving(found.points).max()), 0.1, f"the {found.turn} turn leaves the paving")
+
 
 if __name__ == "__main__":
     unittest.main()

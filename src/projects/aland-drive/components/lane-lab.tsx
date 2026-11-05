@@ -27,7 +27,7 @@ const LEGEND = [
   { token: "lane-path", label: "Path lane" },
   { token: "lane-priority", label: "Has right of way" },
   { token: "lane-yield", label: "Gives way" },
-  { token: "lane-off", label: "Leaves the drawn road" },
+  { token: "lane-off", label: "Gap in the road surface" },
   { token: "lane-back", label: "Turns round" },
   { token: "lane-issue", label: "Audit finding" },
 ];

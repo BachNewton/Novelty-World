@@ -228,15 +228,50 @@ def turn_of(into: np.ndarray, out: np.ndarray) -> tuple[str, float]:
     return ("left" if angle > 0 else "right"), angle
 
 
-def hermite(start: np.ndarray, start_way: np.ndarray, end: np.ndarray, end_way: np.ndarray) -> np.ndarray:
-    """A curve on the ground from one point and way to another, a sample every metre or so: as near a circle's arc as a cubic gets."""
+def hermite(start: np.ndarray, start_way: np.ndarray, end: np.ndarray, end_way: np.ndarray, reach: float = 1.0) -> np.ndarray:
+    """A curve on the ground from one point and way to another, a sample every metre or so: as near a circle's arc as a cubic gets, or
+    with `reach` under 1 holding each way for less of the curve, so it swings out less."""
     gap = float(np.hypot(*(end - start)))
     turn = abs(math.atan2(start_way[0] * end_way[1] - start_way[1] * end_way[0], float(start_way @ end_way)))
-    handle = gap if turn < 1e-3 else 2 * gap * math.tan(turn / 4) / math.sin(turn / 2)
+    handle = (gap if turn < 1e-3 else 2 * gap * math.tan(turn / 4) / math.sin(turn / 2)) * reach
     count = max(2, math.ceil(gap * 1.3 / STEP_M) + 1)
     t = np.linspace(0, 1, count)[:, None]
     h00, h10, h01, h11 = 2 * t**3 - 3 * t**2 + 1, t**3 - 2 * t**2 + t, -2 * t**3 + 3 * t**2, t**3 - t**2
     return h00 * start + h10 * start_way * handle + h01 * end + h11 * end_way * handle
+
+
+def straight_run(start: np.ndarray, end: np.ndarray) -> np.ndarray:
+    """A straight line on the ground, a sample every metre or so, both ends included."""
+    count = max(2, math.ceil(float(np.hypot(*(end - start))) / STEP_M) + 1)
+    return start + np.linspace(0, 1, count)[:, None] * (end - start)
+
+
+def corner_of(start: np.ndarray, into: np.ndarray, end: np.ndarray, out: np.ndarray) -> np.ndarray | None:
+    """Where the line a lane comes in on meets the line the next leaves on, if it lies ahead of the one and behind the other."""
+    across = into[0] * out[1] - into[1] * out[0]
+    if abs(across) < 1e-6:
+        return None
+    gap = end - start
+    ahead = (gap[0] * out[1] - gap[1] * out[0]) / across
+    behind = (into[0] * gap[1] - into[1] * gap[0]) / across
+    if ahead <= 0 or behind <= 0:
+        return None
+    return start + into * ahead
+
+
+def cornered(start: np.ndarray, into: np.ndarray, corner: np.ndarray, end: np.ndarray, out: np.ndarray, reach: float) -> np.ndarray:
+    """In along one lane's line to `reach` short of the corner, round it, and out along the other's: the corner rounded `reach` metres each way."""
+    near, far = corner - into * reach, corner + out * reach
+    arc = hermite(near, into, far, out) if reach > 1e-3 else corner[None, :]
+    return np.concatenate([straight_run(start, near)[:-1], arc, straight_run(far, end)[1:]])
+
+
+# How much of the room either side of a corner a turn may round it by, widest first: the widest that stays on the paving.
+ROUNDINGS = (1.0, 0.8, 0.6, 0.45, 0.3, 0.2, 0.1, 0.0)
+# A turn's line keeps this close to the paving: the middle of a lane, not a wheel.
+ON_PAVING_M = 0.1
+# A corner further from a turn's ends than this many times the gap between them is two lines nearly parallel, not a corner.
+CORNER_REACH = 2.0
 
 
 class Surface:
@@ -650,7 +685,7 @@ class LaneMap:
         if come.chain is go.chain and come.forward == go.forward and turn == "straight":
             ground = self.along_chain(come, go)
         else:
-            ground = hermite(start[:2], into, end[:2], out)
+            ground = self.turn_on_paving(start[:2], into, end[:2], out, dead_end)
         expected = np.interp(np.linspace(0, 1, len(ground)), (0, 1), (start[2], end[2]))
         heights = self.surface.top_heights(ground, expected)
         bare = np.isnan(heights)
@@ -658,6 +693,31 @@ class LaneMap:
         points = np.column_stack((ground, heights))
         points[0], points[-1] = start, end
         self.connectors.append(Connector(junction, source, target, points, "back" if dead_end else turn, arms))
+
+    def turn_on_paving(self, start: np.ndarray, into: np.ndarray, end: np.ndarray, out: np.ndarray, dead_end: bool) -> np.ndarray:
+        """A turn that stays on the paving: the smooth curve from one lane to the next where that's on it, else one built from the two
+        roads, in along its lane's line and out along the next one's with the corner where they meet rounded as widely as the paving
+        allows, else the curve swung out less. A turn that stays on at none of them keeps the one that leaves it least: that is the road
+        surface's fault, which the audit lists. Turning round at a dead end stands in for however a driver turns in a drive, and is the
+        plain curve."""
+        smooth = hermite(start, into, end, out)
+        if dead_end:
+            return smooth
+        tries = [smooth]
+        corner = corner_of(start, into, end, out)
+        gap = float(np.hypot(*(end - start)))
+        if corner is not None and max(np.hypot(*(corner - start)), np.hypot(*(end - corner))) <= CORNER_REACH * max(gap, 1.0):
+            room = min(float(np.hypot(*(corner - start))), float(np.hypot(*(end - corner))))
+            tries += [cornered(start, into, corner, end, out, room * share) for share in ROUNDINGS]
+        tries += [hermite(start, into, end, out, share) for share in ROUNDINGS[1:] if share > 0]
+        best, least = tries[0], math.inf
+        for ground in tries:
+            off = float(self.surface.off_paving(ground).max())
+            if off <= ON_PAVING_M:
+                return ground
+            if off < least:
+                best, least = ground, off
+        return best
 
     def along_chain(self, come: Lane, go: Lane) -> np.ndarray:
         """Straight on along one road: the lane's own line across the junction, on the drawn road."""
