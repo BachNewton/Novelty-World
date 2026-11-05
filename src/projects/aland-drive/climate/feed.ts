@@ -1,16 +1,15 @@
 import { conditionAsked, type Condition } from "../sim/surfaces";
 import { dateOfDayNumber, parseDate, type CalendarDate } from "./calendar";
+import { GAME_DAY_S } from "../time/day";
 import { weatherAt, type ClimateTime } from "./weather";
 
 /*
  * The climate's time from the world's clock (`sea/clock.ts`), and the ground's condition the drive reads from it.
  *
- * This is the climate's own reading of the clock until the game's day (`time/day.ts`) lands: then its date, hour and
- * `GAME_DAY_S` take the place of the three below, and a page whose hour is moved reads the weather at that hour.
+ * The game day's length is the day's own (`time/day.ts`). The date and hour are still the climate's own reading of the
+ * clock, so a page whose hour is moved by `?hour=` or the dev menu doesn't yet read the weather at that hour.
  */
 
-/** Seconds a game day lasts: `time/day.ts`'s `GAME_DAY_S`. */
-const GAME_DAY_S = 3600;
 /** Åland's clocks against UTC, ignoring summer time: it moves only the hour the date turns over, by one. */
 const ALAND_OFFSET_DAYS = 2 / 24;
 
