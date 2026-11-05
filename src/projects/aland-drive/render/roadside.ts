@@ -1,5 +1,5 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
-import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, placeVersion, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
+import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, placeVersion, placeWires, SWAP_SPREAD, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
 import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../art/identity/index";
 import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, LINDEN_SEEDS, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
@@ -55,8 +55,8 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
 
 /** How far the camera moves before the near lists are written again, and how far past its range each holds its places. */
 const NEAR_MARGIN_M = 60;
-/** The two versions trade pixels up to a tenth past the swap. */
-const PAST_SWAP = 1.1;
+/** A place swaps up to `SWAP_SPREAD` past its model's swap, and the two versions trade pixels up to a tenth past that. */
+const PAST_SWAP = (1 + SWAP_SPREAD) * 1.1;
 const nearRangeM = (model: RoadsideModel) => (model.far === null ? model.reachM : model.swapM * PAST_SWAP) + NEAR_MARGIN_M;
 
 /** A list with no places keeps one folded to nothing, so its meshes always exist to be compiled before the drive. */

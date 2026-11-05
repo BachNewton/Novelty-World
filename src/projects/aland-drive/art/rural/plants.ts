@@ -124,7 +124,8 @@ export function buildBirch(seed = 1, form: BirchForm = "silver"): RoadsideModel 
   const lowest = Math.min(...crown.map(([up]) => up));
   const far = new RuralMesh().tube([0, -0.03, 0], [0, lowest, 0], 0.02, 3, { radiusTo: 0.012 }, "birch-bark");
   blob(far, [0, (lowest + 1) / 2, 0], 0.16, 1 - lowest, 3, random, "birch-leaf");
-  return finished(near, far, 150, 1100);
+  // One unit tall, so its swap and reach are a unit-tall tree's: a place scales them with its height.
+  return finished(near, far, 30, 220);
 }
 
 const CLUMP_STEMS = 22;
@@ -137,8 +138,8 @@ const UNDER_WATER_M = 0.3;
  * stems with this year's green among them, leaves out from the stems, and plumes on
  * the tallest. Every stem and leaf is one opaque triangle turned its own way, as a
  * verge's blades are, so the clump is round from any side, never a card. Its y 0 is
- * the water. Its far version is three points of a clump, as tall as the near's, for
- * a renderer to paint in the near's own colours.
+ * the water. Its far version is three points of a clump on two crossed cards, as tall
+ * as the near's, for a renderer to paint in the near's own colours.
  */
 export function buildReedClump(seed = 1): RoadsideModel {
   const random = seeded(seed * 7919 + 23);
@@ -179,9 +180,13 @@ export function buildReedClump(seed = 1): RoadsideModel {
     near.solid([top, [middle[0] - sideX, middle[1], middle[2] - sideZ], [middle[0] + sideX, middle[1], middle[2] + sideZ], tip], [[0, 1, 2], [1, 3, 2]], "reed-plume", () => 1);
   }
 
+  // On two cards crossed, so the far clump stands seen from any side, as the near one does.
   const far = new RuralMesh({ grounded: false });
-  for (const [x, tall, lean] of [[-0.24, 1.8, -0.12], [0, 2.2, 0.05], [0.26, 1.95, 0.14]]) {
-    far.solid([[x - 0.17, -UNDER_WATER_M, 0], [x + 0.17, -UNDER_WATER_M, 0], [x + lean, tall, 0]], [[0, 1, 2]], "reed-straw", ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+  for (const turned of [false, true]) {
+    const at = (across: number, up: number): V3 => (turned ? [0, up, across] : [across, up, 0]);
+    for (const [x, tall, lean] of [[-0.24, 1.8, -0.12], [0, 2.2, 0.05], [0.26, 1.95, 0.14]]) {
+      far.solid([at(x - 0.17, -UNDER_WATER_M), at(x + 0.17, -UNDER_WATER_M), at(x + lean, tall)], [[0, 1, 2]], "reed-straw", ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+    }
   }
   return finished(near, far, 60, 900);
 }
