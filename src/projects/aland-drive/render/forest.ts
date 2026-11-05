@@ -4,8 +4,10 @@ import { outsideCar } from "../art/car-volume";
 import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
-import { foliageLight, towardsSun } from "./foliage-light";
+import { foliageLight } from "./foliage-light";
+import { towardsSun } from "../art/sun";
 import { viewSides } from "./view-sides";
+import { type Sun } from "../art/sun";
 
 /*
  * The forest, with no list of trees anywhere: a tree is a place on a lattice of the
@@ -207,7 +209,7 @@ export interface ForestInputs {
   clearanceAt?: (place: Node<"vec2">) => Node<"float">;
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
   /** The forest lab's colours in place of a tree's own. The game passes none, and its shaders hold none of this. */
   paint?: (tree: PaintedTree) => Node<"vec3">;
 }

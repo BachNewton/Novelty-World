@@ -1,5 +1,5 @@
-import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, varying, vec3 } from "three/tsl";
+import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniformArray, varying, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
@@ -8,6 +8,7 @@ import type { StreetInputs } from "../street/index";
 import { AFLOAT_UNIT, IDENTITY_PARTS, PAINT, PATTERNS, type Pattern } from "./mesh";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The street kit's two materials with this kit's palette: the same instance layout,
@@ -76,9 +77,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const palette = uniformArray(IDENTITY_PARTS.map((part) => {
     const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
     const { from, to = from, share = 0, gain = 1 } = paint;

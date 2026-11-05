@@ -1,9 +1,10 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, float, floor, fract, Fn, If, mix, normalWorld, positionLocal, positionWorld, reflect, round, select, sin, smoothstep, uniform, varying, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, float, floor, fract, Fn, If, mix, normalWorld, positionLocal, positionWorld, reflect, round, select, sin, smoothstep, varying, vec3 } from "three/tsl";
 import { seedOf, unitOf } from "../hash";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { PAINTS, PATTERNS, SURFACE_STRIDE, type Paint, type Pattern, type Soup } from "./shell";
 import "./tokens.css";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * One material for a dealership, outside or in. A building's colours sit on its vertices, so a dealership is one mesh
@@ -32,7 +33,7 @@ export interface RoomLight {
 }
 
 export type Lighting =
-  | { kind: "sun"; sun: { azimuthDeg: number; elevationDeg: number } }
+  | { kind: "sun"; sun: Sun }
   | { kind: "room"; lights: readonly RoomLight[]; /** What the floor mirrors: low then high. */ mirrors: readonly [Paint, Paint] };
 
 const tokenOf = (paint: Paint) => themeColor(`--color-aland-drive-${paint}`);
@@ -113,9 +114,7 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
     const shine = gloss.mul(mix(float(0.22), float(1), grazing));
 
     if (lighting.kind === "sun") {
-      const azimuth = (lighting.sun.azimuthDeg * Math.PI) / 180;
-      const elevation = (lighting.sun.elevationDeg * Math.PI) / 180;
-      const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+      const toSun = towardsSun(lighting.sun);
       const lit = painted.mul(float(SUN_AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
       const world = mix(linear("tree-spruce"), mix(linear("sky"), linear("water"), smoothstep(float(0.2), float(0.8), mirrored.y)), smoothstep(float(-0.02), float(0.06), mirrored.y));
       return hazed(mix(mix(lit, world, shine), painted, glow));

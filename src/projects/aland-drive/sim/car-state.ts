@@ -10,6 +10,16 @@ export type Vector3 = [x: number, y: number, z: number];
 export type Rotation = [x: number, y: number, z: number, w: number];
 type PerWheel = [frontLeft: number, frontRight: number, rearLeft: number, rearRight: number];
 
+/** The lamps other players see lit. */
+export interface CarLamps {
+  /** Dipped headlamps and the tail lamps with them: Finnish and Åland law has them on whenever a car is driven. */
+  head: boolean;
+  brake: boolean;
+  reverse: boolean;
+}
+
+export const LAMPS_OFF: CarLamps = { head: false, brake: false, reverse: false };
+
 export interface CarState {
   position: Vector3;
   rotation: Rotation;
@@ -23,6 +33,7 @@ export interface CarState {
   suspension: PerWheel;
   /** How far the wheels have rolled, in radians. */
   roll: number;
+  lamps: CarLamps;
 }
 
 const lerp = (a: number, b: number, share: number) => a + (b - a) * share;
@@ -46,6 +57,7 @@ export function blendCarStates(from: CarState, to: CarState, share: number): Car
       lerp(from.suspension[3], to.suspension[3], share),
     ],
     roll: lerp(from.roll, to.roll, share),
+    lamps: to.lamps,
   };
 }
 

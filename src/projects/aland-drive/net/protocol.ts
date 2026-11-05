@@ -1,6 +1,6 @@
 import { playgroundAsked } from "../playground/place";
 import { RELAY_PARAM, relayUrlFromSearch } from "@/shared/lib/peer";
-import type { CarState, Rotation, Vector3 } from "../sim/car-state";
+import { LAMPS_OFF, type CarLamps, type CarState, type Rotation, type Vector3 } from "../sim/car-state";
 import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
 
 /*
@@ -79,6 +79,7 @@ export function wireState(state: CarState): CarState {
     steer: fine(state.steer),
     suspension: [fine(state.suspension[0]), fine(state.suspension[1]), fine(state.suspension[2]), fine(state.suspension[3])],
     roll: metres(state.roll),
+    lamps: state.lamps,
   };
 }
 
@@ -119,7 +120,15 @@ function parseState(value: unknown): CarState | null {
     steer,
     suspension: suspension as CarState["suspension"],
     roll,
+    lamps: parseLamps(value.lamps),
   };
+}
+
+/** A version of the game from before lamps were sent sends none: its car shows them off. */
+function parseLamps(value: unknown): CarLamps {
+  if (!isRecord(value)) return LAMPS_OFF;
+  const lit = (name: string) => value[name] === true;
+  return { head: lit("head"), brake: lit("brake"), reverse: lit("reverse") };
 }
 
 function parseCar(value: Record<string, unknown>): CarMessage | null {

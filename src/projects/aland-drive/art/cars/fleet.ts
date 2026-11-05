@@ -5,6 +5,7 @@ import { buildDistant } from "./body";
 import { axleY, buildCarParts, groundY, type CarSpec } from "./build";
 import { SURFACES, type Soup } from "./mesh";
 import { geometryOf, worldCarMaterial } from "./material";
+import { type Sun } from "../sun";
 
 /*
  * World cars, parked or in traffic: one draw call per model and tier however
@@ -116,7 +117,7 @@ const placedMaterials = new Map<string, ReturnType<typeof worldCarMaterial>>();
  * One world car alone at the origin, its world model or its stand-in, drawn by the parked cars' own material with its
  * swap at `swapM`: as the game shows it, for a check that compares the two.
  */
-export function placeWorldCar(spec: CarSpec, seed: number, version: "near" | "far", swapM: number, sun: { azimuthDeg: number; elevationDeg: number }, hazed?: (color: Node<"vec3">) => Node<"vec3">): Mesh[] {
+export function placeWorldCar(spec: CarSpec, seed: number, version: "near" | "far", swapM: number, sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">): Mesh[] {
   const tier = version === "near" ? "world" : "distant";
   const key = `${tier} ${swapM}`;
   let material = placedMaterials.get(key);
@@ -150,7 +151,7 @@ interface Batch {
 }
 
 /** Every car given, on a few draw calls: two per model. `meshes` go in the scene; `move` shifts one car. */
-export function createCarFleet(cars: readonly FleetCar[], sun: { azimuthDeg: number; elevationDeg: number }, hazed?: (color: Node<"vec3">) => Node<"vec3">) {
+export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">) {
   const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM: SWAP_M, reachM: REACH_M });
   const materials = { world: tier("world"), distant: tier("distant") };
   const bySpec = new Map<CarSpec, FleetCar[]>();

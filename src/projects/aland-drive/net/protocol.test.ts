@@ -59,3 +59,16 @@ describe("a challenge message's envelope", () => {
     expect(parseHostMessage({ kind: "challenge", from: "peer" })).toBeNull();
   });
 });
+
+describe("a car's state", () => {
+  const state = { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0 };
+
+  it("carries its lamps, so other players see a car brake and back up", () => {
+    const lamps = { head: true, brake: true, reverse: false };
+    expect(parseGuestMessage({ kind: "car", state: { ...state, lamps } })).toEqual({ kind: "car", state: { ...state, lamps } });
+  });
+
+  it("shows a car from a version that sent no lamps with them off, rather than dropping it", () => {
+    expect(parseGuestMessage({ kind: "car", state })).toEqual({ kind: "car", state: { ...state, lamps: { head: false, brake: false, reverse: false } } });
+  });
+});

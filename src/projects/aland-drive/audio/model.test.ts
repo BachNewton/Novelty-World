@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
-import type { CarState } from "../sim/car-state";
+import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
@@ -154,7 +154,7 @@ describe("the tyres", () => {
 });
 
 describe("the slide", () => {
-  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0 });
+  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0, lamps: LAMPS_OFF });
 
   it("reads motion along the nose as none and motion across it as sliding", () => {
     expect(slipOf(car([0, 0, -40]), false)).toBe(0);

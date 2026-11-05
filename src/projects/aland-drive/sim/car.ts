@@ -106,6 +106,9 @@ export class Car {
   private steer = 0;
   private roll = 0;
   private reversingNow = false;
+  private brakingNow = false;
+  /** The headlamps: always on while driving, as the law has it. */
+  headlamps = true;
   private engineNow: EngineRead;
   private readonly suspension: [number, number, number, number] = [0, 0, 0, 0];
   /** Whether each wheel touched the road on the last step. */
@@ -170,6 +173,7 @@ export class Car {
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.steer = 0;
     this.reversingNow = false;
+    this.brakingNow = false;
     this.engineNow = restingEngine(this.tuning.gearbox);
   }
 
@@ -196,6 +200,7 @@ export class Car {
 
     if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
     if (input.throttle > 0) this.reversingNow = false;
+    this.brakingNow = input.brake > 0 && !this.reversingNow;
     this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S).read;
 
     const drive = this.driveForce(input, forward);
@@ -333,6 +338,7 @@ export class Car {
       steer: this.steer,
       suspension: [...this.suspension],
       roll: this.roll,
+      lamps: { head: this.headlamps, brake: this.brakingNow, reverse: this.reversingNow },
     };
   }
 }

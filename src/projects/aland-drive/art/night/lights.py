@@ -3,7 +3,7 @@
     pipeline/.venv/Scripts/python src/projects/aland-drive/art/night/lights.py
 
 Reads the kept OSM answers in .data/raw/osm-api/ and nothing else. The output is derived from OpenStreetMap, so it
-stays under ODbL, as the tiles' road and building files do; a credit is due when it first ships.
+stays under ODbL, as the tiles' road and building files do, and the project's `credits.ts` credits it with them.
 
 OSM gives a sector as true bearings seen from seaward, towards the light. The game has only grid north, so each is
 turned here by the meridian's own lean at that light, and nothing downstream needs to know.

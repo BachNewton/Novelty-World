@@ -1,11 +1,12 @@
-import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { placeSeed, unitOf } from "../hash";
 import type { RoadsideInputs, RoadsideMaterials } from "../roadside";
 import { BOAT_PARTS, KIND, PAINT, SAIL_KINDS } from "./mesh";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The instance layout of the roadside kit, so `placeModel` places these models, and
@@ -52,9 +53,7 @@ const rollOf = (place: Node<"vec2">) => unitOf(varying(placeSeed(place)), 1);
 const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const palette = uniformArray(BOAT_PARTS.map((part) => {
     const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
     const { from, to = from, share = 0, gain = 1 } = paint;

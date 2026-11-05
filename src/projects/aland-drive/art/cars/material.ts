@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vec
 import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { SURFACES, type Soup, type Surface } from "./mesh";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * One material for a whole car. The world's own light, the same sum as the
@@ -99,7 +100,7 @@ export function geometryOf(soup: Soup, hero = false): BufferGeometry {
 }
 
 export interface CarMaterialOptions {
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
   paint: string;
   /** The car's origin above its lowest shaded point. */
   groundY: number;
@@ -116,9 +117,7 @@ interface Sky {
 }
 
 function skyOf(sun: CarMaterialOptions["sun"]): Sky {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const sky = uniform(tokenRgb("sky"));
   const zenith = uniform(tokenRgb("water"));
   const road = uniform(tokenRgb("car-reflect-ground"));
@@ -177,16 +176,16 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
     .add(headGlow.mul(isLamp(2).mul(reverse.mul(LAMP_REVERSE))))
     .add(headGlow.mul(isLamp(3).mul(head.mul(LAMP_HEAD))));
 
-  const finished: Node<"vec3"> = vec3(colour.add(glow));
+  // A lamp's own light goes on after the world's haze and hour, which would dim it at night.
+  const lit = (surface: Node<"vec3">) => (hazed ? hazed(surface) : surface);
   const material = new MeshBasicNodeMaterial();
   if (hero) {
     // Seen through the glass the shell's inside is the cabin's lining, for no extra faces.
     material.side = DoubleSide;
     const lining = uniform(tokenRgb("car-interior"));
-    const shown: Node<"vec3"> = select(frontFacing, finished, lining.mul(heightShare.mul(0.5).add(0.7)));
-    material.colorNode = hazed ? hazed(shown) : shown;
+    material.colorNode = select(frontFacing, lit(colour).add(glow), lit(lining.mul(heightShare.mul(0.5).add(0.7))));
   } else {
-    material.colorNode = hazed ? hazed(finished) : finished;
+    material.colorNode = lit(colour).add(glow);
   }
 
   return {

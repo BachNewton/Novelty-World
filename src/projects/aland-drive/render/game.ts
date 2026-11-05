@@ -2,13 +2,19 @@ import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Grou
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
-import { FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
+import { BAKED_SKY_SHARE, BAKED_SUN_SHARE, FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
 import { createSeaMarks } from "./sea-marks";
-import { seaClock } from "../sea/clock";
+import { seaClock, seaSeconds } from "../sea/clock";
+import { createDayAndNight } from "./day-and-night";
+import { createNightLights } from "./night-lights";
+import { dateText, type CalendarDate } from "../time/day";
+import { bakedLightAtHour, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
+import { towardsPlace } from "../art/sun";
+import { terrainLightAsked } from "./terrain-light";
 import { createPeople } from "./people";
 import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
@@ -43,7 +49,7 @@ import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { fitCarVolume, placeCarVolume } from "../art/car-volume";
-import { createRemoteCarViews } from "./remote-cars";
+import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
 import { GAME } from "../net/protocol";
@@ -206,6 +212,12 @@ export interface GameProbe {
   foundPlaces: () => string[] | null;
   /** Pins the sea's clock (UTC seconds) so every boat under way stands where it is then, or lets it run with null. `hold` pins it too, and `advance` steps it. */
   holdSea: (seconds: number | null) => void;
+  /** The game's day as drawn: the date, the hour and where the sun stands. */
+  day: () => DayShown;
+  /** Moves this page's day: another date (null for today's), an hour that runs on from there, or holds it. */
+  setDay: (change: DayChange) => void;
+  /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
+  showNightLights: (shown: boolean) => void;
   /** Every boat under way, where it was last drawn. */
   boatsUnderWay: () => UnderWay[];
   showBoatsUnderWay: (shown: boolean) => void;
@@ -356,6 +368,24 @@ export interface CarChoice {
   paint: string;
 }
 
+/** The game's day as drawn: the date, the hour, and where the sun stands. */
+export interface DayShown {
+  date: string;
+  hour: number;
+  sun: { azimuthDeg: number; elevationDeg: number };
+  /** The night's dial, from the sun's height: 0 by day, 1 at the deepest midsummer night. */
+  night: number;
+  held: boolean;
+  /** Whether this is the day every player shares. */
+  shared: boolean;
+}
+
+export interface DayChange {
+  date?: CalendarDate | null;
+  hour?: number;
+  held?: boolean;
+}
+
 export interface Game {
   probe: GameProbe;
   /** What a dev menu needs, so the page imports no car art. */
@@ -363,6 +393,8 @@ export interface Game {
   setCar: (id: CarId) => void;
   /** What the weather has made of every surface, until there is weather. */
   condition: () => Condition;
+  day: () => DayShown;
+  setDay: (change: DayChange) => void;
   setCondition: (condition: Condition) => void;
   setDevMenuOpen: (open: boolean) => void;
   setGameMenuOpen: (open: boolean) => void;
@@ -395,6 +427,10 @@ export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
 export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
+const POOLS_ON_GROUND_M = 280;
+/** Where the headlamps sit off the car's origin, which rides at its axles' height. */
+const HEADLAMPS_UP_M = 0.1;
+const HEADLAMPS_AHEAD_M = 2;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
 const EDGE_WALL_HEIGHT_M = 2.5;
@@ -596,7 +632,21 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const toCamera = positionWorld.sub(detailSpot).length();
   const nearShare = float(1).sub(smoothstep(float(DETAIL_SEEN_M - DETAIL_FADE_M), float(DETAIL_SEEN_M), toCamera)).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
   const shade = mix(sampled(layers.shadeFar, farLayer).r, sampled(layers.shadeNear, nearLayer).r, nearShare);
-  const lightOf = (baked: Node<"float">) => mix(float(1), baked.pow(float(manifest.shade.gamma)).div(FLAT_LIGHT), SHADE_SHARE);
+  const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
+  scene.add(sky.mesh);
+  const day = createDayAndNight(sky, window.location.search, seaSeconds());
+  const { sun, night } = day;
+  // The bake holds the sun at the manifest's one place. Under the live sun its light is moved by how much more or less
+  // the ground faces the sun now than it faced that one (`render/terrain-light.ts`).
+  const terrainLight = terrainLightAsked(window.location.search);
+  const bakedSun = towardsPlace(manifest.sun);
+  const sunOn = (up: Node<"vec3">, toSun: Node<"vec3">) => float(BAKED_SKY_SHARE).add(up.dot(toSun).max(0).mul(BAKED_SUN_SHARE));
+  const relit = (up: Node<"vec3">) => sunOn(up, sun.toSun).div(sunOn(up, vec3(bakedSun.x, bakedSun.y, bakedSun.z)));
+  const lightOf = (baked: Node<"float">, up: Node<"vec3"> = vec3(0, 1, 0)) => {
+    const level = baked.pow(float(manifest.shade.gamma));
+    if (terrainLight === "baked") return bakedLightAtHour(night, mix(float(1), level.div(FLAT_LIGHT), SHADE_SHARE));
+    return mix(float(1), level.mul(relit(terrainLight === "flat" ? vec3(0, 1, 0) : up)).div(FLAT_LIGHT), SHADE_SHARE);
+  };
   const light = lightOf(shade);
   const mask = sampled(layers.mask, farLayer);
   const photo = mix(sampled(layers.groundFar, farLayer), sampled(layers.groundNear, nearLayer), nearShare);
@@ -632,40 +682,44 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const townHard = max(townRed, townBlue.mul(float(1).sub(townGreen)));
   const photoSoft = texture(layers.groundNear, imageUv).depth(nearLayer).level(float(3)).rgb.pow(vec3(2.2));
   const groundColor = townGround({ place: positionWorld.xz, tiled, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
-  const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
-  scene.add(sky.mesh);
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
-  const hazed = (color: Node<"vec3">) => mix(color, hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
+  const headlights = createHeadlights(night);
+  scene.add(headlights.cones);
+  // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
+  const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
+  const hazed = hazedAtHour(landAtHour);
+  const seaHazed = hazedAtHour(seaAtHour);
 
   // From high up the mask's mips blur a road into a wide band, so the paint goes as the camera lifts: the map draws its own roads.
   const paintedShare = uniform(1);
   const paintedRoads = smoothstep(float(PAINTED_ROADS_FROM_M), float(PAINTED_ROADS_FULL_M), toCamera).mul(paintedShare);
   const roadEdge = (coverage: Node<"float">) => smoothstep(float(0.08), float(0.35), coverage).mul(paintedRoads);
-  const land = mix(mix(groundColor, colorOf("road-main"), roadEdge(mask.g)), colorOf("road-minor"), roadEdge(mask.b)).mul(light);
+  const land = (up: Node<"vec3">) => mix(mix(groundColor, colorOf("road-main"), roadEdge(mask.g)), colorOf("road-minor"), roadEdge(mask.b)).mul(lightOf(shade, up));
   const hasFar = inMap.and(slots.r.greaterThan(0.001));
   const farSeen = select(hasFar, float(1).sub(smoothstep(float(FAR_FADE_FROM_M), float(FAR_SEEN_M), toCamera)), float(0));
   const overviewSize = vec2((manifest.overview.columns - 1) * manifest.overview.stepM, (manifest.overview.rows - 1) * manifest.overview.stepM);
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
-  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  const waterOf = createWater({ colour: colorOf, sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
   const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))));
-  const pastTiles = select(inOverview, mix(openSea, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), openSea);
+  const openSeaInLand = seaInLand(night, openSea);
+  const pastTiles = select(inOverview, mix(openSeaInLand, overviewPixel.rgb.pow(vec3(2.2)).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a), openSeaInLand);
   const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth));
-  const terrainColour = (depth: Node<"float">, shore: Node<"float">) => {
+  const terrainColour = (depth: Node<"float">, shore: Node<"float">, up: Node<"vec3">) => {
     // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
     // line rather than where the mesh's corners cross the water.
     const edge = fwidth(shore).max(0.001);
     const under = smoothstep(edge.negate(), edge, shore);
     const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
-    const near = mix(land.mul(mix(float(1), float(WET_SHADE), wet)), waterColour(depth), under);
+    const near = mix(land(up).mul(mix(float(1), float(WET_SHADE), wet)), seaInLand(night, waterColour(depth)), under);
     return hazed(mix(pastTiles, near, farSeen));
   };
 
   const { canopyAt, clearanceAt, standsAt, roadsAt, pavedAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM, manifest.clearing);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => hazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => seaHazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt,
@@ -674,14 +728,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     roads: { at: roadsAt, tileM },
     clearanceAt,
     colour: colorOf,
-    hazed,
-    sun: manifest.sun,
+    hazed: hazedAtHour(forestAtHour),
+    sun,
   });
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
   const verge = createVerge(scene, renderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, clearanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
   const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, clearanceAt, lightOf, linear, hazed });
-  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, clearanceAt, lightOf, linear, hazed, sun: manifest.sun });
+  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, clearanceAt, lightOf, linear, hazed, sun });
   const granite = createGranite(scene, renderer, {
     rockAt,
     fieldsAt,
@@ -697,14 +751,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     colour: colorOf,
     hazed,
     litterColour: colorOf("surface-litter"),
-    sun: manifest.sun,
+    sun,
   });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
   const seaMaterial = new MeshBasicNodeMaterial();
-  seaMaterial.colorNode = hazed(openSea);
+  seaMaterial.colorNode = seaHazed(openSea);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
   scene.add(sea);
@@ -746,36 +800,39 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   compiledBridge.frustumCulled = false;
   scene.add(compiledBridge);
 
-  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, manifest.sun, { detail, sheet: signSheet });
-  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun });
+  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night });
+  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun });
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const windmills = createWindmills(scene, outbuildingMaterials, manifest.tiles);
-  const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun: manifest.sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   // What's placed by Åland's own positions rather than from its tiles has no place in the playground, a world of its own.
   const regattas = createRegattas(scene, { colour: colorOf, linear, hazed }, inPlayground ? [] : undefined);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
-  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
-  const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun: manifest.sun }, (x, z) => world.height(x, z));
+  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun });
+  const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun }, (x, z) => world.height(x, z));
   if (inPlayground) {
     boatsUnderWay.show(false);
     seaMarks.show(false);
   }
-  const people = createPeople(scene, { colour: colorOf, linear, hazed, sun: manifest.sun });
+  const people = createPeople(scene, { colour: colorOf, linear, hazed, sun });
   const viewHeight = uniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
   const streetClock = uniform(0);
   const roadside = createRoadside(scene, {
-    roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun }),
-    street: streetMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: streetClock }),
-    identity: identityMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: streetClock }),
+    roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
+    street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
+    identity: identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
-    signs: createSignKit(signSheet, { colour: colorOf, hazed }, manifest.sun),
-    town: { inputs: { colour: colorOf, linear, hazed, sun: manifest.sun }, ink: (name) => `#${token(name).getHexString()}` },
+    signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
+    town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
   });
-  const parkedCars = createParkedCars(scene, manifest.sun, hazed);
+  const parkedCars = createParkedCars(scene, sun, hazed);
+  // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
+  let lampRevision = -1;
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
-  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun: manifest.sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const challengeBoard = new ChallengeBoard(CHALLENGES, { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + 8);
@@ -901,9 +958,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   drive.condition = conditionAsked(window.location.search);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
-  let carView = createCarView(scene, manifest.sun, carSpec);
+  let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
-  const tyres = createTyreParticles(scene, token);
+  const tyres = createTyreParticles(scene, token, hazed);
   const cullCar = (culled: boolean) => {
     for (const object of carView.objects) {
       object.traverse((part) => {
@@ -929,6 +986,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   challengeMarks.showAll(true);
   tyres.showAll(true);
   cullCar(false);
+  nightLights.showAll(true);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
   await verge.compile();
@@ -936,6 +994,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   await shrubs.compile();
   await granite.compile();
   cullCar(true);
+  nightLights.showAll(false);
   clipmap.showWide(false);
   outbuildings.showAll(false);
   windmills.showAll(false);
@@ -1386,7 +1445,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.setCar(id);
     carView.dispose();
     carSpec = spec;
-    carView = createCarView(scene, manifest.sun, spec);
+    carView = createCarView(scene, sun, spec, "hero", { hazed });
     fitCarVolume(carView.art);
     events.onCarChange?.(id);
   };
@@ -1472,7 +1531,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
-  const remoteViews = createRemoteCarViews(scene, manifest.sun);
+  const remoteViews = createRemoteCarViews(scene, sun, hazed);
   const others = new Map<string, { name: string; heard: boolean }>();
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
@@ -1503,13 +1562,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   /** Draws everyone else's car where it's on ground of ours, and says where they all are for the maps. */
   const drawRemotes = (share: number): MapPlayer[] => {
     const shown: MapPlayer[] = [];
+    const lamps: CarAtNight[] = [];
     for (const [peerId, { name, heard }] of others) {
       if (!heard) continue;
       const state = drive.remotes.stateAt(peerId, share);
-      const [x, , z] = state.position;
+      const [x, y, z] = state.position;
       remoteViews.draw(peerId, state, world.tileAt(x, z)?.detail != null);
       shown.push({ x, z, headingClockwise: headingClockwise(state), name });
+      const heading = headingOf(state.rotation);
+      if (state.lamps.head) lamps.push({ x, y, z, forwardX: -Math.sin(heading), forwardZ: -Math.cos(heading), braking: state.lamps.brake });
     }
+    nightLights.setCars(lamps);
     return shown;
   };
 
@@ -1585,6 +1648,26 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     };
   };
 
+  const dayShown = (): DayShown => {
+    const { date, hour, sun: place } = day.time();
+    return { date: dateText(date), hour, sun: place, night: night.amount.value, held: day.clock.held, shared: day.clock.shared };
+  };
+  const setDay = ({ date, hour, held: holdHour }: DayChange) => {
+    const now = seaHeldAt ?? seaNow();
+    if (date !== undefined) day.clock.setDate(date);
+    if (hour !== undefined) day.clock.setHour(hour, now);
+    if (holdHour !== undefined) day.clock.hold(holdHour, now);
+    day.update(now, 0);
+  };
+
+  const lampsAt = new Vector3();
+  const lampsFacing = new Vector3();
+  const aimHeadlights = ({ position, rotation: [x, y, z, w], lamps }: CarState) => {
+    lampsFacing.set(-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))).normalize();
+    lampsAt.set(position[0], position[1] + HEADLAMPS_UP_M, position[2]).addScaledVector(lampsFacing, HEADLAMPS_AHEAD_M);
+    headlights.update(lampsAt, lampsFacing, lamps.head);
+  };
+
   const frame = (now: number) => {
     // A page with no room for the canvas (a hidden tab or pane) has nothing to draw into.
     if (container.clientWidth === 0 || container.clientHeight === 0) return;
@@ -1603,6 +1686,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const car = drive.stateAt(share);
     carView.draw(car);
+    carView.setLights(lightsOf(car.lamps));
     placeCarVolume(car);
     tyres.draw(share);
     onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements);
@@ -1686,6 +1770,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
+    day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds);
+    if (roadside.lampRevision() !== lampRevision) {
+      lampRevision = roadside.lampRevision();
+      nightLights.setLamps(roadside.lamps());
+    }
+    nightLights.update(camera.position);
+    aimHeadlights(car);
     sky.update(camera.position, seconds);
     tiledFollows(camera.position.x, camera.position.z);
     renderer.render(scene, camera);
@@ -1828,6 +1919,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
+      day: dayShown,
+      setDay,
+      showNightLights: (shown) => {
+        nightLights.show(shown);
+        headlights.cones.visible = shown;
+      },
       holdSea: (seconds) => {
         seaHeldAt = seconds;
       },
@@ -1910,6 +2007,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     setCondition: (condition) => {
       drive.condition = condition;
     },
+    day: dayShown,
+    setDay,
     setDevMenuOpen,
     setGameMenuOpen,
     pickMenuItem,

@@ -1,8 +1,9 @@
-import { abs, float, floor, fract, Fn, If, int, length, max, min, mix, round, select, sin, smoothstep, step, uniformArray, vec2, vec3 } from "three/tsl";
+import { abs, float, floor, fract, Fn, If, int, length, max, min, mix, round, select, sin, smoothstep, step, struct, uniformArray, vec2, vec3 } from "three/tsl";
 import type { Node, Vector3 } from "three/webgpu";
 import { seedOf, unitOf } from "../hash";
 import { band, pulses } from "../surfaces/coverage";
 import IDS from "./facade-ids.json";
+import { farWindowLight, windowLight, type Night } from "../night";
 
 /*
  * Seven more ways for a wall to look, in the terms of the wall shader (`render/buildings.ts`): boxes and bands laid out
@@ -21,7 +22,16 @@ import IDS from "./facade-ids.json";
  *
  * A style's cost is paid only by its own pixels: the styles are real branches, not a `select`, which would run all seven
  * for every pixel. Derivatives are read outside them, by the caller.
+ *
+ * A wall also gives the light of its lit windows at night (`art/night/windows.ts`), apart from its colour, since the
+ * caller adds it after the haze and the hour's light, which would dim it.
  */
+
+/** A wall's colour, and the light its lit windows add. */
+export const WallLight = struct({ colour: "vec3", glow: "vec3" });
+
+/** A `WallLight`'s two members, typed as the struct lays them out: three's types don't carry a struct's members. */
+export const wallParts = (light: ReturnType<typeof WallLight>) => ({ colour: light.get("colour") as V3, glow: light.get("glow") as V3 });
 
 const { styles: STYLE, paints: PAINTS } = IDS;
 
@@ -42,6 +52,7 @@ export interface FacadeInput {
   tall: F;
   colour: (name: string) => V3;
   linear: (name: string) => Vector3;
+  night: Night;
 }
 
 interface Wall {
@@ -60,6 +71,11 @@ interface Wall {
   rollB: F;
   hasDoor: F;
   colour: (name: string) => V3;
+  night: Night;
+  /** The same across a building's walls, so a house is home or not as a whole. */
+  building: F;
+  /** What the wall's lit windows add, gathered as its panes are drawn. */
+  glow: V3;
 }
 
 /** A number from 0 to 1 for whole numbers: a cell, a pane, a building's seed (`art/hash.ts`). */
@@ -86,6 +102,16 @@ function glass(wall: Wall, height: F, id: F, shows: F): V3 {
   const light = mix(float(0.5), roll(1, id, wall.seed), shows);
   const sky = mix(float(1 / 3), height.clamp(0, 1).mul(height.clamp(0, 1)), shows);
   return mix(wall.colour("wall-glass"), wall.colour("sky"), sky.mul(0.42).add(light.mul(0.14)));
+}
+
+/** Lights a wall's panes where `mask` says they are: each pane a room, lit or not at this hour. */
+function lightPanes(wall: Wall, mask: F, id: F, height: F, shows: F) {
+  wall.glow.addAssign(windowLight(wall.night, { id, building: wall.building, up: height, shown: shows }).mul(mask));
+}
+
+/** A wall too far off for its panes to be told apart still holds rooms with the light on. */
+function lightFar(wall: Wall, shows: F) {
+  wall.glow.addAssign(farWindowLight(wall.night, wall.building, shows));
 }
 
 /** The wall painted, boards and all, for the villas: lapped boards above a panelled base, with a belt between floors. */
@@ -144,8 +170,11 @@ function villa(wall: Wall): V3 {
   out = mix(out, trim, max(max(surround, hood), apron).mul(onWall));
   const bars = max(columns(wall, along.sub(bay.mul(0.5)), bay, 0.025), windowFloor(halfTall.mul(0.42), 0.025));
   const paneId = floor(along.div(bay)).add(floor(up.div(storey)).mul(13));
-  const window = mix(glass(wall, inStorey.div(halfTall).mul(0.5).add(0.5), paneId, windowsShow), trim, bars);
+  const paneUp = inStorey.div(halfTall).mul(0.5).add(0.5);
+  const window = mix(glass(wall, paneUp, paneId, windowsShow), trim, bars);
   out = mix(out, window, pane.mul(onWall));
+  lightPanes(wall, pane.mul(onWall).mul(float(1).sub(bars)), paneId, paneUp, windowsShow);
+  lightFar(wall, windowsShow);
 
   // The door on the middle axis, panelled, with a fanlight.
   const door = rect(wall, fromCentre, 0.55, up.sub(1.15), 1.15).mul(wall.hasDoor);
@@ -211,7 +240,10 @@ function brick(wall: Wall): V3 {
   const bars = max(windowFloor(halfTall.mul(-0.3), 0.025), uprights);
   const paneId = floor(along.div(bay)).add(floor(up.div(storey)).mul(17));
   out = mix(out, colour("wall-trim"), frame);
-  out = mix(out, mix(glass(wall, inStorey.div(halfTall).mul(0.5).add(0.5), paneId, windowsShow), colour("wall-trim"), bars), pane);
+  const paneUp = inStorey.div(halfTall).mul(0.5).add(0.5);
+  out = mix(out, mix(glass(wall, paneUp, paneId, windowsShow), colour("wall-trim"), bars), pane);
+  lightPanes(wall, pane.mul(float(1).sub(bars)), paneId, paneUp, windowsShow);
+  lightFar(wall, windowsShow);
 
   const door = rect(wall, fromCentre, 0.75, up.sub(1.1), 1.1).mul(wall.hasDoor);
   const doorHead = rect(wall, fromCentre, 0.95, up.sub(2.32), 0.13).mul(wall.hasDoor);
@@ -252,8 +284,11 @@ function block(wall: Wall): V3 {
   const mullionStep = mix(float(1.15), float(1.6), rollB);
   const ribbon = windowFloor(0, halfTall).mul(across(wall, along, 0.9, width.sub(0.9)));
   const ribbonBand = windowFloor(-0.14, halfTall.add(0.28)).mul(across(wall, along, 0.72, width.sub(0.72)));
-  const ribbonGlass = glass(wall, height, floor(along.div(mullionStep)).add(level.mul(23)), resolved(wall.wide, mullionStep).mul(storeysShow));
-  const ribbonColour = mix(ribbonGlass, colour("wall-trim"), columns(wall, along, mullionStep, 0.035));
+  const ribbonId = floor(along.div(mullionStep)).add(level.mul(23));
+  const ribbonShows = resolved(wall.wide, mullionStep).mul(storeysShow);
+  const ribbonGlass = glass(wall, height, ribbonId, ribbonShows);
+  const mullions = columns(wall, along, mullionStep, 0.035);
+  const ribbonColour = mix(ribbonGlass, colour("wall-trim"), mullions);
   const ribbonWall = mix(mix(out, spandrel, ribbonBand), ribbonColour, ribbon);
 
   const bay = width.div(max(float(1), round(width.div(mix(float(2.8), float(3.5), rollB)))));
@@ -261,10 +296,17 @@ function block(wall: Wall): V3 {
   const windowRow = (half: Value) => columns(wall, along.sub(bay.mul(0.5)), bay, half);
   const punched = windowRow(halfWide).mul(windowFloor(0, halfTall.add(0.02)));
   const punchedFrame = windowRow(halfWide.add(0.05)).mul(windowFloor(0, halfTall.add(0.07)));
-  const punchedGlass = glass(wall, height, floor(along.div(bay)).add(level.mul(19)), resolved(wall.wide, bay).mul(storeysShow));
-  const punchedColour = mix(punchedGlass, colour("wall-trim"), columns(wall, along.sub(bay.mul(0.5)), bay, 0.025));
+  const punchedId = floor(along.div(bay)).add(level.mul(19));
+  const punchedShows = resolved(wall.wide, bay).mul(storeysShow);
+  const punchedGlass = glass(wall, height, punchedId, punchedShows);
+  const punchedBars = columns(wall, along.sub(bay.mul(0.5)), bay, 0.025);
+  const punchedColour = mix(punchedGlass, colour("wall-trim"), punchedBars);
   const punchedWall = mix(mix(out, colour("wall-trim"), punchedFrame), punchedColour, punched);
-  out = mix(out, select(rollA.lessThan(0.48), ribbonWall, punchedWall), body);
+  const ribbons = select(rollA.lessThan(0.48), float(1), float(0));
+  out = mix(out, mix(punchedWall, ribbonWall, ribbons), body);
+  lightPanes(wall, ribbon.mul(float(1).sub(mullions)).mul(body).mul(ribbons), ribbonId, height, ribbonShows);
+  lightPanes(wall, punched.mul(float(1).sub(punchedBars)).mul(body).mul(float(1).sub(ribbons)), punchedId, height, punchedShows);
+  lightFar(wall, storeysShow);
 
   // Balconies stacked in columns on a long facade: a dark recess with a door, a slab, a parapet panel, a shadow under.
   const every = mix(float(7.2), float(10.8), rollA);
@@ -321,6 +363,9 @@ function curtain(wall: Wall): V3 {
   const glazed = mix(tinted, tinted.mul(0.72), spandrel);
   const grid = max(columns(wall, along.sub(cellWide.mul(0.5)), cellWide, 0.045), courses(wall, up, storey, 0.07));
   let out: V3 = mix(mix(glazed, colour("curtain-frame"), grid), panel, isPanel);
+  const cellsShow = resolved(wall.wide, cellWide).mul(resolved(wall.tall, storey));
+  lightPanes(wall, float(1).sub(grid).mul(float(1).sub(spandrel)).mul(float(1).sub(isPanel)), floor(along.div(cellWide)).add(floor(up.div(storey)).mul(29)), fract(up.div(storey)), cellsShow);
+  lightFar(wall, cellsShow);
   const entrance = rect(wall, fromCentre, 1.3, up.sub(1.25), 1.25).mul(wall.hasDoor);
   const canopy = rect(wall, fromCentre, 1.9, up.sub(2.72), 0.12).mul(wall.hasDoor);
   out = mix(out, mix(colour("wall-glass"), colour("curtain-frame"), across(wall, fromCentre, -0.05, 0.05)), entrance);
@@ -436,7 +481,7 @@ function granite(wall: Wall): V3 {
 }
 
 /** A wall in one of the styles here, which its tint says it is. */
-export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear }: FacadeInput): V3 {
+export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night }: FacadeInput) {
   const palette = uniformArray(PAINTS.map(linear));
   return Fn(() => {
     const style = round(tint.a.mul(255)).toVar();
@@ -457,6 +502,9 @@ export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, l
       rollB: roll(17, seed).toVar(),
       hasDoor: step(127.5, round(tint.g.mul(255))).toVar(),
       colour,
+      night,
+      building: seed.add(round(tint.r.mul(255)).mod(32).mul(256)).toVar(),
+      glow: vec3(0).toVar(),
     };
     const result = vec3(0).toVar();
     If(style.lessThan(STYLE.brick - 0.5), () => {
@@ -480,6 +528,6 @@ export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, l
       .Else(() => {
         result.assign(granite(drawn));
       });
-    return result;
+    return WallLight(result, drawn.glow);
   })();
 }

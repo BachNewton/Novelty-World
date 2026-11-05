@@ -1,11 +1,12 @@
-import { InstancedBufferAttribute, Vector3, type Mesh, type MeshBasicNodeMaterial, type Node, type Texture } from "three/webgpu";
-import { attribute, float, fract, int, mix, positionGeometry, round, select, smoothstep, texture, uniform, uniformArray } from "three/tsl";
+import { InstancedBufferAttribute, type Mesh, type MeshBasicNodeMaterial, type Node, type Texture } from "three/webgpu";
+import { attribute, float, fract, int, mix, positionGeometry, round, select, smoothstep, texture, uniformArray } from "three/tsl";
 import { placeModel, signSheetUv, type Placement } from "../roadside/material";
 import type { RoadsideModel } from "../roadside/models";
 import { streetMaterials, type StreetInputs } from "../street/material";
 import { TOWN_PARTS, type TownPart } from "./paint";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The street kit's two materials, kept for where a vertex goes (the same instance layout, grow-in and near/far
@@ -95,9 +96,7 @@ function painted({ linear }: Pick<StreetInputs, "linear">) {
 }
 
 function lightOf({ sun }: Pick<StreetInputs, "sun">) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const fit = attribute<"vec4">("fit", "vec4");
   const up = positionGeometry.y.add(positionGeometry.x.mul(fit.y).mul(fit.z)).mul(fit.x);
   const normal = flatNormal();

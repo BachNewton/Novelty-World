@@ -1,9 +1,10 @@
-import { BufferAttribute, BufferGeometry, Color, Matrix4, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, Color, Matrix4, MeshBasicNodeMaterial, type Node } from "three/webgpu";
 import { attribute, cameraPosition, float, int, mix, modelWorldMatrix, normalGeometry, positionGeometry, positionWorld, reflect, smoothstep, uniform, uniformArray, varying, vec3, vec4 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { BikeMesh } from "./build";
 import { PARTS } from "./rig";
 import { SLOTS, type Slot } from "./shapes";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * One material for a bike and its rider: the world's light, the same sum as the
@@ -50,14 +51,12 @@ export function bikeGeometry(mesh: BikeMesh): BufferGeometry {
 const token = (name: string): Color => themeColor(`--color-aland-drive-${name}`);
 
 export interface BikeMaterialOptions {
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }
 
 export function bikeMaterial({ sun, hazed }: BikeMaterialOptions) {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
 
   const matrices = PARTS.map(() => new Matrix4());
   const partMatrices = uniformArray<"mat4">(matrices, "mat4");

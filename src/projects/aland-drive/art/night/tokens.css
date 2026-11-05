@@ -1,6 +1,6 @@
 /*
- * Night's colours that no existing token can mix: on integration this block joins the other --color-aland-drive-* tokens
- * in globals.css. The land's are not colours seen but what the light does to them, multiplied in.
+ * Night's colours that no existing token can mix, loaded with the night (`night.ts`) as the other kits load theirs. The
+ * land's are not colours seen but what the light does to them, multiplied in.
  */
 :root {
   --color-aland-drive-night-window-warm: #ffc06a;
