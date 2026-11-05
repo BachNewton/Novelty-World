@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import type { RoadsideModel } from "../roadside/index";
 import { Model, PARTS, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside kit's way of writing a model, with this folder's own paints. Each
@@ -176,7 +177,7 @@ export class RuralMesh {
   }
 }
 
-export const finished = (near: RuralMesh, far: RuralMesh | null, swapM: number, reachM: number): RoadsideModel => ({ near: near.build(), far: far?.build() ?? null, swapM, reachM });
+export const finished = (near: RuralMesh, far: RuralMesh | null, swapM: number, reachM: number): RoadsideModel => measuredSwap({ near: near.build(), far: far?.build() ?? null, swapM, reachM });
 
 /** Rings of corners, lowest first, closed at the top by a point. */
 export function ringed(stations: readonly (readonly V3[])[], tip: V3): { corners: V3[]; triangles: [number, number, number][] } {

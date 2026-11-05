@@ -5,6 +5,7 @@ import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
 import { buildCarArt, createCarModel, type CarLights } from "./model";
 import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
+import { indicatorClock } from "./material";
 import { CARS, WORLD_CARS } from "./specs";
 
 /*
@@ -109,24 +110,30 @@ async function start(width: number, height: number) {
       const size = { triangles: art.triangles, drawCalls: renderer.info.render.drawCalls };
       return size;
     },
-    /** Every world car in ranks, or one model in a line going away, to see the dissolve. */
-    async fleet(view: "ranks" | "line") {
+    /**
+     * Every world car in ranks, or one model in a line going away, to see the dissolve. Their indicators cycle off,
+     * left, right and both down the ranks, at `clock` seconds; the line's are all on, and `above` is the ranks from
+     * 75 m up, as the map's flight and a high chase see traffic.
+     */
+    async fleet(view: "ranks" | "line" | "above", clock = 0) {
       const specs = [...CARS, ...WORLD_CARS];
-      const cars: FleetCar[] =
-        view === "ranks"
-          ? specs.flatMap((spec, index) => {
-              const column = index % 8;
-              const rank = Math.floor(index / 8);
-              return [{ spec, x: -14 + column * 3.9, y: 0, z: 6 - rank * 7.5, yaw: 0, seed: index + 3 }];
-            })
-          : Array.from({ length: 34 }, (_, index) => ({ spec: specs[index % specs.length], x: 2, y: 0, z: 40 - index * 8, yaw: Math.PI, seed: index }));
+      const ranks = view !== "line";
+      const cars: FleetCar[] = ranks
+        ? specs.flatMap((spec, index) => {
+            const column = index % 8;
+            const rank = Math.floor(index / 8);
+            return [{ spec, x: -14 + column * 3.9, y: 0, z: 6 - rank * 7.5, yaw: 0, seed: index + 3, signal: index % 4 }];
+          })
+        : Array.from({ length: 34 }, (_, index) => ({ spec: specs[index % specs.length], x: 2, y: 0, z: 40 - index * 8, yaw: Math.PI, seed: index, signal: 3 }));
+      indicatorClock.value = clock;
       const made = createCarFleet(cars, SUN);
       ground.position.y = 0;
       scene.add(...made.meshes);
       if (view === "ranks") camera.position.set(-1, 13, 21);
+      else if (view === "above") camera.position.set(-1, 75, 40);
       else camera.position.set(-1.5, 2, 60);
-      camera.fov = view === "ranks" ? 32 : 3.5;
-      camera.lookAt(view === "ranks" ? -0.3 : 2, view === "ranks" ? 0 : 0.7, view === "ranks" ? -6 : -60);
+      camera.fov = view === "ranks" ? 32 : view === "above" ? 26 : 3.5;
+      camera.lookAt(ranks ? -0.3 : 2, ranks ? 0 : 0.7, ranks ? -6 : -60);
       camera.updateProjectionMatrix();
       await renderer.compileAsync(scene, camera);
       renderer.render(scene, camera);

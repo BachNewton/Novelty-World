@@ -2,6 +2,7 @@ import { Box3, BufferAttribute, Color, PerspectiveCamera, RenderTarget, Scene, V
 import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { ArtModel, KitMaterials } from "../catalogue";
+import { fingerprint } from "../lod-swaps";
 import { placeVersion, type RoadsideMaterials } from "../roadside/index";
 import { flip, type LinearPicture } from "./flip";
 
@@ -45,9 +46,11 @@ const VIEWS = [3, 25].flatMap((elevationDeg) => Array.from({ length: 8 }, (_, st
  * machine, with no crossfade to soften the swap.
  */
 export const NOTICED = { deviationPx: 6, look: 0.55 };
-/** The latest swap tried as a cure, as a multiple of the model's own: the near version over four times the ground. */
-const LATEST_SWAP = 2;
-const SWAPS_TRIED = [1.25, 1.5, 2];
+/** The nearest swap tried, and each one after it this much further. */
+const NEAREST_SWAP_M = 4;
+const SWAP_STEP = 1.15;
+/** The latest swap tried, as a share of the model's reach: past it the far version is hardly seen before it goes. */
+const LATEST_OF_REACH = 0.7;
 /** The outline is measured on pictures this many times finer than the floor's screen, so a deviation reads under a pixel. */
 const FINER = 2;
 const LARGEST = 1024;
@@ -201,24 +204,31 @@ function look(near: Drawn, far: Drawn): { error: number; pixels: number } {
 
 export interface LodResult {
   name: string;
-  /** How far the outline moves at the swap, in pixels of the floor's screen, at the view where it moves most. */
+  /** Its versions' fingerprint, which `swaps.json` is keyed by. */
+  fingerprint: string;
+  /** How far the outline moves at the measured swap, in pixels of the floor's screen, at the view where it moves most. */
   deviation: number;
-  /** FLIP's mean error over what the model covers, over every view. */
+  /** FLIP's mean error over what the model covers, over every view, at the measured swap. */
   look: number;
   /** The view where each changes most, as azimuth and elevation in degrees, to look at. */
   deviationView: [number, number];
   lookView: [number, number];
   /** Pixels the two cover between them, on average over the views. */
   pixels: number;
+  /** The nearest swap tried at which the change isn't noticed, or, where none is, the one nearest the swap it was built with. */
   swapM: number;
+  /** The swap it was built with: the kit's own, or what `swaps.json` held. */
+  builtM: number;
   reachM: number;
-  /** For a model whose change is noticed: the earliest swap tried that hides it, or null where none up to twice its own does. */
-  hiddenAtM?: number | null;
+  /** False where neither the swap it was built with nor the latest tried hides the change: its far version has to match. */
+  hidden: boolean;
+  nearTriangles: number;
+  farTriangles: number;
 }
 
 export const noticed = (result: Pick<LodResult, "deviation" | "look">) => result.deviation > NOTICED.deviationPx || result.look > NOTICED.look;
 
-async function measure(entry: ArtModel, swapM?: number) {
+async function measure(entry: ArtModel, swapM: number) {
   let [most, error, pixels, worstLook] = [-1, 0, 0, -1];
   let [deviationView, lookView]: [number, number][] = [
     [0, 0],
@@ -236,32 +246,60 @@ async function measure(entry: ArtModel, swapM?: number) {
   return { deviation: round(most, 2), look: round(pixels === 0 ? 0 : error / pixels, 3), deviationView, lookView, pixels: Math.round(pixels / VIEWS.length) };
 }
 
+/** The nearest swap whose picture holds the whole model: nearer, the model is wider than the largest picture drawn. */
+function nearestHeld(model: ArtModel["drawn"] & object): number {
+  const radius = new Box3().setFromBufferAttribute(model.model.near.getAttribute("position") as BufferAttribute).getSize(new Vector3()).length() / 2;
+  const metresPerPixel = (2.2 * radius) / (LARGEST - ROW_PIXELS);
+  return (metresPerPixel * SCREEN_ROWS) / (2 * Math.tan((FIELD_OF_VIEW * Math.PI) / 360));
+}
+
+const triangles = (geometry: { index: { count: number } | null; getAttribute: (name: string) => { count: number } }) => (geometry.index?.count ?? geometry.getAttribute("position").count) / 3;
+
 /**
- * Every drawn model of these catalogues with a far version, compared, and each noticed one tried at later swaps: this
- * page's `part` of `parts`, so several pages share the work.
+ * Every drawn model of these catalogues with a far version, and the nearest swap at which its change isn't noticed:
+ * this page's `part` of `parts`, so several pages share the work. The swaps tried stand `SWAP_STEP` apart from the
+ * nearest the picture holds to the latest its reach allows, and a change only shrinks with distance, so the nearest
+ * unnoticed one is found by halving. Where `written` already holds a swap for the art, that one and the one before it
+ * are tried first: when it's unnoticed and the one before isn't, it stands, and no other is drawn.
  */
-export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>, part: number, parts: number): Promise<LodResult[]> {
+export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>, part: number, parts: number, written: Record<string, { swapM: number } | undefined>): Promise<LodResult[]> {
   const results: LodResult[] = [];
   let index = 0;
   for (const [kit, { artModels }] of Object.entries(catalogues)) {
     for (const entry of artModels()) {
       if (entry.drawn === undefined || entry.drawn.model.far === null) continue;
       if (index++ % parts !== part) continue;
-      const { swapM, reachM } = entry.drawn.model;
-      const result: LodResult = { name: `${kit}: ${entry.name}`, ...(await measure(entry)), swapM, reachM };
-      if (noticed(result)) {
-        result.hiddenAtM = null;
-        // A deviation shrinks in step with distance, so the outline alone says how far the swap must go.
-        const outlineHidden = swapM * Math.max(1, result.deviation / NOTICED.deviationPx);
-        const tried = [outlineHidden, ...SWAPS_TRIED.map((factor) => swapM * factor)].filter((at) => at >= outlineHidden && at > swapM && at <= swapM * LATEST_SWAP && at < reachM * 0.8).sort((a, b) => a - b);
-        for (const at of tried) {
-          if (!noticed(await measure(entry, at))) {
-            result.hiddenAtM = Math.ceil(at);
-            break;
-          }
-        }
+      const { near, far, swapM: builtM, reachM } = entry.drawn.model;
+      const swaps: number[] = [];
+      for (let at = Math.max(NEAREST_SWAP_M, nearestHeld(entry.drawn)); at <= reachM * LATEST_OF_REACH; at *= SWAP_STEP) swaps.push(Math.round(at));
+      if (swaps.length === 0) swaps.push(Math.round(reachM * LATEST_OF_REACH));
+      const measured = new Map<number, Awaited<ReturnType<typeof measure>>>();
+      const at = async (rung: number) => {
+        const known = measured.get(rung);
+        if (known !== undefined) return known;
+        const made = await measure(entry, swaps[rung]);
+        measured.set(rung, made);
+        return made;
+      };
+      const print = fingerprint(near, far);
+      const was = swaps.indexOf(written[print]?.swapM ?? -1);
+      const top = swaps.length - 1;
+      // The rung nearest the swap it was built with, which is where the search starts.
+      const built = swaps.reduce((best, swap, rung) => (Math.abs(Math.log(swap / builtM)) < Math.abs(Math.log(swaps[best] / builtM)) ? rung : best), 0);
+      let [low, high] = [0, top];
+      let hidden = true;
+      if (was !== -1 && !noticed(await at(was)) && (was === 0 || noticed(await at(was - 1)))) [low, high] = [was, was];
+      else if (!noticed(await at(built))) high = built;
+      // Outwards, a later swap hides the change only if the latest one tried does. Nowhere else is a single rung trusted that
+      // far out: a thin part shrunk under a pixel there draws nothing, which reads as a change the size of the picture.
+      else if (!noticed(await at(top))) low = built + 1;
+      else [low, high, hidden] = [built, built, false];
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (noticed(await at(middle))) low = middle + 1;
+        else high = middle;
       }
-      results.push(result);
+      results.push({ name: `${kit}: ${entry.name}`, fingerprint: print, ...(await at(high)), swapM: swaps[high], builtM, reachM, hidden, nearTriangles: triangles(near), farTriangles: triangles(far) });
     }
   }
   return results;

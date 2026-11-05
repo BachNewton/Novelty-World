@@ -3,7 +3,7 @@ import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { landing, mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rockLoop, shoreBed, snowLoop, sprayLoop, townBed, type Loop } from "./synthesis";
+import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, type Loop } from "./synthesis";
 import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -197,6 +197,7 @@ interface Rig {
   rock: ReturnType<typeof looped>;
   spray: ReturnType<typeof looped>;
   snow: ReturnType<typeof looped>;
+  studs: ReturnType<typeof looped>;
   squealTones: OscillatorNode[];
   squealFilter: BiquadFilterNode;
   squealLevel: GainNode;
@@ -226,6 +227,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
   const rock = looped(context, rockLoop(), master);
   const spray = looped(context, sprayLoop(), master);
   const snow = looped(context, snowLoop(), master);
+  const studs = looped(context, studsLoop(), master);
   const forest = looped(context, forestBed(), master);
   const shore = looped(context, shoreBed(), master);
   const gulls = looped(context, gullsBed(), master);
@@ -290,6 +292,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     rock,
     spray,
     snow,
+    studs,
     squealTones,
     squealFilter,
     squealLevel,
@@ -302,7 +305,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     town: town.level,
     ticks: toBuffer(freewheelLoop()),
     cycles: new Map(),
-    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
+    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
 
@@ -378,6 +381,8 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     to(built.spray.source.playbackRate, mixed.sprayRate);
     to(built.snow.level.gain, mixed.snowLevel, SURFACE_FOLLOW_S);
     to(built.snow.source.playbackRate, mixed.snowRate);
+    to(built.studs.level.gain, mixed.studsLevel, SURFACE_FOLLOW_S);
+    to(built.studs.source.playbackRate, mixed.studsRate);
     to(built.squealLevel.gain, mixed.squealLevel, 0.05);
     for (const tone of built.squealTones) to(tone.frequency, mixed.squealHz);
     to(built.squealFilter.frequency, mixed.squealHz * 2);

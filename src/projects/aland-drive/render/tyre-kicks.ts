@@ -1,16 +1,16 @@
-import type { Condition, Surface } from "../sim/surfaces";
+import type { Condition, Surface, Tyre } from "../sim/surfaces";
 
 /*
  * What a tyre throws up, and how much: the rules behind the tyre particles
  * (`tyre-particles.ts`), with nothing drawn here. Loose ground gives some just
  * by rolling over it (a gravel road's dust trail, spray off a wet road, powder
  * off snow), and more by sliding; a dry road gives nothing until the tyre is
- * past its grip, and then smoke.
+ * past its grip, and then smoke. Studs on ice chip it as they roll.
  */
 
 /** Soft, see-through puffs that hang in the air, and small solid bits that fly and land. */
 export const PUFFS = ["dust", "spray", "powder", "smoke"] as const;
-export const CHIPS = ["stone", "clod", "blade", "grit"] as const;
+export const CHIPS = ["stone", "clod", "blade", "grit", "ice"] as const;
 export type Puff = (typeof PUFFS)[number];
 export type Chip = (typeof CHIPS)[number];
 export type Kick = Puff | Chip;
@@ -19,6 +19,7 @@ export type Kick = Puff | Chip;
 export interface TyreRead {
   surface: Surface;
   condition: Condition;
+  tyres: Tyre;
   /** Along the way the tyre rolls, metres a second, either way. */
   rollMS: number;
   /** Across it. */
@@ -88,6 +89,11 @@ const KICKS: Record<Condition, Record<Surface, Rates>> = {
   },
 };
 
+/** Studs bite into ice and throw chips of it: a few just rolling, more in a slide. */
+const ON_STUDS: Partial<Record<Condition, Rates>> = {
+  ice: { ice: { perRollMS: 0.3, rollFromMS: 3, perRubMS: 3, most: 25 } },
+};
+
 const rateOf = ({ perRollMS = 0, rollFromMS = 0, perRubMS = 0, rubFromMS = 0, most }: Rate, rollMS: number, rub: number) =>
   Math.min(most, perRollMS * Math.max(0, rollMS - rollFromMS) + perRubMS * Math.max(0, rub - rubFromMS));
 
@@ -96,7 +102,8 @@ export function kicksOf(read: TyreRead): { rates: [Kick, number][]; rub: number 
   const rub = rubMS(read);
   const rolling = Math.abs(read.rollMS);
   const rates: [Kick, number][] = [];
-  for (const [kick, rate] of Object.entries(KICKS[read.condition][read.surface]) as [Kick, Rate][]) {
+  const studs = read.tyres === "studded" ? ON_STUDS[read.condition] : undefined;
+  for (const [kick, rate] of Object.entries({ ...KICKS[read.condition][read.surface], ...studs }) as [Kick, Rate][]) {
     const perS = rateOf(rate, rolling, rub);
     if (perS > 0) rates.push([kick, perS]);
   }

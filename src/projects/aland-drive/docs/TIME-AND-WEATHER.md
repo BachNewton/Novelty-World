@@ -9,7 +9,7 @@ The day and night, the seasons and the weather: what is decided, how the work is
 - **The hour runs fast.** A game day replays today's real sun path faster than real time, worked out from the world's clock (`sea/clock.ts`) with nothing sent. Its length is one constant, a starting value the owner tunes in the game. The boats keep real time, as they do now.
 - **Seasons never switch on a date.** Everything seasonal is a continuous function of the date (and, for snow, of the weather before it): leaves turn and fall over weeks, tree by tree, each on a threshold of its own rolled from its place, so a wood turns gradually rather than all at once; snow builds and melts; the sea freezes from the sheltered bays outward and breaks up in spring. A placed thing that is out of season (café terraces, cows, moored boats) leaves over a window of days, each on its own threshold, the same way.
 - **The weather is shared and drawn from Åland's climate.** It is a deterministic function of the world's clock, the same for every player, with how often it rains, snows, fogs and clears following Åland's real climate for that time of year. It sets the condition the grip already reads (dry, wet, snow, ice), and black ice comes from the temperature crossing zero after wet.
-- **Tyres are the player's choice, not the law's.** A car's tyres (summer, winter friction or studded) are swapped at home or at a car shop, and a car on snow or ice without winter or studded tyres handles poorly, so the season gives the player something to prepare for (`ideas/surface-grip.md`, "Later").
+- **Tyres are the player's choice, not the law's.** A car's tyres (summer, winter friction or studded) are swapped at home or at a car shop, and a car on snow or ice without winter or studded tyres handles poorly, so the season gives the player something to prepare for. Built: the grip of each tyre in each condition, the tyre fitted per car in this browser (`garage/tyres.ts`), chosen in the game menu or by `?tyres=` until homes and car shops exist, and studs heard and seen (`ideas/surface-grip.md`, "Each car runs on the tyres the player fitted").
 - **The winter is more wintry than Åland's.** Real Åland is snow-poor, and the sea freezes hard about one winter in six, so for play snow comes more often and lies longer, and the sea freezes more often than it really does. When it does, cars drive on the frozen sea itself; there are no marked ice roads, as Åland has no official ones.
 - **The Northern Lights are rare, but not as rare as real.** They show on clear, dark winter nights, more often than the about once a month the latitude really gives (`art/night/aurora.ts`).
 - **Fog is light and short**, mostly spring's sea fog lifting by afternoon. A thick fog is kept for a bucket-list challenge.
@@ -21,7 +21,8 @@ The day and night, the seasons and the weather: what is decided, how the work is
 
 - **The day** (phase 1, `CLAUDE.md`, "The day"): Åland's real date and a fast hour from the world's clock (`time/day.ts`), the sun and moon over Åland (`time/sky-places.ts`), one live sun every material reads (`art/sun.ts`), the night's dial set from the sun's height and a winter night's dark below it (`render/day-and-night.ts`), the terrain's bake moved by the live sun (`render/terrain-light.ts`), and the night's lights in the game (`render/night-lights.ts`, lit rooms in the wall shader). `?date=`, `?hour=` and the dev menu's Day move a page's day.
 - **The sky** (`art/sky`): a summer and a golden-hour look, and the night's dusk and night looks between them by the sun's height, darkened further on a winter night. Clouds have a cover.
-- **The grip** by surface and condition (`sim/surfaces.ts`), set today from the dev menu or `?condition=`.
+- **The grip** by surface and condition (`sim/surfaces.ts`), set by the weather (`climate/`, below), or held by the dev menu or `?condition=`.
+- **The climate's logic** (`climate/`, below): the shared weather and the season's dials, pure and unit-tested, with nothing drawn yet.
 - **The aurora** (`art/night/aurora.ts`), built and not yet in the game: it waits for clear, dark winter nights, which need the weather and the seasons.
 
 ## Phases
@@ -58,10 +59,55 @@ The real numbers the later phases are built on, written into this doc's Referenc
 
 ### 3. Seasons (after 1; after 2 for snow, which the weather lays)
 
-- The season's continuous dials from the date: leaf colour and fall, snow cover (built and melted by the weather), sea ice, the winter's lights; tyres to choose and fit at home or a car shop.
+- The season's continuous dials from the date: leaf colour and fall, snow cover (built and melted by the weather), sea ice, the winter's lights; tyres fitted at home or a car shop (the choice, its memory per car and the grip are built: the screens that call `garage/tyres.ts` wait for homes and shops).
 - Every placed layer says which seasons it belongs to and leaves on its own threshold.
-- The winter's art, a subagent per kit: snow over the land with the roads cleared and banked, bare broadleaves and snow on spruce, ice on the sea with boats laid up, the Advent and Christmas lights, the frozen sea as a surface to drive on, autumn's colours and fallen leaves; the aurora on clear dark nights; studs in the tyres' sound and particles.
+- The winter's art, a subagent per kit: snow over the land with the roads cleared and banked, bare broadleaves and snow on spruce, ice on the sea with boats laid up, the Advent and Christmas lights, the frozen sea as a surface to drive on, autumn's colours and fallen leaves; the aurora on clear dark nights. (Studs in the tyres' sound and particles are built.)
 - Exit: a walk through the year, one date a month, seen by the owner in the running game.
+
+## The climate (the logic of phases 2 and 3)
+
+`climate/` is the logic half of the weather and the seasons: pure functions, no renderer, the same on every player's machine with nothing sent. The sky, the art and the sound read these values; none of them is drawn yet.
+
+**Time in.** Both take plain inputs, which the game's day (`time/day.ts`) will feed: the date (Åland's `CalendarDate`), how far through it real time is (0 to 1, so nothing seasonal jumps at midnight; a date a link holds sits at its noon), the hour shown, and the world's clock in game days (seconds over `GAME_DAY_S`), which is what the weather's fronts follow, so every player has the same sky whatever their hour. Until the day lands, `climate/feed.ts` reads all four off the world's clock itself (its own copy of the game day's length, and UTC+2 for the date); once it lands those come from the day instead. Nothing here works out a sun: darkness is the day's.
+
+**Exact arithmetic.** No `Math.sin`, `exp`, `pow` or the like anywhere in it (`climate/exact.test.ts` holds that): engines may round those each their own way, and two players' weather would part over a last bit. Random numbers are an integer hash (PCG) of whole numbers, eased between.
+
+**The weather** (`climate/weather.ts`, `weatherAt`), at a moment:
+
+| Value | Range | For |
+|---|---|---|
+| `cloudCover` | 0–1 | the sky's cloud, its light and its shadowless overcast |
+| `rain`, `snowfall` | 0–1 each | drawn near the camera; rain and wipers in the sound |
+| `fog` | 0–1 | the haze's thickness: the climate's fog stays under 0.6, 1 is a challenge's thick fog |
+| `windMS`, `windFromDeg` | m/s; degrees from **true** north | the sound, flags, trees, the sea; the grid's north is 6.25° off |
+| `temperatureC` | °C | breath, frost on glass, the sound of studs |
+| `roadWet`, `roadSnow`, `blackIce` | 0–1 each | wet roads darkening and shining, snow on the road, ice's sheen |
+| `aurora` | 0–1 | how strong an aurora is now, if the night is dark: the renderer multiplies it by its own darkness |
+| `condition` | dry, wet, snow, ice | the grip (`sim/surfaces.ts`); the drive reads it every frame |
+| `state` | clear, cloud, overcast, rain, snowfall, fog | a name for a readout or a sound's pick; a reading of the values, never a switch |
+
+How it works: the fronts and showers are one number wandering smoothly along the game days, and a game day is wet when it rises past a threshold; the threshold is read off that number's own spread (worked out once, the same everywhere), so the share of wet game days is the month's, eased between month middles, and leans on the real day's wetness. Cloud is the same fronts with a wandering of its own, held to the month's cloudier share the same way. Rain or snow is the temperature's: the day's mean on the real calendar (`climate/climate.ts`: the normal, the extra cold for play, this winter's hardness, the day's own wander) with the day's swing by the hour, bigger under a clear sky. Fog is a morning's (and now and then an evening's), chosen per shown day, light, gone by 13:00. The road remembers rain and meltwater for 5 game hours in summer and 12 in winter, and snow for 6 until it's ploughed; black ice is a wet road below freezing. The condition is snow over ice over wet over dry, each past a threshold on those values.
+
+**The season** (`climate/season.ts`, `seasonAt`), each a share of things, from the date:
+
+| Dial | Range | For |
+|---|---|---|
+| `leaves.leafed`, `leaves.turned` | shares 0–1 | each broadleaf tree in leaf and in its autumn colour; a tree's one threshold serves both, so it turns before it falls, and leafs out green |
+| `leaves.fallen` | 0–1 | fallen leaves along the verges and under the trees, gone by mid-December or under snow |
+| `snow.depthCm`, `snow.cover` | cm; share 0–1 | snow over the land, built by the cold wet real days and melted by mild ones and the spring sun |
+| `seaIce.reach`, `seaIce.drivable`, `seaIce.bayCm` | exposures 0–1; cm | the sea frozen out to that exposure, the ice that bears a car, and the bays' thickness; `iceAt(day, exposure)` gives any place's |
+| `lights.town`, `lights.homes`, `lights.windows` | shares 0–1 | Mariehamn's streets and Torget's tree, homes' Christmas lights, windows' candlesticks and stars |
+| `lights.adventCandles` | 0–4 | candles lit in a four-candle holder |
+| `auroraNightChance` | 0–0.12 | the chance a game night has one, which the weather draws |
+| `inSeason.terraces`, `grazing`, `boatsAfloat`, `bales` | shares 0–1 | placed things out in their season (`IN_SEASON`, a window each, which a new kind adds a row to) |
+
+**One by one.** A thing changes when the share of its kind passes its own threshold: `oneByOne(share, threshold)` is that thing's state from 0 to 1, over a sliver of the share, so a wood turns tree by tree. The threshold is the art's, rolled from the thing's place with `art/hash.ts` (`unitOf` on the GPU, `unitOfSeed` on the CPU, which agree), so a tree in a shader and a prop on the CPU change alike. Sea ice reads exposure the same way: a place's exposure (0 the most sheltered bay, 1 the open Sea of Åland) is its threshold against `reach` and `drivable`. Working out each place's exposure (how far it is from open water, say) is the sea art's job: nothing computes it yet.
+
+**What the tuning gives** (on six simulated years and thirty winters, `climate/rates.test.ts`): wet game days and cloudy time within a few points of each month's numbers; fog on two to five mornings a month in spring and autumn; snow lying from about December to March, 15–20 cm at its deepest, at least three weeks white in the mildest winter; ice in the bays in most winters, and the open sea frozen in about one in four. The road is dry about nine tenths of the time, wet the rest outside winter, with snow on it about one hour in twenty from December to February, and black ice rare, mostly in March's thaws. Each is a constant at the top of its module.
+
+**Where the drive takes it.** The game sets the ground's condition from the weather on every frame (`climate/feed.ts`'s `groundCondition`). `?condition=` or the dev menu's Ground holds one instead, until a reload. A tool's or a test's page (on `?tiles=`, or driven by automation) stays dry, so a measurement doesn't change with the hour it ran at, unless it asks with `?weather`. `?date=2027-01-20` holds the date, the same parameter the game's day reads, and the world's clock (`?sea=`) moves the weather with the boats.
+
+**`?weather-lab`** is the readout: every value at a date and hour (`?weather-lab&date=2027-01-20&hour=7`), stepping a day, a week or a month, the hour on a slider, and which of the date's game days; a strip of that game day hour by hour, and one of the whole year from July, the date marked, for the snow, the ice, the leaves, the lights and the terraces.
 
 ## Reference
 
@@ -108,7 +154,7 @@ How often, not how hard.
 - **What the sources say** ([FMI snow statistics](https://en.ilmatieteenlaitos.fi/snow-statistics), [Climate of Finland](https://en.wikipedia.org/wiki/Climate_of_Finland) [O, the whole south-west]): the first snow cover is usually in November in the south and west; lasting snow in the south-west corner starts around Christmas; the depth is greatest around March. FMI counts first snow as 1 cm or more at 06 UTC, and lasting snow as the longest run of such days. No Åland figure is readable in text (FMI's are maps).
 - **Snowfall** [O, WeatherSpark]: about 4 in. (10 cm) of snow a month in January, 3.5 in. February, 2.5 March, 0.9 April, 1.7 November, 3.6 December; the snowy season runs about 6 November to 13 April.
 - **Shape for the model** ([E], from the above and the table's thawing winter): Åland is snow-poor. Lasting cover begins late December to mid-January and ends late February to mid-March, 50–80 days in an average winter; peak depth 5–15 cm in February and early March, 20–40 cm only in a snowy winter; some winters, perhaps one in four or five, have no lasting cover; snow often falls and is gone within days. **For play:** snow cover on a plausible fraction of winter days, building and melting over days with the weather's snowfall and temperature, and every winter has some white weeks (the real one that doesn't is not a good winter for a game).
-- **Ice and snow on tyres:** studded tyres in winter conditions mean the grip tables' snow and ice conditions (`ideas/surface-grip.md`) are the ones that matter on cold days; wet and dry are the rest of the year.
+- **Ice and snow on tyres:** the grip tables' snow and ice conditions (`ideas/surface-grip.md`) are the ones that matter on cold days, and there the player's choice of tyres does most; wet and dry are the rest of the year.
 
 ### Sea ice
 
@@ -132,7 +178,7 @@ How often, not how hard.
 - **Åland** (the law's text on [regeringen.ax](https://regeringen.ax/node/213686), the 2024 amendment of the 2023 road traffic act, in force 1 October 2024): in winter conditions (vinterväglag) from November to March, cars up to 3.5 t, motorcycles, mopeds and trailers over 0.75 t must use winter tyres of at least 3.0 mm tread, or equivalent equipment. It is conditions-based: no fixed start day.
 - **Studs on Åland** ([the 2012 ordinance](https://www.regeringen.ax/node/26846); the 2008 one, [here](https://regeringen.ax/node/25925), said the same dates): allowed from 15 October to 15 April, and at other times in winter conditions or when they are feared. Not confirmed under the 2023 act: this is the last rule found.
 - **Mainland Finland** ([Traficom](https://traficom.fi/fi/autoilijat/vinkkeja-liikenteeseen/auton-kesa-ja-talvirenkaat)): winter tyres 1 November to 31 March when weather or road conditions require, 3.0 mm; studs 1 November to 31 March, and at other times when conditions require. The old mainland rules (winter tyres 1 December to the end of February, studs to the Monday after Easter) ended with the 2020 law change ([Traficom's note](https://www.traficom.fi/files/media/publication/Tieliikennelain_uudistuksen_vaikutus_talvirenkaiden_kayttoon.pdf)).
-- **Difference:** the winter-tyre duty is the same, November to March in winter conditions. The Åland stud window is wider: it opens about two weeks earlier (15 October against 1 November) and closes about two weeks later (15 April against 31 March). **For the game:** winter tyres on when conditions are winter, studs from 15 October to 15 April, summer tyres otherwise; the dates need no change from the plan's "studs in the winter months".
+- **Difference:** the winter-tyre duty is the same, November to March in winter conditions. The Åland stud window is wider: it opens about two weeks earlier (15 October against 1 November) and closes about two weeks later (15 April against 31 March). **For the game:** tyres are the player's choice, not the law's (Decided), so these dates say only when a sensible driver changes over, a hint a home or a car shop could give.
 
 ### Winter lights
 

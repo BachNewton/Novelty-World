@@ -1,66 +1,66 @@
 {
   "ytterby-sprint": {
-    "tuning": "cd596db3",
+    "tuning": "3a72a481",
     "places": "9b7da010",
     "par": 151.24,
     "target": 151.3
   },
   "backrace-road": {
-    "tuning": "7c5bdbb4",
+    "tuning": "ea17dfdb",
     "places": "d9eb85c0",
     "par": 233.98,
     "target": 234
   },
   "langnas-ferry": {
-    "tuning": "f753aee2",
+    "tuning": "a1e2e7fd",
     "places": "093e9885",
     "par": 183.7,
     "target": 183.8
   },
   "djurvik": {
-    "tuning": "791f8b50",
+    "tuning": "31333c1d",
     "places": "86a865ae",
     "par": 189.55,
     "target": 195.3
   },
   "notviken": {
-    "tuning": "cd596db3",
+    "tuning": "3a72a481",
     "places": "901161ca",
     "par": 196.59,
     "target": 202.5
   },
   "eckero-skagvagen": {
-    "tuning": "3782839b",
+    "tuning": "6dba9430",
     "places": "cecebe9b",
     "par": 100.2,
     "target": 108.3
   },
   "hultvagen": {
-    "tuning": "49a06196",
+    "tuning": "e75df841",
     "places": "dfefada1",
     "par": 93.05,
     "target": 95.9
   },
   "castle-to-fortress": {
-    "tuning": "3782839b",
+    "tuning": "6dba9430",
     "places": "44164073",
     "par": 215.74,
     "target": 222.3
   },
   "post-road-west": {
-    "tuning": "c7fae3f9",
+    "tuning": "b7bcac12",
     "places": "a8b1dfef",
     "par": 227.39,
     "target": 234.3
   },
   "lemland-speeding": {
-    "tuning": "a062b05c",
+    "tuning": "71c4579b",
     "places": "0334419c",
     "par": 148.77,
     "target": 147
   },
   "road-2-flat-out": {
-    "tuning": "6f0f38fd",
+    "tuning": "15f5b796",
     "places": "9f117f6f",
     "par": 239.04,
     "target": 236

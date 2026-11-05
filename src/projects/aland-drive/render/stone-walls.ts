@@ -1,5 +1,5 @@
 import { Sphere, Vector3, type Mesh, type Scene } from "three/webgpu";
-import { placeModel, type Placement, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
+import { placeModel, SWAP_SPREAD, type Placement, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
 import { buildStoneWall, STONE_WALL_M, STONE_WALL_OVERLAP_M as OVERLAP_M } from "../art/rural/index";
 import { SECTION_FLOATS, type WallSections } from "./tile-walls";
 
@@ -150,7 +150,7 @@ export function createStoneWalls(scene: Scene, materials: RoadsideMaterials) {
       const next: StoneWallsDrawn = { nearCells: 0, farCells: 0, sections: 0 };
       for (const { near, far } of tiles.values()) {
         for (const cell of near) {
-          cell.mesh.visible = shownAll || reachOf(cell, camera.x, camera.z)[0] < model.swapM + STONE_WALL_M;
+          cell.mesh.visible = shownAll || reachOf(cell, camera.x, camera.z)[0] < model.swapM * (1 + SWAP_SPREAD) + STONE_WALL_M;
           if (cell.mesh.visible) next.nearCells++;
         }
         for (const cell of far) {

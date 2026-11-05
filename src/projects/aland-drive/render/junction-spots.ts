@@ -37,7 +37,7 @@ const ABOVE_M = 110;
 const DRIVER_M = 2.5;
 const DRIVER_PITCH = -0.1;
 
-const placeOf = (x: number, z: number) => ({ east: x + WORLD_EAST, north: -z + WORLD_NORTH });
+export const placeOf = (x: number, z: number) => ({ east: x + WORLD_EAST, north: -z + WORLD_NORTH });
 
 export const fromAbove = ({ x, z }: JunctionSpot): Place => ({ ...placeOf(x, z), height: ABOVE_M, yaw: 0, pitch: -Math.PI / 2 });
 

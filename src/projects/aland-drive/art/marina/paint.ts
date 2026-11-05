@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { MOTION_KINDS, MOTION_RANGE_M, type Motion as StreetMotion } from "../street/paint";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside `Model` writes the shapes, with the street kit's tint layout, so a
@@ -249,7 +250,7 @@ export class Marked {
 
 /** A marina object's versions, ready for `placeModel`. With no far version it simply dissolves away at `swapM`. */
 export function marinaModel(near: Marked, far: Marked | null, swapM: number, reachM: number, motion?: Motion): RoadsideModel {
-  return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
+  return measuredSwap({ near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM });
 }
 
 /** A building's walls and roof as cheap as they go, for a far version. */

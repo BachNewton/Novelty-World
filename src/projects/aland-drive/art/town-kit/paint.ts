@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { MOTION_KINDS, MOTION_RANGE_M, type MotionKind } from "../street/paint";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The street kit's `Painted` is fixed to the street's own paints, so this is the same idea over the town's: one
@@ -142,7 +143,7 @@ export class TownPainted {
 
 /** A town object's versions, ready for `placeModel`. */
 export function townModel(near: TownPainted, far: TownPainted | null, swapM: number, reachM: number, motion?: TownMotion): RoadsideModel {
-  return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
+  return measuredSwap({ near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM });
 }
 
 /** A ring of `sides` points upright in the x-y plane, for a lens or a sign's disc. */

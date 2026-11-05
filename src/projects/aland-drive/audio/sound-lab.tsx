@@ -9,7 +9,7 @@ import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
 import { CARS } from "../sim/cars";
-import { CONDITIONS, SURFACES, type Condition, type Surface } from "../sim/surfaces";
+import { CONDITIONS, SURFACES, TYRES, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { pullAt, resistanceAt, restingEngine, stepEngine, topSpeedMS, type EngineRead } from "../sim/gearbox";
 
 /*
@@ -33,6 +33,7 @@ interface Knobs {
   left: Surface;
   right: Surface;
   condition: Condition;
+  tyres: Tyre;
   kmh: number;
   throttle: number;
   slip: number;
@@ -43,7 +44,7 @@ interface Knobs {
   place: Place;
 }
 
-const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -155,6 +156,7 @@ function Bench() {
           slip: knob.handbrake && speedMS > 3 ? Math.max(knob.slip, 0.55) : knob.slip,
           wheels: [knob.left, knob.right, knob.left, knob.right],
           condition: knob.condition,
+          tyres: knob.tyres,
           suspension: REST,
           place: knob.place,
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
@@ -176,7 +178,7 @@ function Bench() {
   const stop = () => {
     setRunning(false);
     setReadout("Stopped");
-    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, wheels: [latest.current.left, latest.current.right, latest.current.left, latest.current.right], condition: latest.current.condition, suspension: REST, place: { forest: 0, shore: 0, town: 0 }, paused: true }, 0.03);
+    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, wheels: [latest.current.left, latest.current.right, latest.current.left, latest.current.right], condition: latest.current.condition, tyres: latest.current.tyres, suspension: REST, place: { forest: 0, shore: 0, town: 0 }, paused: true }, 0.03);
   };
 
   const engine = knobs.vehicle === "bike" ? null : ENGINES[knobs.vehicle];
@@ -191,7 +193,7 @@ function Bench() {
         <span className="text-xs text-text-muted tabular-nums">{readout}</span>
       </div>
       <Choice values={VEHICLE_IDS} label={vehicleLabel} value={knobs.vehicle} onChange={(vehicle) => set({ vehicle, kmh: 0, floorIt: false, rpm: vehicle === "bike" ? 0 : Math.min(ENGINES[vehicle].redlineRpm * 0.4, 3000) })} />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-4">
         <Labelled label="Left wheels">
           <Choice values={SURFACES} label={capitalised} value={knobs.left} onChange={(left) => set({ left })} />
         </Labelled>
@@ -200,6 +202,9 @@ function Bench() {
         </Labelled>
         <Labelled label="Condition">
           <Choice values={CONDITIONS} label={capitalised} value={knobs.condition} onChange={(condition) => set({ condition })} />
+        </Labelled>
+        <Labelled label="Tyres">
+          <Choice values={TYRES} label={capitalised} value={knobs.tyres} onChange={(tyres) => set({ tyres })} />
         </Labelled>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

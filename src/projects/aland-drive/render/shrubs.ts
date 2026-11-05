@@ -36,8 +36,7 @@ const LATTICES: Lattice[] = [
 ];
 /** The farthest any of its plants stands from the camera. */
 const REACH_M = Math.max(...LATTICES.map(reachOf));
-/** Each lattice's swap to far versions. */
-const SWAPS_M = [60, 150] as const;
+/** The band each model's near and far versions trade pixels over, either side of the swap its kit gives it. */
 const SWAP_BAND = 0.15;
 
 /** A forest edge: open where the place is, and canopy this tall on average within about 32 m. */
@@ -98,6 +97,17 @@ interface Kind {
   sizes: readonly [number, number];
 }
 
+/** The bushes, junipers and birches, every one of which the LOD check measures. */
+export const shrubKinds = (): Kind[] => [
+  { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
+  { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
+  { model: buildBush(1, "sallow"), lattice: BUSHES, sizes: [0.7, 1.3] },
+  { model: buildJuniper(1, "column"), lattice: BUSHES, sizes: [0.7, 1.15] },
+  { model: buildJuniper(2, "spreading"), lattice: BUSHES, sizes: [0.8, 1.3] },
+  { model: buildBirch(1, "young"), lattice: BIRCHES, sizes: [3.5, 7] },
+  { model: buildBirch(2, "clump"), lattice: BIRCHES, sizes: [3.5, 6.5] },
+];
+
 export interface ShrubInputs {
   canopyAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
@@ -133,15 +143,7 @@ export interface Shrubs {
 }
 
 export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt, waterAt, landAt, roadsAt, groundAt, shoreAt, wallDistanceAt, wallDistanceFarAt, clearanceAt, lightOf, linear, hazed, sun }: ShrubInputs): Shrubs {
-  const kinds: Kind[] = [
-    { model: buildBush(1, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
-    { model: buildBush(2, "hazel"), lattice: BUSHES, sizes: [0.7, 1.4] },
-    { model: buildBush(1, "sallow"), lattice: BUSHES, sizes: [0.7, 1.3] },
-    { model: buildJuniper(1, "column"), lattice: BUSHES, sizes: [0.7, 1.15] },
-    { model: buildJuniper(2, "spreading"), lattice: BUSHES, sizes: [0.8, 1.3] },
-    { model: buildBirch(1, "young"), lattice: BIRCHES, sizes: [3.5, 7] },
-    { model: buildBirch(2, "clump"), lattice: BIRCHES, sizes: [3.5, 6.5] },
-  ];
+  const kinds = shrubKinds();
   const [HAZEL, , SALLOW, JUNIPER, , BIRCH] = [0, 1, 2, 3, 4, 5];
 
   const toSun = towardsSun(sun);
@@ -160,13 +162,14 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
     return model.far;
   });
   const capacityOf = (lattice: number) => Math.ceil(placesWithin(reachOf(LATTICES[lattice]), LATTICES[lattice].stepM) * MOST_PLANTS);
-  const nearOf = (lattice: number) => placesWithin(SWAPS_M[lattice] * (1 + SWAP_BAND) + WIDEST_M, LATTICES[lattice].stepM);
+  // A model's swap is for its own size, and a plant is drawn at its own: its change on screen grows with it.
+  const nearOf = ({ model, lattice, sizes }: Kind) => placesWithin(model.swapM * sizes[1] * (1 + SWAP_BAND) + WIDEST_M, LATTICES[lattice].stepM);
 
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
     widestM: WIDEST_M,
     shapes: [...fars, ...kinds.map(({ model }) => model.near)],
-    capacities: [...kinds.map(({ lattice }) => capacityOf(lattice)), ...kinds.map(({ lattice }) => nearOf(lattice))],
+    capacities: [...kinds.map(({ lattice }) => capacityOf(lattice)), ...kinds.map(nearOf)],
     rows: ROWS,
     visit({ seed, place, distance, lattice, seenOn, left, write }) {
       const isBushes = lattice === LATTICES[BUSHES];
@@ -188,8 +191,6 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
             const bush = select(near.and(pick.lessThan(SALLOW_NEAR_WATER)), float(SALLOW), select(pick.lessThan(0.5), float(HAZEL), float(HAZEL + 1)));
             const kind = (isBushes ? select(chance.lessThan(bushes), bush, select(pick.lessThan(0.5), float(JUNIPER), float(JUNIPER + 1))) : select(pick.lessThan(0.5), float(BIRCH), float(BIRCH + 1))).toVar();
             const size = mix(lowOf.element(int(round(kind))) as unknown as Node<"float">, highOf.element(int(round(kind))) as unknown as Node<"float">, roll(seed, 10)).toVar();
-            const swapM = SWAPS_M[isBushes ? BUSHES : BIRCHES];
-            const swap = smoothstep(float(swapM * (1 - SWAP_BAND)), float(swapM * (1 + SWAP_BAND)), distance).toVar();
             const spread = size.mul(spreadOfKind.element(int(round(kind))) as unknown as Node<"float">).toVar();
             const clearOfWalls = (isBushes ? wallDistanceAt(place).greaterThan(spread.add(STONE_WALL_HALF_WIDE_M)) : wallDistanceFarAt(place).greaterThan(BIRCH_OFF_WALL_M)).and(clearOfBuildings(clearanceAt, place, spread));
             const remaining = left().toVar();
@@ -198,6 +199,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
             kinds.forEach((each, index) => {
               if (LATTICES[each.lattice] !== lattice) return;
               If(kind.equal(index), () => {
+                const swap = smoothstep(size.mul(each.model.swapM * (1 - SWAP_BAND)), size.mul(each.model.swapM * (1 + SWAP_BAND)), distance).toVar();
                 If(clearOfWalls.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
                 });

@@ -2,6 +2,7 @@ import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, t
 import { cos, dot, float, fract, If, int, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
+import type { RoadsideModel } from "../art/roadside/index";
 import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
@@ -36,7 +37,7 @@ const LATTICES: Lattice[] = [
 ];
 /** The farthest any of its plants stands from the camera. */
 const REACH_M = Math.max(...LATTICES.map(reachOf));
-const SWAP_M = 60;
+/** The band each clump's near and far versions trade pixels over, either side of the swap its kit gives it. */
 const SWAP_BAND = 0.15;
 
 /**
@@ -75,8 +76,6 @@ const MATCHES = [200, 600] as const;
 
 /** A clump in a list is three rows of four floats: where it stands, its look, and its share of the pixels. */
 const ROWS = 3;
-const FAR_DRAW = 0;
-const FAR_DRAWS = 1;
 const SEEDS = [1, 2, 3];
 /** Shores in view are a small part of what's in reach: lists hold this share of its places. */
 const MOST_CLUMPS = 0.1;
@@ -115,8 +114,11 @@ export interface Reeds {
   dispose: () => void;
 }
 
+/** The reed clumps, every one of which the LOD check measures. */
+export const reedClumps = () => SEEDS.map((seed) => buildReedClump(seed));
+
 export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt, shoreAt, clearanceAt, lightOf, linear, hazed }: ReedInputs): Reeds {
-  const clumps = SEEDS.map((seed) => buildReedClump(seed));
+  const clumps = reedClumps();
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
@@ -124,15 +126,19 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
   const spreadOfClump = uniformArray(clumps.map(({ near }) => spreadOf(near)), "float");
 
   const far = Math.ceil(LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0) * MOST_CLUMPS);
-  const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_CLUMP_M, stepM), 0);
-  const farShape = clumps[0].far;
-  if (farShape === null) throw new Error("The reed clump kit has no far version");
+  // A model's swap is for its own size, and a clump is drawn at its own: its change on screen grows with it.
+  const nearOf = ({ swapM }: RoadsideModel) => LATTICES.reduce((sum, { stepM }) => sum + placesWithin(swapM * SIZES[1] * (1 + SWAP_BAND) + WIDEST_CLUMP_M, stepM), 0);
+  const fars = clumps.map(({ far: shape }) => {
+    if (shape === null) throw new Error("The reed clump kit has no far version");
+    return shape;
+  });
 
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
     widestM: WIDEST_CLUMP_M,
-    shapes: [farShape, ...clumps.map(({ near: shape }) => shape)],
-    capacities: [far, ...clumps.map(() => near)],
+    shapes: [...fars, ...clumps.map(({ near: shape }) => shape)],
+    // A clump's seed is rolled evenly, so each takes about its share of the places, and half again for a patch that rolls one more.
+    capacities: [...clumps.map(() => Math.ceil((far / clumps.length) * 1.5)), ...clumps.map(nearOf)],
     rows: ROWS,
     visit({ seed, place, distance, seenOn, left, write }) {
       const chance = roll(seed, 4).toVar();
@@ -151,19 +157,19 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
             If(seenOn(water), () => {
               const kind = roll(seed, 9).mul(SEEDS.length).floor().toVar();
               const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10)).toVar();
-              const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
               const remaining = left().toVar();
               const standing = vec4(place.x, water, place.y, roll(seed, 11).mul(6.283)).toVar();
               const clear = clearOfBuildings(clearanceAt, place, size.mul(spreadOfClump.element(int(kind)) as unknown as Node<"float">));
               const photo = shore.broad.pow(vec3(2.2)).toVar();
               const look = vec4(photo, lightOf(shore.shade)).toVar();
-              If(clear.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
-                write(FAR_DRAW, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
-              });
-              If(clear.and(swap.lessThan(1)), () => {
-                SEEDS.forEach((_, index) => {
-                  If(kind.equal(index), () => {
-                    write(index + FAR_DRAWS, [standing, look, vec4(0, float(1).sub(swap), size, kind)]);
+              clumps.forEach((clump, index) => {
+                If(kind.equal(index), () => {
+                  const swap = smoothstep(size.mul(clump.swapM * (1 - SWAP_BAND)), size.mul(clump.swapM * (1 + SWAP_BAND)), distance).toVar();
+                  If(clear.and(swap.greaterThan(0)).and(remaining.greaterThan(0)), () => {
+                    write(index, [standing, look, vec4(float(1).sub(swap), remaining, size, kind)]);
+                  });
+                  If(clear.and(swap.lessThan(1)), () => {
+                    write(clumps.length + index, [standing, look, vec4(0, float(1).sub(swap), size, kind)]);
                   });
                 });
               });
@@ -178,7 +184,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
       material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
-      const isFar = index < FAR_DRAWS;
+      const isFar = index < clumps.length;
       // The model's own height, before the clump's size, picks the band, as it did when the bands were measured.
       const band = BAND_TOPS_M.slice(0, -1).reduce((at: Node<"float">, top) => at.add(select(local.y.greaterThanEqual(top), float(1), float(0))), float(0));
       const painted = isFar ? (bandsOf.element(int(round(live.w.mul(BAND_TOPS_M.length).add(band)))) as unknown as Node<"vec3">) : paint;
@@ -198,7 +204,8 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
     show: planting.show,
     drawn() {
       const counts = planting.counts();
-      return { far: counts[FAR_DRAW], near: counts.slice(FAR_DRAWS).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(counts) };
+      const sum = (each: number[]) => each.reduce((total, count) => total + count, 0);
+      return { far: sum(counts.slice(0, clumps.length)), near: sum(counts.slice(clumps.length)), triangles: planting.triangles(counts) };
     },
     dispose: planting.dispose,
   };

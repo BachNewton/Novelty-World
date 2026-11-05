@@ -1,6 +1,6 @@
 import { createDriveAudio } from "../graph";
 import type { DriveAudioState, Place } from "../model";
-import { CONDITIONS, SURFACES, type Condition, type Surface } from "../../sim/surfaces";
+import { CONDITIONS, SURFACES, type Condition, type Surface, type Tyre } from "../../sim/surfaces";
 import { ENGINE_IDS, type VehicleId } from "../vehicles";
 
 /*
@@ -29,6 +29,7 @@ const base = (vehicle: VehicleId): DriveAudioState => ({
   slip: 0,
   wheels: ["asphalt", "asphalt", "asphalt", "asphalt"],
   condition: "dry",
+  tyres: "summer",
   suspension: [0.11, 0.11, 0.11, 0.11],
   place: NO_PLACE,
 });
@@ -44,8 +45,8 @@ const pull = (vehicle: VehicleId) => ({
 });
 
 const all = (surface: Surface): Surface[] => [surface, surface, surface, surface];
-const tyres = (name: Surface, slip = 0, condition: Condition = "dry") =>
-  held("strom", `tyres ${name}${condition === "dry" ? "" : ` ${condition}`}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, wheels: all(name), condition, slip, heldRpm: 0 });
+const tyres = (name: Surface, slip = 0, condition: Condition = "dry", fitted: Tyre = "summer") =>
+  held("strom", `tyres ${name}${condition === "dry" ? "" : ` ${condition}`}${fitted === "summer" ? "" : ` ${fitted}`}${slip > 0 ? " sliding" : ""}`, { speedMS: 25, wheels: all(name), condition, tyres: fitted, slip, heldRpm: 0 });
 
 export const SCENES: (Scene & { vehicle: VehicleId })[] = [
   ...ENGINE_IDS.flatMap((vehicle) => [
@@ -55,6 +56,7 @@ export const SCENES: (Scene & { vehicle: VehicleId })[] = [
     pull(vehicle),
   ]),
   ...CONDITIONS.flatMap((condition) => SURFACES.flatMap((name) => [tyres(name, 0, condition), tyres(name, 1, condition)])),
+  ...(["dry", "wet", "ice"] as const).map((condition) => tyres("asphalt", 0, condition, "studded")),
   held("strom", "tyres verge, two wheels", { speedMS: 25, wheels: ["asphalt", "grass", "asphalt", "grass"], heldRpm: 0 }),
   held("strom", "wind 15", { speedMS: 15, heldRpm: 0, suspension: [0, 0, 0, 0] }),
   held("strom", "wind 30", { speedMS: 30, heldRpm: 0, suspension: [0, 0, 0, 0] }),
