@@ -1,4 +1,4 @@
-import { InstancedBufferAttribute, InstancedBufferGeometry, Mesh, type BufferGeometry, type MeshBasicNodeMaterial, type Node, type Scene, type Vector3 } from "three/webgpu";
+import { InstancedBufferAttribute, InstancedBufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Mesh, type BufferGeometry, type MeshBasicNodeMaterial, type Node, type Scene, type Vector3 } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
 import { worldCarMaterial } from "../art/cars/material";
@@ -26,6 +26,8 @@ export interface Car {
   yaw: number;
   paint: [number, number, number];
   look: [number, number, number];
+  /** Its indicators, as `SIGNAL` in `traffic/lane-driver.ts` has them; a parked car shows none. */
+  signal?: number;
 }
 
 interface Model {
@@ -38,11 +40,20 @@ interface Model {
 /** A list of world cars of one model, with room for `room` of them. */
 export function instanced(shape: BufferGeometry, cars: readonly Car[], material: MeshBasicNodeMaterial, room = cars.length): Mesh<InstancedBufferGeometry> {
   const geometry = new InstancedBufferGeometry();
-  for (const name of ["position", "normal", "carColour", "carFinish", "carOption"]) geometry.setAttribute(name, shape.getAttribute(name));
+  // The shape's attributes are packed in one buffer, and each list gets a copy of its own: disposing a list destroys its
+  // buffers on the GPU, and one shared with a list still drawn fails every frame after.
+  let copies: InterleavedBuffer | null = null;
+  for (const name of ["position", "normal", "carColour", "carFinish", "carOption"]) {
+    const source = shape.getAttribute(name);
+    if (!(source instanceof InterleavedBufferAttribute)) throw new Error(`a world car's ${name} isn't in its packed buffer`);
+    copies ??= new InterleavedBuffer(source.data.array.slice(), source.data.stride);
+    geometry.setAttribute(name, new InterleavedBufferAttribute(copies, source.itemSize, source.offset, source.normalized));
+  }
   const size = Math.max(room, cars.length, 1);
   geometry.setAttribute("place", new InstancedBufferAttribute(new Float32Array(size * 4), 4));
   geometry.setAttribute("paint", new InstancedBufferAttribute(new Float32Array(size * 3), 3));
   geometry.setAttribute("look", new InstancedBufferAttribute(new Float32Array(size * 3), 3));
+  geometry.setAttribute("signal", new InstancedBufferAttribute(new Float32Array(size), 1));
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   write(mesh, cars);
@@ -52,13 +63,14 @@ export function instanced(shape: BufferGeometry, cars: readonly Car[], material:
 /** Writes cars into a list from its start; the list draws only those. */
 export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[]) {
   const { geometry } = mesh;
-  const [place, paint, look] = (["place", "paint", "look"] as const).map((name) => geometry.getAttribute(name) as InstancedBufferAttribute);
+  const [place, paint, look, signal] = (["place", "paint", "look", "signal"] as const).map((name) => geometry.getAttribute(name) as InstancedBufferAttribute);
   cars.forEach((car, index) => {
     place.setXYZW(index, car.x, car.y, car.z, car.yaw);
     paint.setXYZ(index, ...car.paint);
     look.setXYZ(index, ...car.look);
+    signal.setX(index, car.signal ?? 0);
   });
-  for (const attribute of [place, paint, look]) attribute.needsUpdate = true;
+  for (const attribute of [place, paint, look, signal]) attribute.needsUpdate = true;
   geometry.instanceCount = cars.length;
 }
 
