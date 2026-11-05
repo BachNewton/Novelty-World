@@ -811,15 +811,15 @@
     "name": "street: harbour crane",
     "swapM": 119
   },
-  "cc66e679": {
+  "51c67269": {
     "name": "street: linden 14",
     "swapM": 4
   },
-  "049199bb": {
+  "d1d908db": {
     "name": "street: linden 3",
     "swapM": 4
   },
-  "ac2ef246": {
+  "3e60e846": {
     "name": "street: linden 8",
     "swapM": 4
   },
@@ -886,6 +886,10 @@
   "e617c0ee": {
     "name": "town-kit: bicycle bike-red",
     "swapM": 28
+  },
+  "635e5890": {
+    "name": "town-kit: christmas tree",
+    "swapM": 46
   },
   "aef2e052": {
     "name": "town-kit: road ferry",

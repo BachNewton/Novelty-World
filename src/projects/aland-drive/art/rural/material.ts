@@ -347,7 +347,8 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
 
   // An animal is out only in its season, and wears no snow: everything else takes it on what faces up, each place on its own threshold.
   const animal = kind.equal(pattern("fleece")).or(kind.equal(pattern("hide")));
-  const snowed = select(animal, surfaced, snowOnTop(surfaced, snowfall(season, colour), normal.y, mix(float(SNOW_FROM[0]), float(SNOW_FROM[1]), unitOf(seed, SNOW_SALT))));
+  // The surface is read once: built twice under a select, its pattern lost its rock and lichen.
+  const snowed = snowOnTop(surfaced, snowfall(season, colour), select(animal, float(0), normal.y), mix(float(SNOW_FROM[0]), float(SNOW_FROM[1]), unitOf(seed, SNOW_SALT)));
   material.colorNode = hazed(snowed.mul(lit).mul(grounded));
   material.side = DoubleSide;
   return material;
