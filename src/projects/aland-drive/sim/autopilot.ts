@@ -8,7 +8,8 @@ import { wheelBaseOf } from "./tuning";
  * A plain driver for measuring: pure pursuit along one line, as fast as the
  * bends ahead allow. It stands in for a player in the scripted drive, and being
  * a pure function of the car's state and its place on the road, the same drive
- * comes out every time.
+ * comes out every time. Its steering (`pursuit`) is every computer-driven car's:
+ * traffic steers along its lanes with it too.
  */
 
 const LOOK_AHEAD_S = 0.75;
@@ -35,6 +36,20 @@ export interface SpeedPlan {
 }
 
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+/** How far ahead on its line a driver aims at a speed: further the faster it goes, never nearer than `shortest`. */
+export const lookAheadM = (speedMS: number, shortest = SHORTEST_LOOK_M) => Math.max(shortest, speedMS * LOOK_AHEAD_S);
+
+/**
+ * Pure pursuit, the steering every computer-driven car shares: the front wheels' angle that arcs a car from its rear axle,
+ * facing `heading` (radians anticlockwise from north), through a point ahead on its line. Positive steers right.
+ */
+export function pursuit(from: { x: number; z: number }, heading: number, target: { x: number; z: number }, wheelBaseM: number): number {
+  const off = wrap(Math.atan2(-(target.x - from.x), -(target.z - from.z)) - heading);
+  const distance = Math.max(Math.hypot(target.x - from.x, target.z - from.z), 1e-3);
+  // Heading runs anticlockwise; steering, clockwise.
+  return Math.atan((2 * wheelBaseM * Math.sin(-off)) / distance);
+}
 
 export class Autopilot {
   /** How far along the line the car has got. */
@@ -81,12 +96,8 @@ export class Autopilot {
   input(car: CarState): DriveInput {
     this.follow(car);
     const speed = speedOf(car);
-    const ahead = this.line.at(this.along + Math.max(this.shortestLookM, speed * LOOK_AHEAD_S));
-    const toTarget = Math.atan2(-(ahead.x - car.position[0]), -(ahead.z - car.position[2]));
-    const off = wrap(toTarget - headingOf(car.rotation));
-    const distance = Math.hypot(ahead.x - car.position[0], ahead.z - car.position[2]);
-    // Pure pursuit's arc to the target, as the wheels' angle. Heading runs anticlockwise; steering, clockwise.
-    const wheels = Math.atan((2 * wheelBaseOf(CARS[car.car]) * Math.sin(-off)) / distance);
+    const ahead = this.line.at(this.along + lookAheadM(speed, this.shortestLookM));
+    const wheels = pursuit({ x: car.position[0], z: car.position[2] }, headingOf(car.rotation), ahead, wheelBaseOf(CARS[car.car]));
 
     const allowed = this.plan ? this.planned(speed, this.plan) : this.cruising(speed);
     const error = allowed - speed;

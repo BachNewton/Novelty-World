@@ -4,11 +4,12 @@
 //   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...]
 //
 // It finds the kits by their catalogues, needs no dev server and no tiles, and never touches a browser of the owner's.
-// A model whose outline moves, or whose look changes by FLIP, more than `NOTICED` allows is noticed, and the run fails
-// on one unless it's in known-lod.json, the art from before the check, which may only get better; --write brings that
-// list to what's found. Each noticed model is told its cure: the swap that hides its change, or a far version
-// that matches where no swap up to twice its own does. Every model's scores go to results.json in --out, and --picture
-// saves that model's two versions from that view side by side.
+// A change is noticed where its outline moves, or its look changes by FLIP, more than `NOTICED` allows. Each model is
+// given the nearest swap at which its change isn't noticed, which --write puts in swaps.json for the game to swap it at,
+// and the run fails while swaps.json disagrees with what's measured. A model no swap up to most of its reach hides has
+// a far version that has to be remade: the run fails on one unless it's in known-lod.json, which may only get better.
+// It prints what each moved swap costs. Every model's scores go to results.json in --out, and --picture saves that
+// model's two versions from that view side by side.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a developer tool, reading the kits beside it and writing to the folder named on its own command line */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -34,7 +35,7 @@ writeFileSync(
     `import { checkAll, pictureOf } from ${JSON.stringify(join(here, "page.ts").replaceAll("\\", "/"))};`,
     ...kits.map((kit, index) => `import * as kit${index} from ${JSON.stringify(join(art, kit, "catalogue.ts").replaceAll("\\", "/"))};`),
     `const catalogues = { ${kits.map((kit, index) => `${JSON.stringify(kit)}: kit${index}`).join(", ")} };`,
-    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts) => checkAll(catalogues, part, parts), pictureOf: (name, azimuth, elevation, swap) => pictureOf(catalogues, name, azimuth, elevation, swap) } });`,
+    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts, written) => checkAll(catalogues, part, parts, written), pictureOf: (name, azimuth, elevation, swap) => pictureOf(catalogues, name, azimuth, elevation, swap) } });`,
   ].join("\n"),
 );
 await build({ entryPoints: [entry], bundle: true, format: "esm", target: "esnext", outfile: join(OUT, ".page.js"), tsconfig: join(art, "../../../../tsconfig.json"), logLevel: "error" });
@@ -68,28 +69,48 @@ const [page] = pages;
 
 // Each run draws the same pixels on one GPU, but a little slack keeps another GPU's from failing what was written down.
 const SLACK = { deviation: 0.5, look: 0.01 };
+/** How far a written swap may stand from the one measured, as a ratio: another GPU may land a step either side. */
+const SWAP_SLACK = 1.16;
 const knownPath = join(here, "known-lod.json");
+const swapsPath = join(here, "swaps.json");
 const known = JSON.parse(readFileSync(knownPath, "utf8"));
+const written = JSON.parse(readFileSync(swapsPath, "utf8"));
 const checking = !flags.includes("--pictures-only");
-const results = checking ? (await Promise.all(pages.map((each, part) => each.evaluate(({ part, parts }) => window.__lod.checkAll(part, parts), { part, parts: PAGES })))).flat() : [];
+const results = checking ? (await Promise.all(pages.map((each, part) => each.evaluate(({ part, parts, written }) => window.__lod.checkAll(part, parts, written), { part, parts: PAGES, written })))).flat() : [];
 writeFileSync(join(OUT, "results.json"), JSON.stringify(results, null, 1));
-const noticed = results.filter(({ hiddenAtM }) => hiddenAtM !== undefined);
-const cure = ({ swapM, hiddenAtM }) => (hiddenAtM === null ? "its far version has to match: no swap up to twice its own hides it" : `a swap at ${hiddenAtM} m rather than ${swapM} m hides it, or a far version that matches`);
+const unhidden = results.filter(({ hidden }) => !hidden);
 const failures = [];
-for (const result of noticed) {
-  const { name, deviation, look, deviationView, lookView } = result;
+for (const result of unhidden) {
+  const { name, deviation, look, deviationView, lookView, swapM } = result;
   const was = known[name];
-  const where = `the outline moves ${deviation} px (most from ${deviationView}) and FLIP reads ${look} (most from ${lookView}); ${cure(result)}`;
-  if (was === undefined) failures.push(`${name}: its far version changes at the swap: ${where}`);
-  else if (deviation > was.deviation + SLACK.deviation || look > was.look + SLACK.look) failures.push(`${name}: changes more at the swap than it did: ${where}`);
+  const where = `even at a swap of ${swapM} m the outline moves ${deviation} px (most from ${deviationView}) and FLIP reads ${look} (most from ${lookView}): its far version has to match`;
+  if (was === undefined) failures.push(`${name}: its far version changes at any swap: ${where}`);
+  else if (deviation > was.deviation + SLACK.deviation || look > was.look + SLACK.look) failures.push(`${name}: changes more than it did: ${where}`);
 }
-for (const name of Object.keys(known).filter((listed) => !noticed.some((result) => result.name === listed))) failures.push(`${name}: no longer changes at the swap, so it comes off known-lod.json (--write)`);
+for (const name of Object.keys(known).filter((listed) => !unhidden.some((result) => result.name === listed))) failures.push(`${name}: a swap now hides its change, so it comes off known-lod.json (--write)`);
+for (const { name, fingerprint, swapM } of results) {
+  const entry = written[fingerprint];
+  if (entry === undefined) failures.push(`${name}: its art isn't in swaps.json, so the game swaps it where its kit says rather than at ${swapM} m (--write)`);
+  else if (Math.max(entry.swapM / swapM, swapM / entry.swapM) > SWAP_SLACK) failures.push(`${name}: swaps.json has ${entry.swapM} m, measured ${swapM} m (--write)`);
+}
+const checked = new Set(results.map(({ fingerprint }) => fingerprint));
+const stale = Object.entries(written).filter(([fingerprint]) => !checked.has(fingerprint));
+if (checking && stale.length > 0) failures.push(`swaps.json holds ${stale.length} art no kit draws any more (${stale.map(([, { name }]) => name).join(", ")}) (--write)`);
 if (flags.includes("--write")) {
-  const cureOf = ({ hiddenAtM }) => (hiddenAtM === null ? "far version" : `swap at ${hiddenAtM} m`);
-  writeFileSync(knownPath, `${JSON.stringify(Object.fromEntries(noticed.map((result) => [result.name, { deviation: result.deviation, look: result.look, swapM: result.swapM, cure: cureOf(result) }])), null, 2)}\n`);
-  console.log(`known-lod.json: ${noticed.length} models`);
+  writeFileSync(knownPath, `${JSON.stringify(Object.fromEntries(unhidden.map(({ name, deviation, look, swapM }) => [name, { deviation, look, swapM }])), null, 2)}
+`);
+  const sorted = [...results].sort((a, b) => a.name.localeCompare(b.name));
+  writeFileSync(swapsPath, `${JSON.stringify(Object.fromEntries(sorted.map(({ name, fingerprint, swapM }) => [fingerprint, { name, swapM }])), null, 2)}
+`);
+  console.log(`swaps.json: ${results.length} models; known-lod.json: ${unhidden.length} whose far version has to match`);
 }
-console.log(`${results.length} models with a far version, ${noticed.length} change at the swap`);
+// What a moved swap costs: the near version's extra triangles over each place, over the ground its swap now covers.
+const moved = results
+  .filter(({ swapM, builtM }) => swapM !== builtM)
+  .map((result) => ({ ...result, cost: (result.nearTriangles - result.farTriangles) * (result.swapM ** 2 - result.builtM ** 2) }))
+  .sort((a, b) => b.cost - a.cost);
+for (const { name, builtM, swapM, nearTriangles, farTriangles } of moved) console.log(`${name}: swap ${builtM} m -> ${swapM} m, near ${nearTriangles} / far ${farTriangles} triangles, near copies x${((swapM / builtM) ** 2).toFixed(2)}`);
+console.log(`${results.length} models with a far version: ${moved.length} swap elsewhere than built, ${unhidden.length} change at any swap`);
 for (const wanted of pictures) {
   const [name, view] = wanted.split("@");
   const [azimuth, elevation, swap] = view.split(",").map(Number);

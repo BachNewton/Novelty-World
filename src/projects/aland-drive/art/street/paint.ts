@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside kit's `Model` writes the shapes; this adds the street's own paints
@@ -159,7 +160,7 @@ export class Painted {
 
 /** A street object's versions, ready for `placeModel`. */
 export function streetModel(near: Painted, far: Painted | null, swapM: number, reachM: number, motion?: Motion): RoadsideModel {
-  return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
+  return measuredSwap({ near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM });
 }
 
 /** A ring of `sides` points round a centre on a level plane: for discs, lids and table tops. */

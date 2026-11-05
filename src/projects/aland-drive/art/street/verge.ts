@@ -1,4 +1,3 @@
-import type { BufferGeometry } from "three/webgpu";
 import { seeded, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { Painted, streetModel, type Motion, type StreetPart } from "./paint";
@@ -7,7 +6,7 @@ import { Painted, streetModel, type Motion, type StreetPart } from "./paint";
  * The verge's dressing, placed by the thousand. Every blade is one opaque triangle,
  * a card cut to its own shape: no alpha, so no overdraw of empty card, nothing to
  * sort and no alpha test to shimmer, the forest's reason too. A clump's far version
- * is three points of a card, tipped with its flower's colour, gone by its reach.
+ * is the near one simplified, gone by its reach; where it swaps is the LOD check's.
  */
 
 const SINK_M = 0.1;
@@ -29,13 +28,17 @@ function blade(into: Painted, random: () => number, reach: number, tall: number,
   return into.face([[foot[0] - sideX, foot[1], foot[2] - sideZ], [foot[0] + sideX, foot[1], foot[2] + sideZ], tip], part, 0.82 + random() * 0.36);
 }
 
-/** A clump's outline from afar: three points, never a solid block, each tipped with `tip` if it has a flower; the middle one may take a paint of its own. */
-function farCard(tall: number, wide: number, part: StreetPart, tip?: StreetPart, tipShare = 0.3, middle = part): Painted {
+/**
+ * A tuft's outline from afar: three points, never a solid block, on two cards crossed so it stands seen from any side,
+ * as the near tuft does; the middle one may take a paint of its own.
+ */
+function farCard(tall: number, wide: number, part: StreetPart, middle = part): Painted {
   const card = new Painted();
-  for (const [x, height, lean] of [[-wide * 0.6, 0.78, -0.4], [0, 1, 0.1], [wide * 0.6, 0.86, 0.5]]) {
-    const top: V3 = [x + lean * wide, tall * height, 0];
-    card.face([[x - wide * 0.55, -SINK_M, 0], [x + wide * 0.55, -SINK_M, 0], top], x === 0 ? middle : part, 0.92);
-    if (tip !== undefined) card.face([[top[0] - wide * tipShare, top[1] - tall * 0.12, 0], [top[0] + wide * tipShare, top[1] - tall * 0.12, 0], [top[0], top[1] + tall * 0.1, 0]], tip);
+  for (const turned of [false, true]) {
+    const at = (across: number, up: number): V3 => (turned ? [0, up, across] : [across, up, 0]);
+    for (const [x, height, lean] of [[-wide * 0.6, 0.78, -0.4], [0, 1, 0.1], [wide * 0.6, 0.86, 0.5]]) {
+      card.face([at(x - wide * 0.55, -SINK_M), at(x + wide * 0.55, -SINK_M), at(x + lean * wide, tall * height)], x === 0 ? middle : part, 0.92);
+    }
   }
   return card;
 }
@@ -82,15 +85,6 @@ const LAYER_M = 0.01;
 /** How far a flower's heads reach from its middle: the near clump's stems lean out to this. */
 const HEADS_SPREAD_M = 0.2;
 
-/**
- * One far clump for a whole verge, a metre tall: grass with a straw blade in the middle; a flower with heads, in a
- * petal paint for whatever a place's flower is; or the spires of a tall flower, tipped the same way.
- */
-export function buildVergeCard(kind: "grass" | "heads" | "spires"): BufferGeometry {
-  if (kind === "heads") return headsCard(1, HEADS_SPREAD_M / 0.62, "petal-white", 0.085).build();
-  return farCard(1, 0.4, "grass", kind === "spires" ? "petal-white" : undefined, 0.14, "grass-pale").build();
-}
-
 const GRASS_BLADES = 16;
 
 /** A tuft of tall grass, seeded so a few versions make a verge. */
@@ -98,7 +92,7 @@ export function buildGrassTuft(seed = 3, tallM = 0.75): RoadsideModel {
   const random = seeded(seed);
   const near = new Painted();
   for (let index = 0; index < GRASS_BLADES; index++) blade(near, random, 0.2, tallM * (0.55 + random() * 0.55), index % 3 === 0 ? "grass-pale" : "grass");
-  return streetModel(near, farCard(tallM * 0.8, 0.3, "grass"), VERGE_SWAP_M, VERGE_REACH_M, bends);
+  return streetModel(near, farCard(tallM * 0.8, 0.3, "grass", "grass-pale"), VERGE_SWAP_M, VERGE_REACH_M, bends);
 }
 
 /** A stand of timothy gone to seed: thin stalks with a dark head, above a few blades. */
@@ -179,8 +173,22 @@ export function buildWildflowers(kind: Wildflower, seed = 5): RoadsideModel {
   const part = kind === "lupine" ? "petal-lupine" : "petal-fireweed";
   const tall = kind === "lupine" ? 1 : 1.2;
   foot(near, random, tall * 0.5);
+  // The far clump is the near one simplified: fewer leaves at its foot, and each spire, on its own stem where the near
+  // one stands, a spindle of its colour as wide and as tall as its buds reach, crossed so it stands seen from any side.
+  const far = new Painted();
+  const farRandom = seeded(seed + 101);
+  for (let leaf = 0; leaf < 4; leaf++) blade(far, farRandom, 0.14, tall * 0.5, "stem");
   for (const top of stems(near, random, 3, tall * 0.68, 0.3)) {
     const spire = tall * (0.3 + random() * 0.1);
+    const reach = spire * ((SPIRE_BUDS - 1) / SPIRE_BUDS) + (spire / SPIRE_BUDS) * 1.7;
+    const [x, z] = [top[0] / 1.7, top[2] / 1.7];
+    far.face([[x - 0.014, -SINK_M, z], [x + 0.014, -SINK_M, z], top], "stem");
+    for (const [acrossX, acrossZ] of [
+      [0.036, 0],
+      [0, 0.036],
+    ]) {
+      far.face([[top[0], top[1] - 0.02, top[2]], [top[0] + acrossX, top[1] + reach * 0.22, top[2] + acrossZ], [top[0], top[1] + reach, top[2]], [top[0] - acrossX, top[1] + reach * 0.22, top[2] - acrossZ]], part);
+    }
     near.face([[top[0] - 0.01, top[1] - 0.02, top[2]], [top[0] + 0.01, top[1] - 0.02, top[2]], [top[0], top[1] + spire, top[2]]], "stem");
     for (let bud = 0; bud < SPIRE_BUDS; bud++) {
       const share = bud / SPIRE_BUDS;
@@ -192,5 +200,5 @@ export function buildWildflowers(kind: Wildflower, seed = 5): RoadsideModel {
       near.face([[x, y, z], [x + sideX, y + high * 0.45, z + sideZ], [x, y + high, z], [x - sideX, y + high * 0.45, z - sideZ]], part, bud % 2 === 0 ? 1.1 : 0.9);
     }
   }
-  return streetModel(near, farCard(tall * 0.75, 0.16, "stem", part), VERGE_SWAP_M, VERGE_REACH_M, bends);
+  return streetModel(near, far, VERGE_SWAP_M, VERGE_REACH_M, bends);
 }
