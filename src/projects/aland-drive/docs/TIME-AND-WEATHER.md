@@ -9,8 +9,12 @@ The day and night, the seasons and the weather: what is decided, how the work is
 - **The hour runs fast.** A game day replays today's real sun path faster than real time, worked out from the world's clock (`sea/clock.ts`) with nothing sent. Its length is one constant, a starting value the owner tunes in the game. The boats keep real time, as they do now.
 - **Seasons never switch on a date.** Everything seasonal is a continuous function of the date (and, for snow, of the weather before it): leaves turn and fall over weeks, tree by tree, each on a threshold of its own rolled from its place, so a wood turns gradually rather than all at once; snow builds and melts; the sea freezes from the sheltered bays outward and breaks up in spring. A placed thing that is out of season (café terraces, cows, moored boats) leaves over a window of days, each on its own threshold, the same way.
 - **The weather is shared and drawn from Åland's climate.** It is a deterministic function of the world's clock, the same for every player, with how often it rains, snows, fogs and clears following Åland's real climate for that time of year. It sets the condition the grip already reads (dry, wet, snow, ice), and black ice comes from the temperature crossing zero after wet.
-- **Winter is the law's.** Tyres follow the season as Finnish and Åland law do: studs in the winter months, summer tyres otherwise (`ideas/surface-grip.md`, "Later").
-- **Included:** the Northern Lights on clear, dark winter nights (`art/night/aurora.ts`), Åland's real ice roads over the frozen sea in hard winters, autumn colours with fallen leaves, and the winter's lights: Advent candlesticks and stars in windows, and Christmas lights on homes, trees and Mariehamn's streets through the dark months.
+- **Tyres are the player's choice, not the law's.** A car's tyres (summer, winter friction or studded) are swapped at home or at a car shop, and a car on snow or ice without winter or studded tyres handles poorly, so the season gives the player something to prepare for (`ideas/surface-grip.md`, "Later").
+- **The winter is more wintry than Åland's.** Real Åland is snow-poor, and the sea freezes hard about one winter in six, so for play snow comes more often and lies longer, and the sea freezes more often than it really does. When it does, cars drive on the frozen sea itself; there are no marked ice roads, as Åland has no official ones.
+- **The Northern Lights are rare, but not as rare as real.** They show on clear, dark winter nights, more often than the about once a month the latitude really gives (`art/night/aurora.ts`).
+- **Fog is light and short**, mostly spring's sea fog lifting by afternoon. A thick fog is kept for a bucket-list challenge.
+- **Autumn is felt, not dated precisely:** leaves turn from about mid-September, peak in early October and are mostly down by early November, with fallen leaves along the verges.
+- **The winter's lights:** Advent candlesticks and stars in windows, and Christmas lights on homes, trees and Mariehamn's streets through the dark months.
 - **New art is a subagent's task per piece**, built to fit how the game places it (`art/CLAUDE.md`), reviewed on its kit's gallery, then placed.
 
 ## What already exists
@@ -44,9 +48,9 @@ The real numbers the later phases are built on, written into this doc's Referenc
 
 ### 3. Seasons (after 1; after 2 for snow, which the weather lays)
 
-- The season's continuous dials from the date: leaf colour and fall, snow cover (built and melted by the weather), sea ice, the winter's lights, tyres.
+- The season's continuous dials from the date: leaf colour and fall, snow cover (built and melted by the weather), sea ice, the winter's lights; tyres to choose and fit at home or a car shop.
 - Every placed layer says which seasons it belongs to and leaves on its own threshold.
-- The winter's art, a subagent per kit: snow over the land with the roads cleared and banked, bare broadleaves and snow on spruce, ice on the sea with boats laid up, the Advent and Christmas lights, the ice roads and their markers, autumn's colours and fallen leaves; the aurora on clear dark nights; studs in the tyres' sound and particles.
+- The winter's art, a subagent per kit: snow over the land with the roads cleared and banked, bare broadleaves and snow on spruce, ice on the sea with boats laid up, the Advent and Christmas lights, the frozen sea as a surface to drive on, autumn's colours and fallen leaves; the aurora on clear dark nights; studs in the tyres' sound and particles.
 - Exit: a walk through the year, one date a month, seen by the owner in the running game.
 
 ## Reference
