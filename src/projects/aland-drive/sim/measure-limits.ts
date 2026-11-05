@@ -5,7 +5,7 @@ import { headingOf, speedOf, type CarState } from "./car-state";
 import { Drive } from "./drive";
 import { topSpeedMS } from "./gearbox";
 import { PAD_M, padPoint, testPad } from "./test-pad";
-import type { Condition } from "./surfaces";
+import type { Condition, Tyre } from "./surfaces";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
 
@@ -51,9 +51,10 @@ const round = (value: number, places: number) => Number(value.toFixed(places));
 const START_X = 200;
 const START_Z = -PAD_M / 2;
 
-function padDrive(world: World, id: CarId, condition: Condition): Drive {
+function padDrive(world: World, id: CarId, condition: Condition, tyres: Tyre): Drive {
   const drive = new Drive(world, padPoint(START_X, START_Z), id);
   drive.condition = condition;
+  drive.tyres = tyres;
   return drive;
 }
 
@@ -81,8 +82,8 @@ function sidewaysMS2(before: CarState, after: CarState): number {
 }
 
 /** The most sideways grip the car holds at a speed, through a corner wound on slowly at that speed. */
-function cornerAt(world: World, id: CarId, condition: Condition, speed: number): number | null {
-  const drive = padDrive(world, id, condition);
+function cornerAt(world: World, id: CarId, condition: Condition, tyres: Tyre, speed: number): number | null {
+  const drive = padDrive(world, id, condition, tyres);
   upTo(drive, speed);
   for (let step = 0; step * STEP_S < SETTLE_S; step++) drive.step({ ...NO_INPUT, ...holdSpeed(drive.stateAt(1), speed) });
   const window: number[] = [];
@@ -127,10 +128,10 @@ function bands(speeds: number[], from: number, to: number): SpeedBand[] {
   return found;
 }
 
-function braking(world: World, id: CarId, condition: Condition, reachableKmh: number): Pick<CarLimits, "braking" | "stopFrom100M"> {
+function braking(world: World, id: CarId, condition: Condition, tyres: Tyre, reachableKmh: number): Pick<CarLimits, "braking" | "stopFrom100M"> {
   const top = topSpeedMS(CARS[id]);
   const fromKmh = BRAKE_FROM_KMH.find((kmhAt) => ms(kmhAt) < 0.9 * top && kmhAt <= reachableKmh) ?? BRAKE_FROM_KMH[BRAKE_FROM_KMH.length - 1];
-  const drive = padDrive(world, id, condition);
+  const drive = padDrive(world, id, condition, tyres);
   upTo(drive, ms(fromKmh) + 1);
   const speeds: number[] = [];
   let stopFrom100M = 0;
@@ -147,8 +148,8 @@ function braking(world: World, id: CarId, condition: Condition, reachableKmh: nu
   return { braking: bands(speeds, fromKmh, 0), stopFrom100M: round(stopFrom100M, 1) };
 }
 
-function pull(world: World, id: CarId, condition: Condition): Pick<CarLimits, "pull" | "sprintS" | "quarterS" | "reachedKmh"> {
-  const drive = padDrive(world, id, condition);
+function pull(world: World, id: CarId, condition: Condition, tyres: Tyre): Pick<CarLimits, "pull" | "sprintS" | "quarterS" | "reachedKmh"> {
+  const drive = padDrive(world, id, condition, tyres);
   const start = drive.stateAt(1).position;
   const speeds: number[] = [];
   let quarterS = 0;
@@ -171,15 +172,15 @@ function pull(world: World, id: CarId, condition: Condition): Pick<CarLimits, "p
   return { pull: bands(speeds, 0, Math.floor(kmh(reached) / BAND_KMH) * BAND_KMH), sprintS, quarterS: round(quarterS, 2), reachedKmh: round(kmh(reached), 1) };
 }
 
-/** Measures a car on a pad of one surface (`testPad`), in a condition: as tuned, on dry asphalt. */
-export function measureCar(id: CarId, world: World = testPad(), condition: Condition = "dry"): CarLimits {
+/** Measures a car on a pad of one surface (`testPad`), in a condition, on a set of tyres: as tuned, on dry asphalt on summer tyres. */
+export function measureCar(id: CarId, world: World = testPad(), condition: Condition = "dry", tyres: Tyre = "summer"): CarLimits {
   const top = topSpeedMS(CARS[id]);
-  const pulled = pull(world, id, condition);
+  const pulled = pull(world, id, condition, tyres);
   // Soft ground holds a car well under what its engine and drag allow.
   const reachableKmh = REACHABLE_SHARE * pulled.reachedKmh;
   const corner = CORNER_SPEEDS_KMH.filter((kmhAt) => ms(kmhAt) <= CORNER_SHARE_OF_TOP * top && kmhAt <= reachableKmh).flatMap((kmhAt) => {
-    const held = cornerAt(world, id, condition, ms(kmhAt));
+    const held = cornerAt(world, id, condition, tyres, ms(kmhAt));
     return held === null ? [] : [{ kmh: kmhAt, g: round(toG(held), 3) }];
   });
-  return { corner, ...braking(world, id, condition, reachableKmh), ...pulled };
+  return { corner, ...braking(world, id, condition, tyres, reachableKmh), ...pulled };
 }

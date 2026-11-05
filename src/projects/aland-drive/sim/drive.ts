@@ -7,7 +7,7 @@ import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
 import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
-import type { Condition, Surface } from "./surfaces";
+import type { Condition, Surface, Tyre } from "./surfaces";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
 
@@ -90,9 +90,19 @@ export class SimulatedCar {
     this.car.body.setEnabled(false);
   }
 
-  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId): void {
+  /** The tyres the car has on. */
+  get tyres(): Tyre {
+    return this.car.tyres;
+  }
+
+  set tyres(tyres: Tyre) {
+    this.car.tyres = tyres;
+  }
+
+  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
+    this.car.tyres = tyres;
     if (id === this.car.id) return;
-    const next = new Car(rapier, id, ground);
+    const next = new Car(rapier, id, ground, tyres);
     next.takeOver(this.car);
     this.car.remove();
     this.car = next;
@@ -245,9 +255,9 @@ export class Drive {
    * stand-ins. It sits out its first step while its ground reaches Rapier's
    * queries, so adding a car moves nothing else.
    */
-  addCar(road: RoadPoint, id: CarId = DEFAULT_CAR): SimulatedCar {
+  addCar(road: RoadPoint, id: CarId = DEFAULT_CAR, tyres: Tyre = "summer"): SimulatedCar {
     this.loadGround(placeOf(this.player.position), road);
-    const car = new SimulatedCar(new Car(this.rapier, id, this.ground), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, id, this.ground, tyres), this.world);
     car.place(road);
     car.land();
     this.others.push(car);
@@ -280,9 +290,18 @@ export class Drive {
     return this.player.id;
   }
 
-  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
-  setCar(id: CarId): void {
-    this.player.swap(this.rapier, this.ground, id);
+  /** Swaps the car for another, on its own tyres, mid-drive: the new one carries on from where the old one was, as it was moving. */
+  setCar(id: CarId, tyres: Tyre = "summer"): void {
+    this.player.swap(this.rapier, this.ground, id, tyres);
+  }
+
+  /** The tyres on the car being driven. */
+  get tyres(): Tyre {
+    return this.player.tyres;
+  }
+
+  set tyres(tyres: Tyre) {
+    this.player.tyres = tyres;
   }
 
   /** What the weather has made of every surface, for every car: dry until something says otherwise. */

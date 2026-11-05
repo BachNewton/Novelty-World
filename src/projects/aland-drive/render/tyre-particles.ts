@@ -3,7 +3,7 @@ import { attribute, cameraProjectionMatrix, cameraViewMatrix, cameraWorldMatrix,
 import { outsideCar } from "../art/car-volume";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
 import type { Tread } from "../sim/car";
-import type { Condition, Surface } from "../sim/surfaces";
+import type { Condition, Surface, Tyre } from "../sim/surfaces";
 import { STEP_S } from "../sim/tuning";
 import { kicksOf, PUFFS, type Kick, type Puff } from "./tyre-kicks";
 
@@ -69,6 +69,7 @@ const LOOKS: Record<Kick, Look> = {
   clod: { lifeS: 1.4, drag: 1.2, rise: -GRAVITY, sizeM: 0.07, growMS: 0, opacity: 1, follow: 0.3, upMS: 2.6, scatterMS: 1.5, thrown: 0.5, aspect: 1, spin: 6 },
   blade: { lifeS: 1.5, drag: 2.5, rise: -3, sizeM: 0.08, growMS: 0, opacity: 1, follow: 0.35, upMS: 2, scatterMS: 1.4, thrown: 0.4, aspect: 0.2, spin: 8 },
   grit: { lifeS: 0.9, drag: 1.5, rise: -GRAVITY, sizeM: 0.02, growMS: 0, opacity: 1, follow: 0.2, upMS: 1.5, scatterMS: 1.4, thrown: 0.5, aspect: 1, spin: 6 },
+  ice: { lifeS: 0.8, drag: 1.5, rise: -GRAVITY, sizeM: 0.018, growMS: 0, opacity: 1, follow: 0.2, upMS: 1.3, scatterMS: 1.2, thrown: 0.5, aspect: 1, spin: 6 },
 };
 
 /** Each kind's colour token, and the surface's own where it differs: dust is the colour of the ground it rose from. */
@@ -81,6 +82,7 @@ const TOKENS: Record<Kick, string | Partial<Record<Surface, string>>> = {
   clod: "tyre-earth",
   blade: "town-lawn",
   grit: "church-granite-grey",
+  ice: "tyre-snow",
 };
 
 export interface Linear {
@@ -286,12 +288,12 @@ export function createTyreParticles(scene: Scene, colour: (token: string) => Lin
 
   return {
     /** After each step of the simulation: what each wheel of the car just threw up. A wheel off the ground reads still, and throws nothing. */
-    step(treads: readonly Readonly<Tread>[], surfaces: readonly Surface[], condition: Condition, car: CarState) {
+    step(treads: readonly Readonly<Tread>[], surfaces: readonly Surface[], condition: Condition, tyres: Tyre, car: CarState) {
       const frame = { velocity: car.velocity, nose: rotate(car.rotation, [0, 0, -1]), right: rotate(car.rotation, [1, 0, 0]), up: rotate(car.rotation, [0, 1, 0]) };
       treads.forEach((tread, wheel) => {
         const debts = owed[wheel];
         const surface = surfaces[wheel];
-        const { rates, rub } = kicksOf({ surface, condition, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand });
+        const { rates, rub } = kicksOf({ surface, condition, tyres, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand });
         for (const kick of debts.keys()) if (!rates.some(([thrown]) => thrown === kick)) debts.delete(kick);
         for (const [kick, perS] of rates) {
           let debt = (debts.get(kick) ?? random()) + perS * STEP_S;

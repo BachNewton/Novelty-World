@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, type ComponentType } from "react";
-import { Check, Flag, LogOut, Play, RotateCcw, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { Check, CircleDot, Flag, LogOut, Play, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
 import { resultText } from "../challenge/format";
 import type { GameMenu as GameMenuState, MenuItemId, MenuResult } from "../render/game-menu";
+import type { Tyre } from "../sim/surfaces";
 
 /*
  * The game's own menu, on a pad's Menu or Esc, and a challenge's small
@@ -23,6 +24,12 @@ const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
 const PASS = "var(--color-aland-drive-ui-pass)";
 const FAIL = "var(--color-aland-drive-ui-redline)";
 
+const TYRE_LOOKS: Record<Tyre, ItemLook> = {
+  summer: { icon: Sun, label: "Summer tyres" },
+  winter: { icon: Snowflake, label: "Winter tyres" },
+  studded: { icon: CircleDot, label: "Studded tyres" },
+};
+
 interface ItemLook {
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
@@ -36,6 +43,8 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
     switch (id) {
       case "resume":
         return { icon: Play, label: "Resume" };
+      case "tyres":
+        return TYRE_LOOKS[menu.tyres ?? "summer"];
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
       case "start-solo":

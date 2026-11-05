@@ -58,7 +58,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { DRIVING_MENU, type GameMenu, type MenuItemId } from "./game-menu";
+import { drivingMenu, type GameMenu, type MenuItemId } from "./game-menu";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, runOn } from "../challenge/line";
@@ -84,7 +84,8 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
-import { conditionAsked, type Condition, type Surface } from "../sim/surfaces";
+import { conditionAsked, TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
+import { fitTyres, tyresOn } from "../garage/tyres";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 import { tiledGround } from "../art/surfaces/tiled";
@@ -196,6 +197,8 @@ export interface GameProbe {
   tyreCounts: () => { puffs: number; chips: number; puffPool: number; chipPool: number };
   showTyres: (shown: boolean) => void;
   setCondition: (condition: Condition) => void;
+  /** The tyres on the car being driven. */
+  tyres: () => Tyre;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
@@ -900,6 +903,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const startCar = carAsked(window.location.search);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   drive.condition = conditionAsked(window.location.search);
+  // A link's tyres are for this drive only: what's kept is what the player fitted.
+  drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
   fitCarVolume(carView.art);
@@ -1173,7 +1178,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
   const menuNow = (): GameMenu => {
-    if (!session) return DRIVING_MENU;
+    if (!session) return drivingMenu(drive.tyres);
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
     return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: session.challenge.title };
   };
@@ -1320,6 +1325,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "cancel":
         setGameMenuOpen(false);
         break;
+      case "tyres": {
+        const fitted = TYRES[(TYRES.indexOf(drive.tyres) + 1) % TYRES.length];
+        setTyres(fitted);
+        showMenu(drivingMenu(fitted));
+        break;
+      }
       case "sound":
         useDriveSoundSettings.getState().toggleMuted();
         break;
@@ -1383,12 +1394,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const spec = CARS.find((car) => car.id === id);
     if (!spec) throw new Error(`no car's art for ${id}`);
     if (spec === carSpec) return;
-    drive.setCar(id);
+    drive.setCar(id, tyresOn(id));
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, manifest.sun, spec);
     fitCarVolume(carView.art);
     events.onCarChange?.(id);
+  };
+
+  const setTyres = (tyres: Tyre) => {
+    fitTyres(drive.carId, tyres);
+    drive.tyres = tyres;
   };
 
   const onAction = (action: GameAction) => {
@@ -1462,7 +1478,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
     drive.step(lastInput);
-    tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.stateAt(1));
+    tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.tyres, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
     const placed = drive.placements !== sampledPlacements;
     sampledPlacements = drive.placements;
@@ -1661,7 +1677,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: drive.condition, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: drive.condition, tyres: drive.tyres, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1814,6 +1830,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       setCondition: (condition) => {
         drive.condition = condition;
       },
+      tyres: () => drive.tyres,
       online: () => {
         const state = onlineWorld?.state();
         return { status: state?.status ?? "idle", role: state?.role ?? null };

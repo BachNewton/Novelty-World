@@ -1,4 +1,5 @@
 import type { ChallengeKind } from "../challenge/types";
+import type { Tyre } from "../sim/surfaces";
 
 /*
  * The game menu, as the game wants it: which items it holds, in order, and
@@ -11,7 +12,7 @@ import type { ChallengeKind } from "../challenge/types";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How an attempt went, as the result card shows it. */
 export interface MenuResult {
@@ -42,7 +43,12 @@ export interface GameMenu {
   kind?: MenuKind;
   /** The other player a co-op choice is about. */
   partner?: string;
+  /** The tyres on the car, which the Tyres item shows and changes. */
+  tyres?: Tyre;
 }
 
-/** The menu outside a challenge. */
-export const DRIVING_MENU: GameMenu = { items: ["resume", "sound"], back: "resume", pauses: true };
+/**
+ * The menu outside a challenge, on the car's tyres. Changing tyres is here until homes and car shops exist, and
+ * never in a challenge, whose car is the challenge's.
+ */
+export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres", "sound"], back: "resume", pauses: true, tyres });

@@ -4,7 +4,7 @@ import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
 import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
 import { pullAt, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
-import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip } from "./surfaces";
+import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip, type Tyre } from "./surfaces";
 
 /*
  * The car: a rigid body on four rays. Each step a ray from each wheel's mount
@@ -16,9 +16,9 @@ import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, 
  * friction with no slip curve, which leaves no way to shape how the car lets go
  * in a handbrake turn or holds on at 200 km/h, and those are the game.
  *
- * Each wheel reads what its ray landed on, and the surface and the condition
- * reshape that wheel's tyre curve (`surfaces.ts`): a car with two wheels on the
- * verge grips on two and slides on two.
+ * Each wheel reads what its ray landed on, and the surface, the condition and
+ * the tyres fitted reshape that wheel's tyre curve (`surfaces.ts`): a car with
+ * two wheels on the verge grips on two and slides on two.
  */
 
 export interface DriveInput {
@@ -121,6 +121,8 @@ export class Car {
     private readonly world: RAPIER.World,
     readonly id: CarId,
     private readonly underfoot: Underfoot,
+    /** The tyres fitted, which a car keeps until they're changed. */
+    public tyres: Tyre = "summer",
   ) {
     const tuning = CARS[id];
     this.tuning = tuning;
@@ -222,7 +224,7 @@ export class Car {
       for (let axis = 0; axis < 3; axis++) tread.contact[axis] = contact[axis];
       tread.rollMS = tread.slideMS = tread.demand = 0;
       if (hit) this.surfaces[index] = this.underfoot.surfaceUnder(hit, contact[0], contact[2]);
-      const ground = GROUND_GRIP[tuning.class][this.underfoot.condition][this.surfaces[index]];
+      const ground = GROUND_GRIP[tuning.class][this.tyres][this.underfoot.condition][this.surfaces[index]];
       grounds.push(ground);
       if (!hit) return;
       footing.grip += ground.grip;
