@@ -251,7 +251,7 @@ describe("a paved tile's ground", () => {
       drive.dispose();
     });
 
-    it("is a town street's kerb and paving on its shoulder", () => {
+    it("is a sealed town street's kerb and paving on its shoulder", () => {
       const { drive } = loaded(true);
       expect(onPaving(drive, "primary", (across) => Math.min(...across) > 1.1)).toBe("asphalt");
       drive.dispose();

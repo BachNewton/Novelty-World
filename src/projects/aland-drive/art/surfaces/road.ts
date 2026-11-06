@@ -2,7 +2,6 @@ import { abs, float, floor, fract, fwidth, max, min, mix, select, smoothstep, te
 import type { Node, Texture } from "three/webgpu";
 import { seedOf, unitOf } from "../hash";
 import { COARSE_M, FINE_M } from "./ground";
-import { KERBED_HALF_WIDTH_M } from "./road-attributes";
 import type { Tiled } from "./tiled";
 
 /*
@@ -108,7 +107,7 @@ export function dressRoad({ tiled, toCamera, across, signedAcross, along, paved,
   const looseShoulder = mix(colour("road-shoulder").mul(stone), ground, smoothstep(float(0.05), float(0.7), across.sub(1).add(coarse.r.sub(0.5).mul(0.5).mul(shown))));
 
   // In town: a gutter's shadow, a kerbstone with its joints, then paving.
-  const kerbed = town.mul(paved).mul(smoothstep(float(KERBED_HALF_WIDTH_M[0]), float(KERBED_HALF_WIDTH_M[1]), halfWidth));
+  const kerbed = town.mul(paved).mul(smoothstep(float(2), float(2.6), halfWidth));
   const blur = fwidth(beyond).max(0.001);
   const onKerb = smoothstep(float(GUTTER_M).sub(blur), float(GUTTER_M).add(blur), beyond).mul(float(1).sub(smoothstep(float(KERB_M + GUTTER_M).sub(blur), float(KERB_M + GUTTER_M).add(blur), beyond)));
   const lengthwise = float(0.5).sub(abs(fract(along.div(KERB_LENGTH_M)).sub(0.5))).mul(KERB_LENGTH_M);
