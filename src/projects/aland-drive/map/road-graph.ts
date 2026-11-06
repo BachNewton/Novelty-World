@@ -52,9 +52,6 @@ const SPEED_BY_RANK = [25, 20, 11, 5];
 const TOP_SPEED_M_S = SPEED_BY_RANK[0];
 
 const CELL_M = 500;
-/** Further than this off any road, a place isn't on one. */
-const TURN_READ_M = 20;
-const TURN_SHOWN_RADIANS = (35 * Math.PI) / 180;
 const WRONG_WAY_PENALTY_S = 60;
 
 export function decodeRoadGraph(file: RoadMapFile, bytes: number): RoadGraphData {
@@ -124,15 +121,8 @@ export interface RoadSpot {
   distance: number;
 }
 
-/** A direction to give: at this far along the route, turn by this many radians, clockwise on the map. */
-export interface Turn {
-  along: number;
-  radians: number;
-}
-
 export interface Route {
   line: RoadLine;
-  turns: Turn[];
   /** The snapped end, on a road. */
   end: { x: number; z: number };
 }
@@ -350,7 +340,6 @@ export class RoadGraph {
 
   private finish(legs: number[][], end: Route["end"]): Route {
     const points: number[] = [];
-    const junctions: number[] = [];
     for (const leg of legs) {
       for (let at = 0; at < leg.length; at += 2) {
         const [x, z] = [leg[at], leg[at + 1]];
@@ -358,19 +347,9 @@ export class RoadGraph {
         if (count >= 3 && Math.hypot(points[count - 3] - x, points[count - 1] - z) < 0.05) continue;
         points.push(x, 0, z);
       }
-      junctions.push(points.length / 3 - 1);
     }
     const line = new RoadLine(Float32Array.from(points.length >= 6 ? points : [...points, points[0], 0, points[2] + 1]));
-    const turns: Turn[] = [];
-    for (const junction of junctions.slice(0, -1)) {
-      const along = line.lengths[junction];
-      const before = line.at(along - TURN_READ_M);
-      const here = line.at(along);
-      const after = line.at(along + TURN_READ_M);
-      const radians = wrap(headingOf(after.x - here.x, after.z - here.z) - headingOf(here.x - before.x, here.z - before.z));
-      if (Math.abs(radians) >= TURN_SHOWN_RADIANS) turns.push({ along, radians });
-    }
-    return { line, turns, end };
+    return { line, end };
   }
 }
 

@@ -34,7 +34,7 @@ const LEAVES = {
 export interface Leaves {
   /** The share of broadleaf trees in leaf, 0 to 1: a tree is in leaf while `oneByOne(leafed, its threshold)`. */
   leafed: number;
-  /** The share whose leaves have turned. A tree's threshold is the same for both, so it turns before it falls. */
+  /** The share whose leaves have turned. In autumn a tree with threshold t turns as this passes t and falls as `leafed` drops under 1 − t, so the first to turn is the first to fall. */
   turned: number;
   /** How thick the fallen leaves lie on the ground and the verges, 0 to 1, under any snow. */
   fallen: number;

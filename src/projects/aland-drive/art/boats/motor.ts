@@ -1,7 +1,7 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { FLAGS } from "../street/flags";
-import { dressForMooring, guardRails, type Mooring } from "./dress";
+import { dressForMooring, farMooring, guardRails, type Mooring } from "./dress";
 import { farHull, house, Hull, lerp, type HullSpec } from "./hull";
 import { BoatMesh, finished, type BoatPart } from "./mesh";
 import { farMast } from "./rig";
@@ -102,9 +102,11 @@ export function buildLaunch({ mooring = "bow-to", hull: planking = "mahogany" }:
   seat(near, 0, 0.24, 0.45, 1.5, 0.5, 0.34, "cover-red");
   near.tube([0.42, 0.74, 0.92], [0.42, 0.94, 0.78], 0.16, 7, {}, "gelcoat-warm");
   ensign(near, -3.5, 0.8);
-  mooredIn(near, hull, mooring, 2);
-  const far = farHull(new BoatMesh(), hull, planking, "varnish", 3);
+  dressForMooring(near, hull, { mooring, side: 1, fenderCount: 2, kept: true });
+  const far = farHull(new BoatMesh(), hull, [[0, "antifoul-red"], [1, planking]], "varnish", 3);
   far.face([[-0.8, 0.8, screenZ], [0.8, 0.8, screenZ], [0.62, 1.2, screenZ - 0.24], [-0.62, 1.2, screenZ - 0.24]], "glass");
+  far.face([[0, 1.78, -3.7], [0, 1.38, -3.64], [0.03, 1.3, -4.32], [0.05, 1.64, -4.36]], "flag-ax-blue");
+  farMooring(far, hull, { mooring, side: 1 });
   return finished({ near, far, swapM: 110, reachM: 900, rock: 0.5 });
 }
 

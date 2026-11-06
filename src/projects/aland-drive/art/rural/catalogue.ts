@@ -25,7 +25,7 @@ export function catalogue(): { name: string; limit: number; farLimit: number; mo
     small("birch clump", buildBirch(3, "clump")),
     small("birch young 1", buildBirch(1, "young")),
     small("birch clump 2", buildBirch(2, "clump")),
-    small("reed bed", buildReedBed(1)),
+    { name: "reed bed", limit: 150, farLimit: 32, model: buildReedBed(1) },
     ...[1, 2, 3].map((seed) => small(`reed clump ${seed}`, buildReedClump(seed))),
     small("stone wall", buildStoneWall(1)),
     small("shed red", buildShed("red")),

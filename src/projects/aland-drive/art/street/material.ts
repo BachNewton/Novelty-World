@@ -1,6 +1,8 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type Vector3 } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, float, fract, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
+import { seasonNodes, type SeasonLook } from "../season";
+import { lindenThroughYear } from "./linden";
 import { facetLight, footShade, rollOf, screenPattern, type RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
 
@@ -18,6 +20,8 @@ import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type Stree
 export interface StreetInputs extends RoadsideInputs {
   /** Seconds, for what moves. It needn't be the clock: a paused game can hold it. */
   time: Node<"float">;
+  /** The season a linden's leaves turn and fall by; summer if none. */
+  season?: SeasonLook;
 }
 
 const PAINT: Record<StreetPart, { from: string; to?: string; share?: number; gain?: number }> = {
@@ -79,6 +83,9 @@ const PAINT: Record<StreetPart, { from: string; to?: string; share?: number; gai
   spar: { from: "wall-pale", gain: 1.05 },
   "sail-cover": { from: "water", gain: 0.7 },
   rigging: { from: "wall-plinth", gain: 0.85 },
+  "linden-leaf": { from: "tree-birch", to: "tree-pine", share: 0.2, gain: 1.1 },
+  "linden-leaf-lit": { from: "tree-birch", to: "wall-yellow", share: 0.09, gain: 1.24 },
+  "linden-leaf-under": { from: "tree-pine", to: "tree-birch", share: 0.3, gain: 1.05 },
 };
 
 /** The share of its reach over which the last version dissolves. */
@@ -122,8 +129,8 @@ export function streetPaint(palette: ReturnType<typeof streetPalette>): Node<"ve
   return (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
 }
 
-function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: Node<"float">, roll: Node<"float">, kind: Node<"float">) {
-  const painted = streetPaint(streetPalette(linear));
+function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: Node<"float">, roll: Node<"float">, kind: Node<"float">, inSeason: (summer: Node<"vec3">) => Node<"vec3">) {
+  const painted = inSeason(streetPaint(streetPalette(linear)));
   // No two trees or tufts are quite the one green.
   const base = select(kindIs(kind, "leaf"), painted.mul(mix(float(0.88), float(1.1), roll)), painted);
   return base.mul(facetLight(sun).lit.mul(footShade(foot)));
@@ -149,18 +156,22 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const shown = isNear ? distance.lessThan(reach.x.mul(1 + SWAP_BAND).min(end)) : distance.greaterThanEqual(reach.x.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const size = select(shown, fit.x, float(0));
 
-  const x = positionGeometry.x.mul(fit.y);
-  const up = positionGeometry.y.add(x.mul(fit.z));
-  const z = positionGeometry.z.add(motionOf(inputs.time, roll, kind));
+  const tint = attribute<"vec4">("tint", "vec4");
+  const year = lindenThroughYear(seasonNodes(inputs.season), place.xz, round(tint.r.mul(255)), tint.g.mul(255 / 128), inputs.linear);
+  const x = positionGeometry.x.mul(fit.y).mul(year.spread);
+  const up = positionGeometry.y.add(positionGeometry.x.mul(fit.y).mul(fit.z));
+  const z = positionGeometry.z.add(motionOf(inputs.time, roll, kind)).mul(year.spread);
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
-  material.colorNode = inputs.hazed(paintOf(inputs, up.mul(fit.x), roll, kind));
+  material.colorNode = inputs.hazed(paintOf(inputs, up.mul(fit.x), roll, kind, year.paint));
   const pattern = screenPattern();
   const share = swapShare(reach, distance);
   const kept = pattern.greaterThanEqual(smoothstep(end.mul(1 - LEAVE_SHARE), end, distance));
-  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(outsideCar());
+  // A bare linden's open pixels are a band of the same pattern, so the two versions in a swap leave the same ones open.
+  const twigs = fract(pattern.add(0.5)).greaterThanEqual(year.open);
+  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(twigs).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

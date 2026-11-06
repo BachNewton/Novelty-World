@@ -7,67 +7,67 @@
     "name": "rural: sheep standing",
     "swapM": 57
   },
-  "d4891971": {
+  "6555555d": {
     "name": "boats: allmogebat",
-    "swapM": 113
+    "swapM": 85
   },
-  "384d4f42": {
+  "e652330f": {
     "name": "boats: allmogebat-sailing",
-    "swapM": 46
+    "swapM": 30
   },
-  "2cb3a5cf": {
+  "2e5fcc29": {
     "name": "boats: cruiser",
-    "swapM": 167
+    "swapM": 95
   },
-  "d4d5dc62": {
+  "f1f9d352": {
     "name": "boats: cruiser-sailing",
-    "swapM": 128
+    "swapM": 64
   },
-  "8d4f2dd1": {
+  "fe74632d": {
     "name": "boats: double-ender",
-    "swapM": 202
+    "swapM": 101
   },
-  "c9bd3c90": {
+  "392912e1": {
     "name": "boats: double-ender-sailing",
-    "swapM": 104
+    "swapM": 68
   },
   "df2b9f26": {
     "name": "boats: fishing",
     "swapM": 389
   },
-  "a558834b": {
+  "f4576cad": {
     "name": "boats: folkboat",
-    "swapM": 157
+    "swapM": 90
   },
-  "eb9eb0d2": {
+  "2c8f4e9d": {
     "name": "boats: folkboat-sailing",
-    "swapM": 93
+    "swapM": 40
   },
-  "dd627b7f": {
+  "109e7ba7": {
     "name": "boats: galeas",
-    "swapM": 228
+    "swapM": 150
   },
-  "0b4867b6": {
+  "ac9e2040": {
     "name": "boats: galeas-sailing",
-    "swapM": 227
+    "swapM": 130
   },
-  "4f543845": {
+  "963b7531": {
     "name": "boats: large",
-    "swapM": 210
+    "swapM": 120
   },
-  "859ecee2": {
+  "d484f205": {
     "name": "boats: large-sailing",
-    "swapM": 115
+    "swapM": 87
   },
-  "43b01e89": {
+  "16aa56c0": {
     "name": "boats: launch",
-    "swapM": 113
+    "swapM": 74
   },
   "c5a9c364": {
     "name": "boats: optimist",
     "swapM": 40
   },
-  "cb0fe874": {
+  "2e9dd5d1": {
     "name": "boats: optimist-sailing",
     "swapM": 42
   },
@@ -91,7 +91,7 @@
     "name": "boats: single-hander",
     "swapM": 82
   },
-  "361163c0": {
+  "81e047ed": {
     "name": "boats: single-hander-sailing",
     "swapM": 54
   },
@@ -179,9 +179,9 @@
     "name": "identity: apple tree light",
     "swapM": 59
   },
-  "3f92b6a9": {
+  "da1ad987": {
     "name": "identity: bicycle",
-    "swapM": 43
+    "swapM": 19
   },
   "c4d893ba": {
     "name": "identity: bonfire stack",
@@ -231,13 +231,13 @@
     "name": "identity: net heap",
     "swapM": 65
   },
-  "a71eb5dc": {
+  "9a514655": {
     "name": "identity: open-farm sign",
-    "swapM": 57
+    "swapM": 21
   },
-  "373940db": {
+  "0ebb6440": {
     "name": "identity: orchard ladder",
-    "swapM": 36
+    "swapM": 24
   },
   "c3af683b": {
     "name": "identity: picnic table",
@@ -251,9 +251,9 @@
     "name": "identity: summer cottage",
     "swapM": 73
   },
-  "367e6d23": {
+  "8ef1bfdd": {
     "name": "identity: touring rack",
-    "swapM": 43
+    "swapM": 32
   },
   "b7d4e582": {
     "name": "identity: upturned boat",
@@ -303,13 +303,13 @@
     "name": "marina: cannon",
     "swapM": 33
   },
-  "d326b363": {
+  "3b713a05": {
     "name": "marina: cradle",
-    "swapM": 66
+    "swapM": 25
   },
-  "c2b8c3bd": {
+  "71b53f1d": {
     "name": "marina: dinghy rack",
-    "swapM": 57
+    "swapM": 19
   },
   "bc3e0f5f": {
     "name": "marina: figurehead",
@@ -323,17 +323,17 @@
     "name": "marina: fixed north",
     "swapM": 72
   },
-  "38c37606": {
+  "f0bc014e": {
     "name": "marina: flag mast",
-    "swapM": 122
+    "swapM": 40
   },
   "80935a16": {
     "name": "marina: fuel berth",
     "swapM": 180
   },
-  "5096f249": {
+  "e1e4d7f1": {
     "name": "marina: guest harbour sign",
-    "swapM": 79
+    "swapM": 17
   },
   "a175b414": {
     "name": "marina: harbour hut",
@@ -447,9 +447,9 @@
     "name": "marina: radar mark white-red",
     "swapM": 57
   },
-  "5c9c30f5": {
+  "cc242f2f": {
     "name": "marina: rail trolley",
-    "swapM": 58
+    "swapM": 33
   },
   "d4260153": {
     "name": "marina: ropewalk shed",
@@ -523,9 +523,9 @@
     "name": "marina: travel lift",
     "swapM": 211
   },
-  "d3ffce39": {
+  "82b0f7cf": {
     "name": "marina: walkway gate",
-    "swapM": 38
+    "swapM": 29
   },
   "fd253abd": {
     "name": "marina: wheel sign",
@@ -539,9 +539,9 @@
     "name": "roadside: bus shelter",
     "swapM": 161
   },
-  "8f66433f": {
+  "c5af1e03": {
     "name": "roadside: farm fence",
-    "swapM": 87
+    "swapM": 16
   },
   "8f09635a": {
     "name": "roadside: pier 32 × 3 m",
@@ -563,9 +563,9 @@
     "name": "roadside: street lamp",
     "swapM": 50
   },
-  "632a4819": {
+  "e4470f95": {
     "name": "roadside: town fence",
-    "swapM": 75
+    "swapM": 65
   },
   "e353db82": {
     "name": "rural: bale hay",
@@ -687,7 +687,7 @@
     "name": "rural: pontoon section",
     "swapM": 148
   },
-  "e8d3f9c7": {
+  "0f84de69": {
     "name": "rural: reed bed",
     "swapM": 88
   },
@@ -707,11 +707,11 @@
     "name": "rural: rowing boat",
     "swapM": 69
   },
-  "cee6c31f": {
+  "a99406ff": {
     "name": "rural: sailboat moored",
-    "swapM": 137
+    "swapM": 79
   },
-  "2bc94f2e": {
+  "5d666362": {
     "name": "rural: sailboat sailing",
     "swapM": 68
   },
@@ -763,9 +763,9 @@
     "name": "street: bench",
     "swapM": 28
   },
-  "aa77aa5f": {
+  "adb80425": {
     "name": "street: bike rack",
-    "swapM": 40
+    "swapM": 13
   },
   "72add28f": {
     "name": "street: bin",
@@ -775,9 +775,9 @@
     "name": "street: bollard",
     "swapM": 21
   },
-  "a551a6f9": {
+  "b6d5a307": {
     "name": "street: café set",
-    "swapM": 37
+    "swapM": 19
   },
   "f4877498": {
     "name": "street: flagpole Åland",
@@ -795,31 +795,31 @@
     "name": "street: grass tuft short",
     "swapM": 37
   },
-  "a8587985": {
+  "03c3bd69": {
     "name": "street: guard rail",
-    "swapM": 74
+    "swapM": 18
   },
   "80aca45f": {
     "name": "street: guard rail end",
     "swapM": 152
   },
-  "92fdabc3": {
+  "b6bc36f5": {
     "name": "street: guard rail return",
-    "swapM": 75
+    "swapM": 19
   },
   "3cdd11c7": {
     "name": "street: harbour crane",
     "swapM": 119
   },
-  "cc66e679": {
+  "51c67269": {
     "name": "street: linden 14",
     "swapM": 4
   },
-  "049199bb": {
+  "d1d908db": {
     "name": "street: linden 3",
     "swapM": 4
   },
-  "ac2ef246": {
+  "3e60e846": {
     "name": "street: linden 8",
     "swapM": 4
   },
@@ -839,9 +839,9 @@
     "name": "street: planter round",
     "swapM": 28
   },
-  "af5db403": {
+  "1955b589": {
     "name": "street: reflector post",
-    "swapM": 43
+    "swapM": 5
   },
   "8da07ae7": {
     "name": "street: sailboat",
@@ -875,17 +875,21 @@
     "name": "town-kit: Baltic ferry",
     "swapM": 815
   },
-  "ce4d892e": {
+  "41d19068": {
     "name": "town-kit: bicycle bike-black",
-    "swapM": 28
+    "swapM": 14
   },
-  "bbcea996": {
+  "d753f230": {
     "name": "town-kit: bicycle bike-blue",
-    "swapM": 28
+    "swapM": 11
   },
-  "e617c0ee": {
+  "12751a68": {
     "name": "town-kit: bicycle bike-red",
-    "swapM": 28
+    "swapM": 14
+  },
+  "635e5890": {
+    "name": "town-kit: christmas tree",
+    "swapM": 46
   },
   "aef2e052": {
     "name": "town-kit: road ferry",
@@ -907,9 +911,9 @@
     "name": "town-kit: traffic light",
     "swapM": 27
   },
-  "ca733ca1": {
+  "8113efa9": {
     "name": "town-kit: village sign",
-    "swapM": 322
+    "swapM": 17
   },
   "e4013362": {
     "name": "town-kit: window box red",

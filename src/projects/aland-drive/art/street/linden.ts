@@ -1,6 +1,11 @@
+import type { Node, Vector3 } from "three/webgpu";
+import { float, mix, select, varying, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf } from "../leaves";
+import type { SeasonNodes } from "../season";
 import { seeded, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { Painted, streetModel, type StreetPart } from "./paint";
+import { Painted, STREET_PARTS, streetModel, type StreetPart } from "./paint";
 
 /*
  * A planted linden one unit tall, to be scaled by the tree's height, like the
@@ -73,7 +78,7 @@ function crown(into: Painted, splits: number, lobes: readonly Lobe[], wide: numb
     const up = (centre + 1) / 2;
     // A loose edge between the crown's greens, or it's a clean line round the tree.
     const dappled = up + (random() - 0.5) * 0.26;
-    const part: StreetPart = dappled < 0.3 ? "leaf-under" : dappled > 0.58 ? "leaf-lit" : "leaf";
+    const part: StreetPart = dappled < 0.3 ? "linden-leaf-under" : dappled > 0.58 ? "linden-leaf-lit" : "linden-leaf";
     const shade = (0.8 + up * 0.36) * (0.9 + random() * 0.2);
     into.face(triangle.map((point) => onCrown(point, lobes, wide)), part, shade);
   }
@@ -103,4 +108,39 @@ export function buildLinden(seed = 3): RoadsideModel {
   crown(near, NEAR_SPLITS, lobes, wide, random);
   const far = crown(new Painted().tube([0, SINK, 0], [0, 0.3, 0], 0.027, 3, { radiusTo: 0.02, shadeFrom: 0.9 }, "bark"), FAR_SPLITS, lobes, wide, random);
   return streetModel(near, far, LINDEN_SWAP_M, LINDEN_REACH_M);
+}
+
+/*
+ * A linden through the year (`art/leaves.ts`): yellow in early to mid October, then bare to a narrower, see-through
+ * crown of twigs, each tree on a threshold rolled from its place, so an avenue turns tree by tree. Only the linden's
+ * own leaves (the last of the street's paints) change, so nothing else the street's material draws does.
+ */
+const FIRST_LINDEN_LEAF = STREET_PARTS.indexOf("linden-leaf");
+const LINDEN_ROLL = 51;
+const LINDEN_GOES: [number, number] = [0.05, 0.75];
+/** The share of a bare crown's pixels left open, so it reads as twigs rather than a solid mass. */
+const BARE_OPEN = 0.5;
+
+export interface LindenYear {
+  /** How far a vertex spreads from the trunk, against its summer self. */
+  spread: Node<"float">;
+  /** A vertex's paint as the season has it, from its summer paint. */
+  paint: (summer: Node<"vec3">) => Node<"vec3">;
+  /** The share of the pixels left open. */
+  open: Node<"float">;
+}
+
+/** A vertex of a part, at a place, in its paint's shade, through the year. */
+export function lindenThroughYear(season: SeasonNodes, place: Node<"vec2">, part: Node<"float">, shade: Node<"float">, linear: (name: string) => Vector3): LindenYear {
+  const isLeaf = select(part.greaterThanEqual(FIRST_LINDEN_LEAF), float(1), float(0));
+  const leaves = leavesOf(season, mix(float(LINDEN_GOES[0]), float(LINDEN_GOES[1]), unitOf(placeSeed(place), LINDEN_ROLL)));
+  const bare = float(1).sub(leaves.inLeaf).mul(isLeaf);
+  // Worked out where the place is exact, and handed on whole, so no pixel rolls its own tree.
+  const state = varying(vec3(bare, leaves.turned.mul(isLeaf), leaves.fresh.mul(FRESH_SHARE).mul(isLeaf)));
+  const token = (name: string) => vec3(linear(name)).mul(shade);
+  return {
+    spread: mix(float(1), float(BARE_SPREAD), bare),
+    paint: (summer) => mix(mix(mix(summer, token("tree-fresh"), state.z), token("autumn-linden"), state.y), token("tree-twig"), state.x),
+    open: state.x.mul(BARE_OPEN),
+  };
 }

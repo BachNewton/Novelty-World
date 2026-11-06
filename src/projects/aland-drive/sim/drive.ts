@@ -78,6 +78,11 @@ export class SimulatedCar {
     this.settled();
   }
 
+  resume(state: CarState): void {
+    this.car.resume(state);
+    this.settled();
+  }
+
   /** Starts the car's motion over from where its body is now. */
   settled(): void {
     this.before = this.after = this.car.state();
@@ -123,6 +128,11 @@ export class SimulatedCar {
     return this.car.surfaces;
   }
 
+  /** The condition of what each wheel was on, in the same order: the weather's, or ice on the frozen sea. */
+  conditions(): readonly Condition[] {
+    return this.car.conditions;
+  }
+
   /** How each wheel's tyre met the ground on the last step, in the same order. */
   treads(): readonly Readonly<Tread>[] {
     return this.car.treads;
@@ -138,7 +148,7 @@ export class SimulatedCar {
   }
 
   private overWater(x: number, z: number): boolean {
-    if (!this.world.isWater(x, z)) return false;
+    if (!this.world.isWater(x, z) || this.world.bearsCar(x, z)) return false;
     const road = this.world.roads.nearest(x, z);
     return !road || road.distance > 6;
   }
@@ -198,6 +208,8 @@ export class Drive {
   private readonly others: SimulatedCar[] = [];
   /** Other players' cars, which the simulated cars can hit. */
   readonly remotes: RemoteCars;
+  /** Traffic near a simulated car, which the simulated cars can hit too. */
+  readonly traffic: RemoteCars;
   /** Times the player's car has been put somewhere rather than driven there. */
   placements = 0;
 
@@ -212,6 +224,7 @@ export class Drive {
     this.addWalls();
     this.player = new SimulatedCar(new Car(this.rapier, car, this.ground), world);
     this.remotes = new RemoteCars(this.rapier);
+    this.traffic = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
 
@@ -244,6 +257,7 @@ export class Drive {
     this.loadGround(road);
     this.player.place(road);
     this.remotes.placed(this.player.position);
+    this.traffic.placed(this.player.position);
     this.rapier.step();
     this.player.settled();
     this.placements++;
@@ -259,6 +273,16 @@ export class Drive {
     this.loadGround(placeOf(this.player.position), road);
     const car = new SimulatedCar(new Car(this.rapier, id, this.ground, tyres), this.world);
     car.place(road);
+    car.land();
+    this.others.push(car);
+    return car;
+  }
+
+  /** Another simulated car, where a state has it and moving as it moves: a traffic car once it's hit. */
+  addMovingCar(state: CarState): SimulatedCar {
+    this.loadGround(placeOf(this.player.position), placeOf(state.position));
+    const car = new SimulatedCar(new Car(this.rapier, state.car, this.ground), this.world);
+    car.resume(state);
     car.land();
     this.others.push(car);
     return car;
@@ -330,9 +354,12 @@ export class Drive {
     this.loadGround(placeOf(this.player.position));
     const cars = [this.player, ...this.others];
     for (const car of cars) car.push();
-    this.remotes.steer(cars.map(({ position }) => position));
+    const at = cars.map(({ position }) => position);
+    this.remotes.steer(at);
+    this.traffic.steer(at);
     this.rapier.step();
     this.remotes.settle();
+    this.traffic.settle();
     for (const car of cars) car.record();
   }
 

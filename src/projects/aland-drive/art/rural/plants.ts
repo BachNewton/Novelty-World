@@ -194,6 +194,8 @@ export function buildReedClump(seed = 1): RoadsideModel {
 const REED_ROWS = 4;
 const REEDS_PER_ROW = 24;
 const REED_TEETH = 12;
+const FAR_REED_TEETH = 3;
+const FAR_REED_BLADES = 3;
 /** How far along the shore a bed runs, for placing one after another; stretch it to fit. */
 export const REED_BED_M = 7;
 const REED_DEEP_M = 3.2;
@@ -230,11 +232,24 @@ export function buildReedBed(seed = 1): RoadsideModel {
       }
     }
   }
+  // Each row as the near's own: green teeth at its feet and straw blades over them, a blade's tip off the row as the near's are, so a row seen end-on still stands.
   const far = new RuralMesh({ grounded: false });
-  for (let spike = 0; spike < 10; spike++) {
-    const [from, to] = [(spike / 10) * REED_BED_M, ((spike + 1) / 10) * REED_BED_M];
-    far.solid([[from, -0.3, 0], [to, -0.3, 0], [(from + to) / 2 + 0.3, 1.9 + random() * 0.5, 0]], [[0, 1, 2]], "reed-straw", ([, y]) => (y < 0 ? 0.66 : 1.05));
+  for (let row = 0; row < REED_ROWS; row++) {
+    const z = (row / (REED_ROWS - 1) - 0.5) * REED_DEEP_M;
+    const seaward = row / (REED_ROWS - 1);
+    const green = 1.7 - seaward * 0.8;
+    const band = green * 0.45;
+    far.face([[0, -0.3, z], [REED_BED_M, -0.3, z], [REED_BED_M, band, z], [0, band, z]], "reed-green", 0.6);
+    for (let tooth = 0; tooth < FAR_REED_TEETH; tooth++) {
+      const [from, to] = [(tooth / FAR_REED_TEETH) * REED_BED_M, ((tooth + 1) / FAR_REED_TEETH) * REED_BED_M];
+      far.solid([[from, band, z], [to, band, z], [(from + to) / 2 + leanX * 0.4, green * (0.85 + random() * 0.3), z]], [[0, 1, 2]], "reed-green", () => 0.88);
+    }
+    const half = (0.08 * (REEDS_PER_ROW - row * 5)) / FAR_REED_BLADES;
+    for (let blade = 0; blade < FAR_REED_BLADES; blade++) {
+      const x = ((blade + 0.25 + random() * 0.5) / FAR_REED_BLADES) * REED_BED_M;
+      const tall = (2.5 - seaward * 1.1) * (0.85 + random() * 0.25);
+      far.solid([[x - half, -0.3, z], [x + half, -0.3, z], [x + leanX * tall * 0.4, tall, z + (blade % 2 === 0 ? 0.2 : -0.2)]], [[0, 1, 2]], "reed-straw", ([, y]) => (y < 0 ? 0.66 : 1.12));
+    }
   }
-  far.face([[0, -0.3, 0], [REED_BED_M, -0.3, 0], [REED_BED_M, 0.85, 0], [0, 0.85, 0]], "reed-straw", 0.82);
   return finished(near, far, 90, 620);
 }

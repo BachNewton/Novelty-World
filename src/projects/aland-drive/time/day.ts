@@ -27,7 +27,7 @@ export interface GameTime {
   /** The world's time, game days since the first of 2000's (`time/calendar.ts`). */
   gameDays: number;
   calendar: GameCalendar;
-  /** The real date shown, and how far it is through to the next as it runs on through a game day. */
+  /** The real date shown, and how far it is through to the next as it runs on through a game day: a held date stays at its noon. */
   date: CalendarDate;
   through: number;
   /** Åland's local clock time, 0 to 24. */
@@ -89,9 +89,9 @@ function dateOfDayNumber(dayNumber: number): CalendarDate {
  */
 export function gameTimeAt(gameDays: number, heldDate: CalendarDate | null = null): GameTime {
   const shown = calendarAt(gameDays);
-  const { date, through } = heldDate ? { date: heldDate, through: 0 } : dateAt(gameDays);
+  const { date, through } = heldDate ? { date: heldDate, through: 0.5 } : dateAt(gameDays);
   const calendar = heldDate ? { ...shown, year: heldDate.year, month: heldDate.month, day: gameDayOfDate(heldDate) } : shown;
-  const started = dayNumberOf(date) + through - (heldDate ? 0 : shown.hour / 24);
+  const started = heldDate ? dayNumberOf(heldDate) : dayNumberOf(date) + through - shown.hour / 24;
   const share = started - Math.floor(started);
   const [from, to] = [alandInstant(dateOfDayNumber(Math.floor(started)), shown.hour), alandInstant(dateOfDayNumber(Math.floor(started) + 1), shown.hour)];
   const [moonFrom, moonTo] = [moonPlace(from), moonPlace(to)];
@@ -204,6 +204,7 @@ export class DayClock {
     return this.heldAt !== null;
   }
 
+  /** Whether a real date is held here, by a link or a tool, rather than the calendar's own. */
   get dateHeld() {
     return this.date !== null;
   }

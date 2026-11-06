@@ -203,7 +203,19 @@ export function buildOrchardLadder(): RoadsideModel {
     const [y, z] = [tall * share, 0.5 - 0.7 * share];
     near.beam([-half, y, z], [half, y, z], 0.035, 0.035, "timber-pale");
   }
-  const far = new IdentityMesh().face([[-0.3, 0, 0.5], [0.3, 0, 0.5], [0.06, tall, -0.2], [-0.06, tall, -0.2]], "timber");
+  const far = new IdentityMesh();
+  const card = (from: V3, to: V3, across: V3, part: IdentityPart) => far.face([[from[0] - across[0], from[1] - across[1], from[2] - across[2]], [to[0] - across[0], to[1] - across[1], to[2] - across[2]], [to[0] + across[0], to[1] + across[1], to[2] + across[2]], [from[0] + across[0], from[1] + across[1], from[2] + across[2]]], part);
+  // Each leg faces the front, and the side sees the two rails as one.
+  for (const side of [-1, 1]) card([side * 0.32, 0, 0.5], [side * 0.05, tall, -0.2], [0.025, 0, 0], "timber");
+  card([0.01, 0, 0.5], [0.01, tall, -0.2], [0, 0, 0.04], "timber");
+  card([0, 0, -1.15], [0, tall - 0.1, -0.22], [0.025, 0, 0], "timber-grey");
+  card([0, 0, -1.15], [0, tall - 0.1, -0.22], [0, -0.012, 0.04], "timber-grey");
+  for (let rung = 1; rung < 8; rung++) {
+    const share = rung / 8;
+    const half = 0.32 + (0.05 - 0.32) * share;
+    const [y, z] = [tall * share, 0.5 - 0.7 * share];
+    card([-half, y, z], [half, y, z], [0, 0.0175, 0], "timber-pale");
+  }
   return identityModel(near, far, 35, 180);
 }
 
@@ -274,7 +286,10 @@ export function buildOpenFarmSign(way: "left" | "right" = "right"): RoadsideMode
   lettering(near, words, [-letteredWidth(words, tall) / 2, y - 0.07, 0.014], tall, "sign-ink");
   const a = y - 0.28;
   near.face([[-0.2 * direction, a - 0.025, 0.012], [0.08 * direction, a - 0.025, 0.012], [0.08 * direction, a - 0.075, 0.012], [0.22 * direction, a, 0.012], [0.08 * direction, a + 0.075, 0.012], [0.08 * direction, a + 0.025, 0.012], [-0.2 * direction, a + 0.025, 0.012]], "sign-white");
-  const far = new IdentityMesh().tube([0, 0, 0], [0, y, 0], 0.05, 3, {}, "timber-grey").tube([0, y - 0.45, 0], [0, y + 0.35, 0], 0.5, 4, { radiusTo: 0.45, cap: true }, "apple-red");
+  const far = new IdentityMesh().tube([0, -0.15, -0.04], [0, y + 0.4, -0.04], 0.05, 3, {}, "timber-grey");
+  const apple: readonly (readonly [number, number])[] = [[0, 0.3], [0.45, 0.42], [0.74, 0.06], [0.6, -0.4], [0.16, -0.68], [0, -0.6], [-0.16, -0.68], [-0.6, -0.4], [-0.74, 0.06], [-0.45, 0.42]];
+  far.face(apple.map(([a, b]) => [a * 0.72, y + b * 0.72, 0]), "apple-red");
+  plate(far, [-0.48, y - 0.13, 0.008], [0.96, 0, 0], [0, 0.22, 0], "sign-white");
   return identityModel(near, far, 60, 360);
 }
 
@@ -351,6 +366,27 @@ function bicycle(mesh: IdentityMesh, x: number, z: number, frame: IdentityPart, 
   return mesh;
 }
 
+/**
+ * `bicycle` far off: its wheels as rings of fewer sides, and its tubes each a couple of centimetres off the last so
+ * none shares a plane.
+ */
+function bicycleFar(mesh: IdentityMesh, x: number, z: number, frame: IdentityPart, wheelSides: number): IdentityMesh {
+  const r = 0.34;
+  const at = (a: number, y: number, b = 0): V3 => [x + a, y, z + b];
+  ring(mesh, at(-0.5, r, -0.01), r, 0.05, wheelSides, "tyre");
+  ring(mesh, at(0.52, r, 0.01), r, 0.05, wheelSides, "tyre");
+  const [seat, head, crank] = [at(-0.22, 0.86), at(0.32, 0.92), at(-0.08, 0.34)];
+  const rod = (from: V3, to: V3, off: number) => {
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    const [nx, ny] = [(-(to[1] - from[1]) / length) * 0.018, ((to[0] - from[0]) / length) * 0.018];
+    mesh.face([[from[0] + nx, from[1] + ny, z + off], [to[0] + nx, to[1] + ny, z + off], [to[0] - nx, to[1] - ny, z + off], [from[0] - nx, from[1] - ny, z + off]], frame);
+  };
+  const rods = [[seat, crank], [crank, head], [seat, head], [crank, at(-0.5, r)], [seat, at(-0.5, r)], [head, at(0.52, r)]] as const;
+  rods.forEach(([from, to], index) => rod(from, to, (index % 2 === 0 ? 1 : -1) * 0.02 * (1 + Math.floor(index / 2))));
+  mesh.face([at(0.34, 1.005, -0.24), at(0.34, 1.005, 0.24), at(0.34, 1.035, 0.24), at(0.34, 1.035, -0.24)], "tyre");
+  mesh.face([[x - 0.32, 0.9, z - 0.06], [x - 0.1, 0.9, z - 0.06], [x - 0.1, 0.9, z + 0.06], [x - 0.32, 0.9, z + 0.06]], "tyre");
+  return mesh;
+}
 
 /** A person standing, from a few boxes and a head in a helmet. Their front is +z. */
 function person(mesh: IdentityMesh, x: number, z: number, shirt: IdentityPart, hand: "down" | "out"): IdentityMesh {
@@ -378,7 +414,7 @@ export function buildCyclist(pose: "with-bike" | "standing", shirt: IdentityPart
 /** A bicycle on its own, on its stand. */
 export function buildBicycle(): RoadsideModel {
   const near = bicycle(new IdentityMesh(), 0, 0, "frame-red", false, 10);
-  const far = new IdentityMesh().face([[-0.82, 0, 0], [0.86, 0, 0], [0.86, 0.95, 0], [-0.82, 0.95, 0]], "frame-red");
+  const far = bicycleFar(new IdentityMesh(), 0, 0, "frame-red", 6);
   return identityModel(near, far, 40, 220);
 }
 
@@ -389,8 +425,13 @@ export function buildTouringRack(): RoadsideModel {
   near.beam([-1.3, 0.78, 0], [1.3, 0.78, 0], 0.09, 0.09, "timber-pale");
   bicycle(near, -0.62, 0.22, "frame-blue", false, 6);
   bicycle(near, 0.68, 0.22, "frame-red", false, 6);
-  const far = new IdentityMesh()
-    .face([[-1.3, 0.05, 0], [1.3, 0.05, 0], [1.3, 0.82, 0], [-1.3, 0.82, 0]], "timber-grey")
-    .face([[-1.4, 0, 0.22], [1.5, 0, 0.22], [1.5, 0.9, 0.22], [-1.4, 0.9, 0.22]], "frame-blue");
+  const far = new IdentityMesh().face([[-1.3, 0.735, 0.045], [1.3, 0.735, 0.045], [1.3, 0.825, 0.045], [-1.3, 0.825, 0.045]], "timber-pale");
+  for (const x of [-1.2, 1.2]) {
+    far
+      .face([[x - 0.045, 0, 0], [x + 0.045, 0, 0], [x + 0.045, 0.735, 0], [x - 0.045, 0.735, 0]], "timber-grey")
+      .face([[x, 0, -0.045], [x, 0, 0.045], [x, 0.735, 0.045], [x, 0.735, -0.045]], "timber-grey");
+  }
+  bicycleFar(far, -0.62, 0.22, "frame-blue", 5);
+  bicycleFar(far, 0.68, 0.22, "frame-red", 5);
   return identityModel(near, far, 45, 260);
 }

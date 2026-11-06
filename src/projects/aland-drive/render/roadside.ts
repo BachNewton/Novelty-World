@@ -5,6 +5,9 @@ import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, build
 import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 import { createTownRoadside, TOWN_MODELS, type TownLooks } from "./town-roadside";
 import type { LampKind, LampSpot } from "../art/night";
+import type { SeasonLook } from "../art/season";
+import { TERRACES } from "../climate/placed-season";
+import { inSeasonMaterials } from "./in-season";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
@@ -21,7 +24,9 @@ import type { LampKind, LampSpot } from "../art/night";
  * the camera has moved that margin, as the parked cars' are, so a place far off runs
  * no near vertices; the material still chooses each place's version by its own
  * distance, so the list changing shows nothing. A far version is a few triangles,
- * and its list holds every place.
+ * and its list holds every place. A café terrace is out only in its season, each
+ * terrace on its own day (`climate/placed-season.ts`), its tables and parasols
+ * folding away in their shader.
  */
 
 type Kit = "roadside" | "street" | "identity";
@@ -53,6 +58,9 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   "viewing-tower": { build: buildViewingTower, kit: "identity" },
   "viewpoint-platform": { build: buildViewpointPlatform, kit: "identity" },
 };
+
+/** A café terrace's models, out only in its season. */
+const TERRACE_MODELS = new Set(["cafe-set", "parasol"]);
 
 /** The lamps the night lights, by the model that holds each. */
 const LAMPS: Record<string, LampKind> = { lamp: "road", "town-lamp": "town" };
@@ -98,10 +106,13 @@ export interface RoadsideLooks {
   wires: MeshBasicNodeMaterial;
   signs: SignKit;
   town: TownLooks;
+  /** The season, for the café terraces: always out without one. */
+  season?: SeasonLook;
 }
 
 export function createRoadside(scene: Scene, looks: RoadsideLooks) {
-  const models = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: looks[kit], places: [] as Placement[], near: [] as Mesh[], far: [] as Mesh[] }));
+  const terraces = looks.season === undefined ? looks.street : inSeasonMaterials(looks.street, looks.season, TERRACES);
+  const models = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: TERRACE_MODELS.has(name) ? terraces : looks[kit], places: [] as Placement[], near: [] as Mesh[], far: [] as Mesh[] }));
   let centre: { x: number; z: number } | null = null;
   const wireModel = buildWireSpan();
   const tiles = new Map<string, TileRoadside>();

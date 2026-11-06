@@ -11,6 +11,9 @@ import { TileLayers } from "./tile-layers";
 import { canopyLift, tileReads } from "./tile-reads";
 import { NEAR_STEP_M, readImage, ROAD_COVERAGE, ROAD_MASK_MIP, roadLevel, SHORTEST_M, treeHeight, treePlace, treeStands } from "./tree-place";
 import { World } from "../sim/world";
+import { dialsOf, SUMMER } from "../art/season";
+import { seasonAt } from "../climate/season";
+import { dayAsked } from "../time/day";
 
 /*
  * The forest on its own, to watch how its detail works (`?forest-lab`): the game's
@@ -20,7 +23,7 @@ import { World } from "../sim/world";
  * everything a drive does to it, and a change in the picture is the forest's and
  * never the view's. The same split lets the camera rise and look down on the bands.
  * The forest's settings change here on the running forest, and the page shows how
- * many trees each of its lists drew.
+ * many trees each of its lists drew. `?date=` shows the forest in that date's season, at its noon.
  */
 
 export type ForestLabView = "game" | "models" | "changing" | "slide";
@@ -78,6 +81,7 @@ export interface ForestLab {
 
 export async function startForestLab(container: HTMLElement, onFailure: (error: Error) => void): Promise<ForestLab> {
   const base = tileBase(window.location.search);
+  const { date } = dayAsked(window.location.search);
   const response = await fetch(`${base}/world.json`);
   if (!response.ok) throw new Error(`${base}/world.json: ${response.status}`);
   const manifest = (await response.json()) as WorldManifest;
@@ -143,6 +147,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     colour: colorOf,
     hazed: (color) => color,
     sun: manifest.sun,
+    season: date === null ? SUMMER : dialsOf(seasonAt(date, 0.5)),
     paint: ({ model, natural, changing, groundGap }) => {
       const slid = mix(colorOf("lab-still"), colorOf("lab-hot"), groundGap.div(SLIDE_FULL_M).clamp(0, 1));
       const going = select(changing, colorOf("lab-hot"), colorOf("lab-still"));

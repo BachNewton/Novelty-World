@@ -5,7 +5,9 @@
 // Prereq: a dev server, and a tile server (`tools/serve-tiles.mjs`) named in ALAND_DRIVE_URL's `?tiles=local:<port>`.
 // Views are split by semicolons. A view is a showcase spot's key, or <name>:<east>,<north>,<height>,<bearing>,<pitch> for the free camera there, in
 // ETRS-TM35FIN metres and degrees (bearing clockwise from grid north, pitch up from level).
-//   node src/projects/aland-drive/tools/day-look.mjs --out=<folder> --views="5;8" --days=2026-06-21@12,2026-06-21@23.5 [--lights=baked,relit] [--size=WxH]
+// `--weathers=clear,rain,fog` holds each weather in turn (`climate/held.ts`), `shared` for the climate's own, and names the
+// file for it too.
+//   node src/projects/aland-drive/tools/day-look.mjs --out=<folder> --views="5;8" --days=2026-06-21@12,2026-06-21@23.5 [--lights=baked,relit] [--weathers=rain,snowfall] [--size=WxH]
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
 import { mkdirSync } from "node:fs";
@@ -22,6 +24,7 @@ const DAYS = (option("days") ?? "2026-06-21@12").split(",").map((day) => {
   return { date, hour: Number(hour) };
 });
 const LIGHTS = option("lights")?.split(",") ?? [null];
+const WEATHERS = option("weathers")?.split(",") ?? [null];
 const BASE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const FRAMES_TO_SETTLE = 3;
 
@@ -47,13 +50,14 @@ for (const light of LIGHTS) {
         probe.look({ east, north, height, yaw: (-bearingDeg * Math.PI) / 180, pitch: (pitchDeg * Math.PI) / 180 });
       }, view),
     );
-    for (const { date, hour } of DAYS) {
-      const counts = await step(`${view} at ${date} ${hour}`, () =>
+    for (const { date, hour } of DAYS) for (const weather of WEATHERS) {
+      const counts = await step(`${view} at ${date} ${hour}${weather === null ? "" : ` in ${weather}`}`, () =>
         page.evaluate(
-          async ({ date: text, hour: at, settle }) => {
+          async ({ date: text, hour: at, weather: held, settle }) => {
             const probe = window.__alandDrive;
             const [year, month, day] = text.split("-").map(Number);
             probe.setDay({ date: { year, month, day }, hour: at, held: true });
+            if (held !== null) probe.setWeather(held === "shared" ? null : held);
             const framesPass = async (count) => {
               const target = probe.frames() + count;
               while (probe.frames() < target) {
@@ -64,15 +68,15 @@ for (const light of LIGHTS) {
             await framesPass(settle);
             while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
             await framesPass(settle);
-            return { counts: probe.counts(), day: probe.day() };
+            return { counts: probe.counts(), day: probe.day(), drops: probe.precipitationCounts() };
           },
-          { date, hour, settle: FRAMES_TO_SETTLE },
+          { date, hour, weather, settle: FRAMES_TO_SETTLE },
         ),
       );
-      const name = `${view.split(":")[0]}-${date}-${String(hour).replace(".", "_")}${light === null ? "" : `-${light}`}.png`;
+      const name = `${view.split(":")[0]}-${date}-${String(hour).replace(".", "_")}${light === null ? "" : `-${light}`}${weather === null ? "" : `-${weather}`}.png`;
       await page.screenshot({ path: join(OUT, name) });
       const { drawCalls, triangles, gpuMs } = counts.counts;
-      console.log(name, JSON.stringify({ drawCalls, triangles, gpuMs, sun: counts.day.sun, night: counts.day.night }));
+      console.log(name, JSON.stringify({ drawCalls, triangles, gpuMs, sun: counts.day.sun, night: counts.day.night, drops: counts.drops }));
     }
   }
   const problems = reported();

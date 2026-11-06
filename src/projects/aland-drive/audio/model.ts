@@ -11,6 +11,15 @@ import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
  * and pitches all of that asks for. `graph.ts` plays what this says.
  */
 
+/** The weather round the car, as the shared weather has it: none in the audition, or on a tool's page. */
+export interface WeatherHeard {
+  /** How hard it rains, 0 to 1. */
+  rain: number;
+  /** How hard it snows, 0 to 1: falling snow is near silent, a soft patter at most. */
+  snowfall: number;
+  windMS: number;
+}
+
 /** How much of each place is round the car, 0 to 1. Places overlap: a shore town is both. */
 export interface Place {
   forest: number;
@@ -35,7 +44,8 @@ export interface DriveAudioState {
   /** How far each wheel has risen into its arch, as `CarState` has it. */
   suspension: readonly [number, number, number, number];
   place: Place;
-  /** The drive is stopped, as under the world map: only the place is heard. */
+  weather?: WeatherHeard;
+  /** The drive is stopped, as under the world map: only the place and the weather are heard. */
   paused?: boolean;
   /** Holds the revs here instead of the gearbox's, for the audition's slider. */
   heldRpm?: number;
@@ -72,7 +82,7 @@ export function slipOf(car: CarState, handbrake: boolean): number {
 }
 
 /** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "paused" | "engine">): DriveAudioState {
+export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "paused" | "engine">): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
@@ -195,6 +205,13 @@ export interface Mix {
   windHighLevel: number;
   windHighHz: number;
 
+  /** Rain drumming on the roof and glass, and how fast its loop plays: harder rain, denser drops. */
+  rainLevel: number;
+  rainRate: number;
+  /** The weather's own wind round the car, gusting, apart from the wind of its speed. */
+  galeLevel: number;
+  galeHz: number;
+
   forestLevel: number;
   shoreLevel: number;
   gullsLevel: number;
@@ -253,6 +270,15 @@ const WIND_HIGH = 0.2;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
 const PLACE = { forest: 0.44, shore: 0.42, gulls: 0.28, town: 0.42 };
+/** Rain on the roof at its hardest, and wet snow's soft patter, which is a share of it. */
+const RAIN_ON_ROOF = 0.42;
+const SNOW_PATTER = 0.12;
+/** The car's own noise covers some of the rain at speed. */
+const RAIN_COVERED_AT_SPEED = 0.35;
+/** The weather's wind is heard from a breeze, and full in a gale. */
+const GALE = 0.32;
+const GALE_FROM_MS = 3;
+const GALE_FULL_MS = 16;
 
 export interface MixInputs {
   state: DriveAudioState;
@@ -281,6 +307,20 @@ function engineMix({ spec, read }: { spec: EngineSpec; read: EngineRead }, heldR
     exhaustHz: spec.exhaustHz[0] + spec.exhaustHz[1] * revs + spec.exhaustHz[2] * load,
     intakeHz: lerp(spec.intakeHz[0], spec.intakeHz[1], revs),
     intakeLevel: spec.intakeLevel * (0.25 + 0.75 * load) * (0.35 + 0.65 * revs) * stirring,
+  };
+}
+
+/** Rain on the car and the weather's wind: heard while the drive is stopped too, as the place is. */
+function weatherMix(weather: WeatherHeard | undefined, speed: number, time: number) {
+  if (weather === undefined) return { rainLevel: 0, rainRate: 1, galeLevel: 0, galeHz: 300 };
+  const falling = Math.min(1, weather.rain + SNOW_PATTER * weather.snowfall);
+  const gust = 1 + 0.35 * Math.sin(time * 0.37) + 0.2 * Math.sin(time * 1.13 + 2);
+  const blowing = clamp((weather.windMS - GALE_FROM_MS) / (GALE_FULL_MS - GALE_FROM_MS));
+  return {
+    rainLevel: RAIN_ON_ROOF * Math.pow(falling, 0.8) * (1 - RAIN_COVERED_AT_SPEED * speed),
+    rainRate: 0.8 + 0.4 * falling,
+    galeLevel: GALE * blowing * blowing * gust,
+    galeHz: 220 + 22 * weather.windMS + 60 * gust,
   };
 }
 
@@ -348,6 +388,8 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
     windLowHz: 170 + 620 * speed,
     windHighLevel: stage * WIND_HIGH * Math.pow(speed, 2.2) * gust,
     windHighHz: 1500 + 3600 * speed,
+
+    ...weatherMix(state.weather, speed, time),
 
     forestLevel: PLACE.forest * place.forest * placeShare,
     shoreLevel: PLACE.shore * place.shore * placeShare,

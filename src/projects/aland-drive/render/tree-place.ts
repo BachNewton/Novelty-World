@@ -16,6 +16,10 @@ export const SHORTEST_M = 3;
 export const JITTER_ROLLS: [x: number, z: number] = [1, 2];
 export const HEIGHT_ROLL = 3;
 export const STAND_ROLL = 4;
+/** The salts of a tree's season, rolled from its place as its list carries it: which species of its shape, when its leaves go, and how much snow it holds. */
+export const SPECIES_ROLL = 15;
+export const LEAF_ROLL = 16;
+export const SNOW_ROLL = 17;
 /** A tree's height over the canopy image's. A place reads the canopy's surface from a 2013 scan, not a treetop today, and MS-NFI 2023's mean height is 1.2 times that. */
 export const HEIGHT_RANGE: [number, number] = [1.05, 1.35];
 /** What the forest averages over the canopy image, for whatever stands in for its trees. */

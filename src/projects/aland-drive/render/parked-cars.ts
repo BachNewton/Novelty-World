@@ -5,6 +5,7 @@ import { worldCarMaterial } from "../art/cars/material";
 import { WORLD_CARS } from "../art/cars/specs";
 import { PARKED_CARS, PARKED_FLOATS, parkedAt, type TileParked } from "./parked-places";
 import { type Sun } from "../art/sun";
+import type { SeasonLook } from "../art/season";
 
 /*
  * The parked cars (`pipeline/parking.py`), drawn as `art/cars`' world cars: each
@@ -75,10 +76,10 @@ export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[])
   geometry.instanceCount = cars.length;
 }
 
-export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">) {
+export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, season?: SeasonLook) {
   const materials = {
-    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M }),
-    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M }),
+    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M, season }),
+    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M, season }),
   };
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);

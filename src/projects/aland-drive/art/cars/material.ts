@@ -5,6 +5,8 @@ import { seedOf, unitOf } from "../hash";
 import { INDICATOR_OPTION } from "./indicators";
 import { SURFACES, type Soup, type Surface } from "./mesh";
 import { towardsSun, type Sun } from "../sun";
+import type { SeasonLook } from "../season";
+import { snowfall, snowOnTop } from "../surfaces/snow";
 
 /*
  * One material for a whole car. The world's own light, the same sum as the
@@ -233,6 +235,10 @@ export interface WorldTierOptions extends Pick<CarMaterialOptions, "sun" | "haze
   tier: "world" | "distant";
   swapM: number;
   reachM: number;
+  /** The season the snow on the cars' tops follows; none if not given. */
+  season?: SeasonLook;
+  /** How much of the snow cars keep: all of it standing parked, a little being driven, cleared but for some roofs. */
+  snowKept?: number;
 }
 
 /**
@@ -243,7 +249,11 @@ export interface WorldTierOptions extends Pick<CarMaterialOptions, "sun" | "haze
  * where each keeps the pixels the other drops, so a car never pops. The distant
  * one dissolves the same way over the last of its reach.
  */
-export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierOptions) {
+/** The cover at which a parked car's top goes white, rolled per car between these. */
+const SNOW_FROM = [0.1, 0.85] as const;
+const SNOW_SALT = 2;
+
+export function worldCarMaterial({ sun, hazed, tier, swapM, reachM, season, snowKept = 1 }: WorldTierOptions) {
   const sky = skyOf(sun);
   const place = attribute<"vec4">("place", "vec4");
   const paint = attribute<"vec3">("paint", "vec3");
@@ -265,7 +275,10 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   const { x, y, z } = positionGeometry;
   const normal = normalize(vec3(normalGeometry.x.mul(yawCos).add(normalGeometry.z.mul(yawSin)), normalGeometry.y, normalGeometry.z.mul(yawCos).sub(normalGeometry.x.mul(yawSin))));
   const { colour } = carSurface(sky, paint, normal, smoothstep(float(0.25), float(0.85), y));
-  const finished: Node<"vec3"> = vec3(mix(colour, uniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
+  // Each car keeps its own snow: a threshold rolled in the vertex stage, where its paint and height are exact.
+  const snowFrom = varying(mix(float(SNOW_FROM[0]), float(SNOW_FROM[1]), unitOf(seedOf(look.x.mul(1e6), paint.x.mul(1023), paint.y.mul(1023), paint.z.mul(1023)), SNOW_SALT)).div(snowKept));
+  const snowed = season === undefined ? colour : snowOnTop(colour, snowfall(season, (name) => uniform(tokenRgb(name))), normal.y, snowFrom);
+  const finished: Node<"vec3"> = vec3(mix(snowed, uniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
 
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(y.mul(look.x).mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
