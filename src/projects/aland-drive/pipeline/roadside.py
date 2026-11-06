@@ -47,8 +47,8 @@ import furniture
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
-from roads import CLASSES
-from paving import JUNCTION_ACROSS
+from roads import CLASSES, class_of
+from paving import JUNCTION_ACROSS, is_crossing
 from paving_file import read_paving
 from progress import Progress
 from built_up import built_up_of
@@ -250,7 +250,8 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
     gap's piece, a car park and a way's piece with no rings, owned by none, and every way's carriageway, owned by that way.
     A path has no shoulder, so all of its paving is its carriageway, up to the street it meets where its rings stop short,
     and a piece wearing a path's surface beside its street is that path's. A motor road's shoulder stays clear ground for
-    a sign or a post.
+    a sign or a post, but not where a crossing runs over it: off the road it crosses, a crossing's paving is the street's
+    kerb and walk band, so its own stretch, its way's width along its line, is kept off as a piece no chain owns.
     """
     surface = manifest["roadSurface"]
     sections = sum(chain["sections"] for chain in surface["chains"])
@@ -279,7 +280,14 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         owners = np.where(carriageway, way, -1)
         kept = carriageway | ~owned
         triangles, owners = triangles[kept], owners[kept]
-    return [chain for chain in chains if len(chain.rings) > 1], [Polygon(points[triangle, :2]) for triangle in triangles], [int(owner) for owner in owners]
+    pieces = [Polygon(points[triangle, :2]) for triangle in triangles]
+    owners = [int(owner) for owner in owners]
+    if surface.get("paved"):
+        roads = json.loads((folder / "roads.json").read_text(encoding="utf-8"))["roads"]
+        crossings = [LineString(road["line"]).buffer(class_of(road["kind"]).width_m / 2, cap_style="flat") for road in roads if is_crossing(road)]
+        pieces += crossings
+        owners += [-1] * len(crossings)
+    return [chain for chain in chains if len(chain.rings) > 1], pieces, owners
 
 
 class Paved:

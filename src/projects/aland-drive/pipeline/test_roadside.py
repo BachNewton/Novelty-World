@@ -162,8 +162,10 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]]) -> dict:
-    """A paved tile's road surface: the east road and a path north of it, then paving pieces of (corners, each corner's across, way)."""
+def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]], roads: list[dict] = ()) -> dict:
+    """A paved tile's road surface: the east road and a path north of it, then paving pieces of (corners, each corner's across, way),
+    and the OSM ways it was laid from."""
+    (folder / "roads.json").write_text(json.dumps({"roads": list(roads)}), encoding="utf-8")
     path = east_road()
     path.rings = path.rings + np.array([0.0, 20.0, 0.0])
     rings = np.concatenate((east_road().rings, path.rings)).astype("<f4")
@@ -201,3 +203,14 @@ class PavedTiles(unittest.TestCase):
         self.assertFalse(paved.clear(np.array([101.0, 5.0]), 0.4, besides=0))
         self.assertFalse(paved.clear(np.array([152.0, 4.0]), 0.4, besides=0))
 
+
+    def test_a_crossing_keeps_posts_off_its_line_where_the_street_owns_its_paving(self):
+        crossing = {"id": 1, "kind": "footway", "motor": False, "footway": "crossing", "line": [[80.0, -8.0], [80.0, 8.0]]}
+        with tempfile.TemporaryDirectory() as folder:
+            manifest = paved_tile(Path(folder), [
+                # The east road's shoulder, the kerb strip a crossing runs over on its way from the street to its sidewalk.
+                ([(70, -3), (90, -3), (80, -5)], (1, 1, 2), 0),
+            ], [crossing])
+            paved = Paved(*read_surface(Path(folder), manifest))
+        self.assertFalse(paved.clear(np.array([80.0, -4.2]), 0.4, besides=0))
+        self.assertTrue(paved.clear(np.array([86.0, -3.4]), 0.4, besides=0))
