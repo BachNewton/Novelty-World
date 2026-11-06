@@ -26,3 +26,40 @@ export function junctionTile(): LanesFile {
 
 export const overTheSeam = (): LanesFile => ({ lanes: [lane([[6000, 0, 0], [6200, 0, 0]], { seamStart: true })], connectors: [], junctions: [], issues: [] });
 
+
+/** A straight two-way road `width` metres wide along z = 0, from x = 0 to `length`: eastbound keeps right, on +z (south), westbound on -z. */
+export function twoWayRoad(width: number, length = 400): LanesFile {
+  const middle = width / 4;
+  return {
+    lanes: [
+      lane([[0, 0, middle], [length, 0, middle]], { width: width / 2 }),
+      lane([[length, 0, -middle], [0, 0, -middle]], { width: width / 2 }),
+    ],
+    connectors: [],
+    junctions: [],
+    issues: [],
+  };
+}
+
+/** Two cars' outlines on the ground, as their middles, yaws and half sizes: whether they overlap, by the separating axes of both. */
+export function touching(a: { x: number; z: number; yaw: number; half: readonly [number, number] }, b: typeof a): boolean {
+  const corners = ({ x, z, yaw, half: [wide, long] }: typeof a) =>
+    [
+      [1, 1],
+      [1, -1],
+      [-1, -1],
+      [-1, 1],
+    ].map(([forth, side]) => [x - Math.sin(yaw) * long * forth + Math.cos(yaw) * wide * side, z - Math.cos(yaw) * long * forth - Math.sin(yaw) * wide * side]);
+  const [ca, cb] = [corners(a), corners(b)];
+  for (const yaw of [a.yaw, b.yaw]) {
+    for (const [ax, az] of [
+      [Math.cos(yaw), -Math.sin(yaw)],
+      [Math.sin(yaw), Math.cos(yaw)],
+    ]) {
+      const span = (points: number[][]) => points.map(([x, z]) => x * ax + z * az);
+      const [sa, sb] = [span(ca), span(cb)];
+      if (Math.max(...sa) < Math.min(...sb) || Math.max(...sb) < Math.min(...sa)) return false;
+    }
+  }
+  return true;
+}

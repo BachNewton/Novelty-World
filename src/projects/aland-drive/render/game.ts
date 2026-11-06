@@ -4,6 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
+import { TrafficContact } from "../traffic/contact";
 import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
 import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
 import { indicatorClock } from "../art/cars/material";
@@ -142,10 +143,10 @@ export interface GameProbe {
   lanes: () => LaneNet;
   /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
   showLanes: (shown: boolean) => void;
-  /** Keeps this many cars driving the lanes round the camera, with none at 0. */
-  traffic: (count: number) => void;
-  /** The cars driving the lanes, and how many of them are stopped giving way. */
-  trafficCounts: () => { cars: number; waiting: number };
+  /** Keeps this many cars driving the lanes round the camera, with none at 0, and whether they see the player's car from now on. */
+  traffic: (count: number, options?: { withPlayer?: boolean }) => void;
+  /** How many cars drive the lanes, how many of them are stopped giving way, and how many have been hit out of traffic. */
+  trafficCounts: () => { cars: number; waiting: number; hit: number };
   /** Every car driving the lanes, as the driver holds it. */
   trafficCars: () => LaneCar[];
   reedsDrawn: () => ReedsDrawn;
@@ -799,6 +800,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
   const laneTrafficView = createLaneTrafficView(scene, manifest.sun, hazed, TRAFFIC_MOST);
   let trafficWanted = 0;
+  let trafficSeesPlayer = true;
   // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
   let trafficFilled = false;
   let trafficSteps = 0;
@@ -930,6 +932,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
   const startCar = carAsked(window.location.search);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
+  const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
   drive.condition = conditionAsked(window.location.search);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
@@ -1490,11 +1493,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   /** One step of the simulation, what the player's tyres threw up in it, and of the challenge being played: on the line and through the countdown the car is held on the handbrake, whatever the input. */
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
+    trafficContact.beforeStep(trafficSteps);
     drive.step(lastInput);
+    trafficContact.afterStep();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
     if (trafficWanted > 0 && trafficSteps === 0) {
-      const player = drive.stateAt(1);
-      laneTraffic.setPlayer(player.position[0], player.position[2], { x: player.velocity[0], z: player.velocity[2] }, speedOf(player));
+      const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
+      laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
       laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
       trafficFilled ||= laneTraffic.count() >= trafficWanted;
       laneTraffic.step(STEP_S * TRAFFIC_EVERY);
@@ -1724,7 +1729,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     parkedCars.update(camera.position);
     trafficFocus.x = camera.position.x;
     trafficFocus.z = camera.position.z;
-    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY);
+    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1770,13 +1775,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showParked: parkedCars.show,
       lanes: () => laneNet,
       showLanes: laneOverlay.show,
-      traffic: (count) => {
+      traffic: (count, options) => {
         trafficWanted = Math.min(count, TRAFFIC_MOST);
+        if (options?.withPlayer !== undefined) trafficSeesPlayer = options.withPlayer;
         trafficFilled = false;
         if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
       },
       trafficCars: () => [...laneTraffic.all()],
-      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length }),
+      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length, hit: trafficContact.count() }),
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
