@@ -37,6 +37,10 @@ const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF
 const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "map", X: "challenge" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", View: "close" };
+const LOOK_LEFT = Math.PI / 2;
+/** How far the right stick is pushed before it looks round: nearer the middle, its direction is too unsteady to aim by. */
+const PAD_LOOK_PUSH = 0.5;
+
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 /** `~` is a dead key on some layouts, sent as "Dead" until it's pressed twice, so the key under Esc counts by where it is. */
@@ -148,12 +152,15 @@ export function startControls({ onAction, onMapAction, onDevMenu, onGameMenu, on
         handbrake: fromKeys.handbrake || controls.buttons.A.pressed,
       };
     },
-    /** Where the chase camera looks while an arrow key is held. */
+    /** Where the chase camera looks: while an arrow key is held, or the way the right stick points, behind when it's pulled back. */
     look(): ChaseLook {
       if (held.has("ArrowUp")) return "down";
-      if (held.has("ArrowDown")) return "behind";
+      if (held.has("ArrowDown")) return Math.PI;
       const sideways = axis(["ArrowLeft"], ["ArrowRight"]);
-      return sideways < 0 ? "left" : sideways > 0 ? "right" : "ahead";
+      if (sideways !== 0) return -sideways * LOOK_LEFT;
+      const stick = pad?.controls?.rightStick;
+      if (!stick || Math.hypot(stick.x, stick.y) < PAD_LOOK_PUSH) return 0;
+      return Math.atan2(-stick.x, -stick.y);
     },
     kind: () => kind,
     setMapOpen(open: boolean) {

@@ -24,7 +24,22 @@ import { STEP_S } from "./tuning";
  * car put down near a stand-in (a reset, a challenge's retry on to the start
  * line, where the partner's last state may still stand) leaves it touching
  * nothing until the two are clear.
+ *
+ * Traffic near a simulated car has stand-ins too, in a set of their own, each
+ * the box and weight of the world car it is rather than a drivable car's, and
+ * each says how hard the last step's contact shoved it.
  */
+
+/** A stand-in's body: half its box's width, height and length, how far up its body that box sits, and its weight. */
+export interface StandInShape {
+  halfSize: readonly [number, number, number];
+  boxUpM: number;
+  massKg: number;
+  massUpM: number;
+  inertia: readonly [number, number, number];
+}
+
+const shapeOf = (id: CarState["car"]): StandInShape => CARS[id].car;
 
 /** A state carries on by its own motion this long at most: past it the car has stopped sending (a paused map, a hidden tab). */
 const CARRY_ON_STEPS = 30;
@@ -96,23 +111,31 @@ class RemoteCar {
   /** Steps since `heard` arrived. */
   since = 0;
   ghost = true;
-  /** Where the car should be this step. */
+  /** How much the last step's contact changed its velocity, in m/s, and its spin, in rad/s. */
+  shove = { linear: 0, angular: 0 };
+  /** Where the car should be this step, and the velocity and spin it was steered with towards it. */
   private target: CarState;
+  private steered: { linear: Vector3; angular: Vector3 } = { linear: [0, 0, 0], angular: [0, 0, 0] };
+  /** How its body really moves after the last step, contact and all. */
+  moving: { velocity: Vector3; spin: Vector3 } = { velocity: [0, 0, 0], spin: [0, 0, 0] };
   before: CarState;
   after: CarState;
 
-  constructor(rapier: RAPIER.World, state: CarState) {
-    const { car } = CARS[state.car];
-    const [wide, tall, long] = car.inertia;
+  constructor(
+    rapier: RAPIER.World,
+    state: CarState,
+    readonly shape: StandInShape,
+  ) {
+    const [wide, tall, long] = shape.inertia;
     this.body = rapier.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
-        .setAdditionalMassProperties(car.massKg, { x: 0, y: car.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
+        .setAdditionalMassProperties(shape.massKg, { x: 0, y: shape.massUpM, z: 0 }, { x: wide, y: tall, z: long }, { x: 0, y: 0, z: 0, w: 1 })
         .setGravityScale(0)
         .setCanSleep(false),
     );
-    const [x, y, z] = car.halfSize;
+    const [x, y, z] = shape.halfSize;
     this.collider = rapier.createCollider(
-      RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, car.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GHOST_GROUPS),
+      RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, shape.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GHOST_GROUPS),
       this.body,
     );
     this.heard = this.target = state;
@@ -150,6 +173,7 @@ class RemoteCar {
     const angular = add(target.spin, capped(spinBetween([x, y, z, w], target.rotation), MOST_TURN_CORRECTION / PULL_PER_S), PULL_PER_S);
     this.body.setLinvel({ x: linear[0], y: linear[1], z: linear[2] }, true);
     this.body.setAngvel({ x: angular[0], y: angular[1], z: angular[2] }, true);
+    this.steered = { linear, angular };
     const at = point(this.body.translation());
     if (this.ghost && cars.every((car) => Math.hypot(...difference(at, car)) > CLEAR_M)) {
       this.ghost = false;
@@ -159,8 +183,12 @@ class RemoteCar {
 
   settle(): void {
     const { x, y, z, w } = this.body.rotation();
+    const velocity = point(this.body.linvel());
+    const spin = point(this.body.angvel());
+    this.shove = { linear: Math.hypot(...difference(velocity, this.steered.linear)), angular: Math.hypot(...difference(spin, this.steered.angular)) };
     this.before = this.after;
     this.after = { ...this.target, position: point(this.body.translation()), rotation: [x, y, z, w] };
+    this.moving = { velocity, spin };
   }
 }
 
@@ -169,17 +197,17 @@ export class RemoteCars {
 
   constructor(private readonly rapier: RAPIER.World) {}
 
-  /** A car's state as its own client sent it. */
-  hear(id: string, state: CarState): void {
+  /** A car's state as its own client sent it, and its body: a drivable car's own, unless it's given. */
+  hear(id: string, state: CarState, shape = shapeOf(state.car)): void {
     const car = this.cars.get(id);
     // A player who swaps car needs a stand-in of the new one's size and weight, put where it is.
-    if (car && car.heard.car !== state.car) this.forget(id);
+    if (car && car.shape !== shape) this.forget(id);
     else if (car) {
       car.heard = state;
       car.since = 0;
       return;
     }
-    this.cars.set(id, new RemoteCar(this.rapier, state));
+    this.cars.set(id, new RemoteCar(this.rapier, state, shape));
   }
 
   forget(id: string): void {
@@ -191,6 +219,20 @@ export class RemoteCars {
 
   ids(): string[] {
     return [...this.cars.keys()];
+  }
+
+  /** How much the last step's contact changed a stand-in's velocity and spin. */
+  shove(id: string): { linear: number; angular: number } {
+    const car = this.cars.get(id);
+    if (!car) throw new Error(`no stand-in ${id}`);
+    return car.shove;
+  }
+
+  /** A stand-in as its body stands after the last step, moving as the step left it rather than as it was steered. */
+  bodyState(id: string): CarState {
+    const car = this.cars.get(id);
+    if (!car) throw new Error(`no stand-in ${id}`);
+    return { ...car.after, ...car.moving };
   }
 
   /** Whether a car still touches nothing, having been put where it is. */

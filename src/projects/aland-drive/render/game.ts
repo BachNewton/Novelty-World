@@ -4,6 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
+import { TrafficContact } from "../traffic/contact";
 import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
 import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
 import { indicatorClock } from "../art/cars/material";
@@ -86,7 +87,7 @@ import type { ChallengeMessage, ChallengeType } from "../net/protocol";
 import type { Challenge, ChallengeKind, StartPlace } from "../challenge/types";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
-import { Navigator, type RouteCue } from "../map/navigator";
+import { Navigator } from "../map/navigator";
 import type { Place as FindablePlace } from "../map/places";
 import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
@@ -158,10 +159,10 @@ export interface GameProbe {
   lanes: () => LaneNet;
   /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
   showLanes: (shown: boolean) => void;
-  /** Keeps this many cars driving the lanes round the camera, with none at 0. */
-  traffic: (count: number) => void;
-  /** The cars driving the lanes, and how many of them are stopped giving way. */
-  trafficCounts: () => { cars: number; waiting: number };
+  /** Keeps this many cars driving the lanes round the camera, with none at 0, and whether they see the player's car from now on. */
+  traffic: (count: number, options?: { withPlayer?: boolean }) => void;
+  /** How many cars drive the lanes, how many of them are stopped giving way, and how many have been hit out of traffic. */
+  trafficCounts: () => { cars: number; waiting: number; hit: number };
   /** Every car driving the lanes, as the driver holds it. */
   trafficCars: () => LaneCar[];
   reedsDrawn: () => ReedsDrawn;
@@ -335,8 +336,8 @@ export interface HudReading {
   gear: string;
   /** 0 to 1 at the redline. */
   revs: number;
-  /** The GPS's next direction. */
-  cue: RouteCue | null;
+  /** Metres the GPS route still has to go: to its destination, or in a challenge to the finish line or camera. */
+  toGoM: number | null;
   /** The challenge being played. */
   challenge: ChallengeReading | null;
   /** The challenge whose start ring the car is in, which its button starts. */
@@ -375,8 +376,13 @@ export interface GameEvents {
   onCoopNotice?: (notice: CoopNoticeReading) => void;
   /** The car has reached a place it hadn't found before. */
   onPlaceFound?: (place: FindablePlace) => void;
-  /** How many of the places have been found, when the maps arrive and whenever it changes. */
-  onPlacesFound?: (found: number, total: number) => void;
+  /** How many of the places have been found and of the challenges passed, when the maps arrive and whenever either changes. */
+  onProgress?: (progress: Progress) => void;
+}
+
+export interface Progress {
+  places: { done: number; total: number };
+  challenges: { done: number; total: number };
 }
 
 /** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
@@ -436,8 +442,14 @@ export interface Game {
   spots: readonly { id: string; name: string }[];
   /** Closes the dev menu and jumps to a showcase spot. */
   jumpTo: (id: string) => void;
+  /** Whether the GPS has somewhere to jump to. */
+  hasDestination: () => boolean;
+  /** Closes the dev menu and jumps to the end of the GPS route, facing the way it arrives. */
+  jumpToDestination: () => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
+  /** Forgets everything this browser kept for the game and starts it again. */
+  resetSave: () => void;
   dispose: () => void;
 }
 
@@ -504,6 +516,8 @@ const MAP_FAR_FROM_M = 10000;
 const MAP_DETAIL_FROM_M = 3500;
 /** Room round the island on the map. */
 const MAP_MARGIN = 1.05;
+/** How far from a GPS destination a road may be and still name where a jump there lands. */
+const DESTINATION_ROAD_M = 30;
 const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 /** The scripted driver's line runs on past a challenge's finish, so it doesn't turn for the line's last point. */
@@ -901,6 +915,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST, season);
   let trafficWanted = 0;
+  let trafficSeesPlayer = true;
   // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
   let trafficFilled = false;
   let trafficSteps = 0;
@@ -1035,6 +1050,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const ground = groundCondition(window.location.search, window.navigator.webdriver);
   // A link's tyres are for this drive only: what's kept is what the player fitted.
   drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
+  const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
@@ -1135,6 +1151,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let worldMap: WorldMap | null = null;
   let discovery: Discovery | null = null;
   const headingClockwise = (car: CarState) => -headingOf(car.rotation);
+  const showProgress = () => {
+    if (!discovery) return;
+    events.onProgress?.({
+      places: { done: discovery.foundCount, total: discovery.places.length },
+      challenges: { done: challengeBoard.passedCount, total: challengeBoard.challenges.length },
+    });
+  };
   const pickDestination = (x: number, z: number) => {
     const car = drive.stateAt(1);
     if (!navigator) throw new Error("a destination before the road network arrived");
@@ -1181,7 +1204,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       );
       stream.addBytes(data.bytes);
       events.onMapReady?.();
-      events.onPlacesFound?.(found.foundCount, found.places.length);
+      showProgress();
     },
     (error: unknown) => {
       fail(error instanceof Error ? error : new Error(String(error)));
@@ -1221,7 +1244,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (!road) throw new Error(`no road at the showcase spot ${name}`);
       drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
     });
-    events.onRoad?.(name);
+    if (name !== "") events.onRoad?.(name);
   };
   const jumpTo = (id: string) => {
     const spot = spots.find((candidate) => candidate.id === id);
@@ -1379,7 +1402,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     showRoute: (challenge) => {
       const route = challenge ? routeOf(challenge) : null;
-      if (route) navigator?.holdRoute(route);
+      if (challenge && route) navigator?.holdRoute(route, challenge.kind === "route" ? challenge.gates[challenge.gates.length - 1] : challenge.camera);
       else navigator?.clearRoute();
       worldMap?.setRoute(route);
     },
@@ -1613,11 +1636,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   /** One step of the simulation, what the player's tyres threw up in it, and of the challenge being played: on the line and through the countdown the car is held on the handbrake, whatever the input. */
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
+    trafficContact.beforeStep(trafficSteps);
     drive.step(lastInput);
+    trafficContact.afterStep();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
     if (trafficWanted > 0 && trafficSteps === 0) {
-      const player = drive.stateAt(1);
-      laneTraffic.setPlayer(player.position[0], player.position[2], { x: player.velocity[0], z: player.velocity[2] }, speedOf(player));
+      const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
+      laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
       laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
       trafficFilled ||= laneTraffic.count() >= trafficWanted;
       laneTraffic.step(STEP_S * TRAFFIC_EVERY);
@@ -1828,21 +1853,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     edgeMesh.visible = !lifted;
     clipmap.showWide(lifted);
     const speed = speedOf(car);
-    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
+    const toGoM = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
     // A jump or a look round the map isn't a visit.
     if (discovery && !lifted && !jumping) {
       const reached = discovery.update(car.position[0], car.position[2]);
       for (const place of reached) events.onPlaceFound?.(place);
-      if (reached.length > 0) events.onPlacesFound?.(discovery.foundCount, discovery.places.length);
+      if (reached.length > 0) showProgress();
     }
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
     const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue, challenge: readChallenge(), offer, coop: readCoop(), clock });
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
       challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
+      showProgress();
     }
     showNextLine();
     challengeMarks.update();
@@ -1879,7 +1905,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     parkedCars.update(camera.position);
     trafficFocus.x = camera.position.x;
     trafficFocus.z = camera.position.z;
-    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY);
+    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1939,13 +1965,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showParked: parkedCars.show,
       lanes: () => laneNet,
       showLanes: laneOverlay.show,
-      traffic: (count) => {
+      traffic: (count, options) => {
         trafficWanted = Math.min(count, TRAFFIC_MOST);
+        if (options?.withPlayer !== undefined) trafficSeesPlayer = options.withPlayer;
         trafficFilled = false;
         if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
       },
       trafficCars: () => [...laneTraffic.all()],
-      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length }),
+      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length, hit: trafficContact.count() }),
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -2153,7 +2180,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       setDevMenuOpen(false);
       void jumpTo(id).catch(fail);
     },
+    hasDestination: () => navigator?.route !== null && navigator?.route !== undefined,
+    jumpToDestination() {
+      const route = navigator?.route;
+      if (!route || !roadGraph) return;
+      setDevMenuOpen(false);
+      const { x, z } = route.end;
+      const spot = roadGraph.nearest(x, z, DESTINATION_ROAD_M);
+      const arriving = route.line.at(route.line.length).heading;
+      void jump({ x, z, headingDeg: (-arriving * 180) / Math.PI, name: spot ? roadGraph.roadName(spot.edge) : "" }).catch(fail);
+    },
     whereabouts,
+    resetSave() {
+      // The game holds what it loaded and would save it again, so it starts over from the cleared store.
+      storage.clear();
+      window.location.reload();
+    },
     dispose() {
       void renderer.setAnimationLoop(null);
       document.removeEventListener("visibilitychange", hushWhenHidden);

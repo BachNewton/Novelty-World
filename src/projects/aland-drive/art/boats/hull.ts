@@ -191,15 +191,21 @@ export function house(mesh: BoatMesh, { fromZ, toZ, halfFrom, halfTo, baseY, top
   return mesh;
 }
 
-/** The far hull: the sheer and the waterline at a few places, one band each side, with a deck. */
-export function farHull(mesh: BoatMesh, hull: Hull, topside: BoatPart, deck: BoatPart, stations = 3): BoatMesh {
-  const waterline = 1;
+/** A band of a far hull's paint, from this level up to the next band's, or to the sheer. */
+export type FarBand = readonly [level: number, part: BoatPart];
+
+/** The far hull: the sheer and a few lower levels at a few places, a band of paint between each, with a deck. One paint is one band, from the waterline. */
+export function farHull(mesh: BoatMesh, hull: Hull, paint: BoatPart | readonly FarBand[], deck: BoatPart, stations = 3): BoatMesh {
+  const bands: readonly FarBand[] = typeof paint === "string" ? [[1, paint]] : paint;
+  const upTo = (band: number) => (band + 1 < bands.length ? bands[band + 1][0] : hull.top);
   const shares = Array.from({ length: stations + 1 }, (_, index) => index / stations);
   for (let station = 0; station < stations; station++) {
     const [a, b] = [shares[station], shares[station + 1]];
-    for (const side of [-1, 1]) mesh.face([hull.point(hull.top, a, side), hull.point(hull.top, b, side), hull.point(waterline, b, side), hull.point(waterline, a, side)], topside, side > 0 ? 1 : 0.94);
+    for (const side of [-1, 1]) {
+      bands.forEach(([level, part], band) => mesh.face([hull.point(upTo(band), a, side), hull.point(upTo(band), b, side), hull.point(level, b, side), hull.point(level, a, side)], part, side > 0 ? 1 : 0.94));
+    }
     mesh.face([hull.point(hull.top, a, -1), hull.point(hull.top, b, -1), hull.point(hull.top, b, 1), hull.point(hull.top, a, 1)], deck);
   }
-  if (hull.spec.transom) mesh.face([hull.point(hull.top, 0, -1), hull.point(hull.top, 0, 1), hull.point(waterline, 0, 1), hull.point(waterline, 0, -1)], topside, 0.9);
+  if (hull.spec.transom) bands.forEach(([level, part], band) => mesh.face([hull.point(upTo(band), 0, -1), hull.point(upTo(band), 0, 1), hull.point(level, 0, 1), hull.point(level, 0, -1)], part, 0.9));
   return mesh;
 }

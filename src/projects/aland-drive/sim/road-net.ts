@@ -65,6 +65,16 @@ export class RoadLine {
     return onSegment(points, lengths, low, points[low * 3] + share * (points[low * 3 + 3] - points[low * 3]), points[low * 3 + 2] + share * (points[low * 3 + 5] - points[low * 3 + 2]));
   }
 
+  /** The point on the line nearest a place. */
+  nearest(x: number, z: number): RoadPoint {
+    let best = onSegment(this.points, this.lengths, 0, x, z);
+    for (let segment = 1; segment < this.lengths.length - 1; segment++) {
+      const point = onSegment(this.points, this.lengths, segment, x, z);
+      if (point.distance < best.distance) best = point;
+    }
+    return best;
+  }
+
   /** The first place the line turns straight back along itself, as a route does for a U-turn at a junction: a driver following a line can't. */
   foldsAt(): RoadPoint | null {
     for (let along = 0; along + FOLD_READ_M < this.length; along += FOLD_READ_M / 2) {

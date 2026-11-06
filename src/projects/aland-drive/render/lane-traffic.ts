@@ -5,6 +5,7 @@ import { worldCarMaterial } from "../art/cars/material";
 import { type Sun } from "../art/sun";
 import type { SeasonLook } from "../art/season";
 import { WORLD_CARS } from "../art/cars/specs";
+import type { HitCarView } from "../traffic/contact";
 import type { LaneTraffic } from "../traffic/lane-driver";
 import { instanced, write, type Car } from "./parked-cars";
 import { PARKED_CARS } from "./parked-places";
@@ -15,7 +16,8 @@ import { PARKED_CARS } from "./parked-places";
  * whole each frame from where the cars are between their last two steps.
  */
 
-export const TRAFFIC_KINDS = PARKED_CARS.length;
+/** Half the width and length of each kind of car traffic drives, in the order `LaneCar.model` counts them. */
+export const TRAFFIC_KINDS = PARKED_CARS.map(({ half }) => half);
 
 /** A car being driven has been swept: only a share of them keep snow on the roof. */
 const DRIVEN_SNOW_KEPT = 0.3;
@@ -49,13 +51,17 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
   };
 
   return {
-    /** Each frame: every car where it is `share` of the way from its last step to this one. */
-    draw(traffic: LaneTraffic, share: number) {
+    /** Each frame: every car where it is `share` of the way from its last step to this one, and the cars hit out of traffic where they are. */
+    draw(traffic: LaneTraffic, share: number, hit: readonly HitCarView[]) {
       const byModel: Car[][] = models.map(() => []);
       const seen = new Set<string>();
       for (const car of traffic.all()) {
         seen.add(car.id);
         byModel[car.model].push({ ...traffic.poseBetween(car, share), ...lookFor(car.id, car.model, car.seed), signal: car.signal });
+      }
+      for (const car of hit) {
+        seen.add(car.id);
+        byModel[car.model].push({ ...car.pose, ...lookFor(car.id, car.model, car.seed), signal: car.signal });
       }
       for (const id of looks.keys()) if (!seen.has(id)) looks.delete(id);
       models.forEach(({ lists }, model) => {

@@ -8,8 +8,8 @@
 // `tools/challenge-par.ts`: a test fails until both files match the list.
 //
 // Widths are the laid road's, read off the road surface: the start places stand where the carriageway takes two of the
-// challenge's car side by side, a lane each, moving along the route until it does, and a gate reaches across the whole
-// surface, shoulders and all, and a few metres past.
+// challenge's car side by side, a lane each, moving along the route until it does, and a gate stands on the laid road's
+// own middle and reaches across the whole surface, shoulders and all, and a few metres past.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
@@ -39,8 +39,11 @@ const BETWEEN_CARS_M = 0.6;
 /** How far a car's side may stand past the carriageway's edge, on the shoulder. */
 const ONTO_SHOULDER_M = 0.3;
 const GATE_EVERY_M = 400;
-// Generous, as a checkpoint should be: the GPS line can lie a few metres off the road as laid, and a car cutting a bend lies further.
-const GATE_PAST_SURFACE_M = 12;
+// Narrow enough that a gate reads as the road's and a short cut across the fields misses it, forgiving enough for a fast
+// line through a bend: the late-braking driver that sets par cuts the inside of one of Nötviken's gravel bends 4.7 m
+// past the road's edge, the most of any gate on the list. It was 12 m when gates stood on the GPS line rather than the
+// laid road's middle.
+const GATE_PAST_SURFACE_M = 6;
 /** A gate is moved on from a bend sharper than this over `BEND_READ_M` either side, so it lies square across a straight. */
 const BEND_RADIANS = (25 * Math.PI) / 180;
 const BEND_READ_M = 15;
@@ -71,9 +74,15 @@ function tilesUnder(line: RoadLine): Set<string> {
   return names;
 }
 
-/** The laid road's widths at its section nearest a place: the carriageway, and the whole surface with its shoulders. */
-function widthsAt(world: World, x: number, z: number): { carriagewayM: number; surfaceM: number; kind: string } {
-  let best: { distance: number; carriagewayM: number; surfaceM: number; kind: string } | null = null;
+/** A section that runs further than this off the route's way is another road's: a side road at a junction, a parallel drive. */
+const SAME_WAY_COSINE = Math.cos((30 * Math.PI) / 180);
+
+/**
+ * The laid road's section nearest a place: its middle, its carriageway's width, and the whole surface's with its
+ * shoulders. Given the way the route runs there, only a section running that way, or back along it, counts.
+ */
+function widthsAt(world: World, x: number, z: number, heading?: number): { x: number; z: number; carriagewayM: number; surfaceM: number; kind: string } {
+  let best: { distance: number; x: number; z: number; carriagewayM: number; surfaceM: number; kind: string } | null = null;
   for (const { detail } of world.all()) {
     if (!detail) continue;
     const { rings, chains } = detail.surface;
@@ -83,8 +92,16 @@ function widthsAt(world: World, x: number, z: number): { carriagewayM: number; s
         const point = (ring: number) => (section * RING_POINTS + ring) * 3;
         const distance = Math.hypot(rings[point(CENTRE)] - x, rings[point(CENTRE) + 2] - z);
         if (distance > RING_WITHIN_M || (best && distance >= best.distance)) continue;
+        if (heading !== undefined) {
+          const other = section + 1 < chain.first + chain.sections ? section + 1 : section - 1;
+          const runX = rings[(other * RING_POINTS + CENTRE) * 3] - rings[point(CENTRE)];
+          const runZ = rings[(other * RING_POINTS + CENTRE) * 3 + 2] - rings[point(CENTRE) + 2];
+          const run = Math.hypot(runX, runZ);
+          // A road line's heading points along (-sin, -cos).
+          if (run === 0 || Math.abs((-runX * Math.sin(heading) - runZ * Math.cos(heading)) / run) < SAME_WAY_COSINE) continue;
+        }
         const across = (a: number, b: number) => Math.hypot(rings[point(a)] - rings[point(b)], rings[point(a) + 2] - rings[point(b) + 2]);
-        best = { distance, carriagewayM: across(1, 3), surfaceM: across(0, 4), kind: chain.kind };
+        best = { distance, x: rings[point(CENTRE)], z: rings[point(CENTRE) + 2], carriagewayM: across(1, 3), surfaceM: across(0, 4), kind: chain.kind };
       }
     }
   }
@@ -107,8 +124,8 @@ function startPlaces(spec: ChallengeSpec, line: RoadLine, world: World): { along
 }
 
 function gateAt(line: RoadLine, world: World, along: number): Gate {
-  const { x, z, heading } = line.at(along);
-  const { surfaceM } = widthsAt(world, x, z);
+  const { heading, ...onLine } = line.at(along);
+  const { x, z, surfaceM } = widthsAt(world, onLine.x, onLine.z, heading);
   return { x: round(x, 2), z: round(z, 2), heading: round(heading, 4), halfWidthM: round(surfaceM / 2 + GATE_PAST_SURFACE_M, 1) };
 }
 

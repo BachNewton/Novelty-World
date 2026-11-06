@@ -178,14 +178,15 @@ test("a place picked on the world map sets a route on both maps, and the map clo
 
   await page.keyboard.press("Escape");
   await expect(map).toBeHidden();
-  await expect(page.getByLabel("Next direction")).toBeVisible();
+  await expect(page.getByLabel("Distance to go")).toBeVisible();
 
-  // Clearing goes through the map, and takes the direction with it.
+  // Clearing goes through the map, and takes the distance with it.
   await page.keyboard.press("KeyM");
   await expect(map).toBeVisible();
   await page.keyboard.press("KeyX");
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => window.__alandDrive?.routePoints() === null);
+  await expect(page.getByLabel("Distance to go")).toBeHidden();
 });
 
 test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ page }) => {
