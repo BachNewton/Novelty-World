@@ -46,6 +46,10 @@ BENEATH_GREATER_ROAD_M = 0.05
 
 # A roundabout's ring keeps its real shape: a road's rounding would pull a ring this small out of true.
 RING_CORNER_M = 2.0
+# A way that closes on itself, not a roundabout, runs on through where it closes only if its ends turn less than this
+# there: the island's smooth loops turn up to about 40 degrees across their closing station, a loop closing at a
+# corner 60 or more.
+CLOSING_MOST_TURN = np.radians(45)
 # Past this rank a road is a track or path, which passes just under any apron it crosses without landing there.
 LEAST_APRON_RANK = 4
 # How far clear of the greater road's carriageway a lesser road's first full section stands.
@@ -528,8 +532,9 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     tangent /= np.maximum(np.hypot(tangent[:, 0], tangent[:, 1])[:, None], 1e-9)
     for station, _, direction in seam_ends:
         tangent[station] = direction
-    # A closed ring's two ends are one section, or a notch shows where it closes.
-    if np.array_equal(xy[0], xy[-1]) and len(xy) > 2:
+    # A closed ring's two ends are one section, or a notch shows where it closes. A loop street closing at a corner isn't
+    # one: the bisector of its ends skewed across there, and each end keeps the way it runs.
+    if np.array_equal(xy[0], xy[-1]) and len(xy) > 2 and (chain.edges[0].is_ring or tangent[0] @ tangent[-1] >= np.cos(CLOSING_MOST_TURN)):
         closing = xy[1] - xy[-2]
         tangent[0] = tangent[-1] = closing / np.hypot(*closing)
     normal = np.column_stack((-tangent[:, 1], tangent[:, 0]))

@@ -360,6 +360,19 @@ class OneSurface(unittest.TestCase):
         far_edge = 606.4 + next(chain for chain in paved.chains if chain.kind_name == "cycleway").half.max()
         self.assertLess(corners.intersection(shapely.box(500, far_edge - 0.01, 700, 700)).area, 1e-3)
 
+    def test_a_loop_closing_at_a_corner_keeps_each_end_s_own_direction(self):
+        """A loop street closing on itself at a corner took the bisector of its two ends as both ends' direction, as a
+        roundabout does, so across was measured on a skewed line there and the carriageway's colour bit into the kerb. A
+        roundabout's ends still run on into each other."""
+        loop = road([(500, 500), (700, 500), (700, 700), (500, 700), (500, 500)])
+        ring = road([(900 + 15 * np.cos(turn), 900 + 15 * np.sin(turn)) for turn in np.linspace(0, 2 * np.pi, 25)], junction="roundabout")
+        paved = paving.lay([loop, ring], land())
+        street = next(chain for chain in paved.chains if not chain.edges[0].is_ring)
+        self.assertGreater(float(street.tangent[0] @ street.tangent[1]), np.cos(np.radians(10)))
+        self.assertGreater(float(street.tangent[-1] @ street.tangent[-2]), np.cos(np.radians(10)))
+        roundabout = next(chain for chain in paved.chains if chain.edges[0].is_ring)
+        np.testing.assert_allclose(roundabout.tangent[0], roundabout.tangent[-1])
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")
