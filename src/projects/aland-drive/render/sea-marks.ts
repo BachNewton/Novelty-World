@@ -4,6 +4,7 @@ import { buildKummel, buildLighthouse, identityMaterials } from "../art/identity
 import { buildFixedMark, buildLeadingMark, buildPillarBuoy, buildRadarMark, buildSkerryLight, buildSpar, LEADING_PATTERNS, marinaMaterials, RADAR_BANDS, radarMarkScale, SEA_MARKS } from "../art/marina/index";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
 import data from "../sea/marks.json";
+import { lighthouseScale } from "./lighthouses";
 import { showVersionsInReach } from "./versions-in-reach";
 
 /*
@@ -20,13 +21,14 @@ const WATER_Y = -0.05;
 const CELL_M = 1000;
 
 type Kit = "marina" | "identity";
-type Kind = { kit: Kit; build: () => RoadsideModel; scaleFor?: (heightM: number) => number };
+type Kind = { kit: Kit; build: () => RoadsideModel; scaleFor?: (heightM: number, x: number, z: number) => number };
 
 /** Every model a mark in `sea/marks.json` may name, and how each is built. */
 export function seaMarkKinds(): Record<string, Kind> {
   const found: Record<string, Kind> = {
     cairn: { kit: "identity", build: buildKummel },
-    lighthouse: { kit: "identity", build: buildLighthouse },
+    // A lighthouse stands as tall as the register says, or with its lamp at its light's height (`render/lighthouses.ts`).
+    lighthouse: { kit: "identity", build: buildLighthouse, scaleFor: lighthouseScale },
     "skerry-light": { kit: "marina", build: buildSkerryLight },
   };
   for (const side of SEA_MARKS) {
@@ -51,7 +53,7 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
   const byModel = new Map<string, { x: number; z: number; yaw: number; floats: boolean; scale: number }[]>();
   for (const [model, x, z, yaw, floats, heightM] of data.marks as [string, number, number, number, number, number][]) {
     if (!(model in known)) throw new Error(`sea/marks.json places a ${model}, which there isn't`);
-    const scale = known[model].scaleFor?.(heightM) ?? 1;
+    const scale = known[model].scaleFor?.(heightM, x, z) ?? 1;
     byModel.set(model, [...(byModel.get(model) ?? []), { x, z, yaw, floats: floats === 1, scale }]);
   }
   const lists = [...byModel].map(([name, marks]) => {

@@ -2,6 +2,7 @@ import type { Scene, WebGPURenderer } from "three/webgpu";
 import { createCarGlows, createGlows, createLampLight, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
 import { uniform } from "three/tsl";
 import { placesOf } from "../art/marina/places";
+import { lampAt } from "./lighthouses";
 import { LIGHTS_ON_MARKS } from "./lights-on-marks";
 
 /*
@@ -38,9 +39,21 @@ export interface NightLights {
   dispose: () => void;
 }
 
-export function createNightLights(scene: Scene, night: Night, { onAland }: { onAland: boolean }): NightLights {
+/** The ground as the world has it, and a count that changes whenever it does. */
+interface Ground {
+  height: (x: number, z: number) => number;
+  revision: () => number;
+}
+
+export function createNightLights(scene: Scene, night: Night, { onAland, ground }: { onAland: boolean; ground: Ground }): NightLights {
   const sea = onAland ? seaLightGlows(LIGHTS_ON_MARKS) : { glows: [], rhythms: [] };
   const fixed = [...sea.glows, ...(onAland ? harbourGlows(placesOf("marina")) : [])];
+  // A lighthouse's light shines from its tower's lamp, which stands on the ground as the world has it now.
+  const lighthouseGlows = fixed.flatMap((glow, at) => {
+    const lamp = glow.streak === true ? undefined : lampAt(glow.x, glow.z);
+    return lamp === undefined ? [] : [{ at, lamp }];
+  });
+  let groundRevision: number | null = null;
   const glows = createGlows(night, fixed, sea.rhythms, fixed.length + LAMPS_MOST);
   const pools = createLampLight(night, LAMPS_MOST);
   const cars = createCarGlows(night, CARS_MOST);
@@ -52,11 +65,21 @@ export function createNightLights(scene: Scene, night: Night, { onAland }: { onA
   // Every lamp has its glow, but its light only falls near, so the cast list holds only the lamps within their reach.
   let lamps: readonly LampSpot[] = [];
   let poolsAround: { x: number; z: number } | null = null;
+  let glowCount = fixed.length;
   const writeLamps = (spots: readonly LampSpot[]) => {
     spots.forEach((spot, at) => {
       glows.set(fixed.length + at, lampGlow(spot));
     });
-    glows.upload(fixed.length + spots.length);
+    glowCount = fixed.length + spots.length;
+    glows.upload(glowCount);
+  };
+  const standLighthouses = () => {
+    groundRevision = ground.revision();
+    for (const { at, lamp } of lighthouseGlows) {
+      fixed[at] = { ...fixed[at], y: ground.height(fixed[at].x, fixed[at].z) + lamp.upM, outM: lamp.outM };
+      glows.set(at, fixed[at]);
+    }
+    glows.upload(glowCount);
   };
   const refillPools = (camera: { x: number; z: number }) => {
     poolsAround = { x: camera.x, z: camera.z };
@@ -79,6 +102,7 @@ export function createNightLights(scene: Scene, night: Night, { onAland }: { onA
       cars.update(seen);
     },
     update(renderer, camera) {
+      if (ground.revision() !== groundRevision) standLighthouses();
       show();
       if (!lit()) return;
       if (poolsAround === null || Math.hypot(camera.x - poolsAround.x, camera.z - poolsAround.z) > POOLS_MARGIN_M) refillPools(camera);

@@ -14,9 +14,15 @@ import { IdentityMesh, identityModel, type IdentityPart } from "./mesh";
 const LIGHT_SWAP_M = 420;
 const LIGHT_REACH_M = 8000;
 
+const GALLERY_M = 16.15;
+/** The lighthouse's height to its roof's peak, below the finial, and to the middle of its lamp, and how far its roof reaches round the lamp. */
+export const LIGHTHOUSE_TOP_M = GALLERY_M + 2.5;
+export const LIGHTHOUSE_LAMP_M = GALLERY_M + 1.15;
+export const LIGHTHOUSE_LANTERN_M = 1.14;
+
 /** A lighthouse on a concrete foot. +z holds its door. */
 export function buildLighthouse(): RoadsideModel {
-  const [foot, top, gallery] = [1.1, 16, 16.15];
+  const [foot, top, gallery] = [1.1, 16, GALLERY_M];
   const radiusAt = (y: number) => 2.25 + ((y - foot) / (top - foot)) * (1.35 - 2.25);
   const bands: readonly [number, number, IdentityPart][] = [[foot, 5.8, "whitewash"], [5.8, 10.6, "flag-red"], [10.6, top, "whitewash"]];
   const sides = 12;
@@ -34,7 +40,7 @@ export function buildLighthouse(): RoadsideModel {
     .tube([0, gallery, 0], [0, gallery + 0.45, 0], 1, 8, { cap: false }, "steel-dark")
     .tube([0, gallery + 0.45, 0], [0, gallery + 1.75, 0], 0.98, 8, { radiusTo: 0.98 }, "lantern-glass")
     .tube([0, gallery + 0.9, 0], [0, gallery + 1.4, 0], 0.32, 6, { cap: true }, "lamp")
-    .tube([0, gallery + 1.75, 0], [0, gallery + 2.5, 0], 1.14, 8, { radiusTo: 0.14, shadeFrom: 0.95, shadeTo: 1.1 }, "flag-red")
+    .tube([0, gallery + 1.75, 0], [0, gallery + 2.5, 0], LIGHTHOUSE_LANTERN_M, 8, { radiusTo: 0.14, shadeFrom: 0.95, shadeTo: 1.1 }, "flag-red")
     .tube([0, gallery + 2.5, 0], [0, gallery + 3.05, 0], 0.05, 3, { radiusTo: 0.01 }, "steel-dark");
   for (let post = 0; post < sides; post++) {
     const [a, b] = [(post / sides) * 2 * Math.PI, ((post + 1) / sides) * 2 * Math.PI];
