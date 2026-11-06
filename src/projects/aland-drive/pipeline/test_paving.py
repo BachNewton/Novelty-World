@@ -346,6 +346,20 @@ class OneSurface(unittest.TestCase):
         # Inside the block's corner by the junction, nothing past the loop's own paving.
         self.assertLess(paving_drawn.difference(own.buffer(0.01)).intersection(shapely.box(501, 670, 530, 699)).area, 0.05)
 
+    def test_a_junction_s_corner_stops_at_a_third_way_between_its_two(self):
+        """A drive's corners with the street it joins were rounded over the cycleway running between them, and what poked
+        out past the cycleway's far edge was a pale sliver along it."""
+        street = road([(100, 600), (600, 600), (1100, 600)], "secondary")
+        # Crossing the drive with no node of its own, so only the drive's corners with the street are rounded.
+        cycleway = road([(100, 606.4), (1100, 606.4)], "cycleway", motor=False)
+        drive = road([(600, 600), (600, 640)], "service", service="driveway")
+        paved = paving.lay([street, cycleway, drive], land())
+        tile = shapely.box(0, 0, TILE_M, TILE_M)
+        prints = {chain.index: paving.footprints(chain, paving.station_levels(chain), tile, paved.crosses[chain.index].paving)[paving.GROUND] for chain in paved.chains}
+        corners = shapely.union_all([corner for corner, _ in paving._corners(paved.chains, prints)])
+        far_edge = 606.4 + next(chain for chain in paved.chains if chain.kind_name == "cycleway").half.max()
+        self.assertLess(corners.intersection(shapely.box(500, far_edge - 0.01, 700, 700)).area, 1e-3)
+
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
         main = road([(100, 600), (1100, 600)], "primary")

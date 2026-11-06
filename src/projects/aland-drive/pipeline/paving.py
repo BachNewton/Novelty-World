@@ -86,6 +86,9 @@ AGREE_SAMPLES = 24
 GAP_PIECE_M = 4.0
 # Two ways that touch stand this far apart in height, along most of where they touch, when one is on a bank above the other.
 BANK_STEP_M = 1.0
+# A junction's corner part with more than this share under a third way is that way's, and one thinner than this is a sliver.
+CORNER_MOST_UNDER = 0.5
+CORNER_LEAST_M = 0.1
 # A way whose surface disagrees with a greater one it touches stands this far back from it, leaving room for a bank.
 KEEP_APART_M = 0.5
 # No gap is closed and no corner rounded this near a tile's edge: the neighbour can't see the ways on this side.
@@ -604,6 +607,8 @@ def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) ->
     """Where a way ends on another, its corners rounded, by the sine of their angle squared so a shallow merge keeps its sharp
     nose; and whether a street is one of the two."""
     found = []
+    indices = list(ground_prints)
+    tree = shapely.STRtree([ground_prints[index] for index in indices]) if indices else None
     for chain in chains:
         for parent, _, at_start in chain.landings:
             if chain.index not in ground_prints or parent.index not in ground_prints:
@@ -617,7 +622,15 @@ def _corners(chains: list[Chain], ground_prints: dict[int, shapely.Geometry]) ->
             local = shapely.intersection(shapely.union(ground_prints[chain.index], ground_prints[parent.index]), zone.buffer(radius))
             corner = shapely.intersection(_rounded(local, radius), zone)
             # Only what lies between the two: closing them together also rounds the inside of the other's own bends.
-            corner = shapely.union_all([part for part in _flat(corner) if all(part.distance(ground_prints[way.index]) < SLIVER_M * 4 for way in (chain, parent))])
+            corner = [part for part in _flat(corner) if all(part.distance(ground_prints[way.index]) < SLIVER_M * 4 for way in (chain, parent))]
+            # Nor across a third way between the two: a drive's corner with a street, rounded over the cycleway between them,
+            # left a pale sliver along the cycleway's far side. A part mostly under a third way is that way's; what's left of
+            # one less so, thinner than a kerb's edge, is the third way's outline missing it by a hair.
+            third = [indices[index] for index in tree.query(zone)] if corner else []
+            others = shapely.union_all([ground_prints[index] for index in third if index not in (chain.index, parent.index)])
+            if not others.is_empty:
+                corner = [part.difference(others) for part in corner if part.intersection(others).area <= part.area * CORNER_MOST_UNDER]
+            corner = shapely.union_all([part for part in _flat(shapely.union_all(corner)) if not part.buffer(-CORNER_LEAST_M / 2).is_empty] if corner else [])
             if not corner.is_empty and _agree([chain, parent], corner):
                 found.append((corner, chain.motor or parent.motor))
     return found
