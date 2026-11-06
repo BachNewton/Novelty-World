@@ -85,6 +85,10 @@ const FOOT_MEET_M = 8;
 const FOOT_CLEAR_M = 0.2;
 const FOOT_PASS_M = 4;
 const FOOT_ROUND_M = 6;
+/** A path not joined to another by a junction, but starting this near where it ends, carries on from it. */
+const PATH_ON_M = 1.5;
+/** A walker held up turns on the spot this fast, in radians a second. */
+const PIVOT_RATE = 3;
 /** A walker this near its line's end is on to the next. */
 const FOOT_END_M = 0.5;
 /** Someone this near ahead and in its way, a walker doesn't step into, whatever else it means to do. */
@@ -539,6 +543,12 @@ export class LaneTraffic {
         this.remove(car.id);
         continue;
       }
+      // A walker never steps into anyone, nor a cyclist into someone on foot: it stands this step instead, a walker
+      // turning on the spot towards where it means to go, so a step aside frees it.
+      if (car.kind !== "car" && this.wouldTouch(car, this.stepOn(car, car.speedMS * seconds))) {
+        car.speedMS = 0;
+        if (car.kind === "walker") this.pivot(car, seconds);
+      }
       const travelled = car.speedMS * seconds;
       this.drive(car, travelled);
       // Where the car now is on its way is found from its body, as the autopilot finds itself on its line, never counted
@@ -579,6 +589,39 @@ export class LaneTraffic {
       if (car.onRoad && car.offLaneM < 1) car.onRoad = false;
       car.signal = this.signalOf(car);
     }
+  }
+
+  /**
+   * Whether a walker or cyclist, moved or turned to where it would be, would touch someone near it that it isn't
+   * touching now: anyone but a car, for a walker, and anyone on foot, for a cyclist.
+   */
+  private wouldTouch(car: LaneCar, stepped: Other): boolean {
+    const self = asOther(car);
+    const reach = 1 + Math.hypot(...car.half) + Math.hypot(stepped.x - self.x, stepped.z - self.z);
+    const near = ({ id, pose }: LaneCar) => id !== car.id && Math.abs(pose.x - self.x) < reach && Math.abs(pose.z - self.z) < reach;
+    // Where everyone stands now, part way through the step: two moving into one gap in the same step mustn't both take it.
+    const others = [...[...this.cars.values()].filter(near).map(asOther), ...this.driven.values(), ...this.stillAround(self.x, self.z, reach)];
+    const minds = (other: Other) => (car.kind === "walker" ? other.car?.kind !== "car" : other.still === true || other.car?.kind === "walker");
+    return others.some((other) => minds(other) && overlapping(stepped, other, 0) && !overlapping(self, other, 0));
+  }
+
+  /** Where a vehicle's body would be a step on, turned by its wheels about its rear axle as `drive` turns it. */
+  private stepOn(car: LaneCar, metres: number): Other {
+    const { wheelbaseM } = BUILDS[car.kind];
+    const heading = car.body.heading - (metres / wheelbaseM) * Math.tan(car.body.wheels);
+    const [fx, fz] = [-Math.sin(heading), -Math.cos(heading)];
+    return { ...asOther(car), fx, fz, x: car.body.x + fx * (metres + wheelbaseM / 2), z: car.body.z + fz * (metres + wheelbaseM / 2) };
+  }
+
+  /** Turns a walker standing towards where it means to go, at a person's pace on the spot, unless that turns it into someone. */
+  private pivot(car: LaneCar, seconds: number): void {
+    const { body } = car;
+    const ahead = this.onWay(car, BUILDS.walker.shortestLookM);
+    const [x, z] = [ahead.x - ahead.dz * car.shiftM - body.x, ahead.z + ahead.dx * car.shiftM - body.z];
+    let turn = Math.atan2(-x, -z) - body.heading;
+    turn -= Math.round(turn / (2 * Math.PI)) * 2 * Math.PI;
+    const heading = body.heading + Math.max(-PIVOT_RATE * seconds, Math.min(PIVOT_RATE * seconds, turn));
+    if (!this.wouldTouch(car, { ...asOther(car), fx: -Math.sin(heading), fz: -Math.cos(heading) })) body.heading = heading;
   }
 
   /** Whether a vehicle near its line's end is nearer the next line than its own: it has cut the corner on to it. */
@@ -758,13 +801,13 @@ export class LaneTraffic {
     return this.pathStartsNear(tile, end).filter((other) => tile.lanes[other].chain !== lane.chain && !joined.has(other));
   }
 
-  /** The paths a walker may walk that start within a corner's cut of a place. */
+  /** The paths a walker may walk that start within a step of a place. */
   private pathStartsNear(tile: TileLanes, at: { x: number; z: number }): number[] {
     const found: number[] = [];
     for (const [index, lane] of tile.lanes.entries()) {
       if (!walks(lane)) continue;
       const start = pointAlong(tile.points, lane, 0);
-      if (Math.abs(start.x - at.x) < CUT_M && Math.abs(start.z - at.z) < CUT_M && Math.hypot(start.x - at.x, start.z - at.z) < CUT_M) found.push(index);
+      if (Math.abs(start.x - at.x) < PATH_ON_M && Math.abs(start.z - at.z) < PATH_ON_M && Math.hypot(start.x - at.x, start.z - at.z) < PATH_ON_M) found.push(index);
     }
     return found;
   }
@@ -1174,7 +1217,7 @@ export class LaneTraffic {
         else if (seen.left - WALKER_ROOM_M - wide >= -laneWidth - VERGE_M && this.clearAhead(car, others, other.id, WALKER_NOTICE_M)) left = Math.min(left, seen.left - WALKER_ROOM_M - wide);
         if (inWay(car.shiftM) && seen.far > 0) reaction.obstacles.push({ gap: Math.max(0.1, seen.near), speedMS: seen.opposing ? 0 : seen.alongMS });
         // Where paths bend through a junction its way and its body part; it never rides into anyone right in front of it.
-        if (this.aboutToTouch(car, seen)) stopAt(seen.near);
+        if (this.aboutToTouch(car, other)) stopAt(seen.near);
         continue;
       }
       // A cyclist going a car's way is passed with room to spare; anything else going a vehicle's way is the leader's business.
@@ -1272,11 +1315,14 @@ export class LaneTraffic {
     return reaction;
   }
 
-  /** Whether someone a walker or cyclist sees is right in front of its body as it really stands, and in its way. */
-  private aboutToTouch(car: LaneCar, seen: Outline): boolean {
-    if (seen.far <= 0 || seen.near > FOOT_TOUCH_M) return false;
-    const self = this.outline(car, asOther(car));
-    return self !== null && seen.right > self.left - FOOT_CLEAR_M / 2 && seen.left < self.right + FOOT_CLEAR_M / 2;
+  /**
+   * Whether a walker or cyclist would step into someone ahead of it: on the ground, by its body as it really stands and
+   * faces, whatever lane it means to be on, since one stepping between paths that don't join is off every lane.
+   */
+  private aboutToTouch(car: LaneCar, other: Other): boolean {
+    const self = asOther(car);
+    const ahead = (other.x - self.x) * self.fx + (other.z - self.z) * self.fz > 0;
+    return ahead && overlapping(movedOn(self, FOOT_TOUCH_M), other, FOOT_CLEAR_M / 2);
   }
 
   /**
@@ -1341,12 +1387,11 @@ export class LaneTraffic {
     // Never into someone, where paths meet and nobody has the right of way. Two walkers each about to step into the
     // other don't both wait: the one standing, or else the first by name, goes first.
     for (const { other, seen } of outlines) {
-      if (!seen || other.car?.kind === "bike" || !this.aboutToTouch(car, seen)) continue;
+      if (!seen || other.car?.kind === "bike" || !this.aboutToTouch(car, other)) continue;
       const theirs = other.car;
       if (theirs?.kind === "walker") {
-        const back = this.outline(theirs, asOther(car));
         const first = car.speedMS < theirs.speedMS || (car.speedMS === theirs.speedMS && car.id < theirs.id) ? car : theirs;
-        if (back && this.aboutToTouch(theirs, back) && first === car) continue;
+        if (this.aboutToTouch(theirs, asOther(car)) && first === car) continue;
       }
       reaction.obstacles.push({ gap: 0.1, speedMS: 0 });
     }
