@@ -127,6 +127,8 @@ On the two Mariehamn tiles, L2334E and L2334F, which hold most of the owner's ex
 2. **The game.** The clipmap skips cut cells and draws their triangles; the collision blocks follow; the road shader draws the paving.
 3. **The owner's views,** before and after, and the far-ring change checked while driving.
 
+**The review set.** Every change to the paving is shot from the same cameras the owner has judged before: `tools/road-views.json` names each view and the tile it's on, and `tools/road-views.mjs` shoots them all at one pinned date and hour, from a tile server of its own, or with `--before=<tiles folder>` from two builds side by side. A camera the owner judges a change from joins the file.
+
 Only if the trial reads clean on all three does the old system get deleted and the island rebuilt. If step 1 shows a flaw in the design, the design is fixed here before step 2.
 
 ### Risks
