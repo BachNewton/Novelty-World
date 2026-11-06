@@ -1413,8 +1413,14 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
         if GROUND in prints[chain.index]:
             # A crossing's carriageway is the road's it crosses: off that road it ranks as a shoulder, below the street's kerb
             # and walk band and the sidewalk it leads to.
+            # Cut out of the whole carriageway, rather than laid without the crossing's stations, so the rest of its outline is
+            # simplified as before: laid anew, it moved by a centimetre or two all along and left slivers against its street.
+            carriageway = footprints(chain, levels[chain.index], tile, crosses[chain.index].carriageway).get(GROUND)
             crossing = crossing_stations(chain)
-            carriageway = footprints(chain, levels[chain.index], tile, tuple(np.where(crossing, 0, side) for side in crosses[chain.index].carriageway)).get(GROUND)
+            if carriageway is not None and crossing.any():
+                crossed = footprints(chain, levels[chain.index], tile, tuple(np.where(crossing, side, 0) for side in crosses[chain.index].paving)).get(GROUND)
+                carriageway = _polygonal(shapely.difference(carriageway, crossed)) if crossed is not None else carriageway
+                carriageway = None if carriageway.is_empty else carriageway
             if carriageway is not None:
                 own = [section.carriageway for section in sections if section.chain.index == chain.index and section.level == GROUND]
                 carriageways[chain.index] = on_seams(_polygonal(shapely.intersection(carriageway, prints[chain.index][GROUND])), own, tile)
