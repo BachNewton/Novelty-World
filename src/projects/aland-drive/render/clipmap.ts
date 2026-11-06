@@ -1,5 +1,5 @@
-import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, floor, If, ivec2, max, min, mix, mod, positionGeometry, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, DataArrayTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Object3D, type Scene, type Vector3 } from "three/webgpu";
+import { abs, float, floor, If, int, ivec2, max, min, mix, mod, positionGeometry, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -61,12 +61,10 @@ interface Ring {
   groundAt: (place: Node<"vec2">) => Node<"float">;
   groundBlendedAt: (place: Node<"vec2">) => Node<"float">;
   groundOnMeshAt: (place: Node<"vec2">) => Node<"float">;
+  /** This ring's layer of the heights, water levels and shore distances every ring shares. */
   heights: Float32Array;
-  texture: DataTexture;
   levels: Float32Array;
-  levelTexture: DataTexture;
   shore: Float32Array;
-  shoreTexture: DataTexture;
   waterLevelAt: (place: Node<"vec2">) => Node<"float">;
   shoreAt: (place: Node<"vec2">) => Node<"float">;
   origin: { value: Vector2 };
@@ -110,8 +108,8 @@ export interface Clipmap {
  */
 export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">, up: Node<"vec3">) => Node<"vec3">;
 
-/** What rises from the ground far off (the forest's canopy), given a place and the ring's level. */
-export type TerrainLift = (place: Node<"vec2">, level: number) => Node<"float">;
+/** What rises from the ground far off (the forest's canopy), given a place and the ring's level, which the shader reads per ring. */
+export type TerrainLift = (place: Node<"vec2">, level: Node<"float">) => Node<"float">;
 
 export function createClipmap(scene: Scene, world: World, stepM: number, groundColour: ByWater, waterColour: ByWater, lift: TerrainLift): Clipmap {
   const dryLevel = world.manifest.water.dryLevel;
@@ -137,79 +135,100 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   const cameraSpot = uniform(new Vector2());
   const materials: MeshBasicNodeMaterial[] = [];
 
+  // Every ring's heights, water levels and shore distances, a layer a ring, so one material draws every ring: a
+  // material of its own each would be a pipeline each, and each compiles the whole terrain shader again.
+  const layered = () => {
+    const data = new Float32Array(across * across * LEVELS);
+    const texture = new DataArrayTexture(data, across, across, LEVELS);
+    texture.format = RedFormat;
+    texture.type = FloatType;
+    texture.minFilter = texture.magFilter = NearestFilter;
+    return { data, texture };
+  };
+  const heightsAll = layered();
+  const levelsAll = layered();
+  const shoreAll = layered();
+  const layerOf = (data: Float32Array, level: number) => data.subarray(level * across * across, (level + 1) * across * across);
+  const load = (from: DataArrayTexture, at: Node<"ivec2">, layer: Node<"int">) => textureLoad(from, at).depth(layer).r;
+
+  // Which ring a mesh draws, read per object: its level, its cells' size and where its first node lies.
+  const ringOf = (object: Object3D) => rings[object.userData.ring as number];
+  const levelNode = uniform(0).onObjectUpdate(({ object }) => (object ? (object.userData.ring as number) : 0));
+  const stepNode = uniform(stepM).onObjectUpdate(({ object }) => (object ? ringOf(object).stepM : stepM));
+  const originNode = uniform(new Vector2()).onObjectUpdate(({ object }) => (object ? ringOf(object).origin.value : undefined));
+  const layer = int(levelNode);
+
+  const grid = positionGeometry.xz;
+  const odd = mod(grid, float(2));
+  const place = grid.mul(stepNode).add(originNode);
+  const offset = abs(place.sub(cameraSpot));
+  const half = stepNode.mul(CELLS / 2);
+  // The ring's centre can lag the camera by two cells, and its rim must be fully folded even then.
+  const fold = smoothstep(half.mul(FOLD_STARTS), half.sub(stepNode.mul(2.5)), max(offset.x, offset.y));
+  const own = load(heightsAll.texture, ivec2(grid), layer);
+  const coarse = load(heightsAll.texture, ivec2(grid.sub(odd)), layer);
+  const moved = place.sub(odd.mul(stepNode).mul(fold));
+  const ground = mix(own, coarse, fold);
+  const ownLevel = load(levelsAll.texture, ivec2(grid), layer);
+  const coarseLevel = load(levelsAll.texture, ivec2(grid.sub(odd)), layer);
+  const waterLevel = mix(ownLevel, coarseLevel, fold);
+  // Dry nodes sit hundreds of metres down, so a depth that mixes in one is far below zero: land.
+  const depth = varying(waterLevel.sub(ground));
+  const fromShore = varying(mix(load(shoreAll.texture, ivec2(grid), layer), load(shoreAll.texture, ivec2(grid.sub(odd)), layer), fold));
+  // The ground's slope across the node's neighbours, on its own lattice and on the coarser one it folds to.
+  const slopeAt = (node: Node<"vec2">, apart: number) => {
+    const height = (column: number, row: number) => load(heightsAll.texture, ivec2(node.add(vec2(column, row)).clamp(0, CELLS)), layer);
+    return vec2(height(apart, 0).sub(height(-apart, 0)), height(0, apart).sub(height(0, -apart))).div(stepNode.mul(2 * apart));
+  };
+  const slope = mix(slopeAt(grid, 1), slopeAt(grid.sub(odd), 2), fold);
+  const up = varying(vec3(slope.x.negate(), 1, slope.y.negate()));
+
+  const material = new MeshBasicNodeMaterial();
+  material.positionNode = vec3(moved.x, ground.add(lift(moved, levelNode)), moved.y);
+  material.colorNode = groundColour(depth, fromShore, up.normalize());
+  materials.push(material);
+
+  const wetNode = (nodeLevel: Node<"float">) => step(float(dryLevel + 1), nodeLevel);
+  const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
+  const waterMaterial = new MeshBasicNodeMaterial();
+  waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
+  waterMaterial.colorNode = waterColour(depth, fromShore, vec3(0, 1, 0));
+  // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
+  // the line is, smooth where a low shore's corners sit within centimetres of the water.
+  waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));
+  waterMaterial.alphaTest = 0.999;
+  materials.push(waterMaterial);
+
   const rings: Ring[] = Array.from({ length: LEVELS }, (_, level) => {
     const ringStep = stepM * nodeStride(level);
-    const heights = new Float32Array(across * across);
-    const texture = new DataTexture(heights, across, across, RedFormat, FloatType);
-    texture.minFilter = texture.magFilter = NearestFilter;
-    const levels = new Float32Array(across * across);
-    const levelTexture = new DataTexture(levels, across, across, RedFormat, FloatType);
-    levelTexture.minFilter = levelTexture.magFilter = NearestFilter;
-    const shore = new Float32Array(across * across);
-    const shoreTexture = new DataTexture(shore, across, across, RedFormat, FloatType);
-    shoreTexture.minFilter = shoreTexture.magFilter = NearestFilter;
+    const heights = layerOf(heightsAll.data, level);
+    const levels = layerOf(levelsAll.data, level);
+    const shore = layerOf(shoreAll.data, level);
     const origin = uniform(new Vector2());
-
-    const grid = positionGeometry.xz;
-    const odd = mod(grid, float(2));
-    const place = grid.mul(ringStep).add(origin);
-    const offset = abs(place.sub(cameraSpot));
-    const half = (CELLS / 2) * ringStep;
-    // The ring's centre can lag the camera by two cells, and its rim must be fully folded even then.
-    const fold = smoothstep(float(FOLD_STARTS * half), float(half - 2.5 * ringStep), max(offset.x, offset.y));
-    const own = textureLoad(texture, ivec2(grid)).r;
-    const coarse = textureLoad(texture, ivec2(grid.sub(odd))).r;
-    const moved = place.sub(odd.mul(ringStep).mul(fold));
-    const ground = mix(own, coarse, fold);
-    const ownLevel = textureLoad(levelTexture, ivec2(grid)).r;
-    const coarseLevel = textureLoad(levelTexture, ivec2(grid.sub(odd))).r;
-    const waterLevel = mix(ownLevel, coarseLevel, fold);
-    // Dry nodes sit hundreds of metres down, so a depth that mixes in one is far below zero: land.
-    const depth = varying(waterLevel.sub(ground));
-    const fromShore = varying(mix(textureLoad(shoreTexture, ivec2(grid)).r, textureLoad(shoreTexture, ivec2(grid.sub(odd))).r, fold));
-    // The ground's slope across the node's neighbours, on its own lattice and on the coarser one it folds to.
-    const slopeAt = (node: Node<"vec2">, apart: number) => {
-      const height = (column: number, row: number) => textureLoad(texture, ivec2(node.add(vec2(column, row)).clamp(0, CELLS))).r;
-      return vec2(height(apart, 0).sub(height(-apart, 0)), height(0, apart).sub(height(0, -apart))).div(2 * apart * ringStep);
-    };
-    const slope = mix(slopeAt(grid, 1), slopeAt(grid.sub(odd), 2), fold);
-    const up = varying(vec3(slope.x.negate(), 1, slope.y.negate()));
-
-    const material = new MeshBasicNodeMaterial();
-    material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
-    material.colorNode = groundColour(depth, fromShore, up.normalize());
-    materials.push(material);
+    const ringLayer = int(level);
 
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", position);
     geometry.setIndex(level === 0 ? solid : ringIndex);
     geometries.push(geometry);
     const mesh = new Mesh(geometry, material);
+    mesh.userData.ring = level;
     mesh.frustumCulled = false;
     scene.add(mesh);
 
     let water: Mesh | null = null;
     if (level < WATER_RINGS) {
-      const wetNode = (nodeLevel: Node<"float">) => step(float(dryLevel + 1), nodeLevel);
-      const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
-      const waterMaterial = new MeshBasicNodeMaterial();
-      waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
-      waterMaterial.colorNode = waterColour(depth, fromShore, vec3(0, 1, 0));
-      // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
-      // the line is, smooth where a low shore's corners sit within centimetres of the water.
-      waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));
-      waterMaterial.alphaTest = 0.999;
-      materials.push(waterMaterial);
       water = new Mesh(geometry, waterMaterial);
+      water.userData.ring = level;
       water.frustumCulled = false;
       scene.add(water);
     }
-    const groundAt = (spot: Node<"vec2">) => textureLoad(texture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    const blendedAt = (from: DataTexture) => (spot: Node<"vec2">) => {
+    const groundAt = (spot: Node<"vec2">) => load(heightsAll.texture, ivec2(round(spot.sub(origin).div(ringStep))), ringLayer);
+    const blendedAt = (from: DataArrayTexture) => (spot: Node<"vec2">) => {
       const inRing = spot.sub(origin).div(ringStep);
       const corner = floor(inRing);
       const share = inRing.sub(corner);
-      const at = (column: number, row: number) => textureLoad(from, ivec2(corner.add(vec2(column, row)))).r;
+      const at = (column: number, row: number) => load(from, ivec2(corner.add(vec2(column, row))), ringLayer);
       return mix(mix(at(0, 0), at(1, 0), share.x), mix(at(0, 1), at(1, 1), share.x), share.y);
     };
     // The cell's diagonal runs north-east to south-west, as `patchIndices` lays it.
@@ -217,16 +236,16 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       const inRing = spot.sub(origin).div(ringStep);
       const corner = floor(inRing);
       const share = inRing.sub(corner);
-      const at = (column: number, row: number) => textureLoad(texture, ivec2(corner.add(vec2(column, row)))).r;
+      const at = (column: number, row: number) => load(heightsAll.texture, ivec2(corner.add(vec2(column, row))), ringLayer);
       const [northWest, northEast, southWest, southEast] = [at(0, 0), at(1, 0), at(0, 1), at(1, 1)];
       const upper = northWest.add(share.x.mul(northEast.sub(northWest))).add(share.y.mul(southWest.sub(northWest)));
       const lower = southEast.add(float(1).sub(share.x).mul(southWest.sub(southEast))).add(float(1).sub(share.y).mul(northEast.sub(southEast)));
       return select(share.x.add(share.y).lessThanEqual(1), upper, lower);
     };
-    const groundBlendedAt = blendedAt(texture);
-    const waterLevelAt = (spot: Node<"vec2">) => textureLoad(levelTexture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    const shoreAt = blendedAt(shoreTexture);
-    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
+    const groundBlendedAt = blendedAt(heightsAll.texture);
+    const waterLevelAt = (spot: Node<"vec2">) => load(levelsAll.texture, ivec2(round(spot.sub(origin).div(ringStep))), ringLayer);
+    const shoreAt = blendedAt(shoreAll.texture);
+    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, levels, shore, waterLevelAt, shoreAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -240,9 +259,10 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
         shore[at++] = world.shore(ring.column + column * stride, ring.row + row * stride);
       }
     }
-    ring.texture.needsUpdate = true;
-    ring.levelTexture.needsUpdate = true;
-    ring.shoreTexture.needsUpdate = true;
+    for (const { texture } of [heightsAll, levelsAll, shoreAll]) {
+      texture.addLayerUpdate(level);
+      texture.needsUpdate = true;
+    }
     ring.origin.value.set(ring.column * stepM, ring.row * stepM);
   };
 
@@ -323,10 +343,8 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       for (const ring of rings) {
         scene.remove(ring.mesh);
         if (ring.water) scene.remove(ring.water);
-        ring.texture.dispose();
-        ring.levelTexture.dispose();
-        ring.shoreTexture.dispose();
       }
+      for (const { texture } of [heightsAll, levelsAll, shoreAll]) texture.dispose();
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
     },

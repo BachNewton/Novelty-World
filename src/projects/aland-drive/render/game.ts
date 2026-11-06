@@ -814,16 +814,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewSize = vec2((manifest.overview.columns - 1) * manifest.overview.stepM, (manifest.overview.rows - 1) * manifest.overview.stepM);
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
-  const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
+  // A weight rather than a condition: three writes a `select` of anything but a plain value as two branches, each
+  // building its own copy of what both share (here the open sea's whole colour), which the shader then compiles twice.
+  const inOverview = select(all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1)))), float(1), float(0));
   const waterOf = createWater({ colour: colorOf, sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
   // The sea ice, on every water the terrain, its water rings and the sea plane draw (`render/sea-ice.ts`), and under the car.
   const seaIce = createSeaIce(iceExposure, season);
   const iceHere = seaIce.lookAt(positionWorld.xz);
   world.setIceDrivable(season.current().iceDrivable);
   world.setPlacedSeason(season.current());
-  const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))), iceHere);
+  const openSea = waterOf.colorFor(shoreOfLand(texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a.mul(inOverview)), iceHere);
   const openSeaInLand = seaInLand(night, openSea);
-  const pastTiles = select(inOverview, mix(openSeaInLand, snowOnGround(overviewPixel.rgb.pow(vec3(2.2)), snow, { place: positionWorld.xz, up: vec3(0, 1, 0), photo: overviewPixel.rgb.pow(vec3(2.2)), rock: float(0), roads: float(0), paved: float(0), toCamera, far: true }).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a), openSeaInLand);
+  const pastTiles = mix(openSeaInLand, snowOnGround(overviewPixel.rgb.pow(vec3(2.2)), snow, { place: positionWorld.xz, up: vec3(0, 1, 0), photo: overviewPixel.rgb.pow(vec3(2.2)), rock: float(0), roads: float(0), paved: float(0), toCamera, far: true }).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a.mul(inOverview));
   const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth), iceHere);
   const terrainColour = (depth: Node<"float">, shore: Node<"float">, up: Node<"vec3">) => {
     // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth

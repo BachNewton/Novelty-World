@@ -16,11 +16,13 @@ export const UNCAPPED_ARGS = ["--disable-gpu-vsync", "--disable-frame-rate-limit
 
 /**
  * Opens the game at `url` and waits for its probe (or for `ready`, a predicate run in the page), failing as `step`
- * does. `cleanup` runs when the run ends either way, for a tile server the tool started.
+ * does. `cleanup` runs when the run ends either way, for a tile server the tool started. `init`, a function, runs in the
+ * page before any of the page's own scripts, for a tool that watches the page from its start.
  */
-export async function openGame(url, { width, height, args = [], ready = () => window.__alandDrive !== undefined, cleanup = () => {} }) {
+export async function openGame(url, { width, height, args = [], ready = () => window.__alandDrive !== undefined, cleanup = () => {}, init }) {
   const browser = await chromium.launch({ channel: "chromium", headless: true, args: [...LAUNCH_ARGS, ...args] });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+  if (init) await page.addInitScript(init);
   const problems = [];
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") problems.push(`${message.type()}: ${message.text()}`);
