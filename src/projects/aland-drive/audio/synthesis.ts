@@ -462,6 +462,16 @@ export function birdsBed(): Loop {
     }
     at += 0.6 + next() * 2.4;
   }
+  // A woodpecker drumming, now and then: a burst of knocks on hollow wood, faster than anything else in the wood.
+  for (let at = 4 + next() * 4; at < seconds - 2; at += 9 + 6 * next()) {
+    const pan = next() * 1.4 - 0.7;
+    const rateHz = 15 + 5 * next();
+    const knocks = Math.round(rateHz * (0.5 + 0.4 * next()));
+    for (let k = 0; k < knocks; k++) {
+      const level = 0.25 * (1 - (0.4 * k) / knocks);
+      addPanned(channels, BED_RATE, at + k / rateHz, 0.03, pan, (t) => level * Math.exp(-t / 0.006) * (Math.sin(TAU * 1150 * t) + 0.7 * Math.sin(TAU * 420 * t)));
+    }
+  }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
@@ -475,16 +485,62 @@ export function winterBed(): Loop {
   const seconds = 31;
   const length = Math.round(seconds * BED_RATE);
   const gust = gustsOver(seconds, next, [3, 8], [2, 6]);
+  const gusting = Float32Array.from({ length }, (_, i) => gust(i / BED_RATE));
   const channels = [0, 1].map(() => {
-    const rush = lowNoise(length, next, (i) => 450 + 900 * gust(i / BED_RATE), BED_RATE);
+    const rush = lowNoise(length, next, (i) => 450 + 900 * gusting[i], BED_RATE);
     const held = lowNoise(length, next, () => 140, BED_RATE);
     const needles = lowNoise(length, next, () => 7000, BED_RATE);
     const needlesHeld = lowNoise(length, next, () => 3000, BED_RATE);
     return rush.map((sample, i) => {
-      const blowing = gust(i / BED_RATE);
+      const blowing = gusting[i];
       return (0.6 + 0.4 * blowing) * (sample - 0.7 * held[i]) + 0.25 * blowing * (needles[i] - needlesHeld[i]);
     });
   });
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/**
+ * A frozen sea: a dry, steady wind over the flat ice with nothing to break on, never swelling, and now and then the ice
+ * itself: a low creak as it shifts, or the falling "pew" of a crack running far across it, its high notes arriving
+ * first.
+ */
+export function iceBed(): Loop {
+  const next = random(49);
+  const seconds = 33;
+  const length = Math.round(seconds * BED_RATE);
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 5200, BED_RATE);
+    const dull = lowNoise(length, next, () => 1200, BED_RATE);
+    const low = lowNoise(length, next, () => 300, BED_RATE);
+    return bright.map((sample, i) => 0.7 * (sample - dull[i]) + 0.35 * low[i]);
+  });
+  for (let at = 2 + next() * 3; at < seconds - 2; at += 5 + 6 * next()) {
+    const pan = next() * 1.6 - 0.8;
+    if (next() < 0.55) {
+      // A creak: a low groan, its pitch wandering as the ice grinds.
+      const hz = 70 + 70 * next();
+      const longS = 0.4 + 0.8 * next();
+      const wobble = 3 + 5 * next();
+      let phase = 0;
+      addPanned(channels, BED_RATE, at, longS, pan, (t) => {
+        phase += (TAU * hz * (1 + 0.15 * Math.sin(TAU * wobble * t))) / BED_RATE / 2;
+        const grind = 0.6 + 0.4 * (next() * 2 - 1);
+        return 0.5 * Math.sin((Math.PI * t) / longS) * grind * (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.3 * Math.sin(3 * phase));
+      });
+    } else {
+      // A crack running far across the ice: a falling whistle, then its echo.
+      const fromHz = 2600 + 1200 * next();
+      const longS = 0.5 + 0.4 * next();
+      for (const [delayS, level] of [[0, 0.5], [0.18, 0.2]] as const) {
+        let phase = 0;
+        addPanned(channels, BED_RATE, at + delayS, longS, pan, (t) => {
+          phase += (TAU * (220 + (fromHz - 220) * Math.exp(-t / (longS * 0.25)))) / BED_RATE / 2;
+          return level * Math.exp(-t / (longS * 0.5)) * Math.sin(phase);
+        });
+      }
+    }
+  }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
@@ -521,76 +577,167 @@ export function winterCallsBed(): Loop {
   return { rate: BED_RATE, channels };
 }
 
-/** Sea: swells that rise, break and draw back, each its own length, over a constant wash. */
+/**
+ * The sea on a rocky shore: each swell comes in rising, breaks, and washes back fizzing over the stones, at an uneven
+ * rhythm of six to nine seconds, over the far surf's low murmur. The fizz, thousands of bubbles bursting, is what
+ * tells water from wind.
+ */
 export function shoreBed(): Loop {
   const next = random(43);
-  const seconds = 23;
+  const seconds = 27;
   const length = Math.round(seconds * BED_RATE);
-  const waves = [0, 1, 2, 3, 4].map((i) => ({ at: (i + 0.8 * next()) / 5, width: 0.1 + 0.05 * next(), height: 0.65 + 0.35 * next() }));
-  /** Each wave rises slowly and falls away quicker, on a loop of 0 to 1. */
-  const swell = (share: number) => {
+  const waves: { breakS: number; riseS: number; washS: number; height: number }[] = [];
+  for (let at = 1 + next() * 2; at < seconds; at += 5.5 + 3 * next()) waves.push({ breakS: at, riseS: 1.4 + 0.8 * next(), washS: 2.2 + 1.4 * next(), height: 0.6 + 0.4 * next() });
+  /** How much water is moving at a moment: rising to the break, then drawing back. */
+  const surge = (t: number) => {
     let sum = 0;
-    for (const { at, width, height } of waves) {
-      const from = ((share - at + 1.5) % 1) - 0.5;
-      const shaped = from < 0 ? from / (width * 1.6) : from / (width * 0.8);
-      sum += height * Math.exp(-shaped * shaped);
+    for (const { breakS, riseS, washS, height } of waves) {
+      const from = ((((t - breakS) % seconds) + seconds * 1.5) % seconds) - seconds / 2;
+      if (from < 0 && from > -riseS) sum += height * (1 + from / riseS) ** 2;
+      else if (from >= 0) sum += height * Math.exp(-from / (washS * 0.45));
     }
-    return sum;
+    return Math.min(sum, 1.4);
   };
-  const channels = [0, 1].map((side) =>
-    lowNoise(length, next, (i) => 280 + 2300 * swell(((i / length + side * 0.012) % 1)), BED_RATE).map((sample, i) => sample * (0.16 + swell((i / length + side * 0.012) % 1))),
-  );
+  /** The water drawing back after each break, the hiss of it running over the stones. */
+  const washing = (t: number) => {
+    let sum = 0;
+    for (const { breakS, washS, height } of waves) {
+      const from = ((((t - breakS) % seconds) + seconds * 1.5) % seconds) - seconds / 2;
+      if (from >= 0) sum += height * Math.min(1, from / 0.15) * Math.exp(-from / (washS * 0.55));
+    }
+    return Math.min(sum, 1.2);
+  };
+  // Each worked out once a sample, not once a sample of every pass.
+  const surging = Float32Array.from({ length }, (_, i) => surge(i / BED_RATE));
+  const washed = Float32Array.from({ length }, (_, i) => washing(i / BED_RATE));
+  const channels = [0, 1].map((side) => {
+    // The right ear hears each wave a moment after the left.
+    const lag = Math.round(side * 0.03 * BED_RATE);
+    const at = (values: Float32Array, i: number) => values[(i + lag) % length];
+    const body = lowNoise(length, next, (i) => 220 + 2600 * at(surging, i), BED_RATE);
+    const far = lowNoise(length, next, () => 260, BED_RATE);
+    const hiss = lowNoise(length, next, () => 6500, BED_RATE);
+    const hissHeld = lowNoise(length, next, () => 1800, BED_RATE);
+    return body.map((sample, i) => sample * (0.06 + at(surging, i)) + 0.35 * far[i] + 1.4 * at(washed, i) * (hiss[i] - hissHeld[i]));
+  });
+  for (const { breakS, washS, height } of waves) {
+    // The break: a short burst as the crest falls.
+    addPanned(channels, BED_RATE, breakS, 0.35, next() * 0.8 - 0.4, (t) => height * 0.5 * Math.exp(-t / 0.09) * (next() * 2 - 1));
+    // The wash: bubbles bursting as it draws back over the stones, thick at first and thinning out.
+    for (let i = 0; i < 1000 * height; i++) {
+      const into = washS * next() ** 1.8;
+      const hz = 1800 + 4500 * next();
+      const decayS = 0.0005 + 0.0015 * next();
+      const level = 0.12 + 0.4 * next() * next();
+      addPanned(channels, BED_RATE, breakS + into, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * (1 + 4 * t) * t));
+    }
+  }
   normalise(channels, 0.85);
   return { rate: BED_RATE, channels };
 }
 
-/** Gulls, far off and now and then: falling cries in a run, on their own loop so they never line up with the waves. */
-export function gullsBed(): Loop {
-  const next = random(47);
-  const seconds = 37;
+/** A lake or a pond on a still day: small wavelets lapping at the bank, a slap and a gulp every second or two, and quiet between. */
+export function lakeBed(): Loop {
+  const next = random(45);
+  const seconds = 23;
   const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
-  let at = 2 + next() * 3;
-  while (at < seconds - 5) {
-    const pan = next() * 1.8 - 0.9;
-    const level = 0.15 + 0.35 * next();
-    const cries = 2 + Math.floor(next() * 4);
-    const hz = 900 + next() * 450;
-    for (let i = 0; i < cries; i++) {
-      const long = i === 0 ? 0.42 : 0.24;
-      const cry = (s: number) => hz * (1.45 - 0.55 * s) * (1 + 0.012 * Math.sin(TAU * 14 * s));
-      chirp(channels, at, long, pan, level, cry);
-      chirp(channels, at, long, pan, level * 0.42, (s) => 2 * cry(s));
-      chirp(channels, at, long, pan, level * 0.2, (s) => 3 * cry(s));
-      at += long + 0.08 + next() * 0.1;
-    }
-    at += 3 + next() * 7;
+  for (let at = next(); at < seconds - 0.5; at += 0.7 + 1.7 * next()) {
+    const pan = next() * 1.4 - 0.7;
+    const level = 0.3 + 0.7 * next();
+    const slapS = 0.025 + 0.03 * next();
+    const corner = 900 + 1200 * next();
+    let held = 0;
+    const share = 1 - Math.exp((-TAU * corner) / BED_RATE);
+    addPanned(channels, BED_RATE, at, slapS * 6, pan, (t) => {
+      held += (next() * 2 - 1 - held) * share;
+      return level * 0.6 * Math.exp(-t / slapS) * held * 6;
+    });
+    // The gulp: water closing over the air the wavelet trapped, a short note rising as the pocket shrinks.
+    const hz = 260 + 380 * next();
+    const gulpS = 0.03 + 0.04 * next();
+    addPanned(channels, BED_RATE, at + 0.02 + 0.05 * next(), gulpS * 5, pan, (t) => level * 0.35 * Math.exp(-t / gulpS) * Math.sin(TAU * hz * (1 + 6 * t) * t));
   }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
 
-/** A town: far traffic's low wash, cars going by a street away, and a hum of machines. */
+/** A gull's call: a run of falling cries, each with its harsh upper harmonics. One call, for placing over the water. */
+export function gullCall(): Loop {
+  const next = random(47);
+  const cries = 2 + Math.floor(next() * 3);
+  const hz = 950 + next() * 400;
+  const seconds = cries * 0.5 + 0.4;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
+  let at = 0.02;
+  for (let i = 0; i < cries; i++) {
+    const long = i === 0 ? 0.42 : 0.24;
+    const cry = (s: number) => hz * (1.45 - 0.55 * s) * (1 + 0.012 * Math.sin(TAU * 14 * s));
+    chirp(channels, at, long, 0, 0.8, cry);
+    chirp(channels, at, long, 0, 0.34, (s) => 2 * cry(s));
+    chirp(channels, at, long, 0, 0.16, (s) => 3 * cry(s));
+    at += long + 0.08 + next() * 0.06;
+  }
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/** One strike of a church bell: a bell's partials (the hum, the prime, the minor third, the fifth and the nominal), each dying away at its own rate. */
+export function churchBell(): Loop {
+  const seconds = 4.5;
+  const base = 330;
+  const partials = [
+    [0.5, 0.5, 3.2],
+    [1, 0.8, 2.2],
+    [1.19, 0.5, 1.6],
+    [1.5, 0.35, 1.2],
+    [2, 0.45, 1],
+    [2.51, 0.2, 0.6],
+    [3.01, 0.15, 0.45],
+  ] as const;
+  const channel = samplesOf(seconds, BED_RATE);
+  for (let i = 0; i < channel.length; i++) {
+    const t = i / BED_RATE;
+    let sum = 0;
+    for (const [ratio, level, decayS] of partials) sum += level * Math.exp(-t / decayS) * Math.sin(TAU * base * ratio * t);
+    channel[i] = sum * Math.min(1, t / 0.002);
+  }
+  normalise([channel], 0.8);
+  return { rate: BED_RATE, channels: [channel, Float32Array.from(channel)] };
+}
+
+/**
+ * A town beyond what's in view: the low hum of a town far off, and in the centre a murmur of voices, a few people
+ * talking at once some way off, rising and falling. The traffic, cyclists and walkers are the world's own, heard where
+ * they are; this is only what no one in sight makes.
+ */
 export function townBed(): Loop {
   const next = random(53);
-  const seconds = 19;
+  const seconds = 37;
   const length = Math.round(seconds * BED_RATE);
   const channels = [0, 1].map(() => {
-    const low = lowNoise(length, next, () => 260, BED_RATE);
-    const lower = lowNoise(length, next, () => 70, BED_RATE);
-    return low.map((sample, i) => 1.6 * sample + 3 * lower[i]);
+    const low = lowNoise(length, next, () => 160, BED_RATE);
+    const lower = lowNoise(length, next, () => 60, BED_RATE);
+    return low.map((sample, i) => 0.9 * sample + 2.2 * lower[i]);
   });
-  for (let i = 0; i < 6; i++) {
-    const at = (i + next()) * (seconds / 6);
-    const passS = 3 + 2 * next();
-    const pan = next() * 1.4 - 0.7;
-    const passing = lowNoise(Math.round(passS * BED_RATE), next, () => 900, BED_RATE);
-    addPanned(channels, BED_RATE, at, passS, pan, (t) => {
-      const share = t / passS;
-      return 1.2 * Math.sin(Math.PI * share) ** 2 * passing[Math.min(Math.round(t * BED_RATE), passing.length - 1)];
-    });
+  // Voices: each talks in spurts of a few seconds, syllable by syllable, a band of speech far enough off to lose the words.
+  for (let voice = 0; voice < 7; voice++) {
+    const pan = next() * 1.6 - 0.8;
+    const pitch = 0.8 + 0.5 * next();
+    const level = 0.5 + 0.5 * next();
+    for (let at = next() * 4; at < seconds; at += 1 + 4 * next()) {
+      const spurtS = 1 + 3 * next();
+      const syllableHz = (3.5 + 2.5 * next()) * pitch;
+      const speech = lowNoise(Math.round(spurtS * BED_RATE), next, () => 1400 * pitch, BED_RATE);
+      const dull = lowNoise(Math.round(spurtS * BED_RATE), next, () => 300 * pitch, BED_RATE);
+      addPanned(channels, BED_RATE, at, spurtS, pan, (t) => {
+        const i = Math.min(Math.round(t * BED_RATE), speech.length - 1);
+        const syllable = Math.max(0, Math.sin(TAU * syllableHz * t + voice)) ** 1.5;
+        return level * 6 * Math.sin((Math.PI * t) / spurtS) * syllable * (speech[i] - dull[i]);
+      });
+    }
   }
   const humHz = 100;
-  for (const channel of channels) for (let i = 0; i < length; i++) channel[i] += 0.012 * Math.sin((TAU * Math.round(humHz * seconds) * i) / length);
+  for (const channel of channels) for (let i = 0; i < length; i++) channel[i] += 0.006 * Math.sin((TAU * Math.round(humHz * seconds) * i) / length);
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }

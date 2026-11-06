@@ -18,7 +18,7 @@ import { seaClock } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
 import { createWinterLights } from "./winter-lights";
-import { dateText, gameDaysAtInstant, startOfDay, type CalendarDate } from "../time/day";
+import { dateText, GAME_DAY_S, gameDaysAtInstant, startOfDay, type CalendarDate } from "../time/day";
 import { bakedLightAtHour, createAurora, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
@@ -53,7 +53,7 @@ import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, typ
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { createDriveAudio } from "../audio/graph";
-import { stateFromCar, type Mix, type Place as PlaceHeard, type SeasonHeard } from "../audio/model";
+import { bellStrikesBetween, stateFromCar, type Listener, type Mix, type Place as PlaceHeard, type SeasonHeard } from "../audio/model";
 import { yearDay } from "../climate/calendar";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
@@ -531,6 +531,10 @@ const DETAIL_FADE_M = 400;
 const FAR_FADE_FROM_M = 4400;
 const FAR_SEEN_M = 5800;
 const HAZE_M = 16000;
+/** The landmarks that are churches, whose bells strike the hour (`audio/model.ts`). */
+const CHURCH_MODELS = new Set(["church", "eckero", "finstrom", "foglo", "geta", "hammarland", "jomala", "lemland", "saltvik", "sund", "vardo"]);
+/** A church bell as loud as this 8 m off: heard over a village, faintly a kilometre away. */
+const BELL_LOUDNESS = 5;
 /** Haze thins with the camera's height above this, so the island stays clear from above. */
 const HAZE_CLEARS_FROM_M = 120;
 /** Past this height the mask's mips blur a road into a band, so the paint fades out, and the overlay's roads fade in. */
@@ -1880,6 +1884,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     else events.onTimeJump(jump);
   };
 
+  /** Where the sound is heard from: the camera, and the way to its right, flat. */
+  const listener: Listener = { x: 0, z: 0, rightX: 1, rightZ: 0 };
+  const listenerRight = new Vector3();
+  const heardFrom = (): Listener => {
+    listenerRight.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    return Object.assign(listener, { x: camera.position.x, z: camera.position.z, rightX: listenerRight.x, rightZ: listenerRight.z });
+  };
+  // Every church strikes the hour by day, heard from where it stands.
+  const churches = manifest.tiles.flatMap((tile) => (tile.landmarks ?? []).filter(({ model }) => CHURCH_MODELS.has(model)));
+  let bellHour: number | null = null;
+  const ringBells = () => {
+    const { hour } = day.time();
+    const strikes = bellHour === null ? 0 : bellStrikesBetween(bellHour, hour, GAME_DAY_S);
+    bellHour = hour;
+    for (let strike = 0; strike < strikes; strike++) for (const church of churches) audio.placeOnce("bell", church.x, church.z, BELL_LOUDNESS);
+  };
+
   /** The season and hour the place beds follow, as the render draws them. */
   const seasonHeard = (): SeasonHeard => {
     const { date, hour, sun: place } = day.time();
@@ -1974,7 +1995,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), listener: heardFrom(), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    ringBells();
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
