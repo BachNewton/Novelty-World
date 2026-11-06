@@ -5,8 +5,8 @@ import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
 
 /*
  * What players send each other in the online world: each car's state, as its
- * own client has it, which names the car it is, and the messages of a co-op
- * challenge. A guest sends its own up; the host hands each one on to every
+ * own client has it, which names the car it is, each computer-driven car's
+ * from the player running it, and the messages of a co-op challenge. A guest sends its own up; the host hands each one on to every
  * other guest, or to the one player a challenge message is for, naming whose
  * it is, and sends its own down. Every payload off the wire is untrusted and
  * parsed here.
@@ -40,9 +40,25 @@ export type ChallengeMessage =
 
 export type ChallengeType = ChallengeMessage["type"];
 
+/**
+ * A computer-driven car (`computer-cars.ts`), sent by the player who runs it:
+ * its state, the player running it now, how many times it has changed hands,
+ * and its driver's record, whose shape is its driver's own.
+ */
+export interface ComputerCarMessage {
+  id: string;
+  runner: string;
+  handovers: number;
+  state: CarState;
+  driver: Record<string, unknown>;
+}
+
 /** A challenge message for one player, or for everyone when `to` is left out. */
-export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage };
-export type HostMessage = ({ kind: "car"; from: string } & CarMessage) | { kind: "challenge"; from: string; message: ChallengeMessage };
+export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage } | { kind: "computer"; car: ComputerCarMessage };
+export type HostMessage =
+  | ({ kind: "car"; from: string } & CarMessage)
+  | { kind: "challenge"; from: string; message: ChallengeMessage }
+  | { kind: "computer"; from: string; car: ComputerCarMessage };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -137,8 +153,17 @@ function parseCar(value: Record<string, unknown>): CarMessage | null {
 }
 
 const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;
-/** More attempts than anyone makes, and well inside what a number counts exactly. */
+/** More attempts, or handovers, than any session makes, and well inside what a number counts exactly. */
 const MOST_ATTEMPTS = 1_000_000;
+
+export function parseComputerCar(value: unknown): ComputerCarMessage | null {
+  if (!isRecord(value)) return null;
+  const { id, runner, handovers, driver } = value;
+  if (!isName(id) || !isName(runner) || !isRecord(driver) || Array.isArray(driver)) return null;
+  if (typeof handovers !== "number" || !Number.isInteger(handovers) || handovers < 0 || handovers > MOST_ATTEMPTS) return null;
+  const state = parseState(value.state);
+  return state && { id, runner, handovers, state, driver };
+}
 const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
 const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -159,6 +184,10 @@ export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
 
 export function parseGuestMessage(value: unknown): GuestMessage | null {
   if (!isRecord(value)) return null;
+  if (value.kind === "computer") {
+    const car = parseComputerCar(value.car);
+    return car && { kind: "computer", car };
+  }
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     if (!message) return null;
@@ -172,6 +201,10 @@ export function parseGuestMessage(value: unknown): GuestMessage | null {
 
 export function parseHostMessage(value: unknown): HostMessage | null {
   if (!isRecord(value) || !isName(value.from)) return null;
+  if (value.kind === "computer") {
+    const car = parseComputerCar(value.car);
+    return car && { kind: "computer", from: value.from, car };
+  }
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     return message && { kind: "challenge", from: value.from, message };
