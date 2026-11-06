@@ -12,7 +12,7 @@ import { GameMenu } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
-import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
 import type { ChallengeKind } from "../challenge/types";
@@ -124,14 +124,14 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   const [others, setOthers] = useState<string[]>([]);
   // Places found and not yet shown, the one on screen first.
   const [finds, setFinds] = useState<Place[]>([]);
-  const [placesFound, setPlacesFound] = useState<{ found: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
   const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null } | null>(null);
   // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
@@ -238,7 +238,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onPlayers: setOthers,
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
-          onPlacesFound: (found, total) => { setPlacesFound({ found, total }); },
+          onProgress: setProgress,
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -364,10 +364,16 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             )}
             </div>
           )}
-          {mapOpen && placesFound !== null && (
-            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Places found" title="Places found">
-              <Landmark className="size-5" style={{ color: PLACE }} aria-hidden />
-              <span>{placesFound.found} / {placesFound.total}</span>
+          {mapOpen && progress !== null && (
+            <div className="pointer-events-none absolute top-16 right-6 flex flex-col items-end gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }}>
+              <div className="flex items-center gap-1" aria-label="Places found" title="Places found">
+                <Landmark className="size-5" style={{ color: PLACE }} aria-hidden />
+                <span>{progress.places.done} / {progress.places.total}</span>
+              </div>
+              <div className="flex items-center gap-1" aria-label="Bucket list challenges passed" title="Bucket list challenges passed">
+                <Flag className="size-5" style={{ color: CHALLENGE }} aria-hidden />
+                <span>{progress.challenges.done} / {progress.challenges.total}</span>
+              </div>
             </div>
           )}
           {camera !== "free" && (
@@ -428,7 +434,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </>
       )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>

@@ -4,6 +4,8 @@ interface NamespacedStorage {
   get<T = string>(key: string): T | null;
   set<T>(key: string, value: T): void;
   remove(key: string): void;
+  /** Removes every key in this namespace. */
+  clear(): void;
 }
 
 function createStorage(ns: string): NamespacedStorage {
@@ -25,6 +27,10 @@ function createStorage(ns: string): NamespacedStorage {
 
     remove(key: string): void {
       localStorage.removeItem(ns + key);
+    },
+    clear(): void {
+      const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index));
+      for (const key of keys) if (key?.startsWith(ns)) localStorage.removeItem(key);
     },
   };
 }

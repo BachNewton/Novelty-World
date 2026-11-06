@@ -364,8 +364,13 @@ export interface GameEvents {
   onCoopNotice?: (notice: CoopNoticeReading) => void;
   /** The car has reached a place it hadn't found before. */
   onPlaceFound?: (place: FindablePlace) => void;
-  /** How many of the places have been found, when the maps arrive and whenever it changes. */
-  onPlacesFound?: (found: number, total: number) => void;
+  /** How many of the places have been found and of the challenges passed, when the maps arrive and whenever either changes. */
+  onProgress?: (progress: Progress) => void;
+}
+
+export interface Progress {
+  places: { done: number; total: number };
+  challenges: { done: number; total: number };
 }
 
 /** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
@@ -427,6 +432,8 @@ export interface Game {
   jumpTo: (id: string) => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
+  /** Forgets everything this browser kept for the game and starts it again. */
+  resetSave: () => void;
   dispose: () => void;
 }
 
@@ -1094,6 +1101,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let worldMap: WorldMap | null = null;
   let discovery: Discovery | null = null;
   const headingClockwise = (car: CarState) => -headingOf(car.rotation);
+  const showProgress = () => {
+    if (!discovery) return;
+    events.onProgress?.({
+      places: { done: discovery.foundCount, total: discovery.places.length },
+      challenges: { done: challengeBoard.passedCount, total: challengeBoard.challenges.length },
+    });
+  };
   const pickDestination = (x: number, z: number) => {
     const car = drive.stateAt(1);
     if (!navigator) throw new Error("a destination before the road network arrived");
@@ -1140,7 +1154,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       );
       stream.addBytes(data.bytes);
       events.onMapReady?.();
-      events.onPlacesFound?.(found.foundCount, found.places.length);
+      showProgress();
     },
     (error: unknown) => {
       fail(error instanceof Error ? error : new Error(String(error)));
@@ -1787,7 +1801,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (discovery && !lifted && !jumping) {
       const reached = discovery.update(car.position[0], car.position[2]);
       for (const place of reached) events.onPlaceFound?.(place);
-      if (reached.length > 0) events.onPlacesFound?.(discovery.foundCount, discovery.places.length);
+      if (reached.length > 0) showProgress();
     }
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
@@ -1797,6 +1811,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
       challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
+      showProgress();
     }
     showNextLine();
     challengeMarks.update();
@@ -2097,6 +2112,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       void jumpTo(id).catch(fail);
     },
     whereabouts,
+    resetSave() {
+      // The game holds what it loaded and would save it again, so it starts over from the cleared store.
+      storage.clear();
+      window.location.reload();
+    },
     dispose() {
       void renderer.setAnimationLoop(null);
       document.removeEventListener("visibilitychange", hushWhenHidden);
