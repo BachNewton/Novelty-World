@@ -19,9 +19,9 @@ import { measure } from "./skeleton";
  * still on the ground. Slowing, it shortens its steps, and standing it stands.
  */
 
-/** Room a slot keeps for a figure, near and far: more than any walking figure takes, which a test holds. */
+/** Room a slot keeps for a figure, near and far: more than any walking figure takes, which a test holds, in whole triangles. */
 export const NEAR_SLOT = { vertices: 400, indices: 1440 } as const;
-export const FAR_SLOT = { vertices: 80, indices: 200 } as const;
+export const FAR_SLOT = { vertices: 80, indices: 192 } as const;
 /** A walker's steps are full length from this pace up, and shorten in step with it below. */
 const FULL_STEPS_MS = 1;
 /** Its shortest steps, as a share of its full ones, for working out how fast it steps when slow. */
@@ -55,6 +55,8 @@ interface Taken {
 
 /** One version of the crowd's figures: a slot's room for each, its vertices tagged with their slot. */
 function slotted(room: number, size: { vertices: number; indices: number }) {
+  // A slot's room is read as triangles across the whole list: a third left over would join one slot to the next.
+  if (size.indices % 3 !== 0) throw new Error(`a slot of ${size.indices} indices isn't whole triangles`);
   const arrays = figureArrays(room * size.vertices, room * size.indices);
   const slots = new Float32Array(room * size.vertices);
   for (let slot = 0; slot < room; slot++) slots.fill(slot, slot * size.vertices, (slot + 1) * size.vertices);
