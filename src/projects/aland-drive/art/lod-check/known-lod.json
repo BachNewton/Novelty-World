@@ -2,6 +2,13 @@
   "town-kit: terminal": {
     "deviation": 145,
     "look": 0.512,
+    "spot": 0.962,
     "swapM": 798
+  },
+  "identity: harvest flag": {
+    "deviation": 1,
+    "look": 0.339,
+    "spot": 0.972,
+    "swapM": 81
   }
 }
