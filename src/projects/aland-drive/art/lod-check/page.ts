@@ -260,14 +260,16 @@ const triangles = (geometry: { index: { count: number } | null; getAttribute: (n
  * this page's `part` of `parts`, so several pages share the work. The swaps tried stand `SWAP_STEP` apart from the
  * nearest the picture holds to the latest its reach allows, and a change only shrinks with distance, so the nearest
  * unnoticed one is found by halving. Where `written` already holds a swap for the art, that one and the one before it
- * are tried first: when it's unnoticed and the one before isn't, it stands, and no other is drawn.
+ * are tried first: when it's unnoticed and the one before isn't, it stands, and no other is drawn. Given `only`, just
+ * the models it names.
  */
-export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>, part: number, parts: number, written: Record<string, { swapM: number } | undefined>): Promise<LodResult[]> {
+export async function checkAll(catalogues: Record<string, { artModels: () => ArtModel[] }>, part: number, parts: number, written: Record<string, { swapM: number } | undefined>, only: readonly string[] = []): Promise<LodResult[]> {
   const results: LodResult[] = [];
   let index = 0;
   for (const [kit, { artModels }] of Object.entries(catalogues)) {
     for (const entry of artModels()) {
       if (entry.drawn === undefined || entry.drawn.model.far === null) continue;
+      if (only.length > 0 && !only.includes(`${kit}: ${entry.name}`)) continue;
       if (index++ % parts !== part) continue;
       const { near, far, swapM: builtM, reachM } = entry.drawn.model;
       const swaps: number[] = [];
