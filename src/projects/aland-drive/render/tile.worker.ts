@@ -231,7 +231,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
   const stoneWalls = wallSections(walls, grid);
   const placed = decodeModels(models);
-  const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest), manifest.nearSites);
+  const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest, grid), manifest.nearSites);
   const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills), dockWalls(docks), parkedWalls(parked), addOnWalls), cut);
   return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), town, townRibbons: townRibbons ?? new Uint8Array(detail.surface.tiers.length), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, addOns, bytes: reader.bytes };
 }

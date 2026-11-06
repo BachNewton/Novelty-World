@@ -34,6 +34,7 @@ import overview
 import parking
 import road_map
 import paving
+import paving_file
 import roads as road_surface
 import roadside
 import rocks
@@ -135,23 +136,24 @@ def corners_to_samples(corners: np.ndarray) -> np.ndarray:
     return corners[:-1, :-1] | corners[1:, :-1] | corners[:-1, 1:] | corners[1:, 1:]
 
 
-def encode_paving(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray, list]], paved: paving.Paved) -> bytes:
-    """Every way's rings and tiers as a ribbon's, which the game doesn't draw, then the paving's points and triangles.
-
-    A point names its way by where that way is in the tile's list of chains, which holds only the ways with rings: a point
-    of a way without is any way's, which the game reads as the nearest.
-    """
-    rings = b"".join(ring.astype("<f4").tobytes() for _, ring, _, _ in ribbons)
-    tiers = b"".join(tier.astype("u1").tobytes() for _, _, tier, _ in ribbons)
+def paving_way_points(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray, list]], paved: paving.Paved) -> np.ndarray:
+    """The paving's points, each naming its way by where that way is in the tile's list of chains, which holds only the
+    ways with rings: a point of a way without is any way's, which the game reads as the nearest."""
     listed = {chain.index: position for position, (chain, _, _, _) in enumerate(ribbons)}
     points = paved.points.copy()
-    way = points[:, 6].astype(int)
-    points[:, 6] = [value if value == paving.AREA else listed.get(value, paving.JUNCTION) for value in way]
-    return gzip.compress(rings + tiers + points.astype("<f4").tobytes() + paved.triangles.astype("<u4").tobytes(), 9, mtime=0)
+    points[:, 6] = [value if value == paving.AREA else listed.get(value, paving.JUNCTION) for value in points[:, 6].astype(int)]
+    return points
 
 
-def encode_ground_cut(cut: paving.GroundCut) -> bytes:
-    return gzip.compress(cut.cells.astype("<u4").tobytes() + cut.points.astype("<f4").tobytes() + cut.triangles.astype("<u4").tobytes(), 9, mtime=0)
+def encode_paving(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray, list]], paved: paving.Paved, grid: paving_file.Grid) -> bytes:
+    """Every way's rings and tiers as a ribbon's, which the game doesn't draw, then the paving's points and triangles."""
+    rings = b"".join(ring.astype("<f4").tobytes() for _, ring, _, _ in ribbons)
+    tiers = b"".join(tier.astype("u1").tobytes() for _, _, tier, _ in ribbons)
+    return gzip.compress(rings + tiers + paving_file.paving_bytes(paving_way_points(ribbons, paved), paved.triangles, grid, paved.area_points), 9, mtime=0)
+
+
+def encode_ground_cut(cut: paving.GroundCut, grid: paving_file.Grid) -> bytes:
+    return gzip.compress(paving_file.ground_cut_bytes(cut.cells, cut.points, cut.triangles, cut.walls, grid), 9, mtime=0)
 
 
 def as_written(nodes: np.ndarray) -> np.ndarray:
@@ -246,7 +248,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         if paved is not None:
             if not np.isfinite(paved.points).all():
                 raise ValueError(f"{tile.name}: the paving came out with no height")
-            (folder / "road-surface.bin.gz").write_bytes(encode_paving(ribbons, paved))
+            # Written once the heights are final: its heights are offsets from them.
             footprints = paving.footprint_ribbons(paved)
             baked += [(ring, tier) for ring, tier, _ in footprints]
             motor_roads += [(ring, tier) for ring, tier, motor in footprints if motor]
@@ -274,8 +276,12 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         if paved is not None:
             # The paving is the drawn surface; each way's rings stay for what places things beside a road.
             surface_manifest["paved"] = True
-            surface_manifest["encoding"] = "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving: float32le points of (east, north, height, across, tier, along, way, class, cos 2θ, sin 2θ of the way it runs), then uint32le triangles"
-            surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points, "pointFloats": paving.POINT_FLOATS}
+            surface_manifest["encoding"] = (
+                "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving (pipeline/paving_file.py): "
+                "int32le columns of east (mm from the tile's west, each the difference from the last), north (mm south of the tile's north), height (mm off the height grid's drawn surface), along (cm) and way, "
+                "then int32le triangles (least corner first, sorted: its difference from the last's, then the others' from it), then int16le across (1024ths), then bytes of tier, class and run (steps of π/32 of twice its angle, 255 for none)"
+            )
+            surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points}
 
     levels = terrain.water_levels(mosaic, flat_water)
     # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.
@@ -296,17 +302,20 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     nodes = terrain.height_nodes(conformed)
     if paved is not None:
         # Cut from the heights as written, after the seabed: the cut ground meets the grid on its own nodes.
-        cut = paved.ground_cut(as_written(nodes))
+        written = as_written(nodes)
+        grid = paving_file.Grid.of(written, west, north, TILE_SIZE_M / (nodes.shape[0] - 1))
+        (folder / "road-surface.bin.gz").write_bytes(encode_paving(ribbons, paved, grid))
+        cut = paved.ground_cut(written)
         if not np.isfinite(cut.points).all():
             raise ValueError(f"{tile.name}: the ground cut round the paving came out with no height")
-        (folder / "ground-cut.bin.gz").write_bytes(encode_ground_cut(cut))
+        (folder / "ground-cut.bin.gz").write_bytes(encode_ground_cut(cut, grid))
         surface_manifest["groundCut"] = {
             "file": "ground-cut.bin.gz",
             "cells": len(cut.cells),
             "points": len(cut.points),
             "triangles": len(cut.triangles),
             "walls": cut.walls,
-            "encoding": "gzip of uint32le cells (row * cells + column of the 4 m height grid's cells, which the cut ground replaces), then float32le points of (east, north, height), then uint32le triangles, the last `walls` of them the underpasses' walls",
+            "encoding": "gzip of int32le cells (row * cells + column of the 4 m height grid's cells, which the cut ground replaces, each the difference from the last), then int32le columns of the points' east, north and height as the paving's, then int32le triangles as the paving's, the last `walls` of them the underpasses' walls, coded on their own",
         }
     level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))

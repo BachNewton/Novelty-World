@@ -11,6 +11,7 @@ import numpy as np
 import shapely
 
 from paving import JUNCTION_ACROSS, POINT_FLOATS
+from paving_file import Grid, paving_bytes
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Paved, Roadside, read_surface
 
 # A road running east along north = 0, 6 m of carriageway and 2 m of shoulder each side, flat at height 0.
@@ -166,15 +167,20 @@ def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple
     path = east_road()
     path.rings = path.rings + np.array([0.0, 20.0, 0.0])
     rings = np.concatenate((east_road().rings, path.rings)).astype("<f4")
-    points = np.zeros((3 * len(pieces), POINT_FLOATS), dtype="<f4")
+    points = np.zeros((3 * len(pieces), POINT_FLOATS))
     for index, (corners, across, way) in enumerate(pieces):
         points[3 * index : 3 * index + 3, :2] = corners
         points[3 * index : 3 * index + 3, 3] = across
         points[3 * index : 3 * index + 3, 6] = way
-    triangles = np.arange(len(points), dtype="<u4")
-    (folder / "road-surface.bin.gz").write_bytes(gzip.compress(rings.tobytes() + bytes(len(rings)) + points.tobytes() + triangles.tobytes()))
+    triangles = np.arange(len(points)).reshape(-1, 3)
+    # Flat ground, one cell over everything, for the paving's heights to be read off.
+    heights = {"file": "heights.bin.gz", "nodes": 2, "stepM": 1000.0, "unitM": 0.01}
+    (folder / "heights.bin.gz").write_bytes(gzip.compress(np.zeros(4, dtype="<i2").tobytes()))
+    bounds = {"west": -500.0, "north": 500.0}
+    grid = Grid.of(np.zeros((2, 2)), bounds["west"], bounds["north"], heights["stepM"])
+    (folder / "road-surface.bin.gz").write_bytes(gzip.compress(rings.tobytes() + bytes(len(rings)) + paving_bytes(points, triangles, grid, 0)))
     chains = [{"sections": len(east_road().rings), "kind": "tertiary", "motor": True}, {"sections": len(path.rings), "kind": "footway", "motor": False}]
-    return {"roadSurface": {"file": "road-surface.bin.gz", "chains": chains, "paved": True, "aprons": {"points": len(points), "triangles": len(pieces), "areaPoints": 0, "pointFloats": POINT_FLOATS}}}
+    return {"bounds": bounds, "heights": heights, "roadSurface": {"file": "road-surface.bin.gz", "chains": chains, "paved": True, "aprons": {"points": len(points), "triangles": len(pieces), "areaPoints": 0}}}
 
 
 class PavedTiles(unittest.TestCase):

@@ -19,7 +19,6 @@ Every place gets a `?at=` link and `tools/look.mjs` arguments, looking at it fro
 """
 
 import argparse
-import gzip
 import json
 import math
 from dataclasses import dataclass, field
@@ -33,6 +32,7 @@ from scipy.spatial import cKDTree
 from build import OUTPUT
 from grid import WORLD_ORIGIN
 from path_surfaces import STEPS
+from paving_file import read_ground_cut
 from roads import GAP_MOST_STEP_M
 from sources import RAW
 from surface_audit import read_tile
@@ -72,12 +72,8 @@ class Place:
 
 def read_paving(folder: Path):
     manifest, _, chains, points, triangles = read_tile(folder)
-    cut = manifest["roadSurface"]["groundCut"]
-    data = gzip.decompress((folder / cut["file"]).read_bytes())
-    start = cut["cells"] * 4
-    cut_points = np.frombuffer(data, "<f4", count=cut["points"] * 3, offset=start).reshape(-1, 3).astype(np.float64)
-    cut_triangles = np.frombuffer(data, "<u4", count=cut["triangles"] * 3, offset=start + cut["points"] * 12).reshape(-1, 3)
-    return manifest, chains, points, triangles, cut_points, cut_triangles[: len(cut_triangles) - cut["walls"]]
+    cut = read_ground_cut(folder, manifest)
+    return manifest, chains, points, triangles, cut.points, cut.triangles[: len(cut.triangles) - cut.walls]
 
 
 def clustered(found: list[Place]) -> list[Place]:

@@ -1,0 +1,64 @@
+{
+ "tile": "PAVED",
+ "bounds": {
+  "west": 0.0,
+  "south": 0.0,
+  "east": 1200.0,
+  "north": 1200.0
+ },
+ "heights": {
+  "file": "heights.bin.gz",
+  "nodes": 301,
+  "stepM": 4.0,
+  "unitM": 0.01
+ },
+ "roadSurface": {
+  "file": "road-surface.bin.gz",
+  "chains": [
+   {
+    "sections": 79,
+    "kind": "primary",
+    "motor": true
+   },
+   {
+    "sections": 74,
+    "kind": "residential",
+    "motor": true
+   },
+   {
+    "sections": 37,
+    "kind": "cycleway",
+    "motor": false
+   },
+   {
+    "sections": 35,
+    "kind": "footway",
+    "motor": false
+   },
+   {
+    "sections": 23,
+    "kind": "path",
+    "motor": false
+   }
+  ],
+  "paved": true,
+  "aprons": {
+   "points": 1104,
+   "triangles": 1548,
+   "areaPoints": 0
+  },
+  "groundCut": {
+   "file": "ground-cut.bin.gz",
+   "cells": 1822,
+   "points": 3058,
+   "triangles": 3059,
+   "walls": 16
+  }
+ },
+ "solids": {
+  "file": "",
+  "unitM": 0.02,
+  "cells": [],
+  "walls": 0
+ }
+}

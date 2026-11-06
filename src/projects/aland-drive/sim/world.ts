@@ -155,8 +155,8 @@ function blockRoads(ribbon: { positions: Float32Array; indices: Uint32Array }, w
 }
 
 export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), cutBytes: ArrayBuffer = new ArrayBuffer(0)): TileDetail {
-  const surface = decodeRoadSurface(surfaceBytes, manifest);
-  const cut = decodeGroundCut(cutBytes, manifest);
+  const surface = decodeRoadSurface(surfaceBytes, manifest, grid);
+  const cut = decodeGroundCut(cutBytes, manifest, grid);
   const cutCells = new Uint8Array((grid.nodes - 1) * (grid.nodes - 1));
   for (const cell of cut.cells) cutCells[cell] = 1;
   const ribbon = ribbonMesh(surface, manifest.bounds);

@@ -42,6 +42,7 @@ from shapely.geometry import Point
 
 from build import OUTPUT
 from grid import TILE_SIZE_M, WORLD_ORIGIN
+from paving_file import read_paving
 from roads import CLASSES, surface_height
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, RINGS, Chain, other_than_seam
 
@@ -49,7 +50,6 @@ CELL_M = 0.5
 BLOCK_M = 1000.0
 # Each block is read with this much of its neighbours, so a fault on a block's edge is seen whole.
 PAD_M = 6.0
-APRON_FLOATS = 5
 APRON_CARRIAGEWAY = 0.5
 # As the game drops a ribbon triangle when it makes the mesh (`render/roads.ts`): a cliff of ribbon no car should meet.
 CLIFF_RISE_M = 1.2
@@ -120,12 +120,8 @@ def read_tile(folder: Path) -> tuple[dict, np.ndarray, list[Chain], np.ndarray, 
         rank = CLASSES[kind].rank if kind in CLASSES else 6
         chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans") or []], chain.get("name") or ""))
         first += chain["sections"]
-    start = sections * RINGS * 12 + sections
-    count = surface["aprons"]["points"]
-    floats = surface["aprons"].get("pointFloats", APRON_FLOATS)
-    points = np.frombuffer(data, "<f4", count=count * floats, offset=start).reshape(-1, floats).astype(np.float64)
-    triangles = np.frombuffer(data, "<u4", count=surface["aprons"]["triangles"] * 3, offset=start + count * floats * 4).reshape(-1, 3)
-    return manifest, nodes, chains, points, triangles
+    laid = read_paving(folder, manifest)
+    return manifest, nodes, chains, laid.points, laid.triangles
 
 
 def _kept(triangles: np.ndarray) -> np.ndarray:

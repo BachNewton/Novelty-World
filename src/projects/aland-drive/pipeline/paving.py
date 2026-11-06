@@ -130,8 +130,6 @@ DECK_DEPTH_M = 0.6
 EMBANKMENT_SLOPE = 0.6
 # How far out a bank can reach, in passes of a corner each.
 EMBANKMENT_PASSES = 24
-# Cells round those the paving touches that are cut too, so the cut ground meets the plain grid on whole cell edges.
-CUT_MARGIN_CELLS = 1
 CUT_BLOCK_CELLS = 16
 # Two triangles of cut ground further apart than this along an edge they share have a crack between them to close.
 CRACK_M = 0.002
@@ -1083,7 +1081,7 @@ def cut_ground(cut_from: shapely.Geometry, triangles: np.ndarray, nodes: np.ndar
     block_rows, block_columns = np.mgrid[0:blocks, 0:blocks]
     block_m = CUT_BLOCK_CELLS * step
     block_boxes = shapely.box(ground.west + block_columns * block_m, ground.north - (block_rows + 1) * block_m, ground.west + (block_columns + 1) * block_m, ground.north - block_rows * block_m).ravel()
-    near = shapely.intersection(shapely.buffer(block_boxes, step * (CUT_MARGIN_CELLS + 1), join_style="mitre"), cut_from)
+    near = shapely.intersection(shapely.buffer(block_boxes, step, join_style="mitre"), cut_from)
 
     def block_of(rows: np.ndarray, columns: np.ndarray) -> np.ndarray:
         return near[(rows // CUT_BLOCK_CELLS) * blocks + columns // CUT_BLOCK_CELLS]
@@ -1097,10 +1095,10 @@ def cut_ground(cut_from: shapely.Geometry, triangles: np.ndarray, nodes: np.ndar
     columns = np.concatenate([grid_columns.ravel() + (block % blocks) * CUT_BLOCK_CELLS for block in occupied])
     real = (rows < cells) & (columns < cells)
     rows, columns = rows[real], columns[real]
+    # Only cells the paving touches: a cell it doesn't is the grid's own two triangles, which the game draws by itself.
     touched = np.zeros((cells, cells), dtype=bool)
     touched[rows, columns] = shapely.intersects(block_of(rows, columns), boxes(rows, columns))
-    cut = ndimage.binary_dilation(touched, iterations=CUT_MARGIN_CELLS)
-    rows, columns = np.nonzero(cut)
+    rows, columns = np.nonzero(touched)
     open_ground = shapely.difference(boxes(rows, columns), block_of(rows, columns))
     pieces, which = shapely.get_parts(shapely.constrained_delaunay_triangles(open_ground), return_index=True)
     corners = np.round(shapely.get_coordinates(pieces).reshape(-1, 4, 2)[:, :3], 3)
@@ -1360,7 +1358,8 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
                 kerbs[chain.index] = on_seams(_polygonal(shapely.intersection(kerb, prints[chain.index][GROUND])), own, tile)
     mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile))
     surfaces = Surfaces(chains, ground)
-    heights = solve_heights(mesh, surfaces, ground, sections)
+    # To the millimetre, as the tile holds it, so the ground cut against the paving takes the very heights drawn.
+    heights = np.round(solve_heights(mesh, surfaces, ground, sections), 3)
     points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses)
 
     raw = ground.tile_corners()

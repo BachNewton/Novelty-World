@@ -49,6 +49,7 @@ from shapely.geometry import LineString, Point, Polygon
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES
 from paving import JUNCTION_ACROSS
+from paving_file import read_paving
 from progress import Progress
 from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
@@ -59,7 +60,6 @@ RINGS = 5
 # Where a paved tile's points carry how far across their way they lie, and which way.
 PAVING_ACROSS, PAVING_WAY = 3, 6
 OUTER_LEFT, EDGE_LEFT, CENTRE, EDGE_RIGHT, OUTER_RIGHT = range(RINGS)
-APRON_FLOATS = 5
 # Placed from OSM's objects as well as its roads, so the list is ODbL, as the roads are.
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 
@@ -264,10 +264,8 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans", [])], chain.get("name") or ""))
         first += chain["sections"]
     aprons = surface["aprons"]
-    start = sections * RINGS * 12 + sections
-    floats = aprons.get("pointFloats", APRON_FLOATS)
-    points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * floats, offset=start).reshape(-1, floats)
-    triangles = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.nbytes).reshape(-1, 3)
+    laid = read_paving(folder, manifest)
+    points, triangles = laid.points, laid.triangles
     owners = np.full(len(triangles), -1)
     if surface.get("paved"):
         corners = points[triangles]
