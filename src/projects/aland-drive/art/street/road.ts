@@ -47,11 +47,19 @@ function railPost(into: Painted, x: number, top = RAIL_TOP_M, off = 0): Painted 
     .box([x - 0.04, top - 0.25, front], [x + 0.04, top - 0.05, SPACER_M + off + 0.02], "rail-spacer", { open: true, shade: 0.7 });
 }
 
+/** A post far off: two cards crossed, one across the run and one along it, so it stands seen from any side. */
+function farPost(into: Painted, x: number, top: number, off = 0): Painted {
+  const [front, back] = [SPACER_M + off, -0.06 + off];
+  const middle = (front + back) / 2;
+  return into
+    .face([[x - 0.05, -SINK_M, middle], [x + 0.05, -SINK_M, middle], [x + 0.05, top, middle], [x - 0.05, top, middle]], "rail-post", 0.8)
+    .face([[x, -SINK_M, back], [x, -SINK_M, front], [x, top, front], [x, top, back]], "rail-post", 0.95);
+}
+
 function farRail(x0: number, x1: number): Painted {
-  const [high, low] = [RAIL_TOP_M, RAIL_TOP_M - 0.31];
-  return new Painted()
-    .face([[x0, high, SPACER_M + 0.05], [x1, high, SPACER_M + 0.05], [x1, low, SPACER_M + 0.05], [x0, low, SPACER_M + 0.05]], "rail", 0.95)
-    .face([[x0 + POST_BAY_M - 0.05, -SINK_M, 0], [x0 + POST_BAY_M + 0.05, -SINK_M, 0], [x0 + POST_BAY_M + 0.05, low, 0], [x0 + POST_BAY_M - 0.05, low, 0]], "rail-post", 0.7);
+  const far = new Painted().box([x0, RAIL_TOP_M - 0.31, SPACER_M], [x1, RAIL_TOP_M, SPACER_M + 0.083], "rail", { shade: 0.9, shadeTop: 1.15 });
+  for (const x of [x0 + POST_BAY_M / 2, x0 + POST_BAY_M * 1.5]) farPost(far, x, RAIL_TOP_M - 0.02);
+  return far;
 }
 
 const RAIL_SWAP_M = 70;
@@ -82,8 +90,12 @@ export function buildGuardRailReturn(): RoadsideModel {
   const curve = [0, 0.4, 0.8, 1.2].map((angle) => [Math.sin(angle) * 0.34, RAIL_TOP_M, 0.34 * (Math.cos(angle) - 1)] as const);
   const near = sweep(new Painted(), curve);
   railPost(near, 0);
-  const far = new Painted().face([[0, RAIL_TOP_M, SPACER_M], [0.3, RAIL_TOP_M, SPACER_M - 0.2], [0.3, RAIL_TOP_M - 0.31, SPACER_M - 0.2], [0, RAIL_TOP_M - 0.31, SPACER_M]], "rail", 0.9);
-  return streetModel(near, far, RAIL_SWAP_M, RAIL_REACH_M);
+  const far = new Painted();
+  for (const [from, to] of [[curve[0], curve[2]], [curve[2], curve[3]]]) {
+    const at = ([x, , z]: (typeof curve)[number], down: number): V3 => [x, RAIL_TOP_M - down, SPACER_M + z + 0.04];
+    far.face([at(from, 0), at(to, 0), at(to, 0.31), at(from, 0.31)], "rail", 0.9);
+  }
+  return streetModel(near, farPost(far, 0, RAIL_TOP_M - 0.02), RAIL_SWAP_M, RAIL_REACH_M);
 }
 
 const REFLECTOR_TALL_M = 1.05;
@@ -110,9 +122,10 @@ export function buildReflectorPost(): RoadsideModel {
     const x = side * 0.024;
     near.face([[x - 0.019, BAND_LOW_M + 0.03, deep * 1.05], [x + 0.019, BAND_LOW_M + 0.03, deep * 1.05], [x + 0.019, BAND_HIGH_M - 0.03, deep * 1.05], [x - 0.019, BAND_HIGH_M - 0.03, deep * 1.05]], "reflector", 1.25);
   }
-  const far = new Painted()
-    .face([[-wide, -SINK_M, 0], [wide, -SINK_M, 0], [wide, BAND_LOW_M, 0], [-wide, BAND_LOW_M, 0]], "post-white")
-    .face([[-wide, BAND_LOW_M, 0], [wide, BAND_LOW_M, 0], [wide, BAND_HIGH_M, 0], [-wide, BAND_HIGH_M, 0]], "post-band")
-    .face([[-wide, BAND_HIGH_M, 0], [wide, BAND_HIGH_M, 0], [wide, REFLECTOR_TALL_M, 0], [-wide, REFLECTOR_TALL_M, 0]], "post-white");
+  // Its white, band and white on two cards crossed, so it stands seen from any side.
+  const far = new Painted();
+  for (const [low, high, part] of [[-SINK_M, BAND_LOW_M, "post-white"], [BAND_LOW_M, BAND_HIGH_M, "post-band"], [BAND_HIGH_M, REFLECTOR_TALL_M, "post-white"]] as const) {
+    far.face([[-wide, low, 0], [wide, low, 0], [wide, high, 0], [-wide, high, 0]], part).face([[0, low, -deep], [0, low, deep], [0, high, deep], [0, high, -deep]], part, 0.9);
+  }
   return streetModel(near, far, 45, 360);
 }

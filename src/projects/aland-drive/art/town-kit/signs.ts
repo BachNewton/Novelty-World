@@ -138,8 +138,15 @@ export function buildVillageSign(): RoadsideModel {
   hood(near, 0.32)
     .box([-half - 0.03, high, -0.05], [half + 0.03, high + 0.06, 0.05], "board-white", { open: true })
     .box([-half - 0.03, low - 0.06, -0.05], [half + 0.03, low, 0.05], "board-white", { open: true });
-  const far = hood(new TownPainted(), 0.3)
-    .box([-half - 0.1, -SINK_M, -0.08], [half + 0.1, low, 0.08], "post-wood", { open: true })
-    .face([[-half, low, 0], [half, low, 0], [half, high, 0], [-half, high, 0]], "plate-blue");
+  const far = hood(new TownPainted(), 0.32);
+  // The posts' sides only: their tops are under the hood.
+  for (const x of [-half - 0.1, half + 0.1]) {
+    const corners = [[x - 0.07, 0.07], [x + 0.07, 0.07], [x + 0.07, -0.07], [x - 0.07, -0.07]] as const;
+    corners.forEach(([ax, az], side) => {
+      const [bx, bz] = corners[(side + 1) % corners.length];
+      far.face([[ax, -SINK_M, az], [bx, -SINK_M, bz], [bx, high + 0.22, bz], [ax, high + 0.22, az]], "post-wood");
+    });
+  }
+  for (const y of [low - 0.06, high]) far.face([[-half - 0.03, y, 0.05], [half + 0.03, y, 0.05], [half + 0.03, y + 0.06, 0.05], [-half - 0.03, y + 0.06, 0.05]], "board-white");
   return townModel(near, far, 320, 900);
 }

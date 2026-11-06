@@ -184,9 +184,10 @@ export function buildSailboat(rig: SailboatRig = "moored"): RoadsideModel {
   const mastTop: V3 = [0, MAST_M, MAST_Z];
   near.tube([0, 1.1, MAST_Z], mastTop, 0.07, 4, { radiusTo: 0.04 }, "spar");
   near.tube([0, 1.8, MAST_Z - 0.05], [0, 1.72, -2.9], 0.035, 3, {}, "spar");
-  const stay = (from: V3, to: V3) => near.face([from, to, [to[0] + 0.03, to[1], to[2]], [from[0] + 0.03, from[1], from[2]]], "roof-dark", 0.9);
-  stay(mastTop, [0, 0.96, 3.45]);
-  stay(mastTop, [0, 0.74, -3.05]);
+  const stays = (mesh: RuralMesh) => {
+    for (const to of [[0, 0.96, 3.45], [0, 0.74, -3.05]] as const) mesh.face([mastTop, to, [to[0] + 0.03, to[1], to[2]], [mastTop[0] + 0.03, mastTop[1], mastTop[2]]], "roof-dark", 0.9);
+  };
+  stays(near);
   if (rig === "moored") {
     near.tube([0, 1.82, MAST_Z - 0.1], [0, 1.74, -2.5], 0.13, 5, { radiusTo: 0.07, cap: true }, "cover");
   } else {
@@ -199,6 +200,8 @@ export function buildSailboat(rig: SailboatRig = "moored"): RoadsideModel {
     .face([[1, 0.66, -3], [1, 0.66, 1.4], [0, 0.96, 3.5], [0, -0.1, 3.5], [0.8, -0.1, -3]], "hull-white")
     .face([[-0.06, 0.8, MAST_Z], [0.06, 0.8, MAST_Z], [0.04, MAST_M, MAST_Z], [-0.04, MAST_M, MAST_Z]], "spar")
     .face([[0, 0.8, MAST_Z + 0.06], [0, 0.8, MAST_Z - 0.06], [0, MAST_M, MAST_Z - 0.04], [0, MAST_M, MAST_Z + 0.04]], "spar");
+  stays(far);
+  if (rig === "moored") far.tube([0, 1.82, MAST_Z - 0.1], [0, 1.74, -2.5], 0.12, 3, {}, "cover");
   if (rig === "sailing") far.face([[0, 8.3, MAST_Z], [0.42, 1.95, -2.85], [0, 1.9, MAST_Z]], "sail").face([[0, 7.6, MAST_Z], [0.22, 1.25, 3.4], [0, 1.1, 0.75]], "sail", 0.96);
   return finished(near, far, 130, 1200);
 }

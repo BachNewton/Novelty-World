@@ -1,4 +1,4 @@
-export { CATALOGUE, FAR_LIMIT, GALEAS_LIMIT, NEAR_LIMIT, type Entry } from "./catalogue";
+export { CATALOGUE, GALEAS_LIMIT, LIMIT, type Entry, type Limit } from "./catalogue";
 export { buildOptimist, buildSingleHander, type DinghyOptions } from "./dinghies";
 export { JETTY_DECK_M, JETTY_GAP_M, type Mooring } from "./dress";
 export { boatMaterials, type BoatInputs } from "./material";

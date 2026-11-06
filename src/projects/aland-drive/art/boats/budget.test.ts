@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { CATALOGUE, FAR_LIMIT } from "./catalogue";
+import { CATALOGUE } from "./catalogue";
 import { BOAT_PARTS, triangles } from "./mesh";
 
 // The brief's budgets are the limit on what a harbour of these can cost, and a rig grows quietly.
 describe("boat triangle budgets", () => {
   it.each(CATALOGUE.map((entry) => [entry.name, entry] as const))("%s stays within its budget", (_, { limit, model }) => {
     const { near, far } = model();
-    expect(triangles(near)).toBeLessThan(limit);
-    expect(triangles(far)).toBeLessThan(FAR_LIMIT);
+    expect(triangles(near)).toBeLessThan(limit.near);
+    expect(triangles(far)).toBeLessThan(limit.far);
   });
 });
 

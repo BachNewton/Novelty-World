@@ -14,7 +14,7 @@ export interface Entry {
 
 /** Every model the kit builds with its limits, for the budget test and the gallery. */
 export function catalogue(): Entry[] {
-  const small = (name: string, model: RoadsideModel): Entry => ({ name, limit: 150, farLimit: 24, model });
+  const small = (name: string, model: RoadsideModel, farLimit = 24): Entry => ({ name, limit: 150, farLimit, model });
   const building = (name: string, model: RoadsideModel, limit: number): Entry => ({ name, limit, farLimit: 44, model });
   return [
     small("sauna", buildSauna()),
@@ -32,8 +32,9 @@ export function catalogue(): Entry[] {
     small("open-farm sign", buildOpenFarmSign()),
     small("cyclist with bike", buildCyclist("with-bike")),
     small("cyclist standing", buildCyclist("standing", "shirt-red")),
-    small("bicycle", buildBicycle()),
-    small("touring rack", buildTouringRack()),
+    // A far bike keeps its wheels as rings, a dozen triangles a wheel.
+    small("bicycle", buildBicycle(), 40),
+    small("touring rack", buildTouringRack(), 82),
     small("picnic table", buildPicnicTable()),
     { name: "lighthouse", limit: 1000, farLimit: 70, model: buildLighthouse() },
     small("kummel", buildKummel()),

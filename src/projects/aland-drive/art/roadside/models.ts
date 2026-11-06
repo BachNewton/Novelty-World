@@ -111,9 +111,19 @@ export function buildFarmFence(): RoadsideModel {
     const side = rail % 2 === 0 ? -0.03 : 0.03;
     near.tube([start, FENCE_LOW_M, side], [start + lean, FARM_TALL_M, side], 0.042, 3, { shadeFrom: rail % 2 === 0 ? 1 : 0.86 }, "fence-wood");
   }
-  // Two bands with the field showing between, so far off it's still a fence and not a wall.
-  const far = new Model();
-  for (const [low, high] of [[0.2, 0.5], [0.72, 1.08]]) far.face([[0, low, 0], [FARM_FENCE_M, low, 0], [FARM_FENCE_M, high, 0], [0, high, 0]], "fence-wood", 0.8);
+  // The same leaning rails as strips, each turned about its length by its own angle so no one view sees them all edge-on, and the stakes as crossed cards.
+  const far = new Model().face([[-0.045, -SINK_M, 0], [0.045, -SINK_M, 0], [0.035, FARM_TALL_M + 0.22, 0], [-0.035, FARM_TALL_M + 0.22, 0]], "post-wood");
+  for (const z of [-0.09, 0.09]) far.face([[0, -SINK_M, z - 0.045], [0, -SINK_M, z + 0.045], [0, FARM_TALL_M + 0.22, z + 0.035], [0, FARM_TALL_M + 0.22, z - 0.035]], "post-wood", 0.9);
+  const rise = FARM_TALL_M - FENCE_LOW_M;
+  const [upX, upY] = [-rise / Math.hypot(lean, rise), lean / Math.hypot(lean, rise)];
+  for (let rail = 0; rail < FARM_RAILS; rail++) {
+    const start = (rail / FARM_RAILS) * FARM_FENCE_M - 0.6;
+    const side = rail % 2 === 0 ? -0.03 : 0.03;
+    const turn = (rail / FARM_RAILS) * Math.PI;
+    const [inPlane, outOf] = [Math.cos(turn) * 0.055, Math.sin(turn) * 0.055];
+    const across = (x: number, y: number, way: number): V3 => [x + upX * inPlane * way, y + upY * inPlane * way, side + outOf * way];
+    far.face([across(start, FENCE_LOW_M, -1), across(start + lean, FARM_TALL_M, -1), across(start + lean, FARM_TALL_M, 1), across(start, FENCE_LOW_M, 1)], "fence-wood");
+  }
   return model(near, far, 90, 240);
 }
 
@@ -141,7 +151,11 @@ export function buildTownFence(): RoadsideModel {
     const shoulder = PICKET_TALL_M - half;
     near.face([[x - half, 0.1, 0], [x + half, 0.1, 0], [x + half, shoulder, 0], [x, PICKET_TALL_M, 0], [x - half, shoulder, 0]], "fence-white");
   }
-  const far = new Model().face([[0, 0.12, 0], [TOWN_FENCE_M, 0.12, 0], [TOWN_FENCE_M, 0.88, 0], [0, 0.88, 0]], "fence-white", 0.85);
+  // The pickets as one board, and the post on two cards crossed, so the fence stands seen end-on too.
+  const far = new Model()
+    .face([[0.05, 0.12, 0], [TOWN_FENCE_M, 0.12, 0], [TOWN_FENCE_M, 0.88, 0], [0.05, 0.88, 0]], "fence-white", 0.85)
+    .face([[-0.05, -SINK_M, 0], [0.05, -SINK_M, 0], [0.05, 1.04, 0], [-0.05, 1.04, 0]], "fence-white")
+    .face([[0, -SINK_M, -0.05], [0, -SINK_M, 0.05], [0, 1.04, 0.05], [0, 1.04, -0.05]], "fence-white", 0.92);
   return model(near, far, 70, 200);
 }
 
