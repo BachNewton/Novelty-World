@@ -22,9 +22,13 @@ export interface Leaves {
   fresh: Node<"float">;
 }
 
-export function leavesOf(season: SeasonNodes, threshold: Node<"float">): Leaves {
+/**
+ * A plant's leaves at the season. `fallSpan` is how much of the season's share in leaf one plant takes to lose its
+ * leaves, or to grow them back, as a softness of `changeOf`: a tree loses its leaves over a couple of weeks, not at once.
+ */
+export function leavesOf(season: SeasonNodes, threshold: Node<"float">, fallSpan = 0.04): Leaves {
   const spring = season.turned.lessThanEqual(0);
-  const inLeaf = changeOf(season.leafed, select(spring, threshold, float(1).sub(threshold)));
+  const inLeaf = changeOf(season.leafed, select(spring, threshold, float(1).sub(threshold)), fallSpan);
   return { inLeaf, turned: changeOf(season.turned, threshold), fresh: select(spring, float(1).sub(season.leafed), float(0)).mul(inLeaf) };
 }
 

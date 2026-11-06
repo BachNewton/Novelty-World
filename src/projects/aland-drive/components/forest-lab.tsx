@@ -25,7 +25,7 @@ const READ_EVERY_FRAMES = 10;
 
 const VIEWS: { view: ForestLabView; label: string; key: string }[] = [
   { view: "game", label: "As in the game", key: "Natural colours." },
-  { view: "models", label: "Which model", key: "Green turned, blue cone. A speckled tree is mid-crossfade." },
+  { view: "models", label: "Which model", key: "Green turned, blue cone, orange branches, violet leaf clumps, yellow twig haze. A speckled tree is mid-crossfade." },
   { view: "changing", label: "What's changing", key: "Red trees are part way through a handover or dissolving. Grey ones are holding still." },
   { view: "slide", label: "Who slides", key: "Redder trees move further up or down between near and far: full red is 2 m." },
 ];
@@ -33,6 +33,9 @@ const VIEWS: { view: ForestLabView; label: string; key: string }[] = [
 const MODELS: { model: ForestModel; label: string }[] = [
   { model: "turned", label: "Turned" },
   { model: "cone", label: "Cone" },
+  { model: "branches", label: "Branches" },
+  { model: "clumps", label: "Clumps" },
+  { model: "haze", label: "Haze" },
 ];
 
 const SETTINGS: { key: keyof ForestSettings; label: string; min: number; max: number; step: number; show: (value: number) => string }[] = [
@@ -211,7 +214,7 @@ export function ForestLab() {
               />
             </label>
           ))}
-          <p className="text-xs">{state ? `Drew ${state.drawn.turned.toLocaleString()} turned, ${state.drawn.cone.toLocaleString()} cones` : ""}</p>
+          <p className="text-xs">{state ? `Drew ${state.drawn.turned.toLocaleString()} turned, ${state.drawn.cone.toLocaleString()} cones, ${state.drawn.branches.toLocaleString()} branches, ${state.drawn.clumps.toLocaleString()} clumped, ${state.drawn.haze.toLocaleString()} hazes` : ""}</p>
         </div>
 
         <p className="text-xs">
