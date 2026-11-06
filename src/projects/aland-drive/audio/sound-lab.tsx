@@ -23,7 +23,7 @@ const SEASON_NAMES = Object.keys(SEASON_DATES) as SeasonName[];
 function seasonHeard(name: SeasonName, hour: number): SeasonHeard {
   const date = SEASON_DATES[name];
   const { leaves, seaIce } = seasonAt(date, 0.5);
-  return { yearDay: yearDay(date.month, date.day) + hour / 24, sunDeg: gameTimeAt(date, hour).sun.elevationDeg, hour, leafed: leaves.leafed, iceReach: seaIce.reach };
+  return { yearDay: yearDay(date.month, date.day) + hour / 24, sunDeg: gameTimeAt(hour / 24, date).sun.elevationDeg, hour, leafed: leaves.leafed, iceReach: seaIce.reach };
 }
 
 /*
