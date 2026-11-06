@@ -2,7 +2,7 @@ import { createNight, DARKEST_LIGHT, skyAtHour, NIGHT_STOPS, type Night } from "
 import type { MoonPlace } from "../time/sky-places";
 import type { Sky, SkyLook } from "../art/sky/sky";
 import { createLiveSun, type LiveSun } from "../art/sun";
-import { DayClock, dayAsked, type GameTime } from "../time/day";
+import { DayClock, gameTimeAt, type CalendarDate, type GameTime } from "../time/day";
 
 /*
  * The game's day, as the render sees it: each frame the hour is read off the world's clock, the live sun moves to
@@ -78,14 +78,10 @@ export interface DayAndNight {
   update: (worldSeconds: number, gameSeconds: number) => void;
 }
 
-export function createDayAndNight(sky: Sky, search: string, startSeconds: number): DayAndNight {
-  const clock = new DayClock();
-  const asked = dayAsked(search);
-  clock.setDate(asked.date);
-  // A link's hour is set on the first frame's clock, which `?sea=` may have moved.
-  let hourAsked = asked.hour;
-  if (hourAsked !== null) clock.setHour(hourAsked, startSeconds);
-  let time = clock.at(startSeconds);
+export function createDayAndNight(sky: Sky, start: { gameDays: number; date: CalendarDate | null }): DayAndNight {
+  const clock = new DayClock(start.gameDays, start.date);
+  // The clock is read first on the first frame, whose world clock `?sea=` may have moved.
+  let time = gameTimeAt(start.gameDays, start.date);
   const sun = createLiveSun(time.sun);
   const night = createNight(nightAmount(time.sun.elevationDeg));
   const lookAtHour = skyAtHour();
@@ -103,8 +99,6 @@ export function createDayAndNight(sky: Sky, search: string, startSeconds: number
     night,
     time: () => time,
     update(worldSeconds, gameSeconds) {
-      if (hourAsked !== null) clock.setHour(hourAsked, worldSeconds);
-      hourAsked = null;
       time = clock.at(worldSeconds);
       night.seconds.value += gameSeconds;
       show();

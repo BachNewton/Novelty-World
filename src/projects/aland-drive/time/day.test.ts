@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { alandDate, alandInstant, alandOffsetHours, DayClock, dayAsked, GAME_DAY_S } from "./day";
+import { calendarAt, dateAt, GAME_DAYS_A_YEAR, gameDaysOf } from "./calendar";
+import { alandDate, alandInstant, alandOffsetHours, DayClock, dayAsked, GAME_DAY_S, gameDaysAtInstant, gameTimeAt, startOfDay } from "./day";
 import { moonPlace, sunPlace, SUNRISE_ELEVATION_DEG, TRUE_NORTH_GRID_DEG } from "./sky-places";
 
 // Mariehamn (60.0973 N, 19.9348 E), from sunrise-sunset.org's API, in UTC.
@@ -88,26 +89,27 @@ describe("Åland's calendar", () => {
 });
 
 describe("the game's day", () => {
-  it("runs a whole day in a game day, the same for every player", () => {
+  it("runs a whole day in a game day, on from where it started", () => {
     const start = Date.parse("2026-11-05T09:00:00Z") / 1000;
-    const clock = new DayClock();
-    const startHour = clock.at(start).hour;
-    expect(clock.at(start + GAME_DAY_S / 4).hour).toBeCloseTo((startHour + 6) % 24, 6);
-    expect(new DayClock().at(start + 17).hour).toBe(clock.at(start + 17).hour);
+    const clock = new DayClock(gameDaysOf({ year: 2026, month: 11, day: 1, hour: 6 }));
+    expect(clock.at(start).hour).toBeCloseTo(6, 9);
+    expect(clock.at(start + GAME_DAY_S / 4).hour).toBeCloseTo(12, 6);
+    expect(clock.at(start + GAME_DAY_S).calendar).toMatchObject({ month: 11, day: 2 });
   });
 
-  it("shows the date's real sky at the game's hour", () => {
+  it("shows a held date's real sky at the game's hour", () => {
     const seconds = Date.parse("2026-11-05T09:00:00Z") / 1000;
-    const clock = new DayClock();
-    clock.setDate({ year: 2026, month: 12, day: 21 });
+    const clock = new DayClock(0);
+    clock.setDate({ year: 2026, month: 12, day: 21 }, seconds);
     clock.setHour(12.6, seconds);
     const time = clock.at(seconds);
     expect(time.date).toEqual({ year: 2026, month: 12, day: 21 });
+    expect(time.calendar).toMatchObject({ month: 12, day: 3 });
     expect(time.sun.elevationDeg).toBeCloseTo(sunPlace(at("2026-12-21", "10:36:00")).elevationDeg, 6);
   });
 
-  it("holds an hour, and runs on from it when let go", () => {
-    const clock = new DayClock();
+  it("holds the time, and runs on from it when let go", () => {
+    const clock = new DayClock(0);
     clock.setHour(20, 1000);
     clock.hold(true, 1000);
     expect(clock.at(5000).hour).toBe(20);
@@ -121,5 +123,51 @@ describe("the game's day", () => {
     expect(dayAsked("")).toEqual({ date: null, hour: null });
     expect(() => dayAsked("?date=2026-02-30")).toThrow();
     expect(() => dayAsked("?hour=24")).toThrow();
+  });
+
+  it("starts where this browser left the world, at the real date and time with no save, and where a link says", () => {
+    const now = at("2026-11-05", "19:30:00");
+    const saved = gameDaysOf({ year: 2027, month: 3, day: 2, hour: 9 });
+    expect(startOfDay("", saved, now)).toEqual({ gameDays: saved, date: null, linked: false });
+    const fresh = calendarAt(startOfDay("", null, now).gameDays);
+    expect(fresh).toMatchObject({ year: 2026, month: 11, day: 1 });
+    expect(fresh.hour).toBeCloseTo(21.5, 6);
+    const linked = startOfDay("?hour=22", saved, now);
+    expect(linked.linked).toBe(true);
+    expect(calendarAt(linked.gameDays)).toMatchObject({ month: 3, day: 2 });
+    expect(calendarAt(linked.gameDays).hour).toBeCloseTo(22, 6);
+  });
+});
+
+describe("the game's calendar", () => {
+  it("spreads a month's real days over its four game days", () => {
+    const shown = (day: number, hour: number) => dateAt(gameDaysOf({ year: 2026, month: 12, day, hour })).date.day;
+    expect([1, 2, 3, 4].map((day) => shown(day, 12))).toEqual([4, 12, 20, 28]);
+    expect(shown(1, 0)).toBe(1);
+    expect(shown(4, 23.99)).toBe(31);
+  });
+
+  it("turns from December's last game day to January's first of the next year", () => {
+    const newYear = gameDaysOf({ year: 2026, month: 12, day: 4, hour: 24 });
+    expect(calendarAt(newYear)).toMatchObject({ year: 2027, month: 1, day: 1, hour: 0 });
+    expect(calendarAt(newYear + GAME_DAYS_A_YEAR)).toMatchObject({ year: 2028, month: 1, day: 1 });
+    expect(dateAt(newYear - 1e-6).date).toEqual({ year: 2026, month: 12, day: 31 });
+    expect(dateAt(newYear).date).toEqual({ year: 2027, month: 1, day: 1 });
+  });
+
+  it("moves the sky only a little at any turn of a game day, a month or the year", () => {
+    const year = Array.from({ length: GAME_DAYS_A_YEAR + 1 }, (_, day) => gameDaysOf({ year: 2026, month: 1, day: 1, hour: 0 }) + day);
+    for (const turn of year) {
+      const [before, after] = [gameTimeAt(turn - 1e-7), gameTimeAt(turn + 1e-7)];
+      expect(Math.abs(after.sun.elevationDeg - before.sun.elevationDeg), `game day ${turn}`).toBeLessThan(0.01);
+      expect(Math.abs(after.moon.elevationDeg - before.moon.elevationDeg), `game day ${turn}`).toBeLessThan(0.05);
+    }
+  });
+
+  it("finds the game day of a real instant, and its hour", () => {
+    const midsummer = calendarAt(gameDaysAtInstant(at("2026-06-21", "10:00:00")));
+    expect(midsummer).toMatchObject({ year: 2026, month: 6, day: 3 });
+    expect(midsummer.hour).toBeCloseTo(13, 6);
+    expect(calendarAt(gameDaysAtInstant(at("2026-02-28", "21:59:00")))).toMatchObject({ month: 2, day: 4 });
   });
 });

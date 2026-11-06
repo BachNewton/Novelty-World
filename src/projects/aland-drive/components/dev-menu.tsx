@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CalendarDays, Check, RotateCcw, CloudRain, FlaskConical, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
 import type { CarChoice, DayChange, DayShown } from "../render/game";
-import { parseDate } from "../time/day";
+import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
 import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
 import { playgroundAsked, playgroundLink } from "../playground/place";
@@ -118,7 +118,7 @@ function ConditionChoice({ condition, onCondition }: { condition: Condition; onC
 
 const clockText = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
 
-/** The day this page draws: another date, an hour, or the hour held still. Today's shared day is the start. */
+/** The time this page shows: a month and one of its four game days, an hour, or the time held still. Now is the real date and time. */
 function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayChange) => void }) {
   const [shown, setShown] = useState(day);
   const change = (next: DayChange) => {
@@ -130,31 +130,50 @@ function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayCha
       <div className="flex items-center gap-2">
         <label className="flex grow items-center gap-2 text-sm">
           <CalendarDays aria-hidden className="size-4 shrink-0" />
-          <span className="sr-only">Date</span>
-          <input
-            type="date"
-            value={shown.date}
-            className="grow rounded border-2 bg-transparent px-1"
+          <span className="sr-only">Month</span>
+          <select
+            value={shown.month}
+            className="grow cursor-pointer rounded border-2 bg-transparent px-1"
             style={{ borderColor: INK }}
-            onChange={(event) => {
-              if (event.target.value !== "") change({ date: parseDate(event.target.value) });
-            }}
-          />
+            onChange={(event) => { change({ calendar: { month: Number(event.target.value), day: shown.day } }); }}
+          >
+            {MONTH_NAMES.map((name, at) => (
+              <option key={name} value={at + 1} style={{ background: SHADE }}>{name}</option>
+            ))}
+          </select>
         </label>
-        <button type="button" title="Today, as every player has it" aria-label="Today" className="cursor-pointer rounded border-2 px-2 py-1 text-xs" style={{ borderColor: shown.shared ? ACCENT : INK }} onClick={() => { change({ date: null }); }}>
-          Today
+        <button type="button" title="The real date and time" aria-label="Now" className="cursor-pointer rounded border-2 px-2 py-1 text-xs" style={{ borderColor: INK }} onClick={() => { change({ now: true }); }}>
+          Now
         </button>
       </div>
+      <div className="flex items-center gap-2" role="radiogroup" aria-label="Day of the month">
+        {Array.from({ length: DAYS_A_MONTH }, (_, at) => at + 1).map((number) => (
+          <button
+            key={number}
+            type="button"
+            role="radio"
+            aria-checked={number === shown.day && !shown.dateHeld}
+            className="grow cursor-pointer rounded border-2 py-1 text-sm tabular-nums"
+            style={{ borderColor: number === shown.day && !shown.dateHeld ? ACCENT : INK }}
+            onClick={() => { change({ calendar: { month: shown.month, day: number } }); }}
+          >
+            {number}
+          </button>
+        ))}
+      </div>
       <div className="flex items-center gap-2">
-        <button type="button" title={shown.held ? "Let the hour run" : "Hold the hour"} aria-label={shown.held ? "Let the hour run" : "Hold the hour"} className="cursor-pointer" onClick={() => { change({ held: !shown.held }); }}>
+        <button type="button" title={shown.held ? "Let the time run" : "Hold the time"} aria-label={shown.held ? "Let the time run" : "Hold the time"} className="cursor-pointer" onClick={() => { change({ held: !shown.held }); }}>
           {shown.held ? <Play className="size-4" /> : <Pause className="size-4" />}
         </button>
         <input type="range" aria-label="Hour" min={0} max={23.75} step={0.25} value={shown.hour} className="grow" style={{ accentColor: ACCENT }} onChange={(event) => { change({ hour: Number(event.target.value) }); }} />
         <span className="w-12 text-right text-sm tabular-nums">{clockText(shown.hour)}</span>
       </div>
-      <div className="flex items-center gap-2 text-xs" title="The sun's height over the horizon">
-        <Sunrise aria-hidden className="size-4" />
-        <span className="tabular-nums">{shown.sun.elevationDeg.toFixed(1)}°</span>
+      <div className="flex items-center gap-3 text-xs">
+        <span title="The real date whose sky is shown" className="tabular-nums">{shown.date}</span>
+        <span className="flex items-center gap-1" title="The sun's height over the horizon">
+          <Sunrise aria-hidden className="size-4" />
+          <span className="tabular-nums">{shown.sun.elevationDeg.toFixed(1)}°</span>
+        </span>
       </div>
     </div>
   );

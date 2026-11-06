@@ -40,9 +40,12 @@ export type ChallengeMessage =
 
 export type ChallengeType = ChallengeMessage["type"];
 
-/** A challenge message for one player, or for everyone when `to` is left out. */
-export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage };
-export type HostMessage = ({ kind: "car"; from: string } & CarMessage) | { kind: "challenge"; from: string; message: ChallengeMessage };
+/**
+ * A challenge message for one player, or for everyone when `to` is left out. A guest asks the host for the world's
+ * time once it's in (`ask-time`), and the host answers with where the game's calendar stands (`time`, game days).
+ */
+export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage } | { kind: "ask-time" };
+export type HostMessage = ({ kind: "car"; from: string } & CarMessage) | { kind: "challenge"; from: string; message: ChallengeMessage } | { kind: "time"; gameDays: number };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -159,6 +162,7 @@ export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
 
 export function parseGuestMessage(value: unknown): GuestMessage | null {
   if (!isRecord(value)) return null;
+  if (value.kind === "ask-time") return { kind: "ask-time" };
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     if (!message) return null;
@@ -171,7 +175,9 @@ export function parseGuestMessage(value: unknown): GuestMessage | null {
 }
 
 export function parseHostMessage(value: unknown): HostMessage | null {
-  if (!isRecord(value) || !isName(value.from)) return null;
+  if (!isRecord(value)) return null;
+  if (value.kind === "time") return typeof value.gameDays === "number" && Number.isFinite(value.gameDays) ? { kind: "time", gameDays: value.gameDays } : null;
+  if (!isName(value.from)) return null;
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     return message && { kind: "challenge", from: value.from, message };
