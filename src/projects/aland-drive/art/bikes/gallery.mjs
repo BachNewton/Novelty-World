@@ -103,6 +103,24 @@ const shots = [
   { name: "crowd-far", detail: "far", camera: [12, 3, 60, 0, 0.8, 0, 9], riders: line("far", 30) },
   { name: "first-person", detail: "near", camera: "first", riders: [{ bike: 0, seed: 1, firstPerson: true }] },
   { name: "first-person-road", detail: "near", camera: "first", riders: [{ bike: 3, seed: 1, firstPerson: true }] },
+  // A dozen riders of mixed seeds drawn by the crowd, as the game draws cyclists: both ways along the path, at their own speeds.
+  {
+    name: "crowd-riding",
+    detail: "near",
+    camera: [7, 2.2, 9, 0, 0.7, -3, 40],
+    crowdSteps: 50,
+    riders: [],
+    crowd: Array.from({ length: 12 }, (_, at) => ({ seed: 40 + at * 7, x: at % 2 === 0 ? 0.6 : -0.6, z: 4 - at * 2.1, yaw: at % 2 === 0 ? 0 : Math.PI, ride: { speedMS: 3 + (at % 5) * 1.4, lean: ((at % 3) - 1) * 0.08, steer: ((at % 3) - 1) * 0.05, effort: at % 4 === 0 ? 0 : 0.6 } })),
+  },
+  // Riders along the path out past their swap and towards the reach, near and far versions dithering across it.
+  {
+    name: "crowd-depth",
+    detail: "near",
+    camera: [3, 1.6, 6, 0, 1, -60, 30],
+    crowdSteps: 20,
+    riders: [],
+    crowd: Array.from({ length: 16 }, (_, at) => ({ seed: 90 + at, x: at % 2 === 0 ? 0.6 : -0.6, z: -at * at * 1.5, yaw: at % 2 === 0 ? 0 : Math.PI, ride: { speedMS: 5 } })),
+  },
 ];
 const costs = {};
 for (const { name, ...shot } of shots) {
@@ -112,6 +130,41 @@ for (const { name, ...shot } of shots) {
   saved.push({ path, label: name });
 }
 console.log(JSON.stringify(costs));
+
+// A rider drawn by the crowd and the same rider drawn alone, from the same view, must be the same picture.
+const SAME_SEED = 7;
+const sameBike = await tab.evaluate((seed) => window.__bikeGallery.bikeOf(seed), SAME_SEED);
+const SAME_VIEW = [3.2, 1.3, -4.2, 0, 0.9, 0, 26];
+const sameRide = { steer: 0.15, lean: 0.12 };
+const sameShots = [
+  { name: "same-single", detail: "near", camera: SAME_VIEW, riders: [{ bike: sameBike, seed: SAME_SEED, ride: sameRide }] },
+  { name: "same-crowd", detail: "near", camera: SAME_VIEW, riders: [], crowd: [{ seed: SAME_SEED, x: 0, z: 0, ride: sameRide }] },
+];
+const samePictures = [];
+for (const { name, ...shot } of sameShots) {
+  await tab.evaluate(async (s) => window.__bikeGallery.shoot(s), shot);
+  const path = join(outFolder, `${name}.png`);
+  samePictures.push(await tab.screenshot({ path }));
+  saved.push({ path, label: name });
+}
+const differ = await tab.evaluate(async ([a, b]) => {
+  const pixels = async (data) => {
+    const image = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
+    const canvas = new OffscreenCanvas(image.width, image.height);
+    const pen = canvas.getContext("2d");
+    pen.drawImage(image, 0, 0);
+    return pen.getImageData(0, 0, image.width, image.height).data;
+  };
+  const [first, second] = [await pixels(a), await pixels(b)];
+  let [changed, most] = [0, 0];
+  for (let at = 0; at < first.length; at += 4) {
+    const gap = Math.max(Math.abs(first[at] - second[at]), Math.abs(first[at + 1] - second[at + 1]), Math.abs(first[at + 2] - second[at + 2]));
+    if (gap > 2) changed++;
+    most = Math.max(most, gap);
+  }
+  return { changed, most };
+}, samePictures.map((picture) => picture.toString("base64")));
+console.log(`crowd against single, seed ${SAME_SEED}: ${differ.changed} pixels differ by more than 2 levels, the most by ${differ.most}`);
 
 // The sheet is a page of the shots themselves, screenshotted whole.
 const columns = 8;
