@@ -89,7 +89,7 @@ Forza's designers tuned their targets. Here they start from the simulation:
 - **Each challenge has one target**, set from par by one rule for every challenge: a Route's target is par for hard, 3% over for medium and 8% for easy, and a Speed trap's is 99%, 96% and 93% of par's speed.
 - **A test holds that every challenge can be passed**: the target is never past par, so the scripted driver itself passes it.
 - **The first list's driver was too kind.** It slowed for any bend in the next five seconds as soon as it saw it, and its targets were all beaten at the first try. The planning driver's par is 5–16% faster on the same roads.
-- **Gates are generous**, reaching 12 m past the laid road either side: the GPS line the gates are laid on can lie metres off the road as laid, and a car cutting a bend lies further, which a narrower gate missed without a sign, so the finish never counted.
+- **Gates are the road's width and a little more**, standing on the laid road's own middle and reaching 6 m past its surface either side: narrow enough to read as the road's and to miss a short cut across the fields, forgiving enough for a fast line through a bend. The late-braking driver that sets par cuts the inside of a gravel bend at most 4.7 m past the road's edge. Gates once stood on the GPS line, which can lie metres off the road as laid, and reached 12 m past it, because a narrower one there was missed without a sign and the finish never counted; at that width a gate was hard to read.
 
 ## What's built, in order
 
