@@ -74,7 +74,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, type GameMenu, type MenuItemId } from "./game-menu";
+import { drivingMenu, tyreOfItem, type GameMenu, type MenuItemId } from "./game-menu";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, runOn } from "../challenge/line";
@@ -100,7 +100,7 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
-import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
+import { tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { auroraAsked, createSeasonFeed } from "./season-feed";
 import { seasonNodes, type SeasonDials } from "../art/season";
 import { weatherFeed } from "../climate/feed";
@@ -353,8 +353,8 @@ export interface HudReading {
   /** The challenge whose start ring the car is in, which its button starts. */
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
-  /** The time this page shows: the month (1 to 12), which of its four game days, the hour, and whether the sun is up. */
-  clock: { month: number; day: number; hour: number; sunUp: boolean };
+  /** The time this page shows: the month (1 to 12), which of its four game days, the hour, whether the sun is up, and the air's temperature (none without weather). */
+  clock: { month: number; day: number; hour: number; sunUp: boolean; temperatureC: number | null };
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -1533,8 +1533,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "cancel":
         setGameMenuOpen(false);
         break;
-      case "tyres": {
-        const fitted = TYRES[(TYRES.indexOf(drive.tyres) + 1) % TYRES.length];
+      case "tyres-summer":
+      case "tyres-winter":
+      case "tyres-studded": {
+        const fitted = tyreOfItem(id);
         setTyres(fitted);
         showMenu(drivingMenu(fitted));
         break;
@@ -1940,7 +1942,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
-    const clock = { month: shown.calendar.month, day: shown.calendar.day, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
+    const clock = { month: shown.calendar.month, day: shown.calendar.day, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
