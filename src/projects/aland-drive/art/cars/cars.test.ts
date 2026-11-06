@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { CAR_IDS, CARS as TUNINGS } from "../../sim/cars";
 import { buildDistant } from "./body";
-import { buildCarParts } from "./build";
+import { buildCarParts, groundY } from "./build";
 import type { Soup } from "./mesh";
 import { CARS, WORLD_CARS } from "./specs";
 
 const HERO_BUDGET = 25000;
 const FAR_BUDGET = 2000;
-const DISTANT_BUDGET = 45;
+const DISTANT_BUDGET = 160;
 
 const total = ({ body, glass, wheel }: { body: Soup; glass: Soup | null; wheel: Soup }) => body.triangles + (glass?.triangles ?? 0) + wheel.triangles * 4;
 
@@ -38,8 +38,8 @@ describe("the cars", () => {
     expect(signedVolume(far.body)).toBeGreaterThan(0);
   });
 
-  it.each([...CARS, ...WORLD_CARS].map((car) => [car.name, car] as const))("%s has a stand-in of about thirty triangles, facing out", (_, car) => {
-    const distant = buildDistant(car.body, 0);
+  it.each([...CARS, ...WORLD_CARS].map((car) => [car.name, car] as const))("%s has a stand-in of its near version simplified, in its budget and facing out", (_, car) => {
+    const distant = buildDistant(car.body, groundY(car), buildCarParts(car, "far").body);
     expect(distant.triangles).toBeLessThan(DISTANT_BUDGET);
     expect(signedVolume(distant)).toBeGreaterThan(0);
   });

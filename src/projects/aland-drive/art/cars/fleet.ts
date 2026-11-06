@@ -120,12 +120,13 @@ export function worldGeometry(spec: CarSpec): BufferGeometry {
   return packed(joined);
 }
 
-/** One car's stand-in, about thirty triangles of its outline, and its indicators' lenses. */
+/** One car's stand-in, its world model simplified (`buildDistant`), and its indicators' lenses. */
 export function distantGeometry(spec: CarSpec): BufferGeometry {
   const road = groundY(spec);
-  const stand = buildDistant(spec.body, road);
-  const spots = lampSpots(buildCarParts(spec, "far", true).body);
-  const geometry = mergeGeometries([withOptions(stand), withLamps(distantLamps(stand, spots))]);
+  const near = buildCarParts(spec, "far", true).body;
+  const stand = buildDistant(spec.body, road, near);
+  const spots = lampSpots(near);
+  const geometry = mergeGeometries([withOptions(stand), withLamps(distantLamps(spots))]);
   geometry.translate(0, -road, 0);
   return packed(geometry);
 }

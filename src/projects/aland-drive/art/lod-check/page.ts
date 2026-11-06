@@ -47,10 +47,10 @@ const VIEWS = [3, 25].flatMap((elevationDeg) => Array.from({ length: 8 }, (_, st
  * between the stone wall's and a deck chair's. Simplygon's own rule of thumb, a pixel, is for a mesh simplified by
  * machine, with no crossfade to soften the swap.
  *
- * The worst spot's limit is set by the world cars, whose stand-in drops the wheels and lights and merges the glass:
- * the owner saw every one turn into a grey box at the swap the mean alone gave it (29–59 m), where the spot reads
- * 0.917 (Droska) to 0.975, and accepted all of them swapping at 120 m, where it reads 0.51 to 0.88 (Raggare). Brev,
- * at 0.97 even at 120 m, is the one car whose far version is noticed there. The accepted art keeps passing at the
+ * The worst spot's limit is set by the world cars' first stand-ins, which dropped the wheels and lights and merged
+ * the glass: the owner saw every one turn into a grey box at the swap the mean alone gave it (29–59 m), where the
+ * spot read 0.917 (Droska) to 0.975, and accepted all of them swapping at 120 m, where it read 0.51 to 0.88
+ * (Raggare). Brev, at 0.97 even at 120 m, was the one car whose far version was noticed there. The accepted art keeps passing at the
  * swaps set by hand: its worst there is the woodshed's 0.84 and the stone wall's 0.73. Over 10 pixels (a fifth of a
  * degree on the floor's screen) the two sets of cars stand furthest apart: over 8 they overlap, a square filled by a
  * part's own pixels at any distance, and over 12 they meet, a square taking in so much unchanged body.

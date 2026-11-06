@@ -95,77 +95,77 @@
     "name": "boats: single-hander-sailing",
     "swapM": 54
   },
-  "21c49482": {
+  "f8fdcf88": {
     "name": "cars: world Åker",
-    "swapM": 100
+    "swapM": 66
   },
-  "a324d90e": {
+  "47056f92": {
     "name": "cars: world Brev",
-    "swapM": 168
+    "swapM": 36
   },
-  "e0f26821": {
+  "f458d892": {
     "name": "cars: world Bud",
-    "swapM": 78
+    "swapM": 45
   },
-  "32302c29": {
+  "d1d63268": {
     "name": "cars: world Droska",
-    "swapM": 55
+    "swapM": 31
   },
-  "9e85ea41": {
+  "9cd4d102": {
     "name": "cars: world Flock",
-    "swapM": 62
-  },
-  "0524f96e": {
-    "name": "cars: world Gammal",
-    "swapM": 78
-  },
-  "a1f6e02b": {
-    "name": "cars: world Långa",
-    "swapM": 95
-  },
-  "781e1dd6": {
-    "name": "cars: world Myra",
-    "swapM": 63
-  },
-  "9bf67ca4": {
-    "name": "cars: world Nio",
-    "swapM": 82
-  },
-  "1afd2d73": {
-    "name": "cars: world Nu",
-    "swapM": 50
-  },
-  "d6e9a80a": {
-    "name": "cars: world Pärla",
-    "swapM": 50
-  },
-  "018a0a08": {
-    "name": "cars: world Puls",
-    "swapM": 71
-  },
-  "54b3f5d2": {
-    "name": "cars: world Rad",
     "swapM": 47
   },
-  "59be396d": {
+  "6da49fff": {
+    "name": "cars: world Gammal",
+    "swapM": 59
+  },
+  "79a51a9e": {
+    "name": "cars: world Långa",
+    "swapM": 41
+  },
+  "53710a0d": {
+    "name": "cars: world Myra",
+    "swapM": 36
+  },
+  "bcbe244e": {
+    "name": "cars: world Nio",
+    "swapM": 47
+  },
+  "90b72eab": {
+    "name": "cars: world Nu",
+    "swapM": 38
+  },
+  "0b3d7d9b": {
+    "name": "cars: world Pärla",
+    "swapM": 43
+  },
+  "53f36d66": {
+    "name": "cars: world Puls",
+    "swapM": 41
+  },
+  "956ef811": {
+    "name": "cars: world Rad",
+    "swapM": 31
+  },
+  "fc9c4cb6": {
     "name": "cars: world Raggare",
-    "swapM": 124
+    "swapM": 41
   },
-  "deffaf8a": {
+  "f5448121": {
     "name": "cars: world Stig",
-    "swapM": 79
+    "swapM": 39
   },
-  "9b9058aa": {
+  "c34471d6": {
     "name": "cars: world Tusen",
-    "swapM": 75
+    "swapM": 43
   },
-  "d75c3260": {
+  "e52d8048": {
     "name": "cars: world Vakt",
-    "swapM": 128
+    "swapM": 48
   },
-  "e89907af": {
+  "1c11b10d": {
     "name": "cars: world Verk",
-    "swapM": 100
+    "swapM": 57
   },
   "f02a9cdc": {
     "name": "identity: apple crates",

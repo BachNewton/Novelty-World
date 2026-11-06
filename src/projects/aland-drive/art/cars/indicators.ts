@@ -7,7 +7,7 @@ import { SoupBuilder, SURFACES, type Point, type Soup } from "./mesh";
  * behind, under the outer end of the tail
  * lamps. Each sits on the body as it's shaped there, a little proud of it, so
  * its sides catch the eye from above and from the side as well as head on.
- * The stand-in carries each as a flat lens on its end, in the same place.
+ * The stand-in carries each in the same place, as proud, as its face alone.
  */
 
 /** How far a lamp stands proud of the body at its least. */
@@ -16,8 +16,6 @@ const PROUD_M = 0.04;
 const SUNK_M = 0.01;
 const BESIDE = { wide: 0.15, tallest: 0.09, gapM: 0.02 };
 const UNDER = { wide: 0.17, tall: 0.07, gapM: 0.012, inM: 0.09 };
-/** A lamp on the stand-in stands this far off its end. */
-const DISTANT_LIFT_M = 0.012;
 
 /** Which lamp a face of a world car is, in its `carOption`: the car's own left (-x, its nose being -z) or right. */
 export const INDICATOR_OPTION = { left: 3, right: 4 } as const;
@@ -140,20 +138,16 @@ export function worldLamps(spots: readonly LampSpot[]): Soup {
   return builder.finish(30);
 }
 
-/** The four lamps of a stand-in, flat lenses on its ends, kept inside its outline. */
-export function distantLamps(stand: Soup, spots: readonly LampSpot[]): Soup {
+/** The four lamps of a stand-in, where the near version's are and as proud: each its face alone. */
+export function distantLamps(spots: readonly LampSpot[]): Soup {
   const builder = new SoupBuilder();
   for (const spot of spots) {
     const out = spot.end === "front" ? -1 : 1;
-    let endZ = 0;
-    for (let at = 2; at < stand.positions.length; at += 3) endZ = Math.max(endZ, stand.positions[at] * out);
-    let endHalf = 0;
-    for (let at = 0; at < stand.positions.length; at += 3) if (Math.abs(stand.positions[at + 2] * out - endZ) < 1e-4) endHalf = Math.max(endHalf, stand.positions[at]);
-    const shift = Math.min(0, endHalf - 0.02 - spot.x[1]);
-    const z = (endZ + DISTANT_LIFT_M) * out;
+    const face = (spot.z[1] + PROUD_M) * out;
+    const [low, high] = spot.y;
     for (const side of sides) {
-      const [a, b] = [side * (spot.x[0] + shift), side * (spot.x[1] + shift)];
-      facing(builder, [[a, spot.y[0], z], [b, spot.y[0], z], [b, spot.y[1], z], [a, spot.y[1], z]], [0, 0, out]);
+      const [inner, outer] = [side * spot.x[0], side * spot.x[1]];
+      facing(builder, [[inner, low, face], [outer, low, face], [outer, high, face], [inner, high, face]], [0, 0, out]);
     }
   }
   return builder.finish(1);
