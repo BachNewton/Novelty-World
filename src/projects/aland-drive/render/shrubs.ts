@@ -4,7 +4,7 @@ import { outsideCar } from "../art/car-volume";
 import { buildBirch, buildBush, buildJuniper, RURAL_PARTS, ruralColours, ruralPaint, type RuralPart } from "../art/rural";
 import { flatNormal } from "../art/flat-normal";
 import { placeSeed, unitOf } from "../art/hash";
-import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigsOpen } from "../art/leaves";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigTips } from "../art/leaves";
 import { seasonNodes, type SeasonLook } from "../art/season";
 import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
@@ -178,8 +178,6 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   const paint = ruralPaint(uniformArray(colours));
   const tallOf = kinds.map(({ model }) => tallest(model.near));
   const seasons = seasonNodes(season);
-  // A bare bush's open pixels are a band of the same pattern, so the two versions in a crossfade leave the same ones open.
-  const twigPattern = fract(pattern.add(0.5));
   const leafParts = LEAF_PARTS.map((part) => RURAL_PARTS.indexOf(part));
   // A far version's bands in its near version's colours, with its leaves as they are in summer, autumn, bare and spring.
   const bandsAs = (leafAs: (kind: number) => Vector3 | null) =>
@@ -296,12 +294,13 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const ownShade = varying(mix(float(FOOT_LIGHT), float(TOP_LIGHT), up).mul(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), plantRoll)));
       const hue = varying(fract(plantRoll.mul(3.17)).sub(0.5).mul(2 * HUE_ROLL));
       const lit = foliageLight(toSun, rounded, seeThrough).mul(ownShade);
-      const snowed = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), vec3(linear("tree-snow")), snowHeld.mul(snowOnFace(flatNormal().y)));
+      const tips = twigTips(varying(float(1).sub(inLeaf).mul(isLeaf)), varying(up), rounded);
+      const twigged = mix(painted.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), vec3(linear("tree-twig-tip")).mul(shadeOf), tips);
+      const snowed = mix(twigged, vec3(linear("tree-snow")), snowHeld.mul(snowOnFace(flatNormal().y)));
       const coloured = mix(snowed.mul(lit), look.rgb.mul(look.w), mix(float(GROUND_SHARE), float(1), matched));
       material.colorNode = hazed(coloured);
       const pixels = varying(vec2(live.x, live.y));
-      const open = twigsOpen(varying(float(1).sub(inLeaf).mul(isLeaf)), varying(up), rounded);
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(twigPattern.greaterThanEqual(open)).and(outsideCar());
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },

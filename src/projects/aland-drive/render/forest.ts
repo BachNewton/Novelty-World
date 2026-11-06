@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttri
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, seedOf, unitOf } from "../art/hash";
-import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigsOpen } from "../art/leaves";
+import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigTips } from "../art/leaves";
 import { seasonNodes, type SeasonLook } from "../art/season";
 import { flatNormal } from "../art/flat-normal";
 import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, LEAF_ROLL, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, SNOW_ROLL, SPECIES_ROLL, STAND_ROLL } from "./tree-place";
@@ -274,8 +274,6 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
       );
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
-  // A bare crown's open pixels are a band of the same pattern, so the two versions in a crossfade leave the same ones open.
-  const twigPattern = fract(pattern.add(0.5));
 
   const turnedShape = turned(NEAR_RINGS, NEAR_SIDES, false);
   const coneShape = turned(FAR_RINGS, FAR_SIDES, true);
@@ -434,21 +432,22 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const birchBark = mix(colour("tree-bark"), colour("tree-birch-bark"), smoothstep(float(0.03), float(0.1), riseHere));
     const bark = ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") });
     const hue = varying(fract(treeRoll.mul(7.31)).sub(0.5).mul(2 * HUE_ROLL));
-    const crown = mix(leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), colour("tree-snow"), snowHeld.mul(snowOnFace(flatNormal().y)));
-    const natural = mix(bark, crown, leafy);
     const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
     const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
-    // Birch and broadleaf let the sun through; conifers don't.
     const inLeafHere = varying(inLeaf);
+    // How far up the crown, back from its rounded direction, which carries it: a shader has only so many values to hand on.
+    const tips = twigTips(float(1).sub(inLeafHere).mul(leafy), rounded.y.div(ROUNDNESS).add(CROWN_MIDDLE), rounded);
+    const twigged = mix(leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), colour("tree-twig-tip"), tips);
+    const crown = mix(twigged, colour("tree-snow"), snowHeld.mul(snowOnFace(flatNormal().y)));
+    const natural = mix(bark, crown, leafy);
+    // Birch and broadleaf let the sun through; conifers don't.
     const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy.mul(inLeafHere), float(0));
     const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
     const ownShade = varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
     const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
-    // How far up the crown, back from its rounded direction, which carries it: a shader has only so many values to hand on.
-    const open = twigsOpen(float(1).sub(inLeafHere).mul(leafy), rounded.y.div(ROUNDNESS).add(CROWN_MIDDLE), rounded);
-    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(twigPattern.greaterThanEqual(open)).and(outsideCar());
+    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(outsideCar());
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;

@@ -34,18 +34,19 @@ export const FRESH_SHARE = 0.7;
 /** A bare crown is a twig mass this much narrower than the leaves were. */
 export const BARE_SPREAD = 0.75;
 
-/** The share of a bare crown's pixels left open, in its low core and at its top and edges. */
-const TWIGS_OPEN = [0.3, 0.97] as const;
+/** How far a bare crown's twigs pale towards the tips' colour where they're thinnest: in its low core, and at its top and edges. */
+const TIPS_SHOWN = [0, 0.45] as const;
 
 /**
- * How much of a bare crown is open at a pixel, from how bare it is, how far up the crown (0 to 1) and its rounded
- * direction there: a twig mass is densest low in its core and thins out towards its top and its outline, so it reads
- * as a haze among the trees rather than a cone with an edge.
+ * How far a bare crown pales towards its twig tips' colour at a pixel, from how bare it is, how far up the crown (0 to
+ * 1) and its rounded direction there: a twig mass is densest low in its core and thins out towards its top and its
+ * outline, where the fine tips show grey against the sky. The crown stays solid: a see-through screen pattern read as
+ * a level of detail swapping badly.
  */
-export function twigsOpen(bare: Node<"float">, up: Node<"float">, rounded: Node<"vec3">): Node<"float"> {
+export function twigTips(bare: Node<"float">, up: Node<"float">, rounded: Node<"vec3">): Node<"float"> {
   const edgeOn = float(1).sub(normalize(rounded).dot(normalize(positionWorld.sub(cameraPosition))).abs());
   const thin = max(smoothstep(float(0.2), float(0.95), up), smoothstep(float(0.2), float(0.9), edgeOn));
-  return bare.mul(mix(float(TWIGS_OPEN[0]), float(TWIGS_OPEN[1]), thin));
+  return bare.mul(mix(float(TIPS_SHOWN[0]), float(TIPS_SHOWN[1]), thin));
 }
 
 /** How white a plant's upward faces are, 0 to 1: its own threshold against the land's cover, more of it as the snow deepens. */
