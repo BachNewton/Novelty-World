@@ -1,5 +1,5 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type Vector3 } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, fract, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, float, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { seasonNodes, type SeasonLook } from "../season";
 import { lindenThroughYear } from "./linden";
@@ -169,9 +169,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const pattern = screenPattern();
   const share = swapShare(reach, distance);
   const kept = pattern.greaterThanEqual(smoothstep(end.mul(1 - LEAVE_SHARE), end, distance));
-  // A bare linden's open pixels are a band of the same pattern, so the two versions in a swap leave the same ones open.
-  const twigs = fract(pattern.add(0.5)).greaterThanEqual(year.open);
-  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(twigs).and(outsideCar());
+  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

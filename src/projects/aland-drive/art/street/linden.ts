@@ -111,23 +111,19 @@ export function buildLinden(seed = 3): RoadsideModel {
 }
 
 /*
- * A linden through the year (`art/leaves.ts`): yellow in early to mid October, then bare to a narrower, see-through
- * crown of twigs, each tree on a threshold rolled from its place, so an avenue turns tree by tree. Only the linden's
+ * A linden through the year (`art/leaves.ts`): yellow in early to mid October, then bare to a narrower crown in its
+ * twigs' colour, each tree on a threshold rolled from its place, so an avenue turns tree by tree. Only the linden's
  * own leaves (the last of the street's paints) change, so nothing else the street's material draws does.
  */
 const FIRST_LINDEN_LEAF = STREET_PARTS.indexOf("linden-leaf");
 const LINDEN_ROLL = 51;
 const LINDEN_GOES: [number, number] = [0.05, 0.75];
-/** The share of a bare crown's pixels left open, so it reads as twigs rather than a solid mass. */
-const BARE_OPEN = 0.5;
 
 export interface LindenYear {
   /** How far a vertex spreads from the trunk, against its summer self. */
   spread: Node<"float">;
   /** A vertex's paint as the season has it, from its summer paint. */
   paint: (summer: Node<"vec3">) => Node<"vec3">;
-  /** The share of the pixels left open. */
-  open: Node<"float">;
 }
 
 /** A vertex of a part, at a place, in its paint's shade, through the year. */
@@ -141,6 +137,5 @@ export function lindenThroughYear(season: SeasonNodes, place: Node<"vec2">, part
   return {
     spread: mix(float(1), float(BARE_SPREAD), bare),
     paint: (summer) => mix(mix(mix(summer, token("tree-fresh"), state.z), token("autumn-linden"), state.y), token("tree-twig"), state.x),
-    open: state.x.mul(BARE_OPEN),
   };
 }
