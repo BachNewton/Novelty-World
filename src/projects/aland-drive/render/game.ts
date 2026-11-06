@@ -354,7 +354,7 @@ export interface HudReading {
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
   /** The time this page shows: the month (1 to 12), which of its four game days, the hour, whether the sun is up, and the air's temperature (none without weather). */
-  clock: { month: number; day: number; hour: number; sunUp: boolean; temperatureC: number | null };
+  clock: { month: number; hour: number; sunUp: boolean; temperatureC: number | null };
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -1942,7 +1942,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
-    const clock = { month: shown.calendar.month, day: shown.calendar.day, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
+    const clock = { month: shown.calendar.month, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;

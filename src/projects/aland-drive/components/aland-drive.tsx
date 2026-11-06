@@ -8,7 +8,7 @@ import { Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
-import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
+import { MONTH_NAMES } from "../time/calendar";
 import { GameMenu } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
@@ -133,7 +133,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const revNeedle = useRef<SVGLineElement>(null);
   const miniMap = useRef<HTMLCanvasElement>(null);
   const monthShown = useRef<HTMLSpanElement>(null);
-  const dayDots = useRef<HTMLSpanElement>(null);
   const hourShown = useRef<HTMLSpanElement>(null);
   const sunIcon = useRef<SVGSVGElement>(null);
   const moonIcon = useRef<SVGSVGElement>(null);
@@ -187,7 +186,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     let shownPlay = "";
     let shownOffer = "";
     let shownCoop = "";
-    let shownDay = "";
+    let shownMonth = 0;
     const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
       const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
       if (offerKey !== shownOffer) {
@@ -222,15 +221,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     const showSpeed = (reading: HudReading) => {
       const { speedKmh, gear, revs, toGoM, clock } = reading;
       showChallenge(reading);
-      const dayKey = `${clock.month}-${clock.day}`;
-      if (dayKey !== shownDay && monthShown.current && dayDots.current) {
-        shownDay = dayKey;
-        const name = MONTH_NAMES[clock.month - 1];
-        monthShown.current.textContent = name;
-        dayDots.current.setAttribute("aria-label", `${name}, day ${clock.day} of ${DAYS_A_MONTH}`);
-        Array.from(dayDots.current.children).forEach((dot, at) => {
-          if (dot instanceof HTMLElement) dot.style.background = at === clock.day - 1 ? ACCENT : "transparent";
-        });
+      if (clock.month !== shownMonth && monthShown.current) {
+        shownMonth = clock.month;
+        monthShown.current.textContent = MONTH_NAMES[clock.month - 1];
       }
       if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
@@ -315,16 +308,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </div>
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
-      {/* The time over the mini map, at least as wide as it: the month and which of its four days, the hour with the sun or the moon, and the air's temperature. */}
+      {/* The time over the mini map, at least as wide as it: the month, the hour with the sun or the moon, and the air's temperature. */}
       <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Month, time and temperature">
-        <span className="flex items-center gap-2" title="Month">
-          <span ref={monthShown} aria-hidden />
-          <span ref={dayDots} className="flex items-center gap-1" role="img" aria-label="Day of the month">
-            {Array.from({ length: DAYS_A_MONTH }, (_, at) => (
-              <span key={at} className="size-2 rounded-full" style={{ border: `1.5px solid ${INK}`, boxShadow: `0 0 4px ${SHADE}` }} />
-            ))}
-          </span>
-        </span>
+        <span ref={monthShown} title="Month" aria-label="Month" />
         <span className="flex items-center gap-1" title="Time">
           <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
           <Moon ref={moonIcon} className="size-5 shrink-0" style={{ display: "none" }} aria-hidden />
