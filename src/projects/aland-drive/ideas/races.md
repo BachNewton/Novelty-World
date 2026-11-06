@@ -7,19 +7,19 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 ## The short version
 
 - **A race is a circuit or a sprint**: laps of a loop, or point to point. Every race is also one of three kinds by what's under the wheels: **road** (asphalt only), **cross country** (asphalt and gravel mixed) and **off-road** (gravel and loose ground).
-- **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 26 races here take that to nearly three quarters.
-- **26 tracks**: 12 road, 9 cross country and 5 off-road, in every parish the car can reach, none on a bucket-list challenge's road.
+- **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
+- **32 tracks**: 15 road, 10 cross country and 7 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
 - **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later.
 - **First, second and third are gold, silver and bronze**, and a solo result is kept apart from a co-op one. A co-op team is scored as Forza Horizon scores a team: on points for the racers its players beat.
 - **Races are run in the world as it is**: its traffic, as TDU's are, and its hour, season and weather, so the AI racers must race every track in every condition and through traffic. Challenges set their own conditions instead, as Forza's bucket lists do.
 - **Races reuse the challenges' machinery** (start ring, countdown, lines across the road, the panel, the result card, retry) and add laps, a grid and places.
 - **Every track is driven by the simulation before any racer exists**, with a race version of the challenge par tool, so a track nobody can finish cleanly never reaches the racers.
 
-![The 26 tracks on the island](races-map.jpg)
+![The 32 tracks on the island](races-map.jpg)
 
-*The 26 tracks by kind: road in yellow, cross country in blue, off-road in green. A circuit is a closed loop; a sprint has a white dot at its start and a white square at its finish. Red is the bucket list's roads, which races leave alone.*
+*The 32 tracks by kind: road in yellow, cross country in blue, off-road in green. A circuit is a closed loop; a sprint has a white dot at its start and a white square at its finish. Red is the bucket list's roads.*
 
-Each track up close, on the aerial photo with its height profile: [road, 1 to 6](races-road-1.jpg), [road, 7 to 12](races-road-2.jpg), [cross country](races-cross-country.jpg) and [off-road](races-off-road.jpg).
+Each track up close, on the aerial photo with its height profile: [road, 1 to 6](races-road-1.jpg), [road, 7 to 12](races-road-2.jpg), [cross country](races-cross-country.jpg), [off-road](races-off-road.jpg) and [the six on challenge roads](races-on-challenge-roads.jpg).
 
 ## 1. Race types
 
@@ -58,7 +58,7 @@ The criteria every track is scored on, with what the score is measured from.
 | **Scenery and landmarks** | The game is a tour of a real place. A race past a castle or along the sea is remembered; one through forest isn't. | Real places from `docs/HISTORY.md` within 400 m, and sea or open views on the map. |
 | **Overtaking** | Wheel to wheel needs places to pass: straights over 300 m, and hard braking into a slow corner after one. | Straights over 300 m, and the longest. |
 | **Width** | Two cars side by side need a two-lane road. A gravel lane takes one car at a time. | The road's class: primary and secondary are two lanes, unclassified lanes one. |
-| **What it shows** | Races are how a player comes to know the island. | The roads within a kilometre of the route that no challenge, place or other race already shows. |
+| **What it shows** | Races are how a player comes to know the island. | The roads within a kilometre of the route that no challenge, place or other race already shows. A race on a challenge's road shows nothing new, and earns its place by the road itself. |
 
 ## 3. Where the loops and branches are
 
@@ -67,21 +67,21 @@ The road map (`pipeline/road_map.py`) holds every motor way OSM has. Taking the 
 - **1,921 km of road, of which 841 km is on loops.** The rest is branches: a lane to a farm, a road out to a cape or over the bridges to an island.
 - **About a hundred loops of 2.5–16 km**, most in the middle: Jomala, Finström, Hammarland, Sund and Saltvik. The west (Eckerö) and the south (Lemland, Lumparland) have fewer and smaller ones, and Vårdö has none the car can reach.
 - **Loops on gravel are short and twisty**, on tarmac long and fast. A loop on a main road has two or three slow junction corners and long straights; on lanes it bends all the way.
-- **The bucket-list challenges' roads were marked and left out**: no track shares more than a crossing with one.
+- **The bucket-list challenges' roads are open to races too.** They are the island's most storied roads, and a race on one is a different thing from the challenge: laps instead of one run, racers and traffic instead of a target, another car or another way round. A race on a challenge's road must differ from the challenge in at least one of those.
 
 ### What a player who does everything will have seen
 
-The island was cut into squares of a kilometre, and each square with 300 m of road or more counts. A square is seen when a challenge's road, a race's route or a place to find passes it or the square next to it. The tracks were chosen to fill what the challenges and places leave unseen, a loop or a branch at a time, each where it showed the most new road, then balanced between the three kinds.
+The island was cut into squares of a kilometre, and each square with 300 m of road or more counts. A square is seen when a challenge's road, a race's route or a place to find passes it or the square next to it. Most tracks were chosen to fill what the challenges and places leave unseen, a loop or a branch at a time, each where it showed the most new road, then balanced between the three kinds. The six on challenge roads are there for the roads themselves.
 
 ![What a player who does everything has seen](races-coverage.jpg)
 
 - **The challenges and the places show 32%** of the squares.
-- **With the 26 races, 73%.**
+- **With the 32 races, 75%.**
 - **The gaps left** are Hammarland's north coast, Saltvik's north-east, Lumparland and Lemland's south-eastern tip: where the list grows next.
 
 ## 4. The tracks
 
-26 tracks. Positions are the game's scene metres (x east, z south of the world origin), as `docs/HISTORY.md` gives them. Each is a starting point: the map step lays it on the road as built and the vetting run drives it (section 7). A track with no story yet is there for what it shows, and gets its note when it is researched to `docs/HISTORY.md`'s standard.
+32 tracks. Positions are the game's scene metres (x east, z south of the world origin), as `docs/HISTORY.md` gives them. Each is a starting point: the map step lays it on the road as built and the vetting run drives it (section 7). A track with no story yet is there for what it shows, and gets its note when it is researched to `docs/HISTORY.md`'s standard.
 
 ### Road: asphalt only
 
@@ -99,6 +99,9 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 | R10 | Out to Järsö | Sprint | 7.9 km | 4 | 1–14 m | 880 m | Island to island south of Mariehamn |
 | R11 | Hamnsund | Sprint | 5.4 km | 2 | 2–52 m | 350 m | To find |
 | R12 | The Kungsö Road | Circuit | 6.9 km | 4 | 2–10 m | 720 m | Towards Kungsö's battery |
+| R13 | Kastelholm, Sund | Circuit | 3.7 km | 6 | 1–22 m | 500 m | Round the castle |
+| R14 | The Old Road and the New, Jomala | Circuit | 5.6 km | 2 | 3–23 m | 910 m | Old and new road 2, the Streetrace's 2021–22 road |
+| R15 | The Night Ferry, Mariehamn to Långnäs | Sprint | 26.8 km | 2 | 0–32 m | 1,600 m | Catch the ship that calls in the night |
 
 **R1. Harbour to Harbour.** Storagatan from Österhamn to Västerhamn, north along the western harbour on Sjöpromenaden past Pommern and under Badhusberget's water tower, east by Elverksgatan and Västra Utfarten to Ålandsvägen, then down Strandgatan along the eastern harbour. Starts at (−1903, 6780). Square town corners, Storagatan's straight, the harbour front and nine of the town's sights within 150 m: Pommern, the Maritime Museum, S:t Görans, Gustaf Erikson's home, Sundblom, the empress's memorial, the town hall. **Story:** the summer cruise between the Eastern and Western harbours, and the wide streets Mariehamn was laid out with in 1861 as fire breaks, which make a street circuit possible at all. **Watch:** parked cars line some kerbs and the street lamps and lindens stop the car, and the roads stay open, so the vetting run checks the route can be raced past them. Some streets are one-way, so the route runs the way their traffic does.
 
@@ -124,6 +127,12 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 **R12. The Kungsö Road.** Österskogsvägen, Kungsövägen, Hammarlandsvägen and Gottbyvägen, west of Mariehamn. Starts at (−7551, 2787). Flat and fast through fields. Kungsövägen is the road out to Kungsö's battery, Russia's gun pits of 1916.
 
+**R13. Kastelholm.** Slottsvägen past the castle, Sundsvägen and Tosarbyvägen. Starts at (7814, −7168). Short and quick, with the castle, Vita Björn and Jan Karlsgården beside the road. **Story:** Åland's only medieval castle, the Swedish crown's seat here. It shares Slottsvägen and a little of Sundsvägen with the challenge from the castle to Bomarsund: the challenge is one run east to the fortress, the race laps the castle.
+
+**R14. The Old Road and the New.** Out on Godbyvägen, old road 2, and back on Nya Godbyvägen, the new one, joined by two hairpin junctions. Starts at (1418, −6093). Nearly an oval: flat out, two heavy stops, the best overtaking on the island. **Story:** the main road north from Mariehamn, rebuilt alongside itself, where the Streetrace returned in 2021 and 2022. The road-2 speed trap is on the straight just south: the trap is one car's top speed, the race is laps and racers.
+
+**R15. The Night Ferry.** From Mariehamn east along Lemlandsvägen, over the Lemström bridge, across Lemland and on to Långnäs harbour. Starts at (−1884, 4835), finishes at (17827, 6651). The longest race, a highway sprint across half the island. **Story:** the big ships still call at Långnäs, a very small place, in the night, because Åland sits outside the EU's tax area (the Long Night Runs of `docs/DRIVING-CULTURE.md`). It shares Lemlandsvägen with the Lemland speed trap and its last road with the V12's challenge to Långnäs: those are one car on one stretch, this is the whole way, against racers.
+
 ### Cross country: asphalt and gravel
 
 | # | Track | Shape | Length | Asphalt | Bends | Ground | Story |
@@ -137,6 +146,7 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 | X7 | Bovik, Hammarland | Circuit | 5.7 km | 75% | 8 | 12–25 m | To find |
 | X8 | Storby to Käringsund, Eckerö | Sprint | 8.5 km | 64% | 12 | 1–32 m | The post road's start to the fishing harbour |
 | X9 | Tellholm, Hammarland | Circuit | 4.2 km | 18% | 6 | 2–21 m | Hammarland's west coast |
+| X10 | The Sund Ring | Circuit | 19.6 km | 89% | 15 | 3–51 m | The Backrace road, Kastelholm, Sund church |
 
 **X1. Degersand.** Skeppsviksvägen, Långnabbavägen, Degersandsvägen and Torpvägen, in Eckerö's south-west. Starts at (−21122, −5216). The twistiest loop found: seventeen bends, gravel and tarmac changing under the car, 9% grades. **Story:** Degersand, the sandy shore at Eckerö's tip, its note still to be checked against a source. Eckerö is past Marsund, so the drive there crosses the bridge the post-road challenge does.
 
@@ -156,6 +166,8 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 **X9. Tellholm.** Tellholmsvägen, Träskviksvägen and Aludden, on Hammarland's west coast. Starts at (−13673, −112). Mostly gravel: the edge between cross country and off-road.
 
+**X10. The Sund Ring.** Norra Sundsvägen east, Mångstektavägen and the gravel past Nötviken, and back west on Sundsvägen past Bomarsund's turning and Kastelholm. Starts at (12078, −5969). The island's big circuit: 15 bends, 221 m climbed a lap, a 1.2 km straight. **Story:** Norra Sundsvägen is the Backrace's road, Sund church the largest medieval church on Åland, and Kastelholm the castle. It shares most of its road with two challenges, the Backrace road flat out and castle to fortress: each of those is one run one way in one car, the ring is all of it in laps, against racers.
+
 ### Off-road: gravel
 
 | # | Track | Shape | Length | Bends | Ground | Story |
@@ -165,6 +177,8 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 | O3 | Båtvik, Sund | Circuit | 3.3 km | 4 | 5–38 m | Across the bay from Kastelholm |
 | O4 | Småkärr, Hammarland | Sprint | 4.1 km | 8 | 2–15 m | Along the sound north of Marsund |
 | O5 | Kullskär, Hammarland | Circuit | 5.8 km | 12 | 4–39 m | Hammarland's west coast |
+| O6 | Djurvik, Hammarland | Circuit | 9.3 km | 20 | 3–34 m | Out to the shore at Djurvik |
+| O7 | Nötviken, Sund | Circuit | 7.1 km | 14 | 9–51 m | The forest above the bay |
 
 **O1. Vessingsboda Lanes.** Norra Byvägen and Hagsviksvägen, gravel all the way, the lanes beside Mönbackavägen. Starts at (11905, 12711). Thirteen bends and nothing straight for more than 180 m: a rally loop. **Story:** Motorstadion, Ålands motorklubb's home ground at Vessingsboda, is half a kilometre west, where the folkrace runs every spring and autumn.
 
@@ -176,14 +190,18 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 **O5. Kullskär.** Kullskärsvägen, Alskog and Bankvikvägen, on Hammarland's west coast. Starts at (−14136, −1801). Twelve bends, a climb to 39 m and back to the shore.
 
+**O6. Djurvik.** Djurvikvägen, Södra Bråkviken and Varggropsvägen, a loop of Hammarland's south-west down to the shore. Starts at (−11672, 3710). The most bends of any track, twenty, all gravel. It shares 2.9 km of Djurvikvägen with the four-by-four's challenge to Djurvik, which goes one way to the shore; the race laps the whole loop.
+
+**O7. Nötviken.** Norra Sundsvägen's gravel end, Kvarnsjövägen and Faderviksvägen, in the forest above Nötviken's bay. Starts at (12749, −10801). Fourteen bends, nothing straight longer than 180 m, 134 m climbed a lap. It shares 2 km with the rally car's challenge to Nötviken, and 2.5 km with X10.
+
 ### Left out
 
-- **The Old Road and the New**, Jomala: out on old road 2 and back on the new, nearly an oval. It sits right beside the road-2 speed trap and shows nothing new.
+- **The Ytterby stage**, the real Rallysprint's gravel: the challenge already runs it as the real event does, one car against the clock, and the stage's joining road is a service road the measuring left out. It comes back as a race in the rallysprint's own format, cars started apart.
 - **Getabergen** as a race of its own: 1.3 km. It is R6's finish.
 
 ## 5. How many, and which first
 
-**All 26 go on the map in the first step.** Races are mostly data once the system exists, and the whole list is what makes them a way to explore. The vetting run (section 7) drives all of them, so the system is proven on every kind of road at once: R1 Harbour to Harbour is the hardest to lay (kerbs, one-way streets), R6 Godby to Soltuna the longest, X1 Degersand the twistiest.
+**All 32 go on the map in the first step.** Races are mostly data once the system exists, and the whole list is what makes them a way to explore. The vetting run (section 7) drives all of them, so the system is proven on every kind of road at once: R1 Harbour to Harbour is the hardest to lay (kerbs, one-way streets), R15 the Night Ferry the longest, O6 Djurvik the twistiest.
 
 After them, the gaps the coverage map shows.
 
@@ -218,7 +236,7 @@ TDU put every race at a marker on the map that you drove to; Forza and The Crew 
 
 ### Races and the bucket list
 
-Two lists on the same machinery. A challenge is one car the game hands you, one road, one target, passed or failed, solo or with a friend, in conditions it sets. A race is the same handed car against racers and traffic, laps or a long road, a medal, in whatever the world has. Their roads don't overlap, their symbols and colours differ, and together with the places to find they are the island's map to explore.
+Two lists on the same machinery. A challenge is one car the game hands you, one road, one target, passed or failed, solo or with a friend, in conditions it sets. A race is the same handed car against racers and traffic, laps or a long road, a medal, in whatever the world has. Six races share roads with challenges and ask something else of them, their symbols and colours differ, and together with the places to find they are the island's map to explore.
 
 ### What is reused from `challenge/`
 
@@ -247,7 +265,7 @@ Two lists on the same machinery. A challenge is one car the game hands you, one 
 
 ## 8. The build order after the plan
 
-1. **Races on the map.** The list (specs, then measured grids, lines and laps), the rings and symbols on both maps with the route on the world map, the race card, the run grown to laps, several cars and places, the panel and the result card, the medals kept solo and co-op apart. Playable at once against the clock, and with friends online. Needs only what the challenges have. **Done when** all 26 can be found, started, finished and retried.
+1. **Races on the map.** The list (specs, then measured grids, lines and laps), the rings and symbols on both maps with the route on the world map, the race card, the run grown to laps, several cars and places, the panel and the result card, the medals kept solo and co-op apart. Playable at once against the clock, and with friends online. Needs only what the challenges have. **Done when** all 32 can be found, started, finished and retried.
 2. **The race vetting tool**, above, with the scripted driver. Needs step 1's list. **Done when** every race is finished cleanly, or its track is changed.
 3. **The racing line and speed plan** (piece 3 of `ideas/traffic-and-racers.md`), checked on these races rather than the challenges' stages: a line inside the laid edges that straightens the bends, and the car's speed plan along it from its measured limits, by surface and condition. Needs step 2 and the limits table. **Done when** every race is finished on the line in every condition, faster than on the middle.
 4. **The racer** (piece 4): the driver of that plan, with its own reset to recover, and difficulty as how much of its car's limit it uses, how late it brakes and how often it slips. First as one rival, then a grid started apart. Needs step 3. **Done when** a race is run against racers whose times spread by difficulty, measured by count.
@@ -264,7 +282,8 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - **Races are a way to explore**: every race, every challenge and every place to find together show most of the map. All the tracks shown are in.
 - **The race picks the car**, as a bucket-list challenge does, for a first race system with no money and no way to change cars. How a player chooses a car to enter, and what's allowed, is for later.
 - **The racers drive mixed cars of the race's kind**, which may mean adding more racing cars, of the loose kinds above all.
-- **All 26 tracks go on the map at once.**
+- **All 32 tracks go on the map at once.**
+- **Races may use the bucket-list challenges' roads**, as long as a race asks something different of the road: laps, racers and traffic, another car or another way round.
 - **Races are run in the world as it is: traffic on, as TDU's are, and the world's hour, season and weather.** The AI racers must handle every track in every condition. Bucket-list challenges set their own conditions instead, as Forza's do.
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
