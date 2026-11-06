@@ -96,9 +96,12 @@ export class Bubble {
     for (const kind of Object.keys(kinds) as VehicleKind[]) if (kinds[kind].density > 0) this.fresh.add(kind);
   }
 
-  /** Sets a kind's density, and takes every one of it away at 0. A kind turned on fills at once, anywhere. */
+  /**
+   * Sets a kind's density, and takes every one of it away at 0. A kind turned on or up fills at once, anywhere: it's a
+   * setting changed on purpose, not traffic arriving.
+   */
   setDensity(kind: VehicleKind, density: number): void {
-    if (density > 0 && this.kinds[kind].density === 0) this.fresh.add(kind);
+    if (density > this.kinds[kind].density) this.fresh.add(kind);
     this.kinds[kind].density = density;
     if (density === 0) for (const vehicle of [...this.traffic.all()]) if (vehicle.kind === kind) this.traffic.remove(vehicle.id);
   }
