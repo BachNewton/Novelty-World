@@ -31,7 +31,7 @@ export interface TileManifest {
   roadSurface: {
     file: string;
     chains: RoadChain[];
-    aprons?: { points: number; triangles: number; areaPoints?: number };
+    aprons?: { points: number; triangles: number; junctionPoints?: number; areaPoints?: number };
     /** The roads laid as one paved surface (`pipeline/paving.py`): the aprons are the whole drawn surface, and the chains' rings only say where each way runs. */
     paved?: boolean;
     /** The ground the paving cuts through, drawn in place of the grid's cells it lists. */

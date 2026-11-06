@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import shapely
 
-from paving import JUNCTION_ACROSS, POINT_FLOATS
+from paving import POINT_FLOATS
 from paving_file import Grid, paving_bytes
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Paved, Roadside, read_surface
 
@@ -162,9 +162,9 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]], roads: list[dict] = ()) -> dict:
+def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]], roads: list[dict] = (), junctions: int = 0) -> dict:
     """A paved tile's road surface: the east road and a path north of it, then paving pieces of (corners, each corner's across, way),
-    and the OSM ways it was laid from."""
+    the last `junctions` of them pieces no way owns, and the OSM ways it was laid from."""
     (folder / "roads.json").write_text(json.dumps({"roads": list(roads)}), encoding="utf-8")
     path = east_road()
     path.rings = path.rings + np.array([0.0, 20.0, 0.0])
@@ -180,9 +180,9 @@ def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple
     (folder / "heights.bin.gz").write_bytes(gzip.compress(np.zeros(4, dtype="<i2").tobytes()))
     bounds = {"west": -500.0, "north": 500.0}
     grid = Grid.of(np.zeros((2, 2)), bounds["west"], bounds["north"], heights["stepM"])
-    (folder / "road-surface.bin.gz").write_bytes(gzip.compress(rings.tobytes() + bytes(len(rings)) + paving_bytes(points, triangles, grid, 0)))
+    (folder / "road-surface.bin.gz").write_bytes(gzip.compress(rings.tobytes() + bytes(len(rings)) + paving_bytes(points, triangles, grid, (3 * junctions, 0))))
     chains = [{"sections": len(east_road().rings), "kind": "tertiary", "motor": True}, {"sections": len(path.rings), "kind": "footway", "motor": False}]
-    return {"bounds": bounds, "heights": heights, "roadSurface": {"file": "road-surface.bin.gz", "chains": chains, "paved": True, "aprons": {"points": len(points), "triangles": len(pieces), "areaPoints": 0}}}
+    return {"bounds": bounds, "heights": heights, "roadSurface": {"file": "road-surface.bin.gz", "chains": chains, "paved": True, "aprons": {"points": len(points), "triangles": len(pieces), "junctionPoints": 3 * junctions, "areaPoints": 0}}}
 
 
 class PavedTiles(unittest.TestCase):
@@ -194,9 +194,9 @@ class PavedTiles(unittest.TestCase):
                 # The path's paving, running on to the road past where its rings stop: a path has no shoulder, so its corners
                 # just past its edge read as a shoulder's.
                 ([(100, 3), (102, 3), (101, 8)], (2, 2, 0), 1),
-                # A junction's corner no way owns.
-                ([(150, 3), (154, 3), (152, 5)], (JUNCTION_ACROSS,) * 3, 0),
-            ])
+                # A junction's corner no way owns, drawn as the shoulder round it, past the east road's.
+                ([(150, 3), (154, 3), (152, 5)], (2, 2, 2), 0),
+            ], junctions=1)
             paved = Paved(*read_surface(Path(folder), manifest))
         # A sign stands a metre past the carriageway, on the shoulder.
         self.assertTrue(paved.clear(np.array([55.0, -4.2]), 0.4, besides=0))

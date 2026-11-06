@@ -386,6 +386,36 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(int(mouth.sum()), 0)
         self.assertTrue((corners[mouth][:, :, 6].astype(int) == residential.index).all())
 
+    def test_a_junction_s_corner_carries_on_the_shoulders_beside_it(self):
+        """A corner no way owns was drawn as one flat shoulder at 1.5 across, with no fade and no paving's joints, between
+        shoulders that run from 1 to 2 and fade to the land at their edge: a flat, lighter curved triangle at every corner."""
+        paved = paving.lay([road([(100, 600), (1100, 600)], "tertiary"), road([(600, 600), (600, 900)])], land())
+        points = paved.points
+        first = len(points) - paved.junction_points - paved.area_points
+        corner = points[first : first + paved.junction_points]
+        owned = points[:first]
+        self.assertGreater(len(corner), 10)
+        # Where a corner meets a way's own piece, at one place, it is that piece's across.
+        piece = {tuple(np.round(point[:2], 3)): abs(point[3]) for point in owned}
+        shared = [(across, piece[place]) for place, across in ((tuple(np.round(point[:2], 3)), point[3]) for point in corner) if place in piece]
+        self.assertGreater(len(shared), 4)
+        np.testing.assert_allclose(*zip(*shared), atol=0.03)
+        self.assertFalse(np.isclose(corner[:, 3], 1.5).any())
+
+    def test_pieces_no_way_owns_change_nothing_of_a_way_s_own(self):
+        ways = [road([(100, 600), (1100, 600)], "tertiary"), road([(600, 600), (600, 900)]), road([(100, 606.5), (1100, 606.5)], "footway", motor=False, footway="sidewalk")]
+        paved = paving.lay(ways, land(height=hilly))
+        original = paving.shoulder_across
+        paving.shoulder_across = lambda xy, *rest: np.full(len(xy), 1.5)
+        try:
+            flat = paving.lay(ways, land(height=hilly))
+        finally:
+            paving.shoulder_across = original
+        own = len(paved.points) - paved.junction_points - paved.area_points
+        self.assertGreater(paved.junction_points, 0)
+        self.assertTrue(np.array_equal(paved.points[:own], flat.points[:own]))
+        self.assertTrue(np.array_equal(paved.triangles, flat.triangles))
+
     def test_a_sidewalk_mapped_close_to_a_wide_street_keeps_its_width_and_the_street_stops_at_it(self):
         """By its class a main road reaches 7.5 m of carriageway and its shoulders round OSM's line: over a sidewalk mapped
         4 m away, which was left a sliver, its width wandering with the gap between the two lines."""

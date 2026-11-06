@@ -77,14 +77,16 @@ def _whole(values: np.ndarray, what: str) -> np.ndarray:
     return whole
 
 
-def in_strips(points: np.ndarray, grid: Grid, last: int = 0) -> np.ndarray:
-    """The order points are written in: strips `STRIP_M` tall from north to south, west to east along each, with the last
-    `last` (a paving's car parks) kept last."""
-    group = np.arange(len(points)) >= len(points) - last
+def in_strips(points: np.ndarray, grid: Grid, last: tuple[int, ...] = ()) -> np.ndarray:
+    """The order points are written in: strips `STRIP_M` tall from north to south, west to east along each, with the
+    groups of so many points the list ends with (a paving's shoulders no way owns, then its car parks) each kept after the
+    one before."""
+    starts = len(points) - np.cumsum(last[::-1])[::-1]
+    group = np.searchsorted(starts, np.arange(len(points)), side="right")
     return np.lexsort((points[:, 0], np.floor((grid.north - points[:, 1]) / STRIP_M), group))
 
 
-def in_written_order(points: np.ndarray, triangles: np.ndarray, grid: Grid, last: int = 0) -> tuple[np.ndarray, np.ndarray]:
+def in_written_order(points: np.ndarray, triangles: np.ndarray, grid: Grid, last: tuple[int, ...] = ()) -> tuple[np.ndarray, np.ndarray]:
     """Points as a file lists them, and the triangles numbering them so."""
     order = in_strips(points, grid, last)
     where = np.empty(len(order), dtype=np.int64)
@@ -137,10 +139,10 @@ def _byte(values: np.ndarray, what: str) -> np.ndarray:
     return whole.astype(np.uint8)
 
 
-def paving_bytes(points: np.ndarray, triangles: np.ndarray, grid: Grid, area_points: int) -> bytes:
-    """The paving's points, (n, POINT_FLOATS), the last `area_points` car parks', and its triangles, as they follow the
-    rings in a road surface file, in the order of `in_strips`."""
-    points, triangles = in_written_order(points, triangles, grid, area_points)
+def paving_bytes(points: np.ndarray, triangles: np.ndarray, grid: Grid, last: tuple[int, ...] = ()) -> bytes:
+    """The paving's points, (n, POINT_FLOATS), ending with groups of `last` points (`Paved`'s shoulders no way owns, then
+    its car parks), and its triangles, as they follow the rings in a road surface file, in the order of `in_strips`."""
+    points, triangles = in_written_order(points, triangles, grid, last)
     across = _whole(points[:, ACROSS] * ACROSS_UNITS, "across")
     if np.abs(across).max(initial=0) >= 2**15:
         raise ValueError("across outside int16")

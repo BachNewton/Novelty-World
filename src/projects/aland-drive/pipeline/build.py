@@ -151,7 +151,7 @@ def encode_paving(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray
     """Every way's rings and tiers as a ribbon's, which the game doesn't draw, then the paving's points and triangles."""
     rings = b"".join(ring.astype("<f4").tobytes() for _, ring, _, _ in ribbons)
     tiers = b"".join(tier.astype("u1").tobytes() for _, _, tier, _ in ribbons)
-    return gzip.compress(rings + tiers + paving_file.paving_bytes(paving_way_points(ribbons, paved), paved.triangles, grid, paved.area_points), 9, mtime=0)
+    return gzip.compress(rings + tiers + paving_file.paving_bytes(paving_way_points(ribbons, paved), paved.triangles, grid, (paved.junction_points, paved.area_points)), 9, mtime=0)
 
 
 def encode_ground_cut(cut: paving.GroundCut, grid: paving_file.Grid) -> bytes:
@@ -283,7 +283,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
                 "int32le columns of east (mm from the tile's west, each the difference from the last), north (mm south of the tile's north), height (mm off the height grid's drawn surface), along (cm) and way, "
                 "then int32le triangles (least corner first, sorted: its difference from the last's, then the others' from it), then int16le across (1024ths), then bytes of tier, class and run (steps of π/32 of twice its angle, 255 for none)"
             )
-            surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points}
+            surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "junctionPoints": paved.junction_points, "areaPoints": paved.area_points}
 
     levels = terrain.water_levels(mosaic, flat_water)
     # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.

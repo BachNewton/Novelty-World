@@ -57,8 +57,6 @@ JUNCTION = -1
 AREA = -2
 AREA_RANK = 6
 JUNCTION_RANK = 99
-# How a piece no way's outline holds is drawn: as a shoulder, which in town is a kerb's paving.
-JUNCTION_ACROSS = 1.5
 # Past this across a way is its shoulder: the carriageway's edge is 1, and its points are stored up to a couple of
 # hundredths past it (the outline is kept within `OUTLINE_WITHIN_M` over a shoulder of a metre or so, and across is
 # written in 1024ths). The game reads the same edge (`sim/road-grip.ts`), from the one file both share.
@@ -167,8 +165,9 @@ class GroundCut:
 class Paved:
     chains: list[Chain]
     conformed: np.ndarray  # The ground at every 2 m corner of the tile, as the paving shapes it.
-    points: np.ndarray  # (n, POINT_FLOATS), the car parks' last.
+    points: np.ndarray  # (n, POINT_FLOATS): the ways' own, then those of pieces no way owns drawn as shoulders, then the car parks'.
     triangles: np.ndarray
+    junction_points: int
     area_points: int
     cut_from: shapely.Geometry  # The paving's outline on every level the cut ground meets.
     cut_paving: np.ndarray  # (n, 3, 3) the paving's triangles the cut ground meets.
@@ -1245,13 +1244,14 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
     return points, triangles
 
 
-def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, crosses: dict[int, Cross]) -> tuple[np.ndarray, np.ndarray, int]:
+def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, ground: Ground, crosses: dict[int, Cross], carriageways: dict[int, shapely.Geometry], outline: shapely.Geometry) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, which way,
     what that way is paved with, and which way it runs, as the cosine and sine of twice its angle: paving looks the same
     turned half round, and a doubled angle has no jump for a triangle to blend across.
 
     A corner shared by pieces of different ways is one point for each, at one place and height, so each piece keeps its own
-    way's look up to its edge. A car park's points come last.
+    way's look up to its edge. The points of pieces no way owns that are drawn as the shoulders round them come after the
+    ways' own, and a car park's last, with how many of each.
     """
     # A point is one for each way whose pieces meet there, and for each look they wear: each piece keeps its own up to its edge.
     keys = np.column_stack((mesh.triangles.ravel(), np.repeat(mesh.owner, 3), np.repeat(mesh.walk, 3), np.repeat(mesh.look, 3)))
@@ -1309,14 +1309,48 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
             across[mine] = OWN_SURFACE_ACROSS
         if who == JUNCTION:
             way[at] = reading
-            # Outside every carriageway: a junction's corner or a gap closed between ways, drawn as the shoulders round it,
-            # or as the path beside it.
-            across[at] = np.where(on_path[at], OWN_SURFACE_ACROSS, JUNCTION_ACROSS)
-    order = np.argsort(owner == AREA, kind="stable")
+            across[at] = OWN_SURFACE_ACROSS
+    # Outside every carriageway: a junction's corner or a gap closed between ways, drawn as the shoulders round it, or as
+    # the path beside it.
+    shoulders = (owner == JUNCTION) & ~on_path
+    across[shoulders] = shoulder_across(xy[shoulders], mesh.level[point[shoulders]], chains, crosses, carriageways, outline)
+    group = np.where(owner == AREA, 2, shoulders.astype(int))
+    order = np.argsort(group, kind="stable")
     rank = np.empty_like(order)
     rank[order] = np.arange(len(order))
     points = np.column_stack((xy, heights[point], across, tier, along, way, surface, run))[order]
-    return points, rank[index].reshape(-1, 3), int((owner == AREA).sum())
+    return points, rank[index].reshape(-1, 3), int(shoulders.sum()), int((owner == AREA).sum())
+
+
+def shoulder_across(xy: np.ndarray, level: np.ndarray, chains: list[Chain], crosses: dict[int, Cross], carriageways: dict[int, shapely.Geometry], outline: shapely.Geometry) -> np.ndarray:
+    """Across for points of paving no way owns, drawn as the shoulders round them, so they carry on their neighbours' kerb,
+    paving and fade rather than standing out as one flat value: a shoulder is 1 at its carriageway's edge and 2 at its
+    paving's, so such a point is 1 and its distance from the nearest motor road's carriageway in that road's shoulders, and
+    at least 2 less its distance from the paving's outline in the same, as a shoulder fades to the land at its edge.
+
+    A road's shoulder is measured as its own points are: the class's own beside a sidewalk, where it is a kerb's strip, and
+    otherwise out to its paving's edge. A path has none, so nothing is a path's shoulder."""
+    across = np.full(len(xy), 2.0)
+    shoulder = np.full(len(xy), np.inf)
+    places = shapely.points(xy)
+    tree = shapely.STRtree(places)
+    for index, carriageway in carriageways.items():
+        chain, cross = chains[index], crosses[index]
+        sides = np.stack([np.where(walk > 0, chain.shoulder, reach - half) for walk, reach, half in ((cross.walk_left, cross.reach_left, cross.half_left), (cross.walk_right, cross.reach_right, cross.half_right))])
+        widest = float(sides.max())
+        if widest <= OUTLINE_WITHIN_M:
+            continue
+        near = tree.query(carriageway, predicate="dwithin", distance=widest)
+        near = near[level[near] == GROUND]
+        if not len(near):
+            continue
+        station = chain.tree.query(xy[near])[1]
+        left = ((xy[near] - chain.xy[station]) * chain.normal[station]).sum(-1) >= 0
+        metres = np.where(left, sides[0, station], sides[1, station])
+        reached = 1 + shapely.distance(places[near], carriageway) / np.maximum(metres, OUTLINE_WITHIN_M)
+        nearer = (metres > OUTLINE_WITHIN_M) & (reached < across[near])
+        across[near[nearer]], shoulder[near[nearer]] = reached[nearer], metres[nearer]
+    return np.maximum(across, 2 - shapely.distance(places, outline) / shoulder)
 
 
 def is_crossing(road: dict) -> bool:
@@ -1443,18 +1477,18 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     surfaces = Surfaces(chains, ground)
     # To the millimetre, as the tile holds it, so the ground cut against the paving takes the very heights drawn.
     heights = np.round(solve_heights(mesh, surfaces, ground, sections), 3)
-    points, triangles, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses)
-
-    raw = ground.tile_corners()
     on_ground = _level_triangles(mesh, heights, GROUND)
     outline = outline_of(on_ground)
+    points, triangles, junction_points, area_points = point_attributes(mesh, heights, chains, surfaces, ground, crosses, carriageways, outline.boundary)
+
+    raw = ground.tile_corners()
     below = _level_triangles(mesh, heights, BELOW)
     # Where an underpass runs in the open, the land beside it falls to it as beside any way; under a deck, the deck's paving holds the land.
     edges = paving_at_corners(outline, on_ground, ground)
     under = paving_at_corners(outline_of(below), below, ground)
     conformed = embanked(raw, np.where(np.isnan(edges), under, edges), ground.spacing)
     cut_from = shapely.union(outline, outline_of(below))
-    return Paved(chains, conformed, points, triangles, area_points, cut_from, np.concatenate((below, on_ground)), underpass_walls(mesh, heights), crosses, ground)
+    return Paved(chains, conformed, points, triangles, junction_points, area_points, cut_from, np.concatenate((below, on_ground)), underpass_walls(mesh, heights), crosses, ground)
 
 
 def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:

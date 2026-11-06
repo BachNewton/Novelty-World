@@ -45,6 +45,7 @@
   "aprons": {
    "points": 1104,
    "triangles": 1548,
+   "junctionPoints": 38,
    "areaPoints": 0
   },
   "groundCut": {

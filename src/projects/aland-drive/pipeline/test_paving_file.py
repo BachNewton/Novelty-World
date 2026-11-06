@@ -70,7 +70,7 @@ def write_tile(folder: Path, paved: paving.Paved, nodes: np.ndarray, cut: paving
             "file": "road-surface.bin.gz",
             "chains": [{"sections": len(ring), "kind": chain.kind_name, "motor": chain.motor} for chain, ring, _, _ in ribbons],
             "paved": True,
-            "aprons": {"points": len(paved.points), "triangles": len(paved.triangles), "areaPoints": paved.area_points},
+            "aprons": {"points": len(paved.points), "triangles": len(paved.triangles), "junctionPoints": paved.junction_points, "areaPoints": paved.area_points},
             "groundCut": {"file": "ground-cut.bin.gz", "cells": len(cut.cells), "points": len(cut.points), "triangles": len(cut.triangles), "walls": cut.walls},
         },
         "solids": {"file": "", "unitM": 0.02, "cells": [], "walls": 0},
@@ -97,7 +97,7 @@ class ReadBack(unittest.TestCase):
         cls.read_cut = paving_file.read_ground_cut(folder, cls.manifest)
         ribbons = paving.rings_of(cls.paved, cls.nodes, cls.grid.step)
         # As the files list them.
-        cls.points, cls.triangles = paving_file.in_written_order(paving_way_points(ribbons, cls.paved), cls.paved.triangles, cls.grid, cls.paved.area_points)
+        cls.points, cls.triangles = paving_file.in_written_order(paving_way_points(ribbons, cls.paved), cls.paved.triangles, cls.grid, (cls.paved.junction_points, cls.paved.area_points))
         cut = cls.cut
         cut_points, cut_triangles = paving_file.in_written_order(cut.points, cut.triangles, cls.grid)
         cls.cut = paving.GroundCut(cut.cells, cut_points, cut_triangles, cut.walls)
@@ -189,7 +189,7 @@ def write_fixture() -> None:
     paved, nodes, cut, grid = laid_tile(height=gentle)
     write_tile(FIXTURE, paved, nodes, cut, grid)
     ribbons = paving.rings_of(paved, nodes, grid.step)
-    points, triangles = paving_file.in_written_order(paving_way_points(ribbons, paved), paved.triangles, grid, paved.area_points)
+    points, triangles = paving_file.in_written_order(paving_way_points(ribbons, paved), paved.triangles, grid, (paved.junction_points, paved.area_points))
     cut_points, cut_triangles = paving_file.in_written_order(cut.points, cut.triangles, grid)
     # In the order the files list them.
     laid = {

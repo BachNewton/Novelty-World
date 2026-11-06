@@ -49,7 +49,7 @@ from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES, class_of
-from paving import CARRIAGEWAY_EDGE_ACROSS, JUNCTION_ACROSS, is_crossing
+from paving import CARRIAGEWAY_EDGE_ACROSS, is_crossing
 from paving_file import read_paving
 from progress import Progress
 from built_up import built_up_of
@@ -272,11 +272,11 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
     if surface.get("paved"):
         corners = points[triangles]
         across = np.abs(corners[:, :, PAVING_ACROSS])
-        area = (triangles >= len(points) - aprons.get("areaPoints", 0)).any(axis=1)
-        junction = (across == JUNCTION_ACROSS).all(axis=1)
+        # The paving ends with the points of pieces no way owns, drawn as shoulders, then the car parks'.
+        owned = (triangles < len(points) - aprons["junctionPoints"] - aprons["areaPoints"]).all(axis=1)
         way = corners[:, 0, PAVING_WAY].astype(int)
         motor = np.array([chain["motor"] for chain in surface["chains"]], dtype=bool)
-        owned = ~area & ~junction & (way >= 0)
+        owned &= way >= 0
         carriageway = owned & ((across <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
         owners = np.where(carriageway, way, -1)
         kept = carriageway | ~owned
