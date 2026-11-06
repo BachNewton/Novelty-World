@@ -36,9 +36,18 @@ export function placeSeed(at: Node<"vec2">): Node<"uint"> {
   return seedOf(at.x.mul(100), at.y.mul(100));
 }
 
-/** A number from 0 to 1 from a seed, a different one for each salt. */
-export function unitOf(seed: Node<"uint">, salt: number): Node<"float"> {
-  return float(pcg(seed.bitXor(uint(pcgOf(salt)))).shiftRight(uint(8))).mul(1 / 2 ** 24);
+/** A salt as `unitOfSalted` takes it: for a shader function that takes its salt as an argument rather than as a constant. */
+export const salted = (salt: number): Node<"uint"> => uint(pcgOf(salt));
+
+/** `salted` worked out on the GPU, for a salt that is itself a uniform. */
+export const saltedOn = (salt: Node<"uint">): Node<"uint"> => pcg(salt);
+
+/** `unitOf` with its salt already made by `salted`. */
+export function unitOfSalted(seed: Node<"uint">, salt: Node<"uint">): Node<"float"> {
+  return float(pcg(seed.bitXor(salt)).shiftRight(uint(8))).mul(1 / 2 ** 24);
 }
+
+/** A number from 0 to 1 from a seed, a different one for each salt. */
+export const unitOf = (seed: Node<"uint">, salt: number): Node<"float"> => unitOfSalted(seed, salted(salt));
 
 export { placeSeedOf, seedOfWhole, unitOfSeed } from "./hash-of";

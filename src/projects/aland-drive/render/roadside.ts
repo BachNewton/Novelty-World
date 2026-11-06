@@ -7,7 +7,7 @@ import { createTownRoadside, TOWN_MODELS, type TownLooks } from "./town-roadside
 import type { LampKind, LampSpot } from "../art/night";
 import type { SeasonLook } from "../art/season";
 import { TERRACES } from "../climate/placed-season";
-import { inSeasonMaterials } from "./in-season";
+import { inSeasonMaterials, markInSeason } from "./in-season";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
@@ -111,8 +111,9 @@ export interface RoadsideLooks {
 }
 
 export function createRoadside(scene: Scene, looks: RoadsideLooks) {
-  const terraces = looks.season === undefined ? looks.street : inSeasonMaterials(looks.street, looks.season, TERRACES);
-  const models = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: TERRACE_MODELS.has(name) ? terraces : looks[kit], places: [] as Placement[], near: [] as Mesh[], far: [] as Mesh[] }));
+  // The street kit draws through one copy that folds its terraces out of season, the rest of its models marked as out all year.
+  const street = looks.season === undefined ? looks.street : inSeasonMaterials(looks.street, looks.season);
+  const models = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: kit === "street" ? street : looks[kit], inSeason: TERRACE_MODELS.has(name) ? TERRACES : undefined, places: [] as Placement[], near: [] as Mesh[], far: [] as Mesh[] }));
   let centre: { x: number; z: number } | null = null;
   const wireModel = buildWireSpan();
   const tiles = new Map<string, TileRoadside>();
@@ -143,14 +144,14 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
   const refillNear = (entry: (typeof models)[number]) => {
     const range = nearRangeM(entry.model);
     const near = centre === null ? [] : entry.places.filter(({ x, z }) => Math.hypot(x - (centre?.x ?? 0), z - (centre?.z ?? 0)) < range);
-    entry.near = swap(entry.near, placeVersion(entry.model, "near", near.length > 0 ? near : [NOWHERE], entry.materials), near.length > 0);
+    entry.near = swap(entry.near, markInSeason(placeVersion(entry.model, "near", near.length > 0 ? near : [NOWHERE], entry.materials), entry.inSeason), near.length > 0);
   };
 
   const rebuildModels = (names: ReadonlySet<string>) => {
     for (const entry of models.filter(({ name }) => names.has(name))) {
       entry.places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? placesOf(tile.models[entry.name], tile.scales[entry.name]) : []));
       const shown = entry.places.length > 0;
-      entry.far = swap(entry.far, placeVersion(entry.model, "far", shown ? entry.places : [NOWHERE], entry.materials), shown);
+      entry.far = swap(entry.far, markInSeason(placeVersion(entry.model, "far", shown ? entry.places : [NOWHERE], entry.materials), entry.inSeason), shown);
       refillNear(entry);
     }
   };

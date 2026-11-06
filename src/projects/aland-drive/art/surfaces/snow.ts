@@ -1,6 +1,6 @@
-import { dot, float, floor, fract, max, mix, smoothstep, vec3 } from "three/tsl";
+import { dot, float, floor, fract, Fn, max, mix, smoothstep, vec3 } from "three/tsl";
 import type { Node } from "three/webgpu";
-import { seedOf, unitOf } from "../hash";
+import { salted, seedOf, unitOfSalted } from "../hash";
 import { changeOf, seasonNodes, type SeasonLook } from "../season";
 import { groundKinds } from "./ground";
 
@@ -89,14 +89,19 @@ export function snowfall(season: SeasonLook | undefined, colour: (name: string) 
   return { cover: snowCover, depthCm: snowDepthCm, snow: colour("snow"), shade: colour("snow-shade") };
 }
 
-/** Smooth noise from 0 to 1 on a lattice of whole cells, the same on every GPU (`art/hash.ts`). */
-function patches(at: Node<"vec2">, salt: number): Node<"float"> {
+/**
+ * Smooth noise from 0 to 1 on a lattice of whole cells, the same on every GPU (`art/hash.ts`). A shader function called
+ * where it's used, not pasted in: the ground reads it half a dozen times, in a shader every terrain ring compiles.
+ */
+const patchesAt = Fn(([at, salt]: [Node<"vec2">, Node<"uint">]) => {
   const cell = floor(at);
   const inCell = fract(at);
   const eased = inCell.mul(inCell).mul(inCell.mul(-2).add(3));
-  const corner = (east: number, south: number) => unitOf(seedOf(cell.x.add(east), cell.y.add(south)), salt);
+  const corner = (east: number, south: number) => unitOfSalted(seedOf(cell.x.add(east), cell.y.add(south)), salt);
   return mix(mix(corner(0, 0), corner(1, 0), eased.x), mix(corner(0, 1), corner(1, 1), eased.x), eased.y);
-}
+}).setLayout({ name: "snowPatches", type: "float", inputs: [{ name: "at", type: "vec2" }, { name: "salt", type: "uint" }] });
+
+const patches = (at: Node<"vec2">, salt: number): Node<"float"> => patchesAt(at, salted(salt));
 
 /** How much of the snow a place's thin depth lets show. */
 const shownAt = (fall: Snowfall) => mix(float(THIN_SHOWN), float(1), smoothstep(float(0), float(DEEP_CM), fall.depthCm));
