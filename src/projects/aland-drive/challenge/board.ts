@@ -1,5 +1,5 @@
 import type { MapChallenge } from "../map/draw";
-import { readPasses, withOutcome, type ChallengePass, type ChallengePasses } from "./passes";
+import { PLAY_MODES, readPasses, withOutcome, type ChallengePass, type ChallengePasses, type PlayMode } from "./passes";
 import type { Outcome } from "./run";
 import type { Challenge, ScenePoint } from "./types";
 
@@ -7,8 +7,8 @@ import type { Challenge, ScenePoint } from "./types";
  * The challenges a drive knows: the list, and any of the page's own (a test's,
  * laid on its own world's roads), which of them stand in this world, which have
  * been passed and with what best, and whose start ring the car is in. The maps
- * and the start rings in the world draw from it; passes are kept by whatever
- * store it's handed.
+ * and the start rings in the world draw from it; passes, solo and co-op apart,
+ * are kept by whatever store it's handed.
  */
 
 /** A start ring's reach from its middle, which lies between the two start places. */
@@ -45,14 +45,14 @@ export class ChallengeBoard {
     return this.known.filter((challenge) => this.here(ringCentre(challenge)));
   }
 
-  /** How many of the challenges in this world have been passed. */
+  /** How many of the challenges in this world have been passed, solo or in co-op. */
   get passedCount(): number {
-    return this.challenges.filter((challenge) => this.passOf(challenge) !== null).length;
+    return this.challenges.filter((challenge) => this.passed(challenge)).length;
   }
 
   /** Each start in this world as the maps draw it. */
   marks(): MapChallenge[] {
-    return this.challenges.map((challenge) => ({ ...ringCentre(challenge), title: challenge.title, kind: challenge.kind, passed: this.passOf(challenge) !== null }));
+    return this.challenges.map((challenge) => ({ ...ringCentre(challenge), title: challenge.title, kind: challenge.kind, passed: this.passed(challenge) }));
   }
 
   /** A challenge of the page's own, beside the list's. */
@@ -68,13 +68,18 @@ export class ChallengeBoard {
     return challenge;
   }
 
-  passOf(challenge: Challenge): ChallengePass | null {
-    return (this.passes[challenge.id] as ChallengePass | undefined) ?? null;
+  passOf(challenge: Challenge, mode: PlayMode): ChallengePass | null {
+    return (this.passes[mode][challenge.id] as ChallengePass | undefined) ?? null;
   }
 
-  /** An attempt is over: a pass, or a better best, is kept. */
-  record(challenge: Challenge, outcome: Outcome): void {
-    const next = withOutcome(this.passes, challenge, outcome);
+  /** Whether a challenge has been passed in either mode, which is what the maps and the start rings show. */
+  passed(challenge: Challenge): boolean {
+    return PLAY_MODES.some((mode) => this.passOf(challenge, mode) !== null);
+  }
+
+  /** An attempt played in a mode is over: a pass, or a better best, is kept for that mode. */
+  record(challenge: Challenge, mode: PlayMode, outcome: Outcome): void {
+    const next = withOutcome(this.passes, challenge, mode, outcome);
     if (next === this.passes) return;
     this.passes = next;
     this.revision++;

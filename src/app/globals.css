@@ -54,6 +54,16 @@
   }
 }
 
+/* AI Compass: the four corners' colours. Every cell blends between them by
+   its place on the map, so no corner reads as the better one. Read only by
+   inline styles, so declared outside @theme. */
+:root {
+  --color-compass-ask-steered: var(--color-brand-orange);
+  --color-compass-delegate-steered: var(--color-brand-pink);
+  --color-compass-ask-accepted: var(--color-brand-green);
+  --color-compass-delegate-accepted: var(--color-brand-blue);
+}
+
 /* Pokemon type colors, sampled directly from the SVG type icons in
    /public/pokemon-types so the selection border matches the icon fill.
    Declared outside @theme so they're reliably available as raw CSS

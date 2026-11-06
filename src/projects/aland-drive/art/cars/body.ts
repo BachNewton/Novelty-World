@@ -1,5 +1,5 @@
 import { curve, smoothstep, type Key } from "./curve";
-import { SoupBuilder, type Point, type Soup, type Surface } from "./mesh";
+import { SoupBuilder, SURFACES, type Point, type Soup, type Surface } from "./mesh";
 
 /*
  * A car's shell, lofted from its profiles. The silhouette is a line along the
@@ -586,51 +586,241 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   return builder.finish(detail.creaseDeg);
 }
 
-/** A car at a distance: its outline in four ribs, glass where the glass is, about thirty triangles. */
-export function buildDistant(spec: BodySpec, ground: number): Soup {
+/** How far the stand-in's outline may stray from its near version's silhouette, between the places its surfaces change. */
+const DISTANT_OUTLINE_M = 0.1;
+/** How far each of the stand-in's stuck-on faces stands off what it's stuck on, so no two share a plane. */
+const DISTANT_LIFT_M = 0.012;
+
+/** The faces of `soup` of one surface at one end of the car, right side only: their box across and up. */
+function lensBox(soup: Soup, surface: Surface, end: "front" | "rear") {
+  const id = SURFACES.indexOf(surface);
+  const box = { x: [Infinity, -Infinity], y: [Infinity, -Infinity] };
+  for (let vertex = 0; vertex < soup.surfaces.length; vertex++) {
+    const [x, y, z] = soup.positions.subarray(vertex * 3, vertex * 3 + 3);
+    if (soup.surfaces[vertex] !== id || x < 0 || (end === "front") !== z < 0) continue;
+    box.x = [Math.min(box.x[0], x), Math.max(box.x[1], x)];
+    box.y = [Math.min(box.y[0], y), Math.max(box.y[1], y)];
+  }
+  return box.x[0] === Infinity ? null : (box as { x: [number, number]; y: [number, number] });
+}
+
+/** The points of a polyline in (z, h) that keep it within `tolerance`, by Douglas–Peucker. */
+function simplified(points: readonly SilhouettePoint[], tolerance: number): SilhouettePoint[] {
+  if (points.length < 3) return [...points];
+  const [first, last] = [points[0], points[points.length - 1]];
+  const length = Math.hypot(last.z - first.z, last.h - first.h);
+  let [far, farthest] = [0, -1];
+  points.slice(1, -1).forEach((point, index) => {
+    const off = length === 0 ? Math.hypot(point.z - first.z, point.h - first.h) : Math.abs((last.z - first.z) * (first.h - point.h) - (first.z - point.z) * (last.h - first.h)) / length;
+    if (off > far) [far, farthest] = [off, index + 1];
+  });
+  if (far <= tolerance) return [first, last];
+  return [...simplified(points.slice(0, farthest + 1), tolerance).slice(0, -1), ...simplified(points.slice(farthest), tolerance)];
+}
+
+/** A quad turned to face `outward`. */
+function facingQuad(builder: SoupBuilder, corners: readonly [Point, Point, Point, Point], outward: Point, surface: Surface, group = 0) {
+  const [a, b, c, d] = corners;
+  const normal = [(b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])];
+  if (normal[0] * outward[0] + normal[1] * outward[1] + normal[2] * outward[2] >= 0) builder.quad(a, b, c, d, surface, group);
+  else builder.quad(d, c, b, a, surface, group);
+}
+
+const flipped = ([x, y, z]: Point): Point => [-x, y, z];
+
+/** A stretch of the near silhouette shorter than this takes its neighbour's surfaces on the stand-in. */
+const DISTANT_STRETCH_M = 0.2;
+/** An end of the silhouette this close over the sill is a bumper's foot, which the stand-in leaves off. */
+const DISTANT_FOOT_M = 0.12;
+/** A block's face smaller than this is left off the stand-in. */
+const DISTANT_FACE_M2 = 0.04;
+
+/** What a stretch of the silhouette is across its top, and down its sides above the belt, if not paint or the side glass. */
+interface Stretch {
+  top: Surface;
+  upper: Surface | null;
+}
+
+interface Run {
+  from: number;
+  to: number;
+  length: number;
+}
+
+/**
+ * A car at a distance: its near version simplified, read at the size its swap leaves it. Its outline is the
+ * silhouette's own firm points, thinned between the places where the near version's surfaces change, so its
+ * glass (screen, side windows and rear window) and its lamps lie where the near version's do; a dark wheel with its
+ * tread stands where each wheel is, the head and tail lamps are faces on the shell where `near` has its lenses,
+ * and what stands on the body (a rack, a sign) is a box.
+ */
+export function buildDistant(spec: BodySpec, ground: number, near: Soup): Soup {
   const curves = { sill: curve(spec.sill), belt: curve(spec.belt), halfWidth: curve(spec.halfWidth), railWidth: curve(spec.railWidth) };
-  const path = spec.silhouette;
-  const topAt = (z: number) => Math.max(...path.slice(1).map((point, index) => {
-    const before = path[index];
-    const [low, high] = before.z < point.z ? [before.z, point.z] : [point.z, before.z];
-    if (z < low || z > high || low === high) return 0;
-    return before.h + ((point.h - before.h) * (z - before.z)) / (point.z - before.z);
-  }));
-  const ends = path.map(({ z }) => z);
-  const [nose, tail] = [Math.min(...ends), Math.max(...ends)];
-  const hasGlass = spec.windowZ[1] > spec.windowZ[0];
-  const middle = hasGlass ? spec.windowZ : [nose + (tail - nose) * 0.3, nose + (tail - nose) * 0.7];
-  const stations = [nose + 0.04, middle[0], middle[1], tail - 0.04];
-  const ribs = stations.map((z): Point[] => {
-    const top = topAt(z);
+  const firm = spec.silhouette.filter((point) => !point.fine);
+  const across = (point: SilhouettePoint, row: number) => (point.band === undefined ? undefined : spec.bands[point.band].find(({ from, to }) => row >= from && row < to)?.surface);
+  const stretchOf = (point: SilhouettePoint): Stretch => (point.bed ? { top: spec.bedSurface ?? "trim", upper: "paint" } : { top: across(point, ROWS.roofInner) ?? "paint", upper: across(point, ROWS.windowBase) ?? null });
+  const same = (a: Stretch, b: Stretch) => a.top === b.top && a.upper === b.upper;
+
+  // The near silhouette's stretches of one look, the shortest taking its longer neighbour's until none is too short.
+  const segments = firm.slice(1).map((point, index) => ({ look: stretchOf(firm[index]), length: Math.hypot(point.z - firm[index].z, point.h - firm[index].h) }));
+  const runsOf = () => {
+    const runs: Run[] = [];
+    segments.forEach(({ look, length }, index) => {
+      const last = runs.at(-1);
+      if (last && same(segments[last.from].look, look)) Object.assign(last, { to: index + 1, length: last.length + length });
+      else runs.push({ from: index, to: index + 1, length });
+    });
+    return runs;
+  };
+  for (let runs = runsOf(); runs.length > 1; runs = runsOf()) {
+    const shortest = runs.reduce((best, run) => (run.length < best.length ? run : best));
+    if (shortest.length >= DISTANT_STRETCH_M) break;
+    const at = runs.indexOf(shortest);
+    const neighbours = [runs.at(at - 1), runs.at(at + 1)].filter((run, side): run is Run => run !== undefined && (side === 0 ? at > 0 : true));
+    const taken = neighbours.reduce((best, run) => (run.length > best.length ? run : best));
+    for (let index = shortest.from; index < shortest.to; index++) segments[index].look = segments[taken.from].look;
+  }
+  const path: SilhouettePoint[] = [];
+  const looks: Stretch[] = [];
+  for (const run of runsOf()) {
+    const points = simplified(firm.slice(run.from, run.to + 1), DISTANT_OUTLINE_M);
+    path.push(...(path.length === 0 ? points : points.slice(1)));
+    looks.push(...points.slice(1).map(() => segments[run.from].look));
+  }
+  // A bumper's foot tucked under it is left off: each end is shut by a face of the foot's own surface instead.
+  const footOf = (at: number) => path[at].h - curves.sill(path[at].z) < DISTANT_FOOT_M;
+  const caps: [Surface | null, Surface | null] = [null, null];
+  while (path.length > 3 && footOf(0)) {
+    path.shift();
+    caps[0] = looks.shift()?.top ?? null;
+  }
+  while (path.length > 3 && footOf(path.length - 1)) {
+    path.pop();
+    caps[1] = looks.pop()?.top ?? null;
+  }
+
+  const ends = spec.silhouette.map((point) => point.z);
+  const [front, rear] = [Math.min(...ends), Math.max(...ends)];
+  const ribs = path.map(({ z, h }): Point[] => {
     const width = curves.halfWidth(z) + 0.01;
-    const belt = Math.min(curves.belt(z), top);
+    const bottom = Math.min(curves.sill(z), h);
+    const belt = Math.min(Math.max(curves.belt(z), bottom), h);
+    const rail = Math.min(curves.railWidth(z), width);
+    // The nose's and the tail's corners pulled back as the near version's are.
+    const pulled = (x: number) => pulledZ(spec, z, x, curves.halfWidth(z), front, rear);
     return [
-      [width, curves.sill(z) + ground, z],
-      [width, belt + ground, z],
-      [Math.min(curves.railWidth(z), width), top + ground, z],
+      [width, bottom + ground, pulled(width)],
+      [width, belt + ground, pulled(width)],
+      [rail, h + ground, pulled(rail)],
     ];
   });
   const builder = new SoupBuilder();
+  // The paint shades smooth across its gentle bends, as the near version's does, but glass keeps its own flat faces: a
+  // pane's normal bent towards the paint beside it catches the sky where the near version's doesn't.
+  const glass = builder.newGroup();
+  const groupOf = (surface: Surface) => (surface === "glass" ? glass : 0);
+  const both = (corners: readonly [Point, Point, Point, Point], outward: Point, surface: Surface) => {
+    facingQuad(builder, corners, outward, surface, groupOf(surface));
+    facingQuad(builder, [flipped(corners[3]), flipped(corners[2]), flipped(corners[1]), flipped(corners[0])], flipped(outward), surface, groupOf(surface));
+  };
+  const inWindow = (z: number) => z > spec.windowZ[0] && z < spec.windowZ[1];
   ribs.slice(1).forEach((rib, at) => {
     const before = ribs[at];
-    const upper = at === 1 && hasGlass ? "glass" : "paint";
-    builder.mirroredQuad(before[0], before[1], rib[1], rib[0], "paint");
-    builder.mirroredQuad(before[1], before[2], rib[2], rib[1], upper);
-    const [a, b] = [before[2], rib[2]];
-    builder.quad(a, [-a[0], a[1], a[2]], [-b[0], b[1], b[2]], b, "paint");
+    const [from, to, look] = [path[at], path[at + 1], looks[at]];
+    // Out from the silhouette, the way the path goes round the car from the nose's foot over the roof to the tail's.
+    const out: Point = [0, to.z - from.z, -(to.h - from.h)];
+    both([before[0], before[1], rib[1], rib[0]], [1, 0, 0], "paint");
+    const glassy = inWindow((from.z + to.z) / 2) && before[2][1] - before[1][1] > 0.05 && rib[2][1] - rib[1][1] > 0.05;
+    both([before[1], before[2], rib[2], rib[1]], [1, out[1], out[2]], look.upper ?? (glassy ? "glass" : "paint"));
+    facingQuad(builder, [before[2], flipped(before[2]), flipped(rib[2]), rib[2]], out, look.top, groupOf(look.top));
   });
-  const cap = (rib: Point[], outward: boolean) => {
-    const [a, b, c] = rib;
-    const flip = ([x, y, z]: Point): Point => [-x, y, z];
-    const quad = (p: Point, q: Point, r: Point, t: Point) => {
-      if (outward) builder.quad(p, q, r, t, "paint");
-      else builder.quad(t, r, q, p, "paint");
-    };
-    quad(flip(a), a, b, flip(b));
-    quad(flip(b), b, c, flip(c));
-  };
-  cap(ribs[ribs.length - 1], true);
-  cap(ribs[0], false);
-  return builder.finish(1);
+  for (const [rib, outward, surface] of [[ribs[0], -1, caps[0]], [ribs[ribs.length - 1], 1, caps[1]]] as const) {
+    if (surface === null) continue;
+    facingQuad(builder, [rib[0], rib[1], flipped(rib[1]), flipped(rib[0])], [0, 0, outward], surface);
+    facingQuad(builder, [rib[1], rib[2], flipped(rib[2]), flipped(rib[1])], [0, 0, outward], surface);
+  }
+
+  // The near version's lamps, as faces on the shell where its lenses are: in two across where the shell's end bends at
+  // its roof's edge, so the shell can't stand through a lamp.
+  const lamps = (["lensHead", "lensTail"] as const).flatMap((surface) => {
+    const end = surface === "lensHead" ? "front" : "rear";
+    const box = lensBox(near, surface, end);
+    if (box === null) return [];
+    const bend = curves.railWidth(end === "front" ? front : rear);
+    const pieces: [number, number][] = bend > box.x[0] && bend < box.x[1] ? [[box.x[0], bend], [bend, box.x[1]]] : [box.x];
+    return pieces.flatMap((across) => {
+      const corners = onEnd(builder, end, across, box.y);
+      return corners ? [{ surface, corners, out: end === "front" ? -1 : 1 }] : [];
+    });
+  });
+  for (const { surface, corners, out } of lamps) both(corners, [0, 0, out], surface);
+
+  for (const block of spec.blocks ?? []) if (!block.fine) addDistantBlock(builder, block, ground);
+
+  // Each wheel as the near version shows it in its arch: a dark face as big as its tyre.
+  const archR = spec.wheelRadiusM + spec.archClearM;
+  // A hexagon this many times the tyre's radius across its corners covers what the tyre does.
+  const evenArea = Math.sqrt((2 * Math.PI) / (3 * Math.sqrt(3)));
+  for (const axle of spec.axleZ) {
+    let side = spec.trackM / 2 + spec.tyreWidthM / 2;
+    for (let step = 0; step <= 8; step++) side = Math.max(side, curves.halfWidth(axle - archR + (archR * step) / 4) + 0.01);
+    const x = side + DISTANT_LIFT_M;
+    const hexagon: Point[] = [0, 1, 2, 3, 4, 5].map((corner) => {
+      const angle = (corner * Math.PI) / 3;
+      return [x, spec.wheelRadiusM + ground + Math.sin(angle) * spec.wheelRadiusM * evenArea, axle + Math.cos(angle) * spec.wheelRadiusM * evenArea];
+    });
+    both([hexagon[0], hexagon[1], hexagon[2], hexagon[3]], [1, 0, 0], "tyre");
+    both([hexagon[3], hexagon[4], hexagon[5], hexagon[0]], [1, 0, 0], "tyre");
+    // Its tread below the body, where the tyre shows from in front and behind.
+    const inner = spec.trackM / 2 - spec.tyreWidthM / 2;
+    for (const [top, bottom] of [[hexagon[3], hexagon[4]], [hexagon[0], hexagon[5]]]) {
+      const outward: Point = [0, -Math.abs(top[2] - axle) / 2, top[2] - axle];
+      both([top, bottom, [inner, bottom[1], bottom[2]], [inner, top[1], top[2]]], outward, "tyre");
+    }
+  }
+  return builder.finish(25);
+}
+
+/** A block on the stand-in: a box with no floor, and none of its faces too small to see from where it stands in. */
+function addDistantBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+  for (const side of mirror ? [1, -1] : [1]) {
+    const [x, y] = [side * at[0], at[1] + ground];
+    const ring = (z: number, wide: number, tall: number): Point[] => [
+      [x - wide / 2, y - tall / 2, z],
+      [x + wide / 2, y - tall / 2, z],
+      [x + wide / 2, y + tall / 2, z],
+      [x - wide / 2, y + tall / 2, z],
+    ];
+    const [front, back] = [ring(at[2] - size[2] / 2, size[0], size[1]), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1])];
+    const faces: [readonly [Point, Point, Point, Point], Point][] = [
+      [[front[0], front[1], front[2], front[3]], [0, 0, -1]],
+      [[back[0], back[1], back[2], back[3]], [0, 0, 1]],
+      [[front[3], front[2], back[2], back[3]], [0, 1, 0]],
+      [[front[1], back[1], back[2], front[2]], [1, 0, 0]],
+      [[front[0], back[0], back[3], front[3]], [-1, 0, 0]],
+    ];
+    for (const [corners, outward] of faces) {
+      const [a, b, , d] = corners;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) * Math.hypot(d[0] - a[0], d[1] - a[1], d[2] - a[2]) >= DISTANT_FACE_M2) facingQuad(builder, corners, outward, surface);
+    }
+  }
+}
+
+/** How far a face on a stand-in's end may move in from where it's wanted, where the end narrows. */
+const END_FIT_STEPS = 6;
+
+/** A rectangle across `x` and up `y` laid on the shell's end, each corner a little proud of the face behind it, or null where it can't be fitted. */
+function onEnd(shell: SoupBuilder, end: "front" | "rear", x: readonly [number, number], y: readonly [number, number]): [Point, Point, Point, Point] | null {
+  const out = end === "front" ? -1 : 1;
+  // Each corner comes in towards the middle of the rectangle's width until there is a face behind it.
+  const middle = (x[0] + x[1]) / 2;
+  const fitted = ([[x[0], y[0]], [x[1], y[0]], [x[1], y[1]], [x[0], y[1]]] as const).map(([across, up]) => {
+    for (let step = 0; step <= END_FIT_STEPS; step++) {
+      const at = across + ((middle - across) * step) / END_FIT_STEPS;
+      const hit = shell.raycast([at, up, out * 10], [0, 0, -out]);
+      if (hit) return [at, up, hit[2] + out * DISTANT_LIFT_M] as Point;
+    }
+    return null;
+  });
+  return fitted.every((corner) => corner !== null) ? (fitted as [Point, Point, Point, Point]) : null;
 }

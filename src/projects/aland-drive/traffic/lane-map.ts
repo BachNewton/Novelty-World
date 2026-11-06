@@ -127,6 +127,13 @@ export function decodeLanes(file: LanesFile): TileLanes {
   return { points, lanes, connectors, links: pathLinks, junctions: file.junctions, issues: file.issues };
 }
 
+/** The points of a lane, a connector or a link, by its index in its own list. */
+export function lineOf(tile: TileLanes, line: { index: number; connector: boolean; link?: boolean }): LaneLine {
+  const found = line.link ? tile.links[line.index] : line.connector ? tile.connectors[line.index] : tile.lanes[line.index];
+  if (!(found as LaneLine | undefined)) throw new Error(`no ${line.link ? "link" : line.connector ? "connector" : "lane"} ${line.index}`);
+  return found;
+}
+
 export const laneTransfers = (lanes: TileLanes): ArrayBuffer[] => [lanes.points.buffer as ArrayBuffer];
 
 /** A line's length along the ground, in metres. */
@@ -160,7 +167,9 @@ export function pointAlong(points: Float32Array, line: LaneLine, along: number):
 export function alongNearest(points: Float32Array, line: LaneLine, x: number, z: number, from: number, to: number): number {
   let best = { off: Infinity, along: from };
   let travelled = 0;
-  const last = line.first + line.count - 2;
+  // The last step with any length: a line may end on a point written twice, and a place past its end runs on along this.
+  let last = line.first + line.count - 2;
+  while (last > line.first && points[last * 3] === points[last * 3 + 3] && points[last * 3 + 2] === points[last * 3 + 5]) last--;
   for (let at = line.first; at <= last; at++) {
     const [x0, , z0, x1, , z1] = points.subarray(at * 3, at * 3 + 6);
     const length = Math.hypot(x1 - x0, z1 - z0);

@@ -7,29 +7,45 @@
     "name": "rural: sheep standing",
     "swapM": 57
   },
+  "79b72dd8": {
+    "name": "bikes: Ejder Grus riding",
+    "swapM": 33
+  },
+  "d81f37a6": {
+    "name": "bikes: Ejder Stad riding",
+    "swapM": 33
+  },
+  "a88773f7": {
+    "name": "bikes: Ejder Sund riding",
+    "swapM": 33
+  },
+  "463f9ced": {
+    "name": "bikes: Ejder Tur riding",
+    "swapM": 33
+  },
   "6555555d": {
     "name": "boats: allmogebat",
     "swapM": 85
   },
   "e652330f": {
     "name": "boats: allmogebat-sailing",
-    "swapM": 30
+    "swapM": 46
   },
   "2e5fcc29": {
     "name": "boats: cruiser",
-    "swapM": 95
+    "swapM": 145
   },
   "f1f9d352": {
     "name": "boats: cruiser-sailing",
-    "swapM": 64
+    "swapM": 84
   },
   "fe74632d": {
     "name": "boats: double-ender",
-    "swapM": 101
+    "swapM": 153
   },
   "392912e1": {
     "name": "boats: double-ender-sailing",
-    "swapM": 68
+    "swapM": 158
   },
   "df2b9f26": {
     "name": "boats: fishing",
@@ -37,31 +53,31 @@
   },
   "f4576cad": {
     "name": "boats: folkboat",
-    "swapM": 90
+    "swapM": 119
   },
   "2c8f4e9d": {
     "name": "boats: folkboat-sailing",
-    "swapM": 40
+    "swapM": 107
   },
   "109e7ba7": {
     "name": "boats: galeas",
-    "swapM": 150
+    "swapM": 228
   },
   "ac9e2040": {
     "name": "boats: galeas-sailing",
-    "swapM": 130
+    "swapM": 227
   },
   "963b7531": {
     "name": "boats: large",
-    "swapM": 120
+    "swapM": 138
   },
   "d484f205": {
     "name": "boats: large-sailing",
-    "swapM": 87
+    "swapM": 115
   },
   "16aa56c0": {
     "name": "boats: launch",
-    "swapM": 74
+    "swapM": 98
   },
   "c5a9c364": {
     "name": "boats: optimist",
@@ -77,11 +93,11 @@
   },
   "0f1e312b": {
     "name": "boats: pilot",
-    "swapM": 108
+    "swapM": 378
   },
   "aad534da": {
     "name": "boats: rescue",
-    "swapM": 102
+    "swapM": 272
   },
   "430a880a": {
     "name": "boats: rib",
@@ -95,77 +111,77 @@
     "name": "boats: single-hander-sailing",
     "swapM": 54
   },
-  "21c49482": {
+  "f8fdcf88": {
     "name": "cars: world Åker",
-    "swapM": 50
+    "swapM": 66
   },
-  "a324d90e": {
+  "47056f92": {
     "name": "cars: world Brev",
-    "swapM": 127
+    "swapM": 36
   },
-  "e0f26821": {
+  "f458d892": {
     "name": "cars: world Bud",
-    "swapM": 59
+    "swapM": 45
   },
-  "32302c29": {
+  "d1d63268": {
     "name": "cars: world Droska",
-    "swapM": 48
+    "swapM": 31
   },
-  "9e85ea41": {
+  "9cd4d102": {
     "name": "cars: world Flock",
     "swapM": 47
   },
-  "0524f96e": {
+  "6da49fff": {
     "name": "cars: world Gammal",
-    "swapM": 45
+    "swapM": 59
   },
-  "a1f6e02b": {
+  "79a51a9e": {
     "name": "cars: world Långa",
-    "swapM": 36
-  },
-  "781e1dd6": {
-    "name": "cars: world Myra",
-    "swapM": 48
-  },
-  "9bf67ca4": {
-    "name": "cars: world Nio",
-    "swapM": 36
-  },
-  "1afd2d73": {
-    "name": "cars: world Nu",
-    "swapM": 29
-  },
-  "d6e9a80a": {
-    "name": "cars: world Pärla",
-    "swapM": 38
-  },
-  "018a0a08": {
-    "name": "cars: world Puls",
-    "swapM": 35
-  },
-  "54b3f5d2": {
-    "name": "cars: world Rad",
     "swapM": 41
   },
-  "59be396d": {
-    "name": "cars: world Raggare",
-    "swapM": 35
+  "53710a0d": {
+    "name": "cars: world Myra",
+    "swapM": 36
   },
-  "deffaf8a": {
-    "name": "cars: world Stig",
-    "swapM": 45
+  "bcbe244e": {
+    "name": "cars: world Nio",
+    "swapM": 47
   },
-  "9b9058aa": {
-    "name": "cars: world Tusen",
-    "swapM": 32
+  "90b72eab": {
+    "name": "cars: world Nu",
+    "swapM": 38
   },
-  "d75c3260": {
-    "name": "cars: world Vakt",
-    "swapM": 55
-  },
-  "e89907af": {
-    "name": "cars: world Verk",
+  "0b3d7d9b": {
+    "name": "cars: world Pärla",
     "swapM": 43
+  },
+  "53f36d66": {
+    "name": "cars: world Puls",
+    "swapM": 41
+  },
+  "956ef811": {
+    "name": "cars: world Rad",
+    "swapM": 31
+  },
+  "fc9c4cb6": {
+    "name": "cars: world Raggare",
+    "swapM": 41
+  },
+  "f5448121": {
+    "name": "cars: world Stig",
+    "swapM": 39
+  },
+  "c34471d6": {
+    "name": "cars: world Tusen",
+    "swapM": 43
+  },
+  "e52d8048": {
+    "name": "cars: world Vakt",
+    "swapM": 48
+  },
+  "1c11b10d": {
+    "name": "cars: world Verk",
+    "swapM": 57
   },
   "f02a9cdc": {
     "name": "identity: apple crates",
@@ -177,7 +193,7 @@
   },
   "3003e97f": {
     "name": "identity: apple tree light",
-    "swapM": 59
+    "swapM": 68
   },
   "da1ad987": {
     "name": "identity: bicycle",
@@ -213,11 +229,11 @@
   },
   "d5b6ff58": {
     "name": "identity: fishing hut",
-    "swapM": 77
+    "swapM": 117
   },
   "84e0bc13": {
     "name": "identity: harvest flag",
-    "swapM": 20
+    "swapM": 81
   },
   "8a11dd8f": {
     "name": "identity: kummel",
@@ -225,7 +241,7 @@
   },
   "e97eee33": {
     "name": "identity: lighthouse",
-    "swapM": 82
+    "swapM": 144
   },
   "62ca68fc": {
     "name": "identity: net heap",
@@ -233,7 +249,7 @@
   },
   "9a514655": {
     "name": "identity: open-farm sign",
-    "swapM": 21
+    "swapM": 25
   },
   "0ebb6440": {
     "name": "identity: orchard ladder",
@@ -245,11 +261,11 @@
   },
   "db3c00ab": {
     "name": "identity: sauna",
-    "swapM": 115
+    "swapM": 132
   },
   "aaf0c6b0": {
     "name": "identity: summer cottage",
-    "swapM": 73
+    "swapM": 194
   },
   "8ef1bfdd": {
     "name": "identity: touring rack",
@@ -285,15 +301,15 @@
   },
   "1fcb8859": {
     "name": "marina: boat shrink-wrapped",
-    "swapM": 36
+    "swapM": 62
   },
   "0ffdd4e1": {
     "name": "marina: boat under blue tarp",
-    "swapM": 38
+    "swapM": 66
   },
   "020c8e89": {
     "name": "marina: boat under green tarp",
-    "swapM": 38
+    "swapM": 66
   },
   "d5744d18": {
     "name": "marina: cairn",
@@ -301,7 +317,7 @@
   },
   "2e0f526e": {
     "name": "marina: cannon",
-    "swapM": 33
+    "swapM": 57
   },
   "3b713a05": {
     "name": "marina: cradle",
@@ -309,7 +325,7 @@
   },
   "71b53f1d": {
     "name": "marina: dinghy rack",
-    "swapM": 19
+    "swapM": 21
   },
   "bc3e0f5f": {
     "name": "marina: figurehead",
@@ -325,7 +341,7 @@
   },
   "f0bc014e": {
     "name": "marina: flag mast",
-    "swapM": 40
+    "swapM": 53
   },
   "80935a16": {
     "name": "marina: fuel berth",
@@ -333,11 +349,11 @@
   },
   "e1e4d7f1": {
     "name": "marina: guest harbour sign",
-    "swapM": 17
+    "swapM": 19
   },
   "a175b414": {
     "name": "marina: harbour hut",
-    "swapM": 85
+    "swapM": 197
   },
   "5f5a882b": {
     "name": "marina: hull on stocks",
@@ -385,19 +401,19 @@
   },
   "885f0de9": {
     "name": "marina: pillar east",
-    "swapM": 37
+    "swapM": 56
   },
   "495b1089": {
     "name": "marina: pillar isolated",
-    "swapM": 43
+    "swapM": 57
   },
   "0f6eb7d4": {
     "name": "marina: pillar north",
-    "swapM": 38
+    "swapM": 50
   },
   "ae1e5de2": {
     "name": "marina: pillar port",
-    "swapM": 39
+    "swapM": 68
   },
   "1a5bdcb0": {
     "name": "marina: pillar safe",
@@ -405,23 +421,23 @@
   },
   "a8178b8b": {
     "name": "marina: pillar south",
-    "swapM": 43
+    "swapM": 57
   },
   "9e02625f": {
     "name": "marina: pillar special",
-    "swapM": 40
+    "swapM": 52
   },
   "0ee7d75b": {
     "name": "marina: pillar starboard",
-    "swapM": 39
+    "swapM": 45
   },
   "9c10714a": {
     "name": "marina: pillar west",
-    "swapM": 43
+    "swapM": 56
   },
   "5620eaae": {
     "name": "marina: pilot station",
-    "swapM": 155
+    "swapM": 272
   },
   "9e080c78": {
     "name": "marina: propeller",
@@ -429,15 +445,15 @@
   },
   "7f6c16fb": {
     "name": "marina: pyramid beacon",
-    "swapM": 42
+    "swapM": 49
   },
   "bc045889": {
     "name": "marina: radar mark red",
-    "swapM": 57
+    "swapM": 66
   },
   "324cc549": {
     "name": "marina: radar mark red-white",
-    "swapM": 57
+    "swapM": 66
   },
   "ca6d6889": {
     "name": "marina: radar mark white",
@@ -445,15 +461,15 @@
   },
   "4a30bb49": {
     "name": "marina: radar mark white-red",
-    "swapM": 57
+    "swapM": 66
   },
   "cc242f2f": {
     "name": "marina: rail trolley",
-    "swapM": 33
+    "swapM": 38
   },
   "d4260153": {
     "name": "marina: ropewalk shed",
-    "swapM": 141
+    "swapM": 214
   },
   "2d8d544d": {
     "name": "marina: sawn timber stack",
@@ -461,7 +477,7 @@
   },
   "8f320f94": {
     "name": "marina: skerry light",
-    "swapM": 87
+    "swapM": 153
   },
   "f3f49ae3": {
     "name": "marina: slipway",
@@ -469,11 +485,11 @@
   },
   "b7be01e4": {
     "name": "marina: smithy",
-    "swapM": 110
+    "swapM": 127
   },
   "b0fe9675": {
     "name": "marina: smokehouse",
-    "swapM": 89
+    "swapM": 118
   },
   "cba6151e": {
     "name": "marina: spar east",
@@ -529,7 +545,7 @@
   },
   "fd253abd": {
     "name": "marina: wheel sign",
-    "swapM": 57
+    "swapM": 99
   },
   "4cb94725": {
     "name": "roadside: bridge 48 × 7 m",
@@ -537,7 +553,7 @@
   },
   "4cc2a48b": {
     "name": "roadside: bus shelter",
-    "swapM": 161
+    "swapM": 212
   },
   "c5af1e03": {
     "name": "roadside: farm fence",
@@ -569,7 +585,7 @@
   },
   "e353db82": {
     "name": "rural: bale hay",
-    "swapM": 19
+    "swapM": 21
   },
   "2ddeb71e": {
     "name": "rural: bale wrapped",
@@ -605,7 +621,7 @@
   },
   "ea5ea1fa": {
     "name": "rural: boulder 11",
-    "swapM": 39
+    "swapM": 51
   },
   "51635c85": {
     "name": "rural: boulder 24",
@@ -613,11 +629,11 @@
   },
   "0d8b236c": {
     "name": "rural: boulder 3",
-    "swapM": 33
+    "swapM": 43
   },
   "967ef733": {
     "name": "rural: boulder 37",
-    "swapM": 40
+    "swapM": 53
   },
   "7a253c93": {
     "name": "rural: bush hazel",
@@ -657,7 +673,7 @@
   },
   "944f78b4": {
     "name": "rural: juniper column",
-    "swapM": 22
+    "swapM": 29
   },
   "e7c94949": {
     "name": "rural: juniper spreading",
@@ -665,19 +681,19 @@
   },
   "a2f6b802": {
     "name": "rural: outcrop 11",
-    "swapM": 135
+    "swapM": 179
   },
   "a817a2cb": {
     "name": "rural: outcrop 24",
-    "swapM": 131
+    "swapM": 173
   },
   "063aa4ed": {
     "name": "rural: outcrop 3",
-    "swapM": 127
+    "swapM": 167
   },
   "02770f62": {
     "name": "rural: outcrop 37",
-    "swapM": 105
+    "swapM": 160
   },
   "5c68c7c5": {
     "name": "rural: pier section",
@@ -713,15 +729,15 @@
   },
   "5d666362": {
     "name": "rural: sailboat sailing",
-    "swapM": 68
+    "swapM": 79
   },
   "3a2ce05f": {
     "name": "rural: shed grey",
-    "swapM": 23
+    "swapM": 31
   },
   "2c901a8f": {
     "name": "rural: shed red",
-    "swapM": 23
+    "swapM": 35
   },
   "2a50a16f": {
     "name": "rural: sheep grazing",
@@ -729,23 +745,23 @@
   },
   "269455fb": {
     "name": "rural: shore slab 11",
-    "swapM": 183
+    "swapM": 242
   },
   "aa20988b": {
     "name": "rural: shore slab 24",
-    "swapM": 184
+    "swapM": 243
   },
   "aab090f5": {
     "name": "rural: shore slab 3",
-    "swapM": 169
+    "swapM": 224
   },
   "92de58d8": {
     "name": "rural: shore slab 37",
-    "swapM": 158
+    "swapM": 240
   },
   "c4f3c231": {
     "name": "rural: stone wall",
-    "swapM": 63
+    "swapM": 72
   },
   "74d55de3": {
     "name": "rural: tractor",
@@ -757,7 +773,7 @@
   },
   "5d708a82": {
     "name": "rural: woodshed",
-    "swapM": 73
+    "swapM": 83
   },
   "8945519f": {
     "name": "street: bench",
@@ -773,19 +789,19 @@
   },
   "f231ce48": {
     "name": "street: bollard",
-    "swapM": 21
+    "swapM": 25
   },
   "b6d5a307": {
     "name": "street: café set",
-    "swapM": 19
+    "swapM": 25
   },
   "f4877498": {
     "name": "street: flagpole Åland",
-    "swapM": 41
+    "swapM": 55
   },
   "fe85d4c8": {
     "name": "street: flagpole Finland",
-    "swapM": 41
+    "swapM": 48
   },
   "34495e1b": {
     "name": "street: grass tuft",
@@ -809,19 +825,19 @@
   },
   "3cdd11c7": {
     "name": "street: harbour crane",
-    "swapM": 119
+    "swapM": 240
   },
   "51c67269": {
     "name": "street: linden 14",
-    "swapM": 4
+    "swapM": 6
   },
   "d1d908db": {
     "name": "street: linden 3",
-    "swapM": 4
+    "swapM": 6
   },
   "3e60e846": {
     "name": "street: linden 8",
-    "swapM": 4
+    "swapM": 6
   },
   "57d8658b": {
     "name": "street: midsummer pole",
@@ -829,11 +845,11 @@
   },
   "c07f7407": {
     "name": "street: parasol",
-    "swapM": 11
+    "swapM": 17
   },
   "d4cdc3d9": {
     "name": "street: planter",
-    "swapM": 9
+    "swapM": 19
   },
   "31de397a": {
     "name": "street: planter round",
@@ -841,7 +857,7 @@
   },
   "1955b589": {
     "name": "street: reflector post",
-    "swapM": 5
+    "swapM": 16
   },
   "8da07ae7": {
     "name": "street: sailboat",
@@ -873,7 +889,7 @@
   },
   "db0d4c09": {
     "name": "town-kit: Baltic ferry",
-    "swapM": 815
+    "swapM": 1425
   },
   "41d19068": {
     "name": "town-kit: bicycle bike-black",
@@ -881,7 +897,7 @@
   },
   "d753f230": {
     "name": "town-kit: bicycle bike-blue",
-    "swapM": 11
+    "swapM": 12
   },
   "12751a68": {
     "name": "town-kit: bicycle bike-red",
@@ -893,7 +909,7 @@
   },
   "aef2e052": {
     "name": "town-kit: road ferry",
-    "swapM": 265
+    "swapM": 305
   },
   "99c894e6": {
     "name": "town-kit: street name post",
@@ -905,22 +921,22 @@
   },
   "31c64b20": {
     "name": "town-kit: town lamp",
-    "swapM": 22
+    "swapM": 25
   },
   "bef6576a": {
     "name": "town-kit: traffic light",
-    "swapM": 27
+    "swapM": 36
   },
   "8113efa9": {
     "name": "town-kit: village sign",
-    "swapM": 17
+    "swapM": 23
   },
   "e4013362": {
     "name": "town-kit: window box red",
-    "swapM": 11
+    "swapM": 19
   },
   "1340fe40": {
     "name": "town-kit: window box white",
-    "swapM": 9
+    "swapM": 28
   }
 }

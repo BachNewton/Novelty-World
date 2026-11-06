@@ -37,13 +37,22 @@ export class LaneNet {
     const cells = new Map<string, number[]>();
     lanes.lanes.forEach((lane, index) => {
       const seen = new Set<string>();
-      for (let point = lane.first; point < lane.first + lane.count; point++) {
-        const key = cellKey(Math.floor(lanes.points[point * 3] / CELL_M), Math.floor(lanes.points[point * 3 + 2] / CELL_M));
-        if (seen.has(key)) continue;
+      const note = (x: number, z: number) => {
+        const key = cellKey(Math.floor(x / CELL_M), Math.floor(z / CELL_M));
+        if (seen.has(key)) return;
         seen.add(key);
         const list = cells.get(key);
         if (list) list.push(index);
         else cells.set(key, [index]);
+      };
+      // Every cell a step between two points passes over, however long the step, not only the cells its ends are in.
+      for (let point = lane.first; point < lane.first + lane.count; point++) {
+        const [x, z] = [lanes.points[point * 3], lanes.points[point * 3 + 2]];
+        note(x, z);
+        if (point === lane.first) continue;
+        const [fromX, fromZ] = [lanes.points[point * 3 - 3], lanes.points[point * 3 - 1]];
+        const parts = Math.ceil(Math.hypot(x - fromX, z - fromZ) / (CELL_M / 2));
+        for (let part = 1; part < parts; part++) note(fromX + ((x - fromX) * part) / parts, fromZ + ((z - fromZ) * part) / parts);
       }
     });
     const loaded: Loaded = { lanes, onward: new Map(), back: new Map(), cells };

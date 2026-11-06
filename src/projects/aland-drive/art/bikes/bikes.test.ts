@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SURFACES } from "../cars/mesh";
 import { buildBikeMesh } from "./build";
+import { BIKE_REACH_M, listsAt } from "./crowd";
 import { riderLook } from "./look";
 import { apply } from "./mat";
+import { DISSOLVE_SHARE } from "./material";
 import { PARTS, poseBike, reach, restMotion, stepMotion, stillInput, type RideMotion } from "./rig";
 import { SLOTS } from "./shapes";
 import { BIKES } from "./specs";
@@ -76,5 +78,21 @@ describe("the bikes", () => {
     expect(riderLook(7)).toEqual(riderLook(7));
     const tops = new Set(Array.from({ length: 40 }, (_, seed) => riderLook(seed).top));
     expect(tops.size).toBeGreaterThan(4);
+  });
+});
+
+describe("the crowd's lists", () => {
+  // The shader dithers near and far across the band below the swap and dissolves the far at the reach: a rider missing
+  // from a list there would show holes, or pop.
+  it("hold a rider on both across the swap's dither, and on neither past the reach", () => {
+    const swap = 50;
+    for (let distance = 0; distance < BIKE_REACH_M + 10; distance += 0.5) {
+      const shown = { near: distance < swap, far: distance >= swap * (1 - DISSOLVE_SHARE) && distance < BIKE_REACH_M };
+      const listed = listsAt(distance, swap);
+      if (shown.near) expect(listed.near).toBe(true);
+      if (shown.far) expect(listed.far).toBe(true);
+    }
+    expect(listsAt(BIKE_REACH_M + 2, swap)).toEqual({ near: false, far: false });
+    expect(listsAt(10, swap).far).toBe(false);
   });
 });

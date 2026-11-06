@@ -261,13 +261,15 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM, season, snow
   const option = attribute<"float">("carOption", "float");
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const dissolveFrom = swapM * (1 - DISSOLVE_SHARE);
-  const fade = smoothstep(float(dissolveFrom), float(swapM), distance);
+  // A uniform rather than a constant, so every model's materials, each at its own swap, are one shader program.
+  const swap = uniform(swapM);
+  const dissolveFrom = swap.mul(1 - DISSOLVE_SHARE);
+  const fade = smoothstep(dissolveFrom, swap, distance);
   const gone = smoothstep(float(reachM * (1 - DISSOLVE_SHARE)), float(reachM), distance);
   const noise = fract(fract(screenCoordinate.xy.dot(vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const isWorld = tier === "world";
-  const shown = isWorld ? distance.lessThan(swapM) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reachM));
+  const shown = isWorld ? distance.lessThan(swap) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reachM));
   const rackOff = option.equal(1).and(look.y.lessThan(0.5));
   const bandOff = option.equal(2).and(look.z.lessThan(0.5));
   const scale = select(shown.and(rackOff.or(bandOff).not()), float(1), float(0));

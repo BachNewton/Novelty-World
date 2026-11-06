@@ -1,17 +1,18 @@
 import type { InstancedBufferGeometry, Mesh, Node, Scene } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
-import { worldCarMaterial } from "../art/cars/material";
+import { distantGeometry, lookOf, modelSwapM, REACH_M, tierMaterials, worldGeometry } from "../art/cars/fleet";
 import { type Sun } from "../art/sun";
 import type { SeasonLook } from "../art/season";
 import { WORLD_CARS } from "../art/cars/specs";
 import type { HitCarView } from "../traffic/contact";
-import type { LaneTraffic } from "../traffic/lane-driver";
+import type { LaneCar, LaneTraffic } from "../traffic/lane-driver";
+import type { Sighted } from "../traffic/sight";
+import { BIKE_REACH_M } from "../art/bikes";
 import { instanced, write, type Car } from "./parked-cars";
 import { PARKED_CARS } from "./parked-places";
 
 /*
- * The lane map's cars drawn as `art/cars`' world cars, the parked cars' fleet:
+ * The lane map's cars, not its cyclists (`cyclists.ts`), drawn as `art/cars`' world cars, the parked cars' fleet:
  * a near and a stand-in list per model, each with room for every car, written
  * whole each frame from where the cars are between their last two steps.
  */
@@ -22,11 +23,21 @@ export const TRAFFIC_KINDS = PARKED_CARS.map(({ half }) => half);
 /** A car being driven has been swept: only a share of them keep snow on the roof. */
 const DRIVEN_SNOW_KEPT = 0.3;
 
+/** A world car's height, and a cyclist's, near enough for whether one can be seen. */
+const CAR_HEIGHT_M = 1.6;
+const RIDER_HEIGHT_M = 1.9;
+
+/** A car or cyclist as the camera judges whether it's in sight: drawn to the fleet's reach, or the bikes'. */
+export const sightOf = ({ kind, pose, half }: Pick<LaneCar, "kind" | "pose" | "half">): Sighted => ({
+  x: pose.x,
+  y: pose.y,
+  z: pose.z,
+  radiusM: Math.hypot(...half),
+  heightM: kind === "bike" ? RIDER_HEIGHT_M : CAR_HEIGHT_M,
+  reachM: kind === "bike" ? BIKE_REACH_M : REACH_M,
+});
+
 export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number, season?: SeasonLook) {
-  const materials = {
-    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M, season, snowKept: DRIVEN_SNOW_KEPT }),
-    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M, season, snowKept: DRIVEN_SNOW_KEPT }),
-  };
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`${name} drives, but there's no world car of that name`);
@@ -34,9 +45,10 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
   });
   const models = specs.map((spec) => {
     const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
+    const materials = tierMaterials(modelSwapM(shapes.world, shapes.distant), sun, hazed, { season, snowKept: DRIVEN_SNOW_KEPT });
     const lists: Mesh<InstancedBufferGeometry>[] = [instanced(shapes.world, [], materials.world, room), instanced(shapes.distant, [], materials.distant, room)];
     scene.add(...lists);
-    return { shapes, lists };
+    return { shapes, materials, lists };
   });
   const looks = new Map<string, Pick<Car, "paint" | "look">>();
 
@@ -56,6 +68,7 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
       const byModel: Car[][] = models.map(() => []);
       const seen = new Set<string>();
       for (const car of traffic.all()) {
+        if (car.kind !== "car") continue;
         seen.add(car.id);
         byModel[car.model].push({ ...traffic.poseBetween(car, share), ...lookFor(car.id, car.model, car.seed), signal: car.signal });
       }
@@ -73,16 +86,16 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
       });
     },
     dispose() {
-      for (const { shapes, lists } of models) {
+      for (const { shapes, materials, lists } of models) {
         for (const mesh of lists) {
           scene.remove(mesh);
           mesh.geometry.dispose();
         }
         shapes.world.dispose();
         shapes.distant.dispose();
+        materials.world.dispose();
+        materials.distant.dispose();
       }
-      materials.world.dispose();
-      materials.distant.dispose();
     },
   };
 }

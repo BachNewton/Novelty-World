@@ -16,8 +16,10 @@ import { flip, type LinearPicture } from "./flip";
  *   or a hairline decides: the distance all but a fiftieth of what either covers keeps within, so a part counts once
  *   it's a share of the model, a leg or a mast. A deviation shrinks in step with distance, so it says outright what
  *   swap would hide it.
- * - Look, by FLIP (`flip.ts`): how different the two pictures are to a person at the floor's viewing distance, over
- *   what the model covers, from its colours after the eye's contrast sensitivity and from its edges and points.
+ * - Look, by FLIP (`flip.ts`): how different the two pictures are to a person at the floor's viewing distance, from
+ *   their colours after the eye's contrast sensitivity and from their edges and points. Judged twice: its mean over
+ *   what the model covers, and its worst spot, its mean over a patch a few pixels across where that is highest, so a
+ *   part that is a small share of the model but changes outright (a car's wheels, its lights) is noticed too.
  *
  * So a change has two cures: a later swap, for the near version's cost over more ground, or a far version that
  * matches. A model that changes is told the earliest swap, up to twice its own, that hides both; past that, the far
@@ -44,8 +46,19 @@ const VIEWS = [3, 25].flatMap((elevationDeg) => Array.from({ length: 8 }, (_, st
  * pointed, a cyclist turning into a pole) doesn't: an outline that moves 6 pixels, a sheep's legs, and FLIP's mean
  * between the stone wall's and a deck chair's. Simplygon's own rule of thumb, a pixel, is for a mesh simplified by
  * machine, with no crossfade to soften the swap.
+ *
+ * The worst spot's limit is set by the world cars' first stand-ins, which dropped the wheels and lights and merged
+ * the glass: the owner saw every one turn into a grey box at the swap the mean alone gave it (29–59 m), where the
+ * spot read 0.917 (Droska) to 0.975, and accepted all of them swapping at 120 m, where it read 0.51 to 0.88
+ * (Raggare). Brev, at 0.97 even at 120 m, was the one car whose far version was noticed there. The accepted art keeps passing at the
+ * swaps set by hand: its worst there is the woodshed's 0.84 and the stone wall's 0.73. Over 10 pixels (a fifth of a
+ * degree on the floor's screen) the two sets of cars stand furthest apart: over 8 they overlap, a square filled by a
+ * part's own pixels at any distance, and over 12 they meet, a square taking in so much unchanged body.
+ * `check.mjs --score` measures a model at chosen swaps, which is how these were read.
  */
-export const NOTICED = { deviationPx: 6, look: 0.55 };
+export const NOTICED = { deviationPx: 6, look: 0.55, spot: 0.9 };
+/** The side of the square the worst spot is judged over, in pixels of the floor's screen. */
+const SPOT_PX = 10;
 /** The nearest swap tried, and each one after it this much further. */
 const NEAREST_SWAP_M = 4;
 const SWAP_STEP = 1.15;
@@ -190,16 +203,36 @@ function deviation(near: Drawn, far: Drawn): number {
   return bin / near.finer;
 }
 
-/** FLIP's error summed over what either version shows, and how many pixels that is. */
-function look(near: Drawn, far: Drawn): { error: number; pixels: number } {
+/**
+ * FLIP's error summed over what either version shows and how many pixels that is, and its worst spot: the most FLIP
+ * averages over any `SPOT_PX` square centred on what either shows. FLIP is near its top wherever a part comes or goes,
+ * so a single pixel's says only that something changed, and the mean over the whole model hides a part that is a small
+ * share of it, a car's wheels or lights; the square counts a change by how much of a patch the eye takes in at once it
+ * covers.
+ */
+function look(near: Drawn, far: Drawn): { error: number; pixels: number; spot: number } {
   const errors = flip(near.seen, far.seen, PIXELS_PER_DEGREE);
+  const side = near.seen.width;
+  const showing = (at: number) => near.shows[at] === 1 || far.shows[at] === 1;
   let [error, pixels] = [0, 0];
   for (let at = 0; at < errors.length; at++) {
-    if (!near.shows[at] && !far.shows[at]) continue;
+    if (!showing(at)) continue;
     error += errors[at];
     pixels++;
   }
-  return { error, pixels };
+  // A summed-area table, so each square's sum is four reads.
+  const row = side + 1;
+  const sums = new Float64Array(row * row);
+  for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) sums[(y + 1) * row + x + 1] = errors[y * side + x] + sums[y * row + x + 1] + sums[(y + 1) * row + x] - sums[y * row + x];
+  let spot = 0;
+  for (let y = 0; y + SPOT_PX <= side; y++) {
+    for (let x = 0; x + SPOT_PX <= side; x++) {
+      if (!showing((y + (SPOT_PX >> 1)) * side + x + (SPOT_PX >> 1))) continue;
+      const sum = sums[(y + SPOT_PX) * row + x + SPOT_PX] - sums[y * row + x + SPOT_PX] - sums[(y + SPOT_PX) * row + x] + sums[y * row + x];
+      spot = Math.max(spot, sum / SPOT_PX ** 2);
+    }
+  }
+  return { error, pixels, spot };
 }
 
 export interface LodResult {
@@ -210,9 +243,12 @@ export interface LodResult {
   deviation: number;
   /** FLIP's mean error over what the model covers, over every view, at the measured swap. */
   look: number;
+  /** FLIP's worst spot at the measured swap, at the view where it is worst. */
+  spot: number;
   /** The view where each changes most, as azimuth and elevation in degrees, to look at. */
   deviationView: [number, number];
   lookView: [number, number];
+  spotView: [number, number];
   /** Pixels the two cover between them, on average over the views. */
   pixels: number;
   /** The nearest swap tried at which the change isn't noticed, or, where none is, the one nearest the swap it was built with. */
@@ -226,11 +262,12 @@ export interface LodResult {
   farTriangles: number;
 }
 
-export const noticed = (result: Pick<LodResult, "deviation" | "look">) => result.deviation > NOTICED.deviationPx || result.look > NOTICED.look;
+export const noticed = (result: Pick<LodResult, "deviation" | "look" | "spot">) => result.deviation > NOTICED.deviationPx || result.look > NOTICED.look || result.spot > NOTICED.spot;
 
 async function measure(entry: ArtModel, swapM: number) {
-  let [most, error, pixels, worstLook] = [-1, 0, 0, -1];
-  let [deviationView, lookView]: [number, number][] = [
+  let [most, error, pixels, worstLook, worstSpot] = [-1, 0, 0, -1, -1];
+  let [deviationView, lookView, spotView]: [number, number][] = [
+    [0, 0],
     [0, 0],
     [0, 0],
   ];
@@ -239,11 +276,21 @@ async function measure(entry: ArtModel, swapM: number) {
     const moved = deviation(near, far);
     if (moved > most) [most, deviationView] = [moved, [view.azimuthDeg, view.elevationDeg]];
     const seen = look(near, far);
+    if (seen.spot > worstSpot) [worstSpot, spotView] = [seen.spot, [view.azimuthDeg, view.elevationDeg]];
     [error, pixels] = [error + seen.error, pixels + seen.pixels];
     if (seen.pixels > 0 && seen.error / seen.pixels > worstLook) [worstLook, lookView] = [seen.error / seen.pixels, [view.azimuthDeg, view.elevationDeg]];
   }
   const round = (value: number, places: number) => Number(value.toFixed(places));
-  return { deviation: round(most, 2), look: round(pixels === 0 ? 0 : error / pixels, 3), deviationView, lookView, pixels: Math.round(pixels / VIEWS.length) };
+  return { deviation: round(most, 2), look: round(pixels === 0 ? 0 : error / pixels, 3), deviationView, lookView, spot: round(worstSpot, 3), spotView, pixels: Math.round(pixels / VIEWS.length) };
+}
+
+/** One model's measures at a swap, or at the swap it was built with, to calibrate `NOTICED` by. */
+export async function scoreOf(catalogues: Record<string, { artModels: () => ArtModel[] }>, name: string, swapM?: number) {
+  const [kit, model] = name.split(": ");
+  const entry = catalogues[kit].artModels().find((candidate) => candidate.name === model);
+  if (entry?.drawn === undefined) throw new Error(`no drawn ${name}`);
+  const at = swapM ?? entry.drawn.model.swapM;
+  return { name, swapM: at, ...(await measure(entry, at)) };
 }
 
 /** The nearest swap whose picture holds the whole model: nearer, the model is wider than the largest picture drawn. */

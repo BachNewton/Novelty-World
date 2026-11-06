@@ -167,6 +167,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "music",
     icon: "Music",
   },
+  {
+    name: "AI Compass",
+    slug: "ai-compass",
+    description: "Map how you build software with AI: how much you hand over, and how much you own",
+    categorySlug: "tools",
+    icon: "Compass",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

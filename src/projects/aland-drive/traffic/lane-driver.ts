@@ -1,11 +1,12 @@
 import { lookAheadM, pursuit } from "../sim/autopilot";
-import { Around, type OnLane, type Seen } from "./around";
-import { alongNearest, pointAlong, type TileLanes } from "./lane-map";
+import { Around, keyOf, type LineRef, type OnLane, type Seen } from "./around";
+import { alongNearest, lineOf, pointAlong, type Lane, type TileLanes } from "./lane-map";
 import type { LaneNet } from "./lane-net";
 
 /*
- * Cars that drive the lane map: each one a place on a lane or a connector, a
- * speed, and a body with steered front wheels and no physics. The body is
+ * Cars and cyclists that drive the lane map: each one a place on a lane, a
+ * connector or a link between a path and a road, a speed, and a body with a
+ * steered front wheel or two and no physics. The body is
  * steered along the lanes by the driver every computer-driven car shares
  * (`pursuit`, the autopilot's), so traffic turns as a racer does, its wheels
  * turning at a real car's pace. A car follows its lane, picks a way on at each
@@ -16,19 +17,50 @@ import type { LaneNet } from "./lane-net";
  * pass at speed it slows and eases to its edge as an oncoming one comes, or stops
  * on its verge to let it by, and it brakes for a simulated car (the player's,
  * or one hit out of traffic) wherever that lies across its path, and goes round
- * it once it has stood there a while and nothing is coming. Spawning is the simplest there is: a number of cars kept on
- * the lanes round a place, put down where nothing is near and taken away once
- * they drive out of reach.
+ * it once it has stood there a while and nothing is coming. A cyclist rides the
+ * paths and the roads' edges at its own pace, from a path on to a road and off
+ * again by the lane map's links, giving way to the road as it joins it; a car
+ * slows behind one, and overtakes only once the oncoming side is clear, with a
+ * cyclist's room between them. Where they come and go is the bubble's
+ * (`bubble.ts`); a vehicle whose trip has ended stands until it may go unseen.
  */
 
-const LENGTH_M = 4.6;
-/** Front axle to rear, a mid-sized car's. */
-const WHEELBASE_M = 2.7;
-/** How far the front wheels turn, and how fast: a real car's lock, at a calm hand's pace. */
-const LOCK = 0.6;
-const STEER_RATE = 0.9;
-/** A driver aims this near at walking pace, so a tight junction isn't cut over its corner. */
-const SHORTEST_LOOK_M = 4;
+export type VehicleKind = "car" | "bike";
+
+/**
+ * Each kind's build: front axle to rear, how far and fast its front wheel turns, and how near its rider aims at walking
+ * pace, so a tight junction isn't cut over its corner. A car's lock is a real car's, at a calm hand's pace.
+ */
+const BUILDS: Record<VehicleKind, { wheelbaseM: number; lock: number; steerRate: number; shortestLookM: number }> = {
+  car: { wheelbaseM: 2.7, lock: 0.6, steerRate: 0.9, shortestLookM: 4 },
+  bike: { wheelbaseM: 1.08, lock: 0.7, steerRate: 2.5, shortestLookM: 2.5 },
+};
+/** A bike's front axle to its rear, for how far it leans into a turn. */
+export const BIKE_WHEELBASE_M = BUILDS.bike.wheelbaseM;
+/** Half a bike and rider's width, at the bars, and length, tyre to tyre. */
+export const BIKE_HALF: readonly [number, number] = [0.32, 0.9];
+/** A cyclist's own pace, the slowest and the range above it. */
+const BIKE_PACE_MS = 4.2;
+const BIKE_PACE_RANGE_MS = 2.2;
+/** A cyclist on a road rides this far in from its lane's outer edge. */
+const BIKE_EDGE_M = 0.35;
+/** A car passing a cyclist leaves it this much room. */
+const BIKE_ROOM_M = 1.2;
+/** A cyclist joining a road gives way to what's within this time or distance of where it joins. */
+const JOIN_WITHIN_S = 4;
+const JOIN_NEAR_M = 10;
+const JOIN_LOOK_M = 80;
+/** A cyclist riding within this cosine of a car's way is one it may pass. */
+const SAME_WAY = 0.7;
+/** Within this of its line's end a vehicle may have cut the corner on to the next; and at most this many lines are passed in a step, as lines of no length can follow each other. */
+const CUT_M = 4;
+const MOST_LINES_A_STEP = 8;
+/** A vehicle put down moving rides at this share of its pace there. */
+const ENTER_SHARE = 0.8;
+/** A link between a path and a road is a straight step, often at a sharp angle to both, so a cyclist takes it at a turning pace. */
+const LINK_MS = 2.5;
+/** A cyclist on a road turns off at each link to a path with this chance. */
+const TURN_OFF = 0.4;
 /** A turn is signalled from this far before its junction, or this many seconds at the car's speed if that's further. */
 const SIGNAL_M = 35;
 const SIGNAL_S = 4;
@@ -49,8 +81,6 @@ const TURN_ROUND_MS = 10 / 3.6;
 const SLOWEST_MS = 1;
 /** Slower than this, a car has stopped. */
 const STOPPED_MS = 0.1;
-/** A new car stands at least this far from any other. */
-const SPAWN_CLEAR_M = 25;
 /** How far round a car looks for cars to pass or brake for, and how far behind it one still counts as alongside. */
 const SEE_M = LOOK_M;
 const ALONGSIDE_M = 3;
@@ -105,10 +135,17 @@ interface Body {
 
 export interface LaneCar {
   id: string;
+  kind: VehicleKind;
   place: OnLane;
   speedMS: number;
-  /** The connector it will take at its lane's end, once chosen. */
-  next: number | null;
+  /** A cyclist's own pace; no cap on a car's. */
+  paceMS: number;
+  /** The connector or link it will take at its lane's end, once chosen. */
+  next: LineRef | null;
+  /** A cyclist on a road: the link to a path it turns off at, partway along its lane. */
+  exit: { link: number; along: number } | null;
+  /** Its trip has ended, at a dead end, and it stands until it may go unseen. */
+  finished: boolean;
   body: Body;
   /** Its indicators: `SIGNAL`'s. */
   signal: number;
@@ -134,7 +171,9 @@ export interface LaneCar {
   last: Pose;
 }
 
-type Line = Pick<OnLane, "tile" | "index" | "connector">;
+type Line = LineRef;
+/** A line as part of a vehicle's way: from where it joins the line to where it leaves it, in metres along the line. */
+type Leg = Line & { from: number; to: number };
 
 /** Another car as a driver sees it: where its middle is, the unit way its nose points, its size, speed and velocity. */
 interface Other {
@@ -189,7 +228,18 @@ export interface DrivenCar {
   half: readonly [number, number];
 }
 
-const keyOf = ({ tile, index, connector }: Line) => `${tile}:${connector ? "c" : "l"}${index}`;
+/** A cyclist's lanes: every road's, and the paths it may ride. */
+const BIKE_PATHS = new Set(["cycleway", "footway", "path", "pedestrian"]);
+export const bikeRides = (lane: Lane) => !lane.path || BIKE_PATHS.has(lane.kind);
+
+/** A seed's share between 0 and 1, the same each time, a different one for each salt. */
+export function seedShare(seed: number, salt = 0): number {
+  let t = Math.imul((seed ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0, 0x85ebca6b);
+  t ^= t >>> 13;
+  t = Math.imul(t, 0xc2b2ae35);
+  t ^= t >>> 16;
+  return (t >>> 0) / 4294967296;
+}
 
 function mulberry(seed: number): () => number {
   let state = seed >>> 0;
@@ -244,7 +294,11 @@ const poseOf = (point: { x: number; y: number; z: number; dx: number; dz: number
 
 export class LaneTraffic {
   readonly around: Around;
+  /** Whether a vehicle whose trip has ended may go now: unseen, as the bubble judges it. Anywhere, alone. */
+  mayGo: (car: LaneCar) => boolean = () => true;
   private readonly cars = new Map<string, LaneCar>();
+  private readonly junctions = new WeakMap<TileLanes, Map<number, number[]>>();
+  private readonly links = new WeakMap<TileLanes, { onTo: Map<number, number[]>; offOf: Map<number, number[]> }>();
   private readonly bends = new WeakMap<TileLanes, Float32Array>();
   private readonly random: () => number;
   private driven = new Map<string, Other>();
@@ -276,10 +330,30 @@ export class LaneTraffic {
     return this.cars.size;
   }
 
-  /** Puts a car down, moving at a speed. */
-  spawn(place: OnLane, speedMS: number, model = Math.floor(this.random() * this.kinds.length), seed = Math.floor(this.random() * 2 ** 31)): LaneCar {
-    const pose = this.poseAt(place);
-    return this.put(`lane-car-${this.made++}`, place, pose, speedMS, model, seed);
+  /** Puts a car or cyclist down, moving at a speed. A seed is a vehicle's own: its car's model and its cyclist's pace. */
+  spawn(place: OnLane, speedMS: number, options: { kind?: VehicleKind; seed?: number; id?: string } = {}): LaneCar {
+    const kind = options.kind ?? "car";
+    const seed = options.seed ?? Math.floor(this.random() * 2 ** 31);
+    const id = options.id ?? `lane-${kind}-${this.made++}`;
+    if (this.cars.has(id)) throw new Error(`${id} is already on the road`);
+    return this.put(id, place, this.poseAt(place), speedMS, kind, kind === "car" ? this.modelOf(seed) : 0, seed);
+  }
+
+  /** Puts a vehicle down already moving, a little under the pace it would ride there. */
+  enter(place: OnLane, options: { kind: VehicleKind; seed: number; id: string }): LaneCar {
+    const vehicle = this.spawn(place, 0, options);
+    vehicle.speedMS = ENTER_SHARE * this.wantedAt(vehicle, place);
+    return vehicle;
+  }
+
+  /** Which of the kinds of car a seed is. */
+  private modelOf(seed: number): number {
+    return Math.floor(seedShare(seed) * this.kinds.length);
+  }
+
+  /** Half the width and length of the car a seed is. */
+  halfOf(seed: number): readonly [number, number] {
+    return this.kinds[this.modelOf(seed)];
   }
 
   /**
@@ -289,18 +363,23 @@ export class LaneTraffic {
   rejoin(id: string, at: { x: number; y: number; z: number; heading: number }, model: number, seed: number): LaneCar | null {
     const place = this.around.match(id, at.x, at.z, { x: -Math.sin(at.heading), z: -Math.cos(at.heading) });
     if (!place) return null;
-    return this.put(id, place, { x: at.x, y: at.y, z: at.z, yaw: at.heading }, 0, model, seed);
+    return this.put(id, place, { x: at.x, y: at.y, z: at.z, yaw: at.heading }, 0, "car", model, seed);
   }
 
-  private put(id: string, place: OnLane, pose: Pose, speedMS: number, model: number, seed: number): LaneCar {
-    const body = { x: pose.x + Math.sin(pose.yaw) * (WHEELBASE_M / 2), z: pose.z + Math.cos(pose.yaw) * (WHEELBASE_M / 2), heading: pose.yaw, wheels: 0 };
+  private put(id: string, place: OnLane, pose: Pose, speedMS: number, kind: VehicleKind, model: number, seed: number): LaneCar {
+    const { wheelbaseM } = BUILDS[kind];
+    const body = { x: pose.x + Math.sin(pose.yaw) * (wheelbaseM / 2), z: pose.z + Math.cos(pose.yaw) * (wheelbaseM / 2), heading: pose.yaw, wheels: 0 };
     const car: LaneCar = {
       id,
+      kind,
       place,
       speedMS,
+      paceMS: kind === "bike" ? BIKE_PACE_MS + seedShare(seed, 1) * BIKE_PACE_RANGE_MS : Infinity,
       next: null,
+      exit: null,
+      finished: false,
       waiting: false,
-      half: this.kinds[model],
+      half: kind === "bike" ? BIKE_HALF : this.kinds[model],
       shiftM: 0,
       wantShiftM: 0,
       meeting: null,
@@ -317,6 +396,7 @@ export class LaneTraffic {
     };
     this.cars.set(id, car);
     this.around.put(id, place);
+    car.exit = this.exitOf(car);
     return car;
   }
 
@@ -341,22 +421,6 @@ export class LaneTraffic {
     );
   }
 
-  /** Keeps `count` cars on the road lanes within `reach` of a place: takes away those gone past it, and puts down one more if there are too few, no nearer than `nearest`. */
-  keep(x: number, z: number, count: number, reach: number, nearest = 0): void {
-    for (const car of this.cars.values()) if (Math.hypot(car.pose.x - x, car.pose.z - z) > reach * 1.25) this.remove(car.id);
-    if (this.cars.size >= count) return;
-    const lanes = this.net.lanesNear(x, z, reach).filter((ref) => !this.net.lane(ref).path);
-    if (lanes.length === 0) return;
-    const ref = lanes[Math.floor(this.random() * lanes.length)];
-    const place: OnLane = { tile: ref.tile, index: ref.lane, connector: false, along: 0 };
-    place.along = this.random() * this.around.length(place);
-    const at = this.poseAt(place);
-    const distance = Math.hypot(at.x - x, at.z - z);
-    if (distance > reach || distance < nearest) return;
-    for (const car of this.cars.values()) if (Math.hypot(car.pose.x - at.x, car.pose.z - at.z) < SPAWN_CLEAR_M) return;
-    this.spawn(place, this.limitAt(place) * 0.8);
-  }
-
   /** One step of every car: each one's pull worked out from where all stand, then all moved. */
   step(seconds: number): void {
     const others = this.others();
@@ -375,7 +439,9 @@ export class LaneTraffic {
       // Pulling out round a standing car it aims at the clear line at once, so its wheels have the whole gap to turn out in.
       const across = car.goingRound ? Infinity : Math.min(SHIFT_MS * seconds, SHIFT_PER_M * car.speedMS * seconds);
       car.shiftM += Math.max(-across, Math.min(across, car.wantShiftM - car.shiftM));
-      if (this.endsHere(car, this.route(car)) && car.speedMS < SLOWEST_MS && this.around.length(car.place) - car.place.along < STANDSTILL_M + LENGTH_M) {
+      const route = this.route(car);
+      if (this.endsHere(car, route) && car.speedMS < SLOWEST_MS && route[0].to - car.place.along < STANDSTILL_M + 2 * car.half[1]) car.finished = true;
+      if (car.finished && this.mayGo(car)) {
         this.remove(car.id);
         continue;
       }
@@ -383,17 +449,25 @@ export class LaneTraffic {
       this.drive(car, travelled);
       // Where the car now is on its way is found from its body, as the autopilot finds itself on its line, never counted
       // on from where it was: a car steered round a corner covers a little less ground than its line, and would drift.
-      const middle = this.middleOf(car.body);
+      const middle = this.middleOf(car);
       // Never back: a car only moves on along its way, so it can't lose its place and chase a point behind it.
       let along = this.nearestOn(car.place, middle, car.place.along, car.place.along + travelled + 2);
-      while (along > this.around.length(car.place)) {
-        const past = along - this.around.length(car.place);
+      let end = this.route(car)[0].to;
+      // On at its line's end, a line of no length included, or near the end once nearer the next line than its own: a
+      // square corner, as a link or a path's turn can be, is cut, and the body never passes the corner's point.
+      let nowhere = false;
+      for (let lines = 0; lines < MOST_LINES_A_STEP && (along >= end || (lines === 0 && end - along < CUT_M && this.cutOnto(car, middle, along))); lines++) {
+        const past = Math.max(0, along - end) + CUT_M;
         const onward = this.onward(car);
+        nowhere = !onward;
         if (!onward) break;
-        car.place = { ...onward, along: 0 };
-        along = this.nearestOn(car.place, middle, 0, past + 2);
+        const { from, tile, index, connector, link } = onward;
+        car.place = link ? { tile, index, connector, link, along: from } : { tile, index, connector, along: from };
+        along = this.nearestOn(car.place, middle, from, from + past + 2);
+        car.exit = this.exitOf(car);
+        end = this.route(car)[0].to;
       }
-      if (along > this.around.length(car.place)) {
+      if (nowhere && along > end) {
         // The lane leads off the loaded tiles, or nowhere.
         this.remove(car.id);
         continue;
@@ -408,6 +482,16 @@ export class LaneTraffic {
     }
   }
 
+  /** Whether a vehicle near its line's end is nearer the next line than its own: it has cut the corner on to it. */
+  private cutOnto(car: LaneCar, middle: { x: number; z: number }, along: number): boolean {
+    const route = this.route(car);
+    if (route.length < 2) return false;
+    const next = route[1];
+    const here = this.pointOn(car.place, along);
+    const there = this.pointOn(next, this.nearestOn(next, middle, next.from, Math.min(next.to, next.from + 2 * CUT_M)));
+    return Math.hypot(there.x - middle.x, there.z - middle.z) < Math.hypot(here.x - middle.x, here.z - middle.z);
+  }
+
   /** Where a car is drawn between its last step and this one. */
   poseBetween(car: LaneCar, share: number): Pose {
     const { last, pose } = car;
@@ -419,58 +503,66 @@ export class LaneTraffic {
   /** Steers a car's body towards a point ahead on its way, eased across as far as it means to be, and moves it on its wheels by `travelled` metres. */
   private drive(car: LaneCar, travelled: number): void {
     const { body } = car;
-    const ahead = this.onWay(car, lookAheadM(car.speedMS, SHORTEST_LOOK_M) - WHEELBASE_M / 2);
+    const { wheelbaseM, lock, steerRate, shortestLookM } = BUILDS[car.kind];
+    const ahead = this.onWay(car, lookAheadM(car.speedMS, shortestLookM) - wheelbaseM / 2);
     // To the right of the way is (-dz, dx) on the ground.
     const target = { x: ahead.x - ahead.dz * car.shiftM, z: ahead.z + ahead.dx * car.shiftM };
-    const wanted = Math.max(-LOCK, Math.min(LOCK, pursuit(body, body.heading, target, WHEELBASE_M)));
+    // Pursuit steers by the sine of the angle to its target, which comes to nothing for a target straight behind; one
+    // behind at all, as a sharp link can leave it, is turned towards at full lock.
+    const [ax, az] = [target.x - body.x, target.z - body.z];
+    const [fx, fz] = [-Math.sin(body.heading), -Math.cos(body.heading)];
+    const behind = ax * fx + az * fz < 0;
+    const wanted = behind ? (ax * fz - az * fx < 0 ? lock : -lock) : Math.max(-lock, Math.min(lock, pursuit(body, body.heading, target, wheelbaseM)));
     const seconds = travelled / Math.max(car.speedMS, 1e-6);
-    body.wheels += Math.max(-STEER_RATE * seconds, Math.min(STEER_RATE * seconds, wanted - body.wheels));
+    body.wheels += Math.max(-steerRate * seconds, Math.min(steerRate * seconds, wanted - body.wheels));
     // Heading runs anticlockwise; the wheels steer clockwise.
-    body.heading -= (travelled / WHEELBASE_M) * Math.tan(body.wheels);
+    body.heading -= (travelled / wheelbaseM) * Math.tan(body.wheels);
     body.x -= Math.sin(body.heading) * travelled;
     body.z -= Math.cos(body.heading) * travelled;
   }
 
-  /** The middle of a car on the ground, half its wheelbase ahead of its rear axle. */
-  private middleOf(body: Body): { x: number; z: number } {
-    return { x: body.x - Math.sin(body.heading) * (WHEELBASE_M / 2), z: body.z - Math.cos(body.heading) * (WHEELBASE_M / 2) };
+  /** The middle of a vehicle on the ground, half its wheelbase ahead of its rear axle. */
+  private middleOf({ body, kind }: LaneCar): { x: number; z: number } {
+    const half = BUILDS[kind].wheelbaseM / 2;
+    return { x: body.x - Math.sin(body.heading) * half, z: body.z - Math.cos(body.heading) * half };
   }
 
   private nearestOn(line: Line, at: { x: number; z: number }, from: number, to: number): number {
     const tile = this.tileOf(line);
-    return alongNearest(tile.points, line.connector ? tile.connectors[line.index] : tile.lanes[line.index], at.x, at.z, from, to);
+    return alongNearest(tile.points, lineOf(tile, line), at.x, at.z, from, to);
   }
 
-  /** Which way a car signals: the turn it is in, or the one coming within its signalling distance. */
+  /** Which way a car signals: the turn it is in, or the one coming within its signalling distance. A bike has no lamps. */
   private signalOf(car: LaneCar): number {
+    if (car.kind === "bike") return SIGNAL.off;
     const tile = this.tileOf(car.place);
     let turn: string | null = null;
     if (car.place.connector) turn = tile.connectors[car.place.index].turn;
-    else if (car.next !== null && this.around.length(car.place) - car.place.along < Math.max(SIGNAL_M, car.speedMS * SIGNAL_S)) turn = tile.connectors[car.next].turn;
+    else if (car.next?.connector && this.route(car)[0].to - car.place.along < Math.max(SIGNAL_M, car.speedMS * SIGNAL_S)) turn = tile.connectors[car.next.index].turn;
     return turn === "right" ? SIGNAL.right : turn === "left" ? SIGNAL.left : SIGNAL.off;
   }
 
   /** The place `offset` metres ahead along a car's way from where it is, through the lines it has chosen, and the way it runs there. */
   private onWay(car: LaneCar, offset: number): ReturnType<typeof pointAlong> {
     let along = car.place.along + offset;
-    const lines = this.route(car);
-    for (const line of lines) {
-      const length = this.around.length(line);
-      if (along <= length) return this.pointOn(line, along);
-      along -= length;
+    const legs = this.route(car);
+    for (const leg of legs) {
+      // The first leg is measured from its line's start, where the vehicle's own place is measured from.
+      const start = leg === legs[0] ? 0 : leg.from;
+      if (along <= leg.to - start) return this.pointOn(leg, start + along);
+      along -= leg.to - start;
     }
-    const last = lines[lines.length - 1];
-    return this.pointOn(last, this.around.length(last) + along);
+    const last = legs[legs.length - 1];
+    return this.pointOn(last, last.to + along);
   }
 
   private pointOn(line: Line, along: number): ReturnType<typeof pointAlong> {
     const tile = this.tileOf(line);
-    return pointAlong(tile.points, line.connector ? tile.connectors[line.index] : tile.lanes[line.index], along);
+    return pointAlong(tile.points, lineOf(tile, line), along);
   }
 
   private poseAt(place: OnLane): Pose {
-    const tile = this.tileOf(place);
-    return poseOf(pointAlong(tile.points, place.connector ? tile.connectors[place.index] : tile.lanes[place.index], place.along));
+    return poseOf(this.pointOn(place, place.along));
   }
 
   private tileOf(place: Line): TileLanes {
@@ -479,55 +571,124 @@ export class LaneTraffic {
     return tile;
   }
 
+  /** A tile's links by the path lane each leaves the end of on to a road, and by the road lane each leaves for a path. */
+  private linksOf(tile: TileLanes) {
+    let found = this.links.get(tile);
+    if (!found) {
+      found = { onTo: new Map(), offOf: new Map() };
+      for (const [index, link] of tile.links.entries()) {
+        const [by, key] = link.onToRoad ? [found.onTo, link.path] : [found.offOf, link.road];
+        const list = by.get(key);
+        if (list) list.push(index);
+        else by.set(key, [index]);
+      }
+      this.links.set(tile, found);
+    }
+    return found;
+  }
+
+  /** The link a cyclist on a road turns off it at, ahead of where it is, if it does. */
+  private exitOf(car: LaneCar): LaneCar["exit"] {
+    const { place } = car;
+    if (car.kind !== "bike" || place.connector || place.link) return null;
+    const tile = this.tileOf(place);
+    if (tile.lanes[place.index].path) return null;
+    for (const index of this.linksOf(tile).offOf.get(place.index) ?? []) {
+      const along = tile.links[index].along;
+      if (along > place.along + 3 && this.random() < TURN_OFF) return { link: index, along };
+    }
+    return null;
+  }
+
+  /** The lane a line runs on or leads to: a lane's own, a connector's next, a link's road or path. */
+  private laneOf(line: Line): Lane {
+    const tile = this.tileOf(line);
+    if (line.link) {
+      const link = tile.links[line.index];
+      return tile.lanes[link.onToRoad ? link.road : link.path];
+    }
+    return tile.lanes[line.connector ? tile.connectors[line.index].to : line.index];
+  }
+
   /**
-   * The connector a car takes at its lane's end: any way on. A dead end's turning round is a U-turn tighter than any car
-   * can make on its wheels (a real driver backs and fills), so there a car's trip ends instead: it stops and is gone.
+   * The connector or link a vehicle takes at its lane's end: any way on its kind may ride, and for a cyclist at a path's
+   * end, a link on to the road there. A dead end's turning round is a U-turn tighter than any car can make on its
+   * wheels (a real driver backs and fills), so there a car's trip ends instead: it stops and is gone. A bike turns
+   * round on the spot.
    */
-  private choose(car: LaneCar): number | null {
-    if (car.place.connector) return null;
+  private choose(car: LaneCar): LineRef | null {
+    if (car.place.connector || car.place.link) return null;
     if (car.next !== null) return car.next;
     const tile = this.tileOf(car.place);
-    const onward = tile.lanes[car.place.index].next.filter((index) => tile.connectors[index].turn !== "back");
-    car.next = onward.length > 0 ? onward[Math.floor(this.random() * onward.length)] : null;
+    const ways: LineRef[] = tile.lanes[car.place.index].next
+      .filter((index) => (car.kind === "car" ? tile.connectors[index].turn !== "back" : bikeRides(tile.lanes[tile.connectors[index].to])))
+      .map((index) => ({ tile: car.place.tile, index, connector: true }));
+    if (car.kind === "bike") for (const index of this.linksOf(tile).onTo.get(car.place.index) ?? []) ways.push({ tile: car.place.tile, index, connector: false, link: true });
+    car.next = ways.length > 0 ? ways[Math.floor(this.random() * ways.length)] : null;
     return car.next;
   }
 
-  /** The line after a car's own, or none where its lane ends with no way on. */
-  private onward(car: LaneCar): Line | null {
+  /** Where a line leads: the lane after a connector, and the road partway along or the path after a link. */
+  private after(line: Line): Leg {
+    const tile = this.tileOf(line);
+    if (line.link) {
+      const link = tile.links[line.index];
+      const lane = { tile: line.tile, index: link.onToRoad ? link.road : link.path, connector: false };
+      return { ...lane, from: link.onToRoad ? link.along : 0, to: this.around.length(lane) };
+    }
+    return this.whole({ tile: line.tile, index: tile.connectors[line.index].to, connector: false });
+  }
+
+  private whole(line: Line): Leg {
+    return { ...line, from: 0, to: this.around.length(line) };
+  }
+
+  /** The line after a vehicle's own, from where it joins it, or none where its lane ends with no way on. */
+  private onward(car: LaneCar): Leg | null {
+    const route = this.route(car);
+    car.next = null;
+    car.exit = null;
+    return route.length > 1 ? route[1] : null;
+  }
+
+  /** Whether a car's way ends at its lane's end: a dead end, or a seam to a tile whose lanes aren't loaded. */
+  private endsHere(car: LaneCar, route: Leg[]): boolean {
+    return route.length === 1 && !car.place.connector && !car.place.link;
+  }
+
+  /**
+   * The lines a vehicle will drive next, as far as it has chosen: its own, then its connector and the lane after, a
+   * seam's other half, or a link and the road or path it leads to. The first leg runs to where the vehicle leaves its
+   * line: the line's end, or a cyclist's turn off a road.
+   */
+  private route(car: LaneCar): Leg[] {
     const { place } = car;
-    const tile = this.tileOf(place);
-    if (place.connector) {
-      car.next = null;
-      return { tile: place.tile, index: tile.connectors[place.index].to, connector: false };
+    const own = this.whole(place);
+    if (place.connector || place.link) return [own, this.after(place)];
+    if (car.exit) {
+      const link = { tile: place.tile, index: car.exit.link, connector: false, link: true };
+      return [{ ...own, to: car.exit.along }, this.whole(link), this.after(link)];
     }
     const across = this.net.acrossSeam({ tile: place.tile, lane: place.index });
-    if (across) {
-      car.next = null;
-      return { tile: across.tile, index: across.lane, connector: false };
-    }
+    if (across) return [own, this.whole({ tile: across.tile, index: across.lane, connector: false })];
     const next = this.choose(car);
-    return next === null ? null : { tile: place.tile, index: next, connector: true };
+    return next === null ? [own] : [own, this.whole(next), this.after(next)];
   }
 
-  /** Whether a car's way ends at its lane's end: a dead end, not a seam to the next tile. */
-  private endsHere(car: LaneCar, route: Line[]): boolean {
-    return route.length === 1 && !car.place.connector && !this.tileOf(car.place).lanes[car.place.index].seamEnd;
+  /** The speed a vehicle may ride at a place along a line: a car the line's limit; a cyclist its own pace, and no faster than a road's limit. */
+  private wantedAt(car: LaneCar, place: OnLane): number {
+    if (car.kind === "car") return this.limitAt(place);
+    if (place.link) return Math.min(car.paceMS, LINK_MS);
+    return this.laneOf(place).path ? car.paceMS : Math.min(car.paceMS, this.limitAt(place));
   }
 
-  /** The lines a car will drive next, as far as it has chosen: its own, its connector and the lane after, or a seam's other half. */
-  private route(car: LaneCar): Line[] {
-    const { place } = car;
-    const tile = this.tileOf(place);
-    if (place.connector) return [place, { tile: place.tile, index: tile.connectors[place.index].to, connector: false }];
-    const across = this.net.acrossSeam({ tile: place.tile, lane: place.index });
-    if (across) return [place, { tile: across.tile, index: across.lane, connector: false }];
-    const next = this.choose(car);
-    return next === null ? [place] : [place, { tile: place.tile, index: next, connector: true }, { tile: place.tile, index: tile.connectors[next].to, connector: false }];
-  }
-
-  /** A line's speed limit at a place along it: a lane's as signed, a connector's the lower of the lanes either side, or turning round's. */
+  /** A line's speed limit at a place along it: a lane's as signed, a connector's the lower of the lanes either side, turning round's, or a link's road's. */
   private limitAt(place: OnLane): number {
     const tile = this.tileOf(place);
+    if (place.link) {
+      const { from, ...road } = this.after(place);
+      return this.limitAt({ ...road, along: from });
+    }
     if (place.connector) {
       const connector = tile.connectors[place.index];
       if (connector.turn === "back") return TURN_ROUND_MS;
@@ -539,40 +700,76 @@ export class LaneTraffic {
     return limit / 3.6;
   }
 
-  /** The fastest a car may go now and still slow in comfort for every limit and bend ahead within its look. */
-  private planned(car: LaneCar, route: Line[]): number {
-    let best = this.limitAt(car.place);
+  /** The fastest a vehicle may go now and still slow in comfort for every limit and bend ahead within its look. */
+  private planned(car: LaneCar, route: Leg[]): number {
+    let best = this.wantedAt(car, car.place);
     let ahead = -car.place.along;
-    for (const line of route) {
-      const tile = this.tileOf(line);
-      const drawn = line.connector ? tile.connectors[line.index] : tile.lanes[line.index];
+    for (const leg of route) {
+      const tile = this.tileOf(leg);
+      const drawn = lineOf(tile, leg);
       let bends = this.bends.get(tile);
       if (!bends) {
         bends = bendSpeeds(tile);
         this.bends.set(tile, bends);
       }
+      const start = leg === route[0] ? 0 : leg.from;
       let along = 0;
       for (let at = drawn.first; at < drawn.first + drawn.count; at++) {
         if (at > drawn.first) along += Math.hypot(tile.points[at * 3] - tile.points[at * 3 - 3], tile.points[at * 3 + 2] - tile.points[at * 3 - 1]);
-        const gap = ahead + along;
+        if (along < start || along > leg.to) continue;
+        const gap = ahead + along - start;
         if (gap < 0) continue;
         if (gap > LOOK_M) return best;
-        const cap = Math.min(bends[at], this.limitAt({ ...line, along }));
+        const cap = Math.min(bends[at], this.wantedAt(car, { ...leg, along }));
         best = Math.min(best, Math.sqrt(cap * cap + 2 * BRAKE * gap));
       }
-      ahead += this.around.length(line);
+      ahead += leg.to - start;
     }
     return best;
   }
 
-  /** The nearest car ahead on the way this one is going, not on another branch out of the junction. */
-  private leader(car: LaneCar, route: Line[]): Seen | null {
+  /**
+   * The nearest vehicle ahead on the way this one is going, not on another branch out of the junction. A car passes a
+   * cyclist rather than following it, so it brakes for one by where it rides (`react`), as for a simulated car.
+   */
+  private leader(car: LaneCar, route: Leg[]): Seen | null {
     const tile = this.tileOf(route[0]);
     const ways = new Set(route.map(keyOf));
     const into = route.find((line) => line.connector);
     if (into) tile.connectors.forEach((other, index) => other.to === tile.connectors[into.index].to && ways.add(keyOf({ tile: into.tile, index, connector: true })));
     // A simulated car is braked for by where it lies, whatever its way (`react`).
-    return this.around.ahead(car.id, LOOK_M).find((seen) => !this.driven.has(seen.id) && ways.has(keyOf(seen.place))) ?? null;
+    return this.around.ahead(car.id, LOOK_M).find((seen) => !this.driven.has(seen.id) && ways.has(keyOf(seen.place)) && !(car.kind === "car" && this.cars.get(seen.id)?.kind === "bike")) ?? null;
+  }
+
+  /** Whether anyone but this vehicle is moving through the junction a connector crosses. */
+  private junctionBusy(car: LaneCar, connector: number): boolean {
+    const tile = this.tileOf(car.place);
+    let through = this.junctions.get(tile);
+    if (!through) {
+      through = new Map();
+      for (const [index, { junction }] of tile.connectors.entries()) {
+        const list = through.get(junction);
+        if (list) list.push(index);
+        else through.set(junction, [index]);
+      }
+      this.junctions.set(tile, through);
+    }
+    // Only someone moving through it: one standing there may be waiting for this one to clear its way.
+    const moving = (id: string) => (this.cars.get(id)?.speedMS ?? 0) > SLOWEST_MS;
+    return (through.get(tile.connectors[connector].junction) ?? []).some((index) => this.around.on({ tile: car.place.tile, index, connector: true }, car.id).some(({ id }) => moving(id)));
+  }
+
+  /** Whether anything on a road is coming up to where a link joins it, which a cyclist on the link gives way to. */
+  private mustJoinYield(car: LaneCar, link: number): boolean {
+    const tile = this.tileOf(car.place);
+    const { road, along } = tile.links[link];
+    for (const other of this.around.on({ tile: car.place.tile, index: road, connector: false }, car.id)) {
+      const gap = along - other.along;
+      if (gap < -JOIN_NEAR_M / 2 || gap > JOIN_LOOK_M) continue;
+      const speedMS = this.driven.get(other.id)?.speedMS ?? this.cars.get(other.id)?.speedMS ?? 0;
+      if (Math.abs(gap) < JOIN_NEAR_M || (speedMS > SLOWEST_MS && gap / speedMS < JOIN_WITHIN_S)) return true;
+    }
+    return false;
   }
 
   /** Whether anything the car's turn gives way to is coming. */
@@ -595,19 +792,28 @@ export class LaneTraffic {
     const obstacles = [...reaction.obstacles];
     const leader = this.leader(car, route);
     const ahead = leader && this.cars.get(leader.id);
-    if (leader) obstacles.push({ gap: leader.gap - LENGTH_M, speedMS: ahead?.speedMS ?? 0 });
+    const lengths = car.half[1] + (ahead?.half[1] ?? car.half[1]);
+    if (leader) obstacles.push({ gap: leader.gap - lengths, speedMS: ahead?.speedMS ?? 0 });
     // Queuing behind one stopped on its verge, on the verge too: a car standing still can't move aside later.
-    if (leader && ahead && ahead.shiftM > car.wantShiftM && ahead.speedMS < CRAWL_MS && leader.gap < QUEUE_M + LENGTH_M) car.wantShiftM = Math.min(this.roomOf(car).stopped, ahead.shiftM);
+    if (leader && ahead && ahead.shiftM > car.wantShiftM && ahead.speedMS < CRAWL_MS && leader.gap < QUEUE_M + lengths) car.wantShiftM = Math.min(this.roomOf(car).stopped, ahead.shiftM);
     car.waiting = false;
-    if (this.endsHere(car, route)) obstacles.push({ gap: Math.max(0.1, this.around.length(car.place) - car.place.along), speedMS: 0 });
-    const next = car.place.connector ? null : car.next;
-    if (next !== null && this.tileOf(car.place).connectors[next].yields.length > 0) {
-      const toLine = this.around.length(car.place) - car.place.along - STOP_BACK_M;
-      const stopping = (car.speedMS * car.speedMS) / (2 * BRAKE) + 15;
-      if (toLine < stopping && this.mustYield(car, next, LOOK_M)) {
-        obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
-        car.waiting = car.speedMS < SLOWEST_MS;
-      }
+    if (this.endsHere(car, route)) obstacles.push({ gap: Math.max(0.1, route[0].to - car.place.along), speedMS: 0 });
+    const toLine = route[0].to - car.place.along - STOP_BACK_M;
+    const stopping = (car.speedMS * car.speedMS) / (2 * BRAKE) + 15;
+    const next = car.place.connector || car.place.link ? null : car.next;
+    if (next?.connector && this.tileOf(car.place).connectors[next.index].yields.length > 0 && toLine < stopping && this.mustYield(car, next.index, LOOK_M)) {
+      obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
+      car.waiting = car.speedMS < SLOWEST_MS;
+    }
+    // The lane map gives a path's junctions no right of way: a cyclist waits while anyone else is crossing one.
+    if (next?.connector && this.laneOf(car.place).path && toLine < stopping && this.junctionBusy(car, next.index)) {
+      obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
+      car.waiting = car.speedMS < SLOWEST_MS;
+    }
+    // A cyclist joining a road waits at its path's end, clear of the road, for a gap; once on the link it's committed.
+    if (next?.link && this.tileOf(car.place).links[next.index].onToRoad && toLine < stopping && this.mustJoinYield(car, next.index)) {
+      obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
+      car.waiting = car.speedMS < SLOWEST_MS;
     }
     const v = car.speedMS;
     let pull = PULL * (1 - (v / wanted) ** 4);
@@ -625,8 +831,13 @@ export class LaneTraffic {
 
   /** The width of the lane a car is on, or is turning on to. */
   private laneWidth(car: LaneCar): number {
-    const tile = this.tileOf(car.place);
-    return tile.lanes[car.place.connector ? tile.connectors[car.place.index].to : car.place.index].width;
+    return this.laneOf(car.place).width;
+  }
+
+  /** How far right of its lane's middle a vehicle keeps when nothing moves it: a cyclist on a road, near its edge. */
+  private keptRight(car: LaneCar): number {
+    if (car.kind === "car" || car.place.link || this.laneOf(car.place).path) return 0;
+    return Math.max(0, this.laneWidth(car) / 2 - car.half[0] - BIKE_EDGE_M);
   }
 
   /** How far a car can ease right of its lane's middle, on to the verge, as it drives by and once it has stopped. */
@@ -638,18 +849,20 @@ export class LaneTraffic {
   /** The point of a car's way nearest a place, from a little behind the car to as far as it sees, and how far ahead of the car it is. */
   private nearestOnWay(car: LaneCar, x: number, z: number): { ahead: number; point: ReturnType<typeof pointAlong> } | null {
     let best: { ahead: number; point: ReturnType<typeof pointAlong>; off: number } | null = null;
+    const route = this.route(car);
     let before = -car.place.along;
-    for (const line of this.route(car)) {
-      const length = this.around.length(line);
-      const from = Math.max(0, -before - car.half[1] - ALONGSIDE_M - 4);
-      const to = Math.min(length, SEE_M - before);
+    for (const leg of route) {
+      // How far ahead of the vehicle this leg starts: the first leg from its line's own start, each after it from its join.
+      const start = leg === route[0] ? 0 : leg.from;
+      const from = Math.max(start, start - before - car.half[1] - ALONGSIDE_M - 4);
+      const to = Math.min(leg.to, SEE_M - before + start);
       if (to >= from) {
-        const along = this.nearestOn(line, { x, z }, from, to);
-        const point = this.pointOn(line, along);
+        const along = this.nearestOn(leg, { x, z }, from, to);
+        const point = this.pointOn(leg, along);
         const off = Math.hypot(point.x - x, point.z - z);
-        if (!best || off < best.off) best = { ahead: before + along, point, off };
+        if (!best || off < best.off) best = { ahead: before + along - start, point, off };
       }
-      before += length;
+      before += leg.to - start;
       if (before > SEE_M) break;
     }
     // Further off than a road is wide, it's on another road.
@@ -711,11 +924,13 @@ export class LaneTraffic {
     let stillRound = false;
     let startRound = false;
     let blocked = false;
-    let right = 0;
+    let right = this.keptRight(car);
     let left = 0;
     for (const other of others) {
-      // Traffic going this car's way is the leader's business.
-      if (other.id === car.id || (other.car && other.fx * facing.x + other.fz * facing.z > 0)) continue;
+      // A cyclist going a car's way is passed with room to spare; anything else going a vehicle's way is the leader's business.
+      const sameWay = other.fx * facing.x + other.fz * facing.z;
+      const cyclist = car.kind === "car" && other.car?.kind === "bike" && sameWay > SAME_WAY;
+      if (other.id === car.id || (other.car && sameWay > 0 && !cyclist)) continue;
       if (Math.hypot(other.x - car.pose.x, other.z - car.pose.z) > SEE_M) continue;
       const seen = this.outline(car, other);
       if (!seen || seen.far < -long - ALONGSIDE_M) continue;
@@ -766,25 +981,30 @@ export class LaneTraffic {
         }
         continue;
       }
-      // Traffic facing this car in its lane, or a simulated car at any angle, is in its path.
-      if (other.car && !seen.opposing) continue;
+      // Traffic facing this car in its lane, a cyclist ahead of a car, or a simulated car at any angle, is in its path.
+      if (other.car && !seen.opposing && !cyclist) continue;
       if (car.goingRound && seen.opposing && seen.near > TOUCH_M) continue;
       const standing = other.car === null && other.speedMS < SLOWEST_MS;
-      const across = (shiftM: number) => seen.right > shiftM - wide - PATH_MARGIN_M && seen.left < shiftM + wide + PATH_MARGIN_M && seen.far > 0;
-      // Clear of the standing car's left side, and still on the road's far half and its verge.
-      const round = seen.left - PASS_CLEAR_M - wide;
+      const margin = cyclist ? BIKE_ROOM_M : PATH_MARGIN_M;
+      const across = (shiftM: number) => seen.right > shiftM - wide - margin && seen.left < shiftM + wide + margin && seen.far > 0;
+      // Clear of the other's left side, and still on the road's far half and its verge.
+      const round = seen.left - (cyclist ? BIKE_ROOM_M : PASS_CLEAR_M) - wide;
       const roundFits = round - wide >= -1.5 * laneWidth - VERGE_M;
-      if (standing && car.goingRound && roundFits) {
+      if ((standing || cyclist) && car.goingRound && roundFits) {
         stillRound = true;
         left = Math.min(left, round);
-        cap(GO_ROUND_MS, seen.near);
-        // Not drawing level while its body, as it really stands rather than where it aims, would touch a metre on.
-        if (seen.near < 1 && overlapping(movedOn(asOther(car), 1), other, SQUEEZE_CLEAR_M)) stopAt(seen.near);
+        if (standing) {
+          cap(GO_ROUND_MS, seen.near);
+          // Not drawing level while its body, as it really stands rather than where it aims, would touch a metre on.
+          if (seen.near < 1 && overlapping(movedOn(asOther(car), 1), other, SQUEEZE_CLEAR_M)) stopAt(seen.near);
+        }
         continue;
       }
       if (!across(car.shiftM)) continue;
       reaction.obstacles.push({ gap: Math.max(0.1, seen.near - (standing ? GO_ROUND_BACK_M : 0)), speedMS: seen.opposing ? 0 : seen.alongMS });
-      if (standing && car.speedMS < STOPPED_MS && seen.near < QUEUE_M + GO_ROUND_BACK_M) {
+      // Stopped behind a car standing in the way, or held to a cyclist's pace: once it has been a while, it goes round.
+      const heldUp = standing ? car.speedMS < STOPPED_MS && seen.near < QUEUE_M + GO_ROUND_BACK_M : cyclist && car.speedMS < other.speedMS + 1 && seen.near < QUEUE_M && !other.car?.waiting && !other.car?.place.connector;
+      if (heldUp) {
         blocked = true;
         if (roundFits && car.blockedS >= GO_ROUND_WAIT_S && !car.place.connector && this.clearAhead(car, others, other.id, GO_ROUND_CLEAR_M)) startRound = true;
       }
@@ -793,7 +1013,7 @@ export class LaneTraffic {
     // creep by anyone from there, and the oncoming cars must see it as one of those they have the road from.
     const leader = this.leader(car, this.route(car));
     const ahead = leader && this.cars.get(leader.id);
-    if (leader && ahead?.meeting === "yields" && leader.gap < QUEUE_M + LENGTH_M) yielding = true;
+    if (leader && ahead?.meeting === "yields" && leader.gap < QUEUE_M + car.half[1] + ahead.half[1]) yielding = true;
     reaction.meeting = yielding ? "yields" : creeping ? "creeps" : passing ? "passes" : null;
     reaction.waitedS = !yielding && !creeping ? 0 : car.speedMS < STOPPED_MS ? car.waitedS + seconds : car.waitedS;
     car.goingRound = stillRound || startRound;
