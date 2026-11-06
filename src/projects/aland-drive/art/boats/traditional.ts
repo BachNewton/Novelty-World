@@ -1,9 +1,9 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { dressForMooring, type Mooring } from "./dress";
+import { dressForMooring, farMooring, type Mooring } from "./dress";
 import { farHull, house, Hull, type HullSpec } from "./hull";
 import { BoatMesh, finished, type BoatPart } from "./mesh";
-import { boomOut, coverPart, farMast, farSail, nearSail, sailPart, type CoverColour, type Sail, type SailColour } from "./rig";
+import { boomOut, coverPart, farSail, farSpar, keptLines, nearSail, sailPart, type CoverColour, type Sail, type SailColour, type Stay } from "./rig";
 
 /*
  * The gaff and lug boats: a double-ender in the Colin Archer spirit, a galeas in the
@@ -61,7 +61,13 @@ function gaffSpars(mesh: BoatMesh, gaff: Gaff, degrees: number, lee: number, par
   } else {
     mesh.tube([0.12, boomY + 0.34, mastZ], [0.08, boomY + 0.3, mastZ - gaffM], radius * 0.45, 4, { radiusTo: radius * 0.3 }, part);
   }
-  mesh.line([0, topY - 0.2, mastZ], [boom[0], boomY, mastZ + boom[2]], "rope");
+  keptLines(mesh, [toppingLift(gaff, degrees, lee)]);
+}
+
+/** The line from the masthead to the boom's end, which both versions draw. */
+function toppingLift({ mastZ, topY, boomY, boomM }: Gaff, degrees: number, lee: number): Stay {
+  const boom = boomOut(boomM, degrees, lee);
+  return [[0, topY - 0.2, mastZ], [boom[0], boomY, mastZ + boom[2]], "rope"];
 }
 
 /** A double-ender's plan: fine at both ends, the greatest beam a little forward of the middle. */
@@ -102,18 +108,26 @@ export function buildDoubleEnder({ state = "moored", mooring = "buoy", sails = "
   near.tube([0, 1.92, 5.9], [0, 1.65, ARCHER_SPRIT_Z], 0.08, 4, { radiusTo: 0.05, cap: true }, "spar-wood");
   gaffSpars(near, ARCHER_MAIN, degrees, lee, "spar-wood", sailing);
   gaffSpars(near, ARCHER_MIZZEN, degrees + 6, lee, "spar-wood", sailing);
-  near.line([0, ARCHER_MAIN.topY - 3.8, ARCHER_MAIN.mastZ], [0, 1.95, 6.2]).line([0, ARCHER_MAIN.topY - 1.2, ARCHER_MAIN.mastZ], [0, 1.65, ARCHER_SPRIT_Z]).line([0, 1.65, ARCHER_SPRIT_Z], [0, 0.1, 5.9]);
-  near.line([0, ARCHER_MAIN.topY - 2.4, ARCHER_MAIN.mastZ], [0, ARCHER_MIZZEN.topY - 0.3, ARCHER_MIZZEN.mastZ]);
-  for (const side of [-1, 1]) {
-    for (const z of [0.9, 1.5, 2.1]) near.line([0, ARCHER_MAIN.throatY, ARCHER_MAIN.mastZ], [side * 1.9, 1.3, z]);
-    near.line([0, ARCHER_MIZZEN.throatY, ARCHER_MIZZEN.mastZ], [side * 1.45, 1.45, -3.6]);
-  }
+  const stays: Stay[] = [
+    [[0, ARCHER_MAIN.topY - 3.8, ARCHER_MAIN.mastZ], [0, 1.95, 6.2]],
+    [[0, ARCHER_MAIN.topY - 1.2, ARCHER_MAIN.mastZ], [0, 1.65, ARCHER_SPRIT_Z]],
+    [[0, 1.65, ARCHER_SPRIT_Z], [0, 0.1, 5.9]],
+    [[0, ARCHER_MAIN.topY - 2.4, ARCHER_MAIN.mastZ], [0, ARCHER_MIZZEN.topY - 0.3, ARCHER_MIZZEN.mastZ]],
+    ...[-1, 1].flatMap((side): Stay[] => [
+      [[0, ARCHER_MAIN.throatY, ARCHER_MAIN.mastZ], [side * 1.9, 1.3, 1.5]],
+      [[0, ARCHER_MIZZEN.throatY, ARCHER_MIZZEN.mastZ], [side * 1.45, 1.45, -3.6]],
+    ]),
+  ];
+  keptLines(near, stays);
+  for (const side of [-1, 1]) for (const z of [0.9, 2.1]) near.line([0, ARCHER_MAIN.throatY, ARCHER_MAIN.mastZ], [side * 1.9, 1.3, z]);
 
-  const far = farHull(new BoatMesh(), hull, topside, "pine", 4);
+  const far = farHull(new BoatMesh(), hull, [[0, "antifoul-red"], [1, topside]], "pine", 3);
   far.box([-0.8, 1, -1.1], [0.8, 1.6, 0.9], "varnish", { open: true });
-  farMast(far, ARCHER_MAIN.mastZ, 1, ARCHER_MAIN.topY, 0.16, "spar-wood");
-  farMast(far, ARCHER_MIZZEN.mastZ, 1.2, ARCHER_MIZZEN.topY, 0.12, "spar-wood");
-  far.face([[-0.06, 1.8, 6], [0.06, 1.8, 6], [0, 1.65, ARCHER_SPRIT_Z]], "spar-wood");
+  farSpar(far, [0, 1, ARCHER_MAIN.mastZ], [0, ARCHER_MAIN.topY, ARCHER_MAIN.mastZ], 0.16, "spar-wood");
+  farSpar(far, [0, 1.2, ARCHER_MIZZEN.mastZ], [0, ARCHER_MIZZEN.topY, ARCHER_MIZZEN.mastZ], 0.12, "spar-wood");
+  farSpar(far, [0, 1.92, 5.9], [0, 1.65, ARCHER_SPRIT_Z], 0.08, "spar-wood");
+  far.face([[0, 1.85, -6.3], [0, 1.85, -6.62], [0, -0.3, -6.1], [0, -0.3, -5.5]], "tar");
+  keptLines(far, [...stays, toppingLift(ARCHER_MAIN, degrees, lee), toppingLift(ARCHER_MIZZEN, degrees + 6, lee)]);
 
   if (sailing) {
     const staysail = (near2: boolean): Sail => ({ tack: [0, 2.05, 5.6], head: [0, ARCHER_MAIN.topY - 4.6, ARCHER_MAIN.mastZ + 1.1], foot: [lee * 0.8, 0.4, -3.1], rows: near2 ? 3 : 1, columns: near2 ? 2 : 1, camber: near2 ? 0.08 : 0, twist: 0.12, roachM: 0, lee, part: sail });
@@ -128,8 +142,9 @@ export function buildDoubleEnder({ state = "moored", mooring = "buoy", sails = "
   } else {
     near.tube([0, ARCHER_MAIN.boomY + 0.18, 1.4], [0, ARCHER_MAIN.boomY + 0.18, 1.4 - ARCHER_MAIN.boomM * 0.86], 0.22, 5, { radiusTo: 0.14, cap: true }, coverPart(cover));
     near.tube([0, ARCHER_MIZZEN.boomY + 0.14, -3.8], [0, ARCHER_MIZZEN.boomY + 0.14, -3.8 - ARCHER_MIZZEN.boomM * 0.8], 0.15, 4, { radiusTo: 0.1, cap: true }, coverPart(cover));
-    dressForMooring(near, hull, { mooring, fenderCount: 3 });
+    dressForMooring(near, hull, { mooring, fenderCount: 3, kept: true });
     far.tube([0, ARCHER_MAIN.boomY, 1.4], [0, ARCHER_MAIN.boomY, -4.5], 0.2, 3, {}, coverPart(cover));
+    farMooring(far, hull, { mooring });
   }
   return finished({ near, far, swapM: 190, reachM: 1700, rock: sailing ? 0.14 : 0.22, heelDeg: sailing ? 11 : 0, lee });
 }
@@ -173,11 +188,13 @@ function topsail(gaff: Gaff, part: BoatPart, lee: number, degrees: number, near:
   return { tack: [0, gaff.throatY + 0.3, gaff.mastZ - gaff.radius], head: [0, gaff.topY - 0.4, gaff.mastZ - 0.1], foot: [out[0], gaff.peakY - gaff.throatY - 0.4, out[2]], rows: near ? 3 : 1, columns: near ? 2 : 1, camber: near ? 0.05 : 0, twist: 0.05, roachM: 0, lee, part };
 }
 
-function ratlines(mesh: BoatMesh, mastZ: number, throatY: number, side: number, chainplateY: number, count: number): void {
-  const foot: V3 = [side * 3, chainplateY, mastZ];
-  const aft: V3 = [side * 3, chainplateY, mastZ - 1.3];
-  const head: V3 = [0.15 * side, throatY, mastZ];
-  mesh.line(foot, head).line(aft, head);
+/** A galeas' forward shroud on one side, which both versions draw. */
+const shroud = (mastZ: number, throatY: number, side: number): Stay => [[side * 3, 2.5, mastZ], [0.15 * side, throatY, mastZ]];
+
+function ratlines(mesh: BoatMesh, mastZ: number, throatY: number, side: number, count: number): void {
+  const [foot, head] = shroud(mastZ, throatY, side);
+  const aft: V3 = [foot[0], foot[1], mastZ - 1.3];
+  keptLines(mesh, [[foot, head]]).line(aft, head);
   for (let rung = 1; rung <= count; rung++) {
     const share = rung / (count + 1);
     const at = (end: V3): V3 => [end[0] + (head[0] - end[0]) * share, end[1] + (head[1] - end[1]) * share, end[2] + (head[2] - end[2]) * share];
@@ -206,22 +223,32 @@ export function buildGaleas({ state = "moored", mooring = "alongside", sails = "
   near.face([[0, 2.5, -10.75], [0, 2.5, -11.15], [0, -0.3, -10.7], [0, -0.3, -10.2]], "tar");
   near.tube([0, 2.95, 10.2], [0, 2.8, GALEAS_SPRIT_Z], 0.17, 5, { radiusTo: 0.1 }, "spar-wood");
   near.tube([0, 2.86, GALEAS_SPRIT_Z - 2], [0, 3.1, GALEAS_JIBBOOM_Z], 0.08, 4, { radiusTo: 0.05, cap: true }, "spar-wood");
-  near.line([0, 2.8, GALEAS_SPRIT_Z], [0, 0.1, 10.2]).line([0, 3.1, GALEAS_JIBBOOM_Z], [0, 1.2, 12.6]);
   gaffSpars(near, GALEAS_MAIN, degrees, lee, "spar-wood", sailing);
   gaffSpars(near, GALEAS_MIZZEN, degrees + 6, lee, "spar-wood", sailing);
   const main = GALEAS_MAIN.mastZ;
-  near.line([0, 13.2, main], [0, 3.3, 10.4]).line([0, 15.6, main], [0, 2.95, 13.8]).line([0, GALEAS_MAIN.topY - 2.2, main], [0, 2.9, GALEAS_SPRIT_Z]).line([0, GALEAS_MAIN.topY - 0.5, main], [0, 3.1, GALEAS_JIBBOOM_Z]);
-  near.line([0, GALEAS_MAIN.throatY, main], [0, GALEAS_MIZZEN.topY - 1, GALEAS_MIZZEN.mastZ]);
+  const stays: Stay[] = [
+    [[0, 2.8, GALEAS_SPRIT_Z], [0, 0.1, 10.2]],
+    [[0, 3.1, GALEAS_JIBBOOM_Z], [0, 1.2, 12.6]],
+    [[0, 13.2, main], [0, 3.3, 10.4]],
+    [[0, 15.6, main], [0, 2.95, 13.8]],
+    [[0, GALEAS_MAIN.topY - 2.2, main], [0, 2.9, GALEAS_SPRIT_Z]],
+    [[0, GALEAS_MAIN.topY - 0.5, main], [0, 3.1, GALEAS_JIBBOOM_Z]],
+    [[0, GALEAS_MAIN.throatY, main], [0, GALEAS_MIZZEN.topY - 1, GALEAS_MIZZEN.mastZ]],
+  ];
+  keptLines(near, stays);
   for (const side of [-1, 1]) {
-    ratlines(near, main, GALEAS_MAIN.throatY, side, 2.5, 9);
-    ratlines(near, GALEAS_MIZZEN.mastZ, GALEAS_MIZZEN.throatY, side, 2.5, 7);
+    ratlines(near, main, GALEAS_MAIN.throatY, side, 9);
+    ratlines(near, GALEAS_MIZZEN.mastZ, GALEAS_MIZZEN.throatY, side, 7);
   }
 
-  const far = farHull(new BoatMesh(), hull, topside, "pine", 4);
+  const far = farHull(new BoatMesh(), hull, [[0, "antifoul-red"], [2, topside], [3, "gelcoat"], [4, topside]], "pine", 4);
+  hull.rail(far, 4, "gelcoat-warm", 0.42);
   far.box([-1.5, 1.9, -5.2], [1.5, 3.3, -2.8], "gelcoat-warm", { open: true });
-  farMast(far, GALEAS_MAIN.mastZ, 1.9, GALEAS_MAIN.topY, 0.28, "spar-wood");
-  farMast(far, GALEAS_MIZZEN.mastZ, 2.1, GALEAS_MIZZEN.topY, 0.22, "spar-wood");
-  far.face([[-0.12, 2.9, 10.2], [0.12, 2.9, 10.2], [0, 3.1, GALEAS_JIBBOOM_Z]], "spar-wood");
+  farSpar(far, [0, 1.9, GALEAS_MAIN.mastZ], [0, GALEAS_MAIN.topY, GALEAS_MAIN.mastZ], 0.28, "spar-wood");
+  farSpar(far, [0, 2.1, GALEAS_MIZZEN.mastZ], [0, GALEAS_MIZZEN.topY, GALEAS_MIZZEN.mastZ], 0.22, "spar-wood");
+  farSpar(far, [0, 2.95, 10.2], [0, 3.1, GALEAS_JIBBOOM_Z], 0.17, "spar-wood");
+  far.face([[0, 2.5, -10.75], [0, 2.5, -11.15], [0, -0.3, -10.7], [0, -0.3, -10.2]], "tar");
+  keptLines(far, [...stays, ...[-1, 1].flatMap((side) => [shroud(main, GALEAS_MAIN.throatY, side), shroud(GALEAS_MIZZEN.mastZ, GALEAS_MIZZEN.throatY, side)]), toppingLift(GALEAS_MAIN, degrees, lee), toppingLift(GALEAS_MIZZEN, degrees + 6, lee)]);
 
   if (sailing) {
     for (const [gaff, off] of [[GALEAS_MAIN, 0], [GALEAS_MIZZEN, 6]] as const) {
@@ -236,7 +263,8 @@ export function buildGaleas({ state = "moored", mooring = "alongside", sails = "
     const bag = coverPart(cover);
     near.tube([0.04, GALEAS_MAIN.boomY + 0.3, main - 0.3], [0, GALEAS_MAIN.boomY + 0.3, main - 8.6], 0.42, 6, { radiusTo: 0.26, cap: true }, bag);
     near.tube([0.04, GALEAS_MIZZEN.boomY + 0.26, GALEAS_MIZZEN.mastZ - 0.3], [0, GALEAS_MIZZEN.boomY + 0.26, GALEAS_MIZZEN.mastZ - 5.4], 0.32, 5, { radiusTo: 0.2, cap: true }, bag);
-    dressForMooring(near, hull, { mooring, fenderCount: 4, fenders: "tar" });
+    dressForMooring(near, hull, { mooring, fenderCount: 4, fenders: "tar", kept: true });
+    farMooring(far, hull, { mooring });
     far.tube([0, GALEAS_MAIN.boomY + 0.3, main], [0, GALEAS_MAIN.boomY + 0.3, main - 8.6], 0.4, 3, {}, bag);
     far.tube([0, GALEAS_MIZZEN.boomY + 0.3, GALEAS_MIZZEN.mastZ], [0, GALEAS_MIZZEN.boomY + 0.3, GALEAS_MIZZEN.mastZ - 5.4], 0.3, 3, {}, bag);
   }
@@ -281,11 +309,13 @@ export function buildAllmogebat({ state = "moored", mooring = "bow-to", sails = 
   near.face([[0, 1.15, -3.15], [0, 1.15, -3.38], [0, -0.2, -3.1], [0, -0.2, -2.7]], "tar");
   near.tube([0, 1.1, -3.25], [0, 1.2, -2.1], 0.02, 3, {}, "spar-wood");
   near.tube([0, 0.2, ALLMOGE_MAST_Z], [0, ALLMOGE_MAST_Y, ALLMOGE_MAST_Z], 0.055, 5, { radiusTo: 0.035, cap: true }, "spar-wood");
-  near.line([0, ALLMOGE_MAST_Y - 0.4, ALLMOGE_MAST_Z], [0, 1.05, 3.05], "rope");
-  for (const side of [-1, 1]) near.line([0, ALLMOGE_MAST_Y - 0.5, ALLMOGE_MAST_Z], [side * 0.88, 0.62, ALLMOGE_MAST_Z - 0.5], "rope");
+  const stays: Stay[] = [[[0, ALLMOGE_MAST_Y - 0.4, ALLMOGE_MAST_Z], [0, 1.05, 3.05], "rope"], ...[-1, 1].map((side): Stay => [[0, ALLMOGE_MAST_Y - 0.5, ALLMOGE_MAST_Z], [side * 0.88, 0.62, ALLMOGE_MAST_Z - 0.5], "rope"])];
+  keptLines(near, stays);
 
-  const far = farHull(new BoatMesh(), hull, topside, "pine-inside", 4);
-  farMast(far, ALLMOGE_MAST_Z, 0.3, ALLMOGE_MAST_Y, 0.07, "spar-wood");
+  const far = farHull(new BoatMesh(), hull, [[0, "tar"], [1, topside]], "pine-inside", 3);
+  farSpar(far, [0, 0.3, ALLMOGE_MAST_Z], [0, ALLMOGE_MAST_Y, ALLMOGE_MAST_Z], 0.07, "spar-wood");
+  far.face([[0, 1.15, -3.15], [0, 1.15, -3.38], [0, -0.2, -3.1], [0, -0.2, -2.7]], "tar");
+  keptLines(far, stays);
 
   if (sailing) {
     const lug = lugSail(sail, lee, true);
@@ -297,7 +327,9 @@ export function buildAllmogebat({ state = "moored", mooring = "bow-to", sails = 
     // The sail lowered and rolled on its yard, lying along the thwarts.
     near.tube([0.14, 0.56, 1.9], [0.14, 0.56, -2.2], 0.1, 5, { radiusTo: 0.08, cap: true }, sail);
     near.tube([0.14, 0.62, 2.2], [0.14, 0.62, -2.5], 0.028, 3, {}, "spar-wood");
-    dressForMooring(near, hull, { mooring, fenderCount: 1 });
+    dressForMooring(near, hull, { mooring, fenderCount: 1, kept: true });
+    far.tube([0.14, 0.56, 1.9], [0.14, 0.56, -2.2], 0.1, 3, { radiusTo: 0.08 }, sail);
+    farMooring(far, hull, { mooring });
   }
   return finished({ near, far, swapM: 110, reachM: 900, rock: sailing ? 0.55 : 0.7, heelDeg: sailing ? 12 : 0, lee });
 }

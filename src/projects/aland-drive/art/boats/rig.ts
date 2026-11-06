@@ -1,6 +1,6 @@
 import type { V3 } from "../roadside/mesh";
 import { lerp } from "./hull";
-import type { BoatMesh, BoatPart } from "./mesh";
+import { crossing, type BoatMesh, type BoatPart } from "./mesh";
 
 /*
  * Sails and rigs. A sail is a sheet between a luff and a chord that changes with
@@ -107,25 +107,57 @@ export interface BermudanRig {
   jibHeadY: number;
 }
 
-/** Mast, boom, standing rigging and the running lines that show. */
+const KEPT = { kept: true };
+
+/** Mast, boom, standing rigging and the running lines that show. The stays and the top shrouds are the far version's too. */
 export function nearBermudan(mesh: BoatMesh, rig: BermudanRig, boom: V3): BoatMesh {
   const { mastZ, footY, topY, mastRadius, boomY, hounceY, stem, stern, chainplate, spreaders, mast } = rig;
   const top: V3 = [0, topY, mastZ];
   mesh.tube([0, footY, mastZ], top, mastRadius, 5, { radiusTo: mastRadius * 0.55, cap: true }, mast);
   mesh.tube([0, boomY, mastZ - 0.05], [boom[0], boomY + boom[1], mastZ + boom[2]], mastRadius * 0.62, 4, { radiusTo: mastRadius * 0.5, cap: true }, mast);
-  mesh.line([0, hounceY, mastZ], stem);
-  if (stern !== null) mesh.line(top, stern);
+  mesh.line([0, hounceY, mastZ], stem, "wire", KEPT);
+  if (stern !== null) mesh.line(top, stern, "wire", KEPT);
   for (const side of [-1, 1]) {
     const foot: V3 = [side * chainplate.x, chainplate.y, chainplate.z];
     let from = foot;
     for (const [y, half] of spreaders) {
       const tip: V3 = [side * half, y, mastZ];
       mesh.tube([0, y, mastZ], tip, 0.018, 3, { radiusTo: 0.012 }, mast);
-      mesh.line(from, tip);
+      mesh.line(from, tip, "wire", KEPT);
       from = tip;
     }
-    mesh.line(from, [0, spreaders.length > 0 ? hounceY : topY, mastZ]);
+    mesh.line(from, [0, spreaders.length > 0 ? hounceY : topY, mastZ], "wire", KEPT);
     if (spreaders.length > 0) mesh.line(foot, [0, spreaders[0][0], mastZ]);
+  }
+  return mesh;
+}
+
+/** The far version's standing rigging: forestay, backstay and a shroud each side, straight from the chainplate to where the near one's top shroud meets the mast. */
+export function farBermudan(mesh: BoatMesh, rig: BermudanRig): BoatMesh {
+  const { mastZ, topY, hounceY, stem, stern, chainplate, spreaders } = rig;
+  const shrouds = [-1, 1].map((side): Stay => [[side * chainplate.x, chainplate.y, chainplate.z], [0, spreaders.length > 0 ? hounceY : topY, mastZ]]);
+  return keptLines(mesh, [[[0, hounceY, mastZ], stem], ...(stern === null ? [] : [[[0, topY, mastZ], stern] as const]), ...shrouds]);
+}
+
+/** A line both versions draw, from, to, and its paint. */
+export type Stay = readonly [from: V3, to: V3, part?: BoatPart];
+
+/** Lines both versions draw, which fade over both. */
+export function keptLines(mesh: BoatMesh, stays: readonly Stay[]): BoatMesh {
+  for (const [from, to, part = "wire"] of stays) mesh.line(from, to, part, KEPT);
+  return mesh;
+}
+
+/**
+ * The far version of a spar, standing or not: a crossed pair of narrow faces, tapering to its top, set diagonally so
+ * neither lies in the boat's middle plane with the stays that come to it.
+ */
+export function farSpar(mesh: BoatMesh, from: V3, to: V3, radius: number, part: BoatPart): BoatMesh {
+  const along: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+  const length = Math.hypot(...along);
+  for (const side of crossing([along[0] / length, along[1] / length, along[2] / length], true)) {
+    const at = (end: V3, by: number): V3 => [end[0] + side[0] * by, end[1] + side[1] * by, end[2] + side[2] * by];
+    mesh.face([at(from, -radius), at(to, -radius * 0.6), at(to, radius * 0.6), at(from, radius)], part);
   }
   return mesh;
 }
@@ -146,9 +178,9 @@ export function sailCover(mesh: BoatMesh, mastZ: number, boomY: number, boomM: n
 }
 
 /** A headsail rolled on its forestay, with its sacrificial strip. */
-export function rolledJib(mesh: BoatMesh, from: V3, to: V3, strip: BoatPart): BoatMesh {
+export function rolledJib(mesh: BoatMesh, from: V3, to: V3, strip: BoatPart, sides = 5): BoatMesh {
   const at = (share: number): V3 => [lerp(from[0], to[0], share), lerp(from[1], to[1], share), lerp(from[2], to[2], share)];
-  return mesh.tube(at(0.03), at(0.9), 0.07, 5, { radiusTo: 0.025, cap: true }, strip);
+  return mesh.tube(at(0.03), at(0.9), 0.07, sides, { radiusTo: 0.025, cap: sides > 3 }, strip);
 }
 
 /** A spray dodger over a companionway: a canvas hood on hoops, its window dark. `z` is its forward end, on the coachroof. */

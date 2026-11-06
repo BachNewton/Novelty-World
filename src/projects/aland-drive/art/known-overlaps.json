@@ -11,33 +11,6 @@
   "bikes: Ejder Sund far": {
     "far part 1": 2
   },
-  "boats: folkboat": {
-    "near": 4
-  },
-  "boats: folkboat-sailing": {
-    "near": 4
-  },
-  "boats: cruiser": {
-    "near": 4
-  },
-  "boats: cruiser-sailing": {
-    "near": 4
-  },
-  "boats: large": {
-    "near": 4
-  },
-  "boats: large-sailing": {
-    "near": 4
-  },
-  "boats: double-ender": {
-    "near": 8
-  },
-  "boats: galeas": {
-    "near": 8
-  },
-  "boats: galeas-sailing": {
-    "near": 4
-  },
   "boats: fishing": {
     "near": 2
   },
@@ -246,8 +219,7 @@
     "near": 9
   },
   "marina: walkway gate": {
-    "near": 16,
-    "far on its ground": 4
+    "near": 16
   },
   "marina: water pedestal": {
     "near": 24
@@ -373,8 +345,7 @@
     "near": 2
   },
   "rural: reed bed": {
-    "near": 106,
-    "far": 15
+    "near": 106
   },
   "rural: woodshed": {
     "near": 3
@@ -390,9 +361,6 @@
   },
   "street: bench": {
     "near": 16
-  },
-  "street: café set": {
-    "far": 12
   },
   "street: harbour crane": {
     "near": 4

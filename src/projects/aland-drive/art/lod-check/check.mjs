@@ -1,7 +1,7 @@
 // Every kit's models, near and far, drawn as the game draws them on WebGPU in headless full Chromium, and compared at
 // the swap (`page.ts`): a far version that changes shape or colour from its near version is noticed when it swaps.
 //
-//   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...]
+//   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--only=<kit: model> ...] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...]
 //
 // It finds the kits by their catalogues, needs no dev server and no tiles, and never touches a browser of the owner's.
 // A change is noticed where its outline moves, or its look changes by FLIP, more than `NOTICED` allows. Each model is
@@ -9,7 +9,8 @@
 // and the run fails while swaps.json disagrees with what's measured. A model no swap up to most of its reach hides has
 // a far version that has to be remade: the run fails on one unless it's in known-lod.json, which may only get better.
 // It prints what each moved swap costs. Every model's scores go to results.json in --out, and --picture saves that
-// model's two versions from that view side by side.
+// model's two versions from that view side by side. --only measures just the models named, to see one remade, and
+// --write with it rewrites only their rows.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a developer tool, reading the kits beside it and writing to the folder named on its own command line */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,6 +24,7 @@ const art = resolve(here, "..");
 const flags = process.argv.slice(2);
 const OUT = resolve(flags.find((arg) => arg.startsWith("--out="))?.slice(6) ?? "lod-check");
 const pictures = flags.filter((arg) => arg.startsWith("--picture=")).map((arg) => arg.slice(10));
+const only = flags.filter((arg) => arg.startsWith("--only=")).map((arg) => arg.slice(7));
 mkdirSync(OUT, { recursive: true });
 
 const kits = readdirSync(art, { withFileTypes: true })
@@ -35,7 +37,7 @@ writeFileSync(
     `import { checkAll, pictureOf } from ${JSON.stringify(join(here, "page.ts").replaceAll("\\", "/"))};`,
     ...kits.map((kit, index) => `import * as kit${index} from ${JSON.stringify(join(art, kit, "catalogue.ts").replaceAll("\\", "/"))};`),
     `const catalogues = { ${kits.map((kit, index) => `${JSON.stringify(kit)}: kit${index}`).join(", ")} };`,
-    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts, written) => checkAll(catalogues, part, parts, written), pictureOf: (name, azimuth, elevation, swap) => pictureOf(catalogues, name, azimuth, elevation, swap) } });`,
+    `Object.assign(window, { __lod: { ready: true, checkAll: (part, parts, written, only) => checkAll(catalogues, part, parts, written, only), pictureOf: (name, azimuth, elevation, swap) => pictureOf(catalogues, name, azimuth, elevation, swap) } });`,
   ].join("\n"),
 );
 await build({ entryPoints: [entry], bundle: true, format: "esm", target: "esnext", outfile: join(OUT, ".page.js"), tsconfig: join(art, "../../../../tsconfig.json"), logLevel: "error" });
@@ -76,7 +78,7 @@ const swapsPath = join(here, "swaps.json");
 const known = JSON.parse(readFileSync(knownPath, "utf8"));
 const written = JSON.parse(readFileSync(swapsPath, "utf8"));
 const checking = !flags.includes("--pictures-only");
-const results = checking ? (await Promise.all(pages.map((each, part) => each.evaluate(({ part, parts, written }) => window.__lod.checkAll(part, parts, written), { part, parts: PAGES, written })))).flat() : [];
+const results = checking ? (await Promise.all(pages.map((each, part) => each.evaluate(({ part, parts, written, only }) => window.__lod.checkAll(part, parts, written, only), { part, parts: PAGES, written, only })))).flat() : [];
 writeFileSync(join(OUT, "results.json"), JSON.stringify(results, null, 1));
 const unhidden = results.filter(({ hidden }) => !hidden);
 const failures = [];
@@ -87,7 +89,7 @@ for (const result of unhidden) {
   if (was === undefined) failures.push(`${name}: its far version changes at any swap: ${where}`);
   else if (deviation > was.deviation + SLACK.deviation || look > was.look + SLACK.look) failures.push(`${name}: changes more than it did: ${where}`);
 }
-for (const name of Object.keys(known).filter((listed) => !unhidden.some((result) => result.name === listed))) failures.push(`${name}: a swap now hides its change, so it comes off known-lod.json (--write)`);
+for (const name of Object.keys(known).filter((listed) => (only.length === 0 || only.includes(listed)) && !unhidden.some((result) => result.name === listed))) failures.push(`${name}: a swap now hides its change, so it comes off known-lod.json (--write)`);
 for (const { name, fingerprint, swapM } of results) {
   const entry = written[fingerprint];
   if (entry === undefined) failures.push(`${name}: its art isn't in swaps.json, so the game swaps it where its kit says rather than at ${swapM} m (--write)`);
@@ -95,14 +97,18 @@ for (const { name, fingerprint, swapM } of results) {
 }
 const checked = new Set(results.map(({ fingerprint }) => fingerprint));
 const stale = Object.entries(written).filter(([fingerprint]) => !checked.has(fingerprint));
-if (checking && stale.length > 0) failures.push(`swaps.json holds ${stale.length} art no kit draws any more (${stale.map(([, { name }]) => name).join(", ")}) (--write)`);
+if (checking && only.length === 0 && stale.length > 0) failures.push(`swaps.json holds ${stale.length} art no kit draws any more (${stale.map(([, { name }]) => name).join(", ")}) (--write)`);
 if (flags.includes("--write")) {
-  writeFileSync(knownPath, `${JSON.stringify(Object.fromEntries(unhidden.map(({ name, deviation, look, swapM }) => [name, { deviation, look, swapM }])), null, 2)}
+  // With --only, the models named are written over what the table held for them, and the rest stands as it was.
+  const kept = (name) => only.length > 0 && !only.includes(name);
+  const knownNow = { ...Object.fromEntries(Object.entries(known).filter(([name]) => kept(name))), ...Object.fromEntries(unhidden.map(({ name, deviation, look, swapM }) => [name, { deviation, look, swapM }])) };
+  writeFileSync(knownPath, `${JSON.stringify(Object.fromEntries(Object.entries(knownNow).sort(([a], [b]) => (only.length > 0 ? a.localeCompare(b) : 0))), null, 2)}
 `);
-  const sorted = [...results].sort((a, b) => a.name.localeCompare(b.name));
-  writeFileSync(swapsPath, `${JSON.stringify(Object.fromEntries(sorted.map(({ name, fingerprint, swapM }) => [fingerprint, { name, swapM }])), null, 2)}
+  const rows = [...Object.entries(written).filter(([, { name }]) => kept(name)), ...results.map(({ name, fingerprint, swapM }) => [fingerprint, { name, swapM }])];
+  const sorted = rows.sort(([, a], [, b]) => a.name.localeCompare(b.name));
+  writeFileSync(swapsPath, `${JSON.stringify(Object.fromEntries(sorted), null, 2)}
 `);
-  console.log(`swaps.json: ${results.length} models; known-lod.json: ${unhidden.length} whose far version has to match`);
+  console.log(`swaps.json: ${sorted.length} models; known-lod.json: ${Object.keys(knownNow).length} whose far version has to match`);
 }
 // What a moved swap costs: the near version's extra triangles over each place, over the ground its swap now covers.
 const moved = results

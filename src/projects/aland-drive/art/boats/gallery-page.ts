@@ -2,7 +2,7 @@ import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, S
 import { cameraPosition, exp, float, mix, positionWorld, sin, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { placeModel } from "../roadside";
-import { CATALOGUE } from "./catalogue";
+import { CATALOGUE, type Limit } from "./catalogue";
 import { boatMaterials } from "./material";
 import { buildRegatta } from "./regatta";
 import { triangles } from "./mesh";
@@ -64,7 +64,7 @@ sea.scale.set(80000, 1, 80000);
 scene.add(sea);
 
 const shots: Shot[] = [];
-const counts: Record<string, { near: number; far: number; limit: number }> = {};
+const counts: Record<string, { near: number; far: number; limit: Limit }> = {};
 CATALOGUE.forEach(({ name, label, lengthM, tallM, sailing, limit, model }, index) => {
   const built = model();
   const x = index * BERTH_M;

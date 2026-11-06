@@ -11,9 +11,13 @@ import { boatMaterials } from "./material";
  * length, for the budget test and the gallery.
  */
 
-export const NEAR_LIMIT = 900;
-export const FAR_LIMIT = 60;
-export const GALEAS_LIMIT = 2500;
+export interface Limit {
+  near: number;
+  far: number;
+}
+
+export const LIMIT: Limit = { near: 900, far: 120 };
+export const GALEAS_LIMIT: Limit = { near: 2500, far: 200 };
 
 export interface Entry {
   name: string;
@@ -24,11 +28,11 @@ export interface Entry {
   tallM: number;
   /** Which way a side view stands off it. */
   sailing: boolean;
-  limit: number;
+  limit: Limit;
   model: () => RoadsideModel;
 }
 
-const entry = (name: string, label: string, lengthM: number, tallM: number, sailing: boolean, model: () => RoadsideModel, limit = NEAR_LIMIT): Entry => ({ name, label, lengthM, tallM, sailing, limit, model });
+const entry = (name: string, label: string, lengthM: number, tallM: number, sailing: boolean, model: () => RoadsideModel, limit = LIMIT): Entry => ({ name, label, lengthM, tallM, sailing, limit, model });
 
 export const CATALOGUE: readonly Entry[] = [
   entry("folkboat", "Nordic Folkboat, moored", 7.7, 10.8, false, () => buildFolkboat()),

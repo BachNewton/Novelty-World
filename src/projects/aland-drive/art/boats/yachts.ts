@@ -1,9 +1,9 @@
 import type { V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { dressForMooring, guardRails, type Mooring } from "./dress";
+import { dressForMooring, farMooring, guardRails, type Mooring } from "./dress";
 import { farHull, house, Hull, type House, type HullSpec } from "./hull";
 import { BoatMesh, finished, type BoatPart } from "./mesh";
-import { boomOut, coverPart, dodger, farMast, farSail, nearBermudan, nearSail, rolledJib, sailCover, sailPart, type BermudanRig, type CoverColour, type Sail, type SailColour } from "./rig";
+import { boomOut, coverPart, dodger, farBermudan, farSail, farSpar, nearBermudan, nearSail, rolledJib, sailCover, sailPart, type BermudanRig, type CoverColour, type Sail, type SailColour } from "./rig";
 
 /*
  * The Bermudan yachts, one builder over three specs: a Nordic Folkboat, a modern
@@ -263,9 +263,10 @@ function buildYacht(spec: YachtSpec, { state = "moored", mooring = "bow-to", sai
   spec.dress(near, hull);
   nearBermudan(near, rig, boom);
 
-  const far = farHull(new BoatMesh(), hull, topside, spec.deck);
+  const far = farHull(new BoatMesh(), hull, [[0, spec.antifoul], [1, topside]], spec.deck);
   far.box([-spec.cabin.halfFrom * 0.9, spec.cabin.baseY - 0.1, spec.cabin.fromZ], [spec.cabin.halfFrom * 0.9, spec.cabin.topY, spec.cabin.toZ - (spec.cabin.rakeM ?? 0.2)], spec.cabin.part, { open: true });
-  farMast(far, rig.mastZ, rig.footY, rig.topY, rig.mastRadius * 1.2, rig.mast);
+  farSpar(far, [0, rig.footY, rig.mastZ], [0, rig.topY, rig.mastZ], rig.mastRadius * 1.2, rig.mast);
+  farBermudan(far, rig);
 
   if (sailing) {
     nearSail(near, mainOf(rig, boom, sail, lee, true));
@@ -280,9 +281,12 @@ function buildYacht(spec: YachtSpec, { state = "moored", mooring = "bow-to", sai
       near.line([rig.stem[0], rig.stem[1] + 0.3, rig.stem[2] - 0.2], [0, rig.stem[1], rig.stem[2] - 0.6], "rope");
     }
     if (spec.dodger !== null) dodger(near, spec.dodger.z, spec.dodger.y, spec.dodger.halfM, spec.dodger.tallM, spec.dodger.longM, coverPaint);
-    near.line([0, rig.topY - 0.1, rig.mastZ], [0, rig.boomY + spec.coverM, rig.mastZ - rig.boomM * 0.95], "rope");
-    dressForMooring(near, hull, { mooring, fenderCount: spec.fenders });
+    near.line([0, rig.topY - 0.1, rig.mastZ], [0, rig.boomY + spec.coverM, rig.mastZ - rig.boomM * 0.95], "rope", { kept: true });
+    dressForMooring(near, hull, { mooring, fenderCount: spec.fenders, kept: true });
     far.tube([0, rig.boomY + spec.coverM * 0.5, rig.mastZ], [0, rig.boomY + spec.coverM * 0.5, rig.mastZ - rig.boomM * 0.92], spec.coverM, 3, {}, coverPaint);
+    far.line([0, rig.topY - 0.1, rig.mastZ], [0, rig.boomY + spec.coverM, rig.mastZ - rig.boomM * 0.95], "rope", { kept: true });
+    if (spec.rolled) rolledJib(far, rig.stem, [0, rig.hounceY, rig.mastZ], "sail-white", 3);
+    farMooring(far, hull, { mooring });
   }
   return finished({ near, far, swapM: spec.swapM, reachM: spec.reachM, rock: spec.rock * (sailing ? 0.6 : 1), heelDeg: sailing ? (trim === "close" ? spec.heelDeg : spec.heelDeg * 0.55) : 0, lee });
 }

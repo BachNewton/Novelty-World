@@ -82,10 +82,18 @@ export function buildBikeRack(): RoadsideModel {
       near.tube([x + from[0], from[1], from[2]], [x + to[0], to[1], to[2]], 0.026, 3, {}, "steel");
     }
   }
-  const far = new Painted().face([[-0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.055, 0], [-0.1, 0.055, 0]], "steel", 0.85);
+  // The foot rail, each hoop's top bar and its legs as cards crossed, so the rack stands seen from any side.
+  const far = new Painted()
+    .face([[-0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.005, 0], [BIKE_RACK_M + 0.1, 0.055, 0], [-0.1, 0.055, 0]], "steel", 0.85)
+    .face([[-0.1, 0.055, -0.03], [BIKE_RACK_M + 0.1, 0.055, -0.03], [BIKE_RACK_M + 0.1, 0.055, 0.03], [-0.1, 0.055, 0.03]], "steel");
   for (let hoop = 0; hoop < HOOPS; hoop++) {
     const x = hoop * HOOP_BAY_M;
-    far.face([[x, -SINK_M, -half], [x, top, -half], [x, top, half], [x, -SINK_M, half], [x, -SINK_M, half - 0.05], [x, top - 0.05, half - 0.05], [x, top - 0.05, -half + 0.05], [x, -SINK_M, -half + 0.05]], "steel", 0.9);
+    far.face([[x, top - 0.05, -half], [x, top, -half + 0.05], [x, top, half - 0.05], [x, top - 0.05, half]], "steel", 0.9);
+    for (const z of [-half, half]) {
+      far
+        .face([[x - 0.026, -SINK_M, z], [x + 0.026, -SINK_M, z], [x + 0.026, top - 0.04, z], [x - 0.026, top - 0.04, z]], "steel", 0.9)
+        .face([[x, -SINK_M, z - 0.026], [x, -SINK_M, z + 0.026], [x, top - 0.05, z + 0.026], [x, top - 0.05, z - 0.026]], "steel", 0.85);
+    }
   }
   return streetModel(near, far, SWAP_M, REACH_M);
 }
@@ -119,17 +127,20 @@ export function buildCafeSet(): RoadsideModel {
   const near = table(new Painted(), 8);
   chair(near, [0, 0, 0.62], Math.PI);
   chair(near, [0, 0, -0.62], 0);
+  // The top's rim on two thin cards crossed under it, so the top doesn't vanish edge-on as a lone disc would.
+  const rim = TABLE_TALL_M - 0.035;
   const far = new Painted()
     .face(levelRing([0, TABLE_TALL_M, 0], TABLE_RADIUS_M, 5), "cafe-top")
-    .tube([0, 0, 0], [0, TABLE_TALL_M, 0], 0.05, 3, {}, "cafe-frame");
-  // Each chair a seat, its back's panel and its legs, open between as the near chair is: a solid back to the ground reads as a block.
+    .face([[-TABLE_RADIUS_M, rim, 0], [TABLE_RADIUS_M, rim, 0], [TABLE_RADIUS_M, TABLE_TALL_M - 0.005, 0], [-TABLE_RADIUS_M, TABLE_TALL_M - 0.005, 0]], "cafe-frame", 0.8)
+    .face([[0, rim, -TABLE_RADIUS_M], [0, rim, TABLE_RADIUS_M], [0, TABLE_TALL_M - 0.005, TABLE_RADIUS_M], [0, TABLE_TALL_M - 0.005, -TABLE_RADIUS_M]], "cafe-frame", 0.8)
+    .tube([0, 0, 0], [0, rim, 0], 0.05, 3, {}, "cafe-frame");
+  // Each chair a seat, its back's panel and its legs, open between as the near chair is: a solid back to the ground reads as a block. Legs are spikes, seen from any side.
   for (const side of [-1, 1]) {
     const z = side * 0.82;
     far
       .face([[-0.18, 0.64, z], [0.18, 0.64, z], [0.18, 0.84, z], [-0.18, 0.84, z]], "cafe-frame", 1.15)
       .face([[-0.2, 0.46, z], [0.2, 0.46, z], [0.2, 0.46, z - side * 0.4], [-0.2, 0.46, z - side * 0.4]], "cafe-frame", 1.2);
-    for (const x of [-0.19, 0.17]) far.face([[x, 0, z], [x + 0.03, 0, z], [x + 0.03, 0.84, z], [x, 0.84, z]], "cafe-frame");
-    for (const x of [-0.19, 0.17]) far.face([[x, 0, z - side * 0.38], [x + 0.03, 0, z - side * 0.38], [x + 0.03, 0.46, z - side * 0.38], [x, 0.46, z - side * 0.38]], "cafe-frame");
+    for (const x of [-0.18, 0.18]) far.spike([x, 0.84, z + side * 0.02], [x, 0, z - side * 0.02], 0.025, "cafe-frame").spike([x, 0.46, z - side * 0.38], [x, 0, z - side * 0.38], 0.025, "cafe-frame");
   }
   return streetModel(near, far, CAFE_SWAP_M, CAFE_REACH_M);
 }
