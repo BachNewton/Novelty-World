@@ -87,12 +87,12 @@ export class Navigator {
     return route !== null;
   }
 
-  /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it, counting down to its finish line or camera. */
-  holdRoute(route: Route, finish: { x: number; z: number }): void {
+  /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it, counting down to its finish line or camera, `finishM` along it. */
+  holdRoute(route: Route, finishM: number): void {
     this.route = route;
     this.held = true;
     this.along = 0;
-    this.toAlong = route.line.nearest(finish.x, finish.z).along;
+    this.toAlong = finishM;
   }
 
   /** A challenge's lines still to cross. `key` says when they changed, so a frame that sets the same ones redraws nothing. */

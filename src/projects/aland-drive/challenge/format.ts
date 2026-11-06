@@ -8,7 +8,7 @@ export function timeText(seconds: number): string {
   return `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
 }
 
-/** A Route's time or a Speed trap's speed. */
+/** A Route's or a race's time, or a Speed trap's speed. */
 export function resultText(kind: ChallengeKind, value: number): string {
-  return kind === "route" ? timeText(value) : `${Math.floor(value)} km/h`;
+  return kind === "speed-trap" ? `${Math.floor(value)} km/h` : timeText(value);
 }

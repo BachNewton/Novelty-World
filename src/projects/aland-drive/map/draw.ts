@@ -1,5 +1,6 @@
 import type { OverviewFormat } from "../render/tile";
-import type { ChallengeKind } from "../challenge/types";
+import type { Medal } from "../challenge/standings";
+import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
 import type { Place, PlaceKind } from "./places";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -51,12 +52,26 @@ export interface MapInk {
   /** A challenge's start, and one that's been passed. */
   challenge: string;
   pass: string;
+  /** A race's start, by what's under its wheels. */
+  race: Record<RaceGround, string>;
+  medal: Record<Medal, string>;
 }
 
 export function mapInk(): MapInk {
   const styles = getComputedStyle(document.documentElement);
   const token = (name: string) => styles.getPropertyValue(`--color-aland-drive-${name}`).trim();
-  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player"), place: token("ui-place"), challenge: token("ui-challenge"), pass: token("ui-pass") };
+  return {
+    water: token("water"),
+    ink: token("ui-ink"),
+    shade: token("ui-shade"),
+    accent: token("ui-accent"),
+    player: token("ui-player"),
+    place: token("ui-place"),
+    challenge: token("ui-challenge"),
+    pass: token("ui-pass"),
+    race: { road: token("ui-race-road"), "cross-country": token("ui-race-cross-country"), "off-road": token("ui-race-off-road") },
+    medal: { gold: token("ui-gold"), silver: token("ui-silver"), bronze: token("ui-bronze") },
+  };
 }
 
 /** The land as an image a canvas can draw, from the overview's pixels. */
@@ -463,9 +478,12 @@ export function drawPlayers(pen: CanvasRenderingContext2D, view: MapView, player
 export interface MapChallenge {
   x: number;
   z: number;
+  id: string;
   title: string;
   kind: ChallengeKind;
   passed: boolean;
+  /** A race's own: what the maps show of it and its best medal. */
+  race?: { number: string; ground: RaceGround; shape: RaceShape; laps: number; lengthM: number; medal: Medal | null };
 }
 
 /** A challenge's symbol, in the same box as a place's: a chequered flag for a Route, a dial at its top for a Speed trap. */
@@ -480,6 +498,8 @@ const CHALLENGE_GLYPHS: Record<ChallengeKind, (pen: CanvasRenderingContext2D) =>
       }
     }
   },
+  // A race's start is a diamond of its own, drawn by `drawRace`.
+  race: () => undefined,
   "speed-trap": (pen) => {
     pen.beginPath();
     pen.arc(0, 0.35, 0.8, Math.PI, 0);
@@ -497,9 +517,20 @@ export function drawChallenges(pen: CanvasRenderingContext2D, view: MapView, cha
   pen.textAlign = "center";
   pen.textBaseline = "top";
   pen.lineJoin = "round";
-  for (const { x: placeX, z: placeZ, title, kind, passed } of challenges) {
+  for (const { x: placeX, z: placeZ, title, kind, passed, race } of challenges) {
     const [x, y] = view.toScreen(placeX, placeZ);
     if (x < -size || y < -size || x > view.width + size || y > view.height + size) continue;
+    if (race) {
+      drawRace(pen, x, y, size, race, ink);
+      if (named) {
+        pen.strokeStyle = ink.shade;
+        pen.lineWidth = 3;
+        pen.strokeText(title, x, y + size * 1.3 + 3);
+        pen.fillStyle = ink.race[race.ground];
+        pen.fillText(title, x, y + size * 1.3 + 3);
+      }
+      continue;
+    }
     const colour = passed ? ink.pass : ink.challenge;
     pen.fillStyle = colour;
     pen.strokeStyle = ink.shade;
@@ -527,3 +558,77 @@ export function drawChallenges(pen: CanvasRenderingContext2D, view: MapView, cha
   }
 }
 
+
+/** A race's symbol: a loop for a circuit, a start and a flag for a sprint. */
+const RACE_GLYPHS: Record<RaceShape, (pen: CanvasRenderingContext2D) => void> = {
+  circuit: (pen) => {
+    const [radius, end] = [0.62, Math.PI * 1.4];
+    pen.beginPath();
+    pen.arc(0, 0, radius, -Math.PI * 0.25, end);
+    pen.stroke();
+    // An arrowhead where the loop ends, pointing on round it.
+    const [outX, outY] = [Math.cos(end), Math.sin(end)];
+    const [onX, onY] = [-outY, outX];
+    const [x, y] = [radius * outX, radius * outY];
+    fill(pen, [x + onX * 0.42, y + onY * 0.42], [x + outX * 0.3, y + outY * 0.3], [x - outX * 0.3, y - outY * 0.3]);
+  },
+  sprint: (pen) => {
+    pen.beginPath();
+    pen.arc(-0.6, 0.55, 0.2, 0, Math.PI * 2);
+    pen.fill();
+    line(pen, [-0.45, 0.4], [0.3, -0.35]);
+    line(pen, [0.3, 0.6], [0.3, -0.8]);
+    fill(pen, [0.3, -0.8], [0.85, -0.6], [0.3, -0.4]);
+  },
+};
+
+/** A race's start on a map: a diamond in its ground's colour with its shape's glyph, and its best medal as a disc on its shoulder. */
+function drawRace(pen: CanvasRenderingContext2D, x: number, y: number, size: number, race: NonNullable<MapChallenge["race"]>, ink: MapInk): void {
+  const reach = size * 1.3;
+  pen.fillStyle = ink.race[race.ground];
+  pen.strokeStyle = ink.shade;
+  pen.lineWidth = 2;
+  pen.beginPath();
+  pen.moveTo(x, y - reach);
+  pen.lineTo(x + reach, y);
+  pen.lineTo(x, y + reach);
+  pen.lineTo(x - reach, y);
+  pen.closePath();
+  pen.fill();
+  pen.stroke();
+  pen.save();
+  pen.translate(x, y);
+  pen.scale(size * 0.62, size * 0.62);
+  pen.fillStyle = ink.shade;
+  pen.strokeStyle = ink.shade;
+  pen.lineWidth = 0.22;
+  pen.lineCap = "round";
+  RACE_GLYPHS[race.shape](pen);
+  pen.restore();
+  if (race.medal) {
+    pen.fillStyle = ink.medal[race.medal];
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = 1.5;
+    pen.beginPath();
+    pen.arc(x + reach * 0.62, y - reach * 0.62, size * 0.42, 0, Math.PI * 2);
+    pen.fill();
+    pen.stroke();
+  }
+}
+
+/** A race's whole route on the world map, under the cursor: a broad line in its ground's colour. */
+export function drawRaceRoute(pen: CanvasRenderingContext2D, view: MapView, points: Float32Array, ground: RaceGround, ink: MapInk): void {
+  pen.lineJoin = "round";
+  pen.lineCap = "round";
+  for (const [colour, width] of [[ink.shade, 7], [ink.race[ground], 4]] as const) {
+    pen.strokeStyle = colour;
+    pen.lineWidth = width;
+    pen.beginPath();
+    for (let at = 0; at < points.length / 3; at++) {
+      const [x, y] = view.toScreen(points[at * 3], points[at * 3 + 2]);
+      if (at === 0) pen.moveTo(x, y);
+      else pen.lineTo(x, y);
+    }
+    pen.stroke();
+  }
+}

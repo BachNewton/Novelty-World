@@ -4,12 +4,21 @@ import type { CarId } from "../sim/cars";
  * What a bucket list challenge is (`ideas/bucket-list.md`): one car, one place on
  * the real roads, and one target, passed or failed, solo or co-op for two. There
  * are two kinds: a Route against a clock, through gates in order, and a Speed
- * trap, the speed as the car crosses a camera's line. Places are in the scene:
+ * trap, the speed as the car crosses a camera's line. A race (`ideas/races.md`)
+ * is a third kind on the same machinery: the same handed car, its lines crossed
+ * lap after lap, and a place against the rivals rather than a pass against a
+ * target, which earns a medal. Places are in the scene:
  * east is +x and north is -z, and a heading is radians anticlockwise from north,
  * as the road lines' are.
  */
 
-export type ChallengeKind = "route" | "speed-trap";
+export type ChallengeKind = "route" | "speed-trap" | "race";
+
+/** Laps of a loop, or point to point. */
+export type RaceShape = "circuit" | "sprint";
+
+/** What's under the wheels: asphalt only, asphalt and gravel mixed, or gravel and loose ground. */
+export type RaceGround = "road" | "cross-country" | "off-road";
 
 export interface ScenePoint {
   x: number;
@@ -58,4 +67,26 @@ export interface SpeedTrapChallenge extends ChallengeCommon {
   targetKmh: number;
 }
 
-export type Challenge = RouteChallenge | SpeedTrapChallenge;
+export interface RaceChallenge extends ChallengeCommon {
+  kind: "race";
+  /** The list's number, as R1, X1 or O1. */
+  number: string;
+  shape: RaceShape;
+  ground: RaceGround;
+  laps: number;
+  /** One lap's lines in the order they're passed, the last its finish: on a circuit, the start line. */
+  gates: readonly Gate[];
+  /** The places on the grid, pole first: two abreast on a road that takes two, single file on a lane. `starts` are its first two. */
+  grid: readonly StartPlace[];
+  /** How far a lap is, from the start line round to it again; a sprint's is the whole way. */
+  lapM: number;
+  /** Along the route from its first waypoint to the start line, where each lap of a circuit begins and ends. */
+  lineM: number;
+  /** Seconds from the green to each line, every lap in turn, as the scripted driver crossed them: the pace the rivals are timed by. */
+  splitsS: readonly number[];
+}
+
+/** A bucket list challenge, which has a target to pass. */
+export type BucketChallenge = RouteChallenge | SpeedTrapChallenge;
+
+export type Challenge = BucketChallenge | RaceChallenge;

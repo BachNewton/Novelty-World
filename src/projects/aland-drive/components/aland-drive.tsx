@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Medal, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
-import { GameMenu } from "./game-menu";
+import { GameMenu, raceColour } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
@@ -39,6 +39,7 @@ const PLAYER = "var(--color-aland-drive-ui-player)";
 const PLACE = "var(--color-aland-drive-ui-place)";
 const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
 const PASS = "var(--color-aland-drive-ui-pass)";
+const GOLD = "var(--color-aland-drive-ui-gold)";
 const LIGHTS = 3;
 
 /** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
@@ -132,7 +133,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [finds, setFinds] = useState<Place[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
-  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null } | null>(null);
+  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null; colour: string } | null>(null);
   // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
   const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
@@ -142,6 +143,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
   const gatesText = useRef<HTMLSpanElement>(null);
+  const lapText = useRef<HTMLSpanElement>(null);
+  const placeText = useRef<HTMLSpanElement>(null);
   const lights = useRef<(HTMLSpanElement | null)[]>([]);
   const lightsRow = useRef<HTMLDivElement>(null);
   useFrameStats();
@@ -170,18 +173,20 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         shownCoop = coopKey;
         setCoop(pairing);
       }
-      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.partner ?? ""}` : "";
+      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.partner ?? ""}|${challenge.ground ?? ""}` : "";
       if (play !== shownPlay) {
         shownPlay = play;
         inRun.current = challenge !== null;
         if (challenge) setFinds([]);
-        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, partner: challenge.partner } : null);
+        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, partner: challenge.partner, colour: challenge.ground ? raceColour(challenge.ground) : CHALLENGE } : null);
       }
       if (!challenge) return;
       if (needsRow.current) needsRow.current.style.display = challenge.needs === null ? "none" : "flex";
       if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs)}`;
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
+      if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
+      if (placeText.current && challenge.race) placeText.current.textContent = `${challenge.race.place ?? "–"} / ${challenge.race.of}`;
       // One red light a second through the countdown, then all green for a second.
       const red = challenge.phase === "countdown" ? Math.min(LIGHTS, LIGHTS + 1 - Math.ceil(challenge.countdownS)) : 0;
       const green = challenge.phase === "running" && challenge.clockS < 1;
@@ -295,15 +300,15 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           {!mapOpen && camera !== "free" && (
             // One column at the top middle: the GPS and, in a run, the challenge with it, then the road and a find under them, clear of the frame meter at the top right.
             <div className="pointer-events-none absolute top-3 left-1/2 flex w-max max-w-[90vw] -translate-x-1/2 flex-col items-center gap-3">
-              <div className={playing === null ? "flex flex-col items-center" : "flex min-w-64 flex-col gap-1 rounded-lg px-4 py-3"} style={playing === null ? undefined : { color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label={playing === null ? undefined : "Challenge"}>
+              <div className={playing === null ? "flex flex-col items-center" : "flex min-w-64 flex-col gap-1 rounded-lg px-4 py-3"} style={playing === null ? undefined : { color: INK, background: SHADE, border: `2px solid ${playing.colour}` }} aria-label={playing === null ? undefined : playing.kind === "race" ? "Race" : "Challenge"}>
                 <div ref={cue} className="items-center justify-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: playing === null ? `0 0 6px ${SHADE}` : undefined, display: "none" }} aria-label="Distance to go" title="Distance to go">
                 <MapPin className="size-6 shrink-0" style={{ color: ACCENT }} aria-hidden />
                 <span ref={cueText} className="tabular-nums" />
                 </div>
                 {playing !== null && (
                   <>
-                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
-                    <Flag className="size-4 shrink-0" aria-hidden />
+                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: playing.colour }}>
+                    {playing.kind === "race" ? <Trophy className="size-4 shrink-0" aria-hidden /> : <Flag className="size-4 shrink-0" aria-hidden />}
                     <span>{playing.title}</span>
                   </div>
                   <div ref={lightsRow} className="flex justify-center gap-2 py-1" aria-label="Start lights">
@@ -321,7 +326,33 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                     <Target className="size-5 shrink-0" aria-hidden />
                     <span ref={needsText} aria-label="Partner needs" />
                   </div>
-                  {playing.kind === "route" ? (
+                  {playing.kind === "race" && (
+                    <>
+                      <div className="flex items-baseline gap-2 tabular-nums">
+                        <Timer className="size-5 shrink-0 self-center" aria-hidden />
+                        <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
+                        <span className="flex items-center gap-1 self-center text-lg opacity-75" aria-label="Fastest rival" title="Fastest rival">
+                          <Medal className="size-4 shrink-0" style={{ color: GOLD }} aria-hidden />
+                          {resultText("race", playing.target)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-lg tabular-nums">
+                        <span className="flex items-center gap-2" title="Lap">
+                          <Repeat className="size-5 shrink-0" aria-hidden />
+                          <span ref={lapText} aria-label="Lap">1 / 1</span>
+                        </span>
+                        <span className="flex items-center gap-2 text-2xl font-bold" title="Place">
+                          <Trophy className="size-5 shrink-0" aria-hidden />
+                          <span ref={placeText} aria-label="Place">– / 0</span>
+                        </span>
+                        <span className="flex items-center gap-2" title="Lines this lap">
+                          <Flag className="size-5 shrink-0" aria-hidden />
+                          <span ref={gatesText} aria-label="Lines passed">0 / 0</span>
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {playing.kind === "route" && (
                     <>
                       <div className="flex items-baseline gap-2 tabular-nums">
                         <Timer className="size-5 shrink-0 self-center" aria-hidden />
@@ -333,7 +364,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                         <span ref={gatesText} aria-label="Gates passed">0 / 0</span>
                       </div>
                     </>
-                  ) : (
+                  )}
+                  {playing.kind === "speed-trap" && (
                     <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
                       <Gauge className="size-6 shrink-0" aria-hidden />
                       <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>
@@ -368,6 +400,10 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                 <Flag className="size-5" style={{ color: CHALLENGE }} aria-hidden />
                 <span>{progress.challenges.done} / {progress.challenges.total}</span>
               </div>
+              <div className="flex items-center gap-1" aria-label="Races with a medal" title="Races with a medal">
+                <Trophy className="size-5" style={{ color: GOLD }} aria-hidden />
+                <span>{progress.races.done} / {progress.races.total}</span>
+              </div>
             </div>
           )}
           {camera !== "free" && (
@@ -387,9 +423,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             </div>
           )}
           {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label="Challenge here" title={offer.partner === null ? "Start" : "Solo or co-op"}>
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.partner === null ? "Start" : "Solo or co-op"}>
               <Prompt binding={BINDINGS.challenge} input={input} />
-              <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
+              {offer.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(offer.ground) }} aria-hidden /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />}
               <span>{offer.title}</span>
               {offer.partner !== null && (
                 <span className="flex items-center gap-1" aria-label="Co-op with" title={`Co-op with ${offer.partner}`}>

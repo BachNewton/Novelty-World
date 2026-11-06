@@ -1,11 +1,12 @@
 import { BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, MeshBasicNodeMaterial, type Node, type Scene } from "three/webgpu";
-import { attribute, float, mix } from "three/tsl";
+import { attribute, float, mix, select } from "three/tsl";
 import { START_RING_M } from "../challenge/board";
-import type { Gate, ScenePoint } from "../challenge/types";
+import type { Gate, RaceGround, ScenePoint } from "../challenge/types";
 
 /*
  * What a challenge puts in the world, made here from boxes and prisms, flat
- * shaded in the challenge's own colours: every start's ring of short posts,
+ * shaded in the challenge's own colours: every start's ring of short posts, a
+ * race's in its ground's colour,
  * with a tall pale beam over it that marks it from kilometres off, and during
  * a run the one line the car is to cross next, as an arch over the road (the
  * finish's banner chequered) or a dark gantry with its camera for a Speed
@@ -25,9 +26,14 @@ export interface ChallengeMarksInputs {
   groundAt: (x: number, z: number) => number;
 }
 
-/** A start ring on the ground, and whether its challenge has been passed. */
+/** How a start ring is painted: a challenge's, passed or not, or a race's by what's under its wheels. */
+export type StartTone = "challenge" | "passed" | RaceGround;
+
+const TONES: readonly StartTone[] = ["challenge", "passed", "road", "cross-country", "off-road"];
+
+/** A start ring on the ground, and how it's painted. */
 export interface StartMark extends ScenePoint {
-  passed: boolean;
+  tone: StartTone;
 }
 
 export type LineLook = "gate" | "finish" | "camera";
@@ -123,14 +129,15 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   const sunRadians = (sunAzimuthDeg * Math.PI) / 180;
   const sun = { x: Math.sin(sunRadians), z: -Math.cos(sunRadians) };
   const shade = attribute<"float">("shade", "float");
-  const passed = attribute<"float">("passed", "float");
-  const mark = mix(colour("challenge-mark"), colour("challenge-passed"), passed);
+  const tone = attribute<"float">("tone", "float");
+  const toneColours = [colour("challenge-mark"), colour("challenge-passed"), colour("race-road"), colour("race-cross-country"), colour("race-off-road")];
+  const mark = toneColours.slice(1).reduce((chosen, each, index) => select(tone.greaterThan(index + 0.5), each, chosen), toneColours[0]);
 
   const postFaces = new Faces(sun);
   postFaces.prism(0, 0, POST_RADIUS_M, -0.5, POST_TALL_M, SIDES, true);
   const postGeometry = postFaces.geometry();
-  const postPassed = new InstancedBufferAttribute(new Float32Array(capacity * POSTS_A_RING), 1);
-  postGeometry.setAttribute("passed", postPassed);
+  const postTone = new InstancedBufferAttribute(new Float32Array(capacity * POSTS_A_RING), 1);
+  postGeometry.setAttribute("tone", postTone);
   const postMaterial = new MeshBasicNodeMaterial();
   postMaterial.colorNode = hazed(mark.mul(shade));
   // Few enough faces that both sides are drawn rather than each wound by hand.
@@ -143,8 +150,8 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   const beamFaces = new Faces(sun);
   beamFaces.prism(0, 0, BEAM_RADIUS_M, 0, BEAM_TALL_M, SIDES, false);
   const beamGeometry = beamFaces.geometry();
-  const beamPassed = new InstancedBufferAttribute(new Float32Array(capacity), 1);
-  beamGeometry.setAttribute("passed", beamPassed);
+  const beamTone = new InstancedBufferAttribute(new Float32Array(capacity), 1);
+  beamGeometry.setAttribute("tone", beamTone);
   const rise = attribute<"vec3">("position", "vec3").y.div(BEAM_TALL_M);
   const beamMaterial = new MeshBasicNodeMaterial();
   beamMaterial.colorNode = hazed(mix(mark, colour("challenge-light"), rise.mul(0.5)));
@@ -242,12 +249,12 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
       if (next.length > capacity) throw new Error(`${next.length} challenge starts, past the ${capacity} the lists hold`);
       starts = next;
       postGround = new Float32Array(next.length * POSTS_A_RING);
-      next.forEach(({ passed: done }, ring) => {
-        postPassed.array.fill(done ? 1 : 0, ring * POSTS_A_RING, (ring + 1) * POSTS_A_RING);
-        beamPassed.array[ring] = done ? 1 : 0;
+      next.forEach(({ tone: painted }, ring) => {
+        postTone.array.fill(TONES.indexOf(painted), ring * POSTS_A_RING, (ring + 1) * POSTS_A_RING);
+        beamTone.array[ring] = TONES.indexOf(painted);
       });
-      postPassed.needsUpdate = true;
-      beamPassed.needsUpdate = true;
+      postTone.needsUpdate = true;
+      beamTone.needsUpdate = true;
       posts.count = startsShown ? next.length * POSTS_A_RING : 0;
       beams.count = startsShown ? next.length : 0;
       placeStarts(true);
