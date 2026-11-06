@@ -19,9 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-from paving import POINT_FLOATS, RUN_STEP as WAY_RUN_STEP
+from paving import ACROSS, ALONG, CLASS, POINT_FLOATS, RINGS, RUN_COS, RUN_SIN, TIER, WAY, RUN_STEP as WAY_RUN_STEP
 
-RINGS = 5
 MM = 1000
 # A point's place across its way in 1024ths: a millimetre or two at a wide road's edge, where the paint is.
 ACROSS_UNITS = 1024
@@ -33,7 +32,6 @@ RUN_STEPS = round(2 * np.pi / RUN_STEP)
 NO_RUN = 255
 # Points go in strips this tall: measured on L2343C, it packs the places and triangles a sixth smaller than one sort by east.
 STRIP_M = 32.0
-EAST, NORTH, HEIGHT, ACROSS, TIER, ALONG, WAY, CLASS, RUN_COS, RUN_SIN = range(POINT_FLOATS)
 
 
 @dataclass

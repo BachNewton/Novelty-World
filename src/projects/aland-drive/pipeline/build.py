@@ -143,7 +143,7 @@ def paving_way_points(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.nda
     ways with rings: a point of a way without is any way's, which the game reads as the nearest."""
     listed = {chain.index: position for position, (chain, _, _, _) in enumerate(ribbons)}
     points = paved.points.copy()
-    points[:, 6] = [value if value == paving.AREA else listed.get(value, paving.JUNCTION) for value in points[:, 6].astype(int)]
+    points[:, paving.WAY] = [value if value == paving.AREA else listed.get(value, paving.JUNCTION) for value in points[:, 6].astype(int)]
     return points
 
 

@@ -110,12 +110,12 @@ class ReadBack(unittest.TestCase):
         read, laid = self.read.points, self.points
         self.assertGreater(len(laid), 1000)
         np.testing.assert_allclose(read[:, :2], laid[:, :2], atol=PLACE_M)
-        np.testing.assert_allclose(read[:, paving_file.HEIGHT], laid[:, paving_file.HEIGHT], atol=HEIGHT_M)
-        np.testing.assert_allclose(read[:, paving_file.ACROSS], laid[:, paving_file.ACROSS], atol=ACROSS)
-        np.testing.assert_allclose(read[:, paving_file.ALONG], laid[:, paving_file.ALONG], atol=ALONG_M)
-        for column in (paving_file.TIER, paving_file.WAY, paving_file.CLASS):
+        np.testing.assert_allclose(read[:, paving.HEIGHT], laid[:, paving.HEIGHT], atol=HEIGHT_M)
+        np.testing.assert_allclose(read[:, paving.ACROSS], laid[:, paving.ACROSS], atol=ACROSS)
+        np.testing.assert_allclose(read[:, paving.ALONG], laid[:, paving.ALONG], atol=ALONG_M)
+        for column in (paving.TIER, paving.WAY, paving.CLASS):
             np.testing.assert_array_equal(read[:, column], laid[:, column])
-        np.testing.assert_allclose(read[:, [paving_file.RUN_COS, paving_file.RUN_SIN]], laid[:, [paving_file.RUN_COS, paving_file.RUN_SIN]], atol=1e-9)
+        np.testing.assert_allclose(read[:, [paving.RUN_COS, paving.RUN_SIN]], laid[:, [paving.RUN_COS, paving.RUN_SIN]], atol=1e-9)
         np.testing.assert_array_equal(turned(self.read.triangles), turned(self.triangles))
 
     def test_the_cut_ground_reads_back_as_laid_with_its_walls_last(self):

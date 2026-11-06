@@ -49,8 +49,8 @@ from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES, class_of
-from paving import CARRIAGEWAY_EDGE_ACROSS, is_crossing
-from paving_file import ACROSS as PAVING_ACROSS, WAY as PAVING_WAY, Paving, read_paving
+from paving import ACROSS, CARRIAGEWAY_EDGE_ACROSS, WAY, is_crossing
+from paving_file import Paving, read_paving
 from progress import Progress
 from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
@@ -285,10 +285,10 @@ def kept_off(surface: dict, laid: Paving) -> tuple[np.ndarray, np.ndarray]:
     corners = laid.points[triangles]
     # The paving ends with the points of pieces no way owns, drawn as shoulders, then the car parks'.
     owned = (triangles < len(laid.points) - aprons["junctionPoints"] - aprons["areaPoints"]).all(axis=1)
-    way = corners[:, 0, PAVING_WAY].astype(int)
+    way = corners[:, 0, WAY].astype(int)
     motor = np.array([chain["motor"] for chain in surface["chains"]], dtype=bool)
     owned &= way >= 0
-    carriageway = owned & ((np.abs(corners[:, :, PAVING_ACROSS]) <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
+    carriageway = owned & ((np.abs(corners[:, :, ACROSS]) <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
     kept = carriageway | ~owned
     return triangles[kept], np.where(carriageway, way, -1)[kept]
 

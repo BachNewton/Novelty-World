@@ -32,6 +32,7 @@ from scipy.spatial import cKDTree
 from build import OUTPUT
 from grid import WORLD_ORIGIN
 from path_surfaces import STEPS
+from paving import CLASS, HEIGHT, WAY
 from paving_file import read_ground_cut
 from roads import GAP_MOST_STEP_M
 from sources import RAW
@@ -57,7 +58,6 @@ ON_SIDEWALK = {"both", "left", "right", "yes"}
 CLUSTER_M = 4.0
 LOOK_BACK_M = 16.0
 LOOK_HEIGHT_M = 20.0
-EAST, NORTH, HEIGHT, ACROSS, TIER, ALONG, WAY, CLASS = range(8)
 
 
 @dataclass

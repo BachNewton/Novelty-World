@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import shapely
 
-from paving import POINT_FLOATS
+from paving import ACROSS, POINT_FLOATS, WAY
 from paving_file import Grid, paving_bytes
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Paved, Roadside, read_surface
 
@@ -158,10 +158,6 @@ class Rails(unittest.TestCase):
                 self.assertAlmostEqual(scene_facing(yaw)[1], 1, places=3, msg="the road is north of the rail")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple[float, float, float], int]], roads: list[dict] = (), junctions: int = 0) -> dict:
     """A paved tile's road surface: the east road and a path north of it, then paving pieces of (corners, each corner's across, way),
     the last `junctions` of them pieces no way owns, and the OSM ways it was laid from."""
@@ -172,8 +168,8 @@ def paved_tile(folder: Path, pieces: list[tuple[list[tuple[float, float]], tuple
     points = np.zeros((3 * len(pieces), POINT_FLOATS))
     for index, (corners, across, way) in enumerate(pieces):
         points[3 * index : 3 * index + 3, :2] = corners
-        points[3 * index : 3 * index + 3, 3] = across
-        points[3 * index : 3 * index + 3, 6] = way
+        points[3 * index : 3 * index + 3, ACROSS] = across
+        points[3 * index : 3 * index + 3, WAY] = way
     triangles = np.arange(len(points)).reshape(-1, 3)
     # Flat ground, one cell over everything, for the paving's heights to be read off.
     heights = {"file": "heights.bin.gz", "nodes": 2, "stepM": 1000.0, "unitM": 0.01}
@@ -203,7 +199,6 @@ class PavedTiles(unittest.TestCase):
         self.assertFalse(paved.clear(np.array([101.0, 5.0]), 0.4, besides=0))
         self.assertFalse(paved.clear(np.array([152.0, 4.0]), 0.4, besides=0))
 
-
     def test_a_carriageway_triangle_on_its_edge_is_carriageway_and_a_kerb_strip_past_it_is_shoulder(self):
         with tempfile.TemporaryDirectory() as folder:
             manifest = paved_tile(Path(folder), [
@@ -228,3 +223,7 @@ class PavedTiles(unittest.TestCase):
             paved = Paved(*read_surface(Path(folder), manifest))
         self.assertFalse(paved.clear(np.array([80.0, -4.2]), 0.4, besides=0))
         self.assertTrue(paved.clear(np.array([86.0, -3.4]), 0.4, besides=0))
+
+
+if __name__ == "__main__":
+    unittest.main()
