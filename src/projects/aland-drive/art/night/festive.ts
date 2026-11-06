@@ -1,4 +1,4 @@
-import { abs, atan, float, floor, fract, If, length, min, mix, select, smoothstep, vec2, vec3 } from "three/tsl";
+import { abs, atan, float, floor, fract, Fn, If, length, min, mix, select, smoothstep, vec2, vec3, vec4 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { seedOf, unitOf } from "../hash";
 import { changeOf, type SeasonNodes } from "../season";
@@ -133,16 +133,53 @@ function star(night: Night, room: Node<"uint">, { x, y, height, wide, tall }: Pa
   return { glow: glow.mul(shine(night)), cover: shape.add(cord).min(1).mul(0.9) };
 }
 
-/** What a pane holds: a candlestick, a star or nothing, chosen by the pane once its home has dressed its windows. */
-export function windowDressing(night: Night, winter: WinterWall, building: F, room: Node<"uint">, pane: PaneFrame): WindowDressing {
-  const dressed = dressedHome(winter, building).mul(select(unitOf(room, SALT.pane).lessThan(PANES_DRESSED), float(1), float(0)));
-  const isCandlestick = unitOf(room, SALT.kind).lessThan(CANDLESTICKS);
-  const stick = candlestick(night, winter, room, pane);
-  const hung = star(night, room, pane);
-  return {
-    glow: select(isCandlestick, stick.glow, hung.glow).mul(dressed),
-    cover: select(isCandlestick, stick.cover, hung.cover).mul(dressed),
+type Dressing = (building: F, likely: F, room: Node<"uint">, pane: PaneFrame) => WindowDressing;
+const dressings = new WeakMap<Night, WeakMap<SeasonNodes, Dressing>>();
+let dressingsMade = 0;
+
+/**
+ * What a pane holds: a candlestick, a star or nothing, chosen by the pane once its home has dressed its windows. It is
+ * one function in the shader, which every style of wall calls: inlined into each, it made the wall shader one the
+ * GPU's compiler took seconds over.
+ */
+function dressingFor(night: Night, season: SeasonNodes): Dressing {
+  const known = dressings.get(night) ?? new WeakMap<SeasonNodes, Dressing>();
+  dressings.set(night, known);
+  const found = known.get(season);
+  if (found !== undefined) return found;
+  const inShader = Fn(([building, likely, room, x, y, height, wide, tall]: [F, F, Node<"uint">, F, F, F, F, F]) => {
+    const winter: WinterWall = { season, windows: likely, eaves: float(0) };
+    const pane: PaneFrame = { x, y, height, wide, tall };
+    const dressed = dressedHome(winter, building).mul(select(unitOf(room, SALT.pane).lessThan(PANES_DRESSED), float(1), float(0)));
+    const isCandlestick = unitOf(room, SALT.kind).lessThan(CANDLESTICKS);
+    const stick = candlestick(night, winter, room, pane);
+    const hung = star(night, room, pane);
+    return vec4(select(isCandlestick, stick.glow, hung.glow), select(isCandlestick, stick.cover, hung.cover)).mul(dressed);
+  }).setLayout({
+    name: `windowDressing${dressingsMade++}`,
+    type: "vec4",
+    inputs: [
+      { name: "building", type: "float" },
+      { name: "likely", type: "float" },
+      { name: "room", type: "uint" },
+      { name: "x", type: "float" },
+      { name: "y", type: "float" },
+      { name: "height", type: "float" },
+      { name: "wide", type: "float" },
+      { name: "tall", type: "float" },
+    ],
+  });
+  const dressing: Dressing = (building, likely, room, { x, y, height, wide, tall }) => {
+    const both = inShader(building, likely, room, x, y, height, wide, tall);
+    return { glow: both.xyz, cover: both.w };
   };
+  known.set(season, dressing);
+  return dressing;
+}
+
+/** What a pane holds: a candlestick, a star or nothing. */
+export function windowDressing(night: Night, winter: WinterWall, building: F, room: Node<"uint">, pane: PaneFrame): WindowDressing {
+  return dressingFor(night, winter.season)(building, winter.windows, room, pane);
 }
 
 /** What a dressed home's windows add to a wall too far off for its panes: a little more warmth. */
