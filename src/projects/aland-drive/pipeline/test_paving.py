@@ -236,6 +236,20 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(int(theirs.sum()), 0)
         self.assertFalse(np.isin(corners[theirs][:, :, 6].astype(int), crossings).all(axis=1).any())
 
+    def test_a_named_service_way_is_a_street_not_a_driveway(self):
+        """Stava Mostersvägen is a service way by OSM's class, and the sidewalk carried on across its mouth as across a
+        driveway's: the street ended square on the sidewalk."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        sidewalk = road([(100, 604.5), (600, 604.5), (1100, 604.5)], "footway", motor=False, footway="sidewalk")
+        lane = road([(600, 600), (600, 604.5), (600, 700)], "service", name="Stava Mostersvägen")
+        paved = paving.lay([street, sidewalk, lane], land())
+        service = next(chain for chain in paved.chains if chain.kind_name == "service")
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        mouth = (np.abs(middle[:, 0] - 600) < service.half.min() - 0.1) & (np.abs(middle[:, 1] - 604.5) < 0.9)
+        self.assertGreater(int(mouth.sum()), 0)
+        self.assertTrue((corners[mouth][:, :, 6].astype(int) == service.index).all())
+
     def test_the_street_s_walk_band_carries_on_across_a_driveway(self):
         """Only a sidewalk's own carriageway carried on across a drive's mouth: the street's band beside it, which wears the
         sidewalk's surface, was cut by the drive's asphalt in a square mouth up to the kerb."""

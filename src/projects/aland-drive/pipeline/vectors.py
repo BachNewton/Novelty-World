@@ -15,7 +15,7 @@ NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
 # A car park on the ground: the others are buildings, or under one.
 PARKING_ON_THE_GROUND = {None, "surface", "lane", "street_side", "layby"}
-KEPT_TAGS = ("name", "ref", "surface", "footway", "cycleway", "lanes", "width", "oneway", "bridge", "tunnel", "covered", "maxspeed", "junction")
+KEPT_TAGS = ("name", "ref", "surface", "footway", "cycleway", "service", "lanes", "width", "oneway", "bridge", "tunnel", "covered", "maxspeed", "junction")
 # Every tag under these: a street's own sidewalks, their sides, widths and surfaces (`paving.tagged_sidewalks`).
 KEPT_PREFIXES = ("sidewalk",)
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.

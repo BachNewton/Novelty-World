@@ -119,6 +119,8 @@ LEAST_WALK_M = 0.01
 # most this wide where it does.
 TAGGED_SIDEWALK_M = 2.0
 TAGGED_SIDEWALK_MOST_M = 5.0
+# Service ways OSM says are drives, named or not.
+DRIVE_SERVICES = {"driveway", "parking_aisle", "drive-through"}
 # A way meeting another at more than this sine of their angle, about 30 degrees, crosses it rather than running beside it.
 CROSSING_SINE = 0.5
 # A way passing under another keeps this much room under the deck above it.
@@ -751,8 +753,16 @@ def _paths_worn(chains: list[Chain], crosses: dict[int, Cross], xy: np.ndarray, 
     return found
 
 
+def is_driveway(road: dict) -> bool:
+    """Whether a service way is a drive into a yard or a car park, which a sidewalk carries on across, rather than a street
+    OSM files as a service way. A named one is a street, as Stava Mostersvägen is, unless OSM says it is a drive, a car
+    park's aisle or a drive-through; an unnamed one is a drive, however long or wherever it leads, since in a Nordic town a
+    yard's or a car park's lane meets the street as a drive does, its mouth kerbed across the sidewalk."""
+    return road["kind"] == "service" and (not road.get("name") or road.get("service") in DRIVE_SERVICES)
+
+
 def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapely.Geometry], walk_bands: dict[int, shapely.Geometry], middles: np.ndarray, owner: np.ndarray) -> np.ndarray:
-    """Where a driveway (a service way) crosses a sidewalk, the sidewalk is the sidewalk's: its slabs carry on across the
+    """Where a driveway (`is_driveway`) crosses a sidewalk, the sidewalk is the sidewalk's: its slabs carry on across the
     drive's mouth, as real ones do, rather than the drive's asphalt cutting it. That is the sidewalk's own carriageway, and
     the street's band past its kerb that wears the sidewalk's surface, so the drive meets the street at the kerb. A
     service way running along a sidewalk keeps what it holds, a street crossing one keeps its crossing, and a path out in
@@ -760,13 +770,16 @@ def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapel
     owner = owner.copy()
     xy = shapely.get_coordinates(middles)
     for walks in (sidewalks, walk_bands):
-        driveway = np.array([who >= 0 and chains[who].motor and chains[who].kind_name == "service" for who in owner], dtype=bool)
-        if not walks or not driveway.any():
+        service = np.array([who >= 0 and chains[who].motor and chains[who].kind_name == "service" for who in owner], dtype=bool)
+        if not walks or not service.any():
             continue
         holder = _greatest(chains, walks, middles)
-        for piece in np.flatnonzero(driveway & (holder != JUNCTION)):
+        for piece in np.flatnonzero(service & (holder != JUNCTION)):
             drive, walk = chains[owner[piece]], chains[holder[piece]]
-            theirs, mine = drive.tangent[drive.tree.query(xy[piece])[1]], walk.tangent[walk.tree.query(xy[piece])[1]]
+            at = drive.tree.query(xy[piece])[1]
+            if not is_driveway(drive.edges[drive.edge_at[at]].road):
+                continue
+            theirs, mine = drive.tangent[at], walk.tangent[walk.tree.query(xy[piece])[1]]
             if abs(float(theirs[0] * mine[1] - theirs[1] * mine[0])) > CROSSING_SINE:
                 owner[piece] = holder[piece]
     return owner
