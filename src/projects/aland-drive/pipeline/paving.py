@@ -678,7 +678,8 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     owner = _greatest(chains, carriageways, middles)
     by_shoulder = _greatest(chains, ground_prints, middles)
     owner = np.where(owner == JUNCTION, by_shoulder, owner)
-    owner = _sidewalks_across_driveways(chains, {index: shape for index, shape in carriageways.items() if index in sidewalks}, middles, owner)
+    walk_bands = {index: _polygonal(shapely.difference(ground_prints[index], kerb.buffer(SLIVER_M))) for index, kerb in kerbs.items() if index in ground_prints}
+    owner = _sidewalks_across_driveways(chains, {index: shape for index, shape in carriageways.items() if index in sidewalks}, walk_bands, middles, owner)
     owner[(owner == JUNCTION) & shapely.contains(areas.buffer(SLIVER_M), middles)] = AREA
     walk = np.zeros(len(faces), dtype=bool)
     for index, kerb in kerbs.items():
@@ -750,23 +751,24 @@ def _paths_worn(chains: list[Chain], crosses: dict[int, Cross], xy: np.ndarray, 
     return found
 
 
-def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapely.Geometry], middles: np.ndarray, owner: np.ndarray) -> np.ndarray:
-    """Where a driveway (a service way) crosses a sidewalk, the sidewalk's carriageway is the sidewalk's: its slabs carry on
-    across the drive's mouth, as real ones do, rather than the drive's asphalt cutting it. A service way running along a
-    sidewalk keeps what it holds, a street crossing one keeps its crossing, and a path out in the country, beside no
-    street, is crossed by the drive."""
-    paths = sidewalks
-    driveway = np.array([who >= 0 and chains[who].motor and chains[who].kind_name == "service" for who in owner], dtype=bool)
-    if not paths or not driveway.any():
-        return owner
-    path = _greatest(chains, paths, middles)
+def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapely.Geometry], walk_bands: dict[int, shapely.Geometry], middles: np.ndarray, owner: np.ndarray) -> np.ndarray:
+    """Where a driveway (a service way) crosses a sidewalk, the sidewalk is the sidewalk's: its slabs carry on across the
+    drive's mouth, as real ones do, rather than the drive's asphalt cutting it. That is the sidewalk's own carriageway, and
+    the street's band past its kerb that wears the sidewalk's surface, so the drive meets the street at the kerb. A
+    service way running along a sidewalk keeps what it holds, a street crossing one keeps its crossing, and a path out in
+    the country, beside no street, is crossed by the drive."""
     owner = owner.copy()
     xy = shapely.get_coordinates(middles)
-    for piece in np.flatnonzero(driveway & (path != JUNCTION)):
-        drive, walk = chains[owner[piece]], chains[path[piece]]
-        theirs, mine = drive.tangent[drive.tree.query(xy[piece])[1]], walk.tangent[walk.tree.query(xy[piece])[1]]
-        if abs(float(theirs[0] * mine[1] - theirs[1] * mine[0])) > CROSSING_SINE:
-            owner[piece] = path[piece]
+    for walks in (sidewalks, walk_bands):
+        driveway = np.array([who >= 0 and chains[who].motor and chains[who].kind_name == "service" for who in owner], dtype=bool)
+        if not walks or not driveway.any():
+            continue
+        holder = _greatest(chains, walks, middles)
+        for piece in np.flatnonzero(driveway & (holder != JUNCTION)):
+            drive, walk = chains[owner[piece]], chains[holder[piece]]
+            theirs, mine = drive.tangent[drive.tree.query(xy[piece])[1]], walk.tangent[walk.tree.query(xy[piece])[1]]
+            if abs(float(theirs[0] * mine[1] - theirs[1] * mine[0])) > CROSSING_SINE:
+                owner[piece] = holder[piece]
     return owner
 
 

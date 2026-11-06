@@ -236,6 +236,26 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(int(theirs.sum()), 0)
         self.assertFalse(np.isin(corners[theirs][:, :, 6].astype(int), crossings).all(axis=1).any())
 
+    def test_the_street_s_walk_band_carries_on_across_a_driveway(self):
+        """Only a sidewalk's own carriageway carried on across a drive's mouth: the street's band beside it, which wears the
+        sidewalk's surface, was cut by the drive's asphalt in a square mouth up to the kerb."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        sidewalk = road([(100, 606.75), (600, 606.75), (1100, 606.75)], "footway", motor=False, footway="sidewalk")
+        drive = road([(600, 600), (600, 606.75), (600, 640)], "service", service="driveway")
+        paved = paving.lay([street, sidewalk, drive], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        cross = paved.crosses[chains["residential"].index]
+        at = int(np.abs(chains["residential"].xy[:, 0] - 600).argmin())
+        band = 600 + cross.kerb[0][at], 600 + cross.reach_left[at]
+        self.assertGreater(band[1] - band[0], 0.5)
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        mouth = (np.abs(middle[:, 0] - 600) < chains["service"].half.min() - 0.1) & (middle[:, 1] > band[0] + 0.05) & (middle[:, 1] < band[1] - 0.05)
+        self.assertGreater(int(mouth.sum()), 0)
+        footways = [chain.index for chain in paved.chains if chain.kind_name == "footway"]
+        self.assertTrue(np.isin(corners[mouth][:, :, 6].astype(int), footways).all())
+        self.assertTrue((corners[mouth][:, :, 7] == path_surfaces.SLAB).all())
+
     def test_a_sidewalk_tagged_on_a_street_is_laid_beside_it_on_its_side(self):
         """OSM maps many of Mariehamn's sidewalks on the street's own way, and they were left out, the street a bare strip of
         asphalt between kerbs. OSM names a side as its way runs: this one runs west, so its left is the south."""
