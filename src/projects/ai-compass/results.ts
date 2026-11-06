@@ -10,7 +10,6 @@ export interface SharedResult extends Point {
    *  profile id can remove its results. */
   person: string;
   name: string;
-  takenAt: string;
   background: Background;
   byStakes: Record<Stakes, Point>;
 }

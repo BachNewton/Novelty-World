@@ -40,10 +40,10 @@ describe("scoreByStakes", () => {
 });
 
 describe("parseSubmission", () => {
-  const valid = { profileId: "abc-123", name: " Kyle ", answers: answerAll(() => 3), background: { since: "1-2y", tools: ["cursor", "cursor"] } };
+  const valid = { profileId: "abc-123", name: " Kyle ", answers: answerAll(() => 3), background: { since: "1y", tools: ["cursor", "cursor"] } };
 
   it("keeps a whole quiz, trimming the name and repeated choices", () => {
-    expect(parseSubmission(valid)).toEqual({ ...valid, name: "Kyle", background: { since: "1-2y", tools: ["cursor"] } });
+    expect(parseSubmission(valid)).toEqual({ ...valid, name: "Kyle", background: { since: "1y", tools: ["cursor"] } });
   });
 
   it("refuses a quiz with a statement unanswered", () => {

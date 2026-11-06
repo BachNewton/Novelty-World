@@ -4,22 +4,17 @@ import { useEffect, useState } from "react";
 import { Compass } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useProfile } from "@/shared/lib/profile";
-import { regionAt, regionOf, type Point, type Region } from "../compass";
-import { scoreAnswers, scoreByStakes, type Answers, type Stakes } from "../quiz";
+import { regionAt, regionOf, type Region } from "../compass";
+import { scoreAnswers, scoreByStakes, type Answers } from "../quiz";
 import type { Background } from "../background";
 import { personKey, type SharedResult } from "../results";
+import { useLocalResult, type LocalResult } from "../local";
+import { useHydrated } from "@/shared/lib/use-hydrated";
 import { CompassMap, type Selection } from "./plane";
 import { QuizFlow } from "./quiz-flow";
-import { DraftPanel, RegionDetail, ResultDetail } from "./panels";
+import { LocalResultDetail, RegionDetail, ResultDetail } from "./panels";
 
 const API = "/api/ai-compass";
-
-interface Draft {
-  point: Point;
-  byStakes: Record<Stakes, Point>;
-  answers: Answers;
-  background: Background;
-}
 
 async function request<T>(method: string, body?: unknown): Promise<T> {
   const response = await fetch(API, {
@@ -37,9 +32,11 @@ async function request<T>(method: string, body?: unknown): Promise<T> {
 export function AiCompass() {
   const profile = useProfile();
   const [results, setResults] = useState<SharedResult[]>([]);
+  const hydrated = useHydrated();
+  const localStore = useLocalResult();
+  const local = hydrated ? localStore.result : null;
   const [mine, setMine] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>(() => ({ kind: "region", region: regionAt(1, 1) }));
-  const [draft, setDraft] = useState<Draft | null>(null);
   const [quizzing, setQuizzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,31 +52,57 @@ export function AiCompass() {
   }, [profile.id]);
 
   const openRegion = (region: Region) => setSelection({ kind: "region", region });
-  const stakes =
-    selection.kind === "result" ? selection.result.byStakes : selection.kind === "draft" && draft ? draft.byStakes : null;
-  const taken = draft !== null || results.some((r) => r.person === mine);
+  const stakes = selection.kind === "result" || selection.kind === "local" ? selection.result.byStakes : null;
+  const taken = local !== null || results.some((r) => r.person === mine);
 
-  function finishQuiz(answers: Answers, background: Background) {
-    setDraft({ point: scoreAnswers(answers), byStakes: scoreByStakes(answers), answers, background });
-    setSelection({ kind: "draft" });
-    setQuizzing(false);
+  /** Sends a result to the public map, scored there from its answers. Each
+   *  person has one point, so it replaces their earlier one, shared or kept
+   *  in this browser. */
+  async function share(answers: Answers, background: Background, name: string) {
+    const { result } = await request<{ result: SharedResult }>("POST", { profileId: profile.id, name, answers, background });
+    profile.setName(name);
+    setResults((current) => [...current.filter((r) => r.person !== result.person), result]);
+    localStore.clear();
+    setSelection({ kind: "result", result });
   }
 
-  async function share(finished: Draft, name: string) {
-    try {
-      const { result } = await request<{ result: SharedResult }>("POST", {
-        profileId: profile.id,
-        name,
-        answers: finished.answers,
-        background: finished.background,
-      });
-      profile.setName(name);
-      setResults([...results, result]);
-      setDraft(null);
-      setSelection({ kind: "result", result });
-    } catch (e) {
-      setError(`Couldn't share your point: ${String(e)}`);
+  function keepLocally(answers: Answers, background: Background) {
+    const result: LocalResult = {
+      id: crypto.randomUUID(),
+      ...scoreAnswers(answers),
+      byStakes: scoreByStakes(answers),
+      answers,
+      background,
+    };
+    localStore.set(result);
+    setSelection({ kind: "local", result });
+  }
+
+  async function finishQuiz(answers: Answers, background: Background, shareAs: string | null) {
+    setQuizzing(false);
+    if (shareAs === null) {
+      keepLocally(answers, background);
+      return;
     }
+    try {
+      await share(answers, background, shareAs);
+    } catch (e) {
+      keepLocally(answers, background);
+      setError(`Couldn't share your result, so it's saved only in this browser for now: ${String(e)}`);
+    }
+  }
+
+  async function shareLocal(result: LocalResult, name: string) {
+    try {
+      await share(result.answers, result.background, name);
+    } catch (e) {
+      setError(`Couldn't share your result: ${String(e)}`);
+    }
+  }
+
+  function deleteLocal(result: LocalResult) {
+    localStore.clear();
+    openRegion(regionOf(result));
   }
 
   async function remove(result: SharedResult) {
@@ -114,10 +137,10 @@ export function AiCompass() {
       )}
 
       {quizzing ? (
-        <QuizFlow onFinish={finishQuiz} onQuit={() => setQuizzing(false)} />
+        <QuizFlow name={profile.name} onFinish={(answers, background, shareAs) => void finishQuiz(answers, background, shareAs)} onQuit={() => setQuizzing(false)} />
       ) : (
         <main className="flex flex-1 flex-col gap-4 lg:min-h-0 lg:flex-row">
-          <CompassMap results={results} draft={draft?.point ?? null} stakes={stakes} mine={mine} selection={selection} onSelect={setSelection} />
+          <CompassMap results={results} local={local} stakes={stakes} mine={mine} selection={selection} onSelect={setSelection} />
           {selection.kind === "region" && <RegionDetail region={selection.region} />}
           {selection.kind === "result" && (
             <ResultDetail
@@ -127,18 +150,14 @@ export function AiCompass() {
               onRemove={() => remove(selection.result)}
             />
           )}
-          {selection.kind === "draft" && draft && (
-            <DraftPanel
-              point={draft.point}
-              byStakes={draft.byStakes}
-              background={draft.background}
+          {selection.kind === "local" && (
+            <LocalResultDetail
+              key={selection.result.id}
+              result={selection.result}
               name={profile.name}
               onOpenRegion={openRegion}
-              onShare={(name) => share(draft, name)}
-              onDiscard={() => {
-                setDraft(null);
-                openRegion(regionOf(draft.point));
-              }}
+              onShare={(name) => shareLocal(selection.result, name)}
+              onDelete={() => deleteLocal(selection.result)}
             />
           )}
         </main>

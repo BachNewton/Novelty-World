@@ -4,6 +4,7 @@ import { parseBackground, parseByStakes, parseSubmission, isProfileId, isRecord,
 import { scoreAnswers, scoreByStakes } from "@/projects/ai-compass/quiz";
 
 const TABLE = "ai_compass_results";
+const COLUMNS = "id, profile_id, name, scope, ownership, background, by_stakes";
 
 interface Row {
   id: string;
@@ -13,7 +14,6 @@ interface Row {
   ownership: number;
   background: unknown;
   by_stakes: unknown;
-  taken_at: string;
 }
 
 async function shared(row: Row): Promise<SharedResult> {
@@ -26,40 +26,40 @@ async function shared(row: Row): Promise<SharedResult> {
     name: row.name,
     scope: row.scope,
     ownership: row.ownership,
-    takenAt: row.taken_at,
     background,
     byStakes,
   };
 }
 
-/** Every shared result, oldest first, without anyone's profile id. */
+/** Every shared result, without anyone's profile id. */
 export async function GET() {
-  const { data, error } = await createAdminClient()
-    .from(TABLE)
-    .select("id, profile_id, name, scope, ownership, background, by_stakes, taken_at")
-    .order("taken_at");
+  const { data, error } = await createAdminClient().from(TABLE).select(COLUMNS).order("name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ results: await Promise.all((data as Row[]).map(shared)) });
 }
 
 /** A finished quiz, shared by the person who took it. The point is scored
- *  here, from the answers, so it can only be one the quiz gives. */
+ *  here, from the answers, so it can only be one the quiz gives. Each profile
+ *  has one point on the map, so sharing again replaces it. */
 export async function POST(request: NextRequest) {
   const submission = parseSubmission(await request.json());
   if (submission === null) return NextResponse.json({ error: "That isn't a finished quiz" }, { status: 400 });
   const point = scoreAnswers(submission.answers);
   const { data, error } = await createAdminClient()
     .from(TABLE)
-    .insert({
-      profile_id: submission.profileId,
-      name: submission.name,
-      scope: point.scope,
-      ownership: point.ownership,
-      answers: submission.answers,
-      background: submission.background,
-      by_stakes: scoreByStakes(submission.answers),
-    })
-    .select("id, profile_id, name, scope, ownership, background, by_stakes, taken_at")
+    .upsert(
+      {
+        profile_id: submission.profileId,
+        name: submission.name,
+        scope: point.scope,
+        ownership: point.ownership,
+        answers: submission.answers,
+        background: submission.background,
+        by_stakes: scoreByStakes(submission.answers),
+      },
+      { onConflict: "profile_id" },
+    )
+    .select(COLUMNS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ result: await shared(data as Row) });

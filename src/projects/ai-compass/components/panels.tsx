@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Trash2, X } from "lucide-react";
+import { Check, Globe, Lock, Trash2, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { regionCentre, regionName, regionOf, type Point, type Region } from "../compass";
 import { colorAt } from "../color";
 import { MODELS, SINCE, TOOLS, USES, choiceLabel, type Background } from "../background";
+import type { LocalResult } from "../local";
 import { NAME_MAX, type SharedResult } from "../results";
 import { STAKES, type Stakes } from "../quiz";
 import { StakesMarker } from "./plane";
@@ -60,8 +61,6 @@ function Practices({ title, items, icon }: { title: string; items: string[]; ico
   );
 }
 
-const MONTH = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
-
 export function ResultDetail({
   result,
   mine,
@@ -76,10 +75,7 @@ export function ResultDetail({
   const region = regionOf(result);
   return (
     <Panel color={colorAt(result)}>
-      <div>
-        <h2 className="text-2xl font-bold">{result.name}</h2>
-        <p className="text-text-secondary">{MONTH.format(new Date(result.takenAt))}</p>
-      </div>
+      <h2 className="text-2xl font-bold">{result.name}</h2>
       <Placement point={result} region={region} onOpenRegion={onOpenRegion} />
       <ByStakes points={result.byStakes} onOpenRegion={onOpenRegion} />
       <BackgroundAnswers background={result.background} />
@@ -196,67 +192,81 @@ function BackgroundAnswers({ background }: { background: Background }) {
   );
 }
 
-/** A finished quiz, seen only by whoever took it until they choose to share. */
-export function DraftPanel({
-  point,
-  byStakes,
-  background,
+/** A result kept in this browser only. Nobody else can see it until the
+ *  person shares it. */
+export function LocalResultDetail({
+  result,
   name,
   onOpenRegion,
   onShare,
-  onDiscard,
+  onDelete,
 }: {
-  point: Point;
-  byStakes: Record<Stakes, Point>;
-  background: Background;
+  result: LocalResult;
   name: string;
   onOpenRegion: (region: Region) => void;
   onShare: (name: string) => Promise<void>;
-  onDiscard: () => void;
+  onDelete: () => void;
 }) {
-  const region = regionOf(point);
-  const [draftName, setDraftName] = useState(name);
+  const region = regionOf(result);
+  const [sharing, setSharing] = useState(false);
+  const [shareName, setShareName] = useState(name);
   const [busy, setBusy] = useState(false);
-  const trimmed = draftName.trim();
+  const trimmed = shareName.trim();
   return (
-    <Panel color={colorAt(point)}>
+    <Panel color={colorAt(result)}>
       <h2 className="text-2xl font-bold">Your result</h2>
-      <Placement point={point} region={region} onOpenRegion={onOpenRegion} />
+      <p className="flex gap-2.5 rounded-md border border-brand-blue bg-brand-blue/10 p-3 text-sm">
+        <Lock size={18} className="mt-0.5 shrink-0 text-brand-blue" />
+        <span>
+          <strong>Saved only in this browser.</strong> Nobody else can see it, and clearing this browser&apos;s data deletes it.
+        </span>
+      </p>
+      <Placement point={result} region={region} onOpenRegion={onOpenRegion} />
       <p className="text-text-secondary">{region.description}</p>
-      <ByStakes points={byStakes} onOpenRegion={onOpenRegion} />
-      <BackgroundAnswers background={background} />
+      <ByStakes points={result.byStakes} onOpenRegion={onOpenRegion} />
+      <BackgroundAnswers background={result.background} />
 
-      <div className="space-y-3 rounded-md border border-border-default p-4">
-        <h3 className="font-bold">Add your point to the shared map?</h3>
-        <p className="text-sm text-text-secondary">
-          Nothing has been sent anywhere. If you share, everyone who opens this page sees your name, the month, your point and the
-          answers about you above. You can take it off again from this browser.
-        </p>
-        <label className="block space-y-1 text-sm">
-          <span className="text-text-secondary">Name to show</span>
-          <input
-            type="text"
-            value={draftName}
-            maxLength={NAME_MAX}
-            onChange={(event) => setDraftName(event.target.value)}
-            className="w-full rounded-md border border-border-default bg-surface-primary px-2 py-1.5 text-text-primary focus:border-brand-blue focus:outline-none"
-          />
-        </label>
+      {sharing ? (
+        <div className="space-y-3 rounded-md border border-border-default p-4">
+          <p className="text-sm text-text-secondary">
+            Everyone who opens this page will see your name, your point and your answers about you. You can take it off
+            again from this browser.
+          </p>
+          <label className="block space-y-1 text-sm">
+            <span className="text-text-secondary">Name to show</span>
+            <input
+              type="text"
+              value={shareName}
+              maxLength={NAME_MAX}
+              onChange={(event) => setShareName(event.target.value)}
+              className="w-full rounded-md border border-border-default bg-surface-primary px-2 py-1.5 text-text-primary focus:border-brand-blue focus:outline-none"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={busy || trimmed.length === 0}
+              onClick={() => {
+                setBusy(true);
+                void onShare(trimmed).finally(() => setBusy(false));
+              }}
+            >
+              <Globe size={16} className="mr-2" /> Share on the public map
+            </Button>
+            <Button variant="ghost" onClick={() => setSharing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={busy || trimmed.length === 0}
-            onClick={() => {
-              setBusy(true);
-              void onShare(trimmed).finally(() => setBusy(false));
-            }}
-          >
-            Share my point
+          <Button variant="secondary" onClick={() => setSharing(true)}>
+            <Globe size={16} className="mr-2" /> Share it
           </Button>
-          <Button variant="ghost" onClick={onDiscard}>
-            Keep it to myself
+          <Button variant="ghost" onClick={onDelete}>
+            <Trash2 size={16} className="mr-2" /> Delete it
           </Button>
         </div>
-      </div>
+      )}
     </Panel>
   );
 }

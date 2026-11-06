@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUp } from "lucide-react";
 import { LEVELS, OWNERSHIP, SCOPE, levelCentre, regionAt, regionCentre, regionName, type Level, type Point, type Region } from "../compass";
 import { colorAt } from "../color";
 import type { SharedResult } from "../results";
+import type { LocalResult } from "../local";
 import { STAKES, type Stakes } from "../quiz";
 
 /** Rows run from high ownership at the top to low at the bottom. */
@@ -15,12 +16,12 @@ const GRID_DIVISIONS = 15;
 export type Selection =
   | { kind: "region"; region: Region }
   | { kind: "result"; result: SharedResult }
-  | { kind: "draft" };
+  | { kind: "local"; result: LocalResult };
 
 interface CompassProps {
   results: SharedResult[];
-  /** A finished quiz not shared (yet), shown only to whoever took it. */
-  draft: Point | null;
+  /** A result kept in this browser only, seen by nobody else. */
+  local: LocalResult | null;
   /** The selected person's points on low, mid and high stakes scenes alone. */
   stakes: Record<Stakes, Point> | null;
   mine: string | null;
@@ -43,9 +44,8 @@ export function CompassMap(props: CompassProps) {
   );
 }
 
-function Plane({ results, draft, stakes, mine, selection, onSelect }: CompassProps) {
+function Plane({ results, local, stakes, mine, selection, onSelect }: CompassProps) {
   const selectedRegion = selection.kind === "region" ? selection.region : null;
-  const selectedPerson = selection.kind === "result" ? selection.result.person : null;
   return (
     <div className="relative overflow-hidden rounded-lg border border-border-default">
       <div
@@ -90,7 +90,6 @@ function Plane({ results, draft, stakes, mine, selection, onSelect }: CompassPro
         )}
       </div>
 
-      <Trails results={results} highlighted={selectedPerson} />
       {stakes && <StakesLine points={stakes} />}
       {results.map((result) => (
         <PersonPoint
@@ -102,8 +101,16 @@ function Plane({ results, draft, stakes, mine, selection, onSelect }: CompassPro
           onSelect={() => onSelect({ kind: "result", result })}
         />
       ))}
-      {draft && (
-        <PersonPoint point={draft} label="You" selected={selection.kind === "draft"} mine draft onSelect={() => onSelect({ kind: "draft" })} />
+      {local && (
+        <PersonPoint
+          point={local}
+          label="You"
+          description="You, only in this browser"
+          selected={selection.kind === "local"}
+          mine
+          local
+          onSelect={() => onSelect({ kind: "local", result: local })}
+        />
       )}
     </div>
   );
@@ -131,39 +138,33 @@ function GridLines() {
   );
 }
 
-/** One person's results joined oldest to newest, so their path shows how
- *  they have moved. */
-function Trails({ results, highlighted }: { results: SharedResult[]; highlighted: string | null }) {
-  const byPerson = Map.groupBy(results, (result) => result.person);
-  return (
-    <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
-      {[...byPerson].map(([person, trail]) =>
-        trail.length < 2 ? null : (
-          <polyline
-            key={person}
-            points={trail.map((r) => `${r.scope},${1 - r.ownership}`).join(" ")}
-            fill="none"
-            className={person === highlighted ? "stroke-text-primary" : "stroke-text-muted"}
-            strokeWidth={person === highlighted ? 2 : 1}
-            strokeDasharray={person === highlighted ? undefined : "4 3"}
-            vectorEffect="non-scaling-stroke"
-          />
-        ),
-      )}
-    </svg>
-  );
+function starPoints(): string {
+  return Array.from({ length: 10 }, (_, i) => {
+    const angle = (i * Math.PI) / 5 - Math.PI / 2;
+    const radius = i % 2 === 0 ? 7.5 : 3.2;
+    return `${(8 + radius * Math.cos(angle)).toFixed(2)},${(8.6 + radius * Math.sin(angle)).toFixed(2)}`;
+  }).join(" ");
 }
 
-/** Marker sizes grow with the stakes, so the line reads from low to high
- *  without a legend. */
-export const STAKES_MARKER: Record<Stakes, string> = { low: "size-2", mid: "size-3", high: "size-4" };
+/** Each tier has its own shape, so the line reads from low to high without a
+ *  legend: a square, a triangle, a star. */
+const STAKES_SHAPE: Record<Stakes, string> = {
+  low: "2.5,2.5 13.5,2.5 13.5,13.5 2.5,13.5",
+  mid: "8,1.5 14.8,14 1.2,14",
+  high: starPoints(),
+};
 
 export function StakesMarker({ stakes, point }: { stakes: Stakes; point: Point }) {
   return (
-    <span
-      className={`block rounded-sm border-2 border-text-primary ${STAKES_MARKER[stakes]}`}
-      style={{ backgroundColor: colorAt(point) }}
-    />
+    <svg viewBox="0 0 16 16" className="block size-4 overflow-visible" aria-hidden>
+      <polygon
+        points={STAKES_SHAPE[stakes]}
+        className="stroke-text-primary"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        style={{ fill: colorAt(point) }}
+      />
+    </svg>
   );
 }
 
@@ -196,40 +197,49 @@ function StakesLine({ points }: { points: Record<Stakes, Point> }) {
 function PersonPoint({
   point,
   label,
+  description = label,
   selected,
   mine,
-  draft = false,
+  local = false,
   onSelect,
 }: {
   point: Point;
   label: string;
+  /** What the point is, for screen readers and the tooltip. */
+  description?: string;
   selected: boolean;
   mine: boolean;
-  draft?: boolean;
+  /** Kept in this browser only: drawn as a hollow, dashed ring. */
+  local?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
-      aria-label={label}
-      title={label}
+      aria-label={description}
+      title={description}
       onClick={onSelect}
       className={`group absolute flex -translate-x-1/2 translate-y-1/2 items-center justify-center ${selected ? "z-30" : "z-20"}`}
       style={{ left: `${point.scope * 100}%`, bottom: `${point.ownership * 100}%` }}
     >
-      {draft && <span className="absolute size-7 animate-ping rounded-full border-2 border-text-primary" />}
       <span
         className={`block rounded-full border-2 transition-transform group-hover:scale-125 ${
           mine ? "border-text-primary" : "border-surface-primary"
-        } ${selected ? "size-6 ring-2 ring-text-primary ring-offset-2 ring-offset-surface-primary" : "size-4"}`}
-        style={{ backgroundColor: colorAt(point) }}
+        } ${local ? "border-[3px] border-dashed bg-surface-primary" : ""} ${
+          selected ? "size-6 ring-2 ring-text-primary ring-offset-2 ring-offset-surface-primary" : "size-4"
+        }`}
+        style={local ? { borderColor: colorAt(point) } : { backgroundColor: colorAt(point) }}
       />
-      {selected && (
-        <span className="absolute left-full ml-2 rounded-sm bg-surface-primary/85 px-1.5 py-0.5 text-sm font-bold whitespace-nowrap">
-          {label}
-        </span>
-      )}
+      {/* Wide planes have room to name everyone; a narrow one names only the
+          point picked. */}
+      <span
+        className={`pointer-events-none absolute left-full ml-1.5 rounded-sm bg-surface-primary/75 px-1 whitespace-nowrap ${
+          selected ? "block py-0.5 text-sm font-bold" : "hidden text-xs text-text-secondary lg:block"
+        }`}
+      >
+        {label}
+      </span>
     </button>
   );
 }

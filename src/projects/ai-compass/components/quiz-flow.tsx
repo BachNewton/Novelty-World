@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Globe, Lock, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { ANSWERS, STATEMENTS, type Answer, type Answers } from "../quiz";
 import { MODELS, SINCE, TOOLS, USES, type Background, type Choice, type ChoiceGroup } from "../background";
+import { NAME_MAX } from "../results";
 
 /** Circle sizes along the scale: strong answers are big, "Neutral" small. */
 const ANSWER_SIZES = ["size-12", "size-9", "size-6", "size-9", "size-12"];
@@ -14,13 +15,17 @@ const ANSWER_FILLS = ["bg-brand-pink", "bg-brand-pink", "bg-text-muted", "bg-bra
 const PICK_PAUSE_MS = 350;
 
 interface QuizFlowProps {
-  onFinish: (answers: Answers, background: Background) => void;
+  /** The name the person goes by elsewhere on the site, offered for sharing. */
+  name: string;
+  /** `shareAs` is the name to share under, or null to keep the result in this
+   *  browser only. */
+  onFinish: (answers: Answers, background: Background, shareAs: string | null) => void;
   onQuit: () => void;
 }
 
 /** The statements one at a time, then the optional questions about the
  *  person's own use of AI. */
-export function QuizFlow({ onFinish, onQuit }: QuizFlowProps) {
+export function QuizFlow({ name, onFinish, onQuit }: QuizFlowProps) {
   const [answers, setAnswers] = useState<Answers>({});
   const [index, setIndex] = useState(0);
   const [showingPick, setShowingPick] = useState(false);
@@ -42,7 +47,7 @@ export function QuizFlow({ onFinish, onQuit }: QuizFlowProps) {
   }
 
   if (index === STATEMENTS.length) {
-    return <BackgroundStep onBack={back} onFinish={(background) => onFinish(answers, background)} />;
+    return <BackgroundStep name={name} onBack={back} onFinish={(background, shareAs) => onFinish(answers, background, shareAs)} />;
   }
 
   return (
@@ -142,8 +147,19 @@ function StatementStep({
   );
 }
 
-function BackgroundStep({ onBack, onFinish }: { onBack: () => void; onFinish: (background: Background) => void }) {
+function BackgroundStep({
+  name,
+  onBack,
+  onFinish,
+}: {
+  name: string;
+  onBack: () => void;
+  onFinish: (background: Background, shareAs: string | null) => void;
+}) {
   const [background, setBackground] = useState<Background>({});
+  const [sharing, setSharing] = useState(false);
+  const [shareName, setShareName] = useState(name);
+  const trimmed = shareName.trim();
 
   function toggle(key: "uses" | "tools" | "models", id: string) {
     const current = background[key] ?? [];
@@ -183,10 +199,75 @@ function BackgroundStep({ onBack, onFinish }: { onBack: () => void; onFinish: (b
         <Groups groups={MODELS} isOn={(id) => background.models?.includes(id) ?? false} onToggle={(id) => toggle("models", id)} />
       </Question>
 
-      <Button className="self-center" onClick={() => onFinish(background)}>
+      <Question title="Who sees your result?">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ShareOption
+            selected={!sharing}
+            onSelect={() => setSharing(false)}
+            icon={<Lock size={20} />}
+            title="Only you, in this browser"
+            detail="Your result is saved only in this browser. Nothing is sent anywhere, and clearing this browser's data deletes it."
+          />
+          <ShareOption
+            selected={sharing}
+            onSelect={() => setSharing(true)}
+            icon={<Globe size={20} />}
+            title="Everyone, on the public map"
+            detail="Everyone who opens this page sees your name, your point and your answers above. You can take it off again from this browser."
+          >
+            <label className="block space-y-1 text-sm">
+              <span className="text-text-secondary">Name to show</span>
+              <input
+                type="text"
+                value={shareName}
+                maxLength={NAME_MAX}
+                onFocus={() => setSharing(true)}
+                onChange={(event) => setShareName(event.target.value)}
+                className="w-full rounded-md border border-border-default bg-surface-primary px-2 py-1.5 text-text-primary focus:border-brand-blue focus:outline-none"
+              />
+            </label>
+          </ShareOption>
+        </div>
+      </Question>
+
+      <Button className="self-center" disabled={sharing && trimmed.length === 0} onClick={() => onFinish(background, sharing ? trimmed : null)}>
         See where I land
       </Button>
     </section>
+  );
+}
+
+function ShareOption({
+  selected,
+  onSelect,
+  icon,
+  title,
+  detail,
+  children,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  /** Fields that belong to this option, shown inside its card. */
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-md border-2 p-4 transition-colors ${
+        selected ? "border-brand-blue bg-brand-blue/10" : "border-border-default hover:border-border-hover"
+      }`}
+    >
+      <button type="button" role="radio" aria-checked={selected} onClick={onSelect} className="flex flex-1 gap-3 text-left">
+        <span className={selected ? "text-brand-blue" : "text-text-secondary"}>{icon}</span>
+        <span className="space-y-1">
+          <span className="block font-bold">{title}</span>
+          <span className="block text-sm text-text-secondary">{detail}</span>
+        </span>
+      </button>
+      {children}
+    </div>
   );
 }
 
