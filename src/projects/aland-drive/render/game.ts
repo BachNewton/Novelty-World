@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
@@ -6,7 +6,12 @@ import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
 import { TrafficContact } from "../traffic/contact";
 import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
-import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
+import { eyeOf, sees, type Eye } from "../traffic/sight";
+import { createLaneTrafficView, sightOf, TRAFFIC_KINDS } from "./lane-traffic";
+import { createCyclistsView } from "./cyclists";
+import { Bubble } from "../traffic/bubble";
+import { REACH_M as CAR_REACH_M } from "../art/cars/fleet";
+import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
 import { BAKED_SKY_SHARE, BAKED_SUN_SHARE, FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
@@ -152,12 +157,16 @@ export interface GameProbe {
   lanes: () => LaneNet;
   /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
   showLanes: (shown: boolean) => void;
-  /** Keeps this many cars driving the lanes round the camera, with none at 0, and whether they see the player's car from now on. */
-  traffic: (count: number, options?: { withPlayer?: boolean }) => void;
-  /** How many cars drive the lanes, how many of them are stopped giving way, and how many have been hit out of traffic. */
-  trafficCounts: () => { cars: number; waiting: number; hit: number };
-  /** Every car driving the lanes, as the driver holds it. */
+  /** Fills the lanes round the camera with cars at a density, 1 for Åland's own and 0 for none, and whether they see the player's car from now on. */
+  traffic: (density: number, options?: { withPlayer?: boolean }) => void;
+  /** The same for cyclists, on the paths and the roads' edges. */
+  cyclists: (density: number) => void;
+  /** How many cars and cyclists ride the lanes, how many of them are stopped giving way, how many cars have been hit out of traffic, and how many the bubble has made and taken away. */
+  trafficCounts: () => { cars: number; bikes: number; waiting: number; hit: number; spawned: number; gone: number };
+  /** Every car and cyclist on the lanes, as the driver holds it. */
   trafficCars: () => LaneCar[];
+  /** Whether the camera could see a car or cyclist where it stands now: in view, within its kind's reach and not behind the ground. */
+  trafficSeen: (car: Pick<LaneCar, "kind" | "pose" | "half">) => boolean;
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -466,10 +475,10 @@ const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
-/** The lane lab's traffic: at most this many cars, kept within a reach of the camera, and once they're all out, new ones put down no nearer than this. */
+/** The lane lab's traffic: room for this many cars and cyclists drawn, and the bubble round the camera judged every this many traffic steps. */
 const TRAFFIC_MOST = 200;
-const TRAFFIC_REACH_M = 400;
-const TRAFFIC_NEAREST_M = 150;
+const CYCLISTS_MOST = 120;
+const BUBBLE_EVERY = 4;
 /** It steps once every this many of the simulation's steps: cars with no physics need no more, and are drawn between steps. */
 const TRAFFIC_EVERY = 4;
 const EDGE_WALL_HEIGHT_M = 2.5;
@@ -876,12 +885,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
   const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
-  let trafficWanted = 0;
+  const cyclistsView = createCyclistsView(scene, sun, hazed, CYCLISTS_MOST);
+  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 0 }, bike: { reachM: BIKE_REACH_M, density: 0 } });
   let trafficSeesPlayer = true;
-  // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
-  let trafficFilled = false;
   let trafficSteps = 0;
+  let bubbleSteps = 0;
   const trafficFocus = { x: 0, z: 0 };
+  const viewProjection = new Matrix4();
+  /** The camera as it stands, for whether something on the road is in sight. */
+  const eyeNow = (): Eye => {
+    camera.updateMatrixWorld();
+    viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    return eyeOf(camera.position, viewProjection.elements);
+  };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const challengeBoard = new ChallengeBoard(CHALLENGES, { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
@@ -1598,11 +1614,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.step(lastInput);
     trafficContact.afterStep();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
-    if (trafficWanted > 0 && trafficSteps === 0) {
+    if ((bubble.density("car") > 0 || bubble.density("bike") > 0) && trafficSteps === 0) {
       const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
       laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
-      laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
-      trafficFilled ||= laneTraffic.count() >= trafficWanted;
+      if (bubbleSteps === 0) {
+        const eye = eyeNow();
+        bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)));
+      }
+      bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
       laneTraffic.step(STEP_S * TRAFFIC_EVERY);
     }
     tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.tyres, drive.stateAt(1));
@@ -1861,6 +1880,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     trafficFocus.x = camera.position.x;
     trafficFocus.z = camera.position.z;
     laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
+    cyclistsView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1913,14 +1933,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showParked: parkedCars.show,
       lanes: () => laneNet,
       showLanes: laneOverlay.show,
-      traffic: (count, options) => {
-        trafficWanted = Math.min(count, TRAFFIC_MOST);
+      traffic: (density, options) => {
+        bubble.setDensity("car", density);
         if (options?.withPlayer !== undefined) trafficSeesPlayer = options.withPlayer;
-        trafficFilled = false;
-        if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
+      },
+      cyclists: (density) => {
+        bubble.setDensity("bike", density);
       },
       trafficCars: () => [...laneTraffic.all()],
-      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length, hit: trafficContact.count() }),
+      trafficSeen: (car) => sees(eyeNow(), groundAt, sightOf(car)),
+      trafficCounts: () => {
+        const all = [...laneTraffic.all()];
+        const bikes = all.filter((vehicle) => vehicle.kind === "bike").length;
+        return { cars: all.length - bikes, bikes, waiting: all.filter((vehicle) => vehicle.waiting).length, hit: trafficContact.count(), ...bubble.counts() };
+      },
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -2179,6 +2205,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       parkedCars.dispose();
       laneOverlay.dispose();
       laneTrafficView.dispose();
+      cyclistsView.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
       challengeMarks.dispose();

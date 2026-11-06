@@ -103,6 +103,8 @@ export class TrafficContact {
     const simulated = [this.drive.player.position, ...this.drive.cars().map(({ position }) => position)];
     const near = new Set<string>();
     for (const car of this.traffic.all()) {
+      // A cyclist is never more than a place on a lane: it has no stand-in to touch.
+      if (car.kind !== "car") continue;
       if (!simulated.some(([x, , z]) => Math.hypot(car.pose.x - x, car.pose.z - z) < NEAR_M)) continue;
       near.add(car.id);
       this.drive.traffic.hear(car.id, this.stateOf(car.id, car.model, steps), this.shapes[car.model]);

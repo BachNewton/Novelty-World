@@ -3,7 +3,7 @@ import { STEP_S } from "../sim/tuning";
 import { LaneTraffic, SIGNAL, type LaneCar, type DrivenCar } from "./lane-driver";
 import { decodeLanes } from "./lane-map";
 import { LaneNet } from "./lane-net";
-import { junctionTile, overTheSeam, touching, twoWayRoad } from "./test-lanes";
+import { encoded, junctionTile, lane, overTheSeam, pathMeetsRoad, touching, twoWayRoad } from "./test-lanes";
 
 const traffic = () => {
   const net = new LaneNet();
@@ -75,6 +75,18 @@ describe("cars driving the lanes", () => {
     // Signalled for the last 35 m or 4 s, whichever is further: not the whole lane and not only at the line.
     expect(signalledFrom).toBeGreaterThan(30);
     expect(signalledFrom).toBeLessThan(55);
+  });
+
+  it("carry on through a junction from a lane whose last point is written twice, as the pipeline sometimes writes it", () => {
+    const net = new LaneNet();
+    const tile = junctionTile();
+    tile.lanes[0] = lane([[0, 0, 0], [95, 0, 0], [95, 0, 0]]);
+    net.add("A", decodeLanes(tile));
+    const cars = new LaneTraffic(net, [[0.92, 2.3]]);
+    const car = cars.spawn({ tile: "A", index: 0, connector: false, along: 60 }, 8);
+    for (let step = 0; step < 10 / STEP_S; step++) cars.step(STEP_S);
+    expect(car.place).toMatchObject({ index: 1, connector: false });
+    expect(car.offLaneM).toBeLessThan(0.5);
   });
 
   it("keep a turn waiting at its line while something it gives way to is coming, then let it go", () => {
@@ -198,3 +210,73 @@ describe("traffic and the player's car", () => {
   });
 });
 
+
+describe("cyclists", () => {
+  /** How near two outlines on the ground come across the way they drive, while side by side: none if never alongside. */
+  const besideGap = (a: LaneCar, b: LaneCar) => (Math.abs(a.pose.x - b.pose.x) < a.half[1] + b.half[1] ? Math.abs(a.pose.z - b.pose.z) - a.half[0] - b.half[0] : Infinity);
+
+  it("are overtaken by a car with room to spare, only once the oncoming side is clear", () => {
+    const net = new LaneNet();
+    net.add("R", decodeLanes(twoWayRoad(6, 1000)));
+    const cars = new LaneTraffic(net, [HALF]);
+    const bike = cars.spawn({ tile: "R", index: 0, connector: false, along: 120 }, 5, { kind: "bike", seed: 3 });
+    const car = cars.spawn({ tile: "R", index: 0, connector: false, along: 20 }, 60 / 3.6);
+    // Coming the other way about when the car has caught the cyclist up and waited behind it.
+    const oncoming = cars.spawn({ tile: "R", index: 1, connector: false, along: 480 }, 50 / 3.6);
+    let closest = Infinity;
+    let touched = false;
+    let outWithOncomingNear = false;
+    for (let step = 0; step < 60 / (4 * STEP_S) && car.pose.x < bike.pose.x + 20; step++) {
+      cars.step(4 * STEP_S);
+      touched ||= touching(outlineOf(car), outlineOf(bike)) || touching(outlineOf(car), outlineOf(oncoming));
+      closest = Math.min(closest, besideGap(car, bike));
+      outWithOncomingNear ||= car.shiftM < -0.5 && cars.get(oncoming.id) !== undefined && oncoming.pose.x > car.pose.x && oncoming.pose.x - car.pose.x < 60;
+    }
+    expect(touched).toBe(false);
+    expect(outWithOncomingNear).toBe(false);
+    expect(car.pose.x).toBeGreaterThan(bike.pose.x + 20);
+    expect(closest).toBeGreaterThan(1);
+  });
+
+  it("turn off a road on to a path at a square corner, as a link can be, and ride on along the path", () => {
+    const file = pathMeetsRoad();
+    // Straight across from the lane to the path's start, and the path off south-west from there, back the way the
+    // cyclist came, so a rider that cuts the corner never passes it.
+    file.lanes[3] = lane([[300, 0, 4], [290, 0, 14], [250, 0, 54]], { kind: "cycleway", width: 1, speeds: [[0, 20]] });
+    file.links = [{ path: 3, road: 0, along: 300, onToRoad: false, points: encoded([[300, 0, 1.5], [300, 0, 4]]) }];
+    let turned = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const net = new LaneNet();
+      net.add("P", decodeLanes(file));
+      const cars = new LaneTraffic(net, [HALF], seed);
+      const bike = cars.spawn({ tile: "P", index: 0, connector: false, along: 260 }, 5, { kind: "bike", seed });
+      if (!bike.exit) continue;
+      turned++;
+      for (let step = 0; step < 20 / (4 * STEP_S); step++) cars.step(4 * STEP_S);
+      expect(bike.place).toMatchObject({ index: 3, connector: false });
+      expect(bike.place.link).toBeUndefined();
+      expect(bike.offLaneM).toBeLessThan(1);
+    }
+    expect(turned).toBeGreaterThan(0);
+  });
+
+  it("ride a road near its edge, and join it from a path only once what's coming has passed", () => {
+    const net = new LaneNet();
+    net.add("P", decodeLanes(pathMeetsRoad()));
+    const cars = new LaneTraffic(net, [HALF]);
+    const bike = cars.spawn({ tile: "P", index: 2, connector: false, along: 60 }, 5, { kind: "bike", seed: 3 });
+    // A few seconds behind the cyclist reaching the road: soon enough that it should wait.
+    const car = cars.spawn({ tile: "P", index: 0, connector: false, along: 10 }, 50 / 3.6);
+    let joinedBehindCar = null as boolean | null;
+    let edge = 0;
+    for (let step = 0; step < 40 / (4 * STEP_S); step++) {
+      cars.step(4 * STEP_S);
+      if (joinedBehindCar === null && bike.place.index === 0 && !bike.place.link) joinedBehindCar = car.pose.x > bike.pose.x;
+      if (bike.place.index === 0 && bike.pose.x > 150 && bike.pose.x < 250) edge = Math.max(edge, bike.pose.z);
+    }
+    expect(joinedBehindCar).toBe(true);
+    // The eastbound lane's middle is 1.5 m south; a cyclist keeps most of the way to its outer edge at 3 m.
+    expect(edge).toBeGreaterThan(2.1);
+    expect(edge).toBeLessThan(2.8);
+  });
+});

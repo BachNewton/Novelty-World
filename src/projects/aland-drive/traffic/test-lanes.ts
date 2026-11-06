@@ -63,3 +63,21 @@ export function touching(a: { x: number; z: number; yaw: number; half: readonly 
   }
   return true;
 }
+
+/**
+ * A two-way road 6 m wide along z = 0 (as `twoWayRoad`), a cycleway coming up from the south to meet it at x = 100,
+ * with a link from its end on to the eastbound lane there, and a link off the eastbound lane at x = 300 on to a
+ * cycleway leaving south.
+ */
+export function pathMeetsRoad(): LanesFile {
+  const road = twoWayRoad(6, 600);
+  const cycleway = { kind: "cycleway", width: 1, speeds: [[0, 20]] as [number, number][] };
+  return {
+    ...road,
+    lanes: [...road.lanes, lane([[100, 0, 80], [100, 0, 4]], cycleway), lane([[300, 0, 4], [300, 0, 80]], cycleway)],
+    links: [
+      { path: 2, road: 0, along: 102, onToRoad: true, points: encoded([[100, 0, 4], [101, 0, 2.5], [102, 0, 1.5]]) },
+      { path: 3, road: 0, along: 298, onToRoad: false, points: encoded([[298, 0, 1.5], [299, 0, 2.5], [300, 0, 4]]) },
+    ],
+  };
+}

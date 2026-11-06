@@ -3,6 +3,7 @@ import { abs, float, mix, positionWorld, smoothstep, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Point } from "../cars/mesh";
 import { BIKE_CHASE, BIKE_FIRST_PERSON } from "./cameras";
+import { bikeOf, createBikeCrowd, type CrowdRider } from "./crowd";
 import { buildBikeArt, createBikeModel, type BikeArt } from "./model";
 import { stillInput, type RideInput, type RideMotion } from "./rig";
 import { BIKES } from "./specs";
@@ -10,7 +11,8 @@ import type { BikeDetail } from "./build";
 
 /*
  * The page `gallery.mjs` drives: one cyclist at a time, or a line of them, on a
- * stretch of cycleway, on the game's renderer settings.
+ * stretch of cycleway, on the game's renderer settings; and riders drawn by the
+ * crowd, as the game draws cyclists on its roads.
  */
 
 const SUN = { azimuthDeg: 215, elevationDeg: 30 };
@@ -30,9 +32,21 @@ export interface Rider {
   ride?: Partial<RideInput>;
 }
 
+/** A rider drawn by the crowd, as the game draws cyclists on the roads. */
+export interface CrowdShotRider {
+  seed: number;
+  x: number;
+  z: number;
+  yaw?: number;
+  ride?: Partial<RideInput>;
+}
+
 export interface Shot {
   detail: BikeDetail;
   riders: Rider[];
+  crowd?: CrowdShotRider[];
+  /** How long the crowd rides before the picture, in steps of a sixtieth of a second, so riders at different speeds are at different points of their pedalling. */
+  crowdSteps?: number;
   camera: "chase" | "first" | [x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number, fov: number];
 }
 
@@ -65,7 +79,10 @@ async function start(width: number, height: number) {
     return art;
   };
 
+  const crowd = createBikeCrowd({ sun: SUN, room: 32 });
+
   return {
+    bikeOf: (seed: number) => BIKES.indexOf(bikeOf(seed)),
     bikes: () => BIKES.map((bike, index) => ({ index, name: bike.name, near: artOf(index, "near").triangles, nearBike: artOf(index, "near").bikeTriangles, far: artOf(index, "far").triangles })),
     async shoot(shot: Shot) {
       for (const child of [...scene.children]) if (child !== ground) scene.remove(child);
@@ -91,12 +108,21 @@ async function start(width: number, height: number) {
         camera.position.set(x, y, z);
         camera.lookAt(lookX, lookY, lookZ);
       }
+      if (shot.crowd) {
+        // Drawing no one first forgets every rider's pedalling, so each shot's riders start from rest.
+        crowd.draw([], camera.position, 0);
+        const riders = shot.crowd.map(({ seed, x, z, yaw, ride }, at): CrowdRider => ({ id: String(at), seed, x, y: 0, z, yaw: yaw ?? 0, input: { ...stillInput(), ...ride } }));
+        const steps = shot.crowdSteps ?? 0;
+        for (let step = 0; step < steps; step++) crowd.draw(riders, camera.position, 1 / 60);
+        crowd.draw(riders, camera.position, 0);
+        for (const mesh of crowd.meshes) scene.add(mesh);
+      }
       camera.updateProjectionMatrix();
       await renderer.compileAsync(scene, camera);
       renderer.render(scene, camera);
       await new Promise(requestAnimationFrame);
       renderer.render(scene, camera);
-      const drawn = { drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles };
+      const drawn = { drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles, crowd: shot.crowd ? crowd.counts() : null };
       await new Promise(requestAnimationFrame);
       return drawn;
     },
