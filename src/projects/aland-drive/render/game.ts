@@ -53,7 +53,7 @@ import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, typ
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { createDriveAudio } from "../audio/graph";
-import { stateFromCar, type SeasonHeard } from "../audio/model";
+import { stateFromCar, type Mix, type Place as PlaceHeard, type SeasonHeard } from "../audio/model";
 import { yearDay } from "../climate/calendar";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
@@ -234,6 +234,8 @@ export interface GameProbe {
   showTyres: (shown: boolean) => void;
   /** Rain streaks and snowflakes drawn now. */
   precipitationCounts: () => { rain: number; snow: number };
+  /** What the sound hears round the car: how much of it is forest, shore and town, and the levels it last mixed. */
+  sound: () => { place: PlaceHeard; mix: Mix | null };
   setCondition: (condition: Condition) => void;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
@@ -2163,6 +2165,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       tyreCounts: tyres.counts,
       showTyres: tyres.show,
       precipitationCounts: precipitation.counts,
+      sound: () => {
+        const [carX, , carZ] = drive.stateAt(1).position;
+        return { place: placeAround(world, carX, carZ), mix: audio.reading()?.mix ?? null };
+      },
       setCondition: (condition) => {
         weatherNow.holdGround(condition);
         drive.condition = condition;

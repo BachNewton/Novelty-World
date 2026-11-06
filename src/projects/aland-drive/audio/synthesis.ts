@@ -371,21 +371,59 @@ function chirp(channels: Float32Array[], at: number, seconds: number, pan: numbe
   }
 }
 
-/** Forest in leaf: leaves moving in the wind, swelling and dropping as the breeze does. */
+/**
+ * Gusts on a loop: each comes up and dies away over its own few seconds, at its own strength, with stiller air
+ * between, wrapping round the loop. Irregular on purpose: wind that swells and falls on a steady beat is heard as
+ * waves on a shore.
+ */
+function gustsOver(seconds: number, next: () => number, lengthS: readonly [number, number], gapS: readonly [number, number]) {
+  const gusts: { at: number; lengthS: number; strength: number }[] = [];
+  for (let at = next() * gapS[1]; at < seconds; at += gapS[0] + (gapS[1] - gapS[0]) * next()) {
+    gusts.push({ at, lengthS: lengthS[0] + (lengthS[1] - lengthS[0]) * next(), strength: 0.35 + 0.65 * next() });
+  }
+  return (t: number) => {
+    let sum = 0;
+    for (const { at, lengthS: span, strength } of gusts) {
+      const into = (((t - at) % seconds) + seconds) % seconds;
+      if (into < span) sum += strength * Math.sin((Math.PI * into) / span) ** 2;
+    }
+    return Math.min(sum, 1.3);
+  };
+}
+
+/** A fast, uneven flutter round 1, periodic in the loop: leaves catching the air and letting go, many times a second. */
+function flutterOver(seconds: number, next: () => number) {
+  const parts = Array.from({ length: 6 }, () => ({ cycles: Math.round((7 + 18 * next()) * seconds), phase: next() * TAU }));
+  return (t: number) => {
+    let sum = 0;
+    for (const { cycles, phase } of parts) sum += Math.sin((TAU * cycles * t) / seconds + phase);
+    return Math.max(0, 0.55 + 0.35 * sum);
+  };
+}
+
+/** Forest in leaf: leaves rustling in gusts, a bright flickering hiss with leaves ticking in it, and quieter air between. */
 export function leavesBed(): Loop {
   const next = random(41);
   const seconds = 29;
   const length = Math.round(seconds * BED_RATE);
-  const swell = [0, 1].map(() => ({ a: 2 + Math.floor(next() * 3), b: 5 + Math.floor(next() * 5), phase: next() * TAU }));
-  const channels = swell.map(({ a, b, phase }) => {
-    const leaves = lowNoise(length, next, () => 2400, BED_RATE);
-    const held = lowNoise(length, next, () => 600, BED_RATE);
-    return leaves.map((sample, i) => {
-      const place = (TAU * i) / length;
-      const breeze = 0.5 + 0.3 * Math.sin(a * place + phase) + 0.2 * Math.sin(b * place);
-      return 0.16 * breeze * (sample - held[i]);
+  const gust = gustsOver(seconds, next, [1.5, 4.5], [1.5, 5]);
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 7000, BED_RATE);
+    const dull = lowNoise(length, next, () => 1500, BED_RATE);
+    const flutter = flutterOver(seconds, next);
+    return bright.map((sample, i) => {
+      const t = i / BED_RATE;
+      return (sample - dull[i]) * (0.12 + gust(t)) * flutter(t);
     });
   });
+  for (let i = 0; i < 4000; i++) {
+    const at = next() * seconds;
+    if (next() > 0.15 + gust(at)) continue;
+    const hz = 2500 + 4500 * next();
+    const decayS = 0.0004 + 0.0012 * next();
+    const level = 0.04 + 0.12 * next() * next();
+    addPanned(channels, BED_RATE, at, decayS * 5, next() * 1.8 - 0.9, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
@@ -428,19 +466,23 @@ export function birdsBed(): Loop {
   return { rate: BED_RATE, channels };
 }
 
-/** Winter's wind: a lower, hollower rush through bare branches and spruce, in long gusts, which also blows over a frozen sea. */
+/**
+ * Winter's wind: a steady rush through bare branches and spruce that never falls quiet, its pitch rising as each gust
+ * comes through, with the needles' thin hiss on top; the same wind blows over a frozen sea.
+ */
 export function winterBed(): Loop {
   const next = random(44);
   const seconds = 31;
   const length = Math.round(seconds * BED_RATE);
-  const gusts = [0, 1].map(() => ({ a: 1 + Math.floor(next() * 3), b: 3 + Math.floor(next() * 4), phase: next() * TAU }));
-  const channels = gusts.map(({ a, b, phase }) => {
-    const rush = lowNoise(length, next, () => 1100, BED_RATE);
-    const held = lowNoise(length, next, () => 180, BED_RATE);
+  const gust = gustsOver(seconds, next, [3, 8], [2, 6]);
+  const channels = [0, 1].map(() => {
+    const rush = lowNoise(length, next, (i) => 450 + 900 * gust(i / BED_RATE), BED_RATE);
+    const held = lowNoise(length, next, () => 140, BED_RATE);
+    const needles = lowNoise(length, next, () => 7000, BED_RATE);
+    const needlesHeld = lowNoise(length, next, () => 3000, BED_RATE);
     return rush.map((sample, i) => {
-      const place = (TAU * i) / length;
-      const gust = Math.max(0.15, 0.45 + 0.4 * Math.sin(a * place + phase) + 0.2 * Math.sin(b * place + 2 * phase));
-      return gust * (sample - 0.7 * held[i]);
+      const blowing = gust(i / BED_RATE);
+      return (0.6 + 0.4 * blowing) * (sample - 0.7 * held[i]) + 0.25 * blowing * (needles[i] - needlesHeld[i]);
     });
   });
   normalise(channels, 0.8);
