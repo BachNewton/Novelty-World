@@ -50,7 +50,7 @@ from shapely.geometry import LineString, Point, Polygon
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
 from roads import CLASSES, class_of
 from paving import CARRIAGEWAY_EDGE_ACROSS, is_crossing
-from paving_file import read_paving
+from paving_file import ACROSS as PAVING_ACROSS, WAY as PAVING_WAY, Paving, read_paving
 from progress import Progress
 from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
@@ -58,8 +58,6 @@ from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 
 FILE = "roadside.json"
 RINGS = 5
-# Where a paved tile's points carry how far across their way they lie, and which way.
-PAVING_ACROSS, PAVING_WAY = 3, 6
 OUTER_LEFT, EDGE_LEFT, CENTRE, EDGE_RIGHT, OUTER_RIGHT = range(RINGS)
 # Placed from OSM's objects as well as its roads, so the list is ODbL, as the roads are.
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
@@ -265,23 +263,9 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         rank = CLASSES[kind].rank if kind in CLASSES else 6
         chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans", [])], chain.get("name") or ""))
         first += chain["sections"]
-    aprons = surface["aprons"]
     laid = read_paving(folder, manifest)
-    points, triangles = laid.points, laid.triangles
-    owners = np.full(len(triangles), -1)
-    if surface.get("paved"):
-        corners = points[triangles]
-        across = np.abs(corners[:, :, PAVING_ACROSS])
-        # The paving ends with the points of pieces no way owns, drawn as shoulders, then the car parks'.
-        owned = (triangles < len(points) - aprons["junctionPoints"] - aprons["areaPoints"]).all(axis=1)
-        way = corners[:, 0, PAVING_WAY].astype(int)
-        motor = np.array([chain["motor"] for chain in surface["chains"]], dtype=bool)
-        owned &= way >= 0
-        carriageway = owned & ((across <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
-        owners = np.where(carriageway, way, -1)
-        kept = carriageway | ~owned
-        triangles, owners = triangles[kept], owners[kept]
-    pieces = [Polygon(points[triangle, :2]) for triangle in triangles]
+    triangles, owners = kept_off(surface, laid)
+    pieces = [Polygon(laid.points[triangle, :2]) for triangle in triangles]
     owners = [int(owner) for owner in owners]
     if surface.get("paved"):
         roads = json.loads((folder / "roads.json").read_text(encoding="utf-8"))["roads"]
@@ -289,6 +273,24 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         pieces += crossings
         owners += [-1] * len(crossings)
     return [chain for chain in chains if len(chain.rings) > 1], pieces, owners
+
+
+def kept_off(surface: dict, laid: Paving) -> tuple[np.ndarray, np.ndarray]:
+    """The triangles of a tile's paving that keep things off it, and the chain owning each, -1 for none: a ribbon tile's
+    aprons, all owned by none, or a paved tile's carriageways, junction and gap pieces and car parks (`read_surface`)."""
+    triangles = laid.triangles
+    if not surface.get("paved"):
+        return triangles, np.full(len(triangles), -1)
+    aprons = surface["aprons"]
+    corners = laid.points[triangles]
+    # The paving ends with the points of pieces no way owns, drawn as shoulders, then the car parks'.
+    owned = (triangles < len(laid.points) - aprons["junctionPoints"] - aprons["areaPoints"]).all(axis=1)
+    way = corners[:, 0, PAVING_WAY].astype(int)
+    motor = np.array([chain["motor"] for chain in surface["chains"]], dtype=bool)
+    owned &= way >= 0
+    carriageway = owned & ((np.abs(corners[:, :, PAVING_ACROSS]) <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
+    kept = carriageway | ~owned
+    return triangles[kept], np.where(carriageway, way, -1)[kept]
 
 
 class Paved:
