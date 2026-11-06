@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -75,6 +75,12 @@ function dayText(date: string): string {
   return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+/** The air's temperature as a driver reads it, in whole degrees with a true minus: "−7°". */
+function temperatureText(celsius: number): string {
+  const degrees = Math.round(celsius);
+  return `${degrees < 0 ? "−" : ""}${Math.abs(degrees)}°`;
+}
+
 /** The hour as a 24-hour clock: "14:05". */
 function hourText(hour: number): string {
   const minutes = Math.floor(hour * 60);
@@ -111,6 +117,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const hourShown = useRef<HTMLSpanElement>(null);
   const sunIcon = useRef<SVGSVGElement>(null);
   const moonIcon = useRef<SVGSVGElement>(null);
+  const temperatureRow = useRef<HTMLSpanElement>(null);
+  const temperatureShown = useRef<HTMLSpanElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
   const cueText = useRef<HTMLSpanElement>(null);
@@ -200,6 +208,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
       if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
+      if (temperatureRow.current) temperatureRow.current.style.display = clock.temperatureC === null ? "none" : "flex";
+      if (temperatureShown.current && clock.temperatureC !== null) temperatureShown.current.textContent = temperatureText(clock.temperatureC);
       if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
@@ -278,7 +288,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
       {/* The day over the mini map, as wide as it: date, and the hour with the sun or the moon. */}
-      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Date and time">
+      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Date, time and temperature">
         <span className="flex items-center gap-1" title="Date">
           <CalendarDays className="size-5 shrink-0" aria-hidden />
           <span ref={dateShown} aria-label="Date" />
@@ -287,6 +297,10 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
           <Moon ref={moonIcon} className="size-5 shrink-0" style={{ display: "none" }} aria-hidden />
           <span ref={hourShown} aria-label="Time" />
+        </span>
+        <span ref={temperatureRow} className="items-center gap-1" style={{ display: "none" }} title="Temperature">
+          <Thermometer className="size-5 shrink-0" aria-hidden />
+          <span ref={temperatureShown} aria-label="Temperature" />
         </span>
       </div>
       <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />

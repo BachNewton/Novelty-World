@@ -354,7 +354,7 @@ export interface HudReading {
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
   /** The day this page shows: its date (as `?date=` takes it), the hour, and whether the sun is up. */
-  clock: { date: string; hour: number; sunUp: boolean };
+  clock: { date: string; hour: number; sunUp: boolean; temperatureC: number | null };
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -1895,7 +1895,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
-    const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
+    const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
