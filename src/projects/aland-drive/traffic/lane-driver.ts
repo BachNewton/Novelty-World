@@ -75,8 +75,9 @@ const WALKER_PACE_MS = 1.15;
 const WALKER_PACE_RANGE_MS = 0.35;
 /** A walker hurries across a road at this share of its pace. */
 const CROSSING_SHARE = 1.2;
-/** A path across a road starts this near where the path ending at it meets the road. */
+/** A path across a road starts this near where the path ending at it meets the road, and at most this far from its end: further is a junction's diagonal, which no one walks. */
 const CROSSING_REACH_M = 15;
+const LONGEST_CROSSING_M = 12;
 /** How far round a walker looks for others, and how near an oncoming one comes before it keeps further right. */
 const FOOT_SEE_M = 20;
 const FOOT_MEET_M = 8;
@@ -84,6 +85,10 @@ const FOOT_MEET_M = 8;
 const FOOT_CLEAR_M = 0.2;
 const FOOT_PASS_M = 4;
 const FOOT_ROUND_M = 6;
+/** A walker this near its line's end is on to the next. */
+const FOOT_END_M = 0.5;
+/** Someone this near ahead and in its way, a walker doesn't step into, whatever else it means to do. */
+const FOOT_TOUCH_M = 0.6;
 /** A walker steps sideways at this pace, at most this far past its lane's outer edge, or round someone standing. */
 const FOOT_SHIFT_MS = 0.7;
 const FOOT_VERGE_M = 0.6;
@@ -176,8 +181,10 @@ export interface LaneCar {
   paceMS: number;
   /** The connector or link it will take at its lane's end, once chosen; for a walker turning back, its path's other way. */
   next: LineRef | null;
-  /** A walker crossing a road: the link off the road on to the path beyond, after the link on to it. */
+  /** A walker to cross a road to the path beyond, which is its `next`: the link its path has on to the road, where it waits for a gap. */
   crossing: number | null;
+  /** A walker out on the road, crossing it, until it reaches the path beyond. */
+  onRoad: boolean;
   /** A cyclist on a road: the link to a path it turns off at, partway along its lane. */
   exit: { link: number; along: number } | null;
   /** Its trip has ended, at a dead end, and it stands until it may go unseen. */
@@ -427,6 +434,7 @@ export class LaneTraffic {
       paceMS: kind === "bike" ? BIKE_PACE_MS + seedShare(seed, 1) * BIKE_PACE_RANGE_MS : kind === "walker" ? this.walkerPace(seed) : Infinity,
       next: null,
       crossing: null,
+      onRoad: false,
       exit: null,
       finished: false,
       waiting: false,
@@ -542,7 +550,10 @@ export class LaneTraffic {
       // On at its line's end, a line of no length included, or near the end once nearer the next line than its own: a
       // square corner, as a link or a path's turn can be, is cut, and the body never passes the corner's point.
       let nowhere = false;
-      for (let lines = 0; lines < MOST_LINES_A_STEP && (along >= end || (lines === 0 && end - along < CUT_M && this.cutOnto(car, middle, along))); lines++) {
+      // A walker, which turns on the spot, steps on to its next line as it reaches the end of its own: one going back the
+      // way it came, or on to a path not joined to its own, would otherwise turn round short of the end for good.
+      const reached = (at: number) => at >= end || (car.kind === "walker" && end - at < FOOT_END_M);
+      for (let lines = 0; lines < MOST_LINES_A_STEP && (reached(along) || (lines === 0 && end - along < CUT_M && this.cutOnto(car, middle, along))); lines++) {
         const past = Math.max(0, along - end) + CUT_M;
         const onward = this.onward(car);
         nowhere = !onward;
@@ -564,6 +575,8 @@ export class LaneTraffic {
       car.pose = { ...middle, y: ground.y, yaw: car.body.heading };
       // Off its lane as it means to be, eased across or not.
       car.offLaneM = Math.hypot(middle.x - (ground.x - ground.dz * car.shiftM), middle.z - (ground.z + ground.dx * car.shiftM));
+      // A walker across the road is on the path beyond once it reaches it.
+      if (car.onRoad && car.offLaneM < 1) car.onRoad = false;
       car.signal = this.signalOf(car);
     }
   }
@@ -710,7 +723,10 @@ export class LaneTraffic {
       .filter((index) => (car.kind === "car" ? tile.connectors[index].turn !== "back" : goes(car.kind, tile.lanes[tile.connectors[index].to])))
       .map((index) => ({ way: { tile: car.place.tile, index, connector: true }, crossing: null }));
     if (car.kind === "bike") for (const index of this.linksOf(tile).onTo.get(car.place.index) ?? []) ways.push({ way: { tile: car.place.tile, index, connector: false, link: true }, crossing: null });
-    if (car.kind === "walker") for (const { on, off } of this.crossingsFrom(tile, car.place.index)) ways.push({ way: { tile: car.place.tile, index: on, connector: false, link: true }, crossing: off });
+    if (car.kind === "walker") {
+      for (const { on, beyond } of this.crossingsFrom(tile, car.place.index)) ways.push({ way: { tile: car.place.tile, index: beyond, connector: false }, crossing: on });
+      for (const index of this.pathsOn(tile, car.place.index)) ways.push({ way: { tile: car.place.tile, index, connector: false }, crossing: null });
+    }
     const back = car.kind === "walker" && ways.length === 0 ? this.otherWay(tile, car.place.index) : null;
     if (back !== null) ways.push({ way: { tile: car.place.tile, index: back, connector: false }, crossing: null });
     const chosen = ways.length > 0 ? ways[Math.floor(this.random() * ways.length)] : null;
@@ -734,6 +750,25 @@ export class LaneTraffic {
     return found;
   }
 
+  /** The paths that start where a path ends, not joined to it by a junction: a walker walks straight on to one. */
+  private pathsOn(tile: TileLanes, index: number): number[] {
+    const lane = tile.lanes[index];
+    const end = pointAlong(tile.points, lane, Infinity);
+    const joined = new Set(lane.next.map((connector) => tile.connectors[connector].to));
+    return this.pathStartsNear(tile, end).filter((other) => tile.lanes[other].chain !== lane.chain && !joined.has(other));
+  }
+
+  /** The paths a walker may walk that start within a corner's cut of a place. */
+  private pathStartsNear(tile: TileLanes, at: { x: number; z: number }): number[] {
+    const found: number[] = [];
+    for (const [index, lane] of tile.lanes.entries()) {
+      if (!walks(lane)) continue;
+      const start = pointAlong(tile.points, lane, 0);
+      if (Math.abs(start.x - at.x) < CUT_M && Math.abs(start.z - at.z) < CUT_M && Math.hypot(start.x - at.x, start.z - at.z) < CUT_M) found.push(index);
+    }
+    return found;
+  }
+
   /** A path's other way, starting where this one ends: where a walker with nowhere on to go turns back. */
   private otherWay(tile: TileLanes, index: number): number | null {
     const lane = tile.lanes[index];
@@ -749,24 +784,26 @@ export class LaneTraffic {
   }
 
   /**
-   * The ways a walker at a path's end by a road can cross it: the link from its path on to the road there, and a link
-   * off the road on to another path that starts near where it met it.
+   * The ways a walker at a path's end by a road can cross it: the link from its path on to the road there, and the path
+   * beyond, linked to the road near where it met it, on the road's other side. It walks straight from one to the other.
    */
-  private crossingsFrom(tile: TileLanes, index: number): { on: number; off: number }[] {
-    const found: { on: number; off: number }[] = [];
+  private crossingsFrom(tile: TileLanes, index: number): { on: number; beyond: number }[] {
+    const found: { on: number; beyond: number }[] = [];
     const { chain } = tile.lanes[index];
+    const end = pointAlong(tile.points, tile.lanes[index], Infinity);
     for (const on of this.linksOf(tile).onTo.get(index) ?? []) {
       const onRoad = pointAlong(tile.points, tile.links[on], Infinity);
       for (const [off, link] of tile.links.entries()) {
         if (link.onToRoad || tile.lanes[link.path].chain === chain || !walks(tile.lanes[link.path])) continue;
         const offRoad = pointAlong(tile.points, link, 0);
-        if (Math.hypot(offRoad.x - onRoad.x, offRoad.z - onRoad.z) < CROSSING_REACH_M) found.push({ on, off });
+        const beyond = pointAlong(tile.points, link, Infinity);
+        if (Math.hypot(offRoad.x - onRoad.x, offRoad.z - onRoad.z) < CROSSING_REACH_M && Math.hypot(beyond.x - end.x, beyond.z - end.z) < LONGEST_CROSSING_M && this.crossesRoad(tile, on, off)) found.push({ on, beyond: link.path });
       }
     }
     return found;
   }
 
-  /** Whether a walker's crossing takes it over its road, from one side of the lane it steps on to to the other, rather than along the road's edge. */
+  /** Whether a link on to a road and one off it take a walker over the road, from one side of the lane it steps on to to the other, rather than along its edge. */
   private crossesRoad(tile: TileLanes, on: number, off: number): boolean {
     const link = tile.links[on];
     const road = pointAlong(tile.points, tile.lanes[link.road], link.along);
@@ -774,11 +811,21 @@ export class LaneTraffic {
     return side(pointAlong(tile.points, link, 0)) !== side(pointAlong(tile.points, tile.links[off], Infinity));
   }
 
-  /** Whether anything on the road a walker's crossing spans, either way, is near where it crosses or will be soon. */
+  /**
+   * Whether anything on the road a walker's crossing spans, either way, is near where it crosses or will be soon, or
+   * anything else on the roads is: a turn through a junction beside the crossing.
+   */
   private roadBusy(car: LaneCar, on: number): boolean {
     const tile = this.tileOf(car.place);
     const link = tile.links[on];
     const at = pointAlong(tile.points, link, Infinity);
+    for (const other of this.others()) {
+      if (other.car?.kind === "walker" || other.still) continue;
+      const [x, z] = [at.x - other.x, at.z - other.z];
+      const away = Math.hypot(x, z);
+      const closing = (other.vx * x + other.vz * z) / Math.max(away, 1e-6);
+      if (away < JOIN_NEAR_M || (closing > SLOWEST_MS && away / closing < JOIN_WITHIN_S)) return true;
+    }
     for (const lane of this.chainsOf(tile).get(tile.lanes[link.road].chain) ?? []) {
       if (tile.lanes[lane].path) continue;
       const along = alongNearest(tile.points, tile.lanes[lane], at.x, at.z, 0, Infinity);
@@ -805,8 +852,8 @@ export class LaneTraffic {
   /** The line after a vehicle's own, from where it joins it, or none where its lane ends with no way on. */
   private onward(car: LaneCar): Leg | null {
     const route = this.route(car);
-    // On to the link off the road, a walker's crossing is all but done: from there it's the path beyond.
-    if (car.crossing !== null && route[1]?.link && !this.tileOf(route[1]).links[route[1].index].onToRoad) car.crossing = null;
+    // On to the path beyond, a walker crossing has stepped out on to the road, and is on it until it reaches the path.
+    if (car.crossing !== null) car.onRoad = true;
     car.next = null;
     car.exit = null;
     return route.length > 1 ? route[1] : null;
@@ -825,7 +872,6 @@ export class LaneTraffic {
   private route(car: LaneCar): Leg[] {
     const { place } = car;
     const own = this.whole(place);
-    if (place.link && car.crossing !== null) return [own, ...this.crossOn(place.tile, car.crossing)];
     if (place.connector || place.link) return [own, this.after(place)];
     if (car.exit) {
       const link = { tile: place.tile, index: car.exit.link, connector: false, link: true };
@@ -835,22 +881,15 @@ export class LaneTraffic {
     if (across) return [own, this.whole({ tile: across.tile, index: across.lane, connector: false })];
     const next = this.choose(car);
     if (next === null) return [own];
-    // A walker turning back takes its path's other way, from its start.
+    // A walker's way on to a path not joined to its own, across a road or turning back, is that path from its start.
     if (!next.connector && !next.link) return [own, this.whole(next)];
-    if (car.crossing !== null) return [own, this.whole(next), ...this.crossOn(place.tile, car.crossing)];
     return [own, this.whole(next), this.after(next)];
-  }
-
-  /** A crossing's way on from the road: the link off it, and the path beyond. */
-  private crossOn(tile: string, off: number): Leg[] {
-    const link = { tile, index: off, connector: false, link: true };
-    return [this.whole(link), this.after(link)];
   }
 
   /** The speed a vehicle may ride at a place along a line: a car the line's limit; a cyclist its own pace, and no faster than a road's limit. */
   private wantedAt(car: LaneCar, place: OnLane): number {
     if (car.kind === "car") return this.limitAt(place);
-    if (car.kind === "walker") return place.link ? car.paceMS * CROSSING_SHARE : car.paceMS;
+    if (car.kind === "walker") return car.onRoad ? car.paceMS * CROSSING_SHARE : car.paceMS;
     if (place.link) return Math.min(car.paceMS, LINK_MS);
     return this.laneOf(place).path ? car.paceMS : Math.min(car.paceMS, this.limitAt(place));
   }
@@ -909,11 +948,11 @@ export class LaneTraffic {
     const tile = this.tileOf(route[0]);
     const ways = new Set(route.map(keyOf));
     const into = route.find((line) => line.connector);
-    if (into) tile.connectors.forEach((other, index) => other.to === tile.connectors[into.index].to && ways.add(keyOf({ tile: into.tile, index, connector: true })));
+    if (into) for (const index of this.around.connectorsInto(tile, tile.connectors[into.index].to)) ways.add(keyOf({ tile: into.tile, index, connector: true }));
     // A simulated car is braked for by where it lies, whatever its way (`react`).
     // A car passes cyclists, and anyone passes walkers, by where they are (`react`); a car meets a walker only crossing its road.
     const followed = (kind: VehicleKind | undefined) => kind !== "walker" && !(car.kind === "car" && kind === "bike");
-    return this.around.ahead(car.id, LOOK_M).find((seen) => !this.driven.has(seen.id) && ways.has(keyOf(seen.place)) && followed(this.cars.get(seen.id)?.kind)) ?? null;
+    return this.around.ahead(car.id, car.kind === "walker" ? FOOT_SEE_M : LOOK_M).find((seen) => !this.driven.has(seen.id) && ways.has(keyOf(seen.place)) && followed(this.cars.get(seen.id)?.kind)) ?? null;
   }
 
   /** Whether anyone but this vehicle is moving through the junction a connector crosses. */
@@ -994,9 +1033,10 @@ export class LaneTraffic {
       car.waiting = car.speedMS < slowestMS;
     }
     // A cyclist joining a road waits at its path's end, clear of the road, for a gap, and a walker crossing one for a gap
-    // either way; once on the link it's committed.
-    const joining = next?.link && this.tileOf(car.place).links[next.index].onToRoad && toLine < stopping;
-    if (joining && (car.crossing === null ? this.mustJoinYield(car, next.index) : this.crossesRoad(this.tileOf(car.place), next.index, car.crossing) && this.roadBusy(car, next.index))) {
+    // either way; once on the link, or the road, it's committed.
+    const joining = next?.link && this.tileOf(car.place).links[next.index].onToRoad && toLine < stopping && this.mustJoinYield(car, next.index);
+    const crossing = car.crossing !== null && toLine < stopping && this.roadBusy(car, car.crossing);
+    if (joining || crossing) {
       obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
       car.waiting = car.speedMS < slowestMS;
     }
@@ -1119,9 +1159,9 @@ export class LaneTraffic {
         if (Math.hypot(other.x - car.pose.x, other.z - car.pose.z) > WALKER_NOTICE_M) continue;
         const seen = this.outline(car, other);
         if (!seen || seen.far < -long) continue;
-        if (car.kind === "car") {
-          // A car never meets a walker but one crossing its road: it stops short of them.
-          if (other.car?.place.link && seen.far > 0 && seen.right > car.shiftM - wide - CROSSING_MARGIN_M && seen.left < car.shiftM + wide + CROSSING_MARGIN_M) stopAt(seen.near);
+        if (car.kind === "car" || other.car?.onRoad) {
+          // A car never meets a walker but one crossing its road, and stops short of them; nor does a cyclist go round one.
+          if (other.car?.onRoad && seen.far > 0 && seen.right > car.shiftM - wide - CROSSING_MARGIN_M && seen.left < car.shiftM + wide + CROSSING_MARGIN_M) stopAt(seen.near);
           continue;
         }
         // A cyclist slows for someone on foot near its way, and passes them with room: left of one going its way or
@@ -1133,6 +1173,8 @@ export class LaneTraffic {
         if (seen.opposing || middle < 0) right = Math.max(right, Math.min(room.moving, seen.right + WALKER_ROOM_M + wide));
         else if (seen.left - WALKER_ROOM_M - wide >= -laneWidth - VERGE_M && this.clearAhead(car, others, other.id, WALKER_NOTICE_M)) left = Math.min(left, seen.left - WALKER_ROOM_M - wide);
         if (inWay(car.shiftM) && seen.far > 0) reaction.obstacles.push({ gap: Math.max(0.1, seen.near), speedMS: seen.opposing ? 0 : seen.alongMS });
+        // Where paths bend through a junction its way and its body part; it never rides into anyone right in front of it.
+        if (this.aboutToTouch(car, seen)) stopAt(seen.near);
         continue;
       }
       // A cyclist going a car's way is passed with room to spare; anything else going a vehicle's way is the leader's business.
@@ -1230,6 +1272,13 @@ export class LaneTraffic {
     return reaction;
   }
 
+  /** Whether someone a walker or cyclist sees is right in front of its body as it really stands, and in its way. */
+  private aboutToTouch(car: LaneCar, seen: Outline): boolean {
+    if (seen.far <= 0 || seen.near > FOOT_TOUCH_M) return false;
+    const self = this.outline(car, asOther(car));
+    return self !== null && seen.right > self.left - FOOT_CLEAR_M / 2 && seen.left < self.right + FOOT_CLEAR_M / 2;
+  }
+
   /**
    * What the people and cyclists round a walker ask of it this step. It keeps its side: further right as someone comes,
    * past a slower walker on the left while nothing is coming, and round someone standing on whichever side is nearer.
@@ -1272,11 +1321,13 @@ export class LaneTraffic {
       if (seen.far <= 0 || !inWay(car.shiftM)) continue;
       const slower = standing || other.speedMS < car.paceMS - 0.1;
       if (slower && seen.near < (standing ? FOOT_ROUND_M : FOOT_PASS_M)) {
-        // Round someone standing on the nearer side that has room, round a walker on its left while nothing is coming.
+        // Round someone standing on the nearer side that has room, keeping to a side once stepping out to it, and round a
+        // walker on its left while nothing is coming.
         const [byLeft, byRight] = [seen.left - FOOT_CLEAR_M - wide, seen.right + FOOT_CLEAR_M + wide];
         const leftFits = byLeft >= -roundMost && (clear || standing);
         const rightFits = standing && byRight <= roundMost;
-        if (leftFits && (!rightFits || -byLeft <= byRight)) {
+        const leftFirst = car.shiftM < -FOOT_CLEAR_M / 2 || (car.shiftM <= FOOT_CLEAR_M / 2 && -byLeft <= byRight);
+        if (leftFits && (!rightFits || leftFirst)) {
           left = Math.min(left, byLeft);
           continue;
         }
@@ -1286,6 +1337,18 @@ export class LaneTraffic {
         }
       }
       reaction.obstacles.push({ gap: Math.max(0.1, seen.near), speedMS: standing ? 0 : seen.alongMS });
+    }
+    // Never into someone, where paths meet and nobody has the right of way. Two walkers each about to step into the
+    // other don't both wait: the one standing, or else the first by name, goes first.
+    for (const { other, seen } of outlines) {
+      if (!seen || other.car?.kind === "bike" || !this.aboutToTouch(car, seen)) continue;
+      const theirs = other.car;
+      if (theirs?.kind === "walker") {
+        const back = this.outline(theirs, asOther(car));
+        const first = car.speedMS < theirs.speedMS || (car.speedMS === theirs.speedMS && car.id < theirs.id) ? car : theirs;
+        if (back && this.aboutToTouch(theirs, back) && first === car) continue;
+      }
+      reaction.obstacles.push({ gap: 0.1, speedMS: 0 });
     }
     reaction.shiftM = left < 0 ? left : right;
     return reaction;

@@ -297,28 +297,33 @@ describe("walkers", () => {
     const car = cars.spawn({ tile: "X", index: 1, connector: false, along: 300 }, 50 / 3.6);
     let carPastWhenOut = null as boolean | null;
     let touched = false;
-    for (let step = 0; step < 40 / STEP && !(walker.place.index === 4 && !walker.place.link); step++) {
+    for (let step = 0; step < 40 / STEP && !(walker.place.index === 4 && !walker.onRoad); step++) {
       cars.step(STEP);
       touched ||= touching(outlineOf(walker), outlineOf(car));
-      if (carPastWhenOut === null && walker.place.link) carPastWhenOut = car.pose.x < 95;
+      if (carPastWhenOut === null && walker.onRoad) carPastWhenOut = car.pose.x < 95;
     }
     expect(touched).toBe(false);
     expect(carPastWhenOut).toBe(true);
     expect(walker.place).toMatchObject({ index: 4, connector: false });
-    expect(walker.pose.z).toBeLessThan(-4);
+    expect(walker.pose.z).toBeLessThan(-2.9);
   });
 
-  it("are stopped for by a car while they cross", () => {
+  it("are braked for by a car while they cross", () => {
     const cars = crossing(() => 1.3);
-    const walker = cars.spawn({ tile: "X", index: 0, connector: false, link: true, along: 0 }, 1.3, { kind: "walker", seed: 1 });
-    walker.crossing = 1;
-    const car = cars.spawn({ tile: "X", index: 0, connector: false, along: 55 }, 40 / 3.6);
-    let touched = false;
-    for (let step = 0; step < 20 / STEP; step++) {
+    const walker = cars.spawn({ tile: "X", index: 2, connector: false, along: 54 }, 1.3, { kind: "walker", seed: 1 });
+    for (let step = 0; step < 10 / STEP && !walker.onRoad; step++) cars.step(STEP);
+    expect(walker.onRoad).toBe(true);
+    // A car come round a corner after the walker stepped out, as near as it could stop from.
+    const car = cars.spawn({ tile: "X", index: 0, connector: false, along: 70 }, 40 / 3.6);
+    let [touched, slowest] = [false, Infinity];
+    for (let step = 0; step < 30 / STEP; step++) {
       cars.step(STEP);
       touched ||= touching(outlineOf(walker), outlineOf(car));
+      if (car.pose.x < 100) slowest = Math.min(slowest, car.speedMS);
     }
     expect(touched).toBe(false);
+    // Without the walker it would have kept its 11 m/s.
+    expect(slowest).toBeLessThan(5);
     expect(car.pose.x).toBeGreaterThan(110);
   });
 

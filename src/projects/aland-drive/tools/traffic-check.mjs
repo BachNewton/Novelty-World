@@ -115,8 +115,9 @@ const result = await step(
             const time = car.speedMS < 0.3 ? (still.get(car.id) ?? 0) + 1 : 0;
             still.set(car.id, time);
             const known = strayed.get(car.id);
-            const way = car.place.connector ? `${probe.lanes().tile(car.place.tile)?.connectors[car.place.index].turn ?? ""} turn` : "lane";
-            if (!known || car.offLaneM > known.offM) strayed.set(car.id, { offM: car.offLaneM, x: car.pose.x, z: car.pose.z, place: `${car.place.tile} ${way} ${car.place.index}` });
+            const way = car.place.connector ? `${probe.lanes().tile(car.place.tile)?.connectors[car.place.index].turn ?? ""} turn` : car.place.link ? "link" : `${car.kind === "walker" ? "path" : "lane"}`;
+            // A walker crossing a road walks straight to the path beyond, off every lane on the way.
+            if (!car.onRoad && (!known || car.offLaneM > known.offM)) strayed.set(car.id, { offM: car.offLaneM, x: car.pose.x, z: car.pose.z, place: `${car.place.tile} ${way} ${car.place.index}` });
             if (time >= stuckS) stuck.set(car.id, { id: car.id, x: car.pose.x, z: car.pose.z, waiting: car.waiting, finished: car.finished, seconds: time, place: `${car.place.tile} ${car.place.connector ? "connector" : "lane"} ${car.place.index}` });
           }
           // A wait between frames lets the page breathe; the clock is held, so it changes nothing.

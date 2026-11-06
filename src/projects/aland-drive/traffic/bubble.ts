@@ -58,8 +58,6 @@ const WALKERS_PER_KM: Partial<Record<string, number>> = {
   bridleway: 0.3,
 };
 
-/** A slot every this many metres of lane, the first half that from its start. */
-const SLOT_M = 40;
 
 interface KindRules {
   /** Vehicles per kilometre of a lane at a density of 1. */
@@ -74,12 +72,19 @@ interface KindRules {
    */
   beyondM: number;
   leaveM: number;
+  /**
+   * A slot every this many metres of lane, the first half that from its start. A walker's paths are cut into short
+   * lanes at every junction, so its lanes share their whole length among their slots, at least one a lane; a car's
+   * or a cyclist's past its last whole slot holds none.
+   */
+  slotM: number;
+  shortLanes: boolean;
 }
 
 const RULES: Record<VehicleKind, KindRules> = {
-  car: { perKm: (lane) => (lane.path ? 0 : (CARS_PER_KM[lane.kind] ?? 0)), nearestM: 80, clearM: 25, beyondM: 250, leaveM: 200 },
-  bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8, beyondM: 250, leaveM: 200 },
-  walker: { perKm: (lane) => (walks(lane) ? (WALKERS_PER_KM[lane.kind] ?? 0) : 0), nearestM: 20, clearM: 3, beyondM: 100, leaveM: 100 },
+  car: { perKm: (lane) => (lane.path ? 0 : (CARS_PER_KM[lane.kind] ?? 0)), nearestM: 80, clearM: 25, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
+  bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
+  walker: { perKm: (lane) => (walks(lane) ? (WALKERS_PER_KM[lane.kind] ?? 0) : 0), nearestM: 20, clearM: 3, beyondM: 100, leaveM: 100, slotM: 10, shortLanes: true },
 };
 
 /** Whether two kinds ever meet on a lane: a walker on a pavement is no reason for a car not to start beside it. */
@@ -153,7 +158,7 @@ export class Bubble {
 
   private fill(kind: VehicleKind, focus: { x: number; z: number }): void {
     const { reachM, density } = this.kinds[kind];
-    const { perKm, nearestM, clearM, beyondM } = RULES[kind];
+    const { perKm, nearestM, clearM, beyondM, slotM, shortLanes } = RULES[kind];
     const bubbleM = reachM + beyondM;
     const fresh = this.fresh.has(kind);
     const others = [...this.traffic.all()];
@@ -163,21 +168,23 @@ export class Bubble {
       const tile = this.net.tile(ref.tile);
       if (!tile) continue;
       const lane = tile.lanes[ref.lane];
-      const share = Math.min(1, (perKm(lane) * density * SLOT_M) / 1000);
-      if (share === 0) continue;
+      if (perKm(lane) === 0) continue;
       const place: OnLane = { tile: ref.tile, index: ref.lane, connector: false, along: 0 };
-      const slots = Math.floor(this.traffic.around.length(place) / SLOT_M);
+      const length = this.traffic.around.length(place);
+      const slots = shortLanes ? Math.max(1, Math.round(length / slotM)) : Math.floor(length / slotM);
+      const spacing = shortLanes ? length / slots : slotM;
+      const share = Math.min(1, (perKm(lane) * density * spacing) / 1000);
       for (let slot = 0; slot < slots; slot++) {
         const id = `${kind}:${ref.tile}:${ref.lane}:${slot}`;
         const seed = seedOf(id);
         if (seedShare(seed) >= share || this.traffic.get(id)) continue;
-        const at = pointAlong(tile.points, lane, (slot + 0.5) * SLOT_M);
+        const at = pointAlong(tile.points, lane, (slot + 0.5) * spacing);
         const away = Math.hypot(at.x - focus.x, at.z - focus.z);
         if (away > bubbleM || (!fresh && away < nearestM)) continue;
         if (others.some((other) => meet(other.kind, kind) && Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
         const half = kind === "car" ? this.traffic.halfOf(seed) : null;
         if (!fresh && this.seen({ kind, pose: { ...at, yaw: 0 }, half: half ?? [0.5, 1] })) continue;
-        others.push(this.traffic.enter({ ...place, along: (slot + 0.5) * SLOT_M }, { kind, seed, id }));
+        others.push(this.traffic.enter({ ...place, along: (slot + 0.5) * spacing }, { kind, seed, id }));
         this.made.spawned++;
       }
     }

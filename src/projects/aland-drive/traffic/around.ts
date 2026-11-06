@@ -1,5 +1,5 @@
 import type { LaneNet } from "./lane-net";
-import { lineLength, lineOf, type Connector, type LaneLine } from "./lane-map";
+import { lineLength, lineOf, type Connector, type LaneLine, type TileLanes } from "./lane-map";
 
 /*
  * Knowing what's around: every vehicle near the player, whatever drives it, each
@@ -60,6 +60,8 @@ export class Around {
   private readonly places = new Map<string, OnLane>();
   private readonly onLines = new Map<string, Set<string>>();
   private readonly lengths = new Map<string, number>();
+  /** Each tile's connectors by the lane they lead into. */
+  private readonly into = new WeakMap<TileLanes, Map<number, number[]>>();
 
   constructor(private readonly net: LaneNet) {
     net.subscribe(() => {
@@ -177,17 +179,31 @@ export class Around {
     return [...seen.values()].sort((a, b) => a.gap - b.gap);
   }
 
+  /** The connectors of a tile that lead into one of its lanes. */
+  connectorsInto(tile: TileLanes, lane: number): readonly number[] {
+    let into = this.into.get(tile);
+    if (!into) {
+      into = new Map();
+      for (const [index, { to }] of tile.connectors.entries()) {
+        const list = into.get(to);
+        if (list) list.push(index);
+        else into.set(to, [index]);
+      }
+      this.into.set(tile, into);
+    }
+    return into.get(lane) ?? [];
+  }
+
   /** Vehicles on the other connectors into the lane a connector leads to, counted as far off as they are from its end. */
   private merging(place: LineRef, gapAtStart: number, except: string, note: (id: string, gap: number, at: OnLane) => void): void {
     const tile = this.net.tile(place.tile);
     if (!tile) return;
-    const target = tile.connectors[place.index].to;
     const ownLength = this.length(place);
-    tile.connectors.forEach((other, index) => {
-      if (index === place.index || other.to !== target) return;
+    for (const index of this.connectorsInto(tile, tile.connectors[place.index].to)) {
+      if (index === place.index) continue;
       const otherLength = this.length({ tile: place.tile, index, connector: true });
       for (const vehicle of this.on({ tile: place.tile, index, connector: true }, except)) note(vehicle.id, gapAtStart + Math.max(0, ownLength - (otherLength - vehicle.along)), { tile: place.tile, index, connector: true, along: vehicle.along });
-    });
+    }
   }
 
   /** The nearest vehicles behind within a reach, back along the line and the lanes leading into it. */
