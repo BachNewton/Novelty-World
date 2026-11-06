@@ -3,7 +3,7 @@ import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { landing, mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rainLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, type Loop } from "./synthesis";
+import { CYCLE_RPM, engineCycle, birdsBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, leavesBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, winterBed, winterCallsBed, type Loop } from "./synthesis";
 import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -193,7 +193,8 @@ interface Rig {
   windLow: ReturnType<typeof noiseBand>;
   windHigh: ReturnType<typeof noiseBand>;
   gale: ReturnType<typeof noiseBand>;
-  rain: ReturnType<typeof looped>;
+  rainLight: ReturnType<typeof looped>;
+  rainHeavy: ReturnType<typeof looped>;
   gravel: ReturnType<typeof looped>;
   grass: ReturnType<typeof looped>;
   rock: ReturnType<typeof looped>;
@@ -206,7 +207,10 @@ interface Rig {
   squeakTones: OscillatorNode[];
   squeakFilter: BiquadFilterNode;
   squeakLevel: GainNode;
-  forest: GainNode;
+  leaves: GainNode;
+  birds: GainNode;
+  winter: GainNode;
+  winterCalls: GainNode;
   shore: GainNode;
   gulls: GainNode;
   town: GainNode;
@@ -230,8 +234,12 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
   const spray = looped(context, sprayLoop(), master);
   const snow = looped(context, snowLoop(), master);
   const studs = looped(context, studsLoop(), master);
-  const rain = looped(context, rainLoop(), master);
-  const forest = looped(context, forestBed(), master);
+  const rainLight = looped(context, rainLightLoop(), master);
+  const rainHeavy = looped(context, rainHeavyLoop(), master);
+  const leaves = looped(context, leavesBed(), master);
+  const birds = looped(context, birdsBed(), master);
+  const winter = looped(context, winterBed(), master);
+  const winterCalls = looped(context, winterCallsBed(), master);
   const shore = looped(context, shoreBed(), master);
   const gulls = looped(context, gullsBed(), master);
   const town = looped(context, townBed(), master);
@@ -291,7 +299,8 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     windLow: noiseBand(context, noise, master, "bandpass", 0.5),
     windHigh: noiseBand(context, noise, master, "bandpass", 0.6),
     gale: noiseBand(context, noise, master, "bandpass", 1.4),
-    rain,
+    rainLight,
+    rainHeavy,
     gravel,
     grass,
     rock,
@@ -304,13 +313,16 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     squeakTones,
     squeakFilter,
     squeakLevel,
-    forest: forest.level,
+    leaves: leaves.level,
+    birds: birds.level,
+    winter: winter.level,
+    winterCalls: winterCalls.level,
     shore: shore.level,
     gulls: gulls.level,
     town: town.level,
     ticks: toBuffer(freewheelLoop()),
     cycles: new Map(),
-    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rain.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
+    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rainLight.source, rainHeavy.source, leaves.source, birds.source, winter.source, winterCalls.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
 
@@ -400,11 +412,14 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     to(built.windLow.filter.frequency, mixed.windLowHz, 0.12);
     to(built.windHigh.level.gain, mixed.windHighLevel, 0.12);
     to(built.windHigh.filter.frequency, mixed.windHighHz, 0.12);
-    to(built.rain.level.gain, mixed.rainLevel, PLACE_FOLLOW_S);
-    to(built.rain.source.playbackRate, mixed.rainRate, PLACE_FOLLOW_S);
+    to(built.rainLight.level.gain, mixed.rainLightLevel, PLACE_FOLLOW_S);
+    to(built.rainHeavy.level.gain, mixed.rainHeavyLevel, PLACE_FOLLOW_S);
     to(built.gale.level.gain, mixed.galeLevel, 0.3);
     to(built.gale.filter.frequency, mixed.galeHz, 0.3);
-    to(built.forest.gain, mixed.forestLevel, PLACE_FOLLOW_S);
+    to(built.leaves.gain, mixed.leavesLevel, PLACE_FOLLOW_S);
+    to(built.birds.gain, mixed.birdsLevel, PLACE_FOLLOW_S);
+    to(built.winter.gain, mixed.winterLevel, PLACE_FOLLOW_S);
+    to(built.winterCalls.gain, mixed.winterCallsLevel, PLACE_FOLLOW_S);
     to(built.shore.gain, mixed.shoreLevel, PLACE_FOLLOW_S);
     to(built.gulls.gain, mixed.gullsLevel, PLACE_FOLLOW_S);
     to(built.town.gain, mixed.townLevel, PLACE_FOLLOW_S);
