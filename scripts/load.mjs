@@ -16,10 +16,10 @@
  *
  *   npm run load
  *
- * Works on Windows, Linux and macOS: CPU use comes from Node's own `os`
- * counters, sampled over a second; the process list from `ps`, or from the
- * Windows process table where there is no `ps`. GPU use is read only on
- * Windows, from its `GPU Engine` performance counters.
+ * Works on Windows, Linux and macOS. On Windows, the CPU and the GPU are
+ * sampled together from its performance counters, and the processes come from
+ * its process table; elsewhere, CPU use comes from Node's own `os` counters and
+ * the processes from `ps`, and the GPU is not measured.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -70,28 +70,38 @@ async function cpuUse() {
 }
 
 /**
- * The Windows process table and the GPU's engine counters, read in one
- * PowerShell call since starting PowerShell costs more than either. The
- * counters are sampled like the CPU, a second at a time; each sample lists
- * every process's use of every engine.
+ * The Windows process table, then the CPU and the GPU's engines sampled
+ * together, in one PowerShell call: the samples run at once rather than one
+ * after the other, and start only once PowerShell and the process table are
+ * read, so neither is in them. Each sample holds the CPU's use and every
+ * process's use of every GPU engine.
+ *
+ * A process that exits between a sample's two readings leaves its engine
+ * readings invalid (a nonzero `Status`), and Get-Counter reports that as an
+ * error while still returning every sample; those readings are dropped, as the
+ * process is gone. Only no samples at all means the counters could not be read.
  */
 const WINDOWS_READ = `
-$gpu = @(); $gpuError = $null
-try {
-  $sets = Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -SampleInterval ${SAMPLE_MS / 1000} -MaxSamples ${SAMPLES} -ErrorAction Stop
-  $i = 0
-  foreach ($set in $sets) {
-    foreach ($s in $set.CounterSamples) { if ($s.CookedValue -gt 0) { $gpu += [pscustomobject]@{ sample = $i; engine = $s.InstanceName; use = $s.CookedValue } } }
-    $i++
-  }
-} catch { $gpuError = $_.Exception.Message }
 $processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine)
-@{ processes = $processes; gpu = $gpu; gpuError = $gpuError } | ConvertTo-Json -Compress -Depth 3
+$cpu = @(); $gpu = @(); $countersError = $null
+$sets = @(Get-Counter '\\Processor(_Total)\\% Processor Time','\\GPU Engine(*)\\Utilization Percentage' -SampleInterval ${SAMPLE_MS / 1000} -MaxSamples ${SAMPLES} -ErrorAction SilentlyContinue -ErrorVariable failures)
+if ($sets.Count -eq 0) { $countersError = "$($failures | Select-Object -First 1)" }
+$i = 0
+foreach ($set in $sets) {
+  foreach ($s in $set.CounterSamples) {
+    if ($s.Status -ne 0) { continue }
+    if ($s.Path -like '*\\processor(_total)\\*') { $cpu += $s.CookedValue }
+    elseif ($s.CookedValue -gt 0) { $gpu += [pscustomobject]@{ sample = $i; engine = $s.InstanceName; use = $s.CookedValue } }
+  }
+  $i++
+}
+@{ processes = $processes; cpu = $cpu; gpu = $gpu; countersError = $countersError } | ConvertTo-Json -Compress -Depth 3
 `;
 
 /**
- * Every process (id, parent id, command line) and the GPU's use, or why
- * either could not be read.
+ * Every process (id, parent id, command line), the CPU's use where the
+ * platform's counters gave it (`null` where Node must sample it), and the
+ * GPU's use, or why it could not be read.
  */
 function readMachine() {
   if (process.platform !== "win32") {
@@ -101,9 +111,9 @@ function readMachine() {
         .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
         .filter((match) => match !== null)
         .map((match) => ({ pid: Number(match[1]), ppid: Number(match[2]), args: match[3] }));
-      return { processes, gpu: { error: "not measured on this platform" } };
+      return { processes, cpu: null, gpu: { error: "not measured on this platform" } };
     } catch {
-      return { processes: [], gpu: { error: "not measured on this platform" } };
+      return { processes: [], cpu: null, gpu: { error: "not measured on this platform" } };
     }
   }
   let read;
@@ -115,16 +125,16 @@ function readMachine() {
       }),
     );
   } catch (error) {
-    return { processes: [], gpu: { error: `could not be read (${error.message.split("\n")[0]})` } };
+    return { processes: [], cpu: null, gpu: { error: `could not be read (${error.message.split("\n")[0]})` } };
   }
   const processes = read.processes
     .filter((row) => typeof row.CommandLine === "string")
     .map((row) => ({ pid: row.ProcessId, ppid: row.ParentProcessId, args: row.CommandLine }));
-  const gpu =
-    read.gpuError === null
-      ? gpuUse(read.gpu)
-      : { error: `Windows' GPU Engine counters could not be read (${read.gpuError.trim()})` };
-  return { processes, gpu };
+  if (read.countersError !== null || read.cpu.length === 0) {
+    const error = `Windows' performance counters could not be read (${(read.countersError ?? "no CPU readings").trim()})`;
+    return { processes, cpu: null, gpu: { error } };
+  }
+  return { processes, cpu: Math.max(...read.cpu) / 100, gpu: gpuUse(read.gpu) };
 }
 
 /**
@@ -210,9 +220,10 @@ function samePath(a, b) {
   return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
-// Sampled before the machine is read, so reading it is not in the sample.
-const cpu = await cpuUse();
-const { processes, gpu } = readMachine();
+const machine = readMachine();
+const { processes, gpu } = machine;
+// Where Node samples the CPU, it does so after the processes are read, so reading them is not in the sample.
+const cpu = machine.cpu ?? (await cpuUse());
 const byPid = new Map(processes.map((p) => [p.pid, p]));
 const here = path.resolve(process.cwd());
 
