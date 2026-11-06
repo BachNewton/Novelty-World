@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, type ComponentType } from "react";
-import { Check, CircleDot, Flag, LogOut, Play, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { Check, CircleDot, Ruler, Flag, LogOut, Play, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
 import { resultText } from "../challenge/format";
-import { tyreOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult } from "../render/game-menu";
+import { tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult } from "../render/game-menu";
+import { useUnits, type Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
 
 /*
@@ -30,8 +31,15 @@ const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
   studded: { icon: CircleDot, name: "Studded" },
 };
 
+const UNITS_LOOKS: Record<Units, { icon: ItemLook["icon"]; name: string; detail: string }> = {
+  metric: { icon: Ruler, name: "Metric", detail: "km/h · °C" },
+  imperial: { icon: Ruler, name: "Imperial", detail: "mph · °F" },
+};
+
 type TyreItem = `tyres-${Tyre}`;
 const isTyreItem = (id: MenuItemId): id is TyreItem => id.startsWith("tyres-");
+type UnitsItem = `units-${Units}`;
+const isUnitsItem = (id: MenuItemId): id is UnitsItem => id.startsWith("units-");
 
 interface ItemLook {
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
@@ -42,6 +50,7 @@ interface ItemLook {
 
 function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
   const muted = useDriveSoundSettings((state) => state.settings.muted);
+  const shownUnits = useUnits((state) => state.units);
   return (id) => {
     switch (id) {
       case "resume":
@@ -51,6 +60,11 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "tyres-studded": {
         const tyre = tyreOfItem(id);
         return { icon: TYRE_LOOKS[tyre].icon, label: `${TYRE_LOOKS[tyre].name} tyres`, on: menu.tyres === tyre };
+      }
+      case "units-metric":
+      case "units-imperial": {
+        const units = unitsOfItem(id);
+        return { icon: UNITS_LOOKS[units].icon, label: UNITS_LOOKS[units].name, on: units === shownUnits };
       }
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
@@ -75,6 +89,7 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
 /** How an attempt went: passed or not, against the target, and the best kept. */
 function ResultHeader({ title, result: { passed, kind, result, target, best, team } }: { title: string; result: MenuResult }) {
   const Verdict = passed ? Check : X;
+  const units = useUnits((state) => state.units);
   return (
     <div className="mb-1 flex flex-col gap-1" aria-label="Result">
       <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
@@ -86,56 +101,55 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
         <span>{passed ? "Passed" : "Failed"}</span>
       </div>
       <div className="flex items-baseline gap-2 text-lg tabular-nums">
-        <span className="text-2xl font-bold" aria-label={kind === "route" ? "Time" : "Speed"}>{result === null ? "–" : resultText(kind, result)}</span>
-        <span className="opacity-75" aria-label="Target">/ {resultText(kind, target)}</span>
+        <span className="text-2xl font-bold" aria-label={kind === "route" ? "Time" : "Speed"}>{result === null ? "–" : resultText(kind, result, units)}</span>
+        <span className="opacity-75" aria-label="Target">/ {resultText(kind, target, units)}</span>
       </div>
       {team && (
         <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Team">
           <div className="flex items-center gap-2" aria-label="Yours">
             <User aria-hidden className="size-4 shrink-0" />
-            <span>{team.own === null ? "–" : resultText(kind, team.own)}</span>
+            <span>{team.own === null ? "–" : resultText(kind, team.own, units)}</span>
           </div>
           <div className="flex items-center gap-2" aria-label={team.partnerName} title={team.partnerName}>
             <Users aria-hidden className="size-4 shrink-0" />
-            <span>{team.partner === null ? "–" : resultText(kind, team.partner)}</span>
+            <span>{team.partner === null ? "–" : resultText(kind, team.partner, units)}</span>
           </div>
         </div>
       )}
       {best !== null && (
         <div className="flex items-center gap-2 text-sm tabular-nums" aria-label="Best" title="Best">
           <Trophy aria-hidden className="size-4 shrink-0" style={{ color: ACCENT }} />
-          <span>{resultText(kind, best)}</span>
+          <span>{resultText(kind, best, units)}</span>
         </div>
       )}
     </div>
   );
 }
 
-/** The tyres to fit, side by side, the fitted set marked: each picks its own, so none has to say whether it's the set on or the next. */
-function TyreChoice({ items, fitted, onPick }: { items: TyreItem[]; fitted: Tyre | undefined; onPick: (id: MenuItemId) => void }) {
+/**
+ * A setting's choices side by side, the one in force marked: each picks its own, so no button has to say whether it's
+ * what's set or what pressing it would set. The tyres and the units are each one.
+ */
+function SideBySide({ name, choices, onPick }: { name: string; choices: { id: MenuItemId; icon: ItemLook["icon"]; label: string; spoken: string; detail?: string; on: boolean }[]; onPick: (id: MenuItemId) => void }) {
   return (
-    <div role="radiogroup" aria-label="Tyres" className="grid grid-cols-3 gap-2">
-      {items.map((id) => {
-        const tyre = tyreOfItem(id);
-        const { icon: Icon, name } = TYRE_LOOKS[tyre];
-        const on = tyre === fitted;
-        return (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            aria-label={`${name} tyres`}
-            className="relative flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-2 py-2 text-sm font-semibold"
-            style={{ borderColor: on ? ACCENT : "transparent", color: on ? ACCENT : INK }}
-            onClick={() => { onPick(id); }}
-          >
-            {on && <Check aria-hidden className="absolute top-1 right-1 size-4" />}
-            <Icon aria-hidden className="size-6" />
-            <span>{name}</span>
-          </button>
-        );
-      })}
+    <div role="radiogroup" aria-label={name} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}>
+      {choices.map(({ id, icon: Icon, label, spoken, detail, on }) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={on}
+          aria-label={spoken}
+          className="relative flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-2 py-2 text-sm font-semibold"
+          style={{ borderColor: on ? ACCENT : "transparent", color: on ? ACCENT : INK }}
+          onClick={() => { onPick(id); }}
+        >
+          {on && <Check aria-hidden className="absolute top-1 right-1 size-4" />}
+          <Icon aria-hidden className="size-6" />
+          <span>{label}</span>
+          {detail !== undefined && <span className="text-xs font-normal opacity-80">{detail}</span>}
+        </button>
+      ))}
     </div>
   );
 }
@@ -164,6 +178,7 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
   const root = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
   const look = useItemLook(menu);
+  const shownUnits = useUnits((state) => state.units);
   usePadNavigation(root, { reveal: revealPadFocus });
   useEffect(() => {
     first.current?.focus({ preventScroll: true });
@@ -176,7 +191,22 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}
         {menu.items.map((id, index) => {
-          if (isTyreItem(id)) return id === menu.items.find(isTyreItem) ? <TyreChoice key="tyres" items={menu.items.filter(isTyreItem)} fitted={menu.tyres} onPick={onPick} /> : null;
+          if (isTyreItem(id)) {
+            if (id !== menu.items.find(isTyreItem)) return null;
+            const choices = menu.items.filter(isTyreItem).map((item) => {
+              const tyre = tyreOfItem(item);
+              return { id: item, icon: TYRE_LOOKS[tyre].icon, label: TYRE_LOOKS[tyre].name, spoken: `${TYRE_LOOKS[tyre].name} tyres`, on: tyre === menu.tyres };
+            });
+            return <SideBySide key="tyres" name="Tyres" choices={choices} onPick={onPick} />;
+          }
+          if (isUnitsItem(id)) {
+            if (id !== menu.items.find(isUnitsItem)) return null;
+            const choices = menu.items.filter(isUnitsItem).map((item) => {
+              const units = unitsOfItem(item);
+              return { id: item, icon: UNITS_LOOKS[units].icon, label: UNITS_LOOKS[units].name, spoken: `${UNITS_LOOKS[units].name} units`, detail: UNITS_LOOKS[units].detail, on: units === shownUnits };
+            });
+            return <SideBySide key="units" name="Units" choices={choices} onPick={onPick} />;
+          }
           const { icon: Icon, label, on } = look(id);
           const back = id === menu.back;
           return (

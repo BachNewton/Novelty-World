@@ -75,7 +75,8 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, tyreOfItem, type GameMenu, type MenuItemId } from "./game-menu";
+import { drivingMenu, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "./game-menu";
+import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, runOn } from "../challenge/line";
@@ -1545,6 +1546,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         showMenu(drivingMenu(fitted));
         break;
       }
+      case "units-metric":
+      case "units-imperial":
+        useUnits.getState().setUnits(unitsOfItem(id));
+        break;
       case "sound":
         useDriveSoundSettings.getState().toggleMuted();
         break;
