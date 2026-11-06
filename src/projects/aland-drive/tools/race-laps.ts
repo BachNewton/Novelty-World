@@ -49,7 +49,8 @@ for (const spec of RACE_SPECS) {
     continue;
   }
   const race = raceFrom(spec, places, 1);
-  const { line } = raceRoute(graph, race);
+  // Driven on round the loop past the finish, so the driver's look ahead there follows the road, not a straight on.
+  const { line } = raceRoute(graph, raceFrom(spec, places, 2));
   const world = readWorld(FOLDER, tilesNear(manifest, line));
   const pole = places.lineM - places.runInM;
   const drive = (look?: number) => drivePar(race, line, pole, world, false, places.lapM, look);

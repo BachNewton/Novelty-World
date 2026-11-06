@@ -55,6 +55,8 @@ export interface RacePlacesEntry {
   lapM: number;
   /** On a circuit, from the pole up to the start line, which the first lap adds. */
   runInM: number;
+  /** How much of the way is laid in gravel, the rest asphalt, which its ground has to agree with. */
+  gravel: number;
   grid: StartPlace[];
   /** One lap's lines, the last the finish. */
   gates: Gate[];

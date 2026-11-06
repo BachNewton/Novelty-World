@@ -20,8 +20,8 @@ import { tuningPrint } from "../sim/car-limits";
 import { CARS } from "../sim/cars";
 import { initPhysics } from "../sim/drive";
 import { readWorld } from "../sim/read-tile";
-import { drivePar, gravelShare, gripShareText, tilesNear } from "./par-driver";
-import { option, readRoads, round } from "./road-places";
+import { drivePar, gripShareText, tilesNear } from "./par-driver";
+import { gravelShare, option, readRoads, round } from "./road-places";
 
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const ONLY = option("only", "");

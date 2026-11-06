@@ -42,6 +42,9 @@ const LOST_M = 30;
 const MISSED_M = 40;
 /** A line belongs to a stretch of the driver's way running within this of its heading, not one crossing it or back along it. */
 const SAME_WAY_COSINE = 0.5;
+/** A pass this near a line is the way's own past it; once the way is this much further off again, it has gone on. */
+const NEAR_LINE_M = 20;
+const PASSED_LINE_M = 50;
 const STOPPED_MS = 0.3;
 const GIVE_UP_STOPPED_S = 10;
 /** The longest a run may take: ten minutes, and a minute more for every 600 m past the first 6 km. */
@@ -98,17 +101,6 @@ function speedPlan(car: CarId, line: RoadLine, world: World, eased: readonly Eas
     },
     leastBrakeMS2: Math.min(grip.asphalt.brakeMS2, grip.gravel.brakeMS2) * Math.min(1, ...eased.map(({ share }) => share)),
   };
-}
-
-/** How much of the route is gravel, which is what its car should be chosen for. */
-export function gravelShare(line: RoadLine, world: World): number {
-  let gravel = 0;
-  let all = 0;
-  for (let along = 0; along <= line.length; along += GROUND_STEP_M, all++) {
-    const { x, z } = line.at(along);
-    if (world.roads.nearest(x, z)?.paved === false) gravel++;
-  }
-  return gravel / all;
 }
 
 export interface Measured {
@@ -176,7 +168,7 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
 
 /**
  * Where along the driver's way each line lies, in the order they're crossed: each the nearest place on from the last
- * running its way, the first of them where a circuit passes it lap after lap.
+ * running its way, on the first pass by it where a circuit passes it lap after lap.
  */
 function alongsOf(challenge: Challenge, line: RoadLine, from: number): number[] {
   const alongs: number[] = [];
@@ -188,6 +180,8 @@ function alongsOf(challenge: Challenge, line: RoadLine, from: number): number[] 
       const point = line.at(along);
       const distance = Math.hypot(point.x - x, point.z - z);
       if (distance < best.distance && Math.cos(point.heading - heading) > SAME_WAY_COSINE) best = { distance, along };
+      // The first pass by it, not a later lap's, which can lie a hair nearer.
+      else if (best.distance < NEAR_LINE_M && distance > best.distance + PASSED_LINE_M) break;
     }
     alongs.push(best.along);
     after = best.along + 1;

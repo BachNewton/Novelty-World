@@ -29,6 +29,8 @@ const FURTHEST_NUDGE_M = 120;
 const RING_WITHIN_M = 12;
 const SAMPLE_M = 50;
 const CENTRE = 2;
+/** How finely the ground along a route is read for its surface. */
+const GROUND_STEP_M = 8;
 /** A section that runs further than this off the route's way is another road's: a side road at a junction, a parallel drive. */
 const SAME_WAY_COSINE = Math.cos((30 * Math.PI) / 180);
 
@@ -111,6 +113,17 @@ export function gates(line: RoadLine, world: World, from: number, to: number): G
   }
   laid.push(gateAt(line, world, to));
   return laid;
+}
+
+/** How much of a stretch of the line is laid in gravel, the rest asphalt: what sorts a race's ground and a challenge's car. */
+export function gravelShare(line: RoadLine, world: World, from = 0, to = line.length): number {
+  let gravel = 0;
+  let all = 0;
+  for (let along = from; along <= to; along += GROUND_STEP_M, all++) {
+    const { x, z } = line.at(along);
+    if (world.roads.nearest(x, z)?.paved === false) gravel++;
+  }
+  return gravel / all;
 }
 
 /** The roads a stretch of the line runs on, by name and kind, for the log. */

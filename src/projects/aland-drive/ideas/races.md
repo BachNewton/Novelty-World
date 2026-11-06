@@ -9,7 +9,7 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 - **A race is a circuit or a sprint**: laps of a loop, or point to point. Every race is also one of three kinds by what's under the wheels: **road** (asphalt only), **cross country** (asphalt and gravel mixed) and **off-road** (gravel and loose ground).
 - **A race shows no time.** Only the place counts: no stopwatch, best time or time to beat, which are the bucket list's.
 - **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
-- **32 tracks**: 15 road, 10 cross country and 7 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
+- **32 tracks**: 15 road, 12 cross country and 5 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
 - **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later.
 - **First, second and third are gold, silver and bronze**, and a solo result is kept apart from a co-op one. A co-op team is scored as Forza Horizon scores a team: on points for the racers its players beat.
 - **Races are run in the world as it is**: its traffic, as TDU's are, and its hour, season and weather, so the AI racers must race every track in every condition and through traffic. Challenges set their own conditions instead, as Forza's bucket lists do.
@@ -18,7 +18,7 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 
 ![The 32 tracks on the island](races-map.jpg)
 
-*The 32 tracks by kind: road in yellow, cross country in blue, off-road in green. A circuit is a closed loop; a sprint has a white dot at its start and a white square at its finish. Red is the bucket list's roads.*
+*The 32 tracks by kind: road in yellow, cross country in blue, off-road in green. A circuit is a closed loop; a sprint has a white dot at its start and a white square at its finish. Red is the bucket list's roads. The pictures are the plan's: since then the four whose road the game lays differently (Out to Järsö, the Sund Ring, Lavö and Nötviken) have moved kind and every list is numbered again, as the tables below have them.*
 
 Each track up close, on the aerial photo with its height profile: [road, 1 to 6](races-road-1.jpg), [road, 7 to 12](races-road-2.jpg), [cross country](races-cross-country.jpg), [off-road](races-off-road.jpg) and [the six on challenge roads](races-on-challenge-roads.jpg).
 
@@ -97,12 +97,12 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 | R7 | Lemland to the Sea | Sprint | 13.7 km | 15 | 1–19 m | 350 m | Lemland church, Gustaf Erikson's parish |
 | R8 | North Hammarland | Circuit | 15.0 km | 9 | 12–34 m | 1,560 m | To find |
 | R9 | Jomala West | Circuit | 12.3 km | 13 | 3–27 m | 660 m | Near Jomala church |
-| R10 | Out to Järsö | Sprint | 7.9 km | 4 | 1–14 m | 880 m | Island to island south of Mariehamn |
-| R11 | Hamnsund | Sprint | 5.4 km | 2 | 2–52 m | 350 m | To find |
-| R12 | The Kungsö Road | Circuit | 6.9 km | 4 | 2–10 m | 720 m | Towards Kungsö's battery |
-| R13 | Kastelholm, Sund | Circuit | 3.7 km | 6 | 1–22 m | 500 m | Round the castle |
-| R14 | The Old Road and the New, Jomala | Circuit | 5.6 km | 2 | 3–23 m | 910 m | Old and new road 2, the Streetrace's 2021–22 road |
-| R15 | The Night Ferry, Mariehamn to Långnäs | Sprint | 26.8 km | 2 | 0–32 m | 1,600 m | Catch the ship that calls in the night |
+| R10 | Hamnsund | Sprint | 5.4 km | 2 | 2–52 m | 350 m | To find |
+| R11 | The Kungsö Road | Circuit | 6.9 km | 4 | 2–10 m | 720 m | Towards Kungsö's battery |
+| R12 | Kastelholm, Sund | Circuit | 3.7 km | 6 | 1–22 m | 500 m | Round the castle |
+| R13 | The Old Road and the New, Jomala | Circuit | 5.6 km | 2 | 3–23 m | 910 m | Old and new road 2, the Streetrace's 2021–22 road |
+| R14 | The Night Ferry, Mariehamn to Långnäs | Sprint | 26.8 km | 2 | 0–32 m | 1,600 m | Catch the ship that calls in the night |
+| R15 | The Sund Ring | Circuit | 19.6 km | 15 | 3–51 m | 1,200 m | The Backrace road, Kastelholm, Sund church |
 
 **R1. Harbour to Harbour.** Storagatan from Österhamn to Västerhamn, north along the western harbour on Sjöpromenaden past Pommern and under Badhusberget's water tower, east by Elverksgatan and Västra Utfarten to Ålandsvägen, then along Styrmansgatan and back up the eastern harbour on Österleden, since Strandgatan, the plan's first way, runs one way the other way. Starts at (−1903, 6780). Square town corners, Storagatan's straight, the harbour front and nine of the town's sights within 150 m: Pommern, the Maritime Museum, S:t Görans, Gustaf Erikson's home, Sundblom, the empress's memorial, the town hall. **Story:** the summer cruise between the Eastern and Western harbours, and the wide streets Mariehamn was laid out with in 1861 as fire breaks, which make a street circuit possible at all. **Watch:** parked cars line some kerbs and the street lamps and lindens stop the car, and the roads stay open, so the vetting run checks the route can be raced past them. Some streets are one-way, so the route runs the way their traffic does.
 
@@ -122,17 +122,17 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 **R9. Jomala West.** Södersundavägen, Norra Torpvägen, Norra Svibyvägen, Jomala Torpvägen and a piece of Nya Godbyvägen, round the farmland west of Jomala's church. Starts at (−4123, 2400). Thirteen bends, a lap of 12 km.
 
-**R10. Out to Järsö.** Järsövägen south from Mariehamn over the bridges and causeways between islands. Starts at (−1647, 9513), finishes at (508, 15123). Water on both sides most of the way; the last of it gravel.
+**R10. Hamnsund.** Hamnsundsvägen north through Saltvik's rock to Hamnsund. Starts at (8590, −18449), finishes at (9230, −23135). A climb to 52 m over bare granite, then down to the water.
 
-**R11. Hamnsund.** Hamnsundsvägen north through Saltvik's rock to Hamnsund. Starts at (8590, −18449), finishes at (9230, −23135). A climb to 52 m over bare granite, then down to the water.
+**R11. The Kungsö Road.** Österskogsvägen, Kungsövägen, Hammarlandsvägen and Gottbyvägen, west of Mariehamn. Starts at (−7551, 2787). Flat and fast through fields. Kungsövägen is the road out to Kungsö's battery, Russia's gun pits of 1916.
 
-**R12. The Kungsö Road.** Österskogsvägen, Kungsövägen, Hammarlandsvägen and Gottbyvägen, west of Mariehamn. Starts at (−7551, 2787). Flat and fast through fields. Kungsövägen is the road out to Kungsö's battery, Russia's gun pits of 1916.
+**R12. Kastelholm.** Slottsvägen past the castle, Sundsvägen and Tosarbyvägen. Starts at (7814, −7168). Short and quick, with the castle, Vita Björn and Jan Karlsgården beside the road. **Story:** Åland's only medieval castle, the Swedish crown's seat here. It shares Slottsvägen and a little of Sundsvägen with the challenge from the castle to Bomarsund: the challenge is one run east to the fortress, the race laps the castle.
 
-**R13. Kastelholm.** Slottsvägen past the castle, Sundsvägen and Tosarbyvägen. Starts at (7814, −7168). Short and quick, with the castle, Vita Björn and Jan Karlsgården beside the road. **Story:** Åland's only medieval castle, the Swedish crown's seat here. It shares Slottsvägen and a little of Sundsvägen with the challenge from the castle to Bomarsund: the challenge is one run east to the fortress, the race laps the castle.
+**R13. The Old Road and the New.** Out on Godbyvägen, old road 2, and back on Nya Godbyvägen, the new one, joined by two hairpin junctions. Starts at (1418, −6093). Nearly an oval: flat out, two heavy stops, the best overtaking on the island. **Story:** the main road north from Mariehamn, rebuilt alongside itself, where the Streetrace returned in 2021 and 2022. The road-2 speed trap is on the straight just south: the trap is one car's top speed, the race is laps and racers.
 
-**R14. The Old Road and the New.** Out on Godbyvägen, old road 2, and back on Nya Godbyvägen, the new one, joined by two hairpin junctions. Starts at (1418, −6093). Nearly an oval: flat out, two heavy stops, the best overtaking on the island. **Story:** the main road north from Mariehamn, rebuilt alongside itself, where the Streetrace returned in 2021 and 2022. The road-2 speed trap is on the straight just south: the trap is one car's top speed, the race is laps and racers.
+**R14. The Night Ferry.** From Mariehamn east along Lemlandsvägen, over the Lemström bridge, across Lemland and on to Långnäs harbour. Starts at (−1884, 4835), finishes at (17827, 6651). The longest race, a highway sprint across half the island. **Story:** the big ships still call at Långnäs, a very small place, in the night, because Åland sits outside the EU's tax area (the Long Night Runs of `docs/DRIVING-CULTURE.md`). It shares Lemlandsvägen with the Lemland speed trap and its last road with the V12's challenge to Långnäs: those are one car on one stretch, this is the whole way, against racers.
 
-**R15. The Night Ferry.** From Mariehamn east along Lemlandsvägen, over the Lemström bridge, across Lemland and on to Långnäs harbour. Starts at (−1884, 4835), finishes at (17827, 6651). The longest race, a highway sprint across half the island. **Story:** the big ships still call at Långnäs, a very small place, in the night, because Åland sits outside the EU's tax area (the Long Night Runs of `docs/DRIVING-CULTURE.md`). It shares Lemlandsvägen with the Lemland speed trap and its last road with the V12's challenge to Långnäs: those are one car on one stretch, this is the whole way, against racers.
+**R15. The Sund Ring.** Norra Sundsvägen east, Mångstektavägen past Nötviken, and back west on Sundsvägen past Bomarsund's turning and Kastelholm. Starts at (12078, −5969). The island's big circuit: 15 bends, 221 m climbed a lap, a 1.2 km straight. **Story:** Norra Sundsvägen is the Backrace's road, Sund church the largest medieval church on Åland, and Kastelholm the castle. It shares most of its road with two challenges, the Backrace road flat out and castle to fortress: each of those is one run one way in one car, the ring is all of it in laps, against racers. It was planned as cross country, for gravel on Mångstektavägen that the game lays as asphalt, a secondary road, so it races as a road race, in the Sund.
 
 ### Cross country: asphalt and gravel
 
@@ -147,7 +147,9 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 | X7 | Bovik, Hammarland | Circuit | 5.7 km | 75% | 8 | 12–25 m | To find |
 | X8 | Storby to Käringsund, Eckerö | Sprint | 8.5 km | 64% | 12 | 1–32 m | The post road's start to the fishing harbour |
 | X9 | Tellholm, Hammarland | Circuit | 4.2 km | 18% | 6 | 2–21 m | Hammarland's west coast |
-| X10 | The Sund Ring | Circuit | 19.6 km | 89% | 15 | 3–51 m | The Backrace road, Kastelholm, Sund church |
+| X10 | Out to Järsö | Sprint | 7.9 km | 91% | 4 | 1–14 m | Island to island south of Mariehamn |
+| X11 | Lavö, Finström | Sprint | 4.3 km | 64% | 7 | 1–26 m | Between two inlets |
+| X12 | Nötviken, Sund | Circuit | 7.1 km | 36% | 14 | 9–51 m | The forest above the bay |
 
 **X1. Degersand.** Skeppsviksvägen, Långnabbavägen, Degersandsvägen and Torpvägen, in Eckerö's south-west. Starts at (−21122, −5216). The twistiest loop found: seventeen bends, gravel and tarmac changing under the car, 9% grades. **Story:** Degersand, the sandy shore at Eckerö's tip, its note still to be checked against a source. Eckerö is past Marsund, so the drive there crosses the bridge the post-road challenge does.
 
@@ -167,33 +169,31 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 **X9. Tellholm.** Tellholmsvägen, Träskviksvägen and Aludden, on Hammarland's west coast. Starts at (−13673, −112). Mostly gravel: the edge between cross country and off-road.
 
-**X10. The Sund Ring.** Norra Sundsvägen east, Mångstektavägen and the gravel past Nötviken, and back west on Sundsvägen past Bomarsund's turning and Kastelholm. Starts at (12078, −5969). The island's big circuit: 15 bends, 221 m climbed a lap, a 1.2 km straight. **Story:** Norra Sundsvägen is the Backrace's road, Sund church the largest medieval church on Åland, and Kastelholm the castle. It shares most of its road with two challenges, the Backrace road flat out and castle to fortress: each of those is one run one way in one car, the ring is all of it in laps, against racers.
+**X10. Out to Järsö.** Järsövägen south from Mariehamn over the bridges and causeways between islands. Starts at (−1647, 9513), finishes at (508, 15123). Water on both sides most of the way; the last of it gravel. It was planned as a road race, but its gravel end makes it cross country.
+
+**X11. Lavö.** Hjortövägen, Lavövägen and Granhallsvägen, south down a ridge between two inlets. Starts at (2856, −14333), finishes at (3941, −10631). It was planned as off-road, but the game lays a third of it in asphalt, so it races as cross country.
+
+**X12. Nötviken.** Norra Sundsvägen's gravel end, Kvarnsjövägen and Faderviksvägen, in the forest above Nötviken's bay. Starts at (12749, −10801). Fourteen bends, nothing straight longer than 180 m, 134 m climbed a lap. It shares 2 km with the rally car's challenge to Nötviken, and 2.5 km with R15. It was planned as off-road, but Norra Sundsvägen, a third of the lap, is laid in asphalt, so it races as cross country.
 
 ### Off-road: gravel
 
 | # | Track | Shape | Length | Bends | Ground | Story |
 |---|---|---|---|---|---|---|
 | O1 | Vessingsboda Lanes, Lemland | Circuit | 5.6 km | 13 | 10–22 m | Beside the motor club's home ground |
-| O2 | Lavö, Finström | Sprint | 4.3 km | 7 | 1–26 m | Between two inlets |
-| O3 | Båtvik, Sund | Circuit | 3.3 km | 4 | 5–38 m | Across the bay from Kastelholm |
-| O4 | Småkärr, Hammarland | Sprint | 4.1 km | 8 | 2–15 m | Along the sound north of Marsund |
-| O5 | Kullskär, Hammarland | Circuit | 5.8 km | 12 | 4–39 m | Hammarland's west coast |
-| O6 | Djurvik, Hammarland | Circuit | 9.3 km | 20 | 3–34 m | Out to the shore at Djurvik |
-| O7 | Nötviken, Sund | Circuit | 7.1 km | 14 | 9–51 m | The forest above the bay |
+| O2 | Båtvik, Sund | Circuit | 3.3 km | 4 | 5–38 m | Across the bay from Kastelholm |
+| O3 | Småkärr, Hammarland | Sprint | 4.1 km | 8 | 2–15 m | Along the sound north of Marsund |
+| O4 | Kullskär, Hammarland | Circuit | 5.8 km | 12 | 4–39 m | Hammarland's west coast |
+| O5 | Djurvik, Hammarland | Circuit | 9.3 km | 20 | 3–34 m | Out to the shore at Djurvik |
 
 **O1. Vessingsboda Lanes.** Norra Byvägen and Hagsviksvägen, gravel all the way, the lanes beside Mönbackavägen. Starts at (11905, 12711). Thirteen bends and nothing straight for more than 180 m: a rally loop. **Story:** Motorstadion, Ålands motorklubb's home ground at Vessingsboda, is half a kilometre west, where the folkrace runs every spring and autumn.
 
-**O2. Lavö.** Hjortövägen, Lavövägen and Granhallsvägen, south down a ridge between two inlets. Starts at (2856, −14333), finishes at (3941, −10631).
+**O2. Båtvik.** Båtviksvägen's loop, across the bay south-east of Kastelholm. Starts at (7663, −4361). Short, steep (5 to 38 m) and fast for gravel.
 
-**O3. Båtvik.** Båtviksvägen's loop, across the bay south-east of Kastelholm. Starts at (7663, −4361). Short, steep (5 to 38 m) and fast for gravel.
+**O3. Småkärr.** Småkärrsvägen north along the sound from the Marsund road. Starts at (−14451, −9480), finishes at (−15410, −12543).
 
-**O4. Småkärr.** Småkärrsvägen north along the sound from the Marsund road. Starts at (−14451, −9480), finishes at (−15410, −12543).
+**O4. Kullskär.** Kullskärsvägen, Alskog and Bankvikvägen, on Hammarland's west coast. Starts at (−14136, −1801). Twelve bends, a climb to 39 m and back to the shore.
 
-**O5. Kullskär.** Kullskärsvägen, Alskog and Bankvikvägen, on Hammarland's west coast. Starts at (−14136, −1801). Twelve bends, a climb to 39 m and back to the shore.
-
-**O6. Djurvik.** Djurvikvägen, Södra Bråkviken and Varggropsvägen, a loop of Hammarland's south-west down to the shore. Starts at (−11672, 3710). The most bends of any track, twenty, all gravel. It shares 2.9 km of Djurvikvägen with the four-by-four's challenge to Djurvik, which goes one way to the shore; the race laps the whole loop.
-
-**O7. Nötviken.** Norra Sundsvägen's gravel end, Kvarnsjövägen and Faderviksvägen, in the forest above Nötviken's bay. Starts at (12749, −10801). Fourteen bends, nothing straight longer than 180 m, 134 m climbed a lap. It shares 2 km with the rally car's challenge to Nötviken, and 2.5 km with X10.
+**O5. Djurvik.** Djurvikvägen, Södra Bråkviken and Varggropsvägen, a loop of Hammarland's south-west down to the shore. Starts at (−11672, 3710). The most bends of any track, twenty, all gravel. It shares 2.9 km of Djurvikvägen with the four-by-four's challenge to Djurvik, which goes one way to the shore; the race laps the whole loop.
 
 ### Left out
 
@@ -202,7 +202,7 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 ## 5. How many, and which first
 
-**All 32 go on the map in the first step.** Races are mostly data once the system exists, and the whole list is what makes them a way to explore. The vetting run (section 7) drives all of them, so the system is proven on every kind of road at once: R1 Harbour to Harbour is the hardest to lay (kerbs, one-way streets), R15 the Night Ferry the longest, O6 Djurvik the twistiest.
+**All 32 go on the map in the first step.** Races are mostly data once the system exists, and the whole list is what makes them a way to explore. The vetting run (section 7) drives all of them, so the system is proven on every kind of road at once: R1 Harbour to Harbour is the hardest to lay (kerbs, one-way streets), R14 the Night Ferry the longest, O5 Djurvik the twistiest.
 
 After them, the gaps the coverage map shows.
 

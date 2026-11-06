@@ -7,6 +7,8 @@
 // Run it after changing a race's waypoints or car, or after a rebuild of the roads, then `tools/race-laps.ts`: a test
 // fails until both files match the list.
 //
+// How much of the race is gravel is kept too, which is what sorts it as road, cross country or off-road.
+//
 // The grid stands where a road of two lanes (a main road, a tertiary or a street, as `ideas/races.md` counts widths)
 // takes the race's car two abreast, a lane each, for three rows: six places. A lane takes one car at a time, however wide
 // it's laid, so on one, or a road that never takes two within reach of the start, the grid is four places in single
@@ -22,7 +24,7 @@ import { CARS } from "../sim/cars";
 import { readWorld } from "../sim/read-tile";
 import { RoadLine } from "../sim/road-net";
 import type { World } from "../sim/world";
-import { gates, option, readRoads, roadsAlong, round, tilesUnder, widthsAt } from "./road-places";
+import { gates, gravelShare, option, readRoads, roadsAlong, round, tilesUnder, widthsAt } from "./road-places";
 
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const ONLY = option("only", "");
@@ -89,11 +91,12 @@ for (const spec of RACE_SPECS) {
     lineM: round(lineM, 1),
     lapM: round(lapM, 1),
     runInM: circuit ? LINE_AHEAD_M : 0,
+    gravel: round(gravelShare(line, world, circuit ? 0 : pole), 2),
     grid: laid,
     gates: circuit ? gates(twice(line), world, lineM, lineM + lapM) : gates(line, world, pole, line.length),
   };
   places[spec.id] = entry;
-  console.log(`${spec.number} ${spec.id}: ${(lapM / 1000).toFixed(2)} km a ${circuit ? "lap" : "sprint"}, ${laid.length} on the grid, pole ${pole} m along, ${entry.gates.length} lines; ${roadsAlong(roads, line, pole, line.length)}`);
+  console.log(`${spec.number} ${spec.id}: ${(lapM / 1000).toFixed(2)} km a ${circuit ? "lap" : "sprint"}, ${laid.length} on the grid, pole ${pole} m along, ${entry.gates.length} lines, ${(entry.gravel * 100).toFixed(0)}% gravel; ${roadsAlong(roads, line, pole, line.length)}`);
 }
 // In the list's order, and only what the list still has.
 const kept = Object.fromEntries(RACE_SPECS.flatMap(({ id }) => (id in places ? [[id, places[id]]] : [])));

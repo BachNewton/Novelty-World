@@ -21,6 +21,10 @@ describe("the list of challenges", () => {
   });
 });
 
+/** Shares of gravel within which a race's way counts as all asphalt or all gravel: a culvert's or a junction's few metres don't make it mixed. */
+const ALL_ASPHALT = 0.02;
+const ALL_GRAVEL = 0.95;
+
 describe("the list of races", () => {
   it.each(RACE_SPECS.map((spec) => [spec.id, spec] as const))("%s's places were laid from it as it is now: if not, run tools/race-places.ts", (id, spec) => {
     expect(RACE_PLACES[id].madeFrom).toEqual({ car: spec.car, waypoints: spec.waypoints });
@@ -33,6 +37,11 @@ describe("the list of races", () => {
   it("has every id once, and a circuit ends where it starts", () => {
     expect(new Set(RACES.map(({ id }) => id)).size).toBe(RACES.length);
     for (const { id, shape, waypoints } of RACES) if (shape === "circuit") expect([id, waypoints[waypoints.length - 1]]).toEqual([id, waypoints[0]]);
+  });
+
+  it.each(RACE_SPECS.map((spec) => [spec.id, spec] as const))("%s's ground is what its road is laid in: road all asphalt, off-road all gravel, cross country both", (id, { ground }) => {
+    const { gravel } = RACE_PLACES[id];
+    expect(ground).toBe(gravel <= ALL_ASPHALT ? "road" : gravel >= ALL_GRAVEL ? "off-road" : "cross-country");
   });
 
   it("has six on a two-lane grid or four in single file", () => {
