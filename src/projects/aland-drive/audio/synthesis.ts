@@ -371,8 +371,8 @@ function chirp(channels: Float32Array[], at: number, seconds: number, pan: numbe
   }
 }
 
-/** Forest: leaves moving in the wind, and a few kinds of small bird, near and far, with long gaps. */
-export function forestBed(): Loop {
+/** Forest in leaf: leaves moving in the wind, swelling and dropping as the breeze does. */
+export function leavesBed(): Loop {
   const next = random(41);
   const seconds = 29;
   const length = Math.round(seconds * BED_RATE);
@@ -386,7 +386,15 @@ export function forestBed(): Loop {
       return 0.16 * breeze * (sample - held[i]);
     });
   });
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
 
+/** Spring and summer's birds: a few kinds of small bird, near and far, singing over one another with short gaps, so a chorus is this bed played loud. */
+export function birdsBed(): Loop {
+  const next = random(42);
+  const seconds = 29;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
   let at = next() * 1.5;
   while (at < seconds - 3) {
     const pan = next() * 1.6 - 0.8;
@@ -414,7 +422,58 @@ export function forestBed(): Loop {
       const notes = [1, 1.26, 1.12, 1.5].map((ratio) => ratio * (1500 + next() * 400));
       notes.forEach((hz, i) => chirp(channels, at + i * 0.27, 0.25, pan, level * 1.1, (s) => hz * (1 + 0.04 * Math.sin(TAU * 5 * s))));
     }
-    at += 1.4 + next() * 4.6;
+    at += 0.6 + next() * 2.4;
+  }
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/** Winter's wind: a lower, hollower rush through bare branches and spruce, in long gusts, which also blows over a frozen sea. */
+export function winterBed(): Loop {
+  const next = random(44);
+  const seconds = 31;
+  const length = Math.round(seconds * BED_RATE);
+  const gusts = [0, 1].map(() => ({ a: 1 + Math.floor(next() * 3), b: 3 + Math.floor(next() * 4), phase: next() * TAU }));
+  const channels = gusts.map(({ a, b, phase }) => {
+    const rush = lowNoise(length, next, () => 1100, BED_RATE);
+    const held = lowNoise(length, next, () => 180, BED_RATE);
+    return rush.map((sample, i) => {
+      const place = (TAU * i) / length;
+      const gust = Math.max(0.15, 0.45 + 0.4 * Math.sin(a * place + phase) + 0.2 * Math.sin(b * place + 2 * phase));
+      return gust * (sample - 0.7 * held[i]);
+    });
+  });
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/** Winter's birds, few and far between: a crow's rough caws and now and then a tit's two notes, with long quiet between. */
+export function winterCallsBed(): Loop {
+  const next = random(46);
+  const seconds = 41;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
+  let at = 2 + next() * 3;
+  while (at < seconds - 4) {
+    const pan = next() * 1.8 - 0.9;
+    if (next() < 0.6) {
+      // A crow: two to four rough caws, each a falling note thick with harmonics.
+      const caws = 2 + Math.floor(next() * 3);
+      const hz = 520 + next() * 160;
+      const level = 0.2 + 0.25 * next();
+      for (let i = 0; i < caws; i++) {
+        const caw = (s: number) => hz * (1.08 - 0.2 * s) * (1 + 0.04 * Math.sin(TAU * 31 * s));
+        for (const [harmonic, share] of [[1, 1], [2, 0.7], [3, 0.5], [4, 0.3], [5, 0.2]] as const) chirp(channels, at, 0.32, pan, level * share, (s) => harmonic * caw(s));
+        at += 0.45 + next() * 0.15;
+      }
+    } else {
+      const high = 4100 + next() * 600;
+      const level = 0.08 + 0.1 * next();
+      for (let i = 0; i < 2; i++) {
+        chirp(channels, at + i * 0.36, 0.14, pan, level, () => high);
+        chirp(channels, at + i * 0.36 + 0.17, 0.13, pan, level, () => high * 0.72);
+      }
+    }
+    at += 7 + next() * 9;
   }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };

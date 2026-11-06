@@ -70,6 +70,10 @@ export const SCENES: (Scene & { vehicle: VehicleId })[] = [
   held("strom", "forest", { place: { forest: 1, shore: 0, town: 0 } }, 12),
   held("strom", "shore", { place: { forest: 0, shore: 1, town: 0 } }, 12),
   held("strom", "town", { place: { forest: 0, shore: 0, town: 1 } }, 12),
+  held("strom", "forest, spring dawn", { place: { forest: 1, shore: 0, town: 0 }, season: { yearDay: 140, sunDeg: 1, hour: 4, leafed: 1, iceReach: 0 } }, 12),
+  held("strom", "forest, winter noon", { place: { forest: 1, shore: 0, town: 0 }, season: { yearDay: 20, sunDeg: 7, hour: 12, leafed: 0, iceReach: 0.3 } }, 12),
+  held("strom", "shore, frozen", { place: { forest: 0, shore: 1, town: 0 }, season: { yearDay: 40, sunDeg: 15, hour: 12, leafed: 0, iceReach: 0.8 } }, 12),
+  held("strom", "town, winter night", { place: { forest: 0, shore: 0, town: 1 }, season: { yearDay: 20, sunDeg: -40, hour: 23, leafed: 0, iceReach: 0.3 } }, 12),
   {
     name: "everything at worst",
     vehicle: "skerry-gt",

@@ -53,7 +53,8 @@ import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, typ
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { createDriveAudio } from "../audio/graph";
-import { stateFromCar } from "../audio/model";
+import { stateFromCar, type SeasonHeard } from "../audio/model";
+import { yearDay } from "../climate/calendar";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
@@ -1822,6 +1823,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     world.setPlacedSeason(season.current());
   };
 
+  /** The season and hour the place beds follow, as the render draws them. */
+  const seasonHeard = (): SeasonHeard => {
+    const { date, hour, sun: place } = day.time();
+    const { leafed, iceReach } = season.current();
+    return { yearDay: yearDay(date.month, date.day) + hour / 24, sunDeg: place.elevationDeg, hour, leafed, iceReach };
+  };
+
   const lampsAt = new Vector3();
   const lampsFacing = new Vector3();
   const aimHeadlights = ({ position, rotation: [x, y, z, w], lamps }: CarState) => {
@@ -1909,7 +1917,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), paused: mapFrom !== null || jumping || menuHolds }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();

@@ -20,6 +20,20 @@ export interface WeatherHeard {
   windMS: number;
 }
 
+/** The time of year and day round the car, as the render reads it: what the place beds follow. None in the audition's default, which is a summer's day. */
+export interface SeasonHeard {
+  /** Days since the 1st of January, with the fraction through the day. */
+  yearDay: number;
+  /** The sun's height, degrees. */
+  sunDeg: number;
+  /** Åland's local hour, 0 to 24: a dawn is a morning's. */
+  hour: number;
+  /** The share of broadleaf trees in leaf (the season's `leafed`). */
+  leafed: number;
+  /** How far out the sea is frozen, as an exposure (the season's `iceReach`). */
+  iceReach: number;
+}
+
 /** How much of each place is round the car, 0 to 1. Places overlap: a shore town is both. */
 export interface Place {
   forest: number;
@@ -45,6 +59,7 @@ export interface DriveAudioState {
   suspension: readonly [number, number, number, number];
   place: Place;
   weather?: WeatherHeard;
+  season?: SeasonHeard;
   /** The drive is stopped, as under the world map: only the place and the weather are heard. */
   paused?: boolean;
   /** Holds the revs here instead of the gearbox's, for the audition's slider. */
@@ -82,7 +97,7 @@ export function slipOf(car: CarState, handbrake: boolean): number {
 }
 
 /** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "paused" | "engine">): DriveAudioState {
+export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "paused" | "engine">): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
@@ -212,7 +227,14 @@ export interface Mix {
   galeLevel: number;
   galeHz: number;
 
-  forestLevel: number;
+  /** Leaves in the wind, in a forest in leaf. */
+  leavesLevel: number;
+  /** Spring and summer's birds, loudest at a spring dawn. */
+  birdsLevel: number;
+  /** Winter's wind in bare branches, and over a frozen sea. */
+  winterLevel: number;
+  /** A crow or a tit now and then, by day in winter. */
+  winterCallsLevel: number;
   shoreLevel: number;
   gullsLevel: number;
   townLevel: number;
@@ -269,7 +291,48 @@ const WIND_LOW = 0.7;
 const WIND_HIGH = 0.2;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
-const PLACE = { forest: 0.44, shore: 0.42, gulls: 0.28, town: 0.42 };
+const PLACE = { leaves: 0.44, birds: 0.36, winter: 0.36, winterCalls: 0.3, shore: 0.42, gulls: 0.28, town: 0.42 };
+
+/** A midsummer's afternoon, for when nothing says otherwise (the audition): the beds as they always were. */
+const SUMMER_DAY: SeasonHeard = { yearDay: 180, sunDeg: 45, hour: 14, leafed: 1, iceReach: 0 };
+
+const smooth = (share: number) => {
+  const clamped = clamp(share);
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
+/** A share of the year that rises from `from` to `full`, holds to `fade`, and falls to `gone`, in days of the year. */
+const yearShape = (day: number, from: number, full: number, fade: number, gone: number) => smooth((day - from) / (full - from)) * (1 - smooth((day - fade) / (gone - fade)));
+
+/** How much the birds sing by the time of year: from mid-March, full from May to mid-July, almost none from September to February. */
+export const songSeason = (yearDay: number) => yearShape(yearDay, 70, 120, 192, 245);
+/** Gulls over the shore, April to September, with a few through the winter where the sea is open. */
+const gullSeason = (yearDay: number) => 0.2 + 0.8 * yearShape(yearDay, 80, 115, 235, 280);
+/** Daylight by the sun's height: none in a dark night, full once it is up; a light midsummer night keeps a little. */
+export const daylight = (sunDeg: number) => smooth((sunDeg + 9) / 10);
+/** A morning's dawn chorus, while the sun is low and rising. */
+const dawn = (sunDeg: number, hour: number) => (hour < 12 ? smooth((sunDeg + 5) / 4) * (1 - smooth((sunDeg - 8) / 8)) : 0);
+/** The share of the shore that's ice rather than open water, as the sea freezes outward from the bays. */
+const frozenShore = (iceReach: number) => smooth((iceReach - 0.05) / 0.35);
+
+/** The place beds by the season, the hour and the weather: what's heard round the car, before its speed covers it. */
+export function placeMix(place: Place, season: SeasonHeard = SUMMER_DAY, weather?: WeatherHeard) {
+  const light = daylight(season.sunDeg);
+  const rain = weather?.rain ?? 0;
+  const wind = clamp((weather?.windMS ?? 6) / 14);
+  const frozen = frozenShore(season.iceReach);
+  const bare = 1 - season.leafed;
+  const singing = songSeason(season.yearDay) * light * (1 + 1.4 * dawn(season.sunDeg, season.hour)) * (1 - 0.85 * rain);
+  return {
+    leavesLevel: PLACE.leaves * place.forest * (0.15 + 0.85 * season.leafed),
+    birdsLevel: PLACE.birds * place.forest * Math.min(singing, 1.8),
+    winterLevel: PLACE.winter * (place.forest * bare + place.shore * frozen) * (0.5 + 0.5 * wind),
+    winterCallsLevel: PLACE.winterCalls * place.forest * bare * light * (1 - songSeason(season.yearDay)) * (1 - 0.7 * rain),
+    shoreLevel: PLACE.shore * place.shore * (1 - frozen),
+    gullsLevel: PLACE.gulls * place.shore * gullSeason(season.yearDay) * light * (1 - 0.8 * frozen) * (1 - 0.5 * rain),
+    townLevel: PLACE.town * place.town * (0.45 + 0.55 * light),
+  };
+}
 /** Rain on the roof at its hardest, each loop at its full, and wet snow's soft patter, which is a share of it. */
 const RAIN_LIGHT = 0.6;
 const RAIN_HEAVY = 0.34;
@@ -329,6 +392,8 @@ function weatherMix(weather: WeatherHeard | undefined, speed: number, time: numb
     galeHz: 220 + 22 * weather.windMS + 60 * gust,
   };
 }
+
+const scaled = <T extends Record<string, number>>(levels: T, by: number) => Object.fromEntries(Object.entries(levels).map(([name, level]) => [name, level * by])) as T;
 
 export function mix({ state, engine, time, wander }: MixInputs): Mix {
   const { speedMS, slip, vehicle, place } = state;
@@ -397,10 +462,7 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
 
     ...weatherMix(state.weather, speed, time),
 
-    forestLevel: PLACE.forest * place.forest * placeShare,
-    shoreLevel: PLACE.shore * place.shore * placeShare,
-    gullsLevel: PLACE.gulls * place.shore * placeShare,
-    townLevel: PLACE.town * place.town * placeShare,
+    ...scaled(placeMix(place, state.season, state.weather), placeShare),
   };
 }
 
