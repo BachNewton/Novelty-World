@@ -6,22 +6,12 @@ import type { OverviewFormat } from "../render/tile";
 
 /*
  * The car's place on the road network, as the drive goes on: the road it's on,
- * the GPS route and the next direction, and the mini map, which turns with the
+ * the GPS route and how far it has to go, and the mini map, which turns with the
  * car, with the places to find and the challenges' starts on it. A
  * challenge's route is held as it is, never rerouted, since its gates are on
  * it. Each frame hands it the car and it works
  * out what changed; nothing here has a clock.
  */
-
-/** What the HUD shows of the route. */
-export interface RouteCue {
-  /** Radians clockwise of the next turn, 0 when the road just goes on to the end. */
-  radians: number;
-  /** To the turn. */
-  metres: number;
-  /** To the end of the route. */
-  remainingM: number;
-}
 
 export interface NavigatorEvents {
   /** The car has entered a named road. */
@@ -55,6 +45,8 @@ export class Navigator {
   /** A challenge's route, which the car is sent back to rather than rerouted from. */
   private held = false;
   private along = 0;
+  /** How far along the route the way ends: its end, or a challenge's finish short of it. */
+  private toAlong = 0;
   private shownRoad = "";
   private pendingRoad = "";
   private pendingSince = { x: 0, z: 0 };
@@ -90,15 +82,17 @@ export class Navigator {
     this.route = route;
     this.held = false;
     this.along = 0;
+    this.toAlong = route?.line.length ?? 0;
     this.lastRoute = { x: fromX, z: fromZ };
     return route !== null;
   }
 
-  /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it. */
-  holdRoute(route: Route): void {
+  /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it, counting down to its finish line or camera. */
+  holdRoute(route: Route, finish: { x: number; z: number }): void {
     this.route = route;
     this.held = true;
     this.along = 0;
+    this.toAlong = route.line.nearest(finish.x, finish.z).along;
   }
 
   /** A challenge's lines still to cross. `key` says when they changed, so a frame that sets the same ones redraws nothing. */
@@ -133,11 +127,11 @@ export class Navigator {
     return nearest;
   }
 
-  /** Where the route has got to, once per frame. */
-  private updateRoute(x: number, z: number, headingClockwise: number): RouteCue | null {
+  /** Where the route has got to, once per frame: the metres still to go. */
+  private updateRoute(x: number, z: number, headingClockwise: number): number | null {
     if (!this.route) return null;
     const off = this.follow(x, z);
-    const { line, turns, end } = this.route;
+    const { end } = this.route;
     if (Math.hypot(end.x - x, end.z - z) < ARRIVED_M) {
       this.route = null;
       return null;
@@ -146,9 +140,7 @@ export class Navigator {
       this.setDestination(x, z, headingClockwise, end.x, end.z);
       return null;
     }
-    const remainingM = line.length - this.along;
-    const next = turns.find((turn) => turn.along > this.along);
-    return next ? { radians: next.radians, metres: next.along - this.along, remainingM } : { radians: 0, metres: remainingM, remainingM };
+    return Math.max(this.toAlong - this.along, 0);
   }
 
   private updateRoad(x: number, z: number): void {
@@ -198,11 +190,11 @@ export class Navigator {
     drawCar(pen, view, x, z, headingClockwise, 9, ink);
   }
 
-  /** Every frame the car can move, with everyone else who's online. */
-  update(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): RouteCue | null {
-    const cue = this.updateRoute(x, z, headingClockwise);
+  /** Every frame the car can move, with everyone else who's online: the metres the route still has to go, if there is one. */
+  update(x: number, z: number, headingClockwise: number, speedMS: number, players: readonly MapPlayer[]): number | null {
+    const toGoM = this.updateRoute(x, z, headingClockwise);
     this.updateRoad(x, z);
     this.drawMini(x, z, headingClockwise, speedMS, players);
-    return cue;
+    return toGoM;
   }
 }

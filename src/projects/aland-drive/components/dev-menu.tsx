@@ -172,9 +172,15 @@ function WorldSwitch() {
   );
 }
 
-function SpotList({ spots, onJump }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void }) {
+function SpotList({ spots, onJump, onJumpToDestination }: { spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null }) {
   return (
     <ul className="flex flex-col gap-1">
+      <li>
+        <button type="button" disabled={onJumpToDestination === null} title={onJumpToDestination === null ? "Set a destination on the map first" : undefined} className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm disabled:cursor-default disabled:opacity-50" style={{ borderColor: ACCENT }} onClick={() => { onJumpToDestination?.(); }}>
+          <MapPin aria-hidden className="size-4 shrink-0" style={{ color: ACCENT }} />
+          <span className="grow">GPS destination</span>
+        </button>
+      </li>
       {spots.map(({ id, name }) => (
         <li key={id}>
           <button type="button" className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm" style={{ borderColor: INK }} onClick={() => { onJump(id); }}>
@@ -187,7 +193,7 @@ function SpotList({ spots, onJump }: { spots: readonly { id: string; name: strin
   );
 }
 
-export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, spots, onJump, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -218,7 +224,7 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, 
           </Section>
         </div>
         <Section title="Jump to">
-          <SpotList spots={spots} onJump={onJump} />
+          <SpotList spots={spots} onJump={onJump} onJumpToDestination={onJumpToDestination} />
         </Section>
         <Section title="Cars">
           <CarList cars={cars} car={car} onCar={onCar} />

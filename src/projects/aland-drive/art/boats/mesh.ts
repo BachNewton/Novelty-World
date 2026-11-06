@@ -64,10 +64,13 @@ export const PAINT = {
 export type BoatPart = keyof typeof PAINT;
 export const BOAT_PARTS = Object.keys(PAINT) as BoatPart[];
 
-/** A vertex that rocks with the boat, a rigging ribbon, a mooring line's far end, which stays where it's made fast, and a sail's first flutter step. */
-export const KIND = { solid: 0, line: 1, fast: 2, sail: 3 } as const;
-/** Sail kinds run from `KIND.sail` to here, the flutter's weight rising with them. */
-export const SAIL_KINDS = 252;
+/**
+ * A vertex that rocks with the boat, a rigging ribbon, a mooring line's far end, which stays where it's made fast,
+ * the same two for a line the far version carries too, and a sail's first flutter step.
+ */
+export const KIND = { solid: 0, line: 1, fast: 2, kept: 3, keptFast: 4, sail: 5 } as const;
+/** Sail kinds run from `KIND.sail` to `KIND.sail` and this many more, the flutter's weight rising with them. */
+export const SAIL_KINDS = 250;
 
 const STAND_IN: Part = "galvanised";
 const SHADE_UNIT = 128;
@@ -78,6 +81,15 @@ const unit = (a: V3): V3 => {
   return [a[0] / length, a[1] / length, a[2] / length];
 };
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+
+/** Two directions square to `along` and to each other: one level and one across it, or, `diagonal`, each halfway between those two. */
+export function crossing(along: V3, diagonal: boolean): [V3, V3] {
+  const level = unit(cross(along, Math.abs(along[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
+  const other = cross(level, along);
+  if (!diagonal) return [level, other];
+  const half = (sign: number): V3 => [(level[0] + sign * other[0]) * Math.SQRT1_2, (level[1] + sign * other[1]) * Math.SQRT1_2, (level[2] + sign * other[2]) * Math.SQRT1_2];
+  return [half(1), half(-1)];
+}
 
 export class BoatMesh {
   private readonly positions: number[] = [];
@@ -122,14 +134,18 @@ export class BoatMesh {
     return this.take((model) => model.box(low, high, STAND_IN, options), part);
   }
 
-  /** A stay or a sheet: two crossed ribbons, which the material holds at a pixel's width and fades with distance. With `fast`, the far end stays still as the boat rocks. */
-  line(from: V3, to: V3, part: BoatPart = "wire", { fast = false }: { fast?: boolean } = {}): this {
-    const along = unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]);
-    const first = unit(cross(along, Math.abs(along[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
-    for (const side of [first, cross(first, along)]) {
+  /**
+   * A stay or a sheet: two crossed ribbons, which the material holds at a pixel's width and fades with distance. With
+   * `fast`, the far end stays still as the boat rocks. A `kept` line is one the far version draws too, so it fades over
+   * both versions rather than before the swap. Its ribbons lie diagonally, so two of the far version's few lines in
+   * the boat's middle plane, which meet or cross, don't lie in one plane.
+   */
+  line(from: V3, to: V3, part: BoatPart = "wire", { fast = false, kept = false }: { fast?: boolean; kept?: boolean } = {}): this {
+    const [free, still] = kept ? [KIND.kept, KIND.keptFast] : [KIND.line, KIND.fast];
+    for (const side of crossing(unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]), kept)) {
       const corner = (end: V3, sign: number, kind: number) => this.vertex([end[0] + side[0] * sign * LINE_HALF_M, end[1] + side[1] * sign * LINE_HALF_M, end[2] + side[2] * sign * LINE_HALF_M], part, 1, kind, [side[0] * sign, side[1] * sign, side[2] * sign]);
-      const [a, b] = [corner(from, 1, KIND.line), corner(from, -1, KIND.line)];
-      const [c, d] = [corner(to, 1, fast ? KIND.fast : KIND.line), corner(to, -1, fast ? KIND.fast : KIND.line)];
+      const [a, b] = [corner(from, 1, free), corner(from, -1, free)];
+      const [c, d] = [corner(to, 1, fast ? still : free), corner(to, -1, fast ? still : free)];
       this.indices.push(a, b, c, c, b, d);
     }
     return this;

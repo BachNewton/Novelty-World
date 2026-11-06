@@ -149,17 +149,23 @@ export class Car {
   /** Takes over from another car mid-drive: the same place on the road, moving as it moved, the engine in the gear this speed asks for. */
   takeOver(from: Car): void {
     const before = from.state();
-    const lift = this.rideM - from.rideM;
-    const up = rotate(before.rotation, [0, lift, 0]);
-    this.body.setTranslation({ x: before.position[0] + up[0], y: before.position[1] + up[1], z: before.position[2] + up[2] }, true);
-    const [x, y, z, w] = before.rotation;
-    this.body.setRotation({ x, y, z, w }, true);
-    this.body.setLinvel({ x: before.velocity[0], y: before.velocity[1], z: before.velocity[2] }, true);
-    this.body.setAngvel({ x: before.spin[0], y: before.spin[1], z: before.spin[2] }, true);
-    this.steer = before.steer;
-    this.roll = before.roll;
+    const up = rotate(before.rotation, [0, this.rideM - from.rideM, 0]);
+    this.resume({ ...before, position: [before.position[0] + up[0], before.position[1] + up[1], before.position[2] + up[2]] });
     this.reversingNow = from.reversingNow;
-    this.engineNow = runningEngine(this.tuning.gearbox, Math.hypot(...before.velocity));
+  }
+
+  /** Carries on from a state: there, moving as it moves, the engine in the gear this speed asks for. */
+  resume(state: CarState): void {
+    const [px, py, pz] = state.position;
+    this.body.setTranslation({ x: px, y: py, z: pz }, true);
+    const [x, y, z, w] = state.rotation;
+    this.body.setRotation({ x, y, z, w }, true);
+    this.body.setLinvel({ x: state.velocity[0], y: state.velocity[1], z: state.velocity[2] }, true);
+    this.body.setAngvel({ x: state.spin[0], y: state.spin[1], z: state.spin[2] }, true);
+    this.steer = state.steer;
+    this.roll = state.roll;
+    this.reversingNow = false;
+    this.engineNow = runningEngine(this.tuning.gearbox, Math.hypot(...state.velocity));
   }
 
   /** Takes the car out of the world. */
