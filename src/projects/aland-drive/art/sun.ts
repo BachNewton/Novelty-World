@@ -4,7 +4,7 @@ import { uniform, vec3 } from "three/tsl";
 /*
  * The sun every material is lit by. A gallery hands a kit a fixed place in the sky; the game hands it the live sun,
  * one uniform that the hour moves. Either way a material reads it as one vector towards the sun, whose length is how
- * strong the sun is: 1 by day, falling to nothing as it sets, so a material's `dot(normal, toSun)` is the direct light
+ * strong the sun is: 1 by a clear day, less under cloud, falling to nothing as it sets, so a material's `dot(normal, toSun)` is the direct light
  * at any hour and no material needs to know there is an hour at all.
  */
 
@@ -50,11 +50,11 @@ export function sunStrength(elevationDeg: number) {
   return share * share * (3 - 2 * share);
 }
 
-/** A sun for the game, starting at a place, which `setSun` moves. */
-export function createLiveSun(place: SunPlace): LiveSun & { setSun: (place: SunPlace) => void } {
+/** A sun for the game, starting at a place, which `setSun` moves; `through` is the share of it the clouds let through. */
+export function createLiveSun(place: SunPlace): LiveSun & { setSun: (place: SunPlace, through?: number) => void } {
   const toSun = uniform(new Vector3());
-  const setSun = (next: SunPlace) => {
-    towardsPlace(next, toSun.value).multiplyScalar(sunStrength(next.elevationDeg));
+  const setSun = (next: SunPlace, through = 1) => {
+    towardsPlace(next, toSun.value).multiplyScalar(sunStrength(next.elevationDeg) * through);
   };
   setSun(place);
   return { toSun, setSun };

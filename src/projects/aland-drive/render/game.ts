@@ -101,10 +101,14 @@ import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
-import { groundCondition } from "../climate/feed";
-import { auroraAsked, climateTimeOf, createSeasonFeed } from "./season-feed";
-import { weatherAt } from "../climate/weather";
-import type { SeasonDials } from "../art/season";
+import { auroraAsked, createSeasonFeed } from "./season-feed";
+import { seasonNodes, type SeasonDials } from "../art/season";
+import { weatherFeed } from "../climate/feed";
+import type { HeldWeather } from "../climate/held";
+import { clearForAurora, type Weather, type WeatherState } from "../climate/weather";
+import { createRoadWeather, hazeInFog } from "./weather";
+import { roadWeather } from "./road-weather";
+import { createPrecipitation } from "./precipitation";
 import { fitTyres, tyresOn } from "../garage/tyres";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -226,6 +230,8 @@ export interface GameProbe {
   /** How many tyre particles are in the air, of the most each pool holds. */
   tyreCounts: () => { puffs: number; chips: number; puffPool: number; chipPool: number };
   showTyres: (shown: boolean) => void;
+  /** Rain streaks and snowflakes drawn now. */
+  precipitationCounts: () => { rain: number; snow: number };
   setCondition: (condition: Condition) => void;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
@@ -245,6 +251,10 @@ export interface GameProbe {
   setDay: (change: DayChange) => void;
   /** The season's dials as drawn, from the day's date (`art/season.ts`). */
   season: () => SeasonDials;
+  /** Holds a weather drawn and driven on at once, with none of the ease the dev menu's has, or lets the shared one run with null. */
+  setWeather: (held: HeldWeather | null) => void;
+  /** The weather drawn now: none on a tool's page that didn't ask for it. */
+  weather: () => Weather | null;
   /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
   showNightLights: (shown: boolean) => void;
   /** Shows Torget's tree and the town's strings of lights or leaves them out, to see what they cost. */
@@ -434,6 +444,10 @@ export interface Game {
   day: () => DayShown;
   setDay: (change: DayChange) => void;
   setCondition: (condition: Condition) => void;
+  /** The weather held, if any, and the one drawn now: none on a tool's page. */
+  weather: () => { held: HeldWeather | null; state: WeatherState | null };
+  /** Holds a weather, or lets the shared one run with null. */
+  setWeather: (held: HeldWeather | null) => void;
   setDevMenuOpen: (open: boolean) => void;
   setGameMenuOpen: (open: boolean) => void;
   /** Does what a game menu item says: Resume closes the menu. */
@@ -463,6 +477,8 @@ const CAMERA_FAR = 200000;
 const SKY_REACH_M = CAMERA_FAR * 0.9;
 /** Inside the sky, which is pinned to the far plane, so the land in front of it hides it. */
 const AURORA_REACH_M = CAMERA_FAR * 0.85;
+/** The season's snow cover over which a road's shoulder lies under the ploughed bank's snow. */
+const LYING_ON_SHOULDER = [0.1, 0.4] as const;
 /** Under the deepest seabed (`DEEPEST_M` in `pipeline/terrain.py`), so where the terrain reaches, it draws its own water. */
 const SEA_BELOW_LAND_M = -5;
 /** Land this little above the water is wet, and darker for it. */
@@ -690,7 +706,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const shade = mix(sampled(layers.shadeFar, farLayer).r, sampled(layers.shadeNear, nearLayer).r, nearShare);
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
-  const day = createDayAndNight(sky, window.location.search, seaSeconds());
+  const weatherNow = weatherFeed(window.location.search, window.navigator.webdriver);
+  const day = createDayAndNight(sky, window.location.search, seaSeconds(), weatherNow.at);
   const { sun, night } = day;
   const seasonFeed = createSeasonFeed(day.time(), seaSeconds());
   const aurora = createAurora(night, AURORA_REACH_M);
@@ -750,6 +767,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);
   const seaHazed = hazedAtHour(seaAtHour);
+  const roadUnder = createRoadWeather();
+  const onRoad = roadWeather({
+    weather: roadUnder,
+    skyAlong: sky.clearAlong,
+    toSun: sun.toSun,
+    inLand: (colour) => colour.div(landAtHour(night, vec3(1, 1, 1))),
+    snow: colorOf("snow"),
+    lying: smoothstep(float(LYING_ON_SHOULDER[0]), float(LYING_ON_SHOULDER[1]), seasonNodes(season).snowCover),
+    ice: colorOf("weather-ice"),
+  });
 
   // From high up the mask's mips blur a road into a wide band, so the paint goes as the camera lifts: the map draws its own roads.
   const paintedShare = uniform(1);
@@ -758,7 +785,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // The season's snow over the ground, before the roads are painted on it (`art/surfaces/snow.ts`).
   const snow = snowfall(season, colorOf);
   const snowyGround = (up: Node<"vec3">) => snowOnGround(groundColor, snow, { place: positionWorld.xz, up, photo: photo.rgb.pow(vec3(2.2)), rock: mask.a, roads: mask.g.add(mask.b), paved: townHard, canopy: canopyAt(positionWorld.xz, 2), toCamera });
-  const land = (up: Node<"vec3">) => mix(mix(snowyGround(up), colorOf("road-main"), roadEdge(mask.g)), colorOf("road-minor"), roadEdge(mask.b)).mul(lightOf(shade, up));
+  const paintedRoad = (name: string) => onRoad.surface(colorOf(name), roadUnder.snow.mul(0.8));
+  const land = (up: Node<"vec3">) => mix(mix(snowyGround(up), paintedRoad("road-main"), roadEdge(mask.g)), paintedRoad("road-minor"), roadEdge(mask.b)).mul(lightOf(shade, up));
   const hasFar = inMap.and(slots.r.greaterThan(0.001));
   const farSeen = select(hasFar, float(1).sub(smoothstep(float(FAR_FADE_FROM_M), float(FAR_SEEN_M), toCamera)), float(0));
   const overviewSize = vec2((manifest.overview.columns - 1) * manifest.overview.stepM, (manifest.overview.rows - 1) * manifest.overview.stepM);
@@ -856,7 +884,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept).mul(townHard));
   const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), townHard);
   const roadMaterial = new MeshBasicNodeMaterial();
-  roadMaterial.colorNode = hazed(mix(painted, shoulderColour, shoulderShare).mul(light));
+  const snowCover = onRoad.snowCover(across, shoulderShare);
+  roadMaterial.colorNode = hazed(onRoad.surface(mix(painted, shoulderColour, shoulderShare), snowCover).mul(light).add(onRoad.shine(snowCover, light)));
 
   const bridgeMaterial = new MeshBasicNodeMaterial();
   const part = attribute<"float">("part", "float");
@@ -1047,7 +1076,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
   const startCar = carAsked(window.location.search);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
-  const ground = groundCondition(window.location.search, window.navigator.webdriver);
   // A link's tyres are for this drive only: what's kept is what the player fitted.
   drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
   const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
@@ -1055,6 +1083,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
   const tyres = createTyreParticles(scene, token, hazed);
+  const precipitation = createPrecipitation(scene, { rain: linear("weather-rain"), snow: linear("snow"), hazed });
   const cullCar = (culled: boolean) => {
     for (const object of carView.objects) {
       object.traverse((part) => {
@@ -1079,6 +1108,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   buildingAddOns.showAll(true);
   challengeMarks.showAll(true);
   tyres.showAll(true);
+  precipitation.showAll(true);
   cullCar(false);
   nightLights.showAll(true);
   winterLights.showAll(true);
@@ -1103,6 +1133,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   buildingAddOns.showAll(false);
   challengeMarks.showAll(false);
   tyres.showAll(false);
+  precipitation.showAll(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
@@ -1783,8 +1814,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (date !== undefined) day.clock.setDate(date);
     if (hour !== undefined) day.clock.setHour(hour, now);
     if (holdHour !== undefined) day.clock.hold(holdHour, now);
-    day.update(now, 0);
-    seasonFeed.update(day.time(), now);
+    day.update(now, 0, 0);
+    seasonFeed.update(day.time(), now, day.weather());
     world.setIceDrivable(season.current().iceDrivable);
     world.setPlacedSeason(season.current());
   };
@@ -1842,7 +1873,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (!devMenuOpen && !gameMenu) freeCamera.update(now);
     } else {
       chaseCamera.update(car, held ? STEP_S * 4 : seconds, controls.look());
-      hazeM.value = HAZE_M;
       paintedShare.value = 1;
     }
     const lifted = mapFrom !== null;
@@ -1877,7 +1907,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, paused: mapFrom !== null || jumping || menuHolds }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1900,7 +1930,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       indicatorClock.value += seconds;
     }
     regattas.update(seaHeldAt ?? seaNow());
-    drive.condition = ground.at(seaHeldAt ?? seaNow());
+    drive.condition = weatherNow.condition();
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     trafficFocus.x = camera.position.x;
@@ -1909,10 +1939,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
-    day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds);
-    seasonFeed.update(day.time(), seaHeldAt ?? seaNow());
+    day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, seconds);
+    const weatherShown = day.weather();
+    seasonFeed.update(day.time(), seaHeldAt ?? seaNow(), weatherShown);
     world.setIceDrivable(season.current().iceDrivable);
     world.setPlacedSeason(season.current());
+    roadUnder.set(weatherShown);
+    precipitation.update(weatherShown, held || jumping || menuHolds ? 0 : seconds, !lifted);
+    if (!lifted) hazeM.value = hazeInFog(HAZE_M, weatherShown?.fog ?? 0);
     if (roadside.lampRevision() !== lampRevision) {
       lampRevision = roadside.lampRevision();
       nightLights.setLamps(roadside.lamps());
@@ -1922,7 +1956,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     winterLights.update(camera.position);
     aimHeadlights(car);
     sky.update(camera.position, seconds);
-    aurora.setStrength(auroraHeld ?? weatherAt(climateTimeOf(day.time(), seaHeldAt ?? seaNow())).aurora);
+    aurora.setStrength(auroraHeld === null ? (weatherShown?.aurora ?? 0) : auroraHeld * clearForAurora(weatherShown?.cloudCover ?? 0));
     aurora.update(camera.position);
     tiledFollows(camera.position.x, camera.position.z);
     renderer.render(scene, camera);
@@ -2058,8 +2092,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       surfaces: () => drive.player.surfaces(),
       tyreCounts: tyres.counts,
       showTyres: tyres.show,
+      precipitationCounts: precipitation.counts,
       setCondition: (condition) => {
-        ground.hold(condition);
+        weatherNow.holdGround(condition);
         drive.condition = condition;
       },
       tyres: () => drive.tyres,
@@ -2080,6 +2115,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       day: dayShown,
       setDay,
       season: () => season.current(),
+      setWeather: (held) => {
+        weatherNow.hold(held);
+        day.update(seaHeldAt ?? seaNow(), 0, Number.POSITIVE_INFINITY);
+      },
+      weather: day.weather,
       showNightLights: (shown) => {
         nightLights.show(shown);
         headlights.cones.visible = shown;
@@ -2167,8 +2207,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     setCar,
     condition: () => drive.condition,
     setCondition: (condition) => {
-      ground.hold(condition);
+      weatherNow.holdGround(condition);
       drive.condition = condition;
+    },
+    weather: () => ({ held: weatherNow.held(), state: day.weather()?.state ?? null }),
+    setWeather: (held) => {
+      weatherNow.hold(held);
     },
     day: dayShown,
     setDay,
@@ -2209,6 +2253,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       onlineWorld?.stop();
       remoteViews.dispose();
       tyres.dispose();
+      precipitation.dispose();
       drive.dispose();
       stream.dispose();
       fetcher.dispose();

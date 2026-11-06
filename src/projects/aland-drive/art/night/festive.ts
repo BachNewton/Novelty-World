@@ -1,4 +1,4 @@
-import { abs, atan, float, floor, fract, If, length, min, mix, select, smoothstep, vec2, vec3 } from "three/tsl";
+import { abs, atan, float, floor, fract, Fn, If, length, min, mix, select, smoothstep, vec2, vec3, vec4 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { seedOf, unitOf } from "../hash";
 import { changeOf, type SeasonNodes } from "../season";
@@ -86,7 +86,7 @@ const shine = (night: Night): F => mix(float(DAY_SHINE), float(1), smoothstep(fl
 const dressedHome = (winter: WinterWall, building: F): F => changeOf(winter.season.lightsWindows.mul(winter.windows), unitOf(seedOf(building), SALT.home));
 
 /** The seven-light stepped candlestick, its foot on the sill, or Advent's four candles lit as far as the Sundays have come. */
-function candlestick(night: Night, winter: WinterWall, room: Node<"uint">, { x, y, wide, tall }: PaneFrame): WindowDressing {
+function candlestick(adventLit: F, room: Node<"uint">, { x, y, wide, tall }: PaneFrame): WindowDressing {
   const advent = unitOf(room, SALT.advent).lessThan(FOUR_CANDLES);
   const halfRow = select(advent, float(ADVENT_STEP_M * 2), float(CANDLE_STEP_M * 3.5));
   const step = select(advent, float(ADVENT_STEP_M), float(CANDLE_STEP_M));
@@ -97,7 +97,7 @@ function candlestick(night: Night, winter: WinterWall, room: Node<"uint">, { x, 
   // The seven-light has a candle on its middle; Advent's four stand either side of it, so their row is shifted half a step, and counted from the left as they're lit.
   const row = select(advent, x.add(ADVENT_STEP_M * 1.5), x);
   const candle = floor(x.add(ADVENT_STEP_M * 2).div(ADVENT_STEP_M));
-  const candleLit = select(advent, select(candle.lessThan(winter.season.adventCandles.sub(0.5)), float(1), float(0)), float(1));
+  const candleLit = select(advent, select(candle.lessThan(adventLit.sub(0.5)), float(1), float(0)), float(1));
   const candles = pulses(row, step, CANDLE_HALF_M * 1.4, wide).mul(band(y, CANDLESTICK_BASE_M, top, tall)).mul(inRow);
   const bulbs = pulses(row, step, BULB_HALF_M, wide).mul(band(y, top, top.add(BULB_TALL_M), tall)).mul(inRow);
   const stepped = band(y, 0, select(advent, float(CANDLESTICK_BASE_M), mix(float(CANDLESTICK_BASE_M), top, 0.32)), tall).mul(inRow);
@@ -107,11 +107,11 @@ function candlestick(night: Night, winter: WinterWall, room: Node<"uint">, { x, 
     .mul(bulbs.mul(BULB).mul(candleLit))
     .add(flame.mul(candles.mul(0.32).add(stepped.mul(0.12))))
     .add(flame.mul(halo.mul(halo).mul(0.32)));
-  return { glow: glow.mul(shine(night)), cover: stepped.add(candles).min(1).mul(0.85) };
+  return { glow, cover: stepped.add(candles).min(1).mul(0.85) };
 }
 
 /** A paper star hung high in the window on its cord, lit from within. */
-function star(night: Night, room: Node<"uint">, { x, y, height, wide, tall }: PaneFrame): WindowDressing {
+function star(room: Node<"uint">, { x, y, height, wide, tall }: PaneFrame): WindowDressing {
   const radius = min(float(STAR_RADIUS_M), height.mul(0.16));
   const middle = height.sub(STAR_DROP_M).sub(radius);
   const from = vec2(x, y.sub(middle));
@@ -130,19 +130,40 @@ function star(night: Night, room: Node<"uint">, { x, y, height, wide, tall }: Pa
   const halo = float(1).sub(reach.div(radius.mul(2.4))).max(0);
   const paper = select(unitOf(room, SALT.hue).lessThan(0.25), nightColour("star-red"), nightColour("star"));
   const glow = paper.mul(shape.mul(within).mul(STAR).add(halo.mul(halo).mul(0.3).mul(float(1).sub(far))));
-  return { glow: glow.mul(shine(night)), cover: shape.add(cord).min(1).mul(0.9) };
+  return { glow, cover: shape.add(cord).min(1).mul(0.9) };
 }
 
-/** What a pane holds: a candlestick, a star or nothing, chosen by the pane once its home has dressed its windows. */
-export function windowDressing(night: Night, winter: WinterWall, building: F, room: Node<"uint">, pane: PaneFrame): WindowDressing {
-  const dressed = dressedHome(winter, building).mul(select(unitOf(room, SALT.pane).lessThan(PANES_DRESSED), float(1), float(0)));
+/**
+ * What a pane holds once its home has dressed it: a candlestick or a star, before the hour's shine. It is one function
+ * in the shader, which every style of wall calls: inlined into each, it made the wall shader one the GPU's compiler
+ * took seconds over. A function's body can't read a uniform (three.js builds those only for the shader's main), so the
+ * Advent candles lit come in as an input.
+ */
+const paneDressing = Fn(([room, adventLit, x, y, height, wide, tall]: [Node<"uint">, F, F, F, F, F, F]) => {
+  const pane: PaneFrame = { x, y, height, wide, tall };
   const isCandlestick = unitOf(room, SALT.kind).lessThan(CANDLESTICKS);
-  const stick = candlestick(night, winter, room, pane);
-  const hung = star(night, room, pane);
-  return {
-    glow: select(isCandlestick, stick.glow, hung.glow).mul(dressed),
-    cover: select(isCandlestick, stick.cover, hung.cover).mul(dressed),
-  };
+  const stick = candlestick(adventLit, room, pane);
+  const hung = star(room, pane);
+  return vec4(select(isCandlestick, stick.glow, hung.glow), select(isCandlestick, stick.cover, hung.cover));
+}).setLayout({
+  name: "windowDressing",
+  type: "vec4",
+  inputs: [
+    { name: "room", type: "uint" },
+    { name: "adventLit", type: "float" },
+    { name: "x", type: "float" },
+    { name: "y", type: "float" },
+    { name: "height", type: "float" },
+    { name: "wide", type: "float" },
+    { name: "tall", type: "float" },
+  ],
+});
+
+/** What a pane holds: a candlestick, a star or nothing, chosen by the pane once its home has dressed its windows. */
+export function windowDressing(night: Night, winter: WinterWall, building: F, room: Node<"uint">, { x, y, height, wide, tall }: PaneFrame): WindowDressing {
+  const dressed = dressedHome(winter, building).mul(select(unitOf(room, SALT.pane).lessThan(PANES_DRESSED), float(1), float(0)));
+  const both = paneDressing(room, winter.season.adventCandles, x, y, height, wide, tall);
+  return { glow: both.xyz.mul(shine(night)).mul(dressed), cover: both.w.mul(dressed) };
 }
 
 /** What a dressed home's windows add to a wall too far off for its panes: a little more warmth. */

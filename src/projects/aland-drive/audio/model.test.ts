@@ -3,7 +3,7 @@ import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from 
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
+import { engineCycle, gravelLoop, rockLoop, rainLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -167,11 +167,27 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);
     }
   });
 
+});
+
+describe("the weather", () => {
+  const heard = (weather: DriveAudioState["weather"], changes: Partial<DriveAudioState> = {}) => mix({ state: state({ weather, ...changes }), engine: null, time: 0, wander: 0 });
+
+  it("drums rain on the roof only while it rains, harder the harder it falls, and still while the drive is stopped", () => {
+    expect(heard({ rain: 0, snowfall: 0, windMS: 5 }).rainLevel).toBe(0);
+    expect(heard({ rain: 0.8, snowfall: 0, windMS: 5 }).rainLevel).toBeGreaterThan(heard({ rain: 0.2, snowfall: 0, windMS: 5 }).rainLevel);
+    expect(heard({ rain: 0.5, snowfall: 0, windMS: 5 }, { paused: true }).rainLevel).toBeGreaterThan(0);
+  });
+
+  it("blows a wind of its own only past a breeze, rising with its speed", () => {
+    expect(heard({ rain: 0, snowfall: 0, windMS: 2 }).galeLevel).toBe(0);
+    expect(heard({ rain: 0, snowfall: 0, windMS: 15 }).galeLevel).toBeGreaterThan(heard({ rain: 0, snowfall: 0, windMS: 8 }).galeLevel);
+    expect(heard(undefined).galeLevel).toBe(0);
+  });
 });

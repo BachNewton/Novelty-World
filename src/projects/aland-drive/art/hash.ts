@@ -1,4 +1,4 @@
-import { float, floor, int, uint } from "three/tsl";
+import { float, floor, Fn, int, uint } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { pcgOf } from "./hash-of";
 
@@ -15,11 +15,14 @@ import { pcgOf } from "./hash-of";
  * vertex stage (`varying`), where its attributes are exact: an integer varying reaches every pixel unchanged.
  */
 
-const pcg = (value: Node<"uint">): Node<"uint"> => {
+// One function in the shader, called wherever a hash is: inlined, a pattern's few dozen hashes, repeated in every branch
+// that reads them, made shaders the GPU's compiler took seconds over.
+const pcgFn = Fn(([value]: [Node<"uint">]) => {
   const state = value.mul(uint(747796405)).add(uint(2891336453));
   const word = state.shiftRight(state.shiftRight(uint(28)).add(uint(4))).bitXor(state).mul(uint(277803737));
   return word.shiftRight(uint(22)).bitXor(word);
-};
+}).setLayout({ name: "pcgHash", type: "uint", inputs: [{ name: "value", type: "uint" }] });
+const pcg = (value: Node<"uint">): Node<"uint"> => pcgFn(value);
 
 const toBits = (whole: Node<"float">): Node<"uint"> => uint(int(floor(whole)));
 

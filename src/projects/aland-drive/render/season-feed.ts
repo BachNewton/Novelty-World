@@ -1,14 +1,17 @@
 import { seasonAt } from "../climate/season";
-import { alandDate, alandOffsetHours, dateText, GAME_DAY_S, type GameTime } from "../time/day";
-import type { ClimateTime } from "../climate/weather";
+import { alandDate, alandOffsetHours, dateText, type GameTime } from "../time/day";
+import type { Weather } from "../climate/weather";
 import { createLiveSeason, dialsOf, type LiveSeason } from "../art/season";
 
 /*
  * The season the game draws, from its day: the real date's dials, eased through the real day so nothing seasonal
- * jumps at midnight, or a held date's (`?date=`, the dev menu's Day) at its noon.
+ * jumps at midnight, or a held date's (`?date=`, the dev menu's Day) at its noon. A fresh fall whitens the land with the
+ * road while the road still has it (the weather's `roadSnow`), over whatever snow the season has lying.
  */
 
 const DAY_S = 86_400;
+/** How deep a fresh fall lies, centimetres, when the road is fully under it. */
+const FRESH_CM = 4;
 
 /** How far through Åland's real date the world's clock is, or a held date's noon. */
 export function throughDate(time: GameTime, worldSeconds: number) {
@@ -20,8 +23,8 @@ export function throughDate(time: GameTime, worldSeconds: number) {
 
 export interface SeasonFeed {
   season: LiveSeason;
-  /** Each frame, after the day: the day shown and the world's clock. */
-  update: (time: GameTime, worldSeconds: number) => void;
+  /** Each frame, after the day: the day shown, the world's clock and the weather drawn. */
+  update: (time: GameTime, worldSeconds: number, weather: Weather | null) => void;
 }
 
 export function createSeasonFeed(time: GameTime, worldSeconds: number): SeasonFeed {
@@ -29,19 +32,13 @@ export function createSeasonFeed(time: GameTime, worldSeconds: number): SeasonFe
   const season = createLiveSeason(dialsAt(time, worldSeconds));
   return {
     season,
-    update(at, seconds) {
-      season.set(dialsAt(at, seconds));
+    update(at, seconds, weather) {
+      const dials = dialsAt(at, seconds);
+      const fresh = weather?.roadSnow ?? 0;
+      season.set({ ...dials, snowCover: Math.max(dials.snowCover, fresh), snowDepthCm: Math.max(dials.snowDepthCm, fresh * FRESH_CM) });
     },
   };
 }
-
-/** The climate's time for the day shown: its date and hour, and the world's clock in game days, which the fronts follow. */
-export const climateTimeOf = (time: GameTime, worldSeconds: number): ClimateTime => ({
-  date: time.date,
-  through: throughDate(time, worldSeconds),
-  hour: time.hour,
-  gameDays: worldSeconds / GAME_DAY_S,
-});
 
 /** An aurora a link holds (`?aurora=0.8`), to see one whatever the weather; the night still has to be dark. */
 export function auroraAsked(search: string): number | null {

@@ -2,7 +2,7 @@ import { BIKE, type EngineSpec } from "./vehicles";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
- * firing cycle, the tyres' grit, snow and spray, the freewheel and the beds of each place. No
+ * firing cycle, the tyres' grit, snow and spray, rain on the roof, the freewheel and the beds of each place. No
  * files and no Web Audio here, and seeded, so a loop is the same every visit.
  * A loop's end meets its start because everything in one is periodic in its
  * length: events wrap round it, and a filter's memory comes from a first pass.
@@ -262,6 +262,28 @@ export function sprayLoop(): Loop {
     const decayS = 0.0002 + 0.0005 * next();
     const level = 0.05 + 0.15 * next() * next();
     addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
+/** Rain on a car's roof and glass: a dense patter of small drops, fewer fat ones that plink, and a soft wash under them. */
+export function rainLoop(): Loop {
+  const next = random(83);
+  const seconds = 3.9;
+  const length = Math.round(seconds * HIGH_RATE);
+  const channels = [0, 1].map(() => lowNoise(length, next, () => 700, HIGH_RATE).map((sample) => sample * 0.6));
+  for (let i = 0; i < 5200; i++) {
+    const hz = 2400 + 5200 * next();
+    const decayS = 0.0003 + 0.001 * next();
+    const level = 0.08 + 0.3 * next() * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.8 - 0.9, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  }
+  for (let i = 0; i < 420; i++) {
+    const hz = 700 + 1300 * next();
+    const decayS = 0.003 + 0.006 * next();
+    const level = 0.3 + 0.5 * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t * (1 - 0.3 * t / decayS / 5)));
   }
   normalise(channels, 0.9);
   return { rate: HIGH_RATE, channels };

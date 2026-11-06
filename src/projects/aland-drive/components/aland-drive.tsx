@@ -123,7 +123,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "weather" | "setWeather" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
@@ -428,7 +428,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </>
       )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>
