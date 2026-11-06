@@ -1,26 +1,25 @@
-"""Writes lights.json: every sea light OSM holds on the map, with its real characteristic, in the game's grid metres.
+"""Writes lights.json: every sea light OSM holds over the sea chart's box, with its real characteristic, in the game's grid metres.
 
     pipeline/.venv/Scripts/python src/projects/aland-drive/art/night/lights.py
 
-Reads the kept OSM answers in .data/raw/osm-api/ and nothing else. The output is derived from OpenStreetMap, so it
+Reads OSM's sea lights as Overpass answered for the sea chart's box (`sources.osm_sea_lights_path`), fetched once and
+kept in .data/raw/osm-lights/, so a lighthouse on an outer skerry that no tile's answer reaches has its light too. The output is derived from OpenStreetMap, so it
 stays under ODbL, as the tiles' road and building files do, and the project's `credits.ts` credits it with them.
 
 OSM gives a sector as true bearings seen from seaward, towards the light. The game has only grid north, so each is
 turned here by the meridian's own lean at that light, and nothing downstream needs to know.
 """
-import glob
 import json
 import os
 import re
 import sys
-import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(PROJECT, "pipeline"))
 from grid import lonlat_to_grid, to_local  # noqa: E402
+from sources import osm_sea_lights_path  # noqa: E402
 
-RAW = os.path.join(PROJECT, ".data", "raw", "osm-api")
 NEIGHBOUR_DEG = 0.01
 PERIOD_FALLBACK_S = {"Q": 1.0, "VQ": 0.5, "Fl": 4.0, "LFl": 8.0, "Iso": 4.0, "Oc": 4.0}
 
@@ -110,15 +109,11 @@ def light_of(lat, lon, tags):
 
 
 found = {}
-for path in sorted(glob.glob(os.path.join(RAW, "*.xml"))):
-    for _, element in ET.iterparse(path):
-        if element.tag == "node":
-            tags = {child.get("k"): child.get("v") for child in element.findall("tag")}
-            if any(key.startswith("seamark:light") for key in tags):
-                light = light_of(float(element.get("lat")), float(element.get("lon")), tags)
-                if light:
-                    found[element.get("id")] = light
-            element.clear()
+with open(osm_sea_lights_path(), encoding="utf-8") as answer:
+    for element in json.load(answer)["elements"]:
+        light = light_of(element["lat"], element["lon"], element.get("tags", {}))
+        if light:
+            found[element["id"]] = light
 
 lights = sorted(found.values(), key=lambda light: (light["kind"], light["x"], light["z"]))
 with open(os.path.join(HERE, "lights.json"), "w", encoding="utf-8") as out:

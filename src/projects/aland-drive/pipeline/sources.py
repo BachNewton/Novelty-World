@@ -7,6 +7,7 @@ missing.
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 from datetime import datetime, timezone
@@ -417,4 +418,24 @@ def sea_chart_path(layer: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path.write_text(json.dumps({"source": service, "layer": name, "asOf": fetched, "features": features}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+# Every sea light OSM maps over the sea chart's box, with its characteristic: the tiles' own answers hold only those
+# near a tile, and a lighthouse on an outer skerry is in none of them. Asked of Overpass for the lights alone.
+OVERPASS = "https://overpass-api.de/api/interpreter"
+SEA_LIGHTS_QUERY = '[out:json][timeout:90];node[~"^seamark:light(:[0-9]+)?:character$"~"."]({south},{west},{north},{east});out body;'
+
+
+def osm_sea_lights_path() -> Path:
+    """OSM's sea lights over the sea chart's box, as Overpass answered, fetched once and kept."""
+    path = RAW / "osm-lights" / "sea-lights.json"
+    if path.exists():
+        return path
+    to_lonlat = Transformer.from_crs("EPSG:3067", "EPSG:4326", always_xy=True)
+    west, south, east, north = SEA_CHART_BOX
+    corners = [to_lonlat.transform(x, y) for x in (west, east) for y in (south, north)]
+    box = {"west": min(c[0] for c in corners), "south": min(c[1] for c in corners), "east": max(c[0] for c in corners), "north": max(c[1] for c in corners)}
+    query = SEA_LIGHTS_QUERY.format(**{name: f"{value:.6f}" for name, value in box.items()})
+    _download(urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(), headers={"User-Agent": USER_AGENT}), path)
     return path
