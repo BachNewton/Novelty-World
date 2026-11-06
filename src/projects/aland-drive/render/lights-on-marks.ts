@@ -5,7 +5,7 @@ import data from "../sea/marks.json";
  * The sea's lights come from OSM (`art/night/lights.json`), and the marks they stand on from the official register
  * (`sea/marks.json`), which is what the game draws. Where the two disagree the register wins: a light stands on the
  * register's mark at its place and takes its kind from that mark's model, so a glow is in the light it belongs to, and
- * only a real lighthouse can turn. A light OSM has and the register doesn't has nothing drawn to shine from, and is left
+ * only a real lighthouse is drawn as one. A light OSM has and the register doesn't has nothing drawn to shine from, and is left
  * out: its glow would hang in the air or in a tree (the light by Långnäs's ferry berth did).
  */
 

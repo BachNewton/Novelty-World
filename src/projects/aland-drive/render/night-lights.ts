@@ -1,12 +1,12 @@
 import type { Scene, WebGPURenderer } from "three/webgpu";
-import { createCarGlows, createGlows, createLampLight, createSeaBeams, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
+import { createCarGlows, createGlows, createLampLight, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
 import { uniform } from "three/tsl";
 import { placesOf } from "../art/marina/places";
 import { LIGHTS_ON_MARKS } from "./lights-on-marks";
 
 /*
- * The night's lights in the game (`art/night`): every lamp beside the roads, the sea's lights from OSM with the great
- * lights' turning beams, the harbours' working lamps, and other players' head and tail lamps, all as glows in one draw;
+ * The night's lights in the game (`art/night`): every lamp beside the roads, the sea's lights from OSM flashing from
+ * their own lamps, the harbours' working lamps, and other players' head and tail lamps, all as glows in one draw;
  * and the light the lamps near the camera cast, which every colour drawn takes (`lightOn`). By day, before the first
  * lamp strikes, none of it is drawn or cast.
  */
@@ -43,9 +43,8 @@ export function createNightLights(scene: Scene, night: Night, { onAland }: { onA
   const fixed = [...sea.glows, ...(onAland ? harbourGlows(placesOf("marina")) : [])];
   const glows = createGlows(night, fixed, sea.rhythms, fixed.length + LAMPS_MOST);
   const pools = createLampLight(night, LAMPS_MOST);
-  const beams = onAland ? createSeaBeams(night, LIGHTS_ON_MARKS) : null;
   const cars = createCarGlows(night, CARS_MOST);
-  const meshes = [glows.mesh, cars.mesh, ...(beams ? [beams.mesh] : [])];
+  const meshes = [glows.mesh, cars.mesh];
   scene.add(...meshes);
   let compiling = false;
   let hidden = false;
@@ -104,7 +103,6 @@ export function createNightLights(scene: Scene, night: Night, { onAland }: { onA
       for (const mesh of meshes) scene.remove(mesh);
       glows.dispose();
       pools.dispose();
-      beams?.dispose();
       cars.dispose();
     },
   };
