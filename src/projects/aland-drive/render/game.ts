@@ -1318,7 +1318,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const menuNow = (): GameMenu => {
     if (!session) return drivingMenu(drive.tyres);
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
-    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: session.challenge.title };
+    const { challenge } = session;
+    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
   };
   const showMenu = (menu: GameMenu | null) => {
     gameMenu = menu;
@@ -1422,7 +1423,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
       const result = outcome.average ?? outcome.results[seat];
       const race = challenge.kind === "race" ? raceResult(challenge, mode, outcome, seat, partner) : undefined;
-      showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
+      showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
     },
     onRetry: (attempt) => {
       coop.retried(attempt);
@@ -1447,6 +1448,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     });
     const mine = order.findIndex((finisher) => "seat" in finisher && finisher.seat === seat);
     return {
+      ground: race.ground,
       medal: medalFor(race, times),
       place: order.slice(0, mine).filter((finisher) => "rival" in finisher).length + 1,
       of: rivalTimes(race).length + 1,

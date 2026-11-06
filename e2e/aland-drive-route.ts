@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { RouteChallenge } from "../src/projects/aland-drive/challenge/types";
+import type { RaceChallenge, RouteChallenge } from "../src/projects/aland-drive/challenge/types";
 import { expect } from "./test";
 
 /*
@@ -75,6 +75,40 @@ export async function layChallenge(page: Page, { id, title, target }: { id: stri
       gates: [gate(finishM / 3), gate((2 * finishM) / 3), gate(finishM)],
       parS: targetS,
       targetS,
+    },
+    line,
+  };
+}
+
+/**
+ * A sprint race on the same road as `layChallenge`'s Route: its start places the front row of a grid of four, its
+ * gates its lines, and a pace of `paceMS` to each line, which the rivals are timed by.
+ */
+export async function layRace(page: Page, { id, title, paceMS }: { id: string; title: string; paceMS: number }): Promise<{ race: RaceChallenge; line: number[] }> {
+  const { challenge, line } = await layChallenge(page, { id, title, target: { s: 600 } });
+  const [front, beside] = challenge.starts;
+  const back = (place: typeof front) => ({ ...place, x: place.x + 10 * Math.sin(place.heading), z: place.z + 10 * Math.cos(place.heading) });
+  const fromStart = (gate: { x: number; z: number }) => Math.hypot(gate.x - front.x, gate.z - front.z);
+  const { car, where, waypoints, starts, lengthM, gates } = challenge;
+  return {
+    race: {
+      id,
+      title,
+      car,
+      where,
+      waypoints,
+      starts,
+      lengthM,
+      gates,
+      kind: "race",
+      number: "T1",
+      shape: "sprint",
+      ground: "road",
+      laps: 1,
+      grid: [front, beside, back(front), back(beside)],
+      lapM: challenge.lengthM,
+      lineM: 0,
+      splitsS: gates.map((gate) => fromStart(gate) / paceMS),
     },
     line,
   };

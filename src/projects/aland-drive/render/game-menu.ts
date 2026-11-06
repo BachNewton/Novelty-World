@@ -19,6 +19,7 @@ export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-co
 
 /** How a race finished: the medal, the place, and everyone in finishing order. */
 export interface RaceResult {
+  ground: RaceGround;
   medal: Medal | null;
   /** This player's place against the rivals, and how many cars that is. */
   place: number;
@@ -79,6 +80,8 @@ export interface GameMenu {
   tyres?: Tyre;
   /** The race a card is for. */
   race?: RaceCard;
+  /** Set when the items are about a race, being played or over: its ground. */
+  ground?: RaceGround;
 }
 
 /**

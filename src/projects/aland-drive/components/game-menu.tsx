@@ -70,7 +70,7 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "retry":
         return { icon: RotateCcw, label: "Retry" };
       case "leave":
-        return { icon: LogOut, label: menu.race || menu.result?.race ? "Leave race" : "Leave challenge" };
+        return { icon: LogOut, label: menu.ground ? "Leave race" : "Leave challenge" };
     }
   };
 }
@@ -137,7 +137,7 @@ function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCar
 function RaceResultHeader({ title, time, race }: { title: string; time: number | null; race: RaceResult }) {
   return (
     <div className="mb-1 flex flex-col gap-1" aria-label="Result">
-      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
+      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: raceColour(race.ground) }}>
         <Trophy aria-hidden className="size-4 shrink-0" />
         <span>{title}</span>
       </div>

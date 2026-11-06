@@ -40,8 +40,8 @@ const GROUND_REACH_M = 400;
 const LOST_M = 30;
 /** A line counts as missed once the driver is this far past it along its way. */
 const MISSED_M = 40;
-/** How far on from the last line the next is looked for along the driver's way. */
-const NEXT_LINE_WITHIN_M = 2000;
+/** A line belongs to a stretch of the driver's way running within this of its heading, not one crossing it or back along it. */
+const SAME_WAY_COSINE = 0.5;
 const STOPPED_MS = 0.3;
 const GIVE_UP_STOPPED_S = 10;
 /** The longest a run may take: ten minutes, and a minute more for every 600 m past the first 6 km. */
@@ -182,17 +182,20 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
   }
 }
 
-/** Where along the driver's way each line lies, in the order they're crossed: each looked for on from the last. */
+/**
+ * Where along the driver's way each line lies, in the order they're crossed: each the nearest place on from the last
+ * running its way, the first of them where a circuit passes it lap after lap.
+ */
 function alongsOf(challenge: Challenge, line: RoadLine, from: number): number[] {
   const alongs: number[] = [];
   let after = from;
   for (let index = 0; index < linesOf(challenge); index++) {
-    const { x, z } = lineAt(challenge, index);
+    const { x, z, heading } = lineAt(challenge, index);
     let best = { distance: Infinity, along: after };
-    for (let along = after; along <= Math.min(line.length, after + NEXT_LINE_WITHIN_M); along += 2) {
+    for (let along = after; along <= line.length; along += 2) {
       const point = line.at(along);
       const distance = Math.hypot(point.x - x, point.z - z);
-      if (distance < best.distance) best = { distance, along };
+      if (distance < best.distance && Math.cos(point.heading - heading) > SAME_WAY_COSINE) best = { distance, along };
     }
     alongs.push(best.along);
     after = best.along + 1;

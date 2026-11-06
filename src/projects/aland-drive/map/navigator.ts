@@ -132,7 +132,8 @@ export class Navigator {
     if (!this.route) return null;
     const off = this.follow(x, z);
     const { end } = this.route;
-    if (Math.hypot(end.x - x, end.z - z) < ARRIVED_M) {
+    // A held route ends with its challenge: a circuit's ends where it starts, on the grid.
+    if (!this.held && Math.hypot(end.x - x, end.z - z) < ARRIVED_M) {
       this.route = null;
       return null;
     }
