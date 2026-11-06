@@ -1,5 +1,6 @@
 import type { BufferGeometry, Mesh, MeshBasicNodeMaterial } from "three/webgpu";
-import { signMaterial, signOutlineKey, signPlate, signPost, signPostMaterial, signShift, type SignLook, type SignSheet, type Sun } from "../surfaces";
+import { signMaterial, signOutlineKey, signPlate, signPost, signPostMaterial, signShift, type SignLook, type SignSheet } from "../surfaces";
+import type { Sun } from "../sun";
 import { placeModel, placeSignPlates, signPlacing, type Placement } from "./material";
 import { SIGN_PLATE_Y_M, SIGN_PLATE_Z_M, type RoadsideModel } from "./models";
 

@@ -1,7 +1,10 @@
 import { decodeGroundCut, decodeRoadSurface, surfaceHeight, type GroundCut, type HeightGrid, type RoadSurface, type TileManifest, type WorldManifest } from "../render/tile";
 import { bridgeKit, type BridgeKit } from "../render/bridges";
 import { ribbonMesh, type RibbonMesh } from "../render/roads";
+import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
 import { RoadNet, tileRoads, type TileRoads } from "./road-net";
+import { roadGrip, ribbonClasses } from "./road-grip";
+import type { Surface } from "./surfaces";
 
 /*
  * Everything known about the land, for the simulation and the terrain mesh
@@ -19,6 +22,8 @@ const BLOCK_RIM = 1;
 /** x and z at both ends, then the height a wall stands from at each, or NaN where it stands on the ground. */
 export const WALL_FLOATS = 6;
 const SOLID_WALL_FLOATS = 4;
+/** A pixel with more than this share of rock is rock to a tyre. */
+const ROCK_SHARE = 128;
 
 /** For each block of a tile and a rim of one beyond it, the ribbon triangles crossing it. */
 export interface BlockRoads {
@@ -42,6 +47,12 @@ export interface TileDetail {
   /** Metres from the shore at each height node, out into the water, below zero on land. */
   shore: HeightGrid;
   ribbon: RibbonMesh;
+  /** What the road's shader reads per ribbon vertex, sealed or loose among it. */
+  dress: RoadAttributes;
+  /** A byte per ribbon triangle, in the order of its indices: what a tyre on it is on, as an index into `SURFACES`. */
+  ribbonSurfaces: Uint8Array;
+  /** Each 4 m pixel's share of rock, 0 to 255, rows north to south, or nothing where the world has no rock layer. */
+  rock: Uint8Array | null;
   roads: TileRoads;
   blockRoads: BlockRoads;
   /** The ground the paving cuts through, and which of the height grid's cells it replaces, 1 for each: none on a tile laid before the paving. */
@@ -154,12 +165,13 @@ function blockRoads(ribbon: { positions: Float32Array; indices: Uint32Array }, w
   return { first, triangles, blocksAcross };
 }
 
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), cutBytes: ArrayBuffer = new ArrayBuffer(0)): TileDetail {
+export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), cutBytes: ArrayBuffer = new ArrayBuffer(0), rock: Uint8Array | null = null): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest, grid);
   const cut = decodeGroundCut(cutBytes, manifest, grid);
   const cutCells = new Uint8Array((grid.nodes - 1) * (grid.nodes - 1));
   for (const cell of cut.cells) cutCells[cell] = 1;
   const ribbon = ribbonMesh(surface, manifest.bounds);
+  const dress = roadAttributes(surface, manifest.solids.cells);
   const bridges = bridgeKit(surface, grid);
   const allWallsHere = allWalls(walls, bridges.rails);
   const column = Math.round(manifest.bounds.west / tileM);
@@ -174,6 +186,9 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
     waterLevels,
     shore,
     ribbon,
+    dress,
+    ribbonSurfaces: roadGrip(ribbon, dress, ribbonClasses(ribbon.across.length, surface.aprons)),
+    rock,
     roads: tileRoads(surface, column, row, tileM),
     blockRoads: blockRoads(ribbon, manifest.bounds.west, manifest.bounds.north, tileM),
     cut,
@@ -391,8 +406,21 @@ export class World {
     return shore !== undefined && surfaceHeight(shore, x, -z) > 0;
   }
 
-  /** Every loaded tile's ribbon triangles crossing a block on the world's lattice of blocks. */
-  forRoadsInBlock(blockColumn: number, blockRow: number, visit: (ribbon: RibbonMesh, triangle: number) => void): void {
+  /** What a tyre on the ground itself is on: rock where the map has it, grass everywhere else. */
+  groundSurface(x: number, z: number): Surface {
+    const detail = this.tileAt(x, z)?.detail;
+    const rock = detail?.rock;
+    const pixels = this.manifest.rock?.pixels;
+    if (!detail || !rock || pixels === undefined) return "grass";
+    const { bounds } = detail.manifest;
+    const pixelM = this.tileM / pixels;
+    const column = Math.min(Math.floor((x - bounds.west) / pixelM), pixels - 1);
+    const row = Math.min(Math.floor((z + bounds.north) / pixelM), pixels - 1);
+    return rock[row * pixels + column] > ROCK_SHARE ? "rock" : "grass";
+  }
+
+  /** Every loaded tile's ribbon triangles crossing a block on the world's lattice of blocks, with the surface each is. */
+  forRoadsInBlock(blockColumn: number, blockRow: number, visit: (ribbon: RibbonMesh, triangle: number, surface: number) => void): void {
     const blocks = Math.round(this.tileM / BLOCK_M);
     for (const { detail } of this.tiles.values()) {
       if (!detail) continue;
@@ -401,7 +429,7 @@ export class World {
       const row = blockRow - detail.row * blocks + BLOCK_RIM;
       if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
       const block = row * blocksAcross + column;
-      for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.ribbon, triangles[entry]);
+      for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.ribbon, triangles[entry], detail.ribbonSurfaces[triangles[entry] / 3]);
     }
   }
 

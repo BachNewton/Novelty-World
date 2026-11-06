@@ -1,17 +1,23 @@
+import { nearFar, type ArtModel } from "../catalogue";
 import type { RoadsideModel } from "../roadside/models";
 import { buildOptimist, buildSingleHander } from "./dinghies";
 import { buildFishingBoat, buildLaunch, buildPassengerBoat, buildPilotBoat, buildRescueBoat, buildRib } from "./motor";
 import { buildAllmogebat, buildDoubleEnder, buildGaleas } from "./traditional";
 import { buildCruiser, buildFolkboat, buildLargeCruiser } from "./yachts";
+import { boatMaterials } from "./material";
 
 /*
  * Every boat in the kit in each state it comes in, with its triangle limits and its
  * length, for the budget test and the gallery.
  */
 
-export const NEAR_LIMIT = 900;
-export const FAR_LIMIT = 60;
-export const GALEAS_LIMIT = 2500;
+export interface Limit {
+  near: number;
+  far: number;
+}
+
+export const LIMIT: Limit = { near: 900, far: 120 };
+export const GALEAS_LIMIT: Limit = { near: 2500, far: 200 };
 
 export interface Entry {
   name: string;
@@ -22,11 +28,11 @@ export interface Entry {
   tallM: number;
   /** Which way a side view stands off it. */
   sailing: boolean;
-  limit: number;
+  limit: Limit;
   model: () => RoadsideModel;
 }
 
-const entry = (name: string, label: string, lengthM: number, tallM: number, sailing: boolean, model: () => RoadsideModel, limit = NEAR_LIMIT): Entry => ({ name, label, lengthM, tallM, sailing, limit, model });
+const entry = (name: string, label: string, lengthM: number, tallM: number, sailing: boolean, model: () => RoadsideModel, limit = LIMIT): Entry => ({ name, label, lengthM, tallM, sailing, limit, model });
 
 export const CATALOGUE: readonly Entry[] = [
   entry("folkboat", "Nordic Folkboat, moored", 7.7, 10.8, false, () => buildFolkboat()),
@@ -52,3 +58,5 @@ export const CATALOGUE: readonly Entry[] = [
   entry("pilot", "pilot boat", 16.3, 7.6, false, () => buildPilotBoat()),
   entry("passenger", "archipelago passenger boat", 19.2, 8, false, () => buildPassengerBoat()),
 ];
+
+export const artModels = (): ArtModel[] => CATALOGUE.map(({ name, model }) => nearFar(name, model(), boatMaterials));

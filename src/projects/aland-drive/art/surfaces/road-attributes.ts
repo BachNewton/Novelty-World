@@ -15,6 +15,9 @@ export const ZEBRA = 4;
 /** Further than anything paint could reach. */
 export const FAR_FROM_MARK_M = 9999;
 
+/** A sealed road in town this wide or wider, its half width in metres, eased in between the two, has a kerb and paving for its shoulder. */
+export const KERBED_HALF_WIDTH_M = [2, 2.6] as const;
+
 const PAVED_KINDS = new Set(["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "residential", "living_street"]);
 const PAVED_IN_TOWN = new Set(["unclassified", "service", "cycleway", "footway", "pedestrian"]);
 /** Vertices of building in a 600 m cell that make it town. */

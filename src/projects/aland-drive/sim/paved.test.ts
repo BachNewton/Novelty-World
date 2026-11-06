@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { decodeGroundCut, decodeHeights, decodeRoadSurface, surfaceHeight, type HeightGrid, type TileManifest, type WorldManifest } from "../render/tile";
 import { Drive, initPhysics } from "./drive";
 import { RoadLine } from "./road-net";
+import type { Surface } from "./surfaces";
 import { World, tileDetail } from "./world";
 
 /*
@@ -166,14 +167,24 @@ describe("a paved tile's ground", () => {
     return Math.max(ground, top(detail.ribbon.positions, detail.ribbon.indices, detail.ribbon.indices.length / 3) ?? -Infinity);
   };
 
-  it("is collided with where it's drawn: on the paving, over the underpass and on the cut ground round it", () => {
+  /** The tile loaded alone, with the car on it: in the country, or with every 600 m cell round it built up enough to be town. */
+  const loaded = (inTown = false) => {
     const world = new World(manifest);
     world.addFar(tile.tile, strided(farStride), strided(farStride, DRY_LEVEL_M), strided(farStride, DRY_LEVEL_M));
     const dry = strided(1, DRY_LEVEL_M);
-    const detail = tileDetail(tile, grid, read(tile.roadSurface.file), dry, dry, tileM, new Float32Array(0), read(tile.roadSurface.groundCut?.file ?? ""));
+    const town = [];
+    for (let x = grid.west - 600; x < grid.west + tileM + 600; x += 600) {
+      for (let z = -grid.north - 600; z < -grid.north + tileM + 600; z += 600) town.push({ x, z, vertices: 10000, indices: 0 });
+    }
+    const placed = inTown ? { ...tile, solids: { ...tile.solids, cells: town } } : tile;
+    const detail = tileDetail(placed, grid, read(tile.roadSurface.file), dry, dry, tileM, new Float32Array(0), read(tile.roadSurface.groundCut?.file ?? ""));
     world.addDetail(detail);
     const start = new RoadLine(Float32Array.of(200, surfaceHeight(grid, 200, 900), -900, 210, surfaceHeight(grid, 210, 900), -900)).at(0);
-    const drive = new Drive(world, start);
+    return { detail, drive: new Drive(world, start) };
+  };
+
+  it("is collided with where it's drawn: on the paving, over the underpass and on the cut ground round it", () => {
+    const { detail, drive } = loaded();
     // Across the ways and the cut cells round them, off any grid line, so no ray runs down an upright face.
     const places: [number, number][] = [];
     for (let step = 0; step < 400; step++) places.push([590.137 + (step % 20) * 1.013, -(588.271 + Math.floor(step / 20) * 1.209)]);
@@ -189,5 +200,77 @@ describe("a paved tile's ground", () => {
     }
     expect(cutCellsHit).toBeGreaterThan(100);
     drive.dispose();
+  });
+
+  describe("under a tyre", () => {
+    const kinds = surface.chains.map((chain) => chain.kind);
+    const { aprons, rings } = surface;
+
+    /** A paving triangle's corners, as offsets into the paving's own points. */
+    const corners = (triangle: number) => [0, 1, 2].map((corner) => aprons.indices[triangle * 3 + corner]);
+    const placesOf = (triangle: number) => corners(triangle).map((point) => (aprons.firstPoint + point) * 3);
+    const middleOf = (triangle: number) => [0, 1, 2].map((axis) => placesOf(triangle).reduce((sum, from) => sum + rings[from + axis], 0) / 3);
+    const areaOf = (triangle: number) => {
+      const [a, b, c] = placesOf(triangle);
+      return Math.abs((rings[b] - rings[a]) * (rings[c + 2] - rings[a + 2]) - (rings[c] - rings[a]) * (rings[b + 2] - rings[a + 2])) / 2;
+    };
+
+    /** What a wheel's ray finds at a place, or nothing when it hit something other than the surface at that height (a deck over it). */
+    const castAt = (drive: Drive, x: number, z: number, height: number): Surface | null => {
+      drive.ground.around([{ x, z }]);
+      drive.rapier.step();
+      const hit = drive.rapier.castRayAndGetNormal(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
+      if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
+      return Math.abs(300 - hit.timeOfImpact - height) > 0.002 ? null : drive.ground.surfaceUnder(hit, x, z);
+    };
+
+    /** What a wheel finds at the middle of the first sizeable paving triangle all of a way of a kind whose corners' across pass a test. */
+    const onPaving = (drive: Drive, kind: string, test: (across: number[]) => boolean): Surface => {
+      for (let triangle = 0; triangle < aprons.indices.length / 3; triangle++) {
+        const points = corners(triangle);
+        if (areaOf(triangle) < 0.05 || !points.every((point) => aprons.ways[point] >= 0 && kinds[aprons.ways[point]] === kind)) continue;
+        if (!test(points.map((point) => Math.abs(aprons.across[point])))) continue;
+        const [x, y, z] = middleOf(triangle);
+        const found = castAt(drive, x, z, y);
+        if (found) return found;
+      }
+      throw new Error(`no ${kind} triangle passes`);
+    };
+    const onEdge = (across: number[]) => Math.max(...across) > 1 + 1 / 2048 && Math.max(...across) < 1.03;
+
+    it("is the road's own on its carriageway, edge included, the verge on a country shoulder, and a path's own surface on a path", () => {
+      const { drive } = loaded();
+      expect(onPaving(drive, "primary", (across) => Math.max(...across) <= 1)).toBe("asphalt");
+      // The carriageway's edge, whose points the paving stores a hair past 1.
+      expect(onPaving(drive, "primary", onEdge)).toBe("asphalt");
+      expect(onPaving(drive, "residential", onEdge)).toBe("asphalt");
+      expect(onPaving(drive, "primary", (across) => Math.min(...across) > 1.1)).toBe("gravel");
+      expect(onPaving(drive, "cycleway", () => true)).toBe("asphalt");
+      expect(onPaving(drive, "footway", () => true)).toBe("asphalt");
+      expect(onPaving(drive, "path", () => true)).toBe("gravel");
+      drive.dispose();
+    });
+
+    it("is a town street's kerb and paving on its shoulder", () => {
+      const { drive } = loaded(true);
+      expect(onPaving(drive, "primary", (across) => Math.min(...across) > 1.1)).toBe("asphalt");
+      drive.dispose();
+    });
+
+    it("is the ground's own on the cut ground", () => {
+      const { detail, drive } = loaded();
+      const { positions, indices, walls } = detail.cut;
+      let found = 0;
+      for (let triangle = 0; triangle < indices.length / 3 - walls && found < 20; triangle += 7) {
+        const at = [0, 1, 2].map((corner) => indices[triangle * 3 + corner] * 3);
+        const [x, y, z] = [0, 1, 2].map((axis) => at.reduce((sum, from) => sum + positions[from + axis], 0) / 3);
+        const surfaceHere = castAt(drive, x, z, y);
+        if (surfaceHere === null) continue;
+        expect(surfaceHere).toBe("grass");
+        found++;
+      }
+      expect(found).toBe(20);
+      drive.dispose();
+    });
   });
 });

@@ -53,7 +53,8 @@ export function readWorld(folder: string, only?: Set<string>): World {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const docks = tile.docks ? (JSON.parse(readFileSync(join(folder, name, tile.docks.file), "utf8")) as DocksFile) : null;
     const cut = tile.roadSurface.groundCut ? read(tile.roadSurface.groundCut.file) : undefined;
-    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, modelWalls(models, tile.windmills), dockWalls(docks)), cut));
+    const rock = manifest.rock && new Uint8Array(read(manifest.rock.file), 0, manifest.rock.pixels * manifest.rock.pixels);
+    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, modelWalls(models, tile.windmills), dockWalls(docks)), cut, rock ?? null));
   }
   return world;
 }

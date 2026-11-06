@@ -2,6 +2,7 @@ import { BufferGeometry, Group, Mesh, type Node, type Object3D, type Scene } fro
 import type { CarState } from "../../sim/car-state";
 import { axleY, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
+import { type Sun } from "../sun";
 
 /*
  * A car to draw, from a `CarState` and nothing else, in the same frame as the
@@ -48,7 +49,7 @@ export interface CarViewOptions {
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }
 
-export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevationDeg: number }, options: CarViewOptions = {}) {
+export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = {}) {
   const { spec } = art;
   const road = groundY(spec);
   const { ride } = spec;
@@ -118,11 +119,12 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
 export type CarModel = ReturnType<typeof createCarModel>;
 
 /** A car in the scene, with `setLights` for what a `CarState` doesn't carry. */
-export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, spec: CarSpec, detail: CarDetail = "hero") {
+export function createCarView(scene: Scene, sun: Sun, spec: CarSpec, detail: CarDetail = "hero", options: CarViewOptions = {}) {
   const art = buildCarArt(spec, detail);
-  const view = carOnRoad(scene, sun, art);
+  const view = carOnRoad(scene, sun, art, options);
   return {
     ...view,
+    art,
     dispose() {
       view.dispose();
       art.dispose();
@@ -131,8 +133,8 @@ export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevation
 }
 
 /** A car in the scene from art other cars share, which outlives it. */
-export function carOnRoad(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, art: CarArt) {
-  const model = createCarModel(art, sun);
+export function carOnRoad(scene: Scene, sun: Sun, art: CarArt, options: CarViewOptions = {}) {
+  const model = createCarModel(art, sun, options);
   scene.add(model.root);
   return {
     draw: model.draw,

@@ -41,31 +41,37 @@ export function buildFingerPontoon(): RoadsideModel {
   return marinaModel(near, far, 90, 600);
 }
 
-/** The locked gate at the head of a marina's gangway: a steel frame across +x, mesh wings to stop a walk round it, and a keypad. Its origin is on the deck. */
-export function buildWalkwayGate(): RoadsideModel {
+/** A beam, or for a far version its two diagonal cards. */
+const stroker = (into: Marked, far: boolean): Marked["beam"] => (far ? into.bar.bind(into) : into.beam.bind(into));
+
+function walkwayGate(far: boolean): Marked {
   const [wide, tall] = [1.2, 2.1];
-  const near = new Marked();
-  for (const z of [-wide / 2, wide / 2]) near.beam([0, 0, z], [0, tall, z], 0.08, 0.08, "steel");
-  near.beam([0, tall, -wide / 2], [0, tall, wide / 2], 0.08, 0.08, "steel");
+  const into = new Marked();
+  const stroke = stroker(into, far);
+  for (const z of [-wide / 2, wide / 2]) stroke([0, 0, z], [0, tall, z], 0.08, 0.08, "steel");
+  stroke([0, tall, -wide / 2], [0, tall, wide / 2], 0.08, 0.08, "steel");
   // The leaf, slightly open, and its bars.
   const hinge: V3 = [0, 0, -wide / 2 + 0.05];
   const open = 0.32;
   const leaf = (out: number, up: number): V3 => [hinge[0] + Math.sin(open) * out, up, hinge[2] + Math.cos(open) * out];
   const span = wide - 0.1;
-  for (const up of [0.1, 0.95, 1.95]) near.beam(leaf(0, up), leaf(span, up), 0.04, 0.05, "galvanised");
-  near.beam(leaf(span, 0.1), leaf(span, 1.95), 0.04, 0.05, "galvanised");
-  for (let bar = 1; bar < 4; bar++) near.beam(leaf((span * bar) / 4, 0.1), leaf((span * bar) / 4, 1.95), 0.018, 0.018, "galvanised");
+  for (const up of [0.1, 0.95, 1.95]) stroke(leaf(0, up), leaf(span, up), 0.04, 0.05, "galvanised");
+  stroke(leaf(span, 0.1), leaf(span, 1.95), 0.04, 0.05, "galvanised");
+  if (!far) for (let bar = 1; bar < 4; bar++) stroke(leaf((span * bar) / 4, 0.1), leaf((span * bar) / 4, 1.95), 0.018, 0.018, "galvanised");
   // Wings that lean out over the water.
   for (const side of [-1, 1]) {
     const z0 = side * (wide / 2);
     const z1 = side * (wide / 2 + 0.9);
-    near.face([[0, 0.1, z0], [0, 1.9, z0], [0, 1.9, z1], [0, 0.1, z0 + side * 0.4]], "net", 0.8);
-    near.beam([0, 1.9, z0], [0, 1.9, z1], 0.04, 0.04, "steel");
-    near.beam([0, 0.1, z0 + side * 0.4], [0, 1.9, z1], 0.04, 0.04, "steel");
+    into.face([[0, 0.1, z0], [0, 1.9, z0], [0, 1.9, z1], [0, 0.1, z0 + side * 0.4]], "net", 0.8);
+    stroke([0, 1.9, z0], [0, 1.9, z1], 0.04, 0.04, "steel");
+    stroke([0, 0.1, z0 + side * 0.4], [0, 1.9, z1], 0.04, 0.04, "steel");
   }
-  near.box([-0.05, 1.05, wide / 2 + 0.05], [0.05, 1.3, wide / 2 + 0.16], "pedestal-cap");
-  const far = new Marked().beam([0, 1.05, -wide / 2], [0, 1.05, wide / 2], 0.08, 2.1, "steel", 0.7);
-  return marinaModel(near, far, 40, 300);
+  return into.box([-0.05, 1.05, wide / 2 + 0.05], [0.05, 1.3, wide / 2 + 0.16], "pedestal-cap", { open: far });
+}
+
+/** The locked gate at the head of a marina's gangway: a steel frame across +x, mesh wings to stop a walk round it, and a keypad. Its origin is on the deck. */
+export function buildWalkwayGate(): RoadsideModel {
+  return marinaModel(walkwayGate(false), walkwayGate(true), 40, 300);
 }
 
 export type PedestalKind = "power" | "water";
@@ -154,19 +160,23 @@ function upturnedDinghy(into: Marked, x: number, y: number, z: number, part: Mar
     .face([[x - long, y, z - half], [x - long, y, z + half], [x - long, y + depth, z + 0.12], [x - long, y + depth, z - 0.12]], part, 0.88);
 }
 
+function dinghyRack(far: boolean): Marked {
+  const into = new Marked();
+  const stroke = stroker(into, far);
+  for (const z of [-1.8, 0, 1.8]) {
+    for (const x of [-1, 1]) stroke([x, 0, z], [x, 1.5, z], 0.09, 0.09, "stickers");
+    for (const y of [0.42, 1.2]) stroke([-1.2, y, z], [1.2, y, z], 0.05, 0.09, "stickers", 0.95, 1.08);
+  }
+  stroke([-1, 1.5, -1.9], [-1, 1.5, 1.9], 0.08, 0.08, "stickers");
+  stroke([1, 1.5, -1.9], [1, 1.5, 1.9], 0.08, 0.08, "stickers");
+  const paints: readonly MarinaPart[] = ["hull-white", "sign-blue", "float-orange", "hull-white"];
+  ([[0.47, -0.9], [0.47, 0.9], [1.25, -0.9], [1.25, 0.9]] as const).forEach(([y, z], index) => upturnedDinghy(into, 0, y, z, paints[index]));
+  return into;
+}
+
 /** A two-tier timber rack of sailing dinghies, each upturned on bearers, hulls along +x. */
 export function buildDinghyRack(): RoadsideModel {
-  const near = new Marked();
-  for (const z of [-1.8, 0, 1.8]) {
-    for (const x of [-1, 1]) near.beam([x, 0, z], [x, 1.5, z], 0.09, 0.09, "stickers");
-    for (const y of [0.42, 1.2]) near.beam([-1.2, y, z], [1.2, y, z], 0.05, 0.09, "stickers", 0.95, 1.08);
-  }
-  near.beam([-1, 1.5, -1.9], [-1, 1.5, 1.9], 0.08, 0.08, "stickers");
-  near.beam([1, 1.5, -1.9], [1, 1.5, 1.9], 0.08, 0.08, "stickers");
-  const paints: readonly MarinaPart[] = ["hull-white", "sign-blue", "float-orange", "hull-white"];
-  ([[0.47, -0.9], [0.47, 0.9], [1.25, -0.9], [1.25, 0.9]] as const).forEach(([y, z], index) => upturnedDinghy(near, 0, y, z, paints[index]));
-  const far = new Marked().box([-1.3, 0, -1.8], [1.3, 1.7, 1.8], "stickers", { open: true, shade: 0.85 });
-  return marinaModel(near, far, 60, 500);
+  return marinaModel(dinghyRack(false), dinghyRack(true), 60, 500);
 }
 
 export const SLIPWAY_LONG_M = 24;
@@ -198,26 +208,33 @@ export function buildSlipway(): RoadsideModel {
   return marinaModel(near, far, 110, 900);
 }
 
+function railTrolley(far: boolean): Marked {
+  const [long, gauge] = [3.4, 1.1];
+  const into = new Marked();
+  const stroke = stroker(into, far);
+  for (const z of [-gauge, gauge]) stroke([-long, 0.5, z], [long, 0.5, z], 0.14, 0.18, "lift-dark", 0.9, 1.1);
+  for (const x of [-long, 0, long]) stroke([x, 0.6, -gauge - 0.1], [x, 0.6, gauge + 0.1], 0.14, 0.14, "lift-dark", 0.9, 1.1);
+  for (const x of [-2.4, 2.4]) {
+    for (const z of [-gauge, gauge]) {
+      if (far) into.disc([x, 0.26, z], 0.26, 0.12, "iron-rust");
+      else into.wheel([x, 0.26, z], 0.26, 0.12, "iron-rust");
+    }
+    for (const side of [-1, 1]) {
+      stroke([x, 0.6, side * gauge], [x, 1.7, side * 0.75], 0.09, 0.09, "steel");
+      if (far) into.bar([x - 0.3, 1.74, side * 0.75], [x + 0.3, 1.74, side * 0.75], 0.16, 0.08, "tyre");
+      else into.box([x - 0.3, 1.7, side * 0.75 - 0.08], [x + 0.3, 1.78, side * 0.75 + 0.08], "tyre");
+    }
+  }
+  if (far) return into.bar([-1.5, 0.75, 0], [1.5, 0.75, 0], 0.4, 0.14, "sleeper");
+  return into.box([-1.5, 0.68, -0.2], [1.5, 0.82, 0.2], "sleeper", { open: true });
+}
+
 export type TrolleyKind = "rail" | "launching";
 
 /** `rail`: a steel slip trolley with flanged wheels for the slipway's 2.2 m gauge and bunks for a keel boat. `launching`: a small boat's two-wheeled trolley with its drawbar. */
 export function buildBoatTrolley(kind: TrolleyKind): RoadsideModel {
+  if (kind === "rail") return marinaModel(railTrolley(false), railTrolley(true), 60, 400);
   const near = new Marked();
-  if (kind === "rail") {
-    const [long, gauge] = [3.4, 1.1];
-    for (const z of [-gauge, gauge]) near.beam([-long, 0.5, z], [long, 0.5, z], 0.14, 0.18, "lift-dark", 0.9, 1.1);
-    for (const x of [-long, 0, long]) near.beam([x, 0.6, -gauge - 0.1], [x, 0.6, gauge + 0.1], 0.14, 0.14, "lift-dark", 0.9, 1.1);
-    for (const x of [-2.4, 2.4]) {
-      for (const z of [-gauge, gauge]) near.wheel([x, 0.26, z], 0.26, 0.12, "iron-rust");
-      for (const side of [-1, 1]) {
-        near.beam([x, 0.6, side * gauge], [x, 1.7, side * 0.75], 0.09, 0.09, "steel");
-        near.box([x - 0.3, 1.7, side * 0.75 - 0.08], [x + 0.3, 1.78, side * 0.75 + 0.08], "tyre");
-      }
-    }
-    near.box([-1.5, 0.68, -0.2], [1.5, 0.82, 0.2], "sleeper", { open: true });
-    const far = new Marked().box([-long, 0.3, -gauge], [long, 0.7, gauge], "lift-dark", { open: true }).beam([-2.4, 1.2, 0], [2.4, 1.2, 0], 0.12, 1.1, "steel", 0.8);
-    return marinaModel(near, far, 60, 400);
-  }
   for (const z of [-0.6, 0.6]) {
     near.wheel([0, 0.2, z], 0.2, 0.09);
     near.beam([-1, 0.45, z * 0.75], [1.1, 0.45, z * 0.75], 0.05, 0.05, "galvanised");
@@ -288,13 +305,16 @@ const LETTERS: Record<string, readonly string[]> = {
   N: ["##.", "#.#", "#.#", "#.#", "#.#"],
 };
 
-function lettering(into: Marked, word: string, left: number, bottom: number, cell: number, z: number, part: MarinaPart): Marked {
+/** Each letter's runs of cells, along its rows or, fewer of them, down its columns. */
+function lettering(into: Marked, word: string, left: number, bottom: number, cell: number, z: number, part: MarinaPart, down = false): Marked {
   [...word].forEach((letter, index) => {
-    LETTERS[letter].forEach((row, line) => {
-      const y = bottom + (4 - line) * cell;
-      for (const run of row.matchAll(/#+/g)) {
-        const [from, to] = [left + (index * 4 + run.index) * cell, left + (index * 4 + run.index + run[0].length) * cell];
-        into.face([[from, y, z], [to, y, z], [to, y + cell, z], [from, y + cell, z]], part);
+    const rows = LETTERS[letter];
+    const lines = down ? [...rows[0]].map((_, column) => rows.map((row) => row[column]).join("")) : rows;
+    lines.forEach((line, at) => {
+      for (const run of line.matchAll(/#+/g)) {
+        const [from, to] = [run.index, run.index + run[0].length];
+        const [x0, x1, y0, y1] = down ? [at, at + 1, 5 - to, 5 - from] : [from, to, 4 - at, 5 - at];
+        into.face([[left + (index * 4 + x0) * cell, bottom + y0 * cell, z], [left + (index * 4 + x1) * cell, bottom + y0 * cell, z], [left + (index * 4 + x1) * cell, bottom + y1 * cell, z], [left + (index * 4 + x0) * cell, bottom + y1 * cell, z]], part);
       }
     });
   });
@@ -327,7 +347,12 @@ export function buildGuestHarbourSign(): RoadsideModel {
   near.box([-wide / 2 + 0.02, bottom + 0.02, 0.002], [wide / 2 - 0.02, bottom + 0.05, 0.004], "sign-white", { open: true });
   anchorGlyph(near, -wide / 2 + 0.42, bottom + tall / 2 + 0.02, 0.8, 0.006, "sign-white");
   lettering(near, "GÄSTHAMN", -wide / 2 + 0.88, bottom + 0.34, 0.058, 0.006, "sign-white");
-  const far = new Marked().face([[-wide / 2, bottom, 0], [wide / 2, bottom, 0], [wide / 2, bottom + tall, 0], [-wide / 2, bottom + tall, 0]], "sign-blue").beam([0, 0, -0.06], [0, bottom, -0.06], 0.2, 0.1, "steel");
+  const far = new Marked();
+  for (const x of [-wide / 2 + 0.2, wide / 2 - 0.2]) far.bar([x, 0, -0.06], [x, bottom + tall, -0.06], 0.1, 0.1, "steel");
+  far.face([[-wide / 2, bottom, 0], [wide / 2, bottom, 0], [wide / 2, bottom + tall, 0], [-wide / 2, bottom + tall, 0]], "sign-blue", 0.95);
+  far.face([[-wide / 2 + 0.02, bottom + 0.02, 0.004], [wide / 2 - 0.02, bottom + 0.02, 0.004], [wide / 2 - 0.02, bottom + 0.05, 0.004], [-wide / 2 + 0.02, bottom + 0.05, 0.004]], "sign-white");
+  anchorGlyph(far, -wide / 2 + 0.42, bottom + tall / 2 + 0.02, 0.8, 0.006, "sign-white");
+  lettering(far, "GÄSTHAMN", -wide / 2 + 0.88, bottom + 0.34, 0.058, 0.006, "sign-white", true);
   return marinaModel(near, far, 80, 500);
 }
 
@@ -337,52 +362,68 @@ const GAFF_LONG_M = 2.1;
 const FLAG_HIGH_M = 0.95;
 const flutter: Motion = (part, [x]) => (part.startsWith("flag") ? { kind: "cloth", metres: Math.min(0.2, (-x - GAFF_LONG_M) * 0.14) } : { kind: "still" });
 
+const GAFF_END: V3 = [-GAFF_LONG_M, YARD_M + 1.7, 0];
+const STAYS: readonly (readonly [V3, V3, number])[] = [
+  ...[-1, 1].flatMap((side): [V3, V3, number][] => [
+    [[0, MAST_TALL_M * 0.9, 0], [0, YARD_M, side * 1.7], 0.012],
+    [[0, YARD_M, side * 1.7], [side * 0.1, 0.1, side * 2.4], 0.012],
+  ]),
+  [[0, MAST_TALL_M * 0.9, 0], [3.2, 0.1, 0], 0.012],
+  [GAFF_END, [0, YARD_M - 0.5, 0], 0.01],
+];
+
+/** The flag, hanging from the gaff's peak: rectangles at the law's edges, hoist at the gaff, a far version's each a run of one paint up the hoist, so the cloth bends at the same columns. */
+function alandFlag(into: Marked, far: boolean): Marked {
+  const { fly, hoist, field } = FLAGS.aland;
+  const unit = FLAG_HIGH_M / hoist[hoist.length - 1];
+  const foot = GAFF_END[1] - 0.08 - FLAG_HIGH_M;
+  for (let column = 0; column + 1 < fly.length; column++) {
+    for (let row = 0; row + 1 < hoist.length; ) {
+      let end = row + 1;
+      while (far && end + 1 < hoist.length && field(column, end) === field(column, row)) end++;
+      const part = field(column, row) as Extract<MarinaPart, `flag-${string}`>;
+      const [a, b] = [GAFF_END[0] - fly[column] * unit - 0.02, GAFF_END[0] - fly[column + 1] * unit - 0.02];
+      const [c, d] = [foot + hoist[row] * unit, foot + hoist[end] * unit];
+      into.face([[a, c, 0], [b, c, 0], [b, d, 0], [a, d, 0]], part);
+      row = end;
+    }
+  }
+  return into;
+}
+
 /** A yacht club's mast: a white pole with a cross-yard and a gaff, stayed to the ground, wearing the Åland flag at the gaff, whose peak is aft (-x). The law's proportions, from the street's `FLAGS`. */
 export function buildFlagMast(): RoadsideModel {
   const near = new Marked()
     .box([-0.45, 0, -0.45], [0.45, 0.28, 0.45], "concrete", { open: true })
     .tube([0, 0, 0], [0, MAST_TALL_M, 0], 0.1, 6, { radiusTo: 0.05, cap: true }, "trim")
-    .tube([0, MAST_TALL_M, 0], [0, MAST_TALL_M + 0.1, 0], 0.075, 5, { radiusTo: 0.075, cap: true }, "brass");
-  near.tube([0, YARD_M, -1.7], [0, YARD_M, 1.7], 0.035, 4, { cap: true }, "trim");
-  const gaffEnd: V3 = [-GAFF_LONG_M, YARD_M + 1.7, 0];
-  near.tube([0, YARD_M + 0.35, 0], gaffEnd, 0.03, 4, { cap: true }, "trim");
-  for (const side of [-1, 1]) {
-    near.beam([0, MAST_TALL_M * 0.9, 0], [0, YARD_M, side * 1.7], 0.012, 0.012, "steel");
-    near.beam([0, YARD_M, side * 1.7], [side * 0.1, 0.1, side * 2.4], 0.012, 0.012, "steel");
-  }
-  near.beam([0, MAST_TALL_M * 0.9, 0], [3.2, 0.1, 0], 0.012, 0.012, "steel");
-  near.beam(gaffEnd, [0, YARD_M - 0.5, 0], 0.01, 0.01, "steel");
-  // The flag, hanging from the gaff's peak: rectangles at the law's edges, hoist at the gaff.
-  const { fly, hoist } = FLAGS.aland;
-  const unit = FLAG_HIGH_M / hoist[hoist.length - 1];
-  const foot = gaffEnd[1] - 0.08 - FLAG_HIGH_M;
-  for (let column = 0; column + 1 < fly.length; column++) {
-    for (let row = 0; row + 1 < hoist.length; row++) {
-      const part = FLAGS.aland.field(column, row) as Extract<MarinaPart, `flag-${string}`>;
-      const [a, b] = [gaffEnd[0] - fly[column] * unit - 0.02, gaffEnd[0] - fly[column + 1] * unit - 0.02];
-      const [c, d] = [foot + hoist[row] * unit, foot + hoist[row + 1] * unit];
-      near.face([[a, c, 0], [b, c, 0], [b, d, 0], [a, d, 0]], part);
-    }
-  }
+    .tube([0, MAST_TALL_M, 0], [0, MAST_TALL_M + 0.1, 0], 0.075, 5, { radiusTo: 0.075, cap: true }, "brass")
+    .tube([0, YARD_M, -1.7], [0, YARD_M, 1.7], 0.035, 4, { cap: true }, "trim")
+    .tube([0, YARD_M + 0.35, 0], GAFF_END, 0.03, 4, { cap: true }, "trim");
+  for (const [from, to, thick] of STAYS) near.beam(from, to, thick, thick, "steel");
   const far = new Marked()
-    .beam([0, 0, 0], [0, MAST_TALL_M, 0], 0.16, 0.16, "trim")
-    .beam([0, YARD_M, -1.7], [0, YARD_M, 1.7], 0.06, 0.06, "trim")
-    .face([[gaffEnd[0], foot, 0], [gaffEnd[0] - 1.45, foot, 0], [gaffEnd[0] - 1.45, foot + FLAG_HIGH_M, 0], [gaffEnd[0], foot + FLAG_HIGH_M, 0]], "flag-ax-blue");
-  return marinaModel(near, far, 130, 900, flutter);
+    .box([-0.45, 0, -0.45], [0.45, 0.28, 0.45], "concrete", { open: true })
+    .tube([0, 0, 0], [0, MAST_TALL_M, 0], 0.1, 5, { radiusTo: 0.05 }, "trim")
+    .bar([0, MAST_TALL_M, 0], [0, MAST_TALL_M + 0.1, 0], 0.15, 0.15, "brass")
+    .bar([0, YARD_M, -1.7], [0, YARD_M, 1.7], 0.07, 0.07, "trim")
+    .bar([0, YARD_M + 0.35, 0], GAFF_END, 0.06, 0.06, "trim");
+  for (const [from, to, thick] of STAYS) far.bar(from, to, thick, thick, "steel");
+  return marinaModel(alandFlag(near, false), alandFlag(far, true), 130, 900, flutter);
 }
 
-function cradle(into: Marked): Marked {
+function cradle(into: Marked, far = false): Marked {
   const [x0, x1, z] = [-1.8, 1.8, 1.05];
+  const stroke = stroker(into, far);
   for (const side of [-1, 1]) {
-    into.beam([x0, 0.08, side * z], [x1, 0.08, side * z], 0.1, 0.14, "lift-dark", 0.9, 1.1);
+    stroke([x0, 0.08, side * z], [x1, 0.08, side * z], 0.1, 0.14, "lift-dark", 0.9, 1.1);
     for (const x of [-1.5, 1.4]) {
-      into.beam([x, 0.1, side * z], [x, 1.45, side * 1.15], 0.07, 0.07, "lift-dark");
-      into.beam([x, 1.45, side * 1.15], [x * 0.92, 1.85, side * 1.2], 0.05, 0.05, "galvanised");
-      into.box([x * 0.92 - 0.14, 1.85, side * 1.2 - 0.14], [x * 0.92 + 0.14, 1.9, side * 1.2 + 0.14], "tyre");
-      into.beam([0, 0.1, side * z], [x, 1.1, side * 1.13], 0.05, 0.05, "lift-dark", 0.9);
+      stroke([x, 0.1, side * z], [x, 1.45, side * 1.15], 0.07, 0.07, "lift-dark");
+      stroke([x, 1.45, side * 1.15], [x * 0.92, 1.85, side * 1.2], 0.05, 0.05, "galvanised");
+      if (far) into.slab([x * 0.92 - 0.14, 1.85, side * 1.2 - 0.14], [x * 0.92 + 0.14, 1.9, side * 1.2 + 0.14], "tyre");
+      else into.box([x * 0.92 - 0.14, 1.85, side * 1.2 - 0.14], [x * 0.92 + 0.14, 1.9, side * 1.2 + 0.14], "tyre");
+      stroke([0, 0.1, side * z], [x, 1.1, side * 1.13], 0.05, 0.05, "lift-dark", 0.9);
     }
   }
-  for (const x of [x0, x1]) into.beam([x, 0.08, -z], [x, 0.08, z], 0.1, 0.14, "lift-dark", 0.9, 1.1);
+  for (const x of [x0, x1]) stroke([x, 0.08, -z], [x, 0.08, z], 0.1, 0.14, "lift-dark", 0.9, 1.1);
   return into;
 }
 
@@ -390,7 +431,7 @@ const STATION_THIRDS = [YACHT_STATIONS[0], YACHT_STATIONS[2], YACHT_STATIONS[4],
 
 /** A steel yard cradle, its keel blocks and pads waiting for a hull. A boat stands in it with its keel's bottom on the ground and its bilges on the pads, about 1.9 m up and 1.2 m out. */
 export function buildCradle(): RoadsideModel {
-  return marinaModel(cradle(new Marked()), new Marked().box([-1.8, 0, -1.05], [1.8, 1.5, 1.05], "lift-dark", { open: true, shade: 0.7 }), 70, 500);
+  return marinaModel(cradle(new Marked()), cradle(new Marked(), true), 70, 500);
 }
 
 /** A 9 m yacht on the hard, in its cradle, mast out, as boats stand ashore all winter and under repair in summer. Bow along +x. */

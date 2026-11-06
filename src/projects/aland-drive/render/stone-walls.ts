@@ -1,6 +1,6 @@
 import { Sphere, Vector3, type Mesh, type Scene } from "three/webgpu";
-import { placeModel, type Placement, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
-import { buildStoneWall, STONE_WALL_M } from "../art/rural/index";
+import { placeModel, SWAP_SPREAD, type Placement, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
+import { buildStoneWall, STONE_WALL_M, STONE_WALL_OVERLAP_M as OVERLAP_M } from "../art/rural/index";
 import { SECTION_FLOATS, type WallSections } from "./tile-walls";
 
 /*
@@ -22,8 +22,6 @@ const NEAR_CELL_M = 150;
 const FAR_CELL_M = 600;
 /** As far as a wall is drawn, where it's a pixel or two tall and grows up out of the ground over its last stretch. */
 export const STONE_WALL_REACH_M = 700;
-/** Each section runs on a little past both its ends, so two sections at an angle close the gap on the bend's outside. */
-const OVERLAP_M = 0.12;
 /** The most a cell's sections reach above or below the ground at its ends, for the cell's bounds. */
 const HEIGHT_MARGIN_M = 1;
 
@@ -152,7 +150,7 @@ export function createStoneWalls(scene: Scene, materials: RoadsideMaterials) {
       const next: StoneWallsDrawn = { nearCells: 0, farCells: 0, sections: 0 };
       for (const { near, far } of tiles.values()) {
         for (const cell of near) {
-          cell.mesh.visible = shownAll || reachOf(cell, camera.x, camera.z)[0] < model.swapM + STONE_WALL_M;
+          cell.mesh.visible = shownAll || reachOf(cell, camera.x, camera.z)[0] < model.swapM * (1 + SWAP_SPREAD) + STONE_WALL_M;
           if (cell.mesh.visible) next.nearCells++;
         }
         for (const cell of far) {

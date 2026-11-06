@@ -26,6 +26,7 @@ import numpy as np
 from people import Figure, roll, seed_of, write
 from roadside import FILE
 from built_up import built_up_of
+from progress import Progress
 
 SOURCE = "seated"
 # Placed from OSM's benches, cafés and buildings, so the list is ODbL, as the roadside is.
@@ -69,9 +70,11 @@ def bake(name: str, tiles: Path) -> dict:
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
     """Seats people on built tiles: after the roadside, which writes the seats. A tile the mirror hasn't is sea, and has none."""
-    for name in (name for name in names if (tiles / name / "tile.json").exists()):
+    built = [name for name in names if (tiles / name / "tile.json").exists()]
+    progress = Progress("seated", len(built))
+    for name in built:
         entry = bake(name, tiles)
-        print(name, entry["count"], "seated")
+        progress.finished(f"{name} ({entry['count']} seated)")
 
 
 def main() -> None:

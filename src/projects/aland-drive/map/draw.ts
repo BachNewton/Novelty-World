@@ -1,4 +1,5 @@
 import type { OverviewFormat } from "../render/tile";
+import type { ChallengeKind } from "../challenge/types";
 import type { Place, PlaceKind } from "./places";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -47,12 +48,15 @@ export interface MapInk {
   player: string;
   /** A place that's been found. */
   place: string;
+  /** A challenge's start, and one that's been passed. */
+  challenge: string;
+  pass: string;
 }
 
 export function mapInk(): MapInk {
   const styles = getComputedStyle(document.documentElement);
   const token = (name: string) => styles.getPropertyValue(`--color-aland-drive-${name}`).trim();
-  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player"), place: token("ui-place") };
+  return { water: token("water"), ink: token("ui-ink"), shade: token("ui-shade"), accent: token("ui-accent"), player: token("ui-player"), place: token("ui-place"), challenge: token("ui-challenge"), pass: token("ui-pass") };
 }
 
 /** The land as an image a canvas can draw, from the overview's pixels. */
@@ -156,16 +160,52 @@ export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: R
   pen.globalAlpha = 1;
 }
 
+/** A challenge's line still to cross, on a map: a gate, the finish or a camera. */
+export interface MapGate {
+  x: number;
+  z: number;
+  /** The way along the road, anticlockwise from north, as the road lines have it. */
+  heading: number;
+  next: boolean;
+  finish: boolean;
+}
+
+const GATE_HALF_PX = 9;
+
+/** The lines still to cross, each a bar across the road at a size on screen, the next one bold in the challenge colour and the finish in the pass colour. */
+export function drawGates(pen: CanvasRenderingContext2D, view: MapView, gates: readonly MapGate[], ink: MapInk): void {
+  // The later ones first, so the next one lies on top.
+  for (const { x, z, heading, next, finish } of [...gates].reverse()) {
+    const [centreX, centreY] = view.toScreen(x, z);
+    const [acrossX, acrossY] = view.toScreen(x + Math.cos(heading), z - Math.sin(heading));
+    const length = Math.hypot(acrossX - centreX, acrossY - centreY) || 1;
+    const half = next ? GATE_HALF_PX : GATE_HALF_PX * 0.7;
+    const dx = ((acrossX - centreX) / length) * half;
+    const dy = ((acrossY - centreY) / length) * half;
+    pen.beginPath();
+    pen.moveTo(centreX - dx, centreY - dy);
+    pen.lineTo(centreX + dx, centreY + dy);
+    pen.lineCap = "round";
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = next ? 8 : 5;
+    pen.stroke();
+    pen.strokeStyle = finish ? ink.pass : next ? ink.challenge : ink.ink;
+    pen.lineWidth = next ? 5 : 2.5;
+    pen.stroke();
+  }
+  pen.lineCap = "butt";
+}
+
+/** The route still to drive, from the car's own place on it rather than the next of its points, which a long straight can leave far ahead. */
 export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: Route, fromAlong: number, ink: MapInk): void {
-  const { points, lengths } = route.line;
+  const { line } = route;
+  const { points, lengths } = line;
+  const from = line.at(fromAlong);
   pen.beginPath();
-  let started = false;
+  pen.moveTo(...view.toScreen(from.x, from.z));
   for (let point = 0; point < lengths.length; point++) {
-    if (lengths[point] < fromAlong) continue;
-    const [x, y] = view.toScreen(points[point * 3], points[point * 3 + 2]);
-    if (started) pen.lineTo(x, y);
-    else pen.moveTo(x, y);
-    started = true;
+    if (lengths[point] <= fromAlong) continue;
+    pen.lineTo(...view.toScreen(points[point * 3], points[point * 3 + 2]));
   }
   pen.strokeStyle = ink.shade;
   pen.lineWidth = 7;
@@ -358,9 +398,9 @@ export function drawPlaces(pen: CanvasRenderingContext2D, view: MapView, places:
   pen.globalAlpha = 1;
 }
 
-/** The place whose symbol is under a point on the canvas, if any. */
-export function placeAt(view: MapView, places: readonly Place[], screenX: number, screenY: number, size: number): Place | null {
-  let best: Place | null = null;
+/** The place or challenge start whose symbol is under a point on the canvas, if any. */
+export function placeAt<T extends { x: number; z: number }>(view: MapView, places: readonly T[], screenX: number, screenY: number, size: number): T | null {
+  let best: T | null = null;
   let nearest = size;
   for (const place of places) {
     const [x, y] = view.toScreen(place.x, place.z);
@@ -418,3 +458,72 @@ export function drawPlayers(pen: CanvasRenderingContext2D, view: MapView, player
   }
   pen.globalAlpha = 1;
 }
+
+/** A challenge's start on a map. */
+export interface MapChallenge {
+  x: number;
+  z: number;
+  title: string;
+  kind: ChallengeKind;
+  passed: boolean;
+}
+
+/** A challenge's symbol, in the same box as a place's: a chequered flag for a Route, a dial at its top for a Speed trap. */
+const CHALLENGE_GLYPHS: Record<ChallengeKind, (pen: CanvasRenderingContext2D) => void> = {
+  route: (pen) => {
+    line(pen, [-0.55, 0.85], [-0.55, -0.85]);
+    for (let row = 0; row < 3; row++) {
+      for (let column = 0; column < 4; column++) {
+        if ((row + column) % 2 === 1) continue;
+        const [left, top] = [-0.55 + column * 0.33, -0.85 + row * 0.3];
+        fill(pen, [left, top], [left + 0.33, top], [left + 0.33, top + 0.3], [left, top + 0.3]);
+      }
+    }
+  },
+  "speed-trap": (pen) => {
+    pen.beginPath();
+    pen.arc(0, 0.35, 0.8, Math.PI, 0);
+    pen.stroke();
+    line(pen, [0, 0.35], [0.55, -0.25]);
+    pen.beginPath();
+    pen.arc(0, 0.35, 0.16, 0, Math.PI * 2);
+    pen.fill();
+  },
+};
+
+/** Every challenge's start in sight, on a square so it reads apart from the places' discs: in the challenge colour, or the pass colour once passed. Named when `named`. */
+export function drawChallenges(pen: CanvasRenderingContext2D, view: MapView, challenges: readonly MapChallenge[], size: number, ink: MapInk, named: boolean): void {
+  pen.font = "600 12px system-ui, sans-serif";
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  pen.lineJoin = "round";
+  for (const { x: placeX, z: placeZ, title, kind, passed } of challenges) {
+    const [x, y] = view.toScreen(placeX, placeZ);
+    if (x < -size || y < -size || x > view.width + size || y > view.height + size) continue;
+    const colour = passed ? ink.pass : ink.challenge;
+    pen.fillStyle = colour;
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = 2;
+    pen.beginPath();
+    pen.roundRect(x - size, y - size, size * 2, size * 2, size * 0.35);
+    pen.fill();
+    pen.stroke();
+    pen.save();
+    pen.translate(x, y);
+    pen.scale(size * 0.62, size * 0.62);
+    pen.fillStyle = ink.shade;
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = 0.22;
+    pen.lineCap = "round";
+    CHALLENGE_GLYPHS[kind](pen);
+    pen.restore();
+    if (named) {
+      pen.strokeStyle = ink.shade;
+      pen.lineWidth = 3;
+      pen.strokeText(title, x, y + size + 3);
+      pen.fillStyle = colour;
+      pen.fillText(title, x, y + size + 3);
+    }
+  }
+}
+

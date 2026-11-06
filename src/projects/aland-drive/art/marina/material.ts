@@ -1,9 +1,11 @@
-import { Vector3, Vector4, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, dot, float, floor, fract, int, mix, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
+import { Vector4, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, float, floor, fract, int, mix, positionGeometry, positionWorld, round, select, smoothstep, uniformArray } from "three/tsl";
+import { seedOf, unitOf } from "../hash";
 import { streetMaterials, type StreetInputs } from "../street";
 import { MARINA_PARTS, PAINT } from "./paint";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The street's two materials, so these models grow, dissolve and move exactly as the
@@ -22,9 +24,7 @@ const BOARDS = 2;
 const BOARDS_GONE_M = 90;
 
 function paint({ linear, sun }: Pick<StreetInputs, "linear" | "sun">, isNear: boolean): Node<"vec3"> {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const palette = uniformArray(MARINA_PARTS.map((part) => {
     const { from, to, share, gain, float: floats, boards } = { to: undefined, share: 0, gain: 1, float: false, boards: false, ...PAINT[part] };
     const colour = linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
@@ -41,7 +41,7 @@ function paint({ linear, sun }: Pick<StreetInputs, "linear" | "sun">, isNear: bo
 
   const along = positionGeometry.x.add(positionGeometry.z).div(BOARD_M);
   const seam = float(1).sub(smoothstep(float(0.02), float(0.09), abs(fract(along).sub(0.5)).sub(0.5).abs()));
-  const tone = fract(sin(dot(vec3(floor(along), 3, 9), vec3(127.1, 311.7, 74.7))).mul(43758.5453));
+  const tone = unitOf(seedOf(floor(along)), 1);
   const away = float(1).sub(smoothstep(float(BOARDS_GONE_M * 0.4), float(BOARDS_GONE_M), positionWorld.sub(cameraPosition).length()));
   const boarded = shaded.mul(mix(float(1), mix(float(0.9), float(1.08), tone).mul(float(1).sub(seam.mul(0.45))), away));
   return select(entry.w.greaterThan(1.5), boarded, shaded);

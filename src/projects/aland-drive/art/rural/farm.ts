@@ -51,6 +51,8 @@ export function buildHayBale(): RoadsideModel {
 
 /** A section of field-stone wall to knee height, running along +x. Lay one after another, and stretch or shear it to fit. */
 export const STONE_WALL_M = 2.4;
+/** How far each section runs on past both its ends, so two sections at an angle close the gap on the bend's outside. */
+export const STONE_WALL_OVERLAP_M = 0.12;
 const WALL_STONES = 9;
 const WALL_WIDE_M = 0.62;
 const WALL_TALL_M = 0.72;

@@ -4,11 +4,15 @@
  * world origin. In the scene, east is +x, up is +y and north is -z.
  */
 import type { WindmillPlace } from "./tile-models";
+import { type SunPlace } from "../art/sun";
 
 /** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
 export const FLAT_LIGHT = 0.8;
 /** The photo already holds most of its own relief, so the baked shading only adds to it. */
 export const SHADE_SHARE = 0.65;
+/** The baked shading's sum, as `pipeline/terrain.py` bakes it: this much of the sun's light on the ground, and this much of the open sky's. */
+export const BAKED_SUN_SHARE = 0.85;
+export const BAKED_SKY_SHARE = 0.38;
 
 /** A photo with its light in it, as the render draws it: RGBA in, sRGB bytes, and one shade byte for each pixel. */
 export function litPhoto(ground: Uint8Array, shade: Uint8Array, gamma: number): Uint8ClampedArray<ArrayBuffer> {
@@ -46,6 +50,8 @@ export interface TileManifest {
   people?: Record<string, { file: string }>;
   /** Cars parked in car parks and at kerbs. A tile built before them has none. */
   parked?: { file: string };
+  /** The lanes traffic drives along and the connectors through junctions (`pipeline/lanes.py`). A tile built before them has none. */
+  lanes?: { file: string };
   /** The post mills standing in the tile (`pipeline/farm.py`). A tile with none has none. */
   windmills?: WindmillPlace[];
   /** The Västerhamn terminal and the fuel stations standing in the tile, drawn with its detail. A tile built before them has none. */
@@ -70,13 +76,15 @@ export interface WorldManifest {
   town?: { pixels: number };
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
+  /** Each canopy pixel's signed distance to the nearest building, (byte - zero) × unitM metres, negative inside (`pipeline/clearing.py`), on every tile or none: tiles built before it clear nothing round buildings. */
+  clearing?: { file: string; pixels: number; unitM: number; zero: number };
   stands: { file: string; pixels: number };
   /** Each 4 m pixel's share of rock, then each 8 m pixel's share of boulder field (`pipeline/rocks.py`), on every tile or none. */
   rock?: { file: string; pixels: number; fieldPixels: number };
   water: { levelsFile: string; farLevelsFile: string; shoreFile: string; farShoreFile: string; dryLevel: number };
   overview: OverviewFormat;
   map: { file: string };
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: SunPlace;
   attribution: string[];
 }
 

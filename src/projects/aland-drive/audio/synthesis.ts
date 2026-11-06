@@ -2,7 +2,7 @@ import { BIKE, type EngineSpec } from "./vehicles";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
- * firing cycle, the tyres' grit, the freewheel and the beds of each place. No
+ * firing cycle, the tyres' grit, snow and spray, the freewheel and the beds of each place. No
  * files and no Web Audio here, and seeded, so a loop is the same every visit.
  * A loop's end meets its start because everything in one is periodic in its
  * length: events wrap round it, and a filter's memory comes from a first pass.
@@ -150,6 +150,118 @@ export function grassLoop(): Loop {
     const hz = 70 + 90 * next();
     const level = 0.08 + 0.12 * next();
     addPanned(channels, HIGH_RATE, next() * seconds, 0.05, next() - 0.5, (t) => level * Math.exp(-t / 0.012) * Math.sin(TAU * hz * t));
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
+/** Bare granite: a coarse grind of grit, crisp hard clicks off its crystals, and low knocks where one slab meets the next. */
+export function rockLoop(): Loop {
+  const next = random(59);
+  const seconds = 3.5;
+  const length = Math.round(seconds * HIGH_RATE);
+  const grit = Array.from({ length: 16 }, () => ({ count: 40 + Math.floor(next() * 160), phase: next() * TAU }));
+  const rough = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    const place = (TAU * i) / length;
+    let sum = 0;
+    for (const { count, phase } of grit) sum += Math.sin(count * place + phase);
+    rough[i] = 0.35 + (0.65 * Math.abs(sum)) / Math.sqrt(grit.length);
+  }
+  const channels = [0, 1].map(() => {
+    const roar = lowNoise(length, next, () => 3200, HIGH_RATE);
+    const body = lowNoise(length, next, () => 500, HIGH_RATE);
+    return roar.map((sample, i) => (sample - body[i]) * rough[i]);
+  });
+  for (let i = 0; i < 1100; i++) {
+    const hz = 700 + 2600 * next() * next();
+    const decayS = 0.0004 + 0.0012 * next();
+    const level = 0.2 + 0.6 * next() * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.2 - 0.6, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  }
+  for (let i = 0; i < 11; i++) {
+    const hz = 90 + 110 * next();
+    const level = 0.5 + 0.4 * next();
+    addPanned(channels, HIGH_RATE, ((i + 0.6 * next()) / 11) * seconds, 0.06, next() * 0.6 - 0.3, (t) => level * Math.exp(-t / 0.011) * Math.sin(TAU * hz * t));
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
+/** Packed snow under a tyre: a soft crunch, clusters of small dull crackles over a hush, with no stone in it. */
+export function snowLoop(): Loop {
+  const next = random(61);
+  const seconds = 3.1;
+  const length = Math.round(seconds * HIGH_RATE);
+  const channels = [0, 1].map(() => lowNoise(length, next, () => 420, HIGH_RATE).map((sample) => 0.6 * sample));
+  let at = 0;
+  while (at < seconds) {
+    const grains = 5 + Math.floor(next() * 9);
+    const pan = next() * 1.2 - 0.6;
+    const cluster = 0.025 + 0.04 * next();
+    for (let i = 0; i < grains; i++) {
+      const lengthS = 0.004 + 0.012 * next();
+      const grain = lowNoise(Math.round(lengthS * HIGH_RATE), next, () => 1400 + 1800 * next(), HIGH_RATE);
+      const level = 0.6 + 0.8 * next();
+      addPanned(channels, HIGH_RATE, at + next() * cluster, lengthS, pan, (t) => {
+        const share = t / lengthS;
+        return level * Math.sin(Math.PI * share) * grain[Math.min(Math.round(t * HIGH_RATE), grain.length - 1)];
+      });
+    }
+    at += 0.03 + 0.05 * next();
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
+/**
+ * Studded tyres on a bare road: each stud ticks as it meets the ground, in a pattern that repeats every turn of
+ * the wheel, so four wheels of them make a fast, hard ticking with a hum at its rate. A second is four turns.
+ */
+export function studsLoop(): Loop {
+  const next = random(67);
+  const seconds = 1;
+  const turns = 4;
+  const studs = 64;
+  const turnS = seconds / turns;
+  const channels = [samplesOf(seconds, HIGH_RATE), samplesOf(seconds, HIGH_RATE)];
+  for (let wheel = 0; wheel < 4; wheel++) {
+    const pan = wheel % 2 === 0 ? -0.5 : 0.5;
+    const phase = next() * turnS;
+    const pattern = Array.from({ length: studs }, (_, stud) => ({ at: (stud + 0.3 * (next() - 0.5)) / studs, hz: 2600 + 3400 * next(), level: 0.5 + 0.5 * next() }));
+    for (let turn = 0; turn < turns; turn++) {
+      for (const { at, hz, level } of pattern) {
+        const decayS = 0.00035;
+        addPanned(channels, HIGH_RATE, phase + (turn + at) * turnS, decayS * 6, pan, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+      }
+    }
+  }
+  normalise(channels, 0.9);
+  return { rate: HIGH_RATE, channels };
+}
+
+/** Water off a wet road: a bright hiss that surges as the tread wrings it out, droplets against the arches, and a low wash. */
+export function sprayLoop(): Loop {
+  const next = random(67);
+  const seconds = 3.3;
+  const length = Math.round(seconds * HIGH_RATE);
+  const surges = Array.from({ length: 5 }, () => ({ count: 3 + Math.floor(next() * 14), phase: next() * TAU }));
+  const channels = [0, 1].map(() => {
+    const white = lowNoise(length, next, () => 9000, HIGH_RATE);
+    const dull = lowNoise(length, next, () => 1800, HIGH_RATE);
+    const wash = lowNoise(length, next, () => 600, HIGH_RATE);
+    return white.map((sample, i) => {
+      const place = (TAU * i) / length;
+      let surge = 0;
+      for (const { count, phase } of surges) surge += Math.sin(count * place + phase);
+      return (sample - dull[i]) * (0.6 + 0.4 * Math.max(0, surge / 2.5)) + 0.5 * wash[i];
+    });
+  });
+  for (let i = 0; i < 1800; i++) {
+    const hz = 2500 + 5000 * next();
+    const decayS = 0.0002 + 0.0005 * next();
+    const level = 0.05 + 0.15 * next() * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
   }
   normalise(channels, 0.9);
   return { rate: HIGH_RATE, channels };

@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Car, NO_INPUT, type DriveInput } from "./car";
+import { Car, NO_INPUT, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
 import type { EngineRead } from "./gearbox";
@@ -7,6 +7,7 @@ import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
 import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
+import type { Condition, Surface, Tyre } from "./surfaces";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
 import type { World } from "./world";
 
@@ -77,6 +78,11 @@ export class SimulatedCar {
     this.settled();
   }
 
+  resume(state: CarState): void {
+    this.car.resume(state);
+    this.settled();
+  }
+
   /** Starts the car's motion over from where its body is now. */
   settled(): void {
     this.before = this.after = this.car.state();
@@ -89,9 +95,19 @@ export class SimulatedCar {
     this.car.body.setEnabled(false);
   }
 
-  swap(rapier: RAPIER.World, id: CarId): void {
+  /** The tyres the car has on. */
+  get tyres(): Tyre {
+    return this.car.tyres;
+  }
+
+  set tyres(tyres: Tyre) {
+    this.car.tyres = tyres;
+  }
+
+  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
+    this.car.tyres = tyres;
     if (id === this.car.id) return;
-    const next = new Car(rapier, id);
+    const next = new Car(rapier, id, ground, tyres);
     next.takeOver(this.car);
     this.car.remove();
     this.car = next;
@@ -105,6 +121,16 @@ export class SimulatedCar {
 
   engine(): EngineRead & { reversing: boolean } {
     return { ...this.car.engine, reversing: this.car.reversing };
+  }
+
+  /** What each wheel was on the last time it touched: front left, front right, rear left, rear right. */
+  surfaces(): readonly Surface[] {
+    return this.car.surfaces;
+  }
+
+  /** How each wheel's tyre met the ground on the last step, in the same order. */
+  treads(): readonly Readonly<Tread>[] {
+    return this.car.treads;
   }
 
   /** The nearest road, facing the way along it nearest the way the car faces. */
@@ -177,6 +203,8 @@ export class Drive {
   private readonly others: SimulatedCar[] = [];
   /** Other players' cars, which the simulated cars can hit. */
   readonly remotes: RemoteCars;
+  /** Traffic near a simulated car, which the simulated cars can hit too. */
+  readonly traffic: RemoteCars;
   /** Times the player's car has been put somewhere rather than driven there. */
   placements = 0;
 
@@ -189,8 +217,9 @@ export class Drive {
     this.rapier.timestep = STEP_S;
     this.ground = new GroundBlocks(this.rapier, world);
     this.addWalls();
-    this.player = new SimulatedCar(new Car(this.rapier, car), world);
+    this.player = new SimulatedCar(new Car(this.rapier, car, this.ground), world);
     this.remotes = new RemoteCars(this.rapier);
+    this.traffic = new RemoteCars(this.rapier);
     this.placeAt(start);
   }
 
@@ -222,6 +251,8 @@ export class Drive {
   placeAt(road: RoadPoint): void {
     this.loadGround(road);
     this.player.place(road);
+    this.remotes.placed(this.player.position);
+    this.traffic.placed(this.player.position);
     this.rapier.step();
     this.player.settled();
     this.placements++;
@@ -233,10 +264,20 @@ export class Drive {
    * stand-ins. It sits out its first step while its ground reaches Rapier's
    * queries, so adding a car moves nothing else.
    */
-  addCar(road: RoadPoint, id: CarId = DEFAULT_CAR): SimulatedCar {
+  addCar(road: RoadPoint, id: CarId = DEFAULT_CAR, tyres: Tyre = "summer"): SimulatedCar {
     this.loadGround(placeOf(this.player.position), road);
-    const car = new SimulatedCar(new Car(this.rapier, id), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, id, this.ground, tyres), this.world);
     car.place(road);
+    car.land();
+    this.others.push(car);
+    return car;
+  }
+
+  /** Another simulated car, where a state has it and moving as it moves: a traffic car once it's hit. */
+  addMovingCar(state: CarState): SimulatedCar {
+    this.loadGround(placeOf(this.player.position), placeOf(state.position));
+    const car = new SimulatedCar(new Car(this.rapier, state.car, this.ground), this.world);
+    car.resume(state);
     car.land();
     this.others.push(car);
     return car;
@@ -268,9 +309,27 @@ export class Drive {
     return this.player.id;
   }
 
-  /** Swaps the car for another, mid-drive: the new one carries on from where the old one was, as it was moving. */
-  setCar(id: CarId): void {
-    this.player.swap(this.rapier, id);
+  /** Swaps the car for another, on its own tyres, mid-drive: the new one carries on from where the old one was, as it was moving. */
+  setCar(id: CarId, tyres: Tyre = "summer"): void {
+    this.player.swap(this.rapier, this.ground, id, tyres);
+  }
+
+  /** The tyres on the car being driven. */
+  get tyres(): Tyre {
+    return this.player.tyres;
+  }
+
+  set tyres(tyres: Tyre) {
+    this.player.tyres = tyres;
+  }
+
+  /** What the weather has made of every surface, for every car: dry until something says otherwise. */
+  get condition(): Condition {
+    return this.ground.condition;
+  }
+
+  set condition(condition: Condition) {
+    this.ground.condition = condition;
   }
 
   /** The engine as it stands after the last step, and whether the car is in reverse. */
@@ -290,9 +349,12 @@ export class Drive {
     this.loadGround(placeOf(this.player.position));
     const cars = [this.player, ...this.others];
     for (const car of cars) car.push();
-    this.remotes.steer(cars.map(({ position }) => position));
+    const at = cars.map(({ position }) => position);
+    this.remotes.steer(at);
+    this.traffic.steer(at);
     this.rapier.step();
     this.remotes.settle();
+    this.traffic.settle();
     for (const car of cars) car.record();
   }
 

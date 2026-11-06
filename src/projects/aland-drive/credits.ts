@@ -44,7 +44,7 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023",
   },
   {
-    work: "Roads of Åland and building outlines kept beside them, reprojected and clipped to the game's tiles, its mapped stone walls, and the street lamps, power poles and lines, road signs, bus stops, crossings and guard rails placed beside the roads; those tiles' road, building, wall and roadside files are offered under the same licence",
+    work: "Roads of Åland and building outlines kept beside them, reprojected and clipped to the game's tiles, its mapped stone walls, and the street lamps, power poles and lines, road signs, bus stops, crossings and guard rails placed beside the roads, and the sea's lights and lighthouses with their colours, sectors and rhythms; those tiles' road, building, wall and roadside files and the lights' file are offered under the same licence",
     author: "OpenStreetMap contributors",
     license: LICENSES["odbl-1.0"],
     source: "https://www.openstreetmap.org/copyright",

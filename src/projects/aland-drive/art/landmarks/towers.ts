@@ -28,7 +28,7 @@ interface TowerSpec {
 const TOWERS: readonly TowerSpec[] = [
   { id: "getabergen-tower", name: "Getabergens utsiktstorn", east: 106219, north: 6715712.1, bearingDeg: 24, foot: [2.2, 2.2], head: [1.55, 1.55], deck: 12.4, roof: { eaves: 2.2, peak: 3.1, paint: "falu-red" } },
   { id: "storberget-tower", name: "Storbergets utsiktstorn", east: 108726, north: 6702467.9, bearingDeg: 0, foot: [1.95, 2.55], head: [1.95, 2.55], deck: 9.4, roof: { eaves: 2.2, peak: 4.2, paint: "tower-tin" } },
-  { id: "orrdalsklint-tower", name: "Orrdalsklints utsiktstorn", east: 120587, north: 6707782, bearingDeg: 8, foot: [1.7, 1.7], head: [1.4, 1.4], deck: 5.1, roof: null },
+  { id: "orrdalsklint-tower", name: "Orrdalsklints utsiktstorn", east: 120587, north: 6707782, bearingDeg: 8, foot: [2.1, 2.1], head: [1.55, 1.55], deck: 5.1, roof: null },
 ];
 
 const SINK = 0.4;

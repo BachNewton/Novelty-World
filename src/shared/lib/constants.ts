@@ -98,9 +98,9 @@ export const PROJECTS: Project[] = [
     icon: "Cat",
   },
   {
-    name: "Åland Drive",
+    name: "Åland Drive Unlimited",
     slug: "aland-drive",
-    description: "Drive the open roads of Åland, a whole island at 1:1 scale built from real map data",
+    description: "Live the Åland life: an online open-world driving game",
     categorySlug: "3d-games",
     icon: "Car",
   },

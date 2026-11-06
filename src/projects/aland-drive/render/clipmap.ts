@@ -75,6 +75,7 @@ interface Ring {
   shoreTexture: DataTexture;
   waterLevelAt: (place: Node<"vec2">) => Node<"float">;
   shoreAt: (place: Node<"vec2">) => Node<"float">;
+  upAt: (place: Node<"vec2">) => Node<"vec3">;
   origin: { value: Vector2 };
   /** The lattice node of the ring's first vertex, to know when it moved. */
   column: number;
@@ -100,18 +101,25 @@ export interface Clipmap {
   waterLevelAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** Metres from the shore at a place, out into the water and below zero on land, read between the ring's four nearest nodes as the waterline is drawn. */
   shoreAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** Which way the ground faces at the ring's nearest node to a place, unnormalised, as the ring lights its own. */
+  upAt: (level: number, place: Node<"vec2">) => Node<"vec3">;
   /** 1 where a pixel of cut ground at a place is drawn, inside the innermost ring's own detail; 0 where the ring draws its cells whole. */
   cutDrawnAt: (place: Node<"vec2">) => Node<"float">;
-  /** The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches. */
-  shoreAround: (place: Node<"vec2">) => Node<"float">;
+  /**
+   * The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches, at
+   * a place no farther than `reachM` from the camera: only the rings that reach can need are read, since each is a
+   * texture of its own and a compute pass holds only so many.
+   */
+  shoreAround: (place: Node<"vec2">, reachM: number) => Node<"float">;
   dispose: () => void;
 }
 
 /**
  * A colour for the ground or the water, given how deep the water is there (the water's level less the ground's, below 0
- * above the water) and how far the shore is (out into the water, below 0 on land).
+ * above the water), how far the shore is (out into the water, below 0 on land), and the way the ground faces, smooth
+ * across the mesh's triangles.
  */
-export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">) => Node<"vec3">;
+export type ByWater = (depthM: Node<"float">, shoreM: Node<"float">, up: Node<"vec3">) => Node<"vec3">;
 
 /** What rises from the ground far off (the forest's canopy), given a place and the ring's level. */
 export type TerrainLift = (place: Node<"vec2">, level: number) => Node<"float">;
@@ -179,10 +187,17 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     // Dry nodes sit hundreds of metres down, so a depth that mixes in one is far below zero: land.
     const depth = varying(waterLevel.sub(ground));
     const fromShore = varying(mix(textureLoad(shoreTexture, ivec2(grid)).r, textureLoad(shoreTexture, ivec2(grid.sub(odd))).r, fold));
+    // The ground's slope across the node's neighbours, on its own lattice and on the coarser one it folds to.
+    const slopeAt = (node: Node<"vec2">, apart: number) => {
+      const height = (column: number, row: number) => textureLoad(texture, ivec2(node.add(vec2(column, row)).clamp(0, CELLS))).r;
+      return vec2(height(apart, 0).sub(height(-apart, 0)), height(0, apart).sub(height(0, -apart))).div(2 * apart * ringStep);
+    };
+    const slope = mix(slopeAt(grid, 1), slopeAt(grid.sub(odd), 2), fold);
+    const up = varying(vec3(slope.x.negate(), 1, slope.y.negate()));
 
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
-    material.colorNode = groundColour(depth, fromShore);
+    material.colorNode = groundColour(depth, fromShore, up.normalize());
     // Where the cut ground is drawn instead, 0: the ring's ground leaves the cell to it. Its water doesn't, since the cut
     // ground meets the grid on its nodes and lies under the same water.
     const uncut = level === 0 ? float(1).sub(textureLoad(cutTexture, ivec2(floor(positionWorld.xz.sub(origin).div(ringStep)))).r.mul(exactAt(positionWorld.xz))) : float(1);
@@ -206,7 +221,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
       const waterMaterial = new MeshBasicNodeMaterial();
       waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
-      waterMaterial.colorNode = waterColour(depth, fromShore);
+      waterMaterial.colorNode = waterColour(depth, fromShore, vec3(0, 1, 0));
       // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where
       // the line is, smooth where a low shore's corners sit within centimetres of the water.
       waterMaterial.opacityNode = wet.mul(step(float(0), fromShore));
@@ -238,7 +253,11 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const groundBlendedAt = blendedAt(texture);
     const waterLevelAt = (spot: Node<"vec2">) => textureLoad(levelTexture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
     const shoreAt = blendedAt(shoreTexture);
-    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
+    const upAt = (spot: Node<"vec2">) => {
+      const slopeHere = slopeAt(round(spot.sub(origin).div(ringStep)), 1);
+      return vec3(slopeHere.x.negate(), 1, slopeHere.y.negate());
+    };
+    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, upAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -276,23 +295,29 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     shoreAt(level, place) {
       return rings[level].shoreAt(place);
     },
+    upAt(level, place) {
+      return rings[level].upAt(place);
+    },
     cutDrawnAt: exactAt,
-    shoreAround(place) {
+    shoreAround(place, reachM) {
       const off = abs(place.sub(cameraSpot)).toVar();
       const from = max(off.x, off.y);
       // A ring's corner sits on its own lattice, so its middle can be a couple of cells off the camera.
-      const holds = (level: number) => from.lessThan((CELLS / 2 - 2) * rings[level].stepM);
+      const halfOf = (level: number) => (CELLS / 2 - 2) * rings[level].stepM;
+      const holds = (level: number) => from.lessThan(halfOf(level));
+      const last = rings.findIndex((_, level) => level === DRIVING_LEVELS - 1 || halfOf(level) >= reachM);
+      if (last === 0) return rings[0].shoreAt(place);
       const shore = float(0).toVar();
       let chain = If(holds(0), () => {
         shore.assign(rings[0].shoreAt(place));
       });
-      for (let level = 1; level < DRIVING_LEVELS - 1; level++) {
+      for (let level = 1; level < last; level++) {
         chain = chain.ElseIf(holds(level), () => {
           shore.assign(rings[level].shoreAt(place));
         });
       }
       chain.Else(() => {
-        shore.assign(rings[DRIVING_LEVELS - 1].shoreAt(place));
+        shore.assign(rings[last].shoreAt(place));
       });
       return shore;
     },

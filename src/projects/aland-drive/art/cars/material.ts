@@ -1,7 +1,10 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, type Color, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, uniform, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import { seedOf, unitOf } from "../hash";
+import { INDICATOR_OPTION } from "./indicators";
 import { SURFACES, type Soup, type Surface } from "./mesh";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * One material for a whole car. The world's own light, the same sum as the
@@ -28,6 +31,15 @@ const TAIL_RUNNING = 0.45;
 const TAIL_BRAKE = 8;
 const LAMP_REVERSE = 2.4;
 const LAMP_HEAD = 2.2;
+
+/** A real indicator's flash: about one and a half a second, lit for a little over half of each. */
+const INDICATOR_HZ = 1.5;
+const INDICATOR_LIT_SHARE = 0.55;
+/** How bright a lit indicator is, over its glow colour: past one it clips towards yellow. */
+const INDICATOR_GLOW = 1.25;
+
+/** Seconds, for every world car's indicators: the game moves it on each frame and holds it while paused. */
+export const indicatorClock = uniform(0);
 
 interface Finish {
   /** A token name, or null for the car's own paint. */
@@ -63,6 +75,7 @@ const FINISHES: Record<Surface, Finish> = {
   stripe: { token: "car-stripe-blue", mirror: 0.04, gloss: 0.5, metal: 0, lamp: 0 },
   rack: { token: "car-trim", mirror: 0.03, gloss: 0.3, metal: 0, lamp: 0 },
   plateBand: { token: "car-plate-band", mirror: 0.03, gloss: 0.2, metal: 0, lamp: 0 },
+  lensIndicator: { token: "car-lens-indicator", mirror: 0.05, gloss: 0.5, metal: 0, lamp: 0 },
 };
 
 /** A hero's paint: a deeper coat, smooth enough now to carry the horizon along its doors. */
@@ -99,7 +112,7 @@ export function geometryOf(soup: Soup, hero = false): BufferGeometry {
 }
 
 export interface CarMaterialOptions {
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
   paint: string;
   /** The car's origin above its lowest shaded point. */
   groundY: number;
@@ -116,9 +129,7 @@ interface Sky {
 }
 
 function skyOf(sun: CarMaterialOptions["sun"]): Sky {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const sky = uniform(tokenRgb("sky"));
   const zenith = uniform(tokenRgb("water"));
   const road = uniform(tokenRgb("car-reflect-ground"));
@@ -177,16 +188,16 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
     .add(headGlow.mul(isLamp(2).mul(reverse.mul(LAMP_REVERSE))))
     .add(headGlow.mul(isLamp(3).mul(head.mul(LAMP_HEAD))));
 
-  const finished: Node<"vec3"> = vec3(colour.add(glow));
+  // A lamp's own light goes on after the world's haze and hour, which would dim it at night.
+  const lit = (surface: Node<"vec3">) => (hazed ? hazed(surface) : surface);
   const material = new MeshBasicNodeMaterial();
   if (hero) {
     // Seen through the glass the shell's inside is the cabin's lining, for no extra faces.
     material.side = DoubleSide;
     const lining = uniform(tokenRgb("car-interior"));
-    const shown: Node<"vec3"> = select(frontFacing, finished, lining.mul(heightShare.mul(0.5).add(0.7)));
-    material.colorNode = hazed ? hazed(shown) : shown;
+    material.colorNode = select(frontFacing, lit(colour).add(glow), lit(lining.mul(heightShare.mul(0.5).add(0.7))));
   } else {
-    material.colorNode = hazed ? hazed(finished) : finished;
+    material.colorNode = lit(colour).add(glow);
   }
 
   return {
@@ -240,13 +251,15 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   const option = attribute<"float">("carOption", "float");
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const dissolveFrom = swapM * (1 - DISSOLVE_SHARE);
-  const fade = smoothstep(float(dissolveFrom), float(swapM), distance);
+  // A uniform rather than a constant, so every model's materials, each at its own swap, are one shader program.
+  const swap = uniform(swapM);
+  const dissolveFrom = swap.mul(1 - DISSOLVE_SHARE);
+  const fade = smoothstep(dissolveFrom, swap, distance);
   const gone = smoothstep(float(reachM * (1 - DISSOLVE_SHARE)), float(reachM), distance);
   const noise = fract(fract(screenCoordinate.xy.dot(vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const isWorld = tier === "world";
-  const shown = isWorld ? distance.lessThan(swapM) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reachM));
+  const shown = isWorld ? distance.lessThan(swap) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reachM));
   const rackOff = option.equal(1).and(look.y.lessThan(0.5));
   const bandOff = option.equal(2).and(look.z.lessThan(0.5));
   const scale = select(shown.and(rackOff.or(bandOff).not()), float(1), float(0));
@@ -254,7 +267,7 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   const { x, y, z } = positionGeometry;
   const normal = normalize(vec3(normalGeometry.x.mul(yawCos).add(normalGeometry.z.mul(yawSin)), normalGeometry.y, normalGeometry.z.mul(yawCos).sub(normalGeometry.x.mul(yawSin))));
   const { colour } = carSurface(sky, paint, normal, smoothstep(float(0.25), float(0.85), y));
-  const finished: Node<"vec3"> = vec3(colour);
+  const finished: Node<"vec3"> = vec3(mix(colour, uniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
 
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(y.mul(look.x).mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
@@ -262,6 +275,22 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM }: WorldTierO
   material.opacityNode = select(isWorld ? fade.lessThanEqual(noise) : fade.greaterThan(noise).and(gone.lessThanEqual(noise)), float(1), float(0));
   material.alphaTestNode = float(0.5);
   return material;
+}
+
+/**
+ * 1 where a face is an indicator lit at this moment, else 0. `signal` is per instance: 0 off, 1 the left, 2 the right,
+ * 3 both. Every car flashes at its own phase, from a seed of its paint and height, worked out in the vertex stage where
+ * those are exact, so all of one car's lamps agree and flash together.
+ */
+function indicatorLit(option: Node<"float">, look: Node<"vec3">, paint: Node<"vec3">): Node<"float"> {
+  const signal = attribute<"float">("signal", "float");
+  const is = (value: Node<"float">, wanted: number) => value.sub(wanted).abs().lessThan(0.5);
+  const leftOn = is(option, INDICATOR_OPTION.left).and(is(signal, 1).or(is(signal, 3)));
+  const rightOn = is(option, INDICATOR_OPTION.right).and(is(signal, 2).or(is(signal, 3)));
+  const phase = unitOf(seedOf(look.x.mul(1e6), paint.x.mul(1023), paint.y.mul(1023), paint.z.mul(1023)), 1);
+  const flashing = fract(indicatorClock.mul(INDICATOR_HZ).add(phase)).lessThan(INDICATOR_LIT_SHARE);
+  const lit = varying(select(leftOn.or(rightOn).and(flashing), float(1), float(0)));
+  return select(lit.greaterThan(0.5), float(1), float(0));
 }
 
 export interface CarLights {

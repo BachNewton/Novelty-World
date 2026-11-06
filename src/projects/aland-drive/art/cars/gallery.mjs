@@ -114,14 +114,22 @@ for (const car of cars) {
   }
 }
 
-for (const view of ["ranks", "line"]) {
-  await tab.evaluate(async (v) => {
+// The ranks twice, a third of a flash apart, so every car's indicators are seen lit in one or the other.
+const fleetViews = [
+  ["ranks", 0],
+  ["ranks", 0.22],
+  ["above", 0],
+  ["line", 0],
+];
+for (const [view, clock] of fleetViews) {
+  await tab.evaluate(async ([v, c]) => {
     window.__carGallery.clear();
-    return window.__carGallery.fleet(v);
-  }, view);
-  const path = join(outFolder, `fleet-${view}.png`);
+    return window.__carGallery.fleet(v, c);
+  }, [view, clock]);
+  const name = clock === 0 ? view : `${view}-${clock}`;
+  const path = join(outFolder, `fleet-${name}.png`);
   await tab.screenshot({ path });
-  saved.push({ path, car: "world cars", view });
+  saved.push({ path, car: "world cars", view: name });
 }
 
 // The sheet is a page of the shots themselves, screenshotted whole.

@@ -18,7 +18,7 @@ const SPREAD_SOFT = 0.3;
 /** A dipped beam: lights the ground and the foot of what stands on it. */
 const CUT_FROM_M = 0.7;
 const CUT_TO_M = 2.6;
-const FALL_M = 26;
+const FALL_M = 40;
 const POOL_GAIN = 2.4;
 const REACH_M = 110;
 const CONE_LONG_M = 15;

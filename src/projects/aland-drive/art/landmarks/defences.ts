@@ -25,6 +25,8 @@ const PITS: readonly (readonly [number, number])[] = [
   [0.75, 9.5],
 ];
 const PIT = { radius: 4.2, wall: 0.7, rise: 0.9, sink: 0.6 };
+/** A level face this far over the ground stays clear of it, where nearer would fight the terrain. */
+const FLOOR_CLEAR = 0.04;
 
 const along = (share: number): Vec2 => {
   const [a, b] = [TRENCH[0], TRENCH[TRENCH.length - 1]];
@@ -51,20 +53,32 @@ function pit(mesh: MeshBuilder, ground: Ground, centre: Vec2, random: () => numb
   const dark = flat("concrete-dark");
   const plan: Vec2 = [centre[0], -centre[1]];
   const { radius, wall, rise, sink } = PIT;
-  // The ring wall, its top a little broken, the floor inside sunk below the rock round about.
-  mesh.lathe(plan, [[radius + wall, base - sink], [radius + wall, base + rise * 0.7], [radius + wall * 0.4, base + rise], [radius, base + rise]], sides, [concrete, worn, worn]);
-  mesh.lathe(plan, [[radius, base + rise], [radius, base - 0.5], [0, base - 0.5]], sides, [dark, blend(dark, flat("earth-turf"), 0.4)]);
+  // The pit is sunk in the real rock, but the terrain can't be cut: its floor lies just over the highest ground inside the
+  // ring, so the ground never shows through it, and the ring wall stands over that.
+  let [low, high] = [0, 0];
+  for (let ring = 1; ring <= 3; ring++) {
+    for (let side = 0; side < 12; side++) {
+      const angle = (side / 12) * Math.PI * 2;
+      const reach = ring === 3 ? radius + wall : (radius * ring) / 3;
+      const at = ground(centre[0] + Math.cos(angle) * reach, centre[1] - Math.sin(angle) * reach) - base;
+      if (ring === 3) low = Math.min(low, at);
+      else high = Math.max(high, at);
+    }
+  }
+  const floor = base + high + FLOOR_CLEAR;
+  mesh.lathe(plan, [[radius + wall, base + low - sink], [radius + wall, floor + rise * 0.7], [radius + wall * 0.4, floor + rise], [radius, floor + rise]], sides, [concrete, worn, worn]);
+  mesh.lathe(plan, [[radius, floor + rise], [radius, floor], [0, floor]], sides, [dark, blend(dark, flat("earth-turf"), 0.4)]);
   if (far) return;
   // The gun's mounting ring and its bolts, and the ammunition niches in the wall.
-  mesh.lathe(plan, [[1.3, base - 0.5], [1.3, base - 0.15], [0.9, base - 0.15], [0.9, base - 0.35], [0, base - 0.35]], 16, [concrete, concrete, dark, dark]);
+  mesh.lathe(plan, [[1.3, floor], [1.3, floor + 0.35], [0.9, floor + 0.35], [0.9, floor + 0.2], [0, floor + 0.2]], 16, [concrete, concrete, dark, dark]);
   for (let bolt = 0; bolt < 8; bolt++) {
     const angle = (bolt / 8) * Math.PI * 2;
-    mesh.box([plan[0] + Math.cos(angle) * 1.1, base - 0.08, plan[1] + Math.sin(angle) * 1.1], [0.08, 0.14, 0.08], flat("cross-iron"));
+    mesh.box([plan[0] + Math.cos(angle) * 1.1, floor + 0.39, plan[1] + Math.sin(angle) * 1.1], [0.08, 0.12, 0.08], flat("cross-iron"));
   }
   const toward = Math.atan2(-out[1], out[0]) + Math.PI;
   for (const offset of [-0.9, 0.9]) {
     const angle = toward + offset;
-    mesh.box([plan[0] + Math.cos(angle) * (radius - 0.05), base - 0.05, plan[1] + Math.sin(angle) * (radius - 0.05)], [0.15, 0.8, 1.0], flat("ruin-shadow"), -angle);
+    mesh.box([plan[0] + Math.cos(angle) * (radius - 0.05), floor + 0.45, plan[1] + Math.sin(angle) * (radius - 0.05)], [0.15, 0.6, 1.0], flat("ruin-shadow"), -angle);
   }
   for (let count = 0; count < 6; count++) {
     const angle = random() * Math.PI * 2;
@@ -92,7 +106,7 @@ function trench(mesh: MeshBuilder, ground: Ground, far: boolean) {
         mesh.quad([pe, yp - 0.6, -pn], [qe, yq - 0.6, -qn], [qe, yq + 0.25, -qn], [pe, yp + 0.25, -pn], stone);
       }
       const [w0, w1] = [-0.85, 0.85].map((side): [number, number] => [out[0] * side, out[1] * side]);
-      mesh.quad([p[0] + w0[0], yp + 0.02, -(p[1] + w0[1])], [q[0] + w0[0], yq + 0.02, -(q[1] + w0[1])], [q[0] + w1[0], yq + 0.02, -(q[1] + w1[1])], [p[0] + w1[0], yp + 0.02, -(p[1] + w1[1])], floor);
+      mesh.quad([p[0] + w0[0], yp + FLOOR_CLEAR, -(p[1] + w0[1])], [q[0] + w0[0], yq + FLOOR_CLEAR, -(q[1] + w0[1])], [q[0] + w1[0], yq + FLOOR_CLEAR, -(q[1] + w1[1])], [p[0] + w1[0], yp + FLOOR_CLEAR, -(p[1] + w1[1])], floor);
     }
   }
 }

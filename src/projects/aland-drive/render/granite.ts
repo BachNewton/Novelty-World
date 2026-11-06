@@ -1,11 +1,13 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, cameraPosition, cos, dot, float, fract, If, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../art/car-volume";
 import { buildBoulder, buildOutcrop, rapakivi, ROCK_SEEDS, RURAL_PARTS, ruralColours, type RuralPart } from "../art/rural";
 import type { RoadsideInputs } from "../art/roadside";
 import { flatNormal } from "../art/flat-normal";
 import { groundFloor, groundKinds, rockFloor } from "../art/surfaces";
 import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
+import { towardsSun } from "../art/sun";
 
 /*
  * Åland's granite where it breaks through the ground: bare domes and slabs along the
@@ -45,7 +47,7 @@ import type { LandAt } from "./tile-reads";
 const LATTICE: Lattice = { stepM: 7, ends: [180, 230, 30], salt: 517.3 };
 /** The widest an outcrop reaches from its place: the kit's longest dome at its largest size. */
 const WIDEST_M = 9;
-const SWAP_M = 90;
+/** The band near and far versions trade pixels over, either side of the swap: the kit's, for its own size, times a place's size. */
 const SWAP_BAND = 0.15;
 
 /** The mapped rock's share at a place, from none to all, and at a corner, from where it sinks to where it lifts fully. */
@@ -101,8 +103,6 @@ const MOST_STONES = 0.85;
 const STONE_PARTS: RuralPart[] = ["field-stone", "field-stone-pink", "rapakivi"];
 /** Stones sit a little into the ground, as a share of their size. */
 const STONE_SINK = 0.05;
-/** Where a stone's rounded version hands over to its few-sided one. */
-const STONE_SWAP_M = 12;
 
 function tallest(shape: BufferGeometry): number {
   const position = shape.getAttribute("position");
@@ -138,18 +138,19 @@ export interface GraniteDrawn {
   triangles: number;
 }
 
+/** The outcrops and the field's stones, every one of which the LOD check measures. */
+export const graniteModels = () => ({ outcrops: SEEDS.map((seed) => buildOutcrop(seed)), stones: ROCK_SEEDS.map((seed) => buildBoulder(seed)) });
+
 export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: GraniteInputs) {
   const { rockAt, fieldsAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun } = inputs;
-  const models = SEEDS.map((seed) => buildOutcrop(seed));
+  const { outcrops: models, stones: boulders } = graniteModels();
   const fars = models.map(({ far }) => {
     if (far === null) throw new Error("The kit's outcrop has no far version");
     return far;
   });
   const tallsOf = uniformArray(models.map(({ near }) => tallest(near)), "float");
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const lightOn = (normal: Node<"vec3">) => float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const graniteColour = ruralColours(linear)[RURAL_PARTS.indexOf("rapakivi")];
@@ -157,7 +158,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
   const stoneColours = uniformArray(STONE_PARTS.map((part) => ruralColours(linear)[RURAL_PARTS.indexOf(part)]), "vec3");
 
   const capacity = Math.ceil(placesWithin(reachOf(LATTICE), LATTICE.stepM) * MOST_OUTCROPS);
-  const nearCapacity = placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_M, LATTICE.stepM);
+  const nearCapacity = placesWithin(Math.max(...models.map(({ swapM }) => swapM)) * SIZES[1] * (1 + SWAP_BAND) + WIDEST_M, LATTICE.stepM);
 
   const planting = createPlanting(scene, renderer, {
     lattices: [LATTICE],
@@ -166,22 +167,22 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     capacities: [...models.map(() => capacity), ...models.map(() => nearCapacity)],
     rows: 3,
     visit({ seed, place, distance, seenOn, left, write }) {
-      const chance = roll(seed, 41.3, 17.9).toVar();
+      const chance = roll(seed, 12).toVar();
       If(landAt(place).dry.greaterThan(LEAST_DRY).and(roadsAt(place, 0).lessThan(ROAD_CLEAR)), () => {
         const rock = smoothstep(float(ROCK_HERE[0]), float(ROCK_HERE[1]), rockAt(place, 0));
         const open = float(1).sub(smoothstep(float(TREES_M[0]), float(TREES_M[1]), canopyAt(place, 0)));
         If(chance.lessThan(rock.mul(mix(float(UNDER_TREES), float(1), open)).mul(PLACED)), () => {
           const ground = groundAt(place).toVar();
           If(seenOn(ground), () => {
-            const kind = select(roll(seed, 54.1, 18.7).lessThan(0.5), float(0), float(1)).toVar();
-            const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 73.31, 29.47));
-            const lift = mix(float(LIFTS_M[0]), float(LIFTS_M[1]), roll(seed, 11.7, 83.1));
-            const swap = smoothstep(float(SWAP_M * (1 - SWAP_BAND)), float(SWAP_M * (1 + SWAP_BAND)), distance).toVar();
+            const kind = select(roll(seed, 9).lessThan(0.5), float(0), float(1)).toVar();
+            const size = mix(float(SIZES[0]), float(SIZES[1]), roll(seed, 10));
+            const lift = mix(float(LIFTS_M[0]), float(LIFTS_M[1]), roll(seed, 13));
             const remaining = left().toVar();
-            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const shape = vec4(lift, 0, 0, 0);
-            models.forEach((_, index) => {
+            models.forEach((model, index) => {
               If(kind.equal(index), () => {
+                const swap = smoothstep(size.mul(model.swapM * (1 - SWAP_BAND)), size.mul(model.swapM * (1 + SWAP_BAND)), distance).toVar();
                 If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, vec4(float(1).sub(swap), remaining, size, kind), shape]);
                 });
@@ -201,7 +202,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const offset = vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(size).toVar();
       const spot = standing.xz.add(offset).toVar();
       const ground = groundOnMeshAt(spot).toVar();
-      const profile = local.y.div(tallsOf.element(int(live.w)) as unknown as Node<"float">);
+      const profile = local.y.div(tallsOf.element(int(round(live.w))) as unknown as Node<"float">);
       const reaches = smoothstep(float(ROCK_EDGE[0]), float(ROCK_EDGE[1]), rockAt(spot, 0))
         .mul(float(1).sub(smoothstep(float(ROAD_SINKS[0]), float(ROAD_SINKS[1]), roadsAt(spot, 0))))
         .mul(float(1).sub(smoothstep(float(WATER_SINKS[0]), float(WATER_SINKS[1]), waterAt(spot, 0))));
@@ -230,13 +231,12 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       material.colorNode = hazed(floor.mul(crystals).mul(lightOf(close.shade)).mul(relit));
 
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       material.side = DoubleSide;
       return material;
     },
   });
 
-  const boulders = ROCK_SEEDS.map((seed) => buildBoulder(seed));
   const stoneShapes = [
     ...boulders.map(({ far }) => {
       if (far === null) throw new Error("The kit's boulder has no far version");
@@ -245,7 +245,8 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     ...boulders.map(({ near }) => near),
   ];
   const stoneCapacity = Math.ceil((Math.min(placesWithin(reachOf(STONES), STONES.stepM), MOST_FIELD_M2 / STONES.stepM ** 2) * MOST_STONES * 1.5) / boulders.length);
-  const nearStoneCapacity = Math.ceil((placesWithin(STONE_SWAP_M * (1 + SWAP_BAND), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
+  const stoneSwapM = Math.max(...boulders.map(({ swapM }) => swapM)) * STONE_SIZES[1];
+  const nearStoneCapacity = Math.ceil((placesWithin(stoneSwapM * (1 + SWAP_BAND), STONES.stepM) * MOST_STONES * 1.5) / boulders.length);
   const stones = createPlanting(scene, renderer, {
     lattices: [STONES],
     widestM: STONE_SIZES[1],
@@ -253,21 +254,21 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
     capacities: [...boulders.map(() => stoneCapacity), ...boulders.map(() => nearStoneCapacity)],
     rows: 2,
     visit({ seed, place, distance, seenOn, write }) {
-      const chance = roll(seed, 23.9, 71.3).toVar();
+      const chance = roll(seed, 14).toVar();
       If(landAt(place).dry.greaterThan(LEAST_DRY).and(roadsAt(place, 0).lessThan(ROAD_CLEAR)), () => {
         const field = smoothstep(float(FIELD_HERE[0]), float(FIELD_HERE[1]), fieldsAt(place));
         If(chance.lessThan(field.mul(MOST_STONES)), () => {
-          const size = mix(float(STONE_SIZES[0]), float(STONE_SIZES[1]), roll(seed, 37.7, 5.9));
+          const size = mix(float(STONE_SIZES[0]), float(STONE_SIZES[1]), roll(seed, 15));
           const ground = groundOnMeshAt(place).sub(size.mul(STONE_SINK)).toVar();
           If(seenOn(ground), () => {
-            const kind = roll(seed, 63.1, 44.7).mul(boulders.length).floor().toVar();
-            const part = roll(seed, 8.3, 91.1).mul(STONE_PARTS.length).floor();
-            const standing = vec4(place.x, ground, place.y, roll(seed, 29.3, 61.7).mul(6.283)).toVar();
-            const swap = smoothstep(float(STONE_SWAP_M * (1 - SWAP_BAND)), float(STONE_SWAP_M * (1 + SWAP_BAND)), distance).toVar();
+            const kind = roll(seed, 16).mul(boulders.length).floor().toVar();
+            const part = roll(seed, 17).mul(STONE_PARTS.length).floor();
+            const standing = vec4(place.x, ground, place.y, roll(seed, 11).mul(6.283)).toVar();
             const reach = size.mul(STONE_REACH_PER_SIZE).toVar();
             const remaining = float(1).sub(smoothstep(reach.mul(1 - STONE_DISSOLVING), reach, distance)).toVar();
-            boulders.forEach((_, index) => {
+            boulders.forEach((boulder, index) => {
               If(kind.equal(index), () => {
+                const swap = smoothstep(size.mul(boulder.swapM * (1 - SWAP_BAND)), size.mul(boulder.swapM * (1 + SWAP_BAND)), distance).toVar();
                 If(swap.greaterThan(0).and(remaining.greaterThan(0)), () => {
                   write(index, [standing, vec4(float(1).sub(swap), remaining, size, part)]);
                 });
@@ -290,14 +291,14 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const facing = flatNormal();
       const upward = select(facing.y.lessThan(0), facing.negate(), facing);
       const close = closeLandAt(positionWorld.xz);
-      const base = stoneColours.element(int(varying(live.w))) as unknown as Node<"vec3">;
+      const base = stoneColours.element(varying(int(round(live.w)))) as unknown as Node<"vec3">;
       const away = positionWorld.sub(cameraPosition).length();
       const foot = varying(local.y.mul(live.z).add(0.05).max(0).mul(MOSS_FOOT));
       const painted = rapakivi({ colour }, base, varying(turned.add(standing.w.mul(37))), away, abs(upward.y), foot);
       material.colorNode = hazed(painted.mul(lightOf(close.shade)).mul(lightOn(upward)));
 
       const pixels = varying(vec2(live.x, live.y));
-      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y));
+      material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
       return material;
     },
   });

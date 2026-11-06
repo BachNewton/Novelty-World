@@ -1,11 +1,13 @@
-import { DoubleSide, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { DoubleSide, Mesh, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import type { RoadsideInputs } from "../roadside/material";
 import type { Crowd } from "./crowd";
 import { PARTS } from "./parts";
 import { DRIVES, ROCK_MAX_DEGREES, ROCK_MAX_RATE, type Drive } from "./soup";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The light and haze of every other object, on a body that moves in the shader: a
@@ -43,10 +45,6 @@ const RIGHT_PHASE = Math.PI;
 const driveIs = (drive: Node<"float">, wanted: Drive) => drive.equal(DRIVES.indexOf(wanted));
 const pattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-function toSunOf({ azimuthDeg, elevationDeg }: RoadsideInputs["sun"]) {
-  const [azimuth, elevation] = [(azimuthDeg * Math.PI) / 180, (elevationDeg * Math.PI) / 180];
-  return new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation));
-}
 
 /** Turns a point about a pivot on x: a limb hanging down goes forward for a positive angle. */
 function swing(point: Node<"vec3">, pivot: Node<"vec3">, angle: Node<"float">): Node<"vec3"> {
@@ -122,10 +120,10 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMat
   const palette = uniformArray(PARTS.map((part) => inputs.linear(part)));
   const painted = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
   const normal = flatNormal();
-  const lit = float(AMBIENT).add(normal.dot(uniform(toSunOf(inputs.sun))).max(0).mul(SUN_SHARE));
+  const lit = float(AMBIENT).add(normal.dot(towardsSun(inputs.sun)).max(0).mul(SUN_SHARE));
   const grounded = mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), positionWorld.y.sub(place.y)));
   material.colorNode = inputs.hazed(painted.mul(lit.mul(grounded)));
-  material.maskNode = isNear ? pattern().greaterThanEqual(share) : pattern().lessThan(share);
+  material.maskNode = (isNear ? pattern().greaterThanEqual(share) : pattern().lessThan(share)).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }
@@ -134,14 +132,15 @@ function shadowMaterial({ sun, colour }: PeopleInputs): MeshBasicNodeMaterial {
   const corner = attribute<"vec2">("corner", "vec2");
   const spread = attribute<"vec4">("spread", "vec4");
   const place = attribute<"vec4">("place", "vec4");
-  const toSun = toSunOf(sun);
-  const away = vec2(-toSun.x, -toSun.z).normalize().mul(SHADOW_DRIFT_M);
+  const toSun = towardsSun(sun);
+  const away = vec2(toSun.x, toSun.z).negate().normalize().mul(SHADOW_DRIFT_M);
   const material = new MeshBasicNodeMaterial();
   material.positionNode = positionGeometry.add(vec3(spread.x.mul(corner.x).add(spread.z.mul(corner.y)).add(away.x), SHADOW_LIFT_M, spread.y.mul(corner.x).add(spread.w.mul(corner.y)).add(away.y)));
   const distance = place.xz.sub(cameraPosition.xz).length();
   const fade = float(1).sub(smoothstep(float(PEOPLE_REACH_M * (1 - GROW_SHARE)), float(PEOPLE_REACH_M), distance));
   const edge = float(1).sub(corner.dot(corner)).max(0);
-  material.colorNode = vec4(colour("edge").mul(0.3), edge.mul(edge).mul(SHADOW_STRENGTH).mul(fade));
+  // The sun's length is its strength, so the shadow goes as the sun does.
+  material.colorNode = vec4(colour("edge").mul(0.3), edge.mul(edge).mul(SHADOW_STRENGTH).mul(fade).mul(toSun.length().min(1)));
   material.transparent = true;
   material.side = DoubleSide;
   material.depthWrite = false;

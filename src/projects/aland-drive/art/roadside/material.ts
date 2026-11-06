@@ -1,8 +1,11 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, uv, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, cross, dot, float, fract, int, mix, normalGeometry, normalize, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, uv, varying, vec2, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
+import { placeSeed, unitOf } from "../hash";
 import { PARTS, type Part } from "./mesh";
 import { POLE_CONDUCTORS, WIRE_SAG_SHARE, type RoadsideModel } from "./models";
 import { flatNormal } from "../flat-normal";
+import { towardsSun, type Sun } from "../sun";
 
 /*
  * Every roadside object draws through the same two materials (near and far) and
@@ -24,7 +27,7 @@ export interface RoadsideInputs {
   linear: (name: string) => Vector3;
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
 }
 
 export interface Placement {
@@ -74,31 +77,26 @@ const PAINT: Record<Part, { from: string; to?: string; share?: number; gain?: nu
 
 /** The light every placed kit shares: the sky's, the sun's on a face turned to it, and a darker last metre to the ground, as the buildings have. */
 export const KIT_LIGHT = { ambient: 0.68, sunShare: 0.5, footShade: 0.72, footM: 1.1 } as const;
-/** Each place swaps somewhere in this share of the distance, so they don't all go on one line. */
+/** Each place swaps somewhere in this share past its model's swap, so they don't all go on one line, and none nearer than the swap measured (`lod-swaps.ts`). */
 export const SWAP_SPREAD = 0.2;
 /** The band two versions trade pixels over, as a share either side of the swap. */
 const SWAP_BAND = 0.1;
 /** The share of its reach over which the last version dissolves. */
 const LEAVE_SHARE = 0.15;
 
-/** The way to the sun, for a shader. */
-export function toSunOf({ azimuthDeg, elevationDeg }: RoadsideInputs["sun"]) {
-  const azimuth = (azimuthDeg * Math.PI) / 180;
-  const elevation = (elevationDeg * Math.PI) / 180;
-  return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-}
-
 /** A flat-shaded face's own normal, and the kit's light on it. */
 export function facetLight(sun: RoadsideInputs["sun"]) {
   const normal = flatNormal();
-  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(toSunOf(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
+  return { normal, lit: float(KIT_LIGHT.ambient).add(normal.dot(towardsSun(sun)).max(0).mul(KIT_LIGHT.sunShare)) };
 }
 
 /** Darker in the last metre to the ground: 1 above it. */
 export const footShade = (foot: Node<"float">) => mix(float(KIT_LIGHT.footShade), float(1), smoothstep(float(0), float(KIT_LIGHT.footM), foot));
 
 /** A place's pseudo-random share, the same every time it's asked. */
-export const rollOf = (place: Node<"vec2">) => fract(sin(dot(place, vec2(12.9898, 78.233))).mul(43758.5453));
+/** A place's own seed, made in the vertex stage from the place as stored, so every pixel of its model reads the same one. */
+export const seedAt = (place: Node<"vec2">): Node<"uint"> => varying(placeSeed(place));
+export const rollOf = (place: Node<"vec2">) => unitOf(seedAt(place), 1);
 
 /** Interleaved gradient noise: an even spread of thresholds over the screen, the same every frame for a still pixel. */
 export const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
@@ -126,7 +124,7 @@ function placing(isNear: boolean) {
   const reach = attribute<"vec2">("reach", "vec2");
   const distance = place.xz.sub(cameraPosition.xz).length();
   const roll = rollOf(place.xz);
-  const swap = reach.x.mul(float(1).sub(roll.mul(SWAP_SPREAD)));
+  const swap = reach.x.mul(float(1).add(roll.mul(SWAP_SPREAD)));
   const end = reach.y.mul(float(1).sub(roll.mul(SWAP_SPREAD * 0.5)));
   const shown = isNear ? distance.lessThan(swap.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(swap.mul(1 - SWAP_BAND)).and(distance.lessThan(end));
   const scale = select(shown, fit.x, float(0));
@@ -153,7 +151,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const { position, mask, foot } = placing(isNear);
   const material = new MeshBasicNodeMaterial();
   material.positionNode = position;
-  material.maskNode = mask;
+  material.maskNode = mask.and(outsideCar());
   material.colorNode = inputs.hazed(paintOf(inputs, foot));
   material.side = DoubleSide;
   return material;

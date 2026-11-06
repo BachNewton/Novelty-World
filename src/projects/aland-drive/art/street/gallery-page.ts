@@ -149,6 +149,14 @@ look("verge-close", "wildflowers close", station(3), [-6, 0.9, -3.4], [-1.5, 0.5
 flowerModels.forEach((model, index) => add(model, [{ x: station(2) + 25 + index * 1.3, y: 0, z: VERGE_Z + 1.5, scale: 1.2 }]));
 look("flowers", "daisy, buttercup, lupine, fireweed, cow parsley", station(2) + 25, [2.6, 0.9, 0.5], [2.6, 0.5, VERGE_Z + 1.5], 34);
 
+// The white flowers in both versions the game draws, side by side: each near, then its far version.
+const whites = (["daisy", "cow-parsley"] as const).flatMap((kind) => {
+  const model = buildWildflowers(kind);
+  return [model, { ...model, near: model.far ?? model.near, far: null }];
+});
+whites.forEach((version, index) => add(version, [{ x: station(2) + 40 + index * 1.1, y: 0, z: VERGE_Z + 1.5, scale: 1 }]));
+look("flowers-white", "daisy and cow parsley: near and far", station(2) + 41.65, [0, 0.8, 1.2], [0, 0.45, VERGE_Z + 1.5], 30);
+
 // 4: a planted double row of lindens, on an esplanade.
 const lindens = [buildLinden(3), buildLinden(8), buildLinden(14)];
 const esplanadeLine = line(station(4) - 50, station(4) + 50, 0);

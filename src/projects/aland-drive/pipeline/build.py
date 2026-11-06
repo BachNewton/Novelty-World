@@ -24,8 +24,10 @@ from scipy import ndimage
 
 import buildings as solids
 import canopy
+import clearing
 import ground as ground_colour
 import landmarks as landmark_sites
+import lanes
 import laser
 import docks
 import farm
@@ -436,6 +438,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "mask": first["mask"],
         "ground": first["ground"],
         "canopy": first["canopy"],
+        "clearing": clearing.MANIFEST,
         "stands": stands.MANIFEST,
         "rock": rocks.MANIFEST,
         **next(({"town": town.world_town(manifest["town"])} for manifest in manifests if "town" in manifest), {}),
@@ -507,12 +510,16 @@ def main() -> None:
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town, arguments.paving)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
+    # Beside the roadside, whose sign rule its right of way reads. It needs only each tile's own surface and OSM's signs.
+    lanes.bake_tiles(names, OUTPUT)
     waterfront.bake_tiles(names, OUTPUT)
     seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside, whose lamps and signs the cars keep clear of.
     parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     # After the roadside too, whose poles and walls the bales, tractors and sheep keep clear of.
     farm.bake_tiles(names, OUTPUT)
+    # Last, once every building and model is placed, its neighbours' too.
+    clearing.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

@@ -1,5 +1,6 @@
 import { dot, float, max, min, mix, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
+import type { Tiled } from "./tiled";
 
 /*
  * Close-up ground, over the soft 2 m aerial colour. The tiles say nothing about
@@ -40,8 +41,8 @@ const STONES_M = 2.3;
 const LUMINANCE = vec3(0.2126, 0.7152, 0.0722);
 
 export interface GroundInput {
-  /** World x and z of the pixel. */
-  place: Node<"vec2">;
+  /** Where the pixel is on each of its patterns (`tiledGround`). */
+  tiled: Tiled;
   toCamera: Node<"float">;
   /** The photo's colour, in linear light. */
   photo: Node<"vec3">;
@@ -95,12 +96,12 @@ export function rockFloor(floor: Node<"vec3">, rockColour: Node<"vec3">, rock: N
   return mix(floor, toned(floor, rockColour, ROCK_BRIGHTEST), rock.mul(float(1).sub(grassShare)).mul(ROCK_TONE));
 }
 
-export function groundDetail({ place, toCamera, photo, roadNearby, litterColour, rock, fields, rockColour, stonesColour, detail }: GroundInput): Node<"vec3"> {
+export function groundDetail({ tiled, toCamera, photo, roadNearby, litterColour, rock, fields, rockColour, stonesColour, detail }: GroundInput): Node<"vec3"> {
   const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
-  const coarse = texture(detail, place.div(COARSE_M));
-  const fine = texture(detail, place.div(FINE_M).add(vec2(0.37, 0.11)));
-  const drift = texture(detail, place.div(DRIFT_M)).a.sub(0.5).mul(0.05);
-  const mottled = texture(detail, place.div(MOTTLE_M));
+  const coarse = texture(detail, tiled(COARSE_M));
+  const fine = texture(detail, tiled(FINE_M).add(vec2(0.37, 0.11)));
+  const drift = texture(detail, tiled(DRIFT_M)).a.sub(0.5).mul(0.05);
+  const mottled = texture(detail, tiled(MOTTLE_M));
 
   const kinds = groundKinds(photo, drift);
   const { grassShare } = kinds;
@@ -117,7 +118,7 @@ export function groundDetail({ place, toCamera, photo, roadNearby, litterColour,
   const stoneRelief = mix(rockRelief, gravelRelief, gravelShare);
 
   const field = smoothstep(float(0.2), float(0.6), fields);
-  const stones = texture(detail, place.div(STONES_M)).g.mul(0.65).add(texture(detail, place.div(STONES_M * 0.41).add(vec2(0.23, 0.71))).g.mul(0.35)).mul(2).sub(1).mul(STRENGTH.stones);
+  const stones = texture(detail, tiled(STONES_M)).g.mul(0.65).add(texture(detail, tiled(STONES_M * 0.41).add(vec2(0.23, 0.71))).g.mul(0.35)).mul(2).sub(1).mul(STRENGTH.stones);
   const relief = mix(grassRelief.mul(grassShare).add(earthRelief.mul(earthShare)).add(stoneRelief.mul(stoneShare)), stones, field).mul(shown);
   // Close up, tips take yellow and roots blue-green from the same relief, so the colour isn't one flat wash.
   const bladeTint = mix(vec3(1), vec3(1).add(vec3(0.2, 0.12, -0.3).mul(relief)), grassShare.mul(float(1).sub(field)));

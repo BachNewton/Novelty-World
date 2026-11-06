@@ -1,6 +1,6 @@
 import { buildCarParts, groundY, type CarSpec } from "../cars/build";
 import { CARS } from "../cars/specs";
-import type { CarState } from "../../sim/car-state";
+import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 
 /*
  * How many cars a garage really holds, worked out from the built cars rather than
@@ -73,5 +73,6 @@ export function parkedState(spec: CarSpec, { x, z, yaw }: CarSlot, floorY = 0): 
     car: spec.id ?? "skerry-gt",
     suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
     roll: 0,
+    lamps: LAMPS_OFF,
   };
 }

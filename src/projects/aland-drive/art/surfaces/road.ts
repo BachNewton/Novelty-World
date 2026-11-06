@@ -1,6 +1,9 @@
-import { abs, float, floor, fract, fwidth, max, min, mix, select, sin, smoothstep, texture, vec2 } from "three/tsl";
+import { abs, float, floor, fract, fwidth, max, min, mix, select, smoothstep, texture, vec2 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
+import { seedOf, unitOf } from "../hash";
 import { COARSE_M, FINE_M } from "./ground";
+import { KERBED_HALF_WIDTH_M } from "./road-attributes";
+import type { Tiled } from "./tiled";
 
 /*
  * Road surfaces. Asphalt is its token, freckled with aggregate, worn along the
@@ -24,7 +27,8 @@ const PAVER_M = 0.7;
 const CRACK_ZONES_M = 61;
 
 export interface RoadInput {
-  place: Node<"vec2">;
+  /** Where the pixel is on each of its patterns (`tiledGround`). */
+  tiled: Tiled;
   toCamera: Node<"float">;
   /** 0 on the centre, 1 at the carriageway's edge, 2 where the shoulder meets the land. */
   across: Node<"float">;
@@ -54,12 +58,12 @@ export interface RoadDress {
   paintLeft: Node<"float">;
 }
 
-const hash = (value: Node<"float">) => fract(sin(value.mul(12.9898)).mul(43758.5453));
+const hash = (cell: Node<"float">, salt: number) => unitOf(seedOf(cell), salt);
 
-export function dressRoad({ place, toCamera, across, signedAcross, along, paved, town, halfWidth, shoulderM, ground, colour, detail }: RoadInput): RoadDress {
+export function dressRoad({ tiled, toCamera, across, signedAcross, along, paved, town, halfWidth, shoulderM, ground, colour, detail }: RoadInput): RoadDress {
   const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
-  const coarse = texture(detail, place.div(COARSE_M));
-  const fine = texture(detail, place.div(FINE_M).add(vec2(0.23, 0.41)));
+  const coarse = texture(detail, tiled(COARSE_M));
+  const fine = texture(detail, tiled(FINE_M).add(vec2(0.23, 0.41)));
   const metres = across.mul(halfWidth);
 
   // Asphalt.
@@ -69,21 +73,21 @@ export function dressRoad({ place, toCamera, across, signedAcross, along, paved,
   const aggregate = fine.g.sub(0.5).mul(0.55).add(coarse.g.sub(0.5).mul(0.25));
   const blotch = coarse.a.sub(0.5).mul(0.18);
   const patchCell = floor(along.div(PATCH_EVERY_M));
-  const patchRoll = hash(patchCell.add(0.5));
+  const patchRoll = hash(patchCell, 1);
   const patchStart = patchRoll.mul(0.5).mul(PATCH_EVERY_M);
   const inCell = along.sub(patchCell.mul(PATCH_EVERY_M));
-  const patchLength = hash(patchCell.add(3.1)).mul(6).add(1.5);
-  const patchHalfWidth = hash(patchCell.add(5.3)).mul(0.7).add(0.85);
-  const patchDepth = hash(patchCell.add(7.9)).mul(0.35).add(0.25);
+  const patchLength = hash(patchCell, 2).mul(6).add(1.5);
+  const patchHalfWidth = hash(patchCell, 3).mul(0.7).add(0.85);
+  const patchDepth = hash(patchCell, 4).mul(0.35).add(0.25);
   const patchWobble = coarse.a.sub(0.5).add(fine.g.sub(0.5).mul(0.3)).mul(PATCH_WOBBLE_M * 2);
   const patchSoft = fwidth(metres).max(0.01);
-  const patchLane = laneMiddle.mul(select(hash(patchCell.add(9.7)).greaterThan(0.5), float(1), float(-1)));
+  const patchLane = laneMiddle.mul(select(hash(patchCell, 5).greaterThan(0.5), float(1), float(-1)));
   const patchSide = float(1).sub(smoothstep(patchHalfWidth.sub(patchSoft), patchHalfWidth.add(patchSoft), abs(signedAcross.mul(halfWidth).sub(patchLane)).add(patchWobble)));
   const intoPatch = inCell.sub(patchStart).add(patchWobble);
   const patchEnds = smoothstep(float(0), float(0.1), intoPatch).mul(float(1).sub(smoothstep(float(0), float(0.1), intoPatch.sub(patchLength))));
-  const patchZone = smoothstep(float(0.5), float(0.53), texture(detail, place.div(PATCH_ZONES_M).add(vec2(0.61, 0.29))).a);
+  const patchZone = smoothstep(float(0.5), float(0.53), texture(detail, tiled(PATCH_ZONES_M).add(vec2(0.61, 0.29))).a);
   const patched = patchEnds.mul(patchSide).mul(smoothstep(float(0.72), float(0.74), patchRoll)).mul(patchZone).mul(patchDepth).mul(shown);
-  const crackLine = float(1).sub(smoothstep(float(0.05), float(0.12), coarse.b)).mul(smoothstep(float(0.46), float(0.56), texture(detail, place.div(CRACK_ZONES_M)).a));
+  const crackLine = float(1).sub(smoothstep(float(0.05), float(0.12), coarse.b)).mul(smoothstep(float(0.46), float(0.56), texture(detail, tiled(CRACK_ZONES_M)).a));
   const asphaltBase = mix(colour("surface-asphalt"), colour("surface-asphalt-patch"), patched);
   const asphalt = asphaltBase.mul(float(1).add(aggregate.add(blotch).mul(shown))).mul(float(1).sub(wheelTrack.mul(0.1))).mul(float(1).sub(crackLine.mul(0.4).mul(shown)));
 
@@ -104,7 +108,7 @@ export function dressRoad({ place, toCamera, across, signedAcross, along, paved,
   const looseShoulder = mix(colour("road-shoulder").mul(stone), ground, smoothstep(float(0.05), float(0.7), across.sub(1).add(coarse.r.sub(0.5).mul(0.5).mul(shown))));
 
   // In town: a gutter's shadow, a kerbstone with its joints, then paving.
-  const kerbed = town.mul(paved).mul(smoothstep(float(2), float(2.6), halfWidth));
+  const kerbed = town.mul(paved).mul(smoothstep(float(KERBED_HALF_WIDTH_M[0]), float(KERBED_HALF_WIDTH_M[1]), halfWidth));
   const blur = fwidth(beyond).max(0.001);
   const onKerb = smoothstep(float(GUTTER_M).sub(blur), float(GUTTER_M).add(blur), beyond).mul(float(1).sub(smoothstep(float(KERB_M + GUTTER_M).sub(blur), float(KERB_M + GUTTER_M).add(blur), beyond)));
   const lengthwise = float(0.5).sub(abs(fract(along.div(KERB_LENGTH_M)).sub(0.5))).mul(KERB_LENGTH_M);

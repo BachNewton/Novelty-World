@@ -124,7 +124,8 @@ export function buildBirch(seed = 1, form: BirchForm = "silver"): RoadsideModel 
   const lowest = Math.min(...crown.map(([up]) => up));
   const far = new RuralMesh().tube([0, -0.03, 0], [0, lowest, 0], 0.02, 3, { radiusTo: 0.012 }, "birch-bark");
   blob(far, [0, (lowest + 1) / 2, 0], 0.16, 1 - lowest, 3, random, "birch-leaf");
-  return finished(near, far, 150, 1100);
+  // One unit tall, so its swap and reach are a unit-tall tree's: a place scales them with its height.
+  return finished(near, far, 30, 220);
 }
 
 const CLUMP_STEMS = 22;
@@ -137,8 +138,8 @@ const UNDER_WATER_M = 0.3;
  * stems with this year's green among them, leaves out from the stems, and plumes on
  * the tallest. Every stem and leaf is one opaque triangle turned its own way, as a
  * verge's blades are, so the clump is round from any side, never a card. Its y 0 is
- * the water. Its far version is three points of a clump, as tall as the near's, for
- * a renderer to paint in the near's own colours.
+ * the water. Its far version is three points of a clump on two crossed cards, as tall
+ * as the near's, for a renderer to paint in the near's own colours.
  */
 export function buildReedClump(seed = 1): RoadsideModel {
   const random = seeded(seed * 7919 + 23);
@@ -179,9 +180,13 @@ export function buildReedClump(seed = 1): RoadsideModel {
     near.solid([top, [middle[0] - sideX, middle[1], middle[2] - sideZ], [middle[0] + sideX, middle[1], middle[2] + sideZ], tip], [[0, 1, 2], [1, 3, 2]], "reed-plume", () => 1);
   }
 
+  // On two cards crossed, so the far clump stands seen from any side, as the near one does.
   const far = new RuralMesh({ grounded: false });
-  for (const [x, tall, lean] of [[-0.24, 1.8, -0.12], [0, 2.2, 0.05], [0.26, 1.95, 0.14]]) {
-    far.solid([[x - 0.17, -UNDER_WATER_M, 0], [x + 0.17, -UNDER_WATER_M, 0], [x + lean, tall, 0]], [[0, 1, 2]], "reed-straw", ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+  for (const turned of [false, true]) {
+    const at = (across: number, up: number): V3 => (turned ? [0, up, across] : [across, up, 0]);
+    for (const [x, tall, lean] of [[-0.24, 1.8, -0.12], [0, 2.2, 0.05], [0.26, 1.95, 0.14]]) {
+      far.solid([at(x - 0.17, -UNDER_WATER_M), at(x + 0.17, -UNDER_WATER_M), at(x + lean, tall)], [[0, 1, 2]], "reed-straw", ([, y]) => 0.62 + Math.max(0, y / tall) * 0.5);
+    }
   }
   return finished(near, far, 60, 900);
 }
@@ -189,6 +194,8 @@ export function buildReedClump(seed = 1): RoadsideModel {
 const REED_ROWS = 4;
 const REEDS_PER_ROW = 24;
 const REED_TEETH = 12;
+const FAR_REED_TEETH = 3;
+const FAR_REED_BLADES = 3;
 /** How far along the shore a bed runs, for placing one after another; stretch it to fit. */
 export const REED_BED_M = 7;
 const REED_DEEP_M = 3.2;
@@ -225,11 +232,24 @@ export function buildReedBed(seed = 1): RoadsideModel {
       }
     }
   }
+  // Each row as the near's own: green teeth at its feet and straw blades over them, a blade's tip off the row as the near's are, so a row seen end-on still stands.
   const far = new RuralMesh({ grounded: false });
-  for (let spike = 0; spike < 10; spike++) {
-    const [from, to] = [(spike / 10) * REED_BED_M, ((spike + 1) / 10) * REED_BED_M];
-    far.solid([[from, -0.3, 0], [to, -0.3, 0], [(from + to) / 2 + 0.3, 1.9 + random() * 0.5, 0]], [[0, 1, 2]], "reed-straw", ([, y]) => (y < 0 ? 0.66 : 1.05));
+  for (let row = 0; row < REED_ROWS; row++) {
+    const z = (row / (REED_ROWS - 1) - 0.5) * REED_DEEP_M;
+    const seaward = row / (REED_ROWS - 1);
+    const green = 1.7 - seaward * 0.8;
+    const band = green * 0.45;
+    far.face([[0, -0.3, z], [REED_BED_M, -0.3, z], [REED_BED_M, band, z], [0, band, z]], "reed-green", 0.6);
+    for (let tooth = 0; tooth < FAR_REED_TEETH; tooth++) {
+      const [from, to] = [(tooth / FAR_REED_TEETH) * REED_BED_M, ((tooth + 1) / FAR_REED_TEETH) * REED_BED_M];
+      far.solid([[from, band, z], [to, band, z], [(from + to) / 2 + leanX * 0.4, green * (0.85 + random() * 0.3), z]], [[0, 1, 2]], "reed-green", () => 0.88);
+    }
+    const half = (0.08 * (REEDS_PER_ROW - row * 5)) / FAR_REED_BLADES;
+    for (let blade = 0; blade < FAR_REED_BLADES; blade++) {
+      const x = ((blade + 0.25 + random() * 0.5) / FAR_REED_BLADES) * REED_BED_M;
+      const tall = (2.5 - seaward * 1.1) * (0.85 + random() * 0.25);
+      far.solid([[x - half, -0.3, z], [x + half, -0.3, z], [x + leanX * tall * 0.4, tall, z + (blade % 2 === 0 ? 0.2 : -0.2)]], [[0, 1, 2]], "reed-straw", ([, y]) => (y < 0 ? 0.66 : 1.12));
+    }
   }
-  far.face([[0, -0.3, 0], [REED_BED_M, -0.3, 0], [REED_BED_M, 0.85, 0], [0, 0.85, 0]], "reed-straw", 0.82);
   return finished(near, far, 90, 620);
 }

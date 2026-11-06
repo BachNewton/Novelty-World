@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry } from "three/webgpu";
 import { Model, type BoxOptions, type Part, type TubeOptions, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
 import { MOTION_KINDS, MOTION_RANGE_M, type Motion as StreetMotion } from "../street/paint";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The roadside `Model` writes the shapes, with the street kit's tint layout, so a
@@ -108,6 +109,14 @@ const TINT_STRIDE = 4;
 export const HALF_PI = Math.PI / 2;
 export const TAU = Math.PI * 2;
 
+const offset = (a: V3, b: V3, scale: number): V3 => [a[0] + b[0] * scale, a[1] + b[1] * scale, a[2] + b[2] * scale];
+const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = (a: V3): V3 => {
+  const length = Math.hypot(a[0], a[1], a[2]);
+  return [a[0] / length, a[1] / length, a[2] / length];
+};
+
 export interface GableShed {
   /** Corners on the ground, x along the ridge. */
   x: readonly [number, number];
@@ -153,6 +162,35 @@ export class Marked {
   beam(from: V3, to: V3, wide: number, tall: number, part: MarinaPart, shade = 1, shadeTop = shade): this {
     this.layer(part).beam(from, to, wide, tall, UNREAD, shade, shadeTop);
     return this;
+  }
+
+  /** A beam as the two diagonals of its section: from every side the beam's own outline, for half its triangles. */
+  bar(from: V3, to: V3, wide: number, tall: number, part: MarinaPart, shade = 1, shadeTop = shade): this {
+    const along = unit(sub(to, from));
+    const side = unit(cross(along, Math.abs(along[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
+    const up = cross(side, along);
+    const light = (shade * 0.8 + shadeTop) / 2;
+    for (const slope of [1, -1]) {
+      const corner = (end: V3, sign: number): V3 => offset(offset(end, side, (sign * wide) / 2), up, (sign * slope * tall) / 2);
+      this.face([corner(from, 1), corner(to, 1), corner(to, -1), corner(from, -1)], part, light);
+    }
+    return this;
+  }
+
+  /** A wheel on an axle along z, for a far version: an open drum with its disc across the middle. */
+  disc(centre: V3, radius: number, wide: number, part: MarinaPart = "tyre"): this {
+    const [x, y, z] = centre;
+    this.tube([x, y, z - wide / 2], [x, y, z + wide / 2], radius, 6, {}, part);
+    return this.face(Array.from({ length: 6 }, (_, side): V3 => [x + Math.cos((side / 6) * TAU) * radius, y + Math.sin((side / 6) * TAU) * radius, z]), part);
+  }
+
+  /** A thin flat block, for a far version: its top, and two cards across its middle that hold its edge from the side. */
+  slab(low: V3, high: V3, part: MarinaPart, shade = 1): this {
+    const [[x0, y0, z0], [x1, y1, z1]] = [low, high];
+    const [x, z] = [(x0 + x1) / 2, (z0 + z1) / 2];
+    return this.face([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], part, shade)
+      .face([[x0, y0, z], [x1, y0, z], [x1, y1 - 0.01, z], [x0, y1 - 0.01, z]], part, shade * 0.9)
+      .face([[x, y0, z0], [x, y0, z1], [x, y1 - 0.01, z1], [x, y1 - 0.01, z0]], part, shade * 0.9);
   }
 
   box(low: V3, high: V3, part: MarinaPart, options: BoxOptions = {}): this {
@@ -249,7 +287,7 @@ export class Marked {
 
 /** A marina object's versions, ready for `placeModel`. With no far version it simply dissolves away at `swapM`. */
 export function marinaModel(near: Marked, far: Marked | null, swapM: number, reachM: number, motion?: Motion): RoadsideModel {
-  return { near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM };
+  return measuredSwap({ near: near.build(motion), far: far?.build(motion) ?? null, swapM, reachM });
 }
 
 /** A building's walls and roof as cheap as they go, for a far version. */

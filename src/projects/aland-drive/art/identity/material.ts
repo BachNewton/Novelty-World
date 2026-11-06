@@ -1,11 +1,14 @@
-import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniform, uniformArray, varying, vec3 } from "three/tsl";
+import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniformArray, varying, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
+import { seedOf, unitOf } from "../hash";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
 import type { StreetInputs } from "../street/index";
 import { AFLOAT_UNIT, IDENTITY_PARTS, PAINT, PATTERNS, type Pattern } from "./mesh";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
+import { towardsSun } from "../sun";
 
 /*
  * The street kit's two materials with this kit's palette: the same instance layout,
@@ -74,9 +77,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = towardsSun(sun);
   const palette = uniformArray(IDENTITY_PARTS.map((part) => {
     const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
     const { from, to = from, share = 0, gain = 1 } = paint;
@@ -92,7 +93,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const metres = vec3(x, local.y, local.z).mul(fit.x);
   const along = metres.x.add(metres.z).div(BOARD_M);
   const seam = float(1).sub(smoothstep(float(0.02), float(0.09), abs(fract(along).sub(0.5)).sub(0.5).abs()));
-  const tone = fract(sin(floor(along).mul(127.1)).mul(43758.5453));
+  const tone = unitOf(seedOf(floor(along)), 1);
   const boarded = base.mul(mix(float(0.92), float(1.07), tone)).mul(float(1).sub(seam.mul(0.45).mul(float(1).sub(gone(0.04, away)))));
   const surfaced = isNear ? select(patternIs(code, "boards"), boarded, base) : base;
   material.colorNode = hazed(surfaced.mul(lit).mul(grounded));
@@ -108,7 +109,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   // A thin part's share is taken from within its version's own share of the pattern, so the two don't eat into each other.
   const traded = isNear ? pattern.greaterThanEqual(share).and(pattern.lessThan(mix(share, float(1), thinLeft))) : pattern.lessThan(share.mul(thinLeft));
   const leaving = smoothstep(end.mul(1 - LEAVE_SHARE), end, distance);
-  material.maskNode = traded.and(kept).and(pattern.greaterThanEqual(leaving));
+  material.maskNode = traded.and(kept).and(pattern.greaterThanEqual(leaving)).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

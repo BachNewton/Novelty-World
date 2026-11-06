@@ -1,5 +1,6 @@
 import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
 import type { RoadPoint } from "./road-net";
+import { SURFACES, type Surface } from "./surfaces";
 import { tileDetail, World } from "./world";
 
 /*
@@ -8,7 +9,8 @@ import { tileDetail, World } from "./world";
  * land, which is what measuring a car needs. It is laid with straight roads
  * flush with the ground, east to west, so that a car is never far from one: the
  * drive looks for the nearest road every step, and on land with none that
- * search runs out across the whole world.
+ * search runs out across the whole world. The whole pad, roads and ground, is
+ * one surface, so a car's limits on it are that surface's.
  */
 
 const TILE_M = 6000;
@@ -37,6 +39,7 @@ const manifest = {
   mask: { file: "", pixels: 1500 },
   ground: { file: "", pixels: 3000, farFile: "", farPixels: 750 },
   canopy: { file: "", pixels: 1500, unitM: 0.25 },
+  clearing: { file: "", pixels: 1500, unitM: 0.125, zero: 64 },
   stands: { file: "", pixels: 125 },
   water: { levelsFile: "", farLevelsFile: "", shoreFile: "", farShoreFile: "", dryLevel: DRY_LEVEL_M },
   overview: { west: 0, north: TILE_M, columns: 1, rows: 1, stepM: 80, unitM: 0.01, heightsFile: "", imageFile: "", imageWidth: 1, imageHeight: 1 },
@@ -76,10 +79,23 @@ const grid = (nodes: number, stepM: number, value: number): HeightGrid => ({ nod
 /** The pad spans x from 0 to its size and z from minus its size to 0, as the scene has it: east +x, north -z. */
 export const PAD_M = TILE_M;
 
-export function testPad(): World {
-  const world = new World(manifest);
+/** A world whose ground is all one surface. */
+class Pad extends World {
+  constructor(private readonly surface: Surface) {
+    super(manifest);
+  }
+
+  override groundSurface(): Surface {
+    return this.surface;
+  }
+}
+
+export function testPad(surface: Surface = "asphalt"): World {
+  const world = new Pad(surface);
   world.addFar(NAME, grid(FAR_NODES, FAR_STEP_M, GROUND_M), grid(FAR_NODES, FAR_STEP_M, DRY_LEVEL_M), grid(FAR_NODES, FAR_STEP_M, DRY_LEVEL_M));
-  world.addDetail(tileDetail(tile, grid(NODES, STEP_M, GROUND_M), roadBytes(), grid(NODES, STEP_M, DRY_LEVEL_M), grid(NODES, STEP_M, DRY_LEVEL_M), TILE_M));
+  const detail = tileDetail(tile, grid(NODES, STEP_M, GROUND_M), roadBytes(), grid(NODES, STEP_M, DRY_LEVEL_M), grid(NODES, STEP_M, DRY_LEVEL_M), TILE_M);
+  detail.ribbonSurfaces.fill(SURFACES.indexOf(surface));
+  world.addDetail(detail);
   return world;
 }
 

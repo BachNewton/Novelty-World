@@ -1,5 +1,6 @@
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, type Node } from "three/webgpu";
 import { cameraPosition, dot, float, max, mix, normalize, positionWorld, pow, reflect, smoothstep, texture, time, vec2, vec3 } from "three/tsl";
+import { towardsSun, type Sun } from "../art/sun";
 
 /*
  * The water, for the terrain's lakes and sea and the plane past the tiles alike: one
@@ -97,7 +98,7 @@ export function slopePixels(size: number): Uint8Array {
 
 export interface WaterInputs {
   colour: (name: string) => Node<"vec3">;
-  sun: { azimuthDeg: number; elevationDeg: number };
+  sun: Sun;
   /** The sky along a direction, to reflect: `sky.clearAlong`, or `sky.colourAlong` for clouds at five more reads. Without one, the sky's flat colour. */
   skyAlong?: (direction: Node<"vec3">) => Node<"vec3">;
   /** Melts a colour into the sky's foot along a direction from the eye: `sky.seaToSky`. Open water takes it, so the sea has no line at the horizon, and shores don't. */
@@ -143,9 +144,7 @@ export function createWater({ colour, sun, skyAlong, meltAlong }: WaterInputs): 
   const tilt = slope.mul(SLOPE_GAIN).mul(calm);
   const normal = normalize(vec3(tilt.x.negate(), 1, tilt.y.negate()));
 
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = vec3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation));
+  const toSun = towardsSun(sun);
 
   const facing = max(dot(normal, view), 0);
   const fresnel = float(FRESNEL_HEAD_ON).add(float(FRESNEL_MOST - FRESNEL_HEAD_ON).mul(pow(float(1).sub(facing), float(FRESNEL_POWER))));

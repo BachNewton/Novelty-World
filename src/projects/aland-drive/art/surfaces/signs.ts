@@ -1,7 +1,8 @@
-import { BufferAttribute, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicNodeMaterial, SRGBColorSpace, Vector3, type Node } from "three/webgpu";
-import { float, frontFacing, normalWorld, select, texture, uniform, uv, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicNodeMaterial, SRGBColorSpace, type Node } from "three/webgpu";
+import { float, frontFacing, normalWorld, select, texture, uv, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import type { Sun } from "./detail";
+import { towardsSun, type Sun } from "../sun";
 import { GLYPHS, SIGN_ART, type SignInk } from "./sign-art";
 import IDS from "../facades/facade-ids.json";
 
@@ -422,11 +423,7 @@ export interface SignLook {
   hazed: (color: Node<"vec3">) => Node<"vec3">;
 }
 
-const lightFrom = ({ azimuthDeg, elevationDeg }: Sun) => {
-  const azimuth = (azimuthDeg * Math.PI) / 180;
-  const elevation = (elevationDeg * Math.PI) / 180;
-  return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-};
+const lightFrom = towardsSun;
 
 /**
  * Where an instanced plate or post goes, for whoever places many: the vertex's
@@ -443,7 +440,7 @@ export interface SignPlacing {
 function placed(material: MeshBasicNodeMaterial, placing: SignPlacing | undefined): Node<"vec3"> {
   if (placing === undefined) return normalWorld;
   material.positionNode = placing.position;
-  material.maskNode = placing.mask;
+  material.maskNode = placing.mask.and(outsideCar());
   return placing.normal;
 }
 

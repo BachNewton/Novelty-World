@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type Vector3 } from "three/webgpu";
 import { attribute, cameraPosition, cos, float, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
 import { facetLight, footShade, rollOf, screenPattern, type RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
 
@@ -159,7 +160,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const pattern = screenPattern();
   const share = swapShare(reach, distance);
   const kept = pattern.greaterThanEqual(smoothstep(end.mul(1 - LEAVE_SHARE), end, distance));
-  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept);
+  material.maskNode = (isNear ? pattern.greaterThanEqual(share) : pattern.lessThan(share)).and(kept).and(outsideCar());
   material.side = DoubleSide;
   return material;
 }

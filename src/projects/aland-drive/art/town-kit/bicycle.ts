@@ -12,6 +12,7 @@ export type BikeFrame = Extract<TownPart, "bike-red" | "bike-blue" | "bike-black
 
 const WHEEL_R = 0.34;
 const WHEEL_SIDES = 9;
+const FAR_WHEEL_SIDES = 6;
 const AXLE_REAR = -0.54;
 const AXLE_FRONT = 0.56;
 const SEAT: V3 = [-0.2, 0.92, 0];
@@ -23,14 +24,14 @@ const LEAN = 0.09;
 
 const leaning = ([x, y, z]: V3): V3 => [x, y, z + y * LEAN];
 
-function wheel(into: TownPainted, axle: number, rimWide: number): TownPainted {
-  const ring = (radius: number) => Array.from({ length: WHEEL_SIDES }, (_, side) => {
-    const angle = (side / WHEEL_SIDES) * 2 * Math.PI;
-    return leaning([axle + Math.cos(angle) * radius, WHEEL_R + Math.sin(angle) * radius, 0]);
+function wheel(into: TownPainted, axle: number, rimWide: number, sides = WHEEL_SIDES, z = 0): TownPainted {
+  const ring = (radius: number) => Array.from({ length: sides }, (_, side) => {
+    const angle = (side / sides) * 2 * Math.PI;
+    return leaning([axle + Math.cos(angle) * radius, WHEEL_R + Math.sin(angle) * radius, z]);
   });
   const [outer, inner] = [ring(WHEEL_R), ring(WHEEL_R - rimWide)];
   outer.forEach((corner, side) => {
-    const next = (side + 1) % WHEEL_SIDES;
+    const next = (side + 1) % sides;
     into.face([corner, outer[next], inner[next], inner[side]], "bike-tyre");
   });
   return into;
@@ -62,7 +63,27 @@ export function buildBicycle(frame: BikeFrame = "bike-black"): RoadsideModel {
     // The stand: the one thing not leaning.
     .beam(leaning(BRACKET), [BRACKET[0] - 0.06, 0.01, 0.13], 0.015, 0.015, "bike-steel");
   const far = new TownPainted();
-  for (const axle of [AXLE_REAR, AXLE_FRONT]) far.face([leaning([axle - WHEEL_R, WHEEL_R, 0]), leaning([axle, WHEEL_R * 2, 0]), leaning([axle + WHEEL_R, WHEEL_R, 0]), leaning([axle, 0, 0])], "bike-tyre");
-  far.face([leaning(BRACKET), leaning(SEAT), leaning(HEAD_TOP), leaning(HEAD_LOW)], frame);
+  wheel(far, AXLE_REAR, 0.06, FAR_WHEEL_SIDES, -0.01);
+  wheel(far, AXLE_FRONT, 0.06, FAR_WHEEL_SIDES, 0.01);
+  const card = (from: V3, to: V3, half: number, part: TownPart, z = 0) => {
+    const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+    const length = Math.hypot(dx, dy);
+    const [ox, oy] = [(-dy / length) * half, (dx / length) * half];
+    far.face([leaning([from[0] + ox, from[1] + oy, z]), leaning([to[0] + ox, to[1] + oy, z]), leaning([to[0] - ox, to[1] - oy, z]), leaning([from[0] - ox, from[1] - oy, z])], part);
+  };
+  const edgeOn = (from: V3, to: V3, half: number, part: TownPart) => far.face([leaning([from[0], from[1], -half]), leaning([to[0], to[1], -half]), leaning([to[0], to[1], half]), leaning([from[0], from[1], half])], part);
+  card(BRACKET, SEAT, 0.02, frame, 0.012);
+  card(BRACKET, HEAD_LOW, 0.022, frame, -0.012);
+  card(SEAT, HEAD_TOP, 0.018, frame, 0.024);
+  card(BRACKET, rear, 0.014, frame, -0.024);
+  card(SEAT, rear, 0.014, frame, 0.036);
+  card(HEAD_TOP, front, 0.016, "bike-steel", 0.036);
+  edgeOn(BRACKET, SEAT, 0.02, frame);
+  edgeOn(HEAD_TOP, front, 0.016, "bike-steel");
+  far
+    .face([leaning([0.36, 1.08, -0.27]), leaning([0.36, 1.08, 0.27]), leaning([0.36, 1.12, 0.27]), leaning([0.36, 1.12, -0.27])], "bike-steel")
+    .face([leaning([-0.3, 1, -0.05]), leaning([-0.3, 1, 0.05]), leaning([-0.06, 0.985, 0.08]), leaning([-0.06, 0.985, -0.08])], "bike-saddle")
+    .face([leaning([-0.82, 0.72, -0.07]), leaning([-0.82, 0.72, 0.07]), leaning([-0.28, 0.74, 0.07]), leaning([-0.28, 0.74, -0.07])], "bike-steel", 0.85)
+    .face([leaning([BRACKET[0] - 0.015, BRACKET[1], -0.04]), leaning([BRACKET[0] + 0.015, BRACKET[1], -0.04]), [BRACKET[0] - 0.045, 0.01, 0.13], [BRACKET[0] - 0.075, 0.01, 0.13]], "bike-steel");
   return townModel(near, far, 28, 150);
 }

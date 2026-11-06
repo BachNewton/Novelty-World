@@ -1,7 +1,8 @@
 """What a way's surface is drawn as, from its own OSM tags: the classes the town's ground and the road's look share.
 
 A class is three bits, each a channel of the town's image (`town_ground.py`). Change these with `CLASS` in
-`art/town-ground/town-ground.ts`. `STEPS` is a way's only: a flight of steps is drawn as treads along its line.
+`art/town-ground/class.ts`; `sim/road-grip.ts` says what each is to a tyre. `STEPS` is a way's only: a flight of steps is
+drawn as treads along its line.
 """
 
 NONE, STEPS, BED, LAWN, GRAVEL, SLAB, TARMAC, COBBLE = 0b000, 0b001, 0b011, 0b010, 0b100, 0b110, 0b101, 0b111

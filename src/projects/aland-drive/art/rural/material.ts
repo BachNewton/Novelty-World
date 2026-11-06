@@ -1,6 +1,8 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, fwidth, If, int, max, mix, positionGeometry, positionWorld, round, select, sign, sin, smoothstep, step, uniformArray, varying, vec2, vec3 } from "three/tsl";
-import { facetLight, footShade, rollOf, screenPattern, SWAP_SPREAD, type RoadsideInputs, type RoadsideMaterials } from "../roadside/index";
+import { abs, attribute, cameraPosition, cos, float, floor, Fn, fract, fwidth, If, int, max, mix, positionGeometry, positionWorld, round, select, sign, sin, smoothstep, step, uniformArray, varying, vec2, vec3 } from "three/tsl";
+import { outsideCar } from "../car-volume";
+import { seedOf, unitOf } from "../hash";
+import { facetLight, footShade, screenPattern, seedAt, SWAP_SPREAD, type RoadsideInputs, type RoadsideMaterials } from "../roadside/index";
 import { band } from "../surfaces";
 import { BRACES, GABLE_PAINTS, TRIM_WIDTHS } from "./buildings";
 import { HIDE_GONE_M } from "./farm";
@@ -39,23 +41,17 @@ const HIDE_SMALL_M = 0.23;
 /** The share of a cow's patches laid in the big cells; the small ones make up the rest. */
 const HIDE_BIG_SHARE = 0.8;
 
-/**
- * A second roll from a place's roll, as random as the first. The first is a 32-bit float's fraction of a big number,
- * so it falls on steps of about 1/400: a multiple of it falls on steps a few tenths wide, and picks among a few values.
- */
-const reroll = (roll: Node<"float">, salt: number) => fract(sin(roll.mul(salt)).mul(43758.5453));
-
-/** Each place's own coat, 0 the first fleece paint's and 1 the second's, and whether it keeps its horns: from its roll, so a sheep is always the same. */
-const coatOf = (roll: Node<"float">) => reroll(roll, 271.9);
-const hornedOf = (roll: Node<"float">) => reroll(roll, 389.3).lessThan(HORNED);
+/** Each place's own coat, 0 the first fleece paint's and 1 the second's, and whether it keeps its horns: from its seed, so a sheep is always the same. */
+const coatOf = (seed: Node<"uint">) => unitOf(seed, 2719);
+const hornedOf = (seed: Node<"uint">) => unitOf(seed, 3893).lessThan(HORNED);
 
 /**
- * Each place's own hide: its patches' colour, red-brown or black, and the share of its hide they cover. From its roll,
+ * Each place's own hide: its patches' colour, red-brown or black, and the share of its hide they cover. From its seed,
  * so a cow is always the same, and both versions read it: the far one wears the mean the near one's patches fade to.
  */
-function hideOf(roll: Node<"float">, paint: (part: RuralPart) => Node<"vec3">) {
-  const patch = select(reroll(roll, 917.3).lessThan(AYRSHIRE), paint("hide-red"), paint("hide-black"));
-  const share = mix(float(0.3), float(0.62), reroll(roll, 613.9));
+function hideOf(seed: Node<"uint">, paint: (part: RuralPart) => Node<"vec3">) {
+  const patch = select(unitOf(seed, 9173).lessThan(AYRSHIRE), paint("hide-red"), paint("hide-black"));
+  const share = mix(float(0.3), float(0.62), unitOf(seed, 6139));
   return { white: paint("hide"), patch, share, mean: mix(paint("hide"), patch, share) };
 }
 
@@ -64,7 +60,7 @@ const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
 
 const pattern = (name: Pattern) => PATTERNS.indexOf(name);
 
-const hash = (cell: Node<"vec3">) => fract(sin(dot(cell, vec3(127.1, 311.7, 74.7))).mul(43758.5453));
+const hash = (cell: Node<"vec3">) => unitOf(seedOf(cell.x, cell.y, cell.z), 0);
 /** A smooth lump of noise from -1 to 1, cheap and with no lattice to see. */
 const swell = (at: Node<"vec3">) => sin(at.x.add(sin(at.z.mul(1.7)).mul(1.3))).mul(sin(at.z.add(at.y.mul(0.8)).add(sin(at.x.mul(1.3)).mul(1.1))));
 
@@ -259,10 +255,11 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
   const tint = attribute<"vec4">("tint", "vec4");
 
   const distance = place.xz.sub(cameraPosition.xz).length();
-  const roll = rollOf(place.xz);
-  // What a pixel reads of its place's roll, passed down from the vertex: read from the place itself, it is zero there.
-  const placeRoll = varying(roll);
-  const swap = reach.x.mul(float(1).sub(roll.mul(SWAP_SPREAD)));
+  const seed = seedAt(place.xz);
+  const roll = unitOf(seed, 1);
+  // What a pixel reads of its place's roll, from the seed passed down from the vertex: read from the place itself, it is zero there.
+  const placeRoll = roll;
+  const swap = reach.x.mul(float(1).add(roll.mul(SWAP_SPREAD)));
   const dissolveFrom = swap.mul(1 - DISSOLVE_SHARE);
   const shown = isNear ? distance.lessThan(swap) : distance.greaterThanEqual(dissolveFrom).and(distance.lessThan(reach.y));
   // A place's own edge of the reach, so a whole field doesn't rise on one line.
@@ -272,7 +269,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
 
   const isHorn = round(tint.r.mul(255)).equal(RURAL_PARTS.indexOf("horn"));
   // A horn not kept folds to the model's origin, where its triangles have no area.
-  const local = select(isHorn.and(hornedOf(roll).not()), vec3(0, 0, 0), positionGeometry);
+  const local = select(isHorn.and(hornedOf(seed).not()), vec3(0, 0, 0), positionGeometry);
   const x = local.x.mul(fit.y);
   const z = local.z.mul(fit.w);
   const up = local.y.add(x.mul(fit.z));
@@ -284,15 +281,15 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeM
 
   const blend = varying(smoothstep(dissolveFrom, swap, distance));
   const dither = screenPattern();
-  material.maskNode = isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend);
+  material.maskNode = (isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend)).and(outsideCar());
 
   const palette = uniformArray(ruralColours(linear));
   const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;
   const kind = round(tint.b.mul(255));
   // Mixed in roots of light, so the coats run evenly to the eye from light grey to black rather than bunching pale.
-  const fleece = mix(paintOf(int(RURAL_PARTS.indexOf("wool"))).sqrt(), paintOf(int(RURAL_PARTS.indexOf("wool-dark"))).sqrt(), coatOf(placeRoll)).pow2();
+  const fleece = mix(paintOf(int(RURAL_PARTS.indexOf("wool"))).sqrt(), paintOf(int(RURAL_PARTS.indexOf("wool-dark"))).sqrt(), coatOf(seed)).pow2();
   const shade = tint.g.mul(255 / 128);
-  const coat = hideOf(placeRoll, (part) => paintOf(int(RURAL_PARTS.indexOf(part))));
+  const coat = hideOf(seed, (part) => paintOf(int(RURAL_PARTS.indexOf(part))));
   const base = select(kind.equal(pattern("fleece")), fleece, select(kind.equal(pattern("hide")), coat.mean, paintOf(int(round(tint.r.mul(255)))))).mul(shade);
 
   const { normal, lit } = facetLight(sun);

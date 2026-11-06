@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mix, noJolts, readJolts, slipOf, type DriveAudioState } from "./model";
-import type { CarState } from "../sim/car-state";
+import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
+import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
+import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { engineCycle, gravelLoop, shoreBed } from "./synthesis";
+import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -12,7 +13,9 @@ const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
   brake: 0,
   handbrake: false,
   slip: 0,
-  surface: "asphalt",
+  wheels: ["asphalt", "asphalt", "asphalt", "asphalt"],
+  condition: "dry",
+  tyres: "summer",
   suspension: [0.11, 0.11, 0.11, 0.11],
   place: { forest: 0, shore: 0, town: 0 },
   ...changes,
@@ -100,7 +103,7 @@ describe("the mix", () => {
   const mixed = (changes: Partial<DriveAudioState>) => mix({ state: state(changes), engine: null, time: 0, wander: 0 });
 
   it("gives a flying car no tyres, and a paused one only its place", () => {
-    const flying = mixed({ speedMS: 40, surface: "gravel", suspension: [0, 0, 0, 0] });
+    const flying = mixed({ speedMS: 40, wheels: ["gravel", "gravel", "gravel", "gravel"], suspension: [0, 0, 0, 0] });
     expect(flying.gravelLevel + flying.rumbleLevel + flying.asphaltLevel).toBe(0);
     const paused = mixed({ speedMS: 40, paused: true, place: { forest: 1, shore: 0, town: 0 } });
     expect(paused.windLowLevel + paused.asphaltLevel + paused.engineLevel).toBe(0);
@@ -114,8 +117,45 @@ describe("the mix", () => {
   });
 });
 
+describe("the tyres", () => {
+  const mixed = (changes: Partial<DriveAudioState>) => mix({ state: state({ speedMS: 25, ...changes }), engine: null, time: 0, wander: 0 });
+  const all = (surface: Surface): Surface[] => [surface, surface, surface, surface];
+
+  it("hears each wheel's own surface: two on the verge is half grass, and a wheel in the air is on nothing", () => {
+    const [road, verge, edge] = [mixed({ wheels: all("asphalt") }), mixed({ wheels: all("grass") }), mixed({ wheels: ["asphalt", "grass", "asphalt", "grass"] })];
+    expect(edge.asphaltLevel).toBeCloseTo(road.asphaltLevel / 2);
+    expect(edge.grassLevel).toBeCloseTo(verge.grassLevel / 2);
+    const lifted = mixed({ wheels: ["asphalt", "grass", "asphalt", "grass"], suspension: [0.11, 0, 0.11, 0] });
+    expect(lifted.grassLevel).toBe(0);
+    expect(lifted.asphaltLevel).toBeCloseTo(edge.asphaltLevel);
+  });
+
+  it("squeals on tarmac, and scrabbles and spits stones on gravel", () => {
+    const [tarmac, gravel] = [mixed({ slip: 1 }), mixed({ slip: 1, wheels: all("gravel") })];
+    expect(tarmac.squealLevel).toBeGreaterThan(0);
+    expect(tarmac.stonesPerS).toBe(0);
+    expect(gravel.squealLevel).toBe(0);
+    expect(gravel.stonesPerS).toBeGreaterThan(5);
+    expect(gravel.gravelLevel).toBeGreaterThan(mixed({ wheels: all("gravel") }).gravelLevel);
+  });
+
+  it("sprays when wet on every surface, crunches in snow without a stone, and is near silent rolling on ice until it slides", () => {
+    for (const surface of SURFACES) {
+      const tyres = (level: Mix) => level.asphaltLevel + level.gravelLevel + level.grassLevel + level.rockLevel + level.snowLevel + level.sprayLevel;
+      const [dry, wet, snow, ice] = CONDITIONS.map((condition) => mixed({ wheels: all(surface), condition }));
+      expect(wet.sprayLevel).toBeGreaterThan(0);
+      expect(dry.sprayLevel + snow.sprayLevel + ice.sprayLevel).toBe(0);
+      expect(snow.snowLevel).toBeGreaterThan(0);
+      expect(mixed({ wheels: all(surface), condition: "snow", slip: 1 }).stonesPerS).toBe(0);
+      expect(tyres(ice)).toBeLessThan(tyres(dry) / 8);
+      const sliding = mixed({ wheels: all(surface), condition: "ice", slip: 1 });
+      expect(sliding.hissLevel).toBeGreaterThan(mixed({ wheels: all(surface), slip: 1 }).hissLevel);
+    }
+  });
+});
+
 describe("the slide", () => {
-  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0 });
+  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0, lamps: LAMPS_OFF });
 
   it("reads motion along the nose as none and motion across it as sliding", () => {
     expect(slipOf(car([0, 0, -40]), false)).toBe(0);
@@ -127,7 +167,7 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);

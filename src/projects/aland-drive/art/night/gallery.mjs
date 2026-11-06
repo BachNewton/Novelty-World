@@ -1,5 +1,5 @@
-// The night's gallery: the real game on real tiles with the integration applied in memory, each place at full day, golden
-// hour, dusk and deep night. `--measure` hides and shows the night's own draws in alternated pairs and reads the GPU's
+// The night's gallery: the real game on real tiles, each place at full day, golden hour, dusk, a midsummer night and a
+// winter one, by the real calendar (`gallery-page.ts`). `--measure` hides and shows the night's own draws in alternated pairs and reads the GPU's
 // timestamps: context, never proof. The full Chromium is asked for by name: the default headless shell falls back to WebGL2.
 //
 //   node src/projects/aland-drive/art/night/gallery.mjs --out=<folder> [--size=2408x1007] [--only=a,b] [--hours=day,night] [--measure] [--pairs=8]
@@ -12,7 +12,6 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import sharp from "sharp";
-import { patchSource } from "./integration.mjs";
 
 const flags = process.argv.slice(2);
 const option = (name) => flags.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -23,7 +22,7 @@ if (!OUT) throw new Error("--out=<folder> is required");
 const TILES = resolve(HERE, "../../.data/tiles");
 const [WIDTH, HEIGHT] = (option("size") ?? "1600x670").split("x").map(Number);
 const ONLY = option("only")?.split(",");
-const HOURS = option("hours")?.split(",") ?? ["day", "golden", "dusk", "night"];
+const HOURS = option("hours")?.split(",") ?? ["day", "golden", "dusk", "night", "winter"];
 const MEASURE = flags.includes("--measure");
 const PAIRS = Number(option("pairs") ?? 8);
 const READINGS_A_SIDE = 12;
@@ -35,21 +34,17 @@ const toRad = (deg) => (deg * Math.PI) / 180;
 const at = (east, north, height, bearingDeg, pitchDeg = 2) => ({ east, north, height, yaw: -toRad(bearingDeg), pitch: toRad(pitchDeg) });
 
 const VIEWS = [
-  { name: "country-chase", jump: "5", seconds: 2 },
-  { name: "esplanade", at: at(107940, 6683264, 2.6, 268), seconds: 3 },
-  { name: "sodragatan", at: at(107880, 6683073, 2.6, 92, 3), seconds: 3 },
-  { name: "vasterhamn", at: at(106850, 6683900, 6, 160, 0.5), seconds: 4.3 },
-  { name: "lighthouse-flash", at: at(110700, 6670700, 8, 132, 1), flashOf: "Stora", afterFlash: 0.02 },
-  { name: "lighthouse-sweep", at: at(110700, 6670700, 8, 132, 1), flashOf: "Stora", afterFlash: 0.3 },
-  { name: "aurora-north", at: at(106200, 6716000, 120, 6, 6), seconds: 40, aurora: 1 },
+  { name: "country-chase", jump: "5" },
+  { name: "esplanade", at: at(107940, 6683264, 2.6, 268) },
+  { name: "sodragatan", at: at(107880, 6683073, 2.6, 92, 3) },
+  { name: "vasterhamn", at: at(106850, 6683900, 6, 160, 0.5) },
+  { name: "lighthouse", at: at(110700, 6670700, 8, 132, 1) },
 ];
 
 async function bundle(folder) {
   const gameParts = {
     name: "game-parts",
     setup(on) {
-      on.onLoad({ filter: /render[\\/]game\.ts$/ }, ({ path }) => ({ contents: patchSource(readFileSync(path, "utf8"), "game"), loader: "ts" }));
-      on.onLoad({ filter: /render[\\/]buildings\.ts$/ }, ({ path }) => ({ contents: patchSource(readFileSync(path, "utf8"), "buildings"), loader: "ts" }));
       on.onLoad({ filter: /render[\\/]stream\.ts$/ }, ({ path }) => ({ contents: readFileSync(path, "utf8").replace('new URL("./tile.worker.ts", import.meta.url)', '"/tile.worker.js"'), loader: "ts" }));
     },
   };
@@ -130,7 +125,7 @@ const adapter = await page.evaluate(async () => {
   const found = await navigator.gpu.requestAdapter();
   return found?.info?.description || found?.info?.architecture || found?.info?.vendor;
 });
-console.log(`adapter: ${adapter}; ${JSON.stringify(await page.evaluate(() => window.__nightGallery.instances))}`);
+console.log(`adapter: ${adapter}`);
 
 const settle = () =>
   page.evaluate(async (count) => {
@@ -154,13 +149,10 @@ const place = (view) =>
       probe.loadAround({ x: wanted.at.east - origin.east, z: -(wanted.at.north - origin.north) });
     } else {
       probe.loadAround(null);
-      await probe.jumpTo(wanted.jump);
-      probe.setCamera("chase");
-      probe.advance(120);
     }
+    await window.__nightGallery.show(wanted);
     await new Promise(requestAnimationFrame);
     while (probe.stream().loading > 0 && window.__nightFailure === undefined) await new Promise(requestAnimationFrame);
-    window.__nightGallery.show(wanted);
   }, view);
 
 const views = VIEWS.filter(({ name }) => !ONLY || ONLY.includes(name));

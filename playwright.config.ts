@@ -25,6 +25,8 @@ export default defineConfig({
   outputDir: resultsDir(RUN_ID),
   timeout: 30_000,
   retries: 0,
+  // The second prints the machine's load with any failure (scripts/load-reporters.mjs).
+  reporter: [["list"], ["./e2e/load-reporter.ts"]],
   fullyParallel: true,
   // Half the logical cores, so a few runs side by side still share the machine. `--workers` overrides.
   workers: "50%",

@@ -31,11 +31,8 @@ const CHASE = {
   lookPerS: 12,
 } as const;
 
-/** Where the driver is looking: the car turns the camera round it, or lifts it overhead. */
-export type ChaseLook = "ahead" | "left" | "right" | "behind" | "down";
-
-/** A look's turn from ahead: heading grows to the left. */
-const LOOK_TURN: Record<Exclude<ChaseLook, "down">, number> = { ahead: 0, left: Math.PI / 2, right: -Math.PI / 2, behind: Math.PI };
+/** Where the driver is looking: a turn of the camera round the car from ahead, in radians growing to the left, or overhead. */
+export type ChaseLook = number | "down";
 
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
@@ -77,7 +74,8 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
       const fast = Math.min(speed / CHASE.topSpeedMS, 1);
       const behind = CHASE.behindM + CHASE.speedBackM * fast * fast;
       const easeLook = Math.min(1, CHASE.lookPerS * seconds);
-      lookTurn += ((look === "down" ? 0 : LOOK_TURN[look]) - lookTurn) * easeLook;
+      // The short way round, so a look swung from behind-left to behind-right doesn't pass through ahead.
+      lookTurn += wrap((look === "down" ? 0 : look) - lookTurn) * easeLook;
       downShare += ((look === "down" ? 1 : 0) - downShare) * easeLook;
       const viewX = -Math.sin(swing + lookTurn);
       const viewZ = -Math.cos(swing + lookTurn);
