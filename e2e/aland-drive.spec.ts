@@ -61,12 +61,12 @@ test("the game menu's tyre choices fit the set picked and mark it, and the car k
 
   await page.keyboard.press("Escape");
   await expect(menu.getByRole("radio", { name: "Summer tyres" })).toBeChecked();
-  await menu.getByRole("radio", { name: "Winter tyres" }).click();
-  await expect(menu.getByRole("radio", { name: "Winter tyres" })).toBeChecked();
+  await menu.getByRole("radio", { name: "Friction tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("winter");
   await menu.getByRole("radio", { name: "Studded tyres" }).click();
   await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
-  await expect(menu.getByRole("radio", { name: "Winter tyres" })).not.toBeChecked();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
 
   await page.reload();

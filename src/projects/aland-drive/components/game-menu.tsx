@@ -26,7 +26,7 @@ const FAIL = "var(--color-aland-drive-ui-redline)";
 
 const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
   summer: { icon: Sun, name: "Summer" },
-  winter: { icon: Snowflake, name: "Winter" },
+  winter: { icon: Snowflake, name: "Friction" },
   studded: { icon: CircleDot, name: "Studded" },
 };
 
