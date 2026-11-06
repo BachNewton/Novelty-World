@@ -1,5 +1,5 @@
 import type { ArtModel } from "../catalogue";
-import { distantGeometry, fullestSeed, placeWorldCar, REACH_M, SWAP_M, worldGeometry } from "./fleet";
+import { distantGeometry, fullestSeed, modelSwapM, placeWorldCar, REACH_M, worldGeometry } from "./fleet";
 import { groundY } from "./build";
 import { buildCarArt } from "./model";
 import { CARS, WORLD_CARS } from "./specs";
@@ -22,7 +22,7 @@ export function artModels(): ArtModel[] {
     return {
       name: `world ${spec.name}`,
       geometries: { near, far },
-      drawn: { model: { near, far, swapM: SWAP_M, reachM: REACH_M }, place: (version, swapM, { sun, hazed }) => placeWorldCar(spec, seed, version, swapM, sun, hazed) },
+      drawn: { model: { near, far, swapM: modelSwapM(near, far), reachM: REACH_M }, place: (version, swapM, { sun, hazed }) => placeWorldCar(spec, seed, version, swapM, sun, hazed) },
     };
   });
   return [...drivable, ...world];

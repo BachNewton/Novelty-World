@@ -1,7 +1,6 @@
 import type { InstancedBufferGeometry, Mesh, Node, Scene } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
-import { worldCarMaterial } from "../art/cars/material";
+import { distantGeometry, lookOf, modelSwapM, tierMaterials, worldGeometry } from "../art/cars/fleet";
 import { type Sun } from "../art/sun";
 import { WORLD_CARS } from "../art/cars/specs";
 import type { HitCarView } from "../traffic/contact";
@@ -19,10 +18,6 @@ import { PARKED_CARS } from "./parked-places";
 export const TRAFFIC_KINDS = PARKED_CARS.map(({ half }) => half);
 
 export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
-  const materials = {
-    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M }),
-    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M }),
-  };
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`${name} drives, but there's no world car of that name`);
@@ -30,9 +25,10 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
   });
   const models = specs.map((spec) => {
     const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
+    const materials = tierMaterials(modelSwapM(shapes.world, shapes.distant), sun, hazed);
     const lists: Mesh<InstancedBufferGeometry>[] = [instanced(shapes.world, [], materials.world, room), instanced(shapes.distant, [], materials.distant, room)];
     scene.add(...lists);
-    return { shapes, lists };
+    return { shapes, materials, lists };
   });
   const looks = new Map<string, Pick<Car, "paint" | "look">>();
 
@@ -69,16 +65,16 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
       });
     },
     dispose() {
-      for (const { shapes, lists } of models) {
+      for (const { shapes, materials, lists } of models) {
         for (const mesh of lists) {
           scene.remove(mesh);
           mesh.geometry.dispose();
         }
         shapes.world.dispose();
         shapes.distant.dispose();
+        materials.world.dispose();
+        materials.distant.dispose();
       }
-      materials.world.dispose();
-      materials.distant.dispose();
     },
   };
 }
