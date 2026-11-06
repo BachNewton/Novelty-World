@@ -32,8 +32,8 @@ const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
 };
 
 const UNITS_LOOKS: Record<Units, { icon: ItemLook["icon"]; name: string; detail: string }> = {
-  metric: { icon: Ruler, name: "Metric", detail: "km/h · °C" },
-  imperial: { icon: Ruler, name: "Imperial", detail: "mph · °F" },
+  metric: { icon: Ruler, name: "Metric", detail: "km/h · °C · 24h" },
+  imperial: { icon: Ruler, name: "Imperial", detail: "mph · °F · 12h" },
 };
 
 type TyreItem = `tyres-${Tyre}`;

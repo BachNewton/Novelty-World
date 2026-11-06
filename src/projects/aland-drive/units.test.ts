@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distanceText, speedNumber, speedText, temperatureText } from "./units";
+import { clockText, distanceText, speedNumber, speedText, temperatureText } from "./units";
 
 describe("units the player reads", () => {
   it("turns a distance to tens of metres, then tenths of a kilometre", () => {
@@ -24,5 +24,12 @@ describe("units the player reads", () => {
     expect(temperatureText(-3, "metric")).toBe("−3°");
     expect(temperatureText(-3, "imperial")).toBe("27°");
     expect(temperatureText(-25, "imperial")).toBe("−13°");
+  });
+
+  it("gives a 12-hour clock with imperial, midnight and noon as 12", () => {
+    expect(clockText(14.09, "metric")).toBe("14:05");
+    expect(clockText(0.5, "imperial")).toBe("12:30 AM");
+    expect(clockText(12, "imperial")).toBe("12:00 PM");
+    expect(clockText(23.99, "imperial")).toBe("11:59 PM");
   });
 });

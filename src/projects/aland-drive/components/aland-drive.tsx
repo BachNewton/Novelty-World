@@ -16,7 +16,7 @@ import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
-import { distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
+import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
 
 /*
@@ -93,12 +93,6 @@ function TimeCover({ jump, onDone }: { jump: () => void; onDone: () => void }) {
       }}
     />
   );
-}
-
-/** The hour as a 24-hour clock: "14:05". */
-function hourText(hour: number): string {
-  const minutes = Math.floor(hour * 60);
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 /** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
@@ -215,7 +209,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         shownMonth = clock.month;
         monthShown.current.textContent = MONTH_NAMES[clock.month - 1];
       }
-      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
+      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour, useUnits.getState().units);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
       if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
       if (temperatureRow.current) temperatureRow.current.style.display = clock.temperatureC === null ? "none" : "flex";

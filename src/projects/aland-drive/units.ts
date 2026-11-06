@@ -2,9 +2,9 @@ import { create } from "zustand";
 import { getProjectStorage } from "@/shared/lib/storage";
 
 /*
- * The units the player reads the game in, kept in this browser: metric (km/h, metres and kilometres, °C) or imperial
- * (mph, feet and miles, °F). Only what the player reads changes; the simulation, the tools and the dev pages stay in
- * metres and degrees Celsius.
+ * The units the player reads the game in, kept in this browser: metric (km/h, metres and kilometres, °C, a 24-hour
+ * clock) or imperial (mph, feet and miles, °F, a 12-hour clock). Only what the player reads changes; the simulation,
+ * the tools and the dev pages stay in metres and degrees Celsius.
  */
 
 export const UNIT_SYSTEMS = ["metric", "imperial"] as const;
@@ -52,4 +52,12 @@ export function distanceText(metres: number, units: Units): string {
 export function temperatureText(celsius: number, units: Units): string {
   const degrees = Math.round(units === "metric" ? celsius : celsius * 1.8 + 32);
   return `${degrees < 0 ? "−" : ""}${Math.abs(degrees)}°`;
+}
+
+/** The hour as the player's clock shows it: "14:05" on a 24-hour clock, "2:05 PM" on a 12-hour one. */
+export function clockText(hour: number, units: Units): string {
+  const minutes = Math.floor(hour * 60) % (24 * 60);
+  const [h, m] = [Math.floor(minutes / 60), String(minutes % 60).padStart(2, "0")];
+  if (units === "metric") return `${String(h).padStart(2, "0")}:${m}`;
+  return `${h % 12 === 0 ? 12 : h % 12}:${m} ${h < 12 ? "AM" : "PM"}`;
 }
