@@ -247,6 +247,8 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
   const autumnOfKind = uniformArray(LEAVES_GO.map((leafy) => linear(leafy?.autumn ?? "autumn-birch")));
   const barkOfKind = uniformArray(BARK.map((name) => linear(name)));
   const BARE_LIST = kinds.length * 2;
+  const [FAMILY_FAR, FAMILY_NEAR, FAMILY_BARE, FAMILY_HAZE] = [0, 1, 2, 3];
+  const deciduousOf = uniformArray(LEAVES_GO.map((leafy) => (leafy === null ? 0 : 1)), "float");
   const HAZE_LIST = BARE_LIST + 1;
   const bareReachOf = (index: number) => tallOf[index] * BARE_REACH_HEIGHTS;
   const bareCapacity = LATTICES.reduce((sum, lattice, at) => sum + placesWithin(Math.max(...kinds.map((kind, index) => (kind.lattice === at && BARE_FORM_OF[index] !== null ? bareReachOf(index) * kind.sizes[1] : 0))) + WIDEST_M, lattice.stepM), 0);
@@ -383,37 +385,41 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
         });
       });
     },
-    materialOf(index, [standing, look, live], camera) {
-      if (index === BARE_LIST) return bareMaterial(standing, look, live, camera);
-      if (index === HAZE_LIST) return hazeMaterial(standing, live);
+    // The leafy far versions, the leafy near ones, the bare plants and their hazes: each family one material, so one
+    // pipeline, whatever kind each mesh draws, every kind's own numbers read from tables by the plant's kind.
+    familyOf: (shape) => (shape === BARE_LIST ? FAMILY_BARE : shape === HAZE_LIST ? FAMILY_HAZE : shape < kinds.length ? FAMILY_FAR : FAMILY_NEAR),
+    materialOf(family, [standing, look, live], camera) {
+      if (family === FAMILY_BARE) return bareMaterial(standing, look, live, camera);
+      if (family === FAMILY_HAZE) return hazeMaterial(standing, live);
       const local = positionGeometry;
       const size = live.z;
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
-      const isFar = index < kinds.length;
-      const leafy = LEAVES_GO[index % kinds.length];
+      const isFar = family === FAMILY_FAR;
+      const kind = varying(int(round(live.w)));
+      // 1 for a plant that loses its leaves, 0 for a juniper, which keeps its needles and holds snow.
+      const deciduous = deciduousOf.element(kind) as unknown as Node<"float">;
       const tint = attribute<"vec4">("tint", "vec4");
       const part = round(tint.r.mul(255));
-      const isLeaf = leafy === null ? float(0) : leafParts.reduce<Node<"float">>((is, at) => select(part.equal(at), float(1), is), float(0));
+      const isLeaf = leafParts.reduce<Node<"float">>((is, at) => select(part.equal(at), float(1), is), float(0)).mul(deciduous);
       const seasonRoll = (salt: number) => unitOf(placeSeed(standing.xz), salt);
-      const leaves = leavesOf(seasons, leafy === null ? float(0) : mix(float(leafy.goes[0]), float(leafy.goes[1]), seasonRoll(LEAF_ROLL)), FALL_SPAN);
-      const inLeaf = (leafy === null ? float(1) : leaves.inLeaf).toVar();
+      const leaves = leavesHere(standing, kind);
+      const inLeaf = mix(float(1), leaves.inLeaf, deciduous).toVar();
       // As its leaves go a plant's leaves draw in on its middle, while its own stems give way at once to its bare ones.
       const left = mix(step(float(1), inLeaf), crownLeftOf(inLeaf), isLeaf);
-      const middle = float(tallOf[index % kinds.length] * 0.55);
+      const middle = (tallsOf.element(kind) as unknown as Node<"float">).mul(0.55);
       const [x, y, z] = [local.x.mul(left), mix(middle, local.y, left), local.z.mul(left)];
       material.positionNode = vec3(standing.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), standing.y.add(y.mul(size)), standing.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
-      const kind = varying(int(round(live.w)));
       // The model's own height, before the plant's size, picks the band, as it did when the bands were measured.
       const band = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).mul(BANDS).floor().clamp(0, BANDS - 1);
-      const turned = leafy === null ? float(0) : leaves.turned;
-      const fresh = leafy === null ? float(0) : leaves.fresh.mul(FRESH_SHARE);
+      const turned = leaves.turned.mul(deciduous);
+      const fresh = leaves.fresh.mul(FRESH_SHARE).mul(deciduous);
       const asNow = (summer: Node<"vec3">, autumn: Node<"vec3">, spring: Node<"vec3">) => mix(mix(summer, spring, fresh), autumn, turned);
       const shadeOf = tint.g.mul(255 / 128);
       const bandOf = (bands: typeof bandsOf) => bands.element(int(round(live.w.mul(BANDS).add(band)))) as unknown as Node<"vec3">;
-      const tokenAt = (name: string) => vec3(linear(name)).mul(shadeOf);
-      const painted = varying(isFar ? asNow(bandOf(bandsOf), bandOf(autumnBandsOf), bandOf(freshBandsOf)) : leafy === null ? paint : mix(paint, asNow(paint, tokenAt(leafy.autumn), tokenAt("tree-fresh")), isLeaf));
-      const snowHeld = varying(snowHeldOf(seasons, seasonRoll(SNOW_ROLL)).mul(leafy === null ? float(1) : float(0)));
+      const autumnHere = vec3(autumnOfKind.element(kind) as unknown as Node<"vec3">).mul(shadeOf);
+      const painted = varying(isFar ? asNow(bandOf(bandsOf), bandOf(autumnBandsOf), bandOf(freshBandsOf)) : mix(paint, asNow(paint, autumnHere, vec3(linear("tree-fresh")).mul(shadeOf)), isLeaf));
+      const snowHeld = varying(snowHeldOf(seasons, seasonRoll(SNOW_ROLL)).mul(float(1).sub(deciduous)));
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const radial = normalize(vec2(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.z.mul(yawCos).sub(local.x.mul(yawSin))).add(vec2(1e-4, 0)));
       const up = local.y.div(tallsOf.element(kind) as unknown as Node<"float">).clamp(0, 1);
