@@ -34,6 +34,14 @@ describe("finding places", () => {
     expect(discovery.update(1500, 0).map(({ id }) => id)).toEqual(["up-a-track"]);
   });
 
+  it("finds a lighthouse out on the water from the road on the shore it names, and not from nearer the island", () => {
+    // 5 km out from the road's west end, found from its east end.
+    const skerry: Place = { ...place("skerry", -3000, 4000), kind: "lighthouse", foundFrom: { x: 2000, z: 20 } };
+    const discovery = new Discovery(road(), memory(), [skerry]);
+    expect(discovery.update(0, 0)).toEqual([]);
+    expect(discovery.update(2000, 0).map(({ id }) => id)).toEqual(["skerry"]);
+  });
+
   it("finds a place once, and keeps it for the next drive", () => {
     const store = memory();
     const first = new Discovery(road(), store, [BY_THE_ROAD]);

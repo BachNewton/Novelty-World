@@ -271,6 +271,46 @@
     "name": "identity: wooden daymark",
     "swapM": 524
   },
+  "efaab0c8": {
+    "name": "lighthouses: flotjan",
+    "swapM": 354
+  },
+  "81dcee5d": {
+    "name": "lighthouses: hogsten",
+    "swapM": 43
+  },
+  "e65e9776": {
+    "name": "lighthouses: kobba-klintar",
+    "swapM": 282
+  },
+  "f747e22d": {
+    "name": "lighthouses: lagskar",
+    "swapM": 1109
+  },
+  "8b0f774c": {
+    "name": "lighthouses: ledskar",
+    "swapM": 322
+  },
+  "a20d8bef": {
+    "name": "lighthouses: marhallan",
+    "swapM": 69
+  },
+  "ce68889d": {
+    "name": "lighthouses: market",
+    "swapM": 907
+  },
+  "e09c7b7c": {
+    "name": "lighthouses: nyhamn",
+    "swapM": 124
+  },
+  "c1ac86e5": {
+    "name": "lighthouses: salskar",
+    "swapM": 87
+  },
+  "8d3b5d78": {
+    "name": "lighthouses: sjokvarteret",
+    "swapM": 763
+  },
   "d676d42d": {
     "name": "marina: admiralty anchor",
     "swapM": 275

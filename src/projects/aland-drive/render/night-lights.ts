@@ -2,7 +2,7 @@ import type { Scene, WebGPURenderer } from "three/webgpu";
 import { createCarGlows, createGlows, createLampLight, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
 import { uniform } from "three/tsl";
 import { placesOf } from "../art/marina/places";
-import { lampAt } from "./lighthouses";
+import { lampAt, ON_WATER_Y } from "./lighthouses";
 import { LIGHTS_ON_MARKS } from "./lights-on-marks";
 
 /*
@@ -76,7 +76,8 @@ export function createNightLights(scene: Scene, night: Night, { onAland, ground 
   const standLighthouses = () => {
     groundRevision = ground.revision();
     for (const { at, lamp } of lighthouseGlows) {
-      fixed[at] = { ...fixed[at], y: ground.height(fixed[at].x, fixed[at].z) + lamp.upM, outM: lamp.outM };
+      const foot = lamp.onWater ? ON_WATER_Y : ground.height(fixed[at].x, fixed[at].z);
+      fixed[at] = { ...fixed[at], y: foot + lamp.upM, outM: lamp.outM };
       glows.set(at, fixed[at]);
     }
     glows.upload(glowCount);

@@ -83,6 +83,13 @@ export const PAINT = {
   lamp: { from: "car-lamp" },
   "deck-paint": { from: "wall-grey", to: "water", share: 0.25, gain: 0.8 },
   "ramp-yellow": { from: "flag-ax-yellow", gain: 0.85 },
+  // The lighthouses' own (`art/lighthouses`).
+  "brick-red": { from: "wall-red", to: "wall-door", share: 0.25, gain: 0.9 },
+  "band-black": { from: "wall-plinth", gain: 0.32 },
+  "roof-red": { from: "flag-ax-red", to: "wall-red", share: 0.5, gain: 0.85 },
+  copper: { from: "copper" },
+  "limewash-red": { from: "limewash-red" },
+  "solar-panel": { from: "car-glass", to: "wall-plinth", share: 0.5, gain: 0.6 },
 } as const satisfies Record<string, { from: string; to?: string; share?: number; gain?: number; pattern?: Pattern }>;
 
 export type IdentityPart = keyof typeof PAINT;
