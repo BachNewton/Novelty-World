@@ -74,7 +74,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, type GameMenu, type MenuItemId } from "./game-menu";
+import { drivingMenu, tyreOfItem, type GameMenu, type MenuItemId } from "./game-menu";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, runOn } from "../challenge/line";
@@ -100,7 +100,7 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
-import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
+import { tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { auroraAsked, createSeasonFeed } from "./season-feed";
 import { seasonNodes, type SeasonDials } from "../art/season";
 import { weatherFeed } from "../climate/feed";
@@ -1513,8 +1513,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "cancel":
         setGameMenuOpen(false);
         break;
-      case "tyres": {
-        const fitted = TYRES[(TYRES.indexOf(drive.tyres) + 1) % TYRES.length];
+      case "tyres-summer":
+      case "tyres-winter":
+      case "tyres-studded": {
+        const fitted = tyreOfItem(id);
         setTyres(fitted);
         showMenu(drivingMenu(fitted));
         break;

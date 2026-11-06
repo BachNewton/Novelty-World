@@ -53,17 +53,20 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
-test("the game menu's Tyres changes the car's tyres in turn, and the car keeps them after a reload", async ({ page }) => {
+test("the game menu's tyre choices fit the set picked and mark it, and the car keeps them after a reload", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const menu = page.getByRole("dialog", { name: "Game menu" });
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("summer");
 
   await page.keyboard.press("Escape");
-  await menu.getByRole("button", { name: "Summer tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Winter tyres" })).toBeVisible();
-  await menu.getByRole("button", { name: "Winter tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Studded tyres" })).toBeFocused();
+  await expect(menu.getByRole("radio", { name: "Summer tyres" })).toBeChecked();
+  await menu.getByRole("radio", { name: "Winter tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Winter tyres" })).toBeChecked();
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("winter");
+  await menu.getByRole("radio", { name: "Studded tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
+  await expect(menu.getByRole("radio", { name: "Winter tyres" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
 
   await page.reload();
