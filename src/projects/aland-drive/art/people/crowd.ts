@@ -35,12 +35,14 @@ const STRIDE_SHARE = { adult: 1, older: 0.74, child: 0.9 } as const;
 const SKIRT_STRIDE = 0.8;
 export const WALK_SPEED_M_S = 1.3;
 
+/** How long a person's stride is beside an adult's full one: shorter with age, and in a skirt. */
+export const strideShare = (spec: FigureSpec) => STRIDE_SHARE[spec.age] * (wearsSkirt(spec.outfit) ? SKIRT_STRIDE : 1);
+
 function gaitOf({ pose, seed, phase }: PlacedFigure, spec: FigureSpec): [number, number, number] {
   const roll = ((seed * 2654435761) >>> 0) / 4294967296;
   const at = phase ?? roll * 2 * Math.PI;
   if (pose !== "walk") return [at, 1, 0];
-  const stride = STRIDE_SHARE[spec.age] * (wearsSkirt(spec.outfit) ? SKIRT_STRIDE : 1);
-  return [at, STRIDE_RATE[spec.age] * (0.94 + roll * 0.12), stride];
+  return [at, STRIDE_RATE[spec.age] * (0.94 + roll * 0.12), strideShare(spec)];
 }
 
 /** A mesh's attributes by name, each with its item size, and its triangles. */
@@ -49,51 +51,67 @@ export interface CrowdPart {
   index: Uint32Array;
 }
 
+/** The arrays every figure's vertices fill, whatever else a crowd keeps per vertex. */
+export interface FigureArrays {
+  position: Float32Array;
+  inner: Float32Array;
+  outer: Float32Array;
+  rig: Uint8Array;
+  tint: Uint8Array;
+  index: Uint32Array;
+}
+
+export const figureArrays = (vertices: number, indices: number): FigureArrays => ({
+  position: new Float32Array(vertices * 3),
+  inner: new Float32Array(vertices * 3),
+  outer: new Float32Array(vertices * 3),
+  rig: new Uint8Array(vertices * 4),
+  tint: new Uint8Array(vertices * 4),
+  index: new Uint32Array(indices),
+});
+
+/** Writes one figure's shape into a body's arrays from a vertex and an index on, mirrored if its spec is. */
+export function writeFigure(into: FigureArrays, soup: Soup, spec: FigureSpec, vertexAt: number, indexAt: number): void {
+  const side = spec.mirrored ? -1 : 1;
+  into.position.set(soup.positions, vertexAt * 3);
+  into.inner.set(soup.inners, vertexAt * 3);
+  into.outer.set(soup.outers, vertexAt * 3);
+  into.rig.set(soup.rigs, vertexAt * 4);
+  into.tint.set(soup.tints, vertexAt * 4);
+  for (let vertex = vertexAt; vertex < vertexAt + soup.vertexCount; vertex++) {
+    into.position[vertex * 3] *= side;
+    into.inner[vertex * 3] *= side;
+    into.outer[vertex * 3] *= side;
+  }
+  for (let at = 0; at < soup.indices.length; at++) into.index[indexAt + at] = soup.indices[at] + vertexAt;
+}
+
+export const figureAttributes = (body: FigureArrays): CrowdPart["attributes"] => ({
+  position: { array: body.position, itemSize: 3 },
+  inner: { array: body.inner, itemSize: 3 },
+  outer: { array: body.outer, itemSize: 3 },
+  rig: { array: body.rig, itemSize: 4, normalized: true },
+  tint: { array: body.tint, itemSize: 4, normalized: true },
+});
+
 function merged(soups: readonly Soup[], figures: readonly PlacedFigure[], specs: readonly FigureSpec[]): CrowdPart {
   const vertices = soups.reduce((sum, soup) => sum + soup.vertexCount, 0);
-  const triangles = soups.reduce((sum, soup) => sum + soup.triangleCount, 0);
-  const position = new Float32Array(vertices * 3);
-  const inner = new Float32Array(vertices * 3);
-  const outer = new Float32Array(vertices * 3);
-  const rig = new Uint8Array(vertices * 4);
-  const tint = new Uint8Array(vertices * 4);
+  const body = figureArrays(vertices, soups.reduce((sum, soup) => sum + soup.indices.length, 0));
   const place = new Float32Array(vertices * 4);
   const gait = new Float32Array(vertices * 3);
-  const index = new Uint32Array(triangles * 3);
   let [vertexAt, indexAt] = [0, 0];
   soups.forEach((soup, which) => {
     const figure = figures[which];
-    const spec = specs[which];
-    const side = spec.mirrored ? -1 : 1;
-    const [phase, rate, stride] = gaitOf(figure, spec);
-    position.set(soup.positions, vertexAt * 3);
-    inner.set(soup.inners, vertexAt * 3);
-    outer.set(soup.outers, vertexAt * 3);
-    rig.set(soup.rigs, vertexAt * 4);
-    tint.set(soup.tints, vertexAt * 4);
+    writeFigure(body, soup, specs[which], vertexAt, indexAt);
+    const [phase, rate, stride] = gaitOf(figure, specs[which]);
     for (let vertex = vertexAt; vertex < vertexAt + soup.vertexCount; vertex++) {
-      position[vertex * 3] *= side;
-      inner[vertex * 3] *= side;
-      outer[vertex * 3] *= side;
       place.set([figure.x, figure.y, figure.z, figure.yaw ?? 0], vertex * 4);
       gait.set([phase, rate, stride], vertex * 3);
     }
-    for (let at = 0; at < soup.indices.length; at++) index[indexAt + at] = soup.indices[at] + vertexAt;
     vertexAt += soup.vertexCount;
     indexAt += soup.indices.length;
   });
-  return {
-    attributes: {
-      position: { array: position, itemSize: 3 },
-      inner: { array: inner, itemSize: 3 },
-      outer: { array: outer, itemSize: 3 },
-      rig: { array: rig, itemSize: 4, normalized: true },
-      tint: { array: tint, itemSize: 4, normalized: true },
-      place: { array: place, itemSize: 4 },
-      gait: { array: gait, itemSize: 3 },
-    },
-    index,
-  };
+  return { attributes: { ...figureAttributes(body), place: { array: place, itemSize: 4 }, gait: { array: gait, itemSize: 3 } }, index: body.index };
 }
 
 /** A soft patch of shade on the ground under each person: two triangles, stretched along the body when they lie down. */
@@ -143,7 +161,7 @@ export interface CrowdArrays {
   shadow: CrowdPart;
 }
 
-export function specOf(figure: PlacedFigure): FigureSpec {
+export function specOf(figure: Pick<PlacedFigure, "seed" | "spec" | "pose">): FigureSpec {
   const spec = rollFigure(figure.seed, figure.spec);
   if (spec.age === "child" && !CHILD_POSES.includes(figure.pose)) throw new Error(`a child is never placed in ${figure.pose}`);
   return spec;
@@ -159,7 +177,7 @@ export function bakeCrowdArrays(figures: readonly PlacedFigure[]): CrowdArrays {
   };
 }
 
-function geometryOf({ attributes, index }: CrowdPart): BufferGeometry {
+export function geometryOf({ attributes, index }: CrowdPart): BufferGeometry {
   const geometry = new BufferGeometry();
   for (const [name, { array, itemSize, normalized = false }] of Object.entries(attributes)) geometry.setAttribute(name, new BufferAttribute(array, itemSize, normalized));
   geometry.setIndex(new BufferAttribute(index, 1));

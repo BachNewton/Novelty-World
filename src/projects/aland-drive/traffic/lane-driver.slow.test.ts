@@ -19,7 +19,7 @@ function busyTrack(width: number, seed: number) {
   net.add("R", decodeLanes(twoWayRoad(width, 1000)));
   const cars = new LaneTraffic(net, [[0.92, 2.3], [0.73, 1.375], [0.99, 2.75]], seed);
   // Nothing is ever seen, so cars come and go wherever the bubble likes, and none leaves the road before its end.
-  const bubble = new Bubble(net, cars, { car: { reachM: 400, density: 25 }, bike: { reachM: 0, density: 0 } });
+  const bubble = new Bubble(net, cars, { car: { reachM: 400, density: 25 }, bike: { reachM: 0, density: 0 }, walker: { reachM: 0, density: 0 } });
   const still = new Map<string, number>();
   const born = new Map<string, number>();
   let longestStill = 0;

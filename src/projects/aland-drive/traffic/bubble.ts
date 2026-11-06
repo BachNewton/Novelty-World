@@ -1,10 +1,10 @@
 import type { OnLane } from "./around";
-import { bikeRides, seedShare, type LaneCar, type LaneTraffic, type VehicleKind } from "./lane-driver";
+import { bikeRides, seedShare, walks, type LaneCar, type LaneTraffic, type VehicleKind } from "./lane-driver";
 import { pointAlong, type Lane } from "./lane-map";
 import type { LaneNet } from "./lane-net";
 
 /*
- * The bubble: the cars and cyclists round the player, made and taken away only
+ * The bubble: the cars, cyclists and walkers round the player, made and taken away only
  * where the player can't see it happen: past where their kind is drawn, out of
  * the camera's view, or behind the ground. Every lane holds places a vehicle may
  * start from, a slot every few tens of metres, and each slot is a seed: whether
@@ -45,11 +45,21 @@ const BIKES_PER_KM: Partial<Record<string, number>> = {
   track: 0.05,
 };
 
+/**
+ * Walkers per kilometre of one way of a path: most down a pedestrian street and along the footways, which in a town are
+ * its pavements, fewer on country paths and the cycleways they share.
+ */
+const WALKERS_PER_KM: Partial<Record<string, number>> = {
+  pedestrian: 8,
+  footway: 2.5,
+  steps: 1.5,
+  path: 0.8,
+  cycleway: 0.5,
+  bridleway: 0.3,
+};
+
 /** A slot every this many metres of lane, the first half that from its start. */
 const SLOT_M = 40;
-/** How far past its kind's reach the bubble fills, and how much further a vehicle may go before it's taken away. */
-const BEYOND_REACH_M = 250;
-const LEAVE_PAST_M = 200;
 
 interface KindRules {
   /** Vehicles per kilometre of a lane at a density of 1. */
@@ -58,12 +68,22 @@ interface KindRules {
   nearestM: number;
   /** Nor nearer another vehicle than this. */
   clearM: number;
+  /**
+   * How far past its kind's reach the bubble fills, and how much further a vehicle may go before it's taken away: far
+   * enough for a car at speed, and less for a walker, who covers little ground and is drawn only near.
+   */
+  beyondM: number;
+  leaveM: number;
 }
 
 const RULES: Record<VehicleKind, KindRules> = {
-  car: { perKm: (lane) => (lane.path ? 0 : (CARS_PER_KM[lane.kind] ?? 0)), nearestM: 80, clearM: 25 },
-  bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8 },
+  car: { perKm: (lane) => (lane.path ? 0 : (CARS_PER_KM[lane.kind] ?? 0)), nearestM: 80, clearM: 25, beyondM: 250, leaveM: 200 },
+  bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8, beyondM: 250, leaveM: 200 },
+  walker: { perKm: (lane) => (walks(lane) ? (WALKERS_PER_KM[lane.kind] ?? 0) : 0), nearestM: 20, clearM: 3, beyondM: 100, leaveM: 100 },
 };
+
+/** Whether two kinds ever meet on a lane: a walker on a pavement is no reason for a car not to start beside it. */
+const meet = (one: VehicleKind, other: VehicleKind) => !(one === "car" && other === "walker") && !(one === "walker" && other === "car");
 
 /** A whole number from a slot's name, the same each time. */
 function seedOf(name: string): number {
@@ -120,7 +140,8 @@ export class Bubble {
     this.seen = seen;
     for (const vehicle of [...this.traffic.all()]) {
       const { reachM } = this.kinds[vehicle.kind];
-      if (Math.hypot(vehicle.pose.x - focus.x, vehicle.pose.z - focus.z) > reachM + BEYOND_REACH_M + LEAVE_PAST_M && !seen(vehicle)) {
+      const { beyondM, leaveM } = RULES[vehicle.kind];
+      if (Math.hypot(vehicle.pose.x - focus.x, vehicle.pose.z - focus.z) > reachM + beyondM + leaveM && !seen(vehicle)) {
         this.traffic.remove(vehicle.id);
         this.made.gone++;
       }
@@ -132,8 +153,8 @@ export class Bubble {
 
   private fill(kind: VehicleKind, focus: { x: number; z: number }): void {
     const { reachM, density } = this.kinds[kind];
-    const { perKm, nearestM, clearM } = RULES[kind];
-    const bubbleM = reachM + BEYOND_REACH_M;
+    const { perKm, nearestM, clearM, beyondM } = RULES[kind];
+    const bubbleM = reachM + beyondM;
     const fresh = this.fresh.has(kind);
     const others = [...this.traffic.all()];
     let lanes = 0;
@@ -153,7 +174,7 @@ export class Bubble {
         const at = pointAlong(tile.points, lane, (slot + 0.5) * SLOT_M);
         const away = Math.hypot(at.x - focus.x, at.z - focus.z);
         if (away > bubbleM || (!fresh && away < nearestM)) continue;
-        if (others.some((other) => Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
+        if (others.some((other) => meet(other.kind, kind) && Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
         const half = kind === "car" ? this.traffic.halfOf(seed) : null;
         if (!fresh && this.seen({ kind, pose: { ...at, yaw: 0 }, half: half ?? [0.5, 1] })) continue;
         others.push(this.traffic.enter({ ...place, along: (slot + 0.5) * SLOT_M }, { kind, seed, id }));

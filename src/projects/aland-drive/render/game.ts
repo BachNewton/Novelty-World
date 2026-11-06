@@ -9,6 +9,8 @@ import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
 import { eyeOf, sees, type Eye } from "../traffic/sight";
 import { createLaneTrafficView, sightOf, TRAFFIC_KINDS } from "./lane-traffic";
 import { createCyclistsView } from "./cyclists";
+import { createWalkersView, standingPlaces, walkerPace } from "./walkers";
+import { PEOPLE_REACH_M } from "../art/people/material";
 import { Bubble } from "../traffic/bubble";
 import { REACH_M as CAR_REACH_M } from "../art/cars/fleet";
 import { BIKE_REACH_M } from "../art/bikes";
@@ -161,12 +163,18 @@ export interface GameProbe {
   traffic: (density: number, options?: { withPlayer?: boolean }) => void;
   /** The same for cyclists, on the paths and the roads' edges. */
   cyclists: (density: number) => void;
-  /** How many cars and cyclists ride the lanes, how many of them are stopped giving way, how many cars have been hit out of traffic, and how many the bubble has made and taken away. */
-  trafficCounts: () => { cars: number; bikes: number; waiting: number; hit: number; spawned: number; gone: number };
-  /** Every car and cyclist on the lanes, as the driver holds it. */
+  /** The same for walkers, on the paths. */
+  walkers: (density: number) => void;
+  /** How many cars, cyclists and walkers are on the lanes, how many of them are stopped giving way, how many cars have been hit out of traffic, and how many the bubble has made and taken away. */
+  trafficCounts: () => { cars: number; bikes: number; walkers: number; waiting: number; hit: number; spawned: number; gone: number };
+  /** Every car, cyclist and walker on the lanes, as the driver holds it. */
   trafficCars: () => LaneCar[];
-  /** Whether the camera could see a car or cyclist where it stands now: in view, within its kind's reach and not behind the ground. */
+  /** Whether the camera could see a car, cyclist or walker where it stands now: in view, within its kind's reach and not behind the ground. */
   trafficSeen: (car: Pick<LaneCar, "kind" | "pose" | "half">) => boolean;
+  /** The people placed standing or sitting within a reach of a place, as walkers see them. */
+  standingNear: (x: number, z: number, reachM: number) => { x: number; z: number; half: readonly [number, number] }[];
+  /** What the walkers drew last frame. */
+  walkersDrawn: () => { walkers: number; draws: number; triangles: number };
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -475,9 +483,10 @@ const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
-/** The lane lab's traffic: room for this many cars and cyclists drawn, and the bubble round the camera judged every this many traffic steps. */
+/** The lane lab's traffic: room for this many cars, cyclists and walkers drawn, and the bubble round the camera judged every this many traffic steps. */
 const TRAFFIC_MOST = 200;
 const CYCLISTS_MOST = 120;
+const WALKERS_MOST = 160;
 const BUBBLE_EVERY = 4;
 /** It steps once every this many of the simulation's steps: cars with no physics need no more, and are drawn between steps. */
 const TRAFFIC_EVERY = 4;
@@ -883,10 +892,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let lampRevision = -1;
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
-  const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
+  const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS, 1, walkerPace);
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
   const cyclistsView = createCyclistsView(scene, sun, hazed, CYCLISTS_MOST);
-  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 0 }, bike: { reachM: BIKE_REACH_M, density: 0 } });
+  const walkersView = createWalkersView(scene, { colour: colorOf, linear, hazed, sun }, WALKERS_MOST);
+  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 0 }, bike: { reachM: BIKE_REACH_M, density: 0 }, walker: { reachM: PEOPLE_REACH_M, density: 0 } });
   let trafficSeesPlayer = true;
   let trafficSteps = 0;
   let bubbleSteps = 0;
@@ -931,6 +941,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         outbuildings.add(detail.name, models);
         docks.add(detail.name, moored);
         people.add(detail.name, crowd);
+        if (crowd) laneTraffic.setStill(detail.name, standingPlaces(crowd));
         stoneWalls.add(detail.name, walls);
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, [{ sections: walls, outM: 0 }, ...furnitureClearances(placed.models)]);
         roadside.add(detail.name, placed);
@@ -973,6 +984,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         outbuildings.remove(detail.name);
         docks.remove(detail.name);
         people.remove(detail.name);
+        laneTraffic.forgetStill(detail.name);
         stoneWalls.remove(detail.name);
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
@@ -1615,7 +1627,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.step(lastInput);
     trafficContact.afterStep();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
-    if ((bubble.density("car") > 0 || bubble.density("bike") > 0) && trafficSteps === 0) {
+    if ((bubble.density("car") > 0 || bubble.density("bike") > 0 || bubble.density("walker") > 0) && trafficSteps === 0) {
       const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
       laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
       if (bubbleSteps === 0) {
@@ -1882,6 +1894,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     trafficFocus.z = camera.position.z;
     laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
     cyclistsView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
+    walkersView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1941,13 +1954,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       cyclists: (density) => {
         bubble.setDensity("bike", density);
       },
+      walkers: (density) => {
+        bubble.setDensity("walker", density);
+      },
       trafficCars: () => [...laneTraffic.all()],
       trafficSeen: (car) => sees(eyeNow(), groundAt, sightOf(car)),
       trafficCounts: () => {
         const all = [...laneTraffic.all()];
-        const bikes = all.filter((vehicle) => vehicle.kind === "bike").length;
-        return { cars: all.length - bikes, bikes, waiting: all.filter((vehicle) => vehicle.waiting).length, hit: trafficContact.count(), ...bubble.counts() };
+        const of = (kind: LaneCar["kind"]) => all.filter((vehicle) => vehicle.kind === kind).length;
+        return { cars: of("car"), bikes: of("bike"), walkers: of("walker"), waiting: all.filter((vehicle) => vehicle.waiting).length, hit: trafficContact.count(), ...bubble.counts() };
       },
+      standingNear: (x, z, reachM) => laneTraffic.stillNear(x, z, reachM),
+      walkersDrawn: walkersView.counts,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -2207,6 +2225,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       laneOverlay.dispose();
       laneTrafficView.dispose();
       cyclistsView.dispose();
+      walkersView.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
       challengeMarks.dispose();
