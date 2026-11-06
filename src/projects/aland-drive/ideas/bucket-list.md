@@ -25,7 +25,7 @@ Forza Horizon 2 brought them in: two solo lists of fifteen ("15 More Things You 
 - **A Route's clock** runs from the green light, the same moment for both players. A gate is a line across the road along the route. Missing one, or going through out of order, doesn't count, so the run carries on until the car goes back through it. There's no other fail: driving off the route only costs time.
 - **When a co-op Route is lost.** Neither player has finished when the clock reaches the target, but the team can still pass while the finish times can still average within it. A player still driving has a time of at least the clock's, so the run is lost once the finished times plus the clock for each unfinished player, divided by two, pass the target. After the first player finishes, the second is shown the time they now need: "Make it by 2:41". Each client has its own clock, so only a client still timing a player of its own calls the loss, and it tells the partner, whose client ends the attempt the same way.
 - **A speed trap** is a camera at one point on a road, reached from the start along it. Each player's speed is taken as their car crosses its line. A co-op run ends when both have crossed it. A speed trap has no clock, so a run that's going nowhere is retried, not timed out.
-- **Results** show each player's time or speed, the average in co-op, and whether it passed. A pass is kept in this browser, as finds are (`getProjectStorage`), against the challenge, with the best time or speed. A pass in co-op counts for both players.
+- **Results** show each player's time or speed, the average in co-op, and whether it passed. A pass is kept in this browser, as finds are (`getProjectStorage`), against the challenge, with the best time or speed. **Solo and co-op are kept apart**: each challenge has a solo pass and a co-op pass, each with its own best, since a team's average isn't a solo time, and the races keep their medals the same way (`ideas/races.md`). A pass in co-op counts for both players. The maps and the start rings show a challenge as passed when either is.
 
 ## The game menu, and retry
 
@@ -79,7 +79,7 @@ Grip by surface (`ideas/surface-grip.md`) gives every car a class (sports, road,
 
 **Forza matched the car to the road.** Its off-road challenges used off-road cars (the Ariel Nomad through the rainforest, the Baldwin trophy truck at the shipwrecks, "Ignore the Road in a Bowler EXR S"), its rally ones rally cars (the RS200 at the golf course, the Lancia Delta S4 through a forest at night) and its road ones road cars. A car that fought its surface wasn't the way a bucket list got hard, and Åland Drive's off-road handling, closer to Test Drive Unlimited's than to Forza's forgiving one, would make it a chore. So a gravel road gets the rally car or a four-by-four, a tarmac one a road or sports car, and the difficulty is the target.
 
-**Weather waits for weather.** Forza fixed some challenges' rain or time of day, and the physics already takes a condition (dry, wet, snow or ice). But until the game has weather and seasons, every challenge is dry. A challenge naming its condition is for later.
+**A challenge sets its own hour, season and weather, as Forza's do.** Decided: each challenge names the conditions it is played in, and starting it puts the player in them for the attempt, whatever the shared world has, so its target always means the same thing. Races are the other way round: they take the world as it is (`ideas/races.md`). Until the world has its day, seasons and weather (`docs/TIME-AND-WEATHER.md`), every challenge is a dry day, which is what its targets were measured in; once it does, each challenge's conditions are chosen with it, and its par is measured in them.
 
 ## Targets are measured
 
@@ -102,7 +102,7 @@ Forza's designers tuned their targets. Here they start from the simulation:
 ## Still open
 
 - **Whether the second list is right**: whether its targets take several tries and its roads are worth retrying, once it's been played.
-- **Challenges in weather**, once the game has weather and seasons: a challenge naming its own condition, as Forza's "Drift an Enzo Ferrari in the Rain" did.
+- **Which conditions each challenge names**, once the world has its day, seasons and weather (decided above: a challenge sets its own), as Forza's "Drift an Enzo Ferrari in the Rain" did, and how a co-op pair is put in them together.
 - **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.

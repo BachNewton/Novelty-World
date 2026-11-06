@@ -75,7 +75,7 @@ import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, runOn } from "../challenge/line";
 import { CHALLENGES } from "../challenge/list";
-import { PASSES_KEY } from "../challenge/passes";
+import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, partnerNeeds, type Outcome } from "../challenge/run";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
@@ -252,8 +252,8 @@ export interface GameProbe {
   challenge: () => ChallengeProbe | null;
   /** The scripted driver along the challenge's route, from where the car is on it. */
   driveChallenge: (cruiseMS: number) => void;
-  /** The best kept for a challenge, or null if it hasn't been passed. */
-  challengeBest: (id: string) => number | null;
+  /** The best kept for a challenge in a mode, solo unless asked, or null if it hasn't been passed so. */
+  challengeBest: (id: string, mode?: PlayMode) => number | null;
   /** Where this client stands in co-op, naming the other player, and how many of each challenge message it has heard. */
   coop: () => { kind: string; peer: string | null; name: string | null; heard: Partial<Record<ChallengeType, number>> };
   /** Invites the player of this name to the challenge whose start ring the car is in, as choosing Co-op does. */
@@ -1367,9 +1367,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(route);
     },
     onOver: (challenge, outcome) => {
-      challengeBoard.record(challenge, outcome);
+      const mode = session?.coop ? "coop" : "solo";
+      challengeBoard.record(challenge, mode, outcome);
       const seat = session?.seat ?? 0;
-      const best = challengeBoard.passOf(challenge)?.best ?? null;
+      const best = challengeBoard.passOf(challenge, mode)?.best ?? null;
       const target = challenge.kind === "route" ? challenge.targetS : challenge.targetKmh;
       const partner = coop.partner;
       const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
@@ -1822,7 +1823,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
-      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
+      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passed(challenge) })));
       showProgress();
     }
     showNextLine();
@@ -2077,7 +2078,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         }
         autopilot = new Autopilot(runOn(route.line, CHALLENGE_RUN_ON_M), cruiseMS, from);
       },
-      challengeBest: (id) => challengeBoard.passOf(challengeBoard.byId(id))?.best ?? null,
+      challengeBest: (id, mode = "solo") => challengeBoard.passOf(challengeBoard.byId(id), mode)?.best ?? null,
       coop: () => {
         const standing = coop.now;
         const peer = standing.kind === "free" ? null : standing.peer;
