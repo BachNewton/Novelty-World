@@ -1,12 +1,13 @@
 # Races
 
-The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Step 1 of the build order, races on the map against timed rivals, is built (the project's `CLAUDE.md`, "Challenges"); the rest isn't. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-pace.json` hold each race as laid on the road.
+The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Step 1 of the build order, races on the map, is built (the project's `CLAUDE.md`, "Challenges"): with no racers yet, a finish is first. The rest isn't. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-laps.json` hold each race as laid on the road.
 
 The order of work is the owner's: plan, then races on the map, then the AI drivers.
 
 ## The short version
 
 - **A race is a circuit or a sprint**: laps of a loop, or point to point. Every race is also one of three kinds by what's under the wheels: **road** (asphalt only), **cross country** (asphalt and gravel mixed) and **off-road** (gravel and loose ground).
+- **A race shows no time.** Only the place counts: no stopwatch, best time or time to beat, which are the bucket list's.
 - **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
 - **32 tracks**: 15 road, 10 cross country and 7 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
 - **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later.
@@ -229,7 +230,7 @@ TDU put every race at a marker on the map that you drove to; Forza and The Crew 
 
 ### What winning gets
 
-- **Gold, silver and bronze for first, second and third**, kept per race, with the best time, in this browser as challenge passes are.
+- **Gold, silver and bronze for first, second and third**, kept per race, with the best place, in this browser as challenge passes are.
 - **Solo and co-op are kept apart**: a race has a solo medal and a co-op medal, each with its own best.
 - **A co-op team is scored as Forza Horizon scores a team**: each player scores 100 points for every racer they finish ahead of and 50 for winning, and teammates don't score off each other. The team's points per player are its medal: beating every racer on average is gold, all but one silver, all but two bronze, so a strong run carries a weaker one, as the bucket list's co-op average does.
 - **Money and cars come later.** `docs/PLAN.md` has driving earn the money that buys cars and a house; when that exists, races pay by medal. The records are kept from the start, so nothing won before then is lost.
@@ -286,6 +287,7 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - **Races may use the bucket-list challenges' roads**, as long as a race asks something different of the road: laps, racers and traffic, another car or another way round.
 - **Races are run in the world as it is: traffic on, as TDU's are, and the world's hour, season and weather.** The AI racers must handle every track in every condition. Bucket-list challenges set their own conditions instead, as Forza's do.
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
+- **A race shows no time**, only places: the time is the bucket list's. Until the racers exist, a finish is first, rather than timed stand-in rivals.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
 
 ## Sources

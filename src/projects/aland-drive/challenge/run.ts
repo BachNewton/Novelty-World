@@ -1,4 +1,3 @@
-import { medalFor, placeAt, rivalCount } from "./standings";
 import type { Challenge, Gate } from "./types";
 
 /*
@@ -22,8 +21,8 @@ import type { Challenge, Gate } from "./types";
  *
  * A race's lines are a Route's gates lap after lap: one lap's are crossed in
  * order, then the same again, and the last line of the last lap is the finish.
- * It has no target to lose against: it ends once everyone has finished, and
- * earns the medal their times make against the rivals (`standings.ts`).
+ * It has no target to lose against: it ends once everyone has finished, in the
+ * place that earns its medal (`standings.ts`).
  */
 
 export const COUNTDOWN_S = 3;
@@ -42,8 +41,6 @@ export interface PlayerRun {
   last: CarSample | null;
   /** The next line to cross, counted over every lap of a race. */
   nextGate: number;
-  /** Seconds from the green light to the last line crossed, null before the first. */
-  lineS: number | null;
   /** Seconds from the green light to the finish, or the speed in km/h at the camera, once there. */
   result: number | null;
 }
@@ -68,7 +65,7 @@ export interface ChallengeRun {
 
 export type RunEvent =
   | { kind: "green" }
-  | { kind: "gate"; player: number; gate: number; clockS: number }
+  | { kind: "gate"; player: number; gate: number }
   | { kind: "result"; player: number; result: number }
   | { kind: "over"; outcome: Outcome };
 
@@ -79,7 +76,7 @@ export function startRun(challenge: Challenge, players: 1 | 2, attempt = 1): Cha
     challenge,
     attempt,
     clockS: -COUNTDOWN_S,
-    players: Array.from({ length: players }, () => ({ last: null, nextGate: 0, lineS: null, result: null })),
+    players: Array.from({ length: players }, () => ({ last: null, nextGate: 0, result: null })),
     outcome: null,
   };
 }
@@ -151,7 +148,7 @@ function settle(run: ChallengeRun, events: RunEvent[], timedHere: (player: numbe
   const { challenge } = run;
   let outcome: Outcome | null = null;
   if (challenge.kind === "race") {
-    if (average !== null) outcome = { passed: medalFor(challenge, results as number[]) !== null, results, average };
+    if (average !== null) outcome = { passed: true, results, average };
   } else if (challenge.kind === "route") {
     if (average !== null) outcome = { passed: average <= challenge.targetS, results, average };
     else if (run.players.some(({ result }, index) => result === null && timedHere(index)) && routeLost(run, challenge.targetS)) outcome = { passed: false, results, average: null };
@@ -178,17 +175,17 @@ function stepPlayer(run: ChallengeRun, index: number, sample: CarSample, stepS: 
     return { ...kept, result };
   }
   // One step can pass more than one gate, at a speed and spacing no car reaches, so each is looked for in turn.
-  let { nextGate, lineS } = player;
+  let { nextGate } = player;
   const lines = linesOf(challenge);
   for (;;) {
     const share = crossingShare(last, sample, lineAt(challenge, nextGate));
-    if (share === null || at(share) < 0) return { ...kept, nextGate, lineS };
-    lineS = at(share);
+    if (share === null || at(share) < 0) return { ...kept, nextGate };
     if (nextGate === lines - 1) {
-      events.push({ kind: "result", player: index, result: lineS });
-      return { ...kept, nextGate: nextGate + 1, lineS, result: lineS };
+      const result = at(share);
+      events.push({ kind: "result", player: index, result });
+      return { ...kept, nextGate: nextGate + 1, result };
     }
-    events.push({ kind: "gate", player: index, gate: nextGate, clockS: lineS });
+    events.push({ kind: "gate", player: index, gate: nextGate });
     nextGate++;
   }
 }
@@ -252,12 +249,4 @@ export function lapOf(run: ChallengeRun, player: number): { lap: number; of: num
   const { challenge } = run;
   if (challenge.kind !== "race") return { lap: 1, of: 1 };
   return { lap: Math.min(challenge.laps, Math.floor(run.players[player].nextGate / challenge.gates.length) + 1), of: challenge.laps };
-}
-
-/** A player's place in a race against the rivals at the last line they crossed, and how many race: null before the first line. */
-export function placeNow(run: ChallengeRun, player: number): { place: number; of: number } | null {
-  const { challenge } = run;
-  const { nextGate, lineS } = run.players[player];
-  if (challenge.kind !== "race" || lineS === null) return null;
-  return { place: placeAt(challenge, nextGate - 1, lineS), of: rivalCount(challenge) + 1 };
 }

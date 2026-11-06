@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARS } from "../sim/cars";
 import { tuningPrint } from "../sim/car-limits";
-import { CHALLENGES, PLACES, RACE_PACE, RACE_PLACES, RACES, TARGETS } from "./list";
+import { CHALLENGES, PLACES, RACE_LAPS, RACE_PLACES, RACES, TARGETS } from "./list";
 import { RACE_SPECS } from "./race-specs";
 import { placesPrint } from "./measured";
 import { CHALLENGE_SPECS } from "./specs";
@@ -26,8 +26,8 @@ describe("the list of races", () => {
     expect(RACE_PLACES[id].madeFrom).toEqual({ car: spec.car, waypoints: spec.waypoints });
   });
 
-  it.each(RACE_SPECS.map((spec) => [spec.id, spec] as const))("%s's pace was measured on those places, in its car as tuned now: if not, run tools/race-par.ts", (id, spec) => {
-    expect(RACE_PACE[id]).toMatchObject({ tuning: tuningPrint(CARS[spec.car]), places: placesPrint(RACE_PLACES[id]) });
+  it.each(RACE_SPECS.map((spec) => [spec.id, spec] as const))("%s's laps were measured on those places, in its car as tuned now: if not, run tools/race-laps.ts", (id, spec) => {
+    expect(RACE_LAPS[id]).toMatchObject({ tuning: tuningPrint(CARS[spec.car]), places: placesPrint(RACE_PLACES[id]) });
   });
 
   it("has every id once, and a circuit ends where it starts", () => {
@@ -35,7 +35,7 @@ describe("the list of races", () => {
     for (const { id, shape, waypoints } of RACES) if (shape === "circuit") expect([id, waypoints[waypoints.length - 1]]).toEqual([id, waypoints[0]]);
   });
 
-  it("has six on a two-lane grid or four in single file, so three rivals or more are there to win medals against", () => {
+  it("has six on a two-lane grid or four in single file", () => {
     for (const { id, grid } of RACES) expect([id, grid.length === 6 || grid.length === 4]).toEqual([id, true]);
   });
 });

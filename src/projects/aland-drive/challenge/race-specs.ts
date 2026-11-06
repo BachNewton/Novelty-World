@@ -6,8 +6,8 @@ import type { RaceGround, RaceShape, ScenePoint } from "./types";
  * shape and ground, the car it hands the player, and the waypoints its route is
  * routed through, taken from the plan's measured lines. A circuit's last
  * waypoint is its first. Everything measured from the roads (the grid, the
- * lines and the pace) is `race-places.json`, from `tools/race-places.ts`, and
- * `race-pace.json`, from `tools/race-par.ts`.
+ * lines) is `race-places.json`, from `tools/race-places.ts`, and its laps
+ * `race-laps.json`, from `tools/race-laps.ts`.
  */
 
 export interface RaceSpec {

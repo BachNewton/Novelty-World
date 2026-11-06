@@ -6,8 +6,8 @@ import type { CarId } from "../sim/cars";
  * are two kinds: a Route against a clock, through gates in order, and a Speed
  * trap, the speed as the car crosses a camera's line. A race (`ideas/races.md`)
  * is a third kind on the same machinery: the same handed car, its lines crossed
- * lap after lap, and a place against the rivals rather than a pass against a
- * target, which earns a medal. Places are in the scene:
+ * lap after lap, and a place rather than a pass against a target, which earns
+ * a medal. Places are in the scene:
  * east is +x and north is -z, and a heading is radians anticlockwise from north,
  * as the road lines' are.
  */
@@ -82,8 +82,6 @@ export interface RaceChallenge extends ChallengeCommon {
   lapM: number;
   /** Along the route from its first waypoint to the start line, where each lap of a circuit begins and ends. */
   lineM: number;
-  /** Seconds from the green to each line, every lap in turn, as the scripted driver crossed them: the pace the rivals are timed by. */
-  splitsS: readonly number[];
 }
 
 /** A bucket list challenge, which has a target to pass. */

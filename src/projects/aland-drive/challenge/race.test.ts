@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { advanceRun, COUNTDOWN_S, gatesPassed, lapOf, placeNow, reportResult, startRun, type CarSample, type ChallengeRun } from "./run";
-import { finishingOrder, medalFor, pointsFor, rivalTimes } from "./standings";
+import { advanceRun, COUNTDOWN_S, gatesPassed, lapOf, reportResult, startRun, type CarSample, type ChallengeRun } from "./run";
 import type { Gate, RaceChallenge } from "./types";
 
 /*
  * A circuit laid on a straight road east along z = 0, its lap's lines at 100, 200 and 300 m, the last the start line.
- * A car put back at the start (placed, so it crosses nothing on the way) drives the next lap. The scripted driver's
- * pace is 10 s a line, so the rivals finish two laps at 1.03, 1.07, 1.11, 1.15 and 1.19 times 60 s.
+ * A car put back at the start (placed, so it crosses nothing on the way) drives the next lap.
  */
 
 const EAST = -Math.PI / 2;
@@ -29,7 +27,6 @@ const RACE: RaceChallenge = {
   lapM: 300,
   lineM: 300,
   lengthM: 600,
-  splitsS: [10, 20, 30, 40, 50, 60],
 };
 
 const at = (x: number, placed = false): CarSample => ({ x, z: 0, speedMS: 20, placed });
@@ -68,47 +65,11 @@ describe("a race's laps", () => {
     expect(run.outcome).toBeNull();
   });
 
-  it("place the player against the rivals at each line, by when each crossed it", () => {
-    // 11 s to the first line: behind the rivals' 10.3 and 10.7 s, ahead of their 11.1, 11.5 and 11.9 s.
-    let run = advanceRun(raced(), 11, [at(100.001)]).run;
-    expect(placeNow(run, 0)).toEqual({ place: 3, of: 6 });
-    run = advanceRun(startRun(RACE, 1), COUNTDOWN_S, [at(0)]).run;
-    expect(placeNow(run, 0)).toBeNull();
-  });
-});
-
-describe("a race's places and medals", () => {
-  const [gold, silver, bronze] = rivalTimes(RACE);
-
-  it("are first, second and third against the rivals, a tie going to the player", () => {
-    expect(medalFor(RACE, [gold])).toBe("gold");
-    expect(medalFor(RACE, [gold + 0.01])).toBe("silver");
-    expect(medalFor(RACE, [bronze])).toBe("bronze");
-    expect(medalFor(RACE, [bronze + 0.01])).toBeNull();
-    expect(finishingOrder(RACE, [silver])[1]).toEqual({ seat: 0, time: silver });
-  });
-
-  it("make a solo run's outcome passed only with a medal", () => {
-    const finish = (time: number) => reportResult(startRun(RACE, 1), 1, 0, time).run.outcome?.passed;
-    expect(finish(bronze)).toBe(true);
-    expect(finish(bronze + 1)).toBe(false);
-  });
-
-  it("score a co-op team as Forza does: 100 a rival beaten, 50 for winning, the medal from the points per player", () => {
-    expect(pointsFor(RACE, gold)).toBe(550);
-    expect(pointsFor(RACE, silver)).toBe(400);
-    // A win and a fourth: 550 and 200, 375 each, which is all but two rivals beaten on average.
-    expect(medalFor(RACE, [gold, bronze + 0.01])).toBe("bronze");
-    // A win carries a second: 550 and 400, 475 each.
-    expect(medalFor(RACE, [gold, silver])).toBe("silver");
-    expect(medalFor(RACE, [gold, gold])).toBe("gold");
-  });
-
-  it("wait in co-op for both players' finishes, each from their own client", () => {
-    let run = startRun(RACE, 2);
-    run = reportResult(run, 1, 1, gold).run;
+  it("is finished by everyone who finishes, solo at once and in co-op once both have, from each one's own client", () => {
+    expect(reportResult(startRun(RACE, 1), 1, 0, 90).run.outcome).toMatchObject({ passed: true, results: [90] });
+    let run = reportResult(startRun(RACE, 2), 1, 1, 80).run;
     expect(run.outcome).toBeNull();
-    run = reportResult(run, 1, 0, silver).run;
-    expect(run.outcome).toMatchObject({ passed: true, average: (gold + silver) / 2 });
+    run = reportResult(run, 1, 0, 95).run;
+    expect(run.outcome).toMatchObject({ passed: true, results: [95, 80] });
   });
 });

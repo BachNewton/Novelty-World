@@ -8,21 +8,19 @@ import { expect, test } from "./test";
 
 /*
  * A race of the test's own on the fixture's one tile (`aland-drive-route.ts`),
- * a sprint whose rivals are timed at a pace of the test's choosing, played
- * solo and then as a co-op team on the run's own relay. Each page's simulation
- * is held and stepped by hand once the race is chosen, so the countdown and the
- * run play out the same however fast the machine draws. Laps, places and team
- * points have their fiddly cases in `challenge/race.test.ts`; this is the
- * whole loop in the game: the ring, the card, the grid, the finish, the result
- * card, the medal kept, retry and leave.
+ * a sprint, played solo and then as a co-op team on the run's own relay. Each
+ * page's simulation is held and stepped by hand once the race is chosen, so the
+ * countdown and the run play out the same however fast the machine draws. Laps
+ * have their fiddly cases in `challenge/race.test.ts`; this is the whole loop
+ * in the game: the ring, the card, the grid, the finish, the result card, the
+ * medal kept, retry and leave. With no racers yet, a finish is first.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
 const FIXTURE_TILES = "src/projects/aland-drive/fixture";
 const TITLE = "Fixture race";
 const PREVIOUS_CAR = "skerry-gt";
-/** The rivals' pace, and the scripted driver's speeds for a run that beats them all and one that beats none. */
-const PACE_MS = 16;
+/** The scripted driver's speeds for two players, one quicker than the other. */
 const FAST_MS = 24;
 const SLOW_MS = 12;
 
@@ -64,7 +62,7 @@ const advance = (page: Page, steps: number) => page.evaluate((count) => window._
 test("a solo race: its card from its ring, the grid, a finish in first for gold, kept, retried and left", async ({ page }) => {
   await page.goto(`${PAGE}?tiles=local:${tilesPort}`);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
-  const { race } = await layRace(page, { id: "fixture-race", title: TITLE, paceMS: PACE_MS });
+  const { race } = await layRace(page, { id: "fixture-race", title: TITLE });
   await page.evaluate((added: RaceChallenge) => {
     const probe = window.__alandDrive;
     if (!probe) throw new Error("no probe");
@@ -81,20 +79,20 @@ test("a solo race: its card from its ring, the grid, a finish in first for gold,
   await expect(card.getByRole("button", { name: "Start" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(card).toBeHidden();
-  expect(await challengeOf(page)).toMatchObject({ id: race.id, phase: "countdown", lap: { lap: 1, of: 1 }, place: null });
+  expect(await challengeOf(page)).toMatchObject({ id: race.id, phase: "countdown", lap: { lap: 1, of: 1 } });
   expect(await offStart(page, race.grid[0])).toBeLessThan(0.3);
   expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe("sten");
   await expect(page.getByLabel("Race", { exact: true })).toContainText(TITLE);
 
-  // Ahead of every rival at every line, and first at the finish: gold, kept as the solo medal with the time.
+  // Over the finish line: first, gold, and first kept as the solo best, with no time shown.
   await advance(page, COUNTDOWN_STEPS + 1);
   const finished = await driveToFinish(page, FAST_MS);
   expect(finished?.outcome?.passed).toBe(true);
-  expect(finished?.place).toEqual({ place: 1, of: 4 });
   const result = page.getByRole("dialog", { name: "Race result" });
-  await expect(result.getByLabel("Place", { exact: true })).toHaveText("1 / 4");
+  await expect(result.getByLabel("Place", { exact: true })).toHaveText("1st");
   await expect(result.getByLabel("Gold").first()).toBeVisible();
-  expect(await page.evaluate((id) => window.__alandDrive?.challengeBest(id), race.id)).toBe(finished?.outcome?.average);
+  await expect(result.getByLabel("Time")).toHaveCount(0);
+  expect(await page.evaluate((id) => window.__alandDrive?.challengeBest(id), race.id)).toBe(1);
 
   // Retry from the result card puts the car back on the pole; Leave gives the car from before back.
   await result.getByRole("button", { name: "Retry" }).click();
@@ -113,11 +111,11 @@ async function joinWorld(browser: Browser, world: string): Promise<Page> {
   return page;
 }
 
-test("a co-op race for two: asked from the card, the front row, a winner carrying a last to bronze on the team's points", async ({ browser }) => {
+test("a co-op race for two: asked from the card, the front row, over once both have finished, first and gold on both", async ({ browser }) => {
   const world = `race-${crypto.randomUUID()}`;
   const first = await joinWorld(browser, world);
   const second = await joinWorld(browser, world);
-  const { race, line } = await layRace(first, { id: "fixture-team-race", title: TITLE, paceMS: PACE_MS });
+  const { race, line } = await layRace(first, { id: "fixture-team-race", title: TITLE });
   for (const page of [first, second]) await page.evaluate((added: RaceChallenge) => window.__alandDrive?.addChallenge(added), race);
   await first.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), race.starts[0]);
   await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), along(line, 7));
@@ -135,21 +133,20 @@ test("a co-op race for two: asked from the card, the front row, a winner carryin
   expect(await offStart(first, race.grid[0])).toBeLessThan(0.3);
   expect(await offStart(second, race.grid[1])).toBeLessThan(0.3);
 
-  // A win over three rivals (350 points) and a last (none) are 175 each: all but two beaten on average, bronze, on both.
+  // The first over the line waits for the second; once both are over, it's the same finish on both, first and gold.
   for (const page of [first, second]) await advance(page, COUNTDOWN_STEPS + 1);
-  expect((await driveToFinish(first, FAST_MS))?.place).toEqual({ place: 1, of: 4 });
+  expect((await driveToFinish(first, FAST_MS))?.outcome).toBeNull();
   await second.waitForFunction(() => window.__alandDrive?.challenge()?.results[0] !== null);
   const last = await driveToFinish(second, SLOW_MS);
-  expect(last?.place).toEqual({ place: 4, of: 4 });
+  expect(last?.outcome?.passed).toBe(true);
   await first.waitForFunction(() => window.__alandDrive?.challenge()?.outcome != null);
   expect((await challengeOf(first))?.outcome).toEqual(last?.outcome);
   for (const page of [first, second]) {
     const result = page.getByRole("dialog", { name: "Race result" });
-    await expect(result.getByLabel("Team points per player")).toHaveText("175");
-    await expect(result.getByLabel("Bronze").first()).toBeVisible();
-    await expect(result.getByLabel("Places").getByRole("listitem")).toHaveCount(5);
+    await expect(result.getByLabel("Place", { exact: true })).toHaveText("1st");
+    await expect(result.getByLabel("Gold").first()).toBeVisible();
   }
-  expect(await first.evaluate((id) => window.__alandDrive?.challengeBest(id, "coop"), race.id)).toBe(last?.outcome?.average);
+  expect(await first.evaluate((id) => window.__alandDrive?.challengeBest(id, "coop"), race.id)).toBe(1);
   expect(await first.evaluate((id) => window.__alandDrive?.challengeBest(id, "solo"), race.id)).toBeNull();
 
   await first.context().close();

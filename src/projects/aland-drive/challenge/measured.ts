@@ -60,19 +60,16 @@ export interface RacePlacesEntry {
   gates: Gate[];
 }
 
-/** A race's laps and pace (`race-pace.json`, `tools/race-par.ts`). */
-export interface RacePaceEntry {
+/** A race's laps (`race-laps.json`, `tools/race-laps.ts`), with the car's tuning and the places' print they were measured with. */
+export interface RaceLapsEntry {
   tuning: string;
   places: string;
   laps: number;
-  /** The scripted driver's seconds from the green to each line, every lap in turn. */
-  splits: number[];
 }
 
-/** A race from its spec, its places and its laps and pace. */
-export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, { laps, splits }: { laps: number; splits: readonly number[] }): RaceChallenge {
+/** A race from its spec, its places and its laps. */
+export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, laps: number): RaceChallenge {
   if (places.grid.length < 2) throw new Error(`${spec.id} has ${places.grid.length} places on its grid`);
-  if (splits.length !== places.gates.length * laps) throw new Error(`${spec.id} has ${splits.length} splits for ${laps} laps of ${places.gates.length} lines`);
   return {
     id: spec.id,
     kind: "race",
@@ -90,6 +87,5 @@ export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, { laps, splits
     lapM: places.lapM,
     lineM: places.lineM,
     lengthM: spec.shape === "circuit" ? laps * places.lapM + places.runInM : places.lapM,
-    splitsS: splits,
   };
 }

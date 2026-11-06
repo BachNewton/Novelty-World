@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { NO_PASSES, readPasses, withOutcome } from "./passes";
-import { rivalTimes } from "./standings";
 import type { Challenge, RaceChallenge } from "./types";
 
 const place = { x: 0, z: 0, heading: 0 };
@@ -8,8 +7,7 @@ const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [],
 const ROUTE: Challenge = { ...common, id: "route", kind: "route", gates: [], parS: 60, targetS: 60 };
 const TRAP: Challenge = { ...common, id: "trap", kind: "speed-trap", camera: { x: 0, z: 0, heading: 0, halfWidthM: 1 }, parKmh: 150, targetKmh: 150 };
 const passed = (average: number) => ({ passed: true, results: [average], average });
-const RACE: RaceChallenge = { ...common, id: "race", kind: "race", number: "R0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], lapM: 0, lineM: 0, splitsS: [100] };
-const [GOLD, , BRONZE] = rivalTimes(RACE);
+const RACE: RaceChallenge = { ...common, id: "race", kind: "race", number: "R0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], lapM: 0, lineM: 0 };
 const finished = (time: number) => ({ passed: true, results: [time], average: time });
 
 describe("the passes kept", () => {
@@ -36,14 +34,12 @@ describe("the passes kept", () => {
     expect(readPasses(null, [ROUTE])).toEqual(NO_PASSES);
   });
 
-  it("keep a race's every finish, its best time and its best medal each bettered on its own", () => {
-    let passes = withOutcome(NO_PASSES, RACE, "solo", { ...finished(BRONZE + 1), passed: false });
-    expect(passes.solo.race).toEqual({ best: BRONZE + 1, medal: null });
-    passes = withOutcome(passes, RACE, "coop", finished(GOLD));
-    passes = withOutcome(passes, RACE, "solo", finished(BRONZE));
-    // Slower than the best, but no better a medal: nothing changes.
-    expect(withOutcome(passes, RACE, "solo", finished(BRONZE + 0.5))).toBe(passes);
-    expect(passes).toEqual({ solo: { race: { best: BRONZE, medal: "bronze" } }, coop: { race: { best: GOLD, medal: "gold" } } });
+  it("keep a race's best place and its medal, with no time, solo and co-op apart", () => {
+    let passes = withOutcome(NO_PASSES, RACE, "solo", finished(300));
+    expect(passes.solo.race).toEqual({ best: 1, medal: "gold" });
+    expect(withOutcome(passes, RACE, "solo", finished(200))).toBe(passes);
+    passes = withOutcome(passes, RACE, "coop", finished(400));
+    expect(passes).toEqual({ solo: { race: { best: 1, medal: "gold" } }, coop: { race: { best: 1, medal: "gold" } } });
     expect(readPasses({ solo: { race: { best: 1, medal: "platinum" } } }, [RACE])).toEqual({ solo: { race: { best: 1, medal: null } }, coop: {} });
   });
 });

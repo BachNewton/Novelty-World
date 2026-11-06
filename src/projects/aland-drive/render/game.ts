@@ -76,8 +76,8 @@ import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
 import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
-import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, placeNow, type Outcome } from "../challenge/run";
-import { finishingOrder, medalFor, pointsFor, rivalTimes } from "../challenge/standings";
+import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
+import { FINISHING_PLACE, medalForPlace } from "../challenge/standings";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
 import type { ChallengeMessage, ChallengeType } from "../net/protocol";
@@ -276,8 +276,6 @@ export interface ChallengeProbe {
   gates: { passed: number; of: number };
   /** A race's lap, from 1, and how many. */
   lap: { lap: number; of: number };
-  /** A race's place against the rivals at the last line crossed, null before the first. */
-  place: { place: number; of: number } | null;
   outcome: Outcome | null;
   seat: 0 | 1;
   players: number;
@@ -296,11 +294,11 @@ export interface ChallengeReading {
   countdownS: number;
   /** Seconds since the green light. */
   clockS: number;
-  /** The time to beat, or the speed to reach: on a race, the fastest rival's time. */
-  target: number;
+  /** The time to beat, or the speed to reach; a race has none. */
+  target: number | null;
   gates: { passed: number; of: number };
-  /** A race's lap and place, null for a challenge. */
-  race: { lap: number; laps: number; place: number | null; of: number } | null;
+  /** A race's lap, null for a challenge. */
+  race: { lap: number; laps: number } | null;
   /** A race's ground, which colours its panel. */
   ground: RaceChallenge["ground"] | null;
   /** Co-op, once the partner is in and this player isn't: the time to finish by, or the speed to reach, for the team to pass. */
@@ -523,8 +521,8 @@ const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 /** The scripted driver's line runs on past a challenge's finish, so it doesn't turn for the line's last point. */
 const CHALLENGE_RUN_ON_M = 150;
 
-/** What a run is measured against: a Route's target time, a Speed trap's speed, a race's fastest rival. */
-const targetOf = (challenge: Challenge) => (challenge.kind === "route" ? challenge.targetS : challenge.kind === "race" ? rivalTimes(challenge)[0] : challenge.targetKmh);
+/** What a run is measured against: a Route's target time, a Speed trap's speed; a race has none, only places. */
+const targetOf = (challenge: Challenge) => (challenge.kind === "route" ? challenge.targetS : challenge.kind === "race" ? null : challenge.targetKmh);
 /** The car on the start line and through the countdown: the handbrake, since the brake held at a standstill is reverse. */
 const HELD: DriveInput = { ...NO_INPUT, handbrake: true };
 
@@ -1367,7 +1365,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const raceCardMenu = (race: RaceChallenge, partner: string | null): GameMenu => {
     const record = (mode: PlayMode) => {
       const kept = challengeBoard.passOf(race, mode);
-      return kept && { medal: kept.medal ?? null, best: kept.best };
+      return kept && { medal: kept.medal ?? null, place: kept.best };
     };
     return {
       kind: "race",
@@ -1376,7 +1374,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       pauses: true,
       challenge: race.title,
       partner: partner === null ? undefined : nameOf(partner),
-      race: { number: race.number, ground: race.ground, shape: race.shape, laps: race.laps, lengthM: race.lengthM, car: TUNINGS[race.car].name, rivals: rivalTimes(race), records: { solo: record("solo"), coop: record("coop") } },
+      race: { number: race.number, ground: race.ground, shape: race.shape, laps: race.laps, lengthM: race.lengthM, car: TUNINGS[race.car].name, records: { solo: record("solo"), coop: record("coop") } },
     };
   };
 
@@ -1422,7 +1420,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const partner = coop.partner;
       const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
       const result = outcome.average ?? outcome.results[seat];
-      const race = challenge.kind === "race" ? raceResult(challenge, mode, outcome, seat, partner) : undefined;
+      const race = challenge.kind === "race" ? raceResult(challenge, mode) : undefined;
       showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
     },
     onRetry: (attempt) => {
@@ -1438,25 +1436,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       coop.lost(attempt, results);
     },
   };
-  /** How a race finished, for its result card: every finisher in order, this player's place against the rivals, and the medal. */
-  const raceResult = (race: RaceChallenge, mode: PlayMode, outcome: Outcome, seat: number, partner: string | null): RaceResult => {
-    const times = outcome.results.map((time) => time ?? Infinity);
-    const order = finishingOrder(race, times);
-    const table = order.map((finisher, index): RaceResult["table"][number] => {
-      if ("rival" in finisher) return { who: "rival", name: String(index + 1), time: finisher.time };
-      return finisher.seat === seat ? { who: "you", name: "", time: finisher.time } : { who: "partner", name: partner === null ? "" : nameOf(partner), time: finisher.time };
-    });
-    const mine = order.findIndex((finisher) => "seat" in finisher && finisher.seat === seat);
-    return {
-      ground: race.ground,
-      medal: medalFor(race, times),
-      place: order.slice(0, mine).filter((finisher) => "rival" in finisher).length + 1,
-      of: rivalTimes(race).length + 1,
-      table,
-      bestMedal: challengeBoard.medal(race, mode),
-      points: times.length > 1 ? times.reduce((sum, time) => sum + pointsFor(race, time), 0) / times.length : undefined,
-    };
-  };
+  /** How a race finished, for its result card: the place, its medal, and the best medal kept in this mode. */
+  const raceResult = (race: RaceChallenge, mode: PlayMode): RaceResult => ({
+    ground: race.ground,
+    place: FINISHING_PLACE,
+    medal: medalForPlace(FINISHING_PLACE),
+    bestMedal: challengeBoard.medal(race, mode),
+  });
   const startChallenge = (challenge: Challenge, seat: 0 | 1 = 0, players: 1 | 2 = 1): ChallengeSession => {
     if (session) throw new Error(`${challenge.id} started during ${session.challenge.id}`);
     if (jumping || mapFrom) throw new Error(`${challenge.id} started while the car was being moved`);
@@ -1743,7 +1729,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       target: targetOf(challenge),
       gates: gatesPassed(run, seat),
       ground: challenge.kind === "race" ? challenge.ground : null,
-      race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps, place: placeNow(run, seat)?.place ?? null, of: rivalTimes(challenge).length + 1 } : null,
+      race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps } : null,
       needs: needs?.player === seat ? needs.result : null,
       partner: partner === null ? null : nameOf(partner),
     };
@@ -2131,7 +2117,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           clockS: run.clockS,
           gates: gatesPassed(run, seat),
           lap: lapOf(run, seat),
-          place: placeNow(run, seat),
           outcome: run.outcome,
           seat,
           players: run.players.length,

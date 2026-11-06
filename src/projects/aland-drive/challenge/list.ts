@@ -1,6 +1,6 @@
 import placesFile from "./places.json";
-import { challengeFrom, raceFrom, type PlacesEntry, type RacePaceEntry, type RacePlacesEntry, type TargetsEntry } from "./measured";
-import racePaceFile from "./race-pace.json";
+import { challengeFrom, raceFrom, type PlacesEntry, type RaceLapsEntry, type RacePlacesEntry, type TargetsEntry } from "./measured";
+import raceLapsFile from "./race-laps.json";
 import racePlacesFile from "./race-places.json";
 import { RACE_SPECS, type RaceSpec } from "./race-specs";
 import { CHALLENGE_SPECS, type ChallengeSpec } from "./specs";
@@ -10,7 +10,7 @@ import type { BucketChallenge, RaceChallenge } from "./types";
 /*
  * The challenges and races as the game reads them: each hand-written list joined
  * with what was measured from it, its places on the roads and its par and
- * target, or a race's laps and pace. A test
+ * target, or a race's laps. A test
  * holds each measured entry to the list as it is now, so a change to a challenge
  * asks for it to be measured again.
  */
@@ -28,13 +28,13 @@ function joined(spec: ChallengeSpec): BucketChallenge {
 export const CHALLENGES: readonly BucketChallenge[] = CHALLENGE_SPECS.map(joined);
 
 export const RACE_PLACES: Readonly<Record<string, RacePlacesEntry>> = racePlacesFile;
-export const RACE_PACE: Readonly<Record<string, RacePaceEntry>> = racePaceFile;
+export const RACE_LAPS: Readonly<Record<string, RaceLapsEntry>> = raceLapsFile;
 
 function joinedRace(spec: RaceSpec): RaceChallenge {
   const places = RACE_PLACES[spec.id] as RacePlacesEntry | undefined;
-  const pace = RACE_PACE[spec.id] as RacePaceEntry | undefined;
-  if (!places || !pace) throw new Error(`${spec.id} hasn't been measured: run tools/race-places.ts, then tools/race-par.ts`);
-  return raceFrom(spec, places, pace);
+  const laps = RACE_LAPS[spec.id] as RaceLapsEntry | undefined;
+  if (!places || !laps) throw new Error(`${spec.id} hasn't been measured: run tools/race-places.ts, then tools/race-laps.ts`);
+  return raceFrom(spec, places, laps.laps);
 }
 
 export const RACES: readonly RaceChallenge[] = RACE_SPECS.map(joinedRace);

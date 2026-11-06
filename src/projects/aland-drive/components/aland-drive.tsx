@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Medal, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -133,7 +133,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [finds, setFinds] = useState<Place[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
-  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number; partner: string | null; colour: string } | null>(null);
+  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number | null; partner: string | null; colour: string } | null>(null);
   // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
   const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
@@ -144,7 +144,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const clockText = useRef<HTMLSpanElement>(null);
   const gatesText = useRef<HTMLSpanElement>(null);
   const lapText = useRef<HTMLSpanElement>(null);
-  const placeText = useRef<HTMLSpanElement>(null);
   const lights = useRef<(HTMLSpanElement | null)[]>([]);
   const lightsRow = useRef<HTMLDivElement>(null);
   useFrameStats();
@@ -186,7 +185,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
-      if (placeText.current && challenge.race) placeText.current.textContent = `${challenge.race.place ?? "–"} / ${challenge.race.of}`;
       // One red light a second through the countdown, then all green for a second.
       const red = challenge.phase === "countdown" ? Math.min(LIGHTS, LIGHTS + 1 - Math.ceil(challenge.countdownS)) : 0;
       const green = challenge.phase === "running" && challenge.clockS < 1;
@@ -327,37 +325,23 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                     <span ref={needsText} aria-label="Partner needs" />
                   </div>
                   {playing.kind === "race" && (
-                    <>
-                      <div className="flex items-baseline gap-2 tabular-nums">
-                        <Timer className="size-5 shrink-0 self-center" aria-hidden />
-                        <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
-                        <span className="flex items-center gap-1 self-center text-lg opacity-75" aria-label="Fastest rival" title="Fastest rival">
-                          <Medal className="size-4 shrink-0" style={{ color: GOLD }} aria-hidden />
-                          {resultText("race", playing.target)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-lg tabular-nums">
-                        <span className="flex items-center gap-2" title="Lap">
-                          <Repeat className="size-5 shrink-0" aria-hidden />
-                          <span ref={lapText} aria-label="Lap">1 / 1</span>
-                        </span>
-                        <span className="flex items-center gap-2 text-2xl font-bold" title="Place">
-                          <Trophy className="size-5 shrink-0" aria-hidden />
-                          <span ref={placeText} aria-label="Place">– / 0</span>
-                        </span>
-                        <span className="flex items-center gap-2" title="Lines this lap">
-                          <Flag className="size-5 shrink-0" aria-hidden />
-                          <span ref={gatesText} aria-label="Lines passed">0 / 0</span>
-                        </span>
-                      </div>
-                    </>
+                    <div className="flex items-center gap-5 tabular-nums">
+                      <span className="flex items-center gap-2 text-3xl font-bold" title="Lap">
+                        <Repeat className="size-6 shrink-0" aria-hidden />
+                        <span ref={lapText} aria-label="Lap">1 / 1</span>
+                      </span>
+                      <span className="flex items-center gap-2 text-lg" title="Lines this lap">
+                        <Flag className="size-5 shrink-0" aria-hidden />
+                        <span ref={gatesText} aria-label="Lines passed">0 / 0</span>
+                      </span>
+                    </div>
                   )}
                   {playing.kind === "route" && (
                     <>
                       <div className="flex items-baseline gap-2 tabular-nums">
                         <Timer className="size-5 shrink-0 self-center" aria-hidden />
                         <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
-                        <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>
+                        {playing.target !== null && <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>}
                       </div>
                       <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
                         <Flag className="size-5 shrink-0" aria-hidden />
@@ -368,7 +352,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                   {playing.kind === "speed-trap" && (
                     <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
                       <Gauge className="size-6 shrink-0" aria-hidden />
-                      <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>
+                      {playing.target !== null && <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>}
                     </div>
                   )}
                   </>

@@ -4,7 +4,7 @@
 //
 //   npx tsx src/projects/aland-drive/tools/race-places.ts [--folder=<tiles>] [--only=<id>]
 //
-// Run it after changing a race's waypoints or car, or after a rebuild of the roads, then `tools/race-par.ts`: a test
+// Run it after changing a race's waypoints or car, or after a rebuild of the roads, then `tools/race-laps.ts`: a test
 // fails until both files match the list.
 //
 // The grid stands where a road of two lanes (a main road, a tertiary or a street, as `ideas/races.md` counts widths)

@@ -5,8 +5,8 @@ import { Car, Check, CircleDot, Flag, LogOut, Medal as MedalIcon, Play, Repeat, 
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
-import { resultText, timeText } from "../challenge/format";
-import { MEDALS, type Medal } from "../challenge/standings";
+import { placeText, resultText } from "../challenge/format";
+import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
 import type { GameMenu as GameMenuState, MenuItemId, MenuResult, RaceCard, RaceResult } from "../render/game-menu";
 import type { Tyre } from "../sim/surfaces";
@@ -102,14 +102,6 @@ function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCar
           {card.car}
         </span>
       </div>
-      <div className="flex gap-3 text-sm tabular-nums" aria-label="To win each medal" title="The rival each medal beats">
-        {MEDALS.map((medal, index) => (
-          <span key={medal} className="flex items-center gap-1">
-            <MedalMark medal={medal} className="size-4 shrink-0" />
-            {timeText(card.rivals[index])}
-          </span>
-        ))}
-      </div>
       <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Won">
         {(["solo", "coop"] as const).map((mode) => {
           const record = card.records[mode];
@@ -118,7 +110,7 @@ function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCar
             <div key={mode} className="flex items-center gap-2" aria-label={mode === "solo" ? "Solo" : "Co-op"} title={mode === "solo" ? "Solo" : "Co-op"}>
               <Icon aria-hidden className="size-4 shrink-0" />
               <MedalMark medal={record?.medal ?? null} className="size-4 shrink-0" />
-              <span>{record ? timeText(record.best) : "–"}</span>
+              <span aria-label="Best place">{record ? placeText(record.place) : "–"}</span>
             </div>
           );
         })}
@@ -133,35 +125,18 @@ function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCar
   );
 }
 
-/** How a race finished: the medal and place, then everyone in finishing order, and the best medal kept. */
-function RaceResultHeader({ title, time, race }: { title: string; time: number | null; race: RaceResult }) {
+/** How a race finished: the medal and place, and the best medal kept. */
+function RaceResultHeader({ title, race }: { title: string; race: RaceResult }) {
   return (
     <div className="mb-1 flex flex-col gap-1" aria-label="Result">
       <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: raceColour(race.ground) }}>
         <Trophy aria-hidden className="size-4 shrink-0" />
         <span>{title}</span>
       </div>
-      <div className="flex items-center gap-3 text-2xl font-bold tabular-nums">
-        <MedalMark medal={race.medal} className="size-8 shrink-0" />
-        <span aria-label="Place">{race.place} / {race.of}</span>
-        <span className="text-xl" aria-label="Time">{time === null ? "–" : timeText(time)}</span>
+      <div className="flex items-center gap-3 text-3xl font-bold">
+        <MedalMark medal={race.medal} className="size-9 shrink-0" />
+        <span aria-label="Place">{placeText(race.place)}</span>
       </div>
-      {race.points !== undefined && (
-        <div className="flex items-center gap-2 text-sm tabular-nums" aria-label="Team points per player" title="Team points per player">
-          <Users aria-hidden className="size-4 shrink-0" />
-          <span>{Math.round(race.points)}</span>
-        </div>
-      )}
-      <ol className="mt-1 flex flex-col text-sm tabular-nums" aria-label="Places">
-        {race.table.map((row, index) => (
-          <li key={index} className="flex items-center gap-2" style={{ color: row.who === "rival" ? INK : row.who === "you" ? ACCENT : PLAYER, opacity: row.who === "rival" ? 0.7 : 1 }}>
-            <span className="w-5 text-right">{index + 1}</span>
-            {row.who === "rival" ? <Car aria-label="Rival" className="size-4 shrink-0" /> : row.who === "you" ? <User aria-label="You" className="size-4 shrink-0" /> : <Users aria-label={row.name} className="size-4 shrink-0" />}
-            <span className="grow">{row.who === "partner" ? row.name : ""}</span>
-            <span>{Number.isFinite(row.time) ? timeText(row.time) : "–"}</span>
-          </li>
-        ))}
-      </ol>
       <div className="flex items-center gap-2 text-sm" aria-label="Best medal" title="Best medal">
         <Trophy aria-hidden className="size-4 shrink-0" style={{ color: ACCENT }} />
         <MedalMark medal={race.bestMedal} className="size-4 shrink-0" />
@@ -185,7 +160,7 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
       </div>
       <div className="flex items-baseline gap-2 text-lg tabular-nums">
         <span className="text-2xl font-bold" aria-label={kind === "route" ? "Time" : "Speed"}>{result === null ? "–" : resultText(kind, result)}</span>
-        <span className="opacity-75" aria-label="Target">/ {resultText(kind, target)}</span>
+        {target !== null && <span className="opacity-75" aria-label="Target">/ {resultText(kind, target)}</span>}
       </div>
       {team && (
         <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Team">
@@ -241,7 +216,7 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
   return (
     <div className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
       <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className="flex w-80 max-w-[90vw] flex-col gap-2 rounded-lg p-4" style={{ background: SHADE, color: INK }}>
-        {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} time={menu.result.result} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
+        {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
         {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} partner={menu.partner} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}

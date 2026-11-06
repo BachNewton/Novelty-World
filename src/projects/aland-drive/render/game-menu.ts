@@ -17,18 +17,13 @@ import type { Tyre } from "../sim/surfaces";
 /** Something the game menu can offer. Resume and Cancel close it. */
 export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
-/** How a race finished: the medal, the place, and everyone in finishing order. */
+/** How a race finished: the place and its medal. */
 export interface RaceResult {
   ground: RaceGround;
-  medal: Medal | null;
-  /** This player's place against the rivals, and how many cars that is. */
   place: number;
-  of: number;
-  table: { who: "you" | "partner" | "rival"; name: string; time: number }[];
+  medal: Medal | null;
   /** The best medal kept in this mode, this attempt included. */
   bestMedal: Medal | null;
-  /** Co-op: the team's points per player, which its medal is from. */
-  points?: number;
 }
 
 /** A race's card, before it starts. */
@@ -40,10 +35,8 @@ export interface RaceCard {
   lengthM: number;
   /** The car it hands the player. */
   car: string;
-  /** The rivals' finishing times, fastest first: what each medal takes. */
-  rivals: readonly number[];
-  /** Each mode's best medal and best time, or null if it hasn't been finished so. */
-  records: Record<PlayMode, { medal: Medal | null; best: number } | null>;
+  /** Each mode's best medal and best finishing place, or null if it hasn't been finished so. */
+  records: Record<PlayMode, { medal: Medal | null; place: number } | null>;
 }
 
 /** How an attempt went, as the result card shows it. */
@@ -52,7 +45,7 @@ export interface MenuResult {
   kind: ChallengeKind;
   /** The time in seconds or the speed in km/h, null for a Route lost before the finish. */
   result: number | null;
-  target: number;
+  target: number | null;
   /** The best kept for this challenge, this attempt included. */
   best: number | null;
   /** Co-op: this player's own time or speed and the partner's, either null for a Route lost before that one's finish. The result is their average. */

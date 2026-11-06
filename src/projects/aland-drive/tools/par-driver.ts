@@ -114,8 +114,6 @@ export function gravelShare(line: RoadLine, world: World): number {
 export interface Measured {
   par: number;
   simS: number;
-  /** Seconds from the green to each line crossed, the finish last. */
-  splits: number[];
   profile: string[];
 }
 
@@ -131,7 +129,6 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
   const driven = runOn(line, RUN_ON_M);
   const pilot = new Autopilot(driven, FLAT_OUT_MS, from, 0, shortestLookM, speedPlan(challenge.car, driven, world, eased, lapM));
   let run: ChallengeRun = startRun(challenge, 1);
-  const splits: number[] = [];
   const profile: string[] = [];
   let nextProfileM = PROFILE_EVERY_M;
   let stoppedS = 0;
@@ -143,16 +140,11 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
     for (let step = 0; step < longestS / STEP_S; step++) {
       const state = drive.stateAt(1);
       const sample = { x: state.position[0], z: state.position[2], speedMS: speedOf(state) };
-      const advanced = advanceRun(run, STEP_S, [sample]);
-      run = advanced.run;
-      for (const event of advanced.events) {
-        if (event.kind === "gate") splits.push(event.clockS);
-        if (event.kind === "result") splits.push(event.result);
-      }
+      run = advanceRun(run, STEP_S, [sample]).run;
       if (run.outcome) {
         const [par] = run.outcome.results;
         if (par === null) throw new Error(`${challenge.id}: over with no result`);
-        return { par, simS: run.clockS, splits, profile };
+        return { par, simS: run.clockS, profile };
       }
       if (run.clockS < 0) {
         // The handbrake, not the brake: held at a standstill, the brake is reverse.
