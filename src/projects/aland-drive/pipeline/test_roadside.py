@@ -204,6 +204,20 @@ class PavedTiles(unittest.TestCase):
         self.assertFalse(paved.clear(np.array([152.0, 4.0]), 0.4, besides=0))
 
 
+    def test_a_carriageway_triangle_on_its_edge_is_carriageway_and_a_kerb_strip_past_it_is_shoulder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest = paved_tile(Path(folder), [
+                # Where no ring is, as in a side street's mouth: the road's carriageway out to its edge, whose points the
+                # paving stores a hair past 1.
+                ([(50, -10), (60, -10), (55, -14)], (0.4, 1.02, 1.02), 0),
+                # A kerb's strip: two corners on the edge and the third a few centimetres out on the shoulder.
+                ([(70, -10), (80, -10), (75, -10.2)], (1.0, 1.0, 1.06), 0),
+            ])
+            paved = Paved(*read_surface(Path(folder), manifest))
+        # Another way's post may not stand on the road's carriageway, but may on its shoulder.
+        self.assertFalse(paved.clear(np.array([55.0, -11.0]), 0.1, besides=1))
+        self.assertTrue(paved.clear(np.array([75.0, -10.1]), 0.05, besides=1))
+
     def test_a_crossing_keeps_posts_off_its_line_where_the_street_owns_its_paving(self):
         crossing = {"id": 1, "kind": "footway", "motor": False, "footway": "crossing", "line": [[80.0, -8.0], [80.0, 8.0]]}
         with tempfile.TemporaryDirectory() as folder:

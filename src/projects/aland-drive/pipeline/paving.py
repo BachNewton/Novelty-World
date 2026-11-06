@@ -10,7 +10,9 @@ triangulated between its own corners and the paving's edge, so the two share the
 may rise or fall away no faster than a bank or a cutting.
 """
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import shapely
@@ -57,6 +59,10 @@ AREA_RANK = 6
 JUNCTION_RANK = 99
 # How a piece no way's outline holds is drawn: as a shoulder, which in town is a kerb's paving.
 JUNCTION_ACROSS = 1.5
+# Past this across a way is its shoulder: the carriageway's edge is 1, and its points are stored up to a couple of
+# hundredths past it (the outline is kept within `OUTLINE_WITHIN_M` over a shoulder of a metre or so, and across is
+# written in 1024ths). The game reads the same edge (`sim/road-grip.ts`), from the one file both share.
+CARRIAGEWAY_EDGE_ACROSS = json.loads((Path(__file__).resolve().parent.parent / "render" / "carriageway.json").read_text(encoding="utf-8"))["edgeAcross"]
 # Where a piece wears a path's own surface, its points stand this far across: inside an edge, where nothing is painted.
 OWN_SURFACE_ACROSS = 0.5
 # Room for every way's index when an owner and its rank are packed into one number.
