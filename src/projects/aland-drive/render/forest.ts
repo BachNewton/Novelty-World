@@ -1,8 +1,9 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, atomicAdd, atomicStore, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, normalize, positionWorld, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, seedOf, unitOf } from "../art/hash";
-import { BARE_SPREAD, FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace, twigTips } from "../art/leaves";
+import { FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
+import { BARE_KINDS, BRANCHES, CLUMPS, FIRST_BARE_KIND, PART_TWIG, ROWS_A_VERTEX, type BareModel } from "./bare-tree";
 import { seasonNodes, type SeasonLook } from "../art/season";
 import { flatNormal } from "../art/flat-normal";
 import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, LEAF_ROLL, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, SNOW_ROLL, SPECIES_ROLL, STAND_ROLL } from "./tree-place";
@@ -43,6 +44,17 @@ import { type Sun } from "../art/sun";
  * short among gaps in the canopy, which also tells it from a young pine in a thicket.
  * A far tree reads the same table at fewer rings, so the forest's mix and its age
  * carry out to its reach. None of that adds a draw.
+ *
+ * A broadleaf without all its leaves is another object (`bare-tree.ts`): its trunk forks
+ * into limbs and branches, clumps of leaves sit on those while it has any, and a faint
+ * see-through haze fills its crown's outline for the fine twigs no triangle could draw.
+ * As its leaves fall, over a fortnight or so of its own, its leafy crown shrinks away
+ * inside its clumps and the clumps then shrink away one by one, so a stand in October
+ * has full, thinning and bare trees side by side; in spring the same runs backwards.
+ * Near, it's on the branch, clump and haze lists, handing over by the same crossfade
+ * as the leafy crown to a far crown shrunk by the leaves it has lost and a far haze.
+ * The haze is blended, not a screen pattern, and grows denser with distance as the
+ * branches it stands for thin below a pixel.
  */
 
 export interface ForestSettings {
@@ -80,6 +92,11 @@ const ROWS_A_TREE = 3;
 /** Where each list's draw starts in the buffer of draws, and where in a draw its count of trees is. */
 const TURNED_DRAW = 0;
 const CONE_DRAW = 5;
+const BRANCH_DRAW = 10;
+const CLUMP_DRAW = 15;
+const HAZE_DRAW = 20;
+const FAR_HAZE_DRAW = 25;
+const DRAWS = [TURNED_DRAW, CONE_DRAW, BRANCH_DRAW, CLUMP_DRAW, HAZE_DRAW, FAR_HAZE_DRAW];
 const TREES_AT = 1;
 
 type Band = [from: number, to: number, run: number];
@@ -121,9 +138,33 @@ const BRIGHTNESS_ROLL: [number, number] = [0.86, 1.12];
 /** How far a tree's leaves lean yellow or blue, either way. */
 const HUE_ROLL = 0.07;
 
-/** How much snow a bare broadleaf's twigs hold, against a conifer's crown, and how much each tree's own share varies. */
+/** How much snow lies on a bare broadleaf's limbs, against a conifer's crown, and how much each tree's own share varies. */
 const TWIG_SNOW = 0.4;
 const SNOW_ROLLED: [number, number] = [0.65, 1];
+
+/** A broadleaf loses its leaves over this much of the season's share in leaf (`leavesOf`): about a fortnight of the fall. */
+const FALL_SPAN = 0.5;
+/** As its first leaves go its clumps grow out of its leafy crown, whole by this much less than all its leaves, and the crown shrinks away inside them by this share. */
+const CLUMP_GROW = 0.1;
+const CROWN_GONE = 0.85;
+/** Its clumps then fall one by one between this share and none, each over this much of it. */
+const CLUMPS_FROM = 0.82;
+const CLUMP_RUN = 0.12;
+/**
+ * The twigs' haze: none near, where the branches carry the tree on their own, coming in as its twigs and then its limbs
+ * go below a pixel on the floor's screen (a birch's twigs at about 40 m, its limbs at about 100 m), to its opacity far
+ * off; how much of the crown it fills, how much snow it greys to, and how far in from its outline it thickens, so it
+ * has no edge of its own.
+ */
+const HAZE_OPACITY = 0.6;
+const HAZE_RUN_M: [number, number] = [60, 420];
+const HAZE_SPREAD = 0.92;
+const HAZE_SNOW = 0.05;
+const HAZE_EDGE = 0.6;
+/** A mass of twigs shades itself: seen against the sky it's darker than any one twig in the sun. */
+const HAZE_LIGHT = 0.4;
+/** How dense each bare kind's twigs are: a birch's are the finest and most. */
+const TWIG_DENSITY: Record<(typeof BARE_KINDS)[number], number> = { birch: 1, round: 0.75, upright: 0.85 };
 
 /** A stand for a scene with no tile: Åland's own mix of pine, spruce and birch, at every place. */
 const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
@@ -131,7 +172,7 @@ const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
 const NEAR_SIDES = 5;
 const FAR_SIDES = 3;
 
-/** A spun outline: per vertex only its ring and its way round, the table saying where a ring goes. A pointed one starts from a point, as a far crown does. */
+/** A spun outline: per vertex only its ring and its way round, the table saying where a ring goes. A pointed one starts from a point, as a far crown does. Its triangles' trunk must stay `bare-tree.ts`'s. */
 function turned(rings: number, sides: number, pointed: boolean): BufferGeometry {
   const positions: number[] = [];
   const indices: number[] = [];
@@ -223,7 +264,7 @@ export interface ForestInputs {
   paint?: (tree: PaintedTree) => Node<"vec3">;
 }
 
-export type ForestModel = "turned" | "cone";
+export type ForestModel = "turned" | "cone" | "branches" | "clumps" | "haze";
 
 export interface PaintedTree {
   model: ForestModel;
@@ -239,6 +280,10 @@ export interface PaintedTree {
 export interface ForestDrawn {
   turned: number;
   cone: number;
+  branches: number;
+  clumps: number;
+  /** Near and far. */
+  haze: number;
   triangles: number;
 }
 
@@ -272,20 +317,57 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
         },
         { goes: vec2(0, 1) as Node<"vec2">, autumn: colour("tree-birch") },
       );
+  const isBroadleaf = (kind: Node<"float">) => kind.greaterThan(kindAt("birch").sub(0.5));
+  /** A tree's leaves, from its place: the compute pass and every model's shader work them out alike. */
+  const leavesAt = (kind: Node<"float">, place: Node<"vec2">) => {
+    const roll = (salt: number) => unitOf(placeSeed(place), salt);
+    const species = speciesOf(kind, roll(SPECIES_ROLL));
+    const leaves = leavesOf(seasons, mix(species.goes.x, species.goes.y, roll(LEAF_ROLL)), FALL_SPAN);
+    return { species, leaves, share: select(isBroadleaf(kind), leaves.inLeaf, float(1)) };
+  };
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const turnedShape = turned(NEAR_RINGS, NEAR_SIDES, false);
   const coneShape = turned(FAR_RINGS, FAR_SIDES, true);
+  const bareShape = (model: BareModel) => {
+    const geometry = new BufferGeometry();
+    // A vertex is only which of its kind's rows it reads.
+    geometry.setAttribute("position", new BufferAttribute(Float32Array.from({ length: model.vertices * 3 }, (_, at) => (at % 3 === 0 ? at / 3 : 0)), 3));
+    geometry.setIndex(model.indices);
+    return geometry;
+  };
+  const branchShape = bareShape(BRANCHES);
+  const clumpShape = bareShape(CLUMPS);
+  const hazeShape = turned(NEAR_RINGS, NEAR_SIDES, false);
+  const farHazeShape = turned(FAR_RINGS, FAR_SIDES, true);
   const indicesOf = (shape: BufferGeometry) => shape.getIndex()?.count ?? 0;
-  const draws = new IndirectStorageBufferAttribute(Uint32Array.from([indicesOf(turnedShape), 0, 0, 0, 0, indicesOf(coneShape), 0, 0, 0, 0]), 5);
+  const shapeOfDraw: [number, BufferGeometry][] = [
+    [TURNED_DRAW, turnedShape],
+    [CONE_DRAW, coneShape],
+    [BRANCH_DRAW, branchShape],
+    [CLUMP_DRAW, clumpShape],
+    [HAZE_DRAW, hazeShape],
+    [FAR_HAZE_DRAW, farHazeShape],
+  ];
+  const drawArgs = new Uint32Array(FAR_HAZE_DRAW + 5);
+  for (const [draw, shape] of shapeOfDraw) drawArgs[draw] = indicesOf(shape);
+  const draws = new IndirectStorageBufferAttribute(drawArgs, 5);
   const counters = storage(draws, "uint", draws.array.length).toAtomic();
-  const turnedRows = placesWithin(FOREST_MOST.fullReachM + bandEnd(HANDOVER)) * ROWS_A_TREE;
-  const coneRows = placesWithin(FOREST_MOST.forestReachM) * ROWS_A_TREE;
+  const nearRows = placesWithin(FOREST_MOST.fullReachM + bandEnd(HANDOVER)) * ROWS_A_TREE;
+  const farRows = placesWithin(FOREST_MOST.forestReachM) * ROWS_A_TREE;
   const nearShapes = new StorageBufferAttribute(NEAR_TABLE, RING_VALUES);
   const farShapes = new StorageBufferAttribute(FAR_TABLE, RING_VALUES);
-  const turnedList = new StorageBufferAttribute(turnedRows, 4);
-  const coneList = new StorageBufferAttribute(coneRows, 4);
+  const branchTable = new StorageBufferAttribute(BRANCHES.table, 4);
+  const clumpTable = new StorageBufferAttribute(CLUMPS.table, 4);
+  const lists = {
+    turned: new StorageBufferAttribute(nearRows, 4),
+    cone: new StorageBufferAttribute(farRows, 4),
+    branches: new StorageBufferAttribute(nearRows, 4),
+    clumps: new StorageBufferAttribute(nearRows, 4),
+    haze: new StorageBufferAttribute(nearRows, 4),
+    farHaze: new StorageBufferAttribute(farRows, 4),
+  };
 
   const shareLeft = (distance: Node<"float">, tree: Node<"float">, reach: Node<"float">, [from, to, run]: Band) => {
     const starts = mix(reach.add(from), reach.add(to), tree);
@@ -301,12 +383,17 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   };
 
   const reset = Fn(() => {
-    atomicStore(counters.element(TURNED_DRAW + TREES_AT), uint(0));
-    atomicStore(counters.element(CONE_DRAW + TREES_AT), uint(0));
+    for (const draw of DRAWS) atomicStore(counters.element(draw + TREES_AT), uint(0));
   })().compute(1);
 
-  const writeTurned = storage(turnedList, "vec4", turnedRows);
-  const writeCone = storage(coneList, "vec4", coneRows);
+  const writeTo = {
+    turned: storage(lists.turned, "vec4", nearRows),
+    cone: storage(lists.cone, "vec4", farRows),
+    branches: storage(lists.branches, "vec4", nearRows),
+    clumps: storage(lists.clumps, "vec4", nearRows),
+    haze: storage(lists.haze, "vec4", nearRows),
+    farHaze: storage(lists.farHaze, "vec4", farRows),
+  };
   const cull = Fn(() => {
     const cell = vec2(instanceIndex.mod(placesAcross), instanceIndex.div(placesAcross)).add(anchor).toVar();
     const jitter = vec2(roll(cell, JITTER_ROLLS[0]), roll(cell, JITTER_ROLLS[1])).sub(0.5).mul(JITTER * NEAR_STEP_M);
@@ -360,93 +447,84 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
             const growing = vec4(stage, rocky, lean.add(blown)).toVar();
             const yaw = roll(cell, 14).mul(6.283).toVar();
             const standing = vec4(place.x, ground.sub(SINK_M), place.y, height).toVar();
+            // A broadleaf short of all its leaves is its branches, what clumps it still has, and its twigs' haze; its leafy crown stays only while it shrinks away inside them.
+            const leafShare = leavesAt(kind, place).share.toVar();
+            const crowned = leafShare.greaterThan(CROWN_GONE).toVar();
+            const bare = isBroadleaf(kind).and(leafShare.lessThan(1)).toVar();
+            const hasLeaves = leafShare.greaterThan(0).toVar();
 
-            const list = (rows: typeof writeTurned, draw: number, from: Node<"float">, to: Node<"float">) => {
+            const list = (rows: typeof writeTo.turned, draw: number, from: Node<"float">, to: Node<"float">) => {
               const row = atomicAdd(counters.element(draw + TREES_AT), uint(1)).mul(ROWS_A_TREE).toVar();
               rows.element(row).assign(standing);
               rows.element(row.add(1)).assign(vec4(yaw, look, from, to));
               rows.element(row.add(2)).assign(growing);
             };
-            If(turnedTo.greaterThan(0), () => list(writeTurned, TURNED_DRAW, float(0), turnedTo));
-            If(coneTo.greaterThan(turnedShare), () => list(writeCone, CONE_DRAW, turnedShare, coneTo));
+            const near = turnedTo.greaterThan(0).toVar();
+            const far = coneTo.greaterThan(turnedShare).toVar();
+            If(near.and(crowned), () => list(writeTo.turned, TURNED_DRAW, float(0), turnedTo));
+            If(near.and(bare), () => list(writeTo.branches, BRANCH_DRAW, float(0), turnedTo));
+            If(near.and(bare), () => list(writeTo.haze, HAZE_DRAW, float(0), turnedTo));
+            If(near.and(bare).and(hasLeaves), () => list(writeTo.clumps, CLUMP_DRAW, float(0), turnedTo));
+            If(far.and(hasLeaves), () => list(writeTo.cone, CONE_DRAW, turnedShare, coneTo));
+            If(far.and(bare), () => list(writeTo.farHaze, FAR_HAZE_DRAW, turnedShare, coneTo));
           });
         });
       });
     });
   })().computeKernel([PLACES_A_GROUP]);
 
-  const meshes: { model: ForestModel; mesh: Mesh }[] = [];
-  const model = (name: ForestModel, geometry: BufferGeometry, list: StorageBufferAttribute, rows: number, draw: number, shapes: StorageBufferAttribute, rings: number) => {
-    geometry.setIndirect(draws, draw * Uint32Array.BYTES_PER_ELEMENT);
+  const readOnly = (shapes: StorageBufferAttribute) => storage(shapes, "vec4", shapes.count).toReadOnly();
+  /** What a model's vertex knows of its tree, from its row of a list. */
+  const treeOf = (list: StorageBufferAttribute, rows: number) => {
     const trees = storage(list, "vec4", rows).toReadOnly();
     const standing = trees.element(instanceIndex.mul(ROWS_A_TREE)).toVar();
     const carried = trees.element(instanceIndex.mul(ROWS_A_TREE).add(1)).toVar();
-    const place = standing.xz;
-    const height = standing.w;
     const growing = trees.element(instanceIndex.mul(ROWS_A_TREE).add(2)).toVar();
     const kind = floor(carried.y).toVar();
     const packed = fract(carried.y).mul(ROLL_STEPS).toVar();
     const treeRoll = floor(packed).div(ROLL_STEPS - 1).toVar();
     const among = fract(packed).sub((1 - AMONG_KEPT) / 2).div(AMONG_KEPT).clamp(0, 1);
-    const rocky = growing.y;
-
+    const place = standing.xz;
     const yaw = carried.x;
-    const unit = attribute<"vec3">("position", "vec3");
-
-    // The season: a broadleaf turns, then goes bare to a narrower twig crown, and leafs out fresh; a conifer only holds snow.
-    const seasonRoll = (salt: number) => unitOf(placeSeed(place), salt);
-    const broadleaf = kind.greaterThan(kindAt("birch").sub(0.5));
-    const species = speciesOf(kind, seasonRoll(SPECIES_ROLL));
-    const leaves = leavesOf(seasons, mix(species.goes.x, species.goes.y, seasonRoll(LEAF_ROLL)));
-    const inLeaf = select(broadleaf, leaves.inLeaf, float(1)).toVar();
-    const inCrown = name === "cone" ? float(1) : select(unit.y.greaterThan(TRUNK_RINGS - 0.5), float(1), float(0));
-    const twigs = mix(float(1), mix(float(BARE_SPREAD), float(1), inLeaf), inCrown);
-    const radial = vec2(unit.x.mul(cos(yaw)).sub(unit.z.mul(sin(yaw))), unit.x.mul(sin(yaw)).add(unit.z.mul(cos(yaw))));
-    const table = storage(shapes, "vec4", shapes.count).toReadOnly();
-    const shapeAt = (row: Node<"float">) => table.element(uint(row.mul(rings).add(unit.y)));
-    const stageRow = kind.mul(STAGES).add(floor(growing.x)).toVar();
-    const shape = mix(mix(shapeAt(stageRow), shapeAt(stageRow.add(1)), fract(growing.x)), shapeAt(float(ROCK_ROW)), rocky).toVar();
-    const rise = shape.x;
-    // Those left past the thinning fill out to cover for the rest, so the forest keeps its weight.
-    const filling = smoothstep(knobs.fullReach.add(THINNING[0]), knobs.fullReach.add(bandEnd(THINNING)), place.sub(cameraSpot).length());
-    const fill = name === "cone" ? mix(float(1), sqrt(float(1).div(knobs.farDensity)), filling).mul(CONE_FILL) : float(1);
-    const width = shape.y.mul(fill).mul(treeRoll.sub(0.5).mul(2 * CROWN_SPREAD).add(1)).mul(twigs);
-    // A rock pine's rings wander from straight, each its own way, though its foot stays where it grew.
-    const wander = vec2(sin(unit.y.mul(2.1).add(yaw)), cos(unit.y.mul(1.3).add(yaw.mul(2)))).mul(rocky).mul(GNARL).mul(smoothstep(float(0), float(0.3), rise));
-    const across = radial.mul(width).add(growing.zw.mul(rise).mul(rise)).add(wander).mul(height);
-    const material = new MeshBasicNodeMaterial();
-    material.positionNode = vec3(place.x.add(across.x), standing.y.add(rise.mul(height)), place.y.add(across.y));
-
-    const live = varying(carried.zw);
-    const kindHere = varying(kind);
-    const ofKind = (colours: Record<TreeKind, Node<"vec3">>, which: Node<"float"> = kindHere) => TREE_KINDS.slice(1).reduce((picked, other, at) => select(which.greaterThan(at + 0.5), colours[other], picked), colours.spruce);
-    // Sharp at once, or a crown's underside takes the colour of the trunk it spreads from.
-    const leafy = name === "cone" ? float(1) : smoothstep(float(0), float(0.08), varying(unit.y.sub(TRUNK_RINGS - 1).clamp(0, 1)));
-    const summer = ofKind({ spruce: colour("tree-spruce"), pine: colour("tree-pine"), birch: colour("tree-birch"), round: colour("tree-round"), upright: colour("tree-upright") }, kind);
-    const turnedTo = mix(mix(summer, colour("tree-fresh"), leaves.fresh.mul(FRESH_SHARE)), species.autumn, leaves.turned);
-    const leaf = varying(select(broadleaf, mix(colour("tree-twig"), turnedTo, inLeaf), summer));
-    const snowHeld = varying(snowHeldOf(seasons, seasonRoll(SNOW_ROLL)).mul(select(broadleaf, float(1).sub(inLeaf).mul(TWIG_SNOW), float(1))).mul(mix(float(SNOW_ROLLED[0]), float(SNOW_ROLLED[1]), treeRoll)));
-    const riseHere = varying(rise);
-    // A pine's bark turns from grey-brown to fox red up its trunk, and a birch's is dark at the foot.
-    const pineBark = mix(colour("tree-bark"), colour("tree-pine-bark"), smoothstep(float(0.08), float(0.34), riseHere));
-    const birchBark = mix(colour("tree-bark"), colour("tree-birch-bark"), smoothstep(float(0.03), float(0.1), riseHere));
-    const bark = ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") });
+    const season = leavesAt(kind, place);
+    const turn = (way: Node<"vec2">) => vec2(way.x.mul(cos(yaw)).sub(way.y.mul(sin(yaw))), way.x.mul(sin(yaw)).add(way.y.mul(cos(yaw))));
+    /** A ring of the outline table at this tree's stage of life, between two of its stages' rows. */
+    const tables = new Map<StorageBufferAttribute, ReturnType<typeof readOnly>>();
+    const ringOf = (shapes: StorageBufferAttribute, rings: number, ring: Node<"float">) => {
+      const table = tables.get(shapes) ?? readOnly(shapes);
+      tables.set(shapes, table);
+      const stageRow = kind.mul(STAGES).add(floor(growing.x));
+      const at = (row: Node<"float">) => table.element(uint(row.mul(rings).add(ring)));
+      return mix(at(stageRow), at(stageRow.add(1)), fract(growing.x));
+    };
+    const snowHeld = snowHeldOf(seasons, unitOf(placeSeed(place), SNOW_ROLL)).mul(mix(float(SNOW_ROLLED[0]), float(SNOW_ROLLED[1]), treeRoll));
+    const ownShade = (selfShade: Node<"float">) => varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
+    const brightness = varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll));
     const hue = varying(fract(treeRoll.mul(7.31)).sub(0.5).mul(2 * HUE_ROLL));
-    const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
-    const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
-    const inLeafHere = varying(inLeaf);
-    // How far up the crown, back from its rounded direction, which carries it: a shader has only so many values to hand on.
-    const tips = twigTips(float(1).sub(inLeafHere).mul(leafy), rounded.y.div(ROUNDNESS).add(CROWN_MIDDLE), rounded);
-    const twigged = mix(leaf.mul(vec3(float(1).add(hue), 1, float(1).sub(hue))), colour("tree-twig-tip"), tips);
-    const crown = mix(twigged, colour("tree-snow"), snowHeld.mul(snowOnFace(flatNormal().y)));
-    const natural = mix(bark, crown, leafy);
-    // Birch and broadleaf let the sun through; conifers don't.
-    const seeThrough = select(kindHere.greaterThan(kindAt("birch").sub(0.5)), leafy.mul(inLeafHere), float(0));
-    const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
-    const ownShade = varying(mix(float(1), selfShade, mix(float(ALONE_SHADE), float(1), among)));
-    const shaded = foliageLight(toSun, rounded, seeThrough).mul(ownShade).mul(varying(mix(float(BRIGHTNESS_ROLL[0]), float(BRIGHTNESS_ROLL[1]), treeRoll)));
+    const spread = treeRoll.sub(0.5).mul(2 * CROWN_SPREAD).add(1);
+    return { standing, carried, growing, kind, treeRoll, among, place, height: standing.w, yaw, season, turn, ringOf, snowHeld, ownShade, brightness, hue, spread, live: varying(carried.zw) };
+  };
+  type Tree = ReturnType<typeof treeOf>;
+
+  const leafColourOf = (tree: Tree) => {
+    const summer = ofKind({ spruce: colour("tree-spruce"), pine: colour("tree-pine"), birch: colour("tree-birch"), round: colour("tree-round"), upright: colour("tree-upright") }, tree.kind);
+    const { leaves, species } = tree.season;
+    const turnedTo = mix(mix(summer, colour("tree-fresh"), leaves.fresh.mul(FRESH_SHARE)), species.autumn, leaves.turned);
+    return select(isBroadleaf(tree.kind), turnedTo, summer);
+  };
+  const barkOf = (kind: Node<"float">, rise: Node<"float">) => {
+    // A pine's bark turns from grey-brown to fox red up its trunk, and a birch's is dark at the foot.
+    const pineBark = mix(colour("tree-bark"), colour("tree-pine-bark"), smoothstep(float(0.08), float(0.34), rise));
+    const birchBark = mix(colour("tree-bark"), colour("tree-birch-bark"), smoothstep(float(0.03), float(0.1), rise));
+    return ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") }, kind);
+  };
+
+  const meshes: { model: ForestModel; mesh: Mesh }[] = [];
+  const add = (name: ForestModel, geometry: BufferGeometry, draw: number, material: MeshBasicNodeMaterial, tree: Tree, natural: Node<"vec3">, light: Node<"float">) => {
+    geometry.setIndirect(draws, draw * Uint32Array.BYTES_PER_ELEMENT);
+    const { place, live } = tree;
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
-    material.colorNode = hazed(painted.mul(shaded));
+    material.colorNode = hazed(painted.mul(light));
     material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y)).and(outsideCar());
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
@@ -454,8 +532,146 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     scene.add(mesh);
     meshes.push({ model: name, mesh });
   };
-  model("turned", turnedShape, turnedList, turnedRows, TURNED_DRAW, nearShapes, NEAR_RINGS);
-  model("cone", coneShape, coneList, coneRows, CONE_DRAW, farShapes, FAR_RINGS);
+
+  const crownModel = (name: "turned" | "cone", geometry: BufferGeometry, list: StorageBufferAttribute, rows: number, draw: number, shapes: StorageBufferAttribute, rings: number) => {
+    const tree = treeOf(list, rows);
+    const { standing, growing, kind, place, height, yaw, season } = tree;
+    const rocky = growing.y;
+    const unit = attribute<"vec3">("position", "vec3");
+
+    // A broadleaf losing its leaves shrinks its crown away, near inside its clumps and far by the leaves it has lost; near, its trunk is its branches' from the first leaf that falls.
+    const broadleaf = isBroadleaf(kind);
+    const crownTrunk = name === "cone" ? float(1) : select(unit.y.greaterThan(TRUNK_RINGS - 0.5), float(1), float(0));
+    const crownLeft = name === "cone" ? sqrt(season.share) : smoothstep(float(CROWN_GONE), float(1), season.share);
+    const trunkLeft = select(season.share.lessThan(1), float(0), float(1));
+    const leaving = mix(trunkLeft, crownLeft, crownTrunk);
+    const radial = tree.turn(unit.xz);
+    const table = storage(shapes, "vec4", shapes.count).toReadOnly();
+    const shapeAt = (row: Node<"float">) => table.element(uint(row.mul(rings).add(unit.y)));
+    const stageRow = kind.mul(STAGES).add(floor(growing.x)).toVar();
+    const shape = mix(mix(shapeAt(stageRow), shapeAt(stageRow.add(1)), fract(growing.x)), shapeAt(float(ROCK_ROW)), rocky).toVar();
+    // A shrinking crown draws in on its middle, so it goes as a ball of leaves going, not a spindle.
+    const baseAt = (row: Node<"float">) => table.element(uint(row.mul(rings).add(name === "cone" ? 0 : TRUNK_RINGS))).x;
+    const crownMiddle = mix(baseAt(stageRow), baseAt(stageRow.add(1)), fract(growing.x)).mul(1 - CROWN_MIDDLE).add(CROWN_MIDDLE);
+    const rise = select(broadleaf.and(crownTrunk.greaterThan(0.5)), mix(crownMiddle, shape.x, leaving), shape.x);
+    // Those left past the thinning fill out to cover for the rest, so the forest keeps its weight.
+    const filling = smoothstep(knobs.fullReach.add(THINNING[0]), knobs.fullReach.add(bandEnd(THINNING)), place.sub(cameraSpot).length());
+    const fill = name === "cone" ? mix(float(1), sqrt(float(1).div(knobs.farDensity)), filling).mul(CONE_FILL) : float(1);
+    const width = shape.y.mul(fill).mul(tree.spread).mul(select(broadleaf, leaving, float(1)));
+    // A rock pine's rings wander from straight, each its own way, though its foot stays where it grew.
+    const wander = vec2(sin(unit.y.mul(2.1).add(yaw)), cos(unit.y.mul(1.3).add(yaw.mul(2)))).mul(rocky).mul(GNARL).mul(smoothstep(float(0), float(0.3), rise));
+    const across = radial.mul(width).add(growing.zw.mul(rise).mul(rise)).add(wander).mul(height);
+    const material = new MeshBasicNodeMaterial();
+    material.positionNode = vec3(place.x.add(across.x), standing.y.add(rise.mul(height)), place.y.add(across.y));
+
+    const kindHere = varying(kind);
+    // Sharp at once, or a crown's underside takes the colour of the trunk it spreads from.
+    const leafy = name === "cone" ? float(1) : smoothstep(float(0), float(0.08), varying(unit.y.sub(TRUNK_RINGS - 1).clamp(0, 1)));
+    const leaf = varying(leafColourOf(tree));
+    // Only a conifer's crown holds snow: a broadleaf's crown is its leaves, gone before the snow comes but for a rare early fall.
+    const snowHeld = varying(tree.snowHeld.mul(select(broadleaf, float(0), float(1))));
+    const riseHere = varying(rise);
+    const bark = barkOf(kindHere, riseHere);
+    const inTrunk = name === "cone" ? float(0) : select(unit.y.lessThan(TRUNK_RINGS - 0.5), float(1), float(0));
+    const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS).mul(float(1).sub(inTrunk)), radial.y));
+    const crown = mix(leaf.mul(vec3(float(1).add(tree.hue), 1, float(1).sub(tree.hue))), colour("tree-snow"), snowHeld.mul(snowOnFace(flatNormal().y)));
+    const natural = mix(bark, crown, leafy);
+    // Birch and broadleaf let the sun through; conifers don't.
+    const seeThrough = select(isBroadleaf(kindHere), leafy, float(0));
+    const selfShade = mix(mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z), float(TRUNK_LIGHT), inTrunk).mul(mix(float(TUCKED_LIGHT), float(1), shape.w));
+    const light = foliageLight(toSun, rounded, seeThrough).mul(tree.ownShade(selfShade)).mul(tree.brightness);
+    add(name, geometry, draw, material, tree, natural, light);
+  };
+
+  /** A crown point of a bare tree (across as a share of the crown's width, its ring, across) placed on this tree, with an offset as a share of its height on top. */
+  const placeBare = (tree: Tree, point: Node<"vec3">, offset: Node<"vec3">) => {
+    const ring = point.y.toVar();
+    const lower = floor(ring).clamp(0, NEAR_RINGS - 2).toVar();
+    const shape = mix(tree.ringOf(nearShapes, NEAR_RINGS, lower), tree.ringOf(nearShapes, NEAR_RINGS, lower.add(1)), ring.sub(lower)).toVar();
+    const rise = shape.x;
+    const across = tree.turn(point.xz).mul(shape.y).mul(tree.spread).add(tree.turn(offset.xz)).add(tree.growing.zw.mul(rise).mul(rise)).mul(tree.height);
+    return { position: vec3(tree.place.x.add(across.x), tree.standing.y.add(rise.add(offset.y).mul(tree.height)), tree.place.y.add(across.y)), shape };
+  };
+  const bareRows = (model: BareModel, table: StorageBufferAttribute, tree: Tree) => {
+    const rows = storage(table, "vec4", table.count).toReadOnly();
+    const slot = tree.kind.sub(FIRST_BARE_KIND).mul(model.vertices).add(attribute<"vec3">("position", "vec3").x).mul(ROWS_A_VERTEX).toVar();
+    return [rows.element(uint(slot)), rows.element(uint(slot.add(1)))] as const;
+  };
+
+  const branchModel = () => {
+    const tree = treeOf(lists.branches, nearRows);
+    const [crownPoint, offset] = bareRows(BRANCHES, branchTable, tree);
+    const { position, shape } = placeBare(tree, crownPoint.xyz, offset.xyz);
+    const material = new MeshBasicNodeMaterial();
+    material.positionNode = position;
+    // Lit as a trunk is, each branch round its own length: its sides' way out, or the trunk's.
+    const out = select(offset.xyz.length().greaterThan(1e-6), vec3(tree.turn(offset.xz).x, offset.y, tree.turn(offset.xz).y), vec3(tree.turn(crownPoint.xz).x, 0, tree.turn(crownPoint.xz).y));
+    const rounded = varying(out);
+    const thin = varying(offset.w);
+    const twig = varying(select(crownPoint.w.greaterThan(PART_TWIG - 0.5), float(1), float(0)));
+    // A birch's limbs are white as its trunk, its finest branches dark purple-brown; other bark darkens to the twigs' too.
+    const wood = mix(barkOf(varying(tree.kind), varying(shape.x)), colour("tree-twig"), smoothstep(float(0.45), float(1), thin).max(twig.mul(0.6)));
+    const snow = varying(tree.snowHeld.mul(TWIG_SNOW * 2)).mul(snowOnFace(flatNormal().y)).mul(float(1).sub(thin.mul(0.5)));
+    const natural = mix(wood, colour("tree-snow"), snow.clamp(0, 1));
+    const light = foliageLight(toSun, rounded, float(0)).mul(tree.ownShade(float(TRUNK_LIGHT))).mul(tree.brightness);
+    add("branches", branchShape, BRANCH_DRAW, material, tree, natural, light);
+  };
+
+  const clumpModel = () => {
+    const tree = treeOf(lists.clumps, nearRows);
+    const [corner, middle] = bareRows(CLUMPS, clumpTable, tree);
+    // The clumps grow out of the leafy crown as the first leaves go, then each falls at its own share of the tree's leaves, shrinking to its middle; in spring the same runs backwards.
+    const falls = fract(corner.w.add(tree.treeRoll.mul(0.37))).mul(CLUMPS_FROM - CLUMP_RUN);
+    const grown = float(1).sub(tree.season.share).div(CLUMP_GROW);
+    const size = tree.season.share.sub(falls).div(CLUMP_RUN).min(grown).clamp(0, 1);
+    const point = mix(middle.xyz, corner.xyz, size).toVar();
+    const { position, shape } = placeBare(tree, point, vec3(0));
+    const material = new MeshBasicNodeMaterial();
+    material.positionNode = position;
+    const outward = tree.turn(point.xz.div(0.6));
+    const rounded = varying(vec3(outward.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS), outward.y));
+    const leaf = varying(leafColourOf(tree));
+    const natural = leaf.mul(vec3(float(1).add(tree.hue), 1, float(1).sub(tree.hue)));
+    const tucked = smoothstep(float(0.15), float(0.55), middle.xz.length());
+    const selfShade = mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z).mul(mix(float(TUCKED_LIGHT), float(1), tucked));
+    const light = foliageLight(toSun, rounded, float(1)).mul(tree.ownShade(selfShade)).mul(tree.brightness);
+    add("clumps", clumpShape, CLUMP_DRAW, material, tree, natural, light);
+  };
+
+  /** The fine twigs no triangle could draw: the crown's outline, faintly see-through, fainter where a crown is thin at its edges and denser far off as the branches go below a pixel. */
+  const hazeModel = (geometry: BufferGeometry, list: StorageBufferAttribute, rows: number, draw: number, shapes: StorageBufferAttribute, rings: number, far: boolean) => {
+    const tree = treeOf(list, rows);
+    const unit = attribute<"vec3">("position", "vec3");
+    // A near crown's trunk rings fold to its base, so the haze is the crown alone.
+    const ring = far ? unit.y : unit.y.max(TRUNK_RINGS);
+    const shape = tree.ringOf(shapes, rings, ring).toVar();
+    const rise = shape.x;
+    const filling = smoothstep(knobs.fullReach.add(THINNING[0]), knobs.fullReach.add(bandEnd(THINNING)), tree.place.sub(cameraSpot).length());
+    const fill = far ? mix(float(1), sqrt(float(1).div(knobs.farDensity)), filling).mul(CONE_FILL) : float(1);
+    const inCrown = far ? float(1) : select(unit.y.greaterThan(TRUNK_RINGS - 0.5), float(1), float(0));
+    const radial = tree.turn(unit.xz);
+    const across = radial.mul(shape.y).mul(fill).mul(tree.spread).mul(HAZE_SPREAD).mul(inCrown).add(tree.growing.zw.mul(rise).mul(rise)).mul(tree.height);
+    const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    material.positionNode = vec3(tree.place.x.add(across.x), tree.standing.y.add(rise.mul(tree.height)), tree.place.y.add(across.y));
+    const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS), radial.y));
+    const natural = mix(colour("tree-twig"), colour("tree-snow"), varying(tree.snowHeld.mul(HAZE_SNOW)));
+    const selfShade = mix(float(CROWN_BASE_LIGHT), float(CROWN_TOP_LIGHT), shape.z).mul(HAZE_LIGHT);
+    const light = foliageLight(toSun, rounded, float(0)).mul(tree.ownShade(selfShade)).mul(tree.brightness);
+    const density = BARE_KINDS.slice(1).reduce((picked, kind) => select(tree.kind.equal(kindAt(kind)), float(TWIG_DENSITY[kind]), picked), float(TWIG_DENSITY.birch) as Node<"float">);
+    const bareness = varying(float(1).sub(tree.season.share).mul(density));
+    const fromCamera = positionWorld.sub(cameraPosition);
+    const thickness = smoothstep(float(0), float(HAZE_EDGE), abs(dot(normalize(rounded), normalize(fromCamera))));
+    const byDistance = smoothstep(float(HAZE_RUN_M[0]), float(HAZE_RUN_M[1]), fromCamera.length()).mul(HAZE_OPACITY);
+    material.opacityNode = bareness.mul(byDistance).mul(thickness);
+    add("haze", geometry, draw, material, tree, natural, light);
+  };
+
+  crownModel("turned", turnedShape, lists.turned, nearRows, TURNED_DRAW, nearShapes, NEAR_RINGS);
+  crownModel("cone", coneShape, lists.cone, farRows, CONE_DRAW, farShapes, FAR_RINGS);
+  branchModel();
+  clumpModel();
+  hazeModel(hazeShape, lists.haze, nearRows, HAZE_DRAW, nearShapes, NEAR_RINGS, false);
+  hazeModel(farHazeShape, lists.farHaze, farRows, FAR_HAZE_DRAW, farShapes, FAR_RINGS, true);
 
   const aim = (spot: Vector3) => {
     const across = Math.ceil((2 * knobs.get().forestReachM) / NEAR_STEP_M) + 2;
@@ -467,7 +683,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
   aim(new Vector3());
 
-  let counts: ForestDrawn = { turned: 0, cone: 0, triangles: 0 };
+  let counts: ForestDrawn = { turned: 0, cone: 0, branches: 0, clumps: 0, haze: 0, triangles: 0 };
   let reading = false;
   return {
     update(spot, camera) {
@@ -488,8 +704,15 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
         reading = true;
         void renderer.getArrayBufferAsync(draws).then((bytes) => {
           const read = new Uint32Array(bytes as ArrayBuffer);
-          const [turnedTrees, coneTrees] = [read[TURNED_DRAW + TREES_AT], read[CONE_DRAW + TREES_AT]];
-          counts = { turned: turnedTrees, cone: coneTrees, triangles: (turnedTrees * indicesOf(turnedShape) + coneTrees * indicesOf(coneShape)) / 3 };
+          const trees = (draw: number) => read[draw + TREES_AT];
+          counts = {
+            turned: trees(TURNED_DRAW),
+            cone: trees(CONE_DRAW),
+            branches: trees(BRANCH_DRAW),
+            clumps: trees(CLUMP_DRAW),
+            haze: trees(HAZE_DRAW) + trees(FAR_HAZE_DRAW),
+            triangles: shapeOfDraw.reduce((sum, [draw, shape]) => sum + (trees(draw) * indicesOf(shape)) / 3, 0),
+          };
           reading = false;
         });
       }
@@ -504,10 +727,16 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
       reset.dispose();
       cull.dispose();
       draws.dispose();
-      turnedList.dispose();
-      coneList.dispose();
+      for (const list of Object.values(lists)) list.dispose();
       nearShapes.dispose();
       farShapes.dispose();
+      branchTable.dispose();
+      clumpTable.dispose();
     },
   };
+}
+
+/** Picks a kind's colour, from the kind as a float. */
+function ofKind(colours: Record<TreeKind, Node<"vec3">>, which: Node<"float">): Node<"vec3"> {
+  return TREE_KINDS.slice(1).reduce((picked, other, at) => select(which.greaterThan(at + 0.5), colours[other], picked), colours.spruce);
 }

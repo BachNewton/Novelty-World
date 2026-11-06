@@ -136,7 +136,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, () => marked, () => colorOf("water-deep"), canopyLift(reads.canopyAt, lodSpot, knobs.forestReach));
 
   const isView = (view: ForestLabView) => abs(viewShown.sub(VIEWS.indexOf(view))).lessThan(0.5);
-  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone" };
+  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone", branches: "lab-branches", clumps: "lab-clumps", haze: "lab-haze" };
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt: reads.canopyAt,
