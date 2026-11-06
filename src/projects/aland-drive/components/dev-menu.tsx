@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CalendarDays, Check, CloudRain, FlaskConical, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, RotateCcw, CloudRain, FlaskConical, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
 import type { CarChoice, DayChange, DayShown } from "../render/game";
 import { parseDate } from "../time/day";
 import type { CarId } from "../sim/cars";
@@ -65,6 +65,22 @@ function CopyPlace({ whereabouts }: { whereabouts: () => string }) {
     >
       {copied ? <Check aria-hidden className="size-4" style={{ color: ACCENT }} /> : <MapPin aria-hidden className="size-4" />}
       {copied ? "Copied" : "Copy where the car is"}
+    </button>
+  );
+}
+
+/** Forgets every place found, challenge passed and setting kept in this browser, after a second press to be sure. */
+function ResetSave({ onReset }: { onReset: () => void }) {
+  const [asked, setAsked] = useState(false);
+  return (
+    <button
+      type="button"
+      className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm"
+      style={{ borderColor: asked ? ACCENT : INK }}
+      onClick={() => { if (asked) onReset(); else setAsked(true); }}
+    >
+      <RotateCcw aria-hidden className="size-4" style={asked ? { color: ACCENT } : undefined} />
+      {asked ? "Sure? Reset and reload" : "Reset save data"}
     </button>
   );
 }
@@ -171,7 +187,7 @@ function SpotList({ spots, onJump }: { spots: readonly { id: string; name: strin
   );
 }
 
-export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, spots, onJump, whereabouts, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, spots, onJump, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -190,6 +206,9 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, 
           <Section title="Place">
             <CopyPlace whereabouts={whereabouts} />
             <WorldSwitch />
+          </Section>
+          <Section title="Save">
+            <ResetSave onReset={onResetSave} />
           </Section>
           <Section title="Day">
             <DayChoice day={day} onDay={onDay} />

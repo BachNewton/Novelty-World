@@ -45,6 +45,11 @@ export class ChallengeBoard {
     return this.known.filter((challenge) => this.here(ringCentre(challenge)));
   }
 
+  /** How many of the challenges in this world have been passed. */
+  get passedCount(): number {
+    return this.challenges.filter((challenge) => this.passOf(challenge) !== null).length;
+  }
+
   /** Each start in this world as the maps draw it. */
   marks(): MapChallenge[] {
     return this.challenges.map((challenge) => ({ ...ringCentre(challenge), title: challenge.title, kind: challenge.kind, passed: this.passOf(challenge) !== null }));
