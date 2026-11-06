@@ -267,26 +267,75 @@ export function sprayLoop(): Loop {
   return { rate: HIGH_RATE, channels };
 }
 
-/** Rain on a car's roof and glass: a dense patter of small drops, fewer fat ones that plink, and a soft wash under them. */
-export function rainLoop(): Loop {
+/**
+ * One drop striking a car: a short burst of noise (glass and paint are hard, so the tap is broadband, not a tone),
+ * and under some of them the dull thump of the roof panel it struck, low and damped.
+ */
+function addDrop(channels: Float32Array[], next: () => number, at: number, level: number, pan: number, thump: boolean): void {
+  const tapS = 0.00025 + 0.0007 * next();
+  addPanned(channels, HIGH_RATE, at, tapS * 5, pan, (t) => level * Math.exp(-t / tapS) * (next() * 2 - 1));
+  if (!thump) return;
+  const hz = 160 + 260 * next();
+  const ringS = 0.003 + 0.005 * next();
+  addPanned(channels, HIGH_RATE, at, ringS * 5, pan, (t) => 0.45 * level * Math.exp(-t / ringS) * Math.sin(TAU * hz * t));
+}
+
+/** A seamless loop through a one-pole low-pass, its memory from a first pass: what a roof and glass between drop and ear take off the top. */
+function softened(channel: Float32Array<ArrayBuffer>, corner: number): Float32Array<ArrayBuffer> {
+  const share = 1 - Math.exp((-TAU * corner) / HIGH_RATE);
+  const out = new Float32Array(channel.length);
+  let held = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < channel.length; i++) {
+      held += (channel[i] - held) * share;
+      out[i] = held;
+    }
+  }
+  return out;
+}
+
+/** Light rain on a car: drops heard one by one on the roof and the glass, a few hundred a second, over a faint hiss. */
+export function rainLightLoop(): Loop {
   const next = random(83);
-  const seconds = 3.9;
+  const seconds = 4.3;
   const length = Math.round(seconds * HIGH_RATE);
-  const channels = [0, 1].map(() => lowNoise(length, next, () => 700, HIGH_RATE).map((sample) => sample * 0.6));
-  for (let i = 0; i < 5200; i++) {
-    const hz = 2400 + 5200 * next();
-    const decayS = 0.0003 + 0.001 * next();
-    const level = 0.08 + 0.3 * next() * next();
-    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.8 - 0.9, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 5000, HIGH_RATE);
+    const dull = lowNoise(length, next, () => 900, HIGH_RATE);
+    return bright.map((sample, i) => 0.05 * (sample - dull[i]));
+  });
+  for (let i = 0; i < 1100; i++) {
+    const level = 0.15 + 0.85 * next() * next();
+    addDrop(channels, next, next() * seconds, level, next() * 1.8 - 0.9, next() < 0.3);
   }
-  for (let i = 0; i < 420; i++) {
-    const hz = 700 + 1300 * next();
-    const decayS = 0.003 + 0.006 * next();
-    const level = 0.3 + 0.5 * next();
-    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t * (1 - 0.3 * t / decayS / 5)));
+  const soft = channels.map((channel) => softened(channel, 6000));
+  normalise(soft, 0.9);
+  return { rate: HIGH_RATE, channels: soft };
+}
+
+/** Heavy rain on a car: a dense hiss of countless drops, surging a little, with the nearer taps and thumps still standing out of it. */
+export function rainHeavyLoop(): Loop {
+  const next = random(89);
+  const seconds = 3.7;
+  const length = Math.round(seconds * HIGH_RATE);
+  const surges = Array.from({ length: 4 }, () => ({ count: 2 + Math.floor(next() * 9), phase: next() * TAU }));
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 6500, HIGH_RATE);
+    const dull = lowNoise(length, next, () => 700, HIGH_RATE);
+    return bright.map((sample, i) => {
+      const place = (TAU * i) / length;
+      let surge = 0;
+      for (const { count, phase } of surges) surge += Math.sin(count * place + phase);
+      return 0.45 * (sample - dull[i]) * (0.85 + 0.15 * (surge / 4));
+    });
+  });
+  for (let i = 0; i < 3500; i++) {
+    const level = 0.08 + 0.5 * next() * next();
+    addDrop(channels, next, next() * seconds, level, next() * 1.8 - 0.9, next() < 0.3);
   }
-  normalise(channels, 0.9);
-  return { rate: HIGH_RATE, channels };
+  const soft = channels.map((channel) => softened(channel, 3800));
+  normalise(soft, 0.9);
+  return { rate: HIGH_RATE, channels: soft };
 }
 
 /** One turn of the rear wheel's freewheel, its pawls clicking over the ratchet. */

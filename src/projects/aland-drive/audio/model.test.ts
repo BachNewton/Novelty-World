@@ -3,7 +3,7 @@ import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from 
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { engineCycle, gravelLoop, rockLoop, rainLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
+import { engineCycle, gravelLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -167,7 +167,7 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);
@@ -180,9 +180,18 @@ describe("the weather", () => {
   const heard = (weather: DriveAudioState["weather"], changes: Partial<DriveAudioState> = {}) => mix({ state: state({ weather, ...changes }), engine: null, time: 0, wander: 0 });
 
   it("drums rain on the roof only while it rains, harder the harder it falls, and still while the drive is stopped", () => {
-    expect(heard({ rain: 0, snowfall: 0, windMS: 5 }).rainLevel).toBe(0);
-    expect(heard({ rain: 0.8, snowfall: 0, windMS: 5 }).rainLevel).toBeGreaterThan(heard({ rain: 0.2, snowfall: 0, windMS: 5 }).rainLevel);
-    expect(heard({ rain: 0.5, snowfall: 0, windMS: 5 }, { paused: true }).rainLevel).toBeGreaterThan(0);
+    const rainOf = (mixed: Mix) => mixed.rainLightLevel + mixed.rainHeavyLevel;
+    expect(rainOf(heard({ rain: 0, snowfall: 0, windMS: 5 }))).toBe(0);
+    expect(rainOf(heard({ rain: 0.8, snowfall: 0, windMS: 5 }))).toBeGreaterThan(rainOf(heard({ rain: 0.2, snowfall: 0, windMS: 5 })));
+    expect(rainOf(heard({ rain: 0.5, snowfall: 0, windMS: 5 }, { paused: true }))).toBeGreaterThan(0);
+  });
+
+  it("is drops one by one in light rain and a hiss in heavy rain, and harder driving into it", () => {
+    const light = heard({ rain: 0.15, snowfall: 0, windMS: 5 });
+    expect(light.rainLightLevel).toBeGreaterThan(light.rainHeavyLevel);
+    const heavy = heard({ rain: 0.9, snowfall: 0, windMS: 5 });
+    expect(heavy.rainHeavyLevel).toBeGreaterThan(heavy.rainLightLevel);
+    expect(heard({ rain: 0.4, snowfall: 0, windMS: 5 }, { speedMS: 40 }).rainHeavyLevel).toBeGreaterThan(heard({ rain: 0.4, snowfall: 0, windMS: 5 }).rainHeavyLevel);
   });
 
   it("blows a wind of its own only past a breeze, rising with its speed", () => {

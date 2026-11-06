@@ -205,9 +205,9 @@ export interface Mix {
   windHighLevel: number;
   windHighHz: number;
 
-  /** Rain drumming on the roof and glass, and how fast its loop plays: harder rain, denser drops. */
-  rainLevel: number;
-  rainRate: number;
+  /** Rain on the roof and glass: drops heard one by one, and the dense hiss of heavy rain, which takes over as it falls harder or the car drives faster into it. */
+  rainLightLevel: number;
+  rainHeavyLevel: number;
   /** The weather's own wind round the car, gusting, apart from the wind of its speed. */
   galeLevel: number;
   galeHz: number;
@@ -270,8 +270,11 @@ const WIND_HIGH = 0.2;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
 const PLACE = { forest: 0.44, shore: 0.42, gulls: 0.28, town: 0.42 };
-/** Rain on the roof at its hardest, and wet snow's soft patter, which is a share of it. */
-const RAIN_ON_ROOF = 0.42;
+/** Rain on the roof at its hardest, each loop at its full, and wet snow's soft patter, which is a share of it. */
+const RAIN_LIGHT = 0.6;
+const RAIN_HEAVY = 0.34;
+/** Driving into rain meets more of it: at full speed it sounds this much harder on the windscreen. */
+const RAIN_HARDER_AT_SPEED = 0.6;
 const SNOW_PATTER = 0.12;
 /** The car's own noise covers some of the rain at speed. */
 const RAIN_COVERED_AT_SPEED = 0.35;
@@ -312,13 +315,16 @@ function engineMix({ spec, read }: { spec: EngineSpec; read: EngineRead }, heldR
 
 /** Rain on the car and the weather's wind: heard while the drive is stopped too, as the place is. */
 function weatherMix(weather: WeatherHeard | undefined, speed: number, time: number) {
-  if (weather === undefined) return { rainLevel: 0, rainRate: 1, galeLevel: 0, galeHz: 300 };
+  if (weather === undefined) return { rainLightLevel: 0, rainHeavyLevel: 0, galeLevel: 0, galeHz: 300 };
   const falling = Math.min(1, weather.rain + SNOW_PATTER * weather.snowfall);
+  const hitting = Math.min(1, falling * (1 + RAIN_HARDER_AT_SPEED * speed));
+  const heavy = clamp((hitting - 0.25) / 0.6);
+  const heard = falling === 0 ? 0 : (1 - RAIN_COVERED_AT_SPEED * speed) * Math.sqrt(hitting);
   const gust = 1 + 0.35 * Math.sin(time * 0.37) + 0.2 * Math.sin(time * 1.13 + 2);
   const blowing = clamp((weather.windMS - GALE_FROM_MS) / (GALE_FULL_MS - GALE_FROM_MS));
   return {
-    rainLevel: RAIN_ON_ROOF * Math.pow(falling, 0.8) * (1 - RAIN_COVERED_AT_SPEED * speed),
-    rainRate: 0.8 + 0.4 * falling,
+    rainLightLevel: RAIN_LIGHT * heard * (1 - 0.7 * heavy),
+    rainHeavyLevel: RAIN_HEAVY * heard * heavy,
     galeLevel: GALE * blowing * blowing * gust,
     galeHz: 220 + 22 * weather.windMS + 60 * gust,
   };
