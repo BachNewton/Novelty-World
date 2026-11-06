@@ -72,7 +72,7 @@ import { snowfall, snowOnGround } from "../art/surfaces/snow";
 import { townGround, townRibbon, townRibbonBits } from "../art/town-ground";
 import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
-import { streetMaterials } from "../art/street/index";
+import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { drivingMenu, tyreOfItem, type GameMenu, type MenuItemId } from "./game-menu";
@@ -953,6 +953,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
     season,
+    bareLindens: { branches: bareLindenMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }), haze: lindenHazeMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }) },
   });
   const parkedCars = createParkedCars(scene, sun, hazed, season);
   const winterLights = createWinterLights(scene, night, season, {

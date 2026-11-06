@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttri
 import { abs, atomicAdd, atomicStore, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, normalize, positionWorld, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, seedOf, unitOf } from "../art/hash";
-import { FRESH_SHARE, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
+import { clumpSizeOf, crownLeftOf, CROWN_GONE, FALL_SPAN, FRESH_SHARE, HAZE_EDGE, HAZE_LIGHT, hazeByDistance, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
 import { BARE_KINDS, BRANCHES, CLUMPS, FIRST_BARE_KIND, PART_TWIG, ROWS_A_VERTEX, type BareModel } from "./bare-tree";
 import { seasonNodes, type SeasonLook } from "../art/season";
 import { flatNormal } from "../art/flat-normal";
@@ -142,27 +142,9 @@ const HUE_ROLL = 0.07;
 const TWIG_SNOW = 0.4;
 const SNOW_ROLLED: [number, number] = [0.65, 1];
 
-/** A broadleaf loses its leaves over this much of the season's share in leaf (`leavesOf`): about a fortnight of the fall. */
-const FALL_SPAN = 0.5;
-/** As its first leaves go its clumps grow out of its leafy crown, whole by this much less than all its leaves, and the crown shrinks away inside them by this share. */
-const CLUMP_GROW = 0.1;
-const CROWN_GONE = 0.85;
-/** Its clumps then fall one by one between this share and none, each over this much of it. */
-const CLUMPS_FROM = 0.82;
-const CLUMP_RUN = 0.12;
-/**
- * The twigs' haze: none near, where the branches carry the tree on their own, coming in as its twigs and then its limbs
- * go below a pixel on the floor's screen (a birch's twigs at about 40 m, its limbs at about 100 m), to its opacity far
- * off; how much of the crown it fills, how much snow it greys to, and how far in from its outline it thickens, so it
- * has no edge of its own.
- */
-const HAZE_OPACITY = 0.6;
-const HAZE_RUN_M: [number, number] = [60, 420];
+/** How much of its crown a tree's twig haze fills, and how much snow greys it. Leaf fall's own numbers are `art/leaves.ts`'s, shared with the lindens and bushes. */
 const HAZE_SPREAD = 0.92;
 const HAZE_SNOW = 0.05;
-const HAZE_EDGE = 0.6;
-/** A mass of twigs shades itself: seen against the sky it's darker than any one twig in the sun. */
-const HAZE_LIGHT = 0.4;
 /** How dense each bare kind's twigs are: a birch's are the finest and most. */
 const TWIG_DENSITY: Record<(typeof BARE_KINDS)[number], number> = { birch: 1, round: 0.75, upright: 0.85 };
 
@@ -542,7 +524,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     // A broadleaf losing its leaves shrinks its crown away, near inside its clumps and far by the leaves it has lost; near, its trunk is its branches' from the first leaf that falls.
     const broadleaf = isBroadleaf(kind);
     const crownTrunk = name === "cone" ? float(1) : select(unit.y.greaterThan(TRUNK_RINGS - 0.5), float(1), float(0));
-    const crownLeft = name === "cone" ? sqrt(season.share) : smoothstep(float(CROWN_GONE), float(1), season.share);
+    const crownLeft = name === "cone" ? sqrt(season.share) : crownLeftOf(season.share);
     const trunkLeft = select(season.share.lessThan(1), float(0), float(1));
     const leaving = mix(trunkLeft, crownLeft, crownTrunk);
     const radial = tree.turn(unit.xz);
@@ -621,9 +603,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const tree = treeOf(lists.clumps, nearRows);
     const [corner, middle] = bareRows(CLUMPS, clumpTable, tree);
     // The clumps grow out of the leafy crown as the first leaves go, then each falls at its own share of the tree's leaves, shrinking to its middle; in spring the same runs backwards.
-    const falls = fract(corner.w.add(tree.treeRoll.mul(0.37))).mul(CLUMPS_FROM - CLUMP_RUN);
-    const grown = float(1).sub(tree.season.share).div(CLUMP_GROW);
-    const size = tree.season.share.sub(falls).div(CLUMP_RUN).min(grown).clamp(0, 1);
+    const size = clumpSizeOf(tree.season.share, fract(corner.w.add(tree.treeRoll.mul(0.37))));
     const point = mix(middle.xyz, corner.xyz, size).toVar();
     const { position, shape } = placeBare(tree, point, vec3(0));
     const material = new MeshBasicNodeMaterial();
@@ -661,7 +641,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const bareness = varying(float(1).sub(tree.season.share).mul(density));
     const fromCamera = positionWorld.sub(cameraPosition);
     const thickness = smoothstep(float(0), float(HAZE_EDGE), abs(dot(normalize(rounded), normalize(fromCamera))));
-    const byDistance = smoothstep(float(HAZE_RUN_M[0]), float(HAZE_RUN_M[1]), fromCamera.length()).mul(HAZE_OPACITY);
+    const byDistance = hazeByDistance(fromCamera.length());
     material.opacityNode = bareness.mul(byDistance).mul(thickness);
     add("haze", geometry, draw, material, tree, natural, light);
   };

@@ -1,4 +1,4 @@
-import { cameraPosition, float, max, mix, normalize, positionWorld, select, smoothstep } from "three/tsl";
+import { float, select, smoothstep } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { changeOf, type SeasonNodes } from "./season";
 
@@ -35,24 +35,6 @@ export function leavesOf(season: SeasonNodes, threshold: Node<"float">, fallSpan
 /** How much of spring's new green a leaf in it shows at most: the rest is its summer colour already. */
 export const FRESH_SHARE = 0.7;
 
-/** A bare crown is a twig mass this much narrower than the leaves were. */
-export const BARE_SPREAD = 0.75;
-
-/** How far a bare crown's twigs pale towards the tips' colour where they're thinnest: in its low core, and at its top and edges. */
-const TIPS_SHOWN = [0, 0.45] as const;
-
-/**
- * How far a bare crown pales towards its twig tips' colour at a pixel, from how bare it is, how far up the crown (0 to
- * 1) and its rounded direction there: a twig mass is densest low in its core and thins out towards its top and its
- * outline, where the fine tips show grey against the sky. The crown stays solid: a see-through screen pattern read as
- * a level of detail swapping badly.
- */
-export function twigTips(bare: Node<"float">, up: Node<"float">, rounded: Node<"vec3">): Node<"float"> {
-  const edgeOn = float(1).sub(normalize(rounded).dot(normalize(positionWorld.sub(cameraPosition))).abs());
-  const thin = max(smoothstep(float(0.2), float(0.95), up), smoothstep(float(0.2), float(0.9), edgeOn));
-  return bare.mul(mix(float(TIPS_SHOWN[0]), float(TIPS_SHOWN[1]), thin));
-}
-
 /** How white a plant's upward faces are, 0 to 1: its own threshold against the land's cover, more of it as the snow deepens. */
 export function snowHeldOf(season: SeasonNodes, threshold: Node<"float">): Node<"float"> {
   return changeOf(season.snowCover, threshold).mul(smoothstep(float(0), float(10), season.snowDepthCm).mul(0.4).add(0.45));
@@ -60,3 +42,39 @@ export function snowHeldOf(season: SeasonNodes, threshold: Node<"float">): Node<
 
 /** How much of a face the snow lies on, by how far it looks up. */
 export const snowOnFace = (up: Node<"float">) => smoothstep(float(0.3), float(0.75), up);
+
+/*
+ * Leaf fall plant by plant, as the forest's broadleaves, the lindens and the bushes share it: a plant loses its leaves
+ * over its own span of the season's share in leaf (`FALL_SPAN`, about a fortnight), so a stand in October holds full,
+ * thinning and bare plants side by side. As its first leaves go, clumps of leaves grow out of its leafy crown on its
+ * twigs while the crown shrinks away inside them, so the crown breaks up with no jump; then the clumps fall one by one,
+ * each on its own share, and the branches show through. Spring runs the same backwards. Near, a bare plant is its
+ * branches; far off, where they're thinner than a pixel, a see-through haze of its twigs fills its crown's outline.
+ */
+
+/** How much of the season's share in leaf one plant takes to lose its leaves: `leavesOf`'s `fallSpan`. */
+export const FALL_SPAN = 0.5;
+/** The leafy crown has shrunk away by this share of the plant's leaves left. */
+export const CROWN_GONE = 0.85;
+/** The clumps have grown out whole by this much less than all the plant's leaves. */
+export const CLUMP_GROW = 0.1;
+/** The clumps fall one by one between this share and none, each over this much of it. */
+export const CLUMPS_FROM = 0.82;
+export const CLUMP_RUN = 0.12;
+/** The twigs' haze: none near, where the branches carry a plant on their own, coming in as its twigs and then its limbs go below a pixel on the floor's screen, to this opacity far off. */
+export const HAZE_OPACITY = 0.6;
+export const HAZE_RUN_M: [number, number] = [60, 420];
+/** A mass of twigs shades itself: against the sky it's darker than any one twig in the sun. */
+export const HAZE_LIGHT = 0.4;
+/** How far in from its outline the haze thickens, by how square on a face is seen, so it has no edge of its own. */
+export const HAZE_EDGE = 0.6;
+
+/** How much of a leafy crown is left, 0 to 1, as a plant's share of its leaves falls. */
+export const crownLeftOf = (share: Node<"float">) => smoothstep(float(CROWN_GONE), float(1), share);
+
+/** A clump's size, 0 to 1: grown out of the crown as the first leaves go, then fallen at its own share (`own`, 0 to 1, varied per plant). */
+export const clumpSizeOf = (share: Node<"float">, own: Node<"float">) =>
+  share.sub(own.mul(CLUMPS_FROM - CLUMP_RUN)).div(CLUMP_RUN).min(float(1).sub(share).div(CLUMP_GROW)).clamp(0, 1);
+
+/** The twigs' haze's opacity at a distance, before how bare the plant is. */
+export const hazeByDistance = (metres: Node<"float">) => smoothstep(float(HAZE_RUN_M[0]), float(HAZE_RUN_M[1]), metres).mul(HAZE_OPACITY);

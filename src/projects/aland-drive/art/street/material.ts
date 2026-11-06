@@ -2,7 +2,7 @@ import { DoubleSide, MeshBasicNodeMaterial, type Node, type Vector3 } from "thre
 import { attribute, cameraPosition, cos, float, int, mix, positionGeometry, round, select, sin, smoothstep, uniformArray, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { seasonNodes, type SeasonLook } from "../season";
-import { lindenThroughYear } from "./linden";
+import { LINDEN_CROWN_MIDDLE, lindenThroughYear } from "./linden";
 import { facetLight, footShade, rollOf, screenPattern, type RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
 
@@ -158,9 +158,10 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
 
   const tint = attribute<"vec4">("tint", "vec4");
   const year = lindenThroughYear(seasonNodes(inputs.season), place.xz, round(tint.r.mul(255)), tint.g.mul(255 / 128), inputs.linear);
-  const x = positionGeometry.x.mul(fit.y).mul(year.spread);
-  const up = positionGeometry.y.add(positionGeometry.x.mul(fit.y).mul(fit.z));
-  const z = positionGeometry.z.add(motionOf(inputs.time, roll, kind)).mul(year.spread);
+  // A linden's leaves draw in on its crown's middle as they fall; everything else has all its crown left.
+  const x = positionGeometry.x.mul(fit.y).mul(year.crownLeft);
+  const up = mix(float(LINDEN_CROWN_MIDDLE), positionGeometry.y, year.crownLeft).add(positionGeometry.x.mul(fit.y).mul(fit.z));
+  const z = positionGeometry.z.add(motionOf(inputs.time, roll, kind)).mul(year.crownLeft);
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
