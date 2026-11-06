@@ -11,7 +11,7 @@ Players see it as **Åland Drive Unlimited**, a nod to that series; the code kee
 | Accelerate | W | RT |
 | Brake, then reverse | S | LT |
 | Steer | A and D | Left stick |
-| Look left, right or behind, while held | Left, Right, Down | |
+| Look left, right or behind, while held | Left, Right, Down | Right stick, any way round |
 | Look down on the car, while held | Up | |
 | Handbrake | Space | A |
 | Back to the nearest road | R | Y |
