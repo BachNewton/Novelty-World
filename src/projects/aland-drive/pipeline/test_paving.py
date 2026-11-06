@@ -199,6 +199,43 @@ class OneSurface(unittest.TestCase):
         self.assertTrue((corners[crossing][:, :, 6].astype(int) == chains["footway"].index).all())
         self.assertTrue((corners[crossing][:, :, 7] == path_surfaces.SLAB).all())
 
+    def test_a_crossing_s_surface_is_only_for_the_road_it_crosses(self):
+        """A crossing tagged asphalt, mapped on a sidewalk's line across a side road's mouth, painted metres of the sidewalk
+        either side of the mouth dark, and the street's walk band beside it too."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        side = road([(600, 600), (600, 605), (600, 700)])
+        sidewalk = [
+            road([(100, 605), (590, 605)], "footway", motor=False, footway="sidewalk", surface="paving_stones"),
+            road([(590, 605), (600, 605), (610, 605)], "footway", motor=False, footway="crossing", surface="asphalt"),
+            road([(610, 605), (1100, 605)], "footway", motor=False, footway="sidewalk", surface="paving_stones"),
+        ]
+        paved = paving.lay([street, side, *sidewalk], land())
+        mouth = next(chain for chain in paved.chains if chain.kind_name == "residential" and chain.xy[:, 1].max() > 650).half.max()
+        points = paved.points
+        off_the_mouth = (np.abs(points[:, 0] - 600) > mouth + 0.1) & (np.abs(points[:, 0] - 600) < 9) & (points[:, 1] > 602.6) & (points[:, 1] < 606)
+        self.assertGreater(int(off_the_mouth.sum()), 0)
+        self.assertFalse((off_the_mouth & (points[:, 7] == path_surfaces.TARMAC)).any())
+
+    def test_a_crossing_does_not_outrank_the_street_s_kerb_and_walk_band_or_the_sidewalk(self):
+        """A crossing over a street owned its own carriageway through the street's kerb strip, its walk band and the gap to
+        the sidewalk, all wearing its asphalt: a square dark block across the paving beside the street."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        sidewalk = road([(100, 606.75), (600, 606.75), (1100, 606.75)], "footway", motor=False, footway="sidewalk")
+        crossing = road([(600, 593.25), (600, 600), (600, 606.75)], "footway", motor=False, footway="crossing", surface="asphalt")
+        paved = paving.lay([street, sidewalk, crossing], land())
+        crossings = [chain.index for chain in paved.chains if chain.tag("footway") == "crossing"]
+        chain = next(chain for chain in paved.chains if chain.kind_name == "residential")
+        half, reach = chain.half.max(), paved.crosses[chain.index].reach_left.max()
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        beside = (np.abs(middle[:, 0] - 600) < 0.8) & (middle[:, 1] > 600 + half + 0.05) & (middle[:, 1] < 607.75)
+        self.assertGreater(int(beside.sum()), 0)
+        self.assertFalse((corners[beside][:, :, 7] == path_surfaces.TARMAC).any())
+        # The street's paving and the sidewalk's own are theirs; only the gap between them is left to the crossing.
+        theirs = beside & ((middle[:, 1] < 600 + reach - 0.05) | (middle[:, 1] > 606.75 - 0.95))
+        self.assertGreater(int(theirs.sum()), 0)
+        self.assertFalse(np.isin(corners[theirs][:, :, 6].astype(int), crossings).all(axis=1).any())
+
     def test_a_sidewalk_tagged_on_a_street_is_laid_beside_it_on_its_side(self):
         """OSM maps many of Mariehamn's sidewalks on the street's own way, and they were left out, the street a bare strip of
         asphalt between kerbs. OSM names a side as its way runs: this one runs west, so its left is the south."""

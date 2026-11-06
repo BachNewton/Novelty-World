@@ -1231,6 +1231,7 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     surface = np.full(len(unique), NONE, dtype=float)
     run = np.zeros((len(unique), 2))
     nearest = surfaces.nearest(xy)
+    looks = edge_looks(chains)
     on_path = path != JUNCTION
     worn = on_path & walk
     for who in np.unique(owner):
@@ -1242,9 +1243,9 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
             station = chain.tree.query(xy[mine])[1]
             tier[mine] = chain.tier[station]
             if who != AREA:
-                classes = np.array([way_class(edge.road, edge.road["motor"]) for edge in chain.edges], dtype=float)
+                classes, runs = looks[chain_index]
                 surface[mine] = classes[chain.edge_at[station]]
-                run[mine] = _way_runs(chain)[chain.edge_at[station]]
+                run[mine] = runs[chain.edge_at[station]]
             if who == JUNCTION or (who >= 0 and chain_index != who):
                 along[mine] = _along(chain, ground, xy[mine], station)
             if who >= 0 and chain_index == who:
@@ -1282,6 +1283,45 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     rank[order] = np.arange(len(order))
     points = np.column_stack((xy, heights[point], across, tier, along, way, surface, run))[order]
     return points, rank[index].reshape(-1, 3), int((owner == AREA).sum())
+
+
+def is_crossing(road: dict) -> bool:
+    return road.get("footway") == "crossing" or road.get("cycleway") == "crossing"
+
+
+def crossing_stations(chain: Chain) -> np.ndarray:
+    return np.array([is_crossing(chain.edges[index].road) for index in chain.edge_at], dtype=bool)
+
+
+def edge_looks(chains: list[Chain]) -> dict[int, tuple[np.ndarray, np.ndarray]]:
+    """Each way's OSM ways' surface classes and runs, as its paving wears them.
+
+    A crossing's own surface is the road's it crosses, which that road draws: off it, mapped on a sidewalk's line across a
+    side road's mouth or reaching from a street to its sidewalk, a crossing tagged asphalt painted metres of sidewalk dark.
+    It wears the sidewalk's look instead: its own way's nearest OSM way that isn't a crossing, or, for a way that is all
+    crossing, the path it leads to."""
+    looks = {chain.index: (np.array([way_class(edge.road, edge.road["motor"]) for edge in chain.edges], dtype=float), _way_runs(chain)) for chain in chains if chain.xy is not None and len(chain.xy) >= 2}
+    walks = [chain for chain in chains if chain.index in looks and not chain.motor]
+    ends = [(chain, station) for chain in walks for station in np.flatnonzero(~crossing_stations(chain))]
+    tree = cKDTree(np.array([chain.xy[station] for chain, station in ends])) if ends else None
+    for chain in walks:
+        classes, runs = looks[chain.index]
+        crossings = np.array([is_crossing(edge.road) for edge in chain.edges])
+        if not crossings.any():
+            continue
+        if not crossings.all():
+            others = np.flatnonzero(~crossings)
+            for edge in np.flatnonzero(crossings):
+                nearest = others[np.abs(others - edge).argmin()]
+                classes[edge], runs[edge] = classes[nearest], runs[nearest]
+        elif tree is not None:
+            distance, nearest = tree.query(chain.xy[[0, -1]])
+            end = int(distance.argmin())
+            if distance[end] <= chain.half[[0, -1]][end] + GAP_PAVED_M:
+                other, station = ends[nearest[end]]
+                edge = other.edge_at[station]
+                classes[:], runs[:] = looks[other.index][0][edge], looks[other.index][1][edge]
+    return looks
 
 
 def _way_runs(chain: Chain) -> np.ndarray:
@@ -1343,7 +1383,10 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     carriageways = {}
     for chain in laid:
         if GROUND in prints[chain.index]:
-            carriageway = footprints(chain, levels[chain.index], tile, crosses[chain.index].carriageway).get(GROUND)
+            # A crossing's carriageway is the road's it crosses: off that road it ranks as a shoulder, below the street's kerb
+            # and walk band and the sidewalk it leads to.
+            crossing = crossing_stations(chain)
+            carriageway = footprints(chain, levels[chain.index], tile, tuple(np.where(crossing, 0, side) for side in crosses[chain.index].carriageway)).get(GROUND)
             if carriageway is not None:
                 own = [section.carriageway for section in sections if section.chain.index == chain.index and section.level == GROUND]
                 carriageways[chain.index] = on_seams(_polygonal(shapely.intersection(carriageway, prints[chain.index][GROUND])), own, tile)
