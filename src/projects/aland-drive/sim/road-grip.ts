@@ -5,11 +5,14 @@ import CARRIAGEWAY from "../render/carriageway.json";
 import { SURFACES, type Surface } from "./surfaces";
 
 /*
- * What a tyre on a road triangle is on: what the triangle is drawn as. A way's
- * own surface (a path's gravel, a sidewalk's slabs, a street's setts) is what its
- * class says; a motor road's carriageway is its asphalt or gravel; its shoulder
- * is the loose verge in the country, and on a sealed street in town its kerb and
- * paving, hard ground. Slabs, setts and steps grip as asphalt.
+ * What a tyre on a road triangle is on: what the triangle is drawn as. A motor
+ * road's shoulder is the loose verge in the country, and on a sealed street in
+ * town its kerb and paving, hard ground, whatever class its points carry: the
+ * road draws a shoulder over a class, as it does a junction's corner that took a
+ * sidewalk's class from the nearest way. Elsewhere a way's own surface (a path's
+ * gravel, a sidewalk's slabs, a street's setts) is what its class says, and a
+ * motor road's carriageway is its asphalt or gravel. Slabs, setts and steps grip
+ * as asphalt.
  */
 
 /** Past this across a way is its shoulder. The carriageway's edge is 1, and the paving stores its points there up to a couple of hundredths past it: the outline is kept within 2 cm, over a shoulder of a metre or so, and across is rounded to 1/1024. `pipeline/roadside.py` reads the same edge. */
@@ -51,9 +54,9 @@ export function roadGrip(ribbon: RibbonMesh, dress: RoadAttributes, classes: Uin
       shoulder ||= Math.abs(across[vertex]) > CARRIAGEWAY_EDGE_ACROSS;
     }
     const own = CLASS_SURFACES[bits as SurfaceClass];
-    if (own) surfaces[triangle] = index(own);
-    else if (!shoulder) surfaces[triangle] = index(sealed > 0.5 ? "asphalt" : "gravel");
-    else surfaces[triangle] = index(sealed > 0.5 && town > 0.5 ? "asphalt" : "gravel");
+    if (shoulder) surfaces[triangle] = index(sealed > 0.5 && town > 0.5 ? "asphalt" : "gravel");
+    else if (own) surfaces[triangle] = index(own);
+    else surfaces[triangle] = index(sealed > 0.5 ? "asphalt" : "gravel");
   }
   return surfaces;
 }

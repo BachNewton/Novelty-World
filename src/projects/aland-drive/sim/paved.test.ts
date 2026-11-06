@@ -257,6 +257,34 @@ describe("a paved tile's ground", () => {
       drive.dispose();
     });
 
+    /** What a wheel finds at the middle of each sizeable triangle of a piece no way owns, drawn as the shoulders round it, whose points' ways pass a test. */
+    const onCorners = (drive: Drive, test: (kind: string) => boolean): Surface[] => {
+      const { points, junctionPoints = 0, areaPoints = 0 } = tile.roadSurface.aprons ?? { points: 0 };
+      const first = points - junctionPoints - areaPoints;
+      const found: Surface[] = [];
+      for (let triangle = 0; triangle < aprons.indices.length / 3; triangle++) {
+        const points = corners(triangle);
+        if (areaOf(triangle) < 0.05 || !points.every((point) => point >= first && point < first + junctionPoints && test(kinds[aprons.ways[point]]))) continue;
+        const [x, y, z] = middleOf(triangle);
+        const surfaceHere = castAt(drive, x, z, y);
+        if (surfaceHere) found.push(surfaceHere);
+      }
+      return found;
+    };
+
+    it("is a junction's corner as the shoulders round it: the verge in the country, kerb and paving in town", () => {
+      const country = loaded();
+      // Corners by the sidewalk too, whose points carry its slabs' class from the nearest way: drawn as a shoulder all the same.
+      const inCountry = onCorners(country.drive, () => true);
+      expect(inCountry.length).toBeGreaterThan(4);
+      expect(new Set(inCountry)).toEqual(new Set(["gravel"]));
+      country.drive.dispose();
+      const town = loaded(true);
+      // Between the two sealed streets: a corner the gravel path's nearest is drawn as its verge.
+      expect(new Set(onCorners(town.drive, (kind) => kind === "primary" || kind === "residential"))).toEqual(new Set(["asphalt"]));
+      town.drive.dispose();
+    });
+
     it("is the ground's own on the cut ground", () => {
       const { detail, drive } = loaded();
       const { positions, indices, walls } = detail.cut;
