@@ -92,7 +92,7 @@ test("a solo race: its card from its ring, the grid, a finish in first for gold,
   expect(finished?.outcome?.passed).toBe(true);
   expect(finished?.place).toEqual({ place: 1, of: 4 });
   const result = page.getByRole("dialog", { name: "Race result" });
-  await expect(result.getByLabel("Place")).toHaveText("1 / 4");
+  await expect(result.getByLabel("Place", { exact: true })).toHaveText("1 / 4");
   await expect(result.getByLabel("Gold").first()).toBeVisible();
   expect(await page.evaluate((id) => window.__alandDrive?.challengeBest(id), race.id)).toBe(finished?.outcome?.average);
 
@@ -113,7 +113,7 @@ async function joinWorld(browser: Browser, world: string): Promise<Page> {
   return page;
 }
 
-test("a co-op race for two: asked from the card, the front row, a winner carrying a last for silver on the team's points", async ({ browser }) => {
+test("a co-op race for two: asked from the card, the front row, a winner carrying a last to bronze on the team's points", async ({ browser }) => {
   const world = `race-${crypto.randomUUID()}`;
   const first = await joinWorld(browser, world);
   const second = await joinWorld(browser, world);
@@ -135,7 +135,7 @@ test("a co-op race for two: asked from the card, the front row, a winner carryin
   expect(await offStart(first, race.grid[0])).toBeLessThan(0.3);
   expect(await offStart(second, race.grid[1])).toBeLessThan(0.3);
 
-  // A win (550 points) and a last (none) are 275 each: all but one of three rivals beaten on average, silver, on both.
+  // A win over three rivals (350 points) and a last (none) are 175 each: all but two beaten on average, bronze, on both.
   for (const page of [first, second]) await advance(page, COUNTDOWN_STEPS + 1);
   expect((await driveToFinish(first, FAST_MS))?.place).toEqual({ place: 1, of: 4 });
   await second.waitForFunction(() => window.__alandDrive?.challenge()?.results[0] !== null);
@@ -145,8 +145,8 @@ test("a co-op race for two: asked from the card, the front row, a winner carryin
   expect((await challengeOf(first))?.outcome).toEqual(last?.outcome);
   for (const page of [first, second]) {
     const result = page.getByRole("dialog", { name: "Race result" });
-    await expect(result.getByLabel("Team points per player")).toHaveText("275");
-    await expect(result.getByLabel("Silver").first()).toBeVisible();
+    await expect(result.getByLabel("Team points per player")).toHaveText("175");
+    await expect(result.getByLabel("Bronze").first()).toBeVisible();
     await expect(result.getByLabel("Places").getByRole("listitem")).toHaveCount(5);
   }
   expect(await first.evaluate((id) => window.__alandDrive?.challengeBest(id, "coop"), race.id)).toBe(last?.outcome?.average);
