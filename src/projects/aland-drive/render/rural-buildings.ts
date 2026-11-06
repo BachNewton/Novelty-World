@@ -1,6 +1,8 @@
 import type { Scene } from "three/webgpu";
 import type { Placement, RoadsideMaterials } from "../art/roadside/index";
 import { BOATHOUSE, buildBoathouse, buildBoulder, buildCow, buildHayBale, buildSheep, buildShed, buildTractor, buildWrappedBale, SHED, type CowPose, type SheepPose } from "../art/rural/index";
+import type { SeasonLook } from "../art/season";
+import { BALES, GRAZING, type InSeason } from "../climate/placed-season";
 import { createPlacedModels, type PlacedKind } from "./placed-models";
 import { BOULDER_MODELS, FARM_MODELS, PLACE_FLOATS } from "./tile-models";
 
@@ -14,7 +16,9 @@ import { BOULDER_MODELS, FARM_MODELS, PLACE_FLOATS } from "./tile-models";
  * so a long boathouse stays a boathouse rather than a barn. A boulder is scaled whole
  * to its width, and keeps the kit's own reach: it's no building, and a big one on a
  * field is seen from further than a shed. So do the farm's bales, tractors and sheep
- * (`pipeline/farm.py`), each at the scale its place carries.
+ * (`pipeline/farm.py`), each at the scale its place carries. The animals are out
+ * at grass and the bales in the fields only in their season, each on its own day
+ * (`climate/placed-season.ts`); the tractors stay.
  */
 
 /** How far a model is scaled up or down with its footprint's width; the rest is stretch. */
@@ -48,7 +52,13 @@ function farmModel(name: (typeof FARM_MODELS)[number]) {
   return animal === "cow" ? buildCow(pose as CowPose) : buildSheep(pose as SheepPose);
 }
 
-export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials, reachM: number) {
+/** What of the farm is out only in its season: the animals at grass, the bales after the hay is in. */
+function farmSeason(name: (typeof FARM_MODELS)[number]): InSeason | undefined {
+  if (name === "tractor") return undefined;
+  return name.startsWith("bale-") ? BALES : GRAZING;
+}
+
+export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials, reachM: number, season?: SeasonLook) {
   const kind = (build: PlacedKind["build"], walls: { x: number; z: number }): PlacedKind => ({ build, materials, fit: fitted(building(walls)) });
   return createPlacedModels(
     scene,
@@ -58,9 +68,10 @@ export function createRuralBuildings(scene: Scene, materials: RoadsideMaterials,
       "boathouse-red": kind(() => buildBoathouse("red"), BOATHOUSE),
       "boathouse-tarred": kind(() => buildBoathouse("tarred"), BOATHOUSE),
       ...Object.fromEntries(BOULDER_MODELS.map((name): [string, PlacedKind] => [name, { build: () => buildBoulder(Number(name.split("-")[1])), materials, fit: fitted(boulder), ownReach: true }])),
-      ...Object.fromEntries(FARM_MODELS.map((name): [string, PlacedKind] => [name, { build: () => farmModel(name), materials, fit: fitted(prop), ownReach: true }])),
+      ...Object.fromEntries(FARM_MODELS.map((name): [string, PlacedKind] => [name, { build: () => farmModel(name), materials, fit: fitted(prop), ownReach: true, inSeason: farmSeason(name) }])),
     },
     reachM,
     "a rural building",
+    season,
   );
 }

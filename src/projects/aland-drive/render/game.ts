@@ -16,8 +16,9 @@ import { createSeaMarks } from "./sea-marks";
 import { seaClock, seaSeconds } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
+import { createWinterLights } from "./winter-lights";
 import { dateText, type CalendarDate } from "../time/day";
-import { bakedLightAtHour, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
+import { bakedLightAtHour, createAurora, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
 import { createPeople } from "./people";
@@ -39,6 +40,8 @@ import { createGranite, type GraniteDrawn } from "./granite";
 import { createVerge, type VergeDrawn } from "./verge";
 import { createWallClearing, FAR_CLEARING, furnitureClearances, NEAR_CLEARING } from "./wall-clearing";
 import { createWater, shoreOfDepth, shoreOfLand, WATER_SHORE_MIP } from "./water";
+import { createSeaIce } from "./sea-ice";
+import { exposureAt, exposureOfLand } from "../sim/sea-ice";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
@@ -63,6 +66,7 @@ import type { PlayerProfile } from "@/shared/lib/profile";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
 import { band, createSignSheet, detailTexture, dressRoad, groundDetail, junctionMarks, pulses, type RoadAttributes } from "../art/surfaces";
+import { snowfall, snowOnGround } from "../art/surfaces/snow";
 import { townGround, townRibbon, townRibbonBits } from "../art/town-ground";
 import { RURAL_PARTS, ruralColours, ruralMaterials, type RuralPart } from "../art/rural/index";
 import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/index";
@@ -97,6 +101,9 @@ import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { groundCondition } from "../climate/feed";
+import { auroraAsked, climateTimeOf, createSeasonFeed } from "./season-feed";
+import { weatherAt } from "../climate/weather";
+import type { SeasonDials } from "../art/season";
 import { fitTyres, tyresOn } from "../garage/tyres";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -235,8 +242,12 @@ export interface GameProbe {
   day: () => DayShown;
   /** Moves this page's day: another date (null for today's), an hour that runs on from there, or holds it. */
   setDay: (change: DayChange) => void;
+  /** The season's dials as drawn, from the day's date (`art/season.ts`). */
+  season: () => SeasonDials;
   /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
   showNightLights: (shown: boolean) => void;
+  /** Shows Torget's tree and the town's strings of lights or leaves them out, to see what they cost. */
+  showWinterLights: (shown: boolean) => void;
   /** Every boat under way, where it was last drawn. */
   boatsUnderWay: () => UnderWay[];
   showBoatsUnderWay: (shown: boolean) => void;
@@ -438,6 +449,8 @@ export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
 const SKY_REACH_M = CAMERA_FAR * 0.9;
+/** Inside the sky, which is pinned to the far plane, so the land in front of it hides it. */
+const AURORA_REACH_M = CAMERA_FAR * 0.85;
 /** Under the deepest seabed (`DEEPEST_M` in `pipeline/terrain.py`), so where the terrain reaches, it draws its own water. */
 const SEA_BELOW_LAND_M = -5;
 /** Land this little above the water is wet, and darker for it. */
@@ -626,6 +639,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const sharpLand = new SharpLand(manifest.tileM);
   landed();
   world.addOverview(overviewData.heights);
+  const iceExposure = exposureOfLand(overviewData.image, manifest.overview.imageWidth, manifest.overview.imageHeight, manifest.overview);
+  world.setIceExposure(iceExposure);
   const overviewTexture = new DataTexture(overviewData.image, manifest.overview.imageWidth, manifest.overview.imageHeight, RGBAFormat);
   overviewTexture.colorSpace = NoColorSpace;
   overviewTexture.generateMipmaps = true;
@@ -663,6 +678,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   scene.add(sky.mesh);
   const day = createDayAndNight(sky, window.location.search, seaSeconds());
   const { sun, night } = day;
+  const seasonFeed = createSeasonFeed(day.time(), seaSeconds());
+  const aurora = createAurora(night, AURORA_REACH_M);
+  scene.add(aurora.mesh);
+  const auroraHeld = auroraAsked(window.location.search);
+  const { season } = seasonFeed;
   // The bake holds the sun at the manifest's one place. Under the live sun its light is moved by how much more or less
   // the ground faces the sun now than it faced that one (`render/terrain-light.ts`).
   const terrainLight = terrainLightAsked(window.location.search);
@@ -721,7 +741,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const paintedShare = uniform(1);
   const paintedRoads = smoothstep(float(PAINTED_ROADS_FROM_M), float(PAINTED_ROADS_FULL_M), toCamera).mul(paintedShare);
   const roadEdge = (coverage: Node<"float">) => smoothstep(float(0.08), float(0.35), coverage).mul(paintedRoads);
-  const land = (up: Node<"vec3">) => mix(mix(groundColor, colorOf("road-main"), roadEdge(mask.g)), colorOf("road-minor"), roadEdge(mask.b)).mul(lightOf(shade, up));
+  // The season's snow over the ground, before the roads are painted on it (`art/surfaces/snow.ts`).
+  const snow = snowfall(season, colorOf);
+  const snowyGround = (up: Node<"vec3">) => snowOnGround(groundColor, snow, { place: positionWorld.xz, up, photo: photo.rgb.pow(vec3(2.2)), rock: mask.a, roads: mask.g.add(mask.b), paved: townHard, canopy: canopyAt(positionWorld.xz, 2), toCamera });
+  const land = (up: Node<"vec3">) => mix(mix(snowyGround(up), colorOf("road-main"), roadEdge(mask.g)), colorOf("road-minor"), roadEdge(mask.b)).mul(lightOf(shade, up));
   const hasFar = inMap.and(slots.r.greaterThan(0.001));
   const farSeen = select(hasFar, float(1).sub(smoothstep(float(FAR_FADE_FROM_M), float(FAR_SEEN_M), toCamera)), float(0));
   const overviewSize = vec2((manifest.overview.columns - 1) * manifest.overview.stepM, (manifest.overview.rows - 1) * manifest.overview.stepM);
@@ -729,10 +752,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
   const waterOf = createWater({ colour: colorOf, sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
-  const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))));
+  // The sea ice, on every water the terrain, its water rings and the sea plane draw (`render/sea-ice.ts`), and under the car.
+  const seaIce = createSeaIce(iceExposure, season);
+  const iceHere = seaIce.lookAt(positionWorld.xz);
+  world.setIceDrivable(season.current().iceDrivable);
+  world.setPlacedSeason(season.current());
+  const openSea = waterOf.colorFor(shoreOfLand(select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0))), iceHere);
   const openSeaInLand = seaInLand(night, openSea);
-  const pastTiles = select(inOverview, mix(openSeaInLand, overviewPixel.rgb.pow(vec3(2.2)).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a), openSeaInLand);
-  const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth));
+  const pastTiles = select(inOverview, mix(openSeaInLand, snowOnGround(overviewPixel.rgb.pow(vec3(2.2)), snow, { place: positionWorld.xz, up: vec3(0, 1, 0), photo: overviewPixel.rgb.pow(vec3(2.2)), rock: float(0), roads: float(0), paved: float(0), toCamera, far: true }).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a), openSeaInLand);
+  const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth), iceHere);
   const terrainColour = (depth: Node<"float">, shore: Node<"float">, up: Node<"vec3">) => {
     // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
     // line rather than where the mesh's corners cross the water.
@@ -757,12 +785,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     colour: colorOf,
     hazed: hazedAtHour(forestAtHour),
     sun,
+    season,
   });
 
   const wallClearings = { near: createWallClearing(NEAR_CLEARING), far: createWallClearing(FAR_CLEARING) };
-  const verge = createVerge(scene, renderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, clearanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM });
-  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, clearanceAt, lightOf, linear, hazed });
-  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, clearanceAt, lightOf, linear, hazed, sun });
+  const verge = createVerge(scene, renderer, { landAt, pavedAt, roadsAt, fieldsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, clearanceAt, lightOf, linear, hazed, litterColour: colorOf("surface-litter"), tileM, season });
+  const reeds = createReeds(scene, renderer, { waterAt, landAt, roadsAt, openToReedsAt, groundAt: (place) => max(clipmap.groundBlendedAt(0, place), clipmap.waterLevelAt(0, place)), shoreAt: clipmap.shoreAround, clearanceAt, lightOf, linear, hazed, season });
+  const shrubs = createShrubs(scene, renderer, { canopyAt, waterAt, landAt, roadsAt, groundAt: (place) => clipmap.groundBlendedAt(0, place), shoreAt: clipmap.shoreAround, wallDistanceAt: wallClearings.near.distanceAt, wallDistanceFarAt: wallClearings.far.distanceAt, clearanceAt, lightOf, linear, hazed, sun, season });
   const granite = createGranite(scene, renderer, {
     rockAt,
     fieldsAt,
@@ -779,6 +808,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     hazed,
     litterColour: colorOf("surface-litter"),
     sun,
+    season,
   });
 
   // Open water out to the sky, under everything the terrain doesn't reach.
@@ -827,41 +857,49 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   compiledBridge.frustumCulled = false;
   scene.add(compiledBridge);
 
-  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night });
-  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun });
+  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night, season });
+  const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun }, season);
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
-  const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2, season);
   const windmills = createWindmills(scene, outbuildingMaterials, manifest.tiles);
-  const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const docks = createDocks(scene, outbuildingMaterials, { colour: colorOf, linear, hazed, sun }, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2, season);
   // What's placed by Åland's own positions rather than from its tiles has no place in the playground, a world of its own.
-  const regattas = createRegattas(scene, { colour: colorOf, linear, hazed }, inPlayground ? [] : undefined);
+  // The small boats keep to the season and off the ice; the ice is the exposure against the season's reach, as drawn.
+  const seaSeason = { season, frozenAt: (x: number, z: number) => season.current().iceReach > 0 && exposureAt(iceExposure, x, z) < season.current().iceReach };
+  const regattas = createRegattas(scene, { colour: colorOf, linear, hazed }, inPlayground ? [] : undefined, seaSeason);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
-  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun });
+  const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun }, seaSeason);
   const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun }, (x, z) => world.height(x, z));
   if (inPlayground) {
     boatsUnderWay.show(false);
     seaMarks.show(false);
   }
-  const people = createPeople(scene, { colour: colorOf, linear, hazed, sun });
+  const people = createPeople(scene, { colour: colorOf, linear, hazed, sun }, season);
   const viewHeight = uniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
   const streetClock = uniform(0);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
-    street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
+    street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }),
     identity: identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
+    season,
   });
-  const parkedCars = createParkedCars(scene, sun, hazed);
+  const parkedCars = createParkedCars(scene, sun, hazed, season);
   // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
   const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
+  const winterLights = createWinterLights(scene, night, season, {
+    origin: manifest.worldOrigin,
+    ground: { height: (x, z) => world.height(x, z), revision: () => world.revision },
+    materials: townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }),
+  });
   let lampRevision = -1;
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
   const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
-  const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
+  const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST, season);
   let trafficWanted = 0;
   // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
   let trafficFilled = false;
@@ -1027,6 +1065,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   tyres.showAll(true);
   cullCar(false);
   nightLights.showAll(true);
+  winterLights.showAll(true);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
   await verge.compile();
@@ -1035,6 +1074,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   await granite.compile();
   cullCar(true);
   nightLights.showAll(false);
+  winterLights.showAll(false);
   clipmap.showWide(false);
   outbuildings.showAll(false);
   windmills.showAll(false);
@@ -1568,6 +1608,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   let sampledPlacements = drive.placements;
   let sentPlacements = drive.placements;
+  /** The condition the tyres throw up and are heard in: the weather's, or ice while a wheel is on the frozen sea. */
+  const conditionUnderCar = (): Condition => (drive.player.conditions().includes("ice") ? "ice" : drive.condition);
   /** One step of the simulation, what the player's tyres threw up in it, and of the challenge being played: on the line and through the countdown the car is held on the handbrake, whatever the input. */
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
@@ -1580,7 +1622,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       trafficFilled ||= laneTraffic.count() >= trafficWanted;
       laneTraffic.step(STEP_S * TRAFFIC_EVERY);
     }
-    tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.tyres, drive.stateAt(1));
+    tyres.step(drive.player.treads(), drive.player.surfaces(), conditionUnderCar(), drive.tyres, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
     const placed = drive.placements !== sampledPlacements;
     sampledPlacements = drive.placements;
@@ -1717,6 +1759,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (hour !== undefined) day.clock.setHour(hour, now);
     if (holdHour !== undefined) day.clock.hold(holdHour, now);
     day.update(now, 0);
+    seasonFeed.update(day.time(), now);
+    world.setIceDrivable(season.current().iceDrivable);
+    world.setPlacedSeason(season.current());
   };
 
   const lampsAt = new Vector3();
@@ -1806,7 +1851,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: drive.condition, tyres: drive.tyres, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || menuHolds }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -1839,13 +1884,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     showRibbons(spot);
     landmarks.update(spot);
     day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds);
+    seasonFeed.update(day.time(), seaHeldAt ?? seaNow());
+    world.setIceDrivable(season.current().iceDrivable);
+    world.setPlacedSeason(season.current());
     if (roadside.lampRevision() !== lampRevision) {
       lampRevision = roadside.lampRevision();
       nightLights.setLamps(roadside.lamps());
+      winterLights.setLamps(roadside.lamps());
     }
     nightLights.update(camera.position);
+    winterLights.update(camera.position);
     aimHeadlights(car);
     sky.update(camera.position, seconds);
+    aurora.setStrength(auroraHeld ?? weatherAt(climateTimeOf(day.time(), seaHeldAt ?? seaNow())).aurora);
+    aurora.update(camera.position);
     tiledFollows(camera.position.x, camera.position.z);
     renderer.render(scene, camera);
     frames++;
@@ -2000,9 +2052,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
       day: dayShown,
       setDay,
+      season: () => season.current(),
       showNightLights: (shown) => {
         nightLights.show(shown);
         headlights.cones.visible = shown;
+      },
+      showWinterLights: (shown) => {
+        winterLights.show(shown);
       },
       holdSea: (seconds) => {
         seaHeldAt = seconds;
@@ -2154,7 +2210,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       edgeMaterial.dispose();
       seaMaterial.dispose();
       sky.dispose();
+      aurora.dispose();
       waterOf.dispose();
+      seaIce.dispose();
       roadMaterial.dispose();
       layers.dispose();
       renderer.dispose();

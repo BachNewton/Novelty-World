@@ -33,10 +33,9 @@ export interface DriveInput {
 
 export const NO_INPUT: DriveInput = { throttle: 0, brake: 0, steer: 0, handbrake: false };
 
-/** What the wheels stand on: the surface a ray landed on, and the condition every surface is in. */
+/** What the wheels stand on: the surface a ray landed on, and the condition it's in there. */
 export interface Underfoot {
-  readonly condition: Condition;
-  surfaceUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): Surface;
+  groundUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): { surface: Surface; condition: Condition };
 }
 
 /** How a wheel's tyre met the ground on the last step, for what's drawn of it: the simulation reads none of it back. */
@@ -115,6 +114,8 @@ export class Car {
   readonly contact = [false, false, false, false];
   /** What each wheel was on the last time it touched. */
   readonly surfaces: Surface[] = ["asphalt", "asphalt", "asphalt", "asphalt"];
+  /** The condition of what each wheel was on the last time it touched. */
+  readonly conditions: Condition[] = ["dry", "dry", "dry", "dry"];
   /** How each wheel's tyre met the ground on the last step. */
   readonly treads: Tread[] = WHEELS.map(() => ({ contact: [0, 0, 0], rollMS: 0, slideMS: 0, demand: 0 }));
 
@@ -228,8 +229,12 @@ export class Car {
       const tread = this.treads[index];
       for (let axis = 0; axis < 3; axis++) tread.contact[axis] = contact[axis];
       tread.rollMS = tread.slideMS = tread.demand = 0;
-      if (hit) this.surfaces[index] = this.underfoot.surfaceUnder(hit, contact[0], contact[2]);
-      const ground = GROUND_GRIP[tuning.class][this.tyres][this.underfoot.condition][this.surfaces[index]];
+      if (hit) {
+        const under = this.underfoot.groundUnder(hit, contact[0], contact[2]);
+        this.surfaces[index] = under.surface;
+        this.conditions[index] = under.condition;
+      }
+      const ground = GROUND_GRIP[tuning.class][this.tyres][this.conditions[index]][this.surfaces[index]];
       grounds.push(ground);
       if (!hit) return;
       footing.grip += ground.grip;

@@ -3,6 +3,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
 import { worldCarMaterial } from "../art/cars/material";
 import { type Sun } from "../art/sun";
+import type { SeasonLook } from "../art/season";
 import { WORLD_CARS } from "../art/cars/specs";
 import type { LaneTraffic } from "../traffic/lane-driver";
 import { instanced, write, type Car } from "./parked-cars";
@@ -16,10 +17,13 @@ import { PARKED_CARS } from "./parked-places";
 
 export const TRAFFIC_KINDS = PARKED_CARS.length;
 
-export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
+/** A car being driven has been swept: only a share of them keep snow on the roof. */
+const DRIVEN_SNOW_KEPT = 0.3;
+
+export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number, season?: SeasonLook) {
   const materials = {
-    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M }),
-    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M }),
+    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M, season, snowKept: DRIVEN_SNOW_KEPT }),
+    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M, season, snowKept: DRIVEN_SNOW_KEPT }),
   };
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);

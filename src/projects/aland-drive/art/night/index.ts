@@ -1,4 +1,4 @@
-export { createAurora, auroraTonight, type Aurora } from "./aurora";
+export { createAurora, type Aurora } from "./aurora";
 export { rhythm, rhythmRow, type LightCharacteristic, type Rhythm } from "./characteristic";
 export { createGlows, type GlowInstance, type Glows } from "./glows";
 export { createCarGlows, createHeadlights, type CarAtNight, type Headlights } from "./headlights";

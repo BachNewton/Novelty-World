@@ -3,6 +3,8 @@ import { uniform } from "three/tsl";
 import { boatMaterials, buildAllmogebat, buildCruiser, buildDoubleEnder, buildFolkboat, buildLargeCruiser, buildLaunch, buildRib } from "../art/boats/index";
 import type { Placement, RoadsideInputs, RoadsideMaterials } from "../art/roadside/index";
 import { buildJettyHead, buildJettySection, buildPierSection, buildPontoonSection, buildRowingBoat, buildSailboat, JETTY_SECTION, PIER_SECTION, PONTOON_SECTION } from "../art/rural/index";
+import type { SeasonLook } from "../art/season";
+import { BOATS_AFLOAT } from "../climate/placed-season";
 import { createPlacedModels, type PlacedKind } from "./placed-models";
 import { PLACE_FLOATS } from "./tile-models";
 
@@ -11,7 +13,8 @@ import { PLACE_FLOATS } from "./tile-models";
  * (`pipeline/docks.py`). A dock is a run from its place along the model's +x, and
  * is drawn as the shore kit's sections end to end, each stretched a little to fill
  * the run whole and widened to its width. Boats stand as placed, at a berth or on a
- * buoy out in the water.
+ * buoy out in the water. Out of season the boats are laid up, each leaving its
+ * berth or buoy on its own day (`climate/placed-season.ts`); the docks stay.
  */
 
 type Section = { readonly lengthM: number; readonly wideM: number };
@@ -40,18 +43,18 @@ function asPlaced(places: Float32Array): Placement[] {
   return fits;
 }
 
-export function createDocks(scene: Scene, rural: RoadsideMaterials, inputs: RoadsideInputs, reachM: number) {
+export function createDocks(scene: Scene, rural: RoadsideMaterials, inputs: RoadsideInputs, reachM: number, season?: SeasonLook) {
   const time = uniform(0);
   const boats = boatMaterials({ ...inputs, time });
   const run = (build: PlacedKind["build"], section: Section): PlacedKind => ({ build, materials: rural, fit: sections(section) });
-  const at = (build: PlacedKind["build"], materials: RoadsideMaterials): PlacedKind => ({ build, materials, fit: asPlaced });
+  const at = (build: PlacedKind["build"], materials: RoadsideMaterials): PlacedKind => ({ build, materials, fit: asPlaced, inSeason: BOATS_AFLOAT });
   const placed = createPlacedModels(
     scene,
     {
       jetty: run(buildJettySection, JETTY_SECTION),
       pier: run(buildPierSection, PIER_SECTION),
       pontoon: run(buildPontoonSection, PONTOON_SECTION),
-      "jetty-head": at(buildJettyHead, rural),
+      "jetty-head": { build: buildJettyHead, materials: rural, fit: asPlaced },
       "rowing-boat-white": at(() => buildRowingBoat("white"), rural),
       "rowing-boat-blue": at(() => buildRowingBoat("blue"), rural),
       "rowing-boat-wood": at(() => buildRowingBoat("wood"), rural),
@@ -69,6 +72,7 @@ export function createDocks(scene: Scene, rural: RoadsideMaterials, inputs: Road
     },
     reachM,
     "a dock or boat",
+    season,
   );
   return {
     ...placed,

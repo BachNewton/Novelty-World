@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { decodeHeights, type TileManifest, type WorldManifest } from "../render/tile";
 import { decodeSolids } from "../render/solids";
-import { modelWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile } from "../render/tile-models";
+import { modelWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, seasonalWalls, type DocksFile, type ModelsFile, type RoadsideFile } from "../render/tile-models";
 import { wallFaces, wallSections, withWalls, type WallsFile } from "../render/tile-walls";
 import { decodeOverview, tileDetail, World } from "./world";
 
@@ -53,7 +53,7 @@ export function readWorld(folder: string, only?: Set<string>): World {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const docks = tile.docks ? (JSON.parse(readFileSync(join(folder, name, tile.docks.file), "utf8")) as DocksFile) : null;
     const rock = manifest.rock && new Uint8Array(read(manifest.rock.file), 0, manifest.rock.pixels * manifest.rock.pixels);
-    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, modelWalls(models, tile.windmills), dockWalls(docks)), rock ?? null));
+    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), levels, shore, manifest.tileM, withWalls(walls, wallFaces(stoneWalls), roadside.walls, modelWalls(models, tile.windmills, "always"), dockWalls(docks)), rock ?? null, seasonalWalls(models)));
   }
   return world;
 }

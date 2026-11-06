@@ -1,5 +1,6 @@
 import { float, floor, int, uint } from "three/tsl";
 import type { Node } from "three/webgpu";
+import { pcgOf } from "./hash-of";
 
 /*
  * Random numbers for shaders that come out the same on every GPU and on the CPU. The usual shader trick, the fraction of
@@ -20,12 +21,6 @@ const pcg = (value: Node<"uint">): Node<"uint"> => {
   return word.shiftRight(uint(22)).bitXor(word);
 };
 
-const pcgOf = (value: number): number => {
-  const state = (Math.imul(value >>> 0, 747796405) + 2891336453) >>> 0;
-  const word = Math.imul(((state >>> ((state >>> 28) + 4)) ^ state) >>> 0, 277803737) >>> 0;
-  return ((word >>> 22) ^ word) >>> 0;
-};
-
 const toBits = (whole: Node<"float">): Node<"uint"> => uint(int(floor(whole)));
 
 /** A seed from whole numbers (a cell of a pattern or a lattice, an index), each floored first. */
@@ -43,19 +38,4 @@ export function unitOf(seed: Node<"uint">, salt: number): Node<"float"> {
   return float(pcg(seed.bitXor(uint(pcgOf(salt)))).shiftRight(uint(8))).mul(1 / 2 ** 24);
 }
 
-const f = Math.fround;
-
-/** `seedOf` on the CPU: the same bits. */
-export function seedOfWhole(...whole: number[]): number {
-  return whole.slice(1).reduce((seed, next) => pcgOf((seed ^ Math.floor(next)) >>> 0), pcgOf(Math.floor(whole[0])));
-}
-
-/** `placeSeed` on the CPU, from a place as the GPU reads it: 32-bit floats. */
-export function placeSeedOf(x: number, z: number): number {
-  return seedOfWhole(f(f(x) * 100), f(f(z) * 100));
-}
-
-/** `unitOf` on the CPU. */
-export function unitOfSeed(seed: number, salt: number): number {
-  return (pcgOf((seed ^ pcgOf(salt)) >>> 0) >>> 8) / 2 ** 24;
-}
+export { placeSeedOf, seedOfWhole, unitOfSeed } from "./hash-of";
