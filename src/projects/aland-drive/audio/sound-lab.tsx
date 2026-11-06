@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 import { SoundLab as Lab } from "@/shared/components/sound-lab";
 import { unlockAudio } from "@/shared/lib/sound";
 import { createDriveAudio } from "./graph";
-import type { DriveAudioState, Place } from "./model";
+import type { DriveAudioState, Place, WeatherHeard } from "./model";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
@@ -42,9 +42,10 @@ interface Knobs {
   holdRpm: boolean;
   rpm: number;
   place: Place;
+  weather: WeatherHeard;
 }
 
-const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 } };
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -159,6 +160,7 @@ function Bench() {
           tyres: knob.tyres,
           suspension: REST,
           place: knob.place,
+          weather: knob.weather,
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
           engine,
         },
@@ -215,6 +217,8 @@ function Bench() {
         <Slider label="Forest" value={knobs.place.forest} min={0} max={1} step={0.05} onChange={(forest) => set({ place: { ...latest.current.place, forest } })} />
         <Slider label="Shore" value={knobs.place.shore} min={0} max={1} step={0.05} onChange={(shore) => set({ place: { ...latest.current.place, shore } })} />
         <Slider label="Town" value={knobs.place.town} min={0} max={1} step={0.05} onChange={(town) => set({ place: { ...latest.current.place, town } })} />
+        <Slider label="Rain" value={knobs.weather.rain} min={0} max={1} step={0.05} onChange={(rain) => set({ weather: { ...latest.current.weather, rain } })} />
+        <Slider label="Wind, m/s" value={knobs.weather.windMS} min={0} max={20} step={0.5} onChange={(windMS) => set({ weather: { ...latest.current.weather, windMS } })} />
       </div>
       <div className="flex flex-wrap gap-2">
         <Toggle label="Floor it, through the gears" on={knobs.floorIt} onChange={(floorIt) => set({ floorIt })} />

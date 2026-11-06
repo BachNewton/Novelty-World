@@ -3,7 +3,7 @@ import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { landing, mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, type Loop } from "./synthesis";
+import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, rainLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, type Loop } from "./synthesis";
 import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -192,6 +192,8 @@ interface Rig {
   hiss: ReturnType<typeof noiseBand>;
   windLow: ReturnType<typeof noiseBand>;
   windHigh: ReturnType<typeof noiseBand>;
+  gale: ReturnType<typeof noiseBand>;
+  rain: ReturnType<typeof looped>;
   gravel: ReturnType<typeof looped>;
   grass: ReturnType<typeof looped>;
   rock: ReturnType<typeof looped>;
@@ -228,6 +230,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
   const spray = looped(context, sprayLoop(), master);
   const snow = looped(context, snowLoop(), master);
   const studs = looped(context, studsLoop(), master);
+  const rain = looped(context, rainLoop(), master);
   const forest = looped(context, forestBed(), master);
   const shore = looped(context, shoreBed(), master);
   const gulls = looped(context, gullsBed(), master);
@@ -287,6 +290,8 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     hiss: noiseBand(context, noise, master, "bandpass", 0.8),
     windLow: noiseBand(context, noise, master, "bandpass", 0.5),
     windHigh: noiseBand(context, noise, master, "bandpass", 0.6),
+    gale: noiseBand(context, noise, master, "bandpass", 1.4),
+    rain,
     gravel,
     grass,
     rock,
@@ -305,7 +310,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     town: town.level,
     ticks: toBuffer(freewheelLoop()),
     cycles: new Map(),
-    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
+    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rain.source, forest.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
 
@@ -395,6 +400,10 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     to(built.windLow.filter.frequency, mixed.windLowHz, 0.12);
     to(built.windHigh.level.gain, mixed.windHighLevel, 0.12);
     to(built.windHigh.filter.frequency, mixed.windHighHz, 0.12);
+    to(built.rain.level.gain, mixed.rainLevel, PLACE_FOLLOW_S);
+    to(built.rain.source.playbackRate, mixed.rainRate, PLACE_FOLLOW_S);
+    to(built.gale.level.gain, mixed.galeLevel, 0.3);
+    to(built.gale.filter.frequency, mixed.galeHz, 0.3);
     to(built.forest.gain, mixed.forestLevel, PLACE_FOLLOW_S);
     to(built.shore.gain, mixed.shoreLevel, PLACE_FOLLOW_S);
     to(built.gulls.gain, mixed.gullsLevel, PLACE_FOLLOW_S);

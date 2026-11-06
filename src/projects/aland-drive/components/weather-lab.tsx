@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { dateOfDayNumber, dateText, dayNumberOf, parseDate, type CalendarDate } from "../climate/calendar";
-import { climateTimeAt, dateAsked } from "../climate/feed";
+import { climateTimeAt } from "../climate/feed";
+import { dayAsked } from "../time/day";
 import { seasonAt } from "../climate/season";
 import { weatherAt } from "../climate/weather";
 
@@ -111,7 +112,7 @@ function DayStrip({ date, onward }: { date: CalendarDate; onward: number }) {
 }
 
 export function WeatherLab() {
-  const [date, setDate] = useState(() => dateAsked(window.location.search) ?? today());
+  const [date, setDate] = useState(() => dayAsked(window.location.search).date ?? today());
   const [hour, setHour] = useState(() => hourAsked(window.location.search));
   const [onward, setOnward] = useState(0);
 

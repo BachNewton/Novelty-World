@@ -59,6 +59,9 @@ export interface Weather {
   state: WeatherState;
 }
 
+/** How much of an aurora the clouds leave to see. */
+export const clearForAurora = (cloudCover: number) => 1 - smoothstep(0.3, 0.7, cloudCover);
+
 const SALT = { front: 201, shower: 202, cloud: 203, wind: 204, windWay: 205, fog: 206, fogAt: 207, fogThick: 208, evening: 209, aurora: 210, auroraBurst: 211 } as const;
 
 /** The fronts and showers: one number whose height is how near to raining it is. */
@@ -150,7 +153,7 @@ export function skyAt(seasonDay: number, hour: number, gameDays: number) {
   const night = Math.round(gameDays - (hour - 12) / 24);
   const auroraNight = roll(night, SALT.aurora) < normals.auroraNight ? 1 : 0;
   const lateHour = (((hour + 12) % 24) + 24) % 24;
-  const aurora = auroraNight * bump(lateHour, 8.5, 15.5) * (0.4 + 0.6 * clamp01(wander(gameDays * 40, SALT.auroraBurst) + 0.5)) * (1 - smoothstep(0.3, 0.7, cloudCover));
+  const aurora = auroraNight * bump(lateHour, 8.5, 15.5) * (0.4 + 0.6 * clamp01(wander(gameDays * 40, SALT.auroraBurst) + 0.5)) * clearForAurora(cloudCover);
 
   return { cloudCover, rain: precipitation * (1 - snow), snowfall: precipitation * snow, fog, windMS, windFromDeg, temperatureC, aurora, normals };
 }
@@ -194,11 +197,7 @@ export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weath
   const { roadWet, roadSnow } = roadAt(sky, seasonDay, hour, gameDays);
   const blackIce = roadWet * smoothstep(0.5, -1.5, sky.temperatureC) * (1 - smoothstep(0.1, 0.4, roadSnow));
 
-  const condition: Condition = roadSnow > 0.15 ? "snow" : blackIce > 0.3 ? "ice" : roadWet > 0.1 ? "wet" : "dry";
-  const state: WeatherState =
-    sky.fog > 0.2 ? "fog" : sky.snowfall > 0.1 ? "snowfall" : sky.rain > 0.1 ? "rain" : sky.cloudCover > 0.85 ? "overcast" : sky.cloudCover > 0.35 ? "cloud" : "clear";
-
-  return {
+  return withReading({
     cloudCover: sky.cloudCover,
     rain: sky.rain,
     snowfall: sky.snowfall,
@@ -210,9 +209,15 @@ export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weath
     roadSnow,
     blackIce,
     aurora: sky.aurora,
-    condition,
-    state,
-  };
+  });
+}
+
+/** The weather's values with what they read as: the ground's condition and the state's name. */
+export function withReading(values: Omit<Weather, "condition" | "state">): Weather {
+  const { cloudCover, rain, snowfall, fog, roadWet, roadSnow, blackIce } = values;
+  const condition: Condition = roadSnow > 0.15 ? "snow" : blackIce > 0.3 ? "ice" : roadWet > 0.1 ? "wet" : "dry";
+  const state: WeatherState = fog > 0.2 ? "fog" : snowfall > 0.1 ? "snowfall" : rain > 0.1 ? "rain" : cloudCover > 0.85 ? "overcast" : cloudCover > 0.35 ? "cloud" : "clear";
+  return { ...values, condition, state };
 }
 
 /** Whether a game day had rain or snow, read as the calibration reads it: for the tests and the readout. */
