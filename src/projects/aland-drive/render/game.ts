@@ -82,7 +82,7 @@ import type { ChallengeMessage, ChallengeType } from "../net/protocol";
 import type { Challenge, ChallengeKind, StartPlace } from "../challenge/types";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
-import { Navigator, type RouteCue } from "../map/navigator";
+import { Navigator } from "../map/navigator";
 import type { Place as FindablePlace } from "../map/places";
 import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
@@ -324,8 +324,8 @@ export interface HudReading {
   gear: string;
   /** 0 to 1 at the redline. */
   revs: number;
-  /** The GPS's next direction. */
-  cue: RouteCue | null;
+  /** Metres the GPS route still has to go: to its destination, or in a challenge to the finish line or camera. */
+  toGoM: number | null;
   /** The challenge being played. */
   challenge: ChallengeReading | null;
   /** The challenge whose start ring the car is in, which its button starts. */
@@ -430,6 +430,10 @@ export interface Game {
   spots: readonly { id: string; name: string }[];
   /** Closes the dev menu and jumps to a showcase spot. */
   jumpTo: (id: string) => void;
+  /** Whether the GPS has somewhere to jump to. */
+  hasDestination: () => boolean;
+  /** Closes the dev menu and jumps to the end of the GPS route, facing the way it arrives. */
+  jumpToDestination: () => void;
   /** Where the car and the view are, as text to paste into a chat with Claude to find the spot again. */
   whereabouts: () => string;
   /** Forgets everything this browser kept for the game and starts it again. */
@@ -498,6 +502,8 @@ const MAP_FAR_FROM_M = 10000;
 const MAP_DETAIL_FROM_M = 3500;
 /** Room round the island on the map. */
 const MAP_MARGIN = 1.05;
+/** How far from a GPS destination a road may be and still name where a jump there lands. */
+const DESTINATION_ROAD_M = 30;
 const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 /** The scripted driver's line runs on past a challenge's finish, so it doesn't turn for the line's last point. */
@@ -1195,7 +1201,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (!road) throw new Error(`no road at the showcase spot ${name}`);
       drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
     });
-    events.onRoad?.(name);
+    if (name !== "") events.onRoad?.(name);
   };
   const jumpTo = (id: string) => {
     const spot = spots.find((candidate) => candidate.id === id);
@@ -1353,7 +1359,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     showRoute: (challenge) => {
       const route = challenge ? routeOf(challenge) : null;
-      if (route) navigator?.holdRoute(route);
+      if (challenge && route) navigator?.holdRoute(route, challenge.kind === "route" ? challenge.gates[challenge.gates.length - 1] : challenge.camera);
       else navigator?.clearRoute();
       worldMap?.setRoute(route);
     },
@@ -1797,7 +1803,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     edgeMesh.visible = !lifted;
     clipmap.showWide(lifted);
     const speed = speedOf(car);
-    const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
+    const toGoM = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
     // A jump or a look round the map isn't a visit.
     if (discovery && !lifted && !jumping) {
       const reached = discovery.update(car.position[0], car.position[2]);
@@ -1808,7 +1814,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
     const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
-    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), cue, challenge: readChallenge(), offer, coop: readCoop(), clock });
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
       challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
@@ -2111,6 +2117,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     jumpTo(id) {
       setDevMenuOpen(false);
       void jumpTo(id).catch(fail);
+    },
+    hasDestination: () => navigator?.route !== null && navigator?.route !== undefined,
+    jumpToDestination() {
+      const route = navigator?.route;
+      if (!route || !roadGraph) return;
+      setDevMenuOpen(false);
+      const { x, z } = route.end;
+      const spot = roadGraph.nearest(x, z, DESTINATION_ROAD_M);
+      const arriving = route.line.at(route.line.length).heading;
+      void jump({ x, z, headingDeg: (-arriving * 180) / Math.PI, name: spot ? roadGraph.roadName(spot.edge) : "" }).catch(fail);
     },
     whereabouts,
     resetSave() {

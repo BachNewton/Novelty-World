@@ -196,16 +196,16 @@ export function drawGates(pen: CanvasRenderingContext2D, view: MapView, gates: r
   pen.lineCap = "butt";
 }
 
+/** The route still to drive, from the car's own place on it rather than the next of its points, which a long straight can leave far ahead. */
 export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: Route, fromAlong: number, ink: MapInk): void {
-  const { points, lengths } = route.line;
+  const { line } = route;
+  const { points, lengths } = line;
+  const from = line.at(fromAlong);
   pen.beginPath();
-  let started = false;
+  pen.moveTo(...view.toScreen(from.x, from.z));
   for (let point = 0; point < lengths.length; point++) {
-    if (lengths[point] < fromAlong) continue;
-    const [x, y] = view.toScreen(points[point * 3], points[point * 3 + 2]);
-    if (started) pen.lineTo(x, y);
-    else pen.moveTo(x, y);
-    started = true;
+    if (lengths[point] <= fromAlong) continue;
+    pen.lineTo(...view.toScreen(points[point * 3], points[point * 3 + 2]));
   }
   pen.strokeStyle = ink.shade;
   pen.lineWidth = 7;

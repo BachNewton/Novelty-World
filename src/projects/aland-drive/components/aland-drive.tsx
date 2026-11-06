@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Timer, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -81,7 +81,7 @@ function hourText(hour: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
-/** The next turn as a distance: a driver reads tens of metres near, and tenths of a kilometre far. */
+/** A distance as a driver reads one: tens of metres near, and tenths of a kilometre far. */
 function distanceText(metres: number): string {
   if (metres >= 1000) return `${(metres / 1000).toFixed(1)} km`;
   return `${Math.round(metres / 10) * 10} m`;
@@ -113,7 +113,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const moonIcon = useRef<SVGSVGElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
-  const cueArrow = useRef<HTMLDivElement>(null);
   const cueText = useRef<HTMLSpanElement>(null);
   const [noWebGpu, setNoWebGpu] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -124,7 +123,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "whereabouts" | "resetSave"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
@@ -192,7 +191,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       });
     };
     const showSpeed = (reading: HudReading) => {
-      const { speedKmh, gear, revs, cue: next, clock } = reading;
+      const { speedKmh, gear, revs, toGoM, clock } = reading;
       showChallenge(reading);
       if (clock.date !== shownDate && dateShown.current) {
         shownDate = clock.date;
@@ -205,11 +204,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
       revNeedle.current?.setAttribute("transform", `rotate(${revs * DIAL_SWEEP * 360} 50 50)`);
-      if (cue.current) cue.current.style.display = next ? "flex" : "none";
-      if (next && cueArrow.current && cueText.current) {
-        cueArrow.current.style.transform = `rotate(${next.radians}rad)`;
-        cueText.current.textContent = distanceText(next.metres);
-      }
+      if (cue.current) cue.current.style.display = toGoM === null ? "none" : "flex";
+      if (toGoM !== null && cueText.current) cueText.current.textContent = distanceText(toGoM);
     };
     void (async () => {
       const adapter = "gpu" in navigator ? await navigator.gpu.requestAdapter() : null;
@@ -300,10 +296,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             // One column at the top middle: the GPS and, in a run, the challenge with it, then the road and a find under them, clear of the frame meter at the top right.
             <div className="pointer-events-none absolute top-3 left-1/2 flex w-max max-w-[90vw] -translate-x-1/2 flex-col items-center gap-3">
               <div className={playing === null ? "flex flex-col items-center" : "flex min-w-64 flex-col gap-1 rounded-lg px-4 py-3"} style={playing === null ? undefined : { color: INK, background: SHADE, border: `2px solid ${CHALLENGE}` }} aria-label={playing === null ? undefined : "Challenge"}>
-                <div ref={cue} className="items-center justify-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: playing === null ? `0 0 6px ${SHADE}` : undefined, display: "none" }} aria-label="Next direction">
-                <div ref={cueArrow}>
-                  <ArrowUp className="size-10" style={{ color: ACCENT }} />
-                </div>
+                <div ref={cue} className="items-center justify-center gap-2 text-xl font-semibold" style={{ color: INK, textShadow: playing === null ? `0 0 6px ${SHADE}` : undefined, display: "none" }} aria-label="Distance to go" title="Distance to go">
+                <MapPin className="size-6 shrink-0" style={{ color: ACCENT }} aria-hidden />
                 <span ref={cueText} className="tabular-nums" />
                 </div>
                 {playing !== null && (
@@ -434,7 +428,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </>
       )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>
