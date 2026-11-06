@@ -118,3 +118,34 @@ test("when the host leaves, the one left hosts the world, and a newcomer finds t
   await guest.context().close();
   await newcomer.context().close();
 });
+
+const timeOf = (page: Page) => page.evaluate(() => window.__alandDrive?.day().gameDays ?? Number.NaN);
+/** Within a few real seconds of each other: two pages are read a moment apart. */
+const SAME_TIME_DAYS = 0.003;
+
+test("everyone in the world shares the host's time, and it carries on when the host leaves", async ({ browser }) => {
+  const world = `time-${crypto.randomUUID()}`;
+  // Half a day from the real hour, so a page that kept its own time would be far off the host's.
+  const hour = (new Date().getUTCHours() + 14) % 24;
+  const host = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  await host.goto(`${PAGE}?tiles=local:${tilesPort}&${LOCAL_RELAY}&drive-world=${world}&hour=${hour}`);
+  await host.waitForFunction(() => window.__alandDrive?.online().status === "connected" && window.__alandDrive.mapReady(), null, { timeout: 90_000 });
+  const guest = await joinWorld(browser, world);
+  await guest.waitForFunction(
+    ([hostTime, near]) => Math.abs((window.__alandDrive?.day().gameDays ?? 0) - hostTime) < near,
+    [await timeOf(host), SAME_TIME_DAYS] as const,
+    { timeout: 30_000 },
+  );
+
+  await host.context().close();
+  await guest.waitForFunction(() => window.__alandDrive?.online().role === "host", null, { timeout: 30_000 });
+  const newcomer = await joinWorld(browser, world);
+  await newcomer.waitForFunction(
+    ([guestTime, near]) => Math.abs((window.__alandDrive?.day().gameDays ?? 0) - guestTime) < near,
+    [await timeOf(guest), SAME_TIME_DAYS] as const,
+    { timeout: 30_000 },
+  );
+
+  await guest.context().close();
+  await newcomer.context().close();
+});

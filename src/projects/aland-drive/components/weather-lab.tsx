@@ -1,38 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { dateOfDayNumber, dateText, dayNumberOf, parseDate, type CalendarDate } from "../climate/calendar";
-import { climateTimeAt } from "../climate/feed";
-import { dayAsked } from "../time/day";
+import { dateOfDayNumber, dateText, dayNumberOf, type CalendarDate } from "../climate/calendar";
+import { climateTimeOf } from "../climate/feed";
+import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
+import { gameTimeAt, startOfDay } from "../time/day";
 import { seasonAt } from "../climate/season";
 import { weatherAt } from "../climate/weather";
 
 /*
- * The `?weather-lab` page: the climate's values at any date and hour, to step through the year and judge them.
- * `?date=2027-01-20&hour=7` opens it there. Nothing is drawn: the art and the sky read these same values later.
+ * The `?weather-lab` page: the climate's values at any moment of the game's calendar, to step through the year a game
+ * day or a month at a time and judge them. `?date=2027-01-20&hour=7` opens it at the game day showing that date. Nothing is drawn: the art and the sky read these same values later.
  */
 
-const STEPS: { label: string; days: number }[] = [
-  { label: "−30", days: -30 },
-  { label: "−7", days: -7 },
-  { label: "−1", days: -1 },
-  { label: "+1", days: 1 },
-  { label: "+7", days: 7 },
-  { label: "+30", days: 30 },
+/** Steps through the calendar: a month is four game days. */
+const STEPS: { label: string; gameDays: number }[] = [
+  { label: "−month", gameDays: -DAYS_A_MONTH },
+  { label: "−day", gameDays: -1 },
+  { label: "+day", gameDays: 1 },
+  { label: "+month", gameDays: DAYS_A_MONTH },
 ];
 
-const today = () => dateOfDayNumber(Date.now() / 86_400_000);
-
-function hourAsked(search: string) {
-  const asked = new URLSearchParams(search).get("hour");
-  return asked === null ? 12 : Number(asked);
-}
-
-/** The game day of the shared clock at a date's noon, plus how many game days on: what fronts the page shows. */
-function gameDaysAt(date: CalendarDate, onward: number, hour: number) {
-  const noon = climateTimeAt((dayNumberOf(date) + 0.5) * 86_400).gameDays;
-  return Math.floor(noon) + onward + hour / 24;
-}
+/** The weather at a moment of the game's calendar, as the game reads it. */
+const weatherOn = (gameDays: number) => weatherAt(climateTimeOf(gameTimeAt(gameDays)));
 
 function Bar({ label, value, most = 1, show, colour }: { label: string; value: number; most?: number; show: string; colour: string }) {
   return (
@@ -94,8 +84,8 @@ function YearStrip({ date }: { date: CalendarDate }) {
 }
 
 /** The game day's 24 hours: cloud as the bar's height, rain blue, snow white, fog grey. */
-function DayStrip({ date, onward }: { date: CalendarDate; onward: number }) {
-  const hours = Array.from({ length: 48 }, (_, half) => weatherAt({ date, through: 0.5, hour: half / 2, gameDays: gameDaysAt(date, onward, half / 2) }));
+function DayStrip({ gameDay }: { gameDay: number }) {
+  const hours = Array.from({ length: 48 }, (_, half) => weatherOn(gameDay + half / 48));
   return (
     <svg viewBox="0 0 48 20" preserveAspectRatio="none" className="h-16 w-full" role="img" aria-label="The game day hour by hour">
       {hours.map((weather, half) => (
@@ -112,45 +102,37 @@ function DayStrip({ date, onward }: { date: CalendarDate; onward: number }) {
 }
 
 export function WeatherLab() {
-  const [date, setDate] = useState(() => dayAsked(window.location.search).date ?? today());
-  const [hour, setHour] = useState(() => hourAsked(window.location.search));
-  const [onward, setOnward] = useState(0);
-
-  const weather = weatherAt({ date, through: 0.5, hour, gameDays: gameDaysAt(date, onward, hour) });
-  const season = seasonAt(date, 0.5);
-  const step = (days: number) => setDate(dateOfDayNumber(dayNumberOf(date) + days));
+  const [gameDays, setGameDays] = useState(() => startOfDay(window.location.search, null, Date.now()).gameDays);
+  const time = gameTimeAt(gameDays);
+  const { calendar, date, hour } = time;
+  const weather = weatherOn(gameDays);
+  const season = seasonAt(date, time.through);
+  const gameDay = Math.floor(gameDays);
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4 text-sm text-text-primary">
       <h1 className="text-lg font-bold">Weather lab</h1>
       <section className="flex flex-wrap items-center gap-2">
-        {STEPS.slice(0, 3).map(({ label, days }) => (
-          <button key={label} type="button" className="rounded bg-surface-tertiary px-2 py-1 tabular-nums" onClick={() => step(days)}>{label}</button>
+        {STEPS.map(({ label, gameDays: by }) => (
+          <button key={label} type="button" className="rounded bg-surface-tertiary px-2 py-1 tabular-nums" onClick={() => setGameDays(gameDays + by)}>{label}</button>
         ))}
-        <input type="date" aria-label="Date" className="rounded bg-surface-tertiary px-2 py-1" value={dateText(date)} onChange={(event) => event.target.value && setDate(parseDate(event.target.value))} />
-        {STEPS.slice(3).map(({ label, days }) => (
-          <button key={label} type="button" className="rounded bg-surface-tertiary px-2 py-1 tabular-nums" onClick={() => step(days)}>{label}</button>
-        ))}
+        <span className="tabular-nums" title="The game's month and which of its four days, and the real date whose sky and season it shows">
+          {MONTH_NAMES[calendar.month - 1]} {calendar.year}, day {calendar.day} of {DAYS_A_MONTH} · {dateText(date)}
+        </span>
       </section>
       <section className="flex flex-wrap items-center gap-3">
         <label className="flex flex-1 items-center gap-2">
           <span className="text-text-secondary">Hour</span>
-          <input type="range" min={0} max={23.75} step={0.25} value={hour} className="flex-1" onChange={(event) => setHour(Number(event.target.value))} />
-          <span className="w-12 tabular-nums">{`${Math.floor(hour)}:${String(Math.round((hour % 1) * 60)).padStart(2, "0")}`}</span>
+          <input type="range" min={0} max={23.75} step={0.25} value={hour} className="flex-1" onChange={(event) => setGameDays(gameDay + Number(event.target.value) / 24)} />
+          <span className="w-12 tabular-nums">{`${Math.floor(hour)}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`}</span>
         </label>
-        <span className="flex items-center gap-1">
-          <span className="text-text-secondary" title="Which of the date's game days: each has fronts of its own">Game day</span>
-          <button type="button" aria-label="Previous game day" className="rounded bg-surface-tertiary px-2 py-1" onClick={() => setOnward(onward - 1)}>‹</button>
-          <span className="w-8 text-center tabular-nums">{onward}</span>
-          <button type="button" aria-label="Next game day" className="rounded bg-surface-tertiary px-2 py-1" onClick={() => setOnward(onward + 1)}>›</button>
-        </span>
       </section>
 
       <section className="flex flex-col gap-1 rounded-lg bg-surface-secondary p-3">
         <h2 className="font-bold">
           {weather.state} · road {weather.condition} · {weather.temperatureC.toFixed(1)} °C
         </h2>
-        <DayStrip date={date} onward={onward} />
+        <DayStrip gameDay={gameDay} />
         <Bar label="Cloud" value={weather.cloudCover} show={percent(weather.cloudCover)} colour={COLOURS.sky} />
         <Bar label="Rain" value={weather.rain} show={percent(weather.rain)} colour={COLOURS.water} />
         <Bar label="Snowfall" value={weather.snowfall} show={percent(weather.snowfall)} colour={COLOURS.snow} />

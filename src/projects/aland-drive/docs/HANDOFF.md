@@ -36,10 +36,9 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 
 ## Decisions waiting on the owner
 
-1. **Lighthouses.** No light on Åland really rotates. Six long-flash lights are read as turning to give a sweeping beam, each keeping its true rhythm at any one spot. Kept as built unless the owner says otherwise.
-2. **Aerial photo resolution:** the open question in `docs/PLAN.md`, decided once the ground detail is in the game.
-3. **Hosting.** Stay on Supabase while it's the owner's own game, and move to Cloudflare R2 before sharing it widely.
-4. **Offered, not decided:** Northern Lights in the plan, radio music from Composer, and Åland culture events in phase 6.
+1. **Aerial photo resolution:** the open question in `docs/PLAN.md`, decided once the ground detail is in the game.
+2. **Hosting.** Stay on Supabase while it's the owner's own game, and move to Cloudflare R2 before sharing it widely.
+3. **Offered, not decided:** Northern Lights in the plan, radio music from Composer, and Åland culture events in phase 6.
 
 Road sign lettering is decided: the regulation letters stay. The credits page lists them as all rights reserved by Traficom, because no licence for them was found.
 

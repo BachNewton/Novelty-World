@@ -1,28 +1,16 @@
 import { conditionAsked, type Condition } from "../sim/surfaces";
-import { alandOffsetHours, DayClock, GAME_DAY_S, type GameTime } from "../time/day";
+import type { GameTime } from "../time/day";
 import { HELD_WEATHER, isHeldWeather, type HeldWeather } from "./held";
 import { weatherAt, type ClimateTime, type Weather } from "./weather";
 
 /*
- * The climate's time from the page's day (`time/day.ts`), and the weather the game draws and drives on from it. The
- * date and hour are the day's, so a page whose day a link or the dev menu has moved has that day's weather; the fronts
- * follow the world's clock, the same for every player whatever their hour.
+ * The climate's time from the page's time (`time/day.ts`), and the weather the game draws and drives on from it: the
+ * game's calendar, which the online world shares, so every player in it has the same weather, and a page whose time a
+ * link or the dev menu has moved has that time's weather. The fronts follow the calendar's game days.
  */
 
-const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
-
-/** The climate's time for a day shown at a moment of the world's clock. A held date stays at its noon; the real one moves through the day with real time. */
-export function climateTimeOf(time: GameTime, seconds: number, dateHeld: boolean): ClimateTime {
-  const realMs = seconds * 1000;
-  const localDays = (realMs + alandOffsetHours(realMs) * HOUR_MS) / DAY_MS;
-  return { date: time.date, through: dateHeld ? 0.5 : localDays - Math.floor(localDays), hour: time.hour, gameDays: seconds / GAME_DAY_S };
-}
-
-const sharedDay = new DayClock();
-
-/** The climate's time every player shares at a moment of the world's clock. */
-export const climateTimeAt = (seconds: number) => climateTimeOf(sharedDay.at(seconds), seconds, false);
+/** The climate's time at a moment of the game's calendar: the date it shows, how far through it, the hour and the game days. */
+export const climateTimeOf = ({ date, through, hour, gameDays }: GameTime): ClimateTime => ({ date, through, hour, gameDays });
 
 /** A weather a link holds (`?weather=rain`), or none. `?weather` alone asks a tool's page for the live weather. */
 export function weatherAsked(search: string): HeldWeather | null {
@@ -46,9 +34,9 @@ export function weatherFeed(search: string, automated: boolean) {
   let last: Weather | null = null;
   return {
     /** The weather now, or none on a tool's page. */
-    at(time: GameTime, seconds: number, dateHeld: boolean): Weather | null {
+    at(time: GameTime): Weather | null {
       if (tool && held === null) return (last = null);
-      return (last = held === null ? weatherAt(climateTimeOf(time, seconds, dateHeld)) : HELD_WEATHER[held]);
+      return (last = held === null ? weatherAt(climateTimeOf(time)) : HELD_WEATHER[held]);
     },
     /** The ground's condition for the drive, from the weather last read. */
     condition: (): Condition => ground ?? last?.condition ?? "dry",

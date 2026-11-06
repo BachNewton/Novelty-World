@@ -1,6 +1,6 @@
 import { seedOfWhole, unitOfSeed } from "../hash";
 import type { GlowInstance } from "./glows";
-import { LAMP_LOOKS, type LampSpot } from "./lamps";
+import { LAMP_HEADS, type LampSpot } from "./lamps";
 import { nightRgb } from "./night";
 
 /*
@@ -104,7 +104,8 @@ export function esplanadeStrings(lamps: readonly LampSpot[], origin: EastNorth):
     if (row !== undefined && lamp.z - (row.at(-1)?.z ?? lamp.z) < SAME_SIDE_M) row.push(lamp);
     else rows.push([lamp]);
   }
-  const head = LAMP_LOOKS.town.headM - SWAG_BELOW_HEAD_M;
+  // A town lamp's glass is on top of its post, so its head is straight above its foot.
+  const head = LAMP_HEADS.town.y - SWAG_BELOW_HEAD_M;
   return rows.flatMap((row) => {
     const sorted = [...row].sort((a, b) => a.x - b.x);
     return sorted.slice(1).flatMap((lamp, at) => {

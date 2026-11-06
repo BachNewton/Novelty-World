@@ -2,7 +2,7 @@ import { createNight, DARKEST_LIGHT, skyAtHour, NIGHT_STOPS, type Night } from "
 import type { MoonPlace } from "../time/sky-places";
 import type { Sky, SkyLook } from "../art/sky/sky";
 import { createLiveSun, type LiveSun } from "../art/sun";
-import { DayClock, dayAsked, type GameTime } from "../time/day";
+import { DayClock, gameTimeAt, type CalendarDate, type GameTime } from "../time/day";
 import type { Weather } from "../climate/weather";
 import { eased, gloomedNight, sunThrough, weatheredLook } from "./weather";
 
@@ -86,18 +86,14 @@ export interface DayAndNight {
   update: (worldSeconds: number, gameSeconds: number, realSeconds: number) => void;
 }
 
-/** The weather at an hour of the page's day: the date held or not, as the dev menu or a link left it. */
-export type WeatherOfDay = (time: GameTime, worldSeconds: number, dateHeld: boolean) => Weather | null;
+/** The weather at a moment of the page's time. */
+export type WeatherOfDay = (time: GameTime) => Weather | null;
 
-export function createDayAndNight(sky: Sky, search: string, startSeconds: number, weatherOf: WeatherOfDay): DayAndNight {
-  const clock = new DayClock();
-  const asked = dayAsked(search);
-  clock.setDate(asked.date);
-  // A link's hour is set on the first frame's clock, which `?sea=` may have moved.
-  let hourAsked = asked.hour;
-  if (hourAsked !== null) clock.setHour(hourAsked, startSeconds);
-  let time = clock.at(startSeconds);
-  let weather = weatherOf(time, startSeconds, clock.dateHeld);
+export function createDayAndNight(sky: Sky, start: { gameDays: number; date: CalendarDate | null }, weatherOf: WeatherOfDay): DayAndNight {
+  const clock = new DayClock(start.gameDays, start.date);
+  // The clock is read first on the first frame, whose world clock `?sea=` may have moved.
+  let time = gameTimeAt(start.gameDays, start.date);
+  let weather = weatherOf(time);
   const sun = createLiveSun(time.sun);
   const night = createNight(nightAmount(time.sun.elevationDeg));
   const lookAtHour = skyAtHour();
@@ -117,10 +113,8 @@ export function createDayAndNight(sky: Sky, search: string, startSeconds: number
     time: () => time,
     weather: () => weather,
     update(worldSeconds, gameSeconds, realSeconds) {
-      if (hourAsked !== null) clock.setHour(hourAsked, worldSeconds);
-      hourAsked = null;
       time = clock.at(worldSeconds);
-      weather = eased(weather, weatherOf(time, worldSeconds, clock.dateHeld), realSeconds);
+      weather = eased(weather, weatherOf(time), realSeconds);
       night.seconds.value += gameSeconds;
       show();
     },

@@ -14,11 +14,11 @@ import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
 import { createSeaMarks } from "./sea-marks";
-import { seaClock, seaSeconds } from "../sea/clock";
+import { seaClock } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
 import { createWinterLights } from "./winter-lights";
-import { dateText, type CalendarDate } from "../time/day";
+import { dateText, gameDaysAtInstant, startOfDay, type CalendarDate } from "../time/day";
 import { bakedLightAtHour, createAurora, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
@@ -353,8 +353,8 @@ export interface HudReading {
   /** The challenge whose start ring the car is in, which its button starts. */
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
-  /** The day this page shows: its date (as `?date=` takes it), the hour, and whether the sun is up. */
-  clock: { date: string; hour: number; sunUp: boolean; temperatureC: number | null };
+  /** The time this page shows: the month (1 to 12), which of its four game days, the hour, whether the sun is up, and the air's temperature (none without weather). */
+  clock: { month: number; day: number; hour: number; sunUp: boolean; temperatureC: number | null };
 }
 
 /** How far the first load has got, counted in what has landed. */
@@ -388,6 +388,8 @@ export interface GameEvents {
   onPlaceFound?: (place: FindablePlace) => void;
   /** How many of the places have been found and of the challenges passed, when the maps arrive and whenever either changes. */
   onProgress?: (progress: Progress) => void;
+  /** The page takes the online world's time: cover the view, call `jump`, then uncover it. Without this it jumps at once. */
+  onTimeJump?: (jump: () => void) => void;
 }
 
 export interface Progress {
@@ -416,22 +418,30 @@ export interface CarChoice {
   paint: string;
 }
 
-/** The game's day as drawn: the date, the hour, and where the sun stands. */
+/** The game's time as drawn: the month and its game day, the real date whose sky it shows, the hour, and where the sun stands. */
 export interface DayShown {
+  /** The world's time, game days since the first of 2000's. */
+  gameDays: number;
+  month: number;
+  /** Which of the month's four game days, 1 to 4. */
+  day: number;
   date: string;
   hour: number;
   sun: { azimuthDeg: number; elevationDeg: number };
   /** The night's dial, from the sun's height: 0 by day, 1 at the deepest midsummer night. */
   night: number;
   held: boolean;
-  /** Whether this is the day every player shares. */
-  shared: boolean;
+  /** A real date held still, as a link or a tool asks. */
+  dateHeld: boolean;
 }
 
+/** Moves the page's time: to a held real date (null lets it go), a month and one of its game days, an hour, held or running, or the real date and time now. */
 export interface DayChange {
   date?: CalendarDate | null;
+  calendar?: { month: number; day: number };
   hour?: number;
   held?: boolean;
+  now?: boolean;
 }
 
 export interface Game {
@@ -489,7 +499,6 @@ export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
 export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
-const POOLS_ON_GROUND_M = 280;
 /** Where the headlamps sit off the car's origin, which rides at its axles' height. */
 const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
@@ -527,6 +536,10 @@ const OVERLAY_FULL_M = 1100;
 const MAP_FIELD_OF_VIEW = 45;
 const storage = getProjectStorage("aland-drive");
 const FOUND_KEY = "found-places";
+/** Where the world's calendar and clock stood, in game days (`time/calendar.ts`). */
+const TIME_KEY = "world-time";
+/** A jump in the world's time smaller than a quarter of a game hour isn't covered. */
+const UNSEEN_JUMP_DAYS = 1 / 96;
 /** Below these heights the map looks at its own place: a sharper image only shows once a screen pixel is about as small as twice the image's. */
 const MAP_FAR_FROM_M = 10000;
 const MAP_DETAIL_FROM_M = 3500;
@@ -706,10 +719,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const shade = mix(sampled(layers.shadeFar, farLayer).r, sampled(layers.shadeNear, nearLayer).r, nearShare);
   const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
   scene.add(sky.mesh);
+  // A tool's or a test's page keeps its own time, as it keeps its own world: it neither reads the save nor writes it.
+  const toolPage = new URLSearchParams(window.location.search).has("tiles") || window.navigator.webdriver;
+  const savedTime = toolPage ? null : storage.get<unknown>(TIME_KEY);
+  const dayStart = startOfDay(window.location.search, typeof savedTime === "number" && Number.isFinite(savedTime) ? savedTime : null, Date.now());
+  // A link's time is a view of its own: it isn't saved, and online it isn't moved to the world's.
+  let savesTime = !toolPage && !dayStart.linked;
+  let savedHour: number | null = null;
   const weatherNow = weatherFeed(window.location.search, window.navigator.webdriver);
-  const day = createDayAndNight(sky, window.location.search, seaSeconds(), weatherNow.at);
+  const day = createDayAndNight(sky, dayStart, weatherNow.at);
   const { sun, night } = day;
-  const seasonFeed = createSeasonFeed(day.time(), seaSeconds());
+  const seasonFeed = createSeasonFeed(day.time());
   const aurora = createAurora(night, AURORA_REACH_M);
   scene.add(aurora.mesh);
   const auroraHeld = auroraAsked(window.location.search);
@@ -763,8 +783,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
   scene.add(headlights.cones);
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground });
   // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
-  const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
+  const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)).add(nightLights.lightOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);
   const seaHazed = hazedAtHour(seaAtHour);
   const roadUnder = createRoadWeather();
@@ -931,8 +952,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     season,
   });
   const parkedCars = createParkedCars(scene, sun, hazed, season);
-  // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
-  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
   const winterLights = createWinterLights(scene, night, season, {
     origin: manifest.worldOrigin,
     ground: { height: (x, z) => world.height(x, z), revision: () => world.revision },
@@ -1113,6 +1132,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   nightLights.showAll(true);
   winterLights.showAll(true);
   await renderer.compileAsync(scene, camera);
+  await nightLights.compile(renderer);
   await forest.compile();
   await verge.compile();
   await reeds.compile();
@@ -1714,6 +1734,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           events.onPlayers?.(players.map(({ name }) => name));
         },
         onChallenge: hearChallenge,
+        onTime: (gameDays) => {
+          adoptTime(gameDays);
+        },
+        timeNow: () => day.time().gameDays,
       })
     : null;
   onlineWorld?.start();
@@ -1808,18 +1832,41 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const dayShown = (): DayShown => {
-    const { date, hour, sun: place } = day.time();
-    return { date: dateText(date), hour, sun: place, night: night.amount.value, held: day.clock.held, shared: day.clock.shared };
+    const { gameDays, calendar, date, hour, sun: place } = day.time();
+    return { gameDays, month: calendar.month, day: calendar.day, date: dateText(date), hour, sun: place, night: night.amount.value, held: day.clock.held, dateHeld: day.clock.dateHeld };
   };
-  const setDay = ({ date, hour, held: holdHour }: DayChange) => {
-    const now = seaHeldAt ?? seaNow();
-    if (date !== undefined) day.clock.setDate(date);
-    if (hour !== undefined) day.clock.setHour(hour, now);
-    if (holdHour !== undefined) day.clock.hold(holdHour, now);
-    day.update(now, 0, 0);
-    seasonFeed.update(day.time(), now, day.weather());
+  /** Draws the page's time as it stands now it has been moved, rather than waiting for the next frame. */
+  const showDayMoved = () => {
+    day.update(seaHeldAt ?? seaNow(), 0, 0);
+    seasonFeed.update(day.time(), day.weather());
     world.setIceDrivable(season.current().iceDrivable);
     world.setPlacedSeason(season.current());
+  };
+  const setDay = ({ date, calendar, hour, held: holdHour, now: toNow }: DayChange) => {
+    const now = seaHeldAt ?? seaNow();
+    if (toNow === true) {
+      day.clock.setDate(null, now);
+      day.clock.setGameDays(gameDaysAtInstant(Date.now()), now);
+    }
+    if (date !== undefined) day.clock.setDate(date, now);
+    if (calendar) {
+      day.clock.setDate(null, now);
+      day.clock.setCalendar(calendar.month, calendar.day, now);
+    }
+    if (hour !== undefined) day.clock.setHour(hour, now);
+    if (holdHour !== undefined) day.clock.hold(holdHour, now);
+    showDayMoved();
+  };
+  /** Takes the online world's time, as the host had it when this page heard it, under a cover if the sky would jump. */
+  const adoptTime = (gameDays: number) => {
+    if (dayStart.linked) return;
+    const heardAt = seaHeldAt ?? seaNow();
+    const jump = () => {
+      day.clock.setGameDays(gameDays, heardAt);
+      showDayMoved();
+    };
+    if (Math.abs(day.clock.gameDaysAt(heardAt) - gameDays) < UNSEEN_JUMP_DAYS || !events.onTimeJump) jump();
+    else events.onTimeJump(jump);
   };
 
   const lampsAt = new Vector3();
@@ -1895,7 +1942,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const engine = drive.engine();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
-    const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
+    const clock = { month: shown.calendar.month, day: shown.calendar.day, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
@@ -1942,8 +1989,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     showRibbons(spot);
     landmarks.update(spot);
     day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, seconds);
+    const gameHour = Math.floor(day.time().gameDays * 24);
+    if (savesTime && gameHour !== savedHour) {
+      savedHour = gameHour;
+      storage.set(TIME_KEY, day.time().gameDays);
+    }
     const weatherShown = day.weather();
-    seasonFeed.update(day.time(), seaHeldAt ?? seaNow(), weatherShown);
+    seasonFeed.update(day.time(), weatherShown);
     world.setIceDrivable(season.current().iceDrivable);
     world.setPlacedSeason(season.current());
     roadUnder.set(weatherShown);
@@ -1954,7 +2006,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       nightLights.setLamps(roadside.lamps());
       winterLights.setLamps(roadside.lamps());
     }
-    nightLights.update(camera.position);
+    nightLights.update(renderer, camera.position);
     winterLights.update(camera.position);
     aimHeadlights(car);
     sky.update(camera.position, seconds);
@@ -2239,6 +2291,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     whereabouts,
     resetSave() {
       // The game holds what it loaded and would save it again, so it starts over from the cleared store.
+      savesTime = false;
       storage.clear();
       window.location.reload();
     },

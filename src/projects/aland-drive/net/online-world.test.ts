@@ -16,6 +16,8 @@ interface Client {
   others: string[];
   /** Challenge messages heard, each with who sent it. */
   challenges: { from: string; message: ChallengeMessage }[];
+  /** The page's time in game days: its own until it takes the world's. */
+  time: number;
 }
 
 /** An in-memory star: sends queue up and are delivered in order by `flush`, as over the relay. */
@@ -32,8 +34,8 @@ function createStar() {
     for (const id of [host, ...guests]) nodes.get(id)?.onState?.(state(id));
   };
 
-  function add(id: string): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [] };
+  function add(id: string, time: number): Client {
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -66,6 +68,10 @@ function createStar() {
           client.others = others.map((other) => other.peerId);
         },
         onChallenge: (from, message) => client.challenges.push({ from, message }),
+        onTime: (gameDays) => {
+          client.time = gameDays;
+        },
+        timeNow: () => client.time,
       },
     );
     clients.set(id, client);
@@ -73,8 +79,9 @@ function createStar() {
   }
 
   return {
-    join(id: string): Client {
-      const client = add(id);
+    /** A player arrives, with the time their own page starts at. */
+    join(id: string, time = 0): Client {
+      const client = add(id, time);
       if (host === "") host = id;
       else guests.push(id);
       announce();
@@ -223,5 +230,32 @@ describe("the online world", () => {
     star.reclaim();
     star.flush();
     expect(a.challenges).toEqual([{ from: "b", message: { type: "retry", challenge: "c", attempt: 4 } }]);
+  });
+
+  it("gives everyone who joins the host's time, and keeps it when the host goes", () => {
+    const star = createStar();
+    const host = star.join("h", 1270.4);
+    const a = star.join("a", 1302.1);
+    star.flush();
+    expect(a.time).toBe(1270.4);
+    // The world runs on, and the host goes: a claims it and hands the time on.
+    host.time = a.time = 1271;
+    star.loseHost();
+    const b = star.join("b", 1000);
+    star.flush();
+    expect(b.time).toBe(1271);
+  });
+
+  it("asks for the time once, so a guest who stays one under a new host isn't moved again", () => {
+    const star = createStar();
+    star.join("h", 10);
+    const a = star.join("a", 20);
+    const b = star.join("b", 30);
+    star.flush();
+    b.time = 10.5;
+    a.time = 11;
+    star.loseHost();
+    star.flush();
+    expect(b.time).toBe(10.5);
   });
 });
