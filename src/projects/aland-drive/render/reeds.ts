@@ -193,13 +193,14 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
         });
       });
     },
-    materialOf(index, [standing, look, live], camera) {
+    familyOf: (shape) => (shape < clumps.length ? 0 : 1),
+    materialOf(family, [standing, look, live], camera) {
       const local = positionGeometry;
       const size = live.z;
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
       material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
-      const isFar = index < clumps.length;
+      const isFar = family === 0;
       // The model's own height, before the clump's size, picks the band, as it did when the bands were measured.
       const band = BAND_TOPS_M.slice(0, -1).reduce((at: Node<"float">, top) => at.add(select(local.y.greaterThanEqual(top), float(1), float(0))), float(0));
       const strawed = changeOf(float(1).sub(seasons.leafed), mix(float(STRAWS_FROM), float(1), unitOf(placeSeed(standing.xz), STRAW_ROLL)));

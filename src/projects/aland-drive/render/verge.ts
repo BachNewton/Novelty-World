@@ -228,12 +228,13 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
         });
       });
     },
-    materialOf(index, [standing, colour, carried], camera) {
+    familyOf: (shape) => (shape < kinds.length ? 0 : 1),
+    materialOf(family, [standing, colour, carried], camera) {
       const tint = attribute<"vec4">("tint", "vec4");
       const size = carried.x;
       const part = round(tint.r.mul(255));
       const isPetal = part.greaterThanEqual(FIRST_PETAL);
-      const isFar = index < kinds.length;
+      const isFar = family === 0;
       const local = positionGeometry;
       const phase = rollPhase(standing.xz).add(seconds.mul(WIND_SPEED)).add(local.x.mul(-WIND_WAVES));
       const sway = tint.b.mul(MOTION_RANGE_M).mul(sin(phase));
