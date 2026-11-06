@@ -1,7 +1,6 @@
 import { InstancedBufferAttribute, InstancedBufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Mesh, type BufferGeometry, type MeshBasicNodeMaterial, type Node, type Scene, type Vector3 } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { distantGeometry, lookOf, REACH_M, SWAP_M, worldGeometry } from "../art/cars/fleet";
-import { worldCarMaterial } from "../art/cars/material";
+import { distantGeometry, lookOf, modelSwapM, REACH_M, tierMaterials, worldGeometry } from "../art/cars/fleet";
 import { WORLD_CARS } from "../art/cars/specs";
 import { PARKED_CARS, PARKED_FLOATS, parkedAt, type TileParked } from "./parked-places";
 import { type Sun } from "../art/sun";
@@ -10,14 +9,15 @@ import { type Sun } from "../art/sun";
  * The parked cars (`pipeline/parking.py`), drawn as `art/cars`' world cars: each
  * model is a near list and a stand-in list across every loaded tile, so two draw
  * calls a model however many tiles are near. Each list holds only the cars within
- * its version's reach of the camera and a margin, written again whenever the
+ * its version's reach of the camera and a margin, a near list to its own model's
+ * measured swap, written again whenever the
  * camera has moved that margin: the material still chooses each car's version by
  * its own distance, so a list never decides what is seen, and the thousands of
  * cars further off cost no vertices.
  */
 
-const LISTS = { world: { reachM: SWAP_M, marginM: 40 }, distant: { reachM: REACH_M, marginM: 150 } } as const;
-type List = keyof typeof LISTS;
+const MARGIN_M = { world: 40, distant: 150 } as const;
+type List = keyof typeof MARGIN_M;
 
 /** A world car's place, paint and look, as a list draws it. */
 export interface Car {
@@ -33,6 +33,8 @@ export interface Car {
 
 interface Model {
   shapes: { world: BufferGeometry; distant: BufferGeometry };
+  reachM: Record<List, number>;
+  materials: Record<List, MeshBasicNodeMaterial>;
   cars: Car[];
   world: Mesh<InstancedBufferGeometry> | null;
   distant: Mesh<InstancedBufferGeometry> | null;
@@ -76,16 +78,16 @@ export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[])
 }
 
 export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">) {
-  const materials = {
-    world: worldCarMaterial({ sun, hazed, tier: "world", swapM: SWAP_M, reachM: REACH_M }),
-    distant: worldCarMaterial({ sun, hazed, tier: "distant", swapM: SWAP_M, reachM: REACH_M }),
-  };
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`${name} parks, but there's no world car of that name`);
     return spec;
   });
-  const models: Model[] = specs.map((spec) => ({ shapes: { world: worldGeometry(spec), distant: distantGeometry(spec) }, cars: [], world: null, distant: null }));
+  const models: Model[] = specs.map((spec) => {
+    const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
+    const swapM = modelSwapM(shapes.world, shapes.distant);
+    return { shapes, reachM: { world: swapM, distant: REACH_M }, materials: tierMaterials(swapM, sun, hazed), cars: [], world: null, distant: null };
+  });
   const tiles = new Map<string, TileParked>();
   let compiling = false;
   let hidden = false;
@@ -100,9 +102,9 @@ export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"ve
 
   const refill = (list: List, x: number, z: number) => {
     centres[list] = { x, z };
-    const within = LISTS[list].reachM + LISTS[list].marginM;
     for (const model of models) {
       const mesh = model[list];
+      const within = model.reachM[list] + MARGIN_M[list];
       if (mesh) write(mesh, model.cars.filter((car) => Math.hypot(car.x - x, car.z - z) < within));
     }
     visibility();
@@ -125,8 +127,8 @@ export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"ve
         scene.remove(mesh);
         mesh.geometry.dispose();
       }
-      model.world = instanced(model.shapes.world, model.cars, materials.world);
-      model.distant = instanced(model.shapes.distant, model.cars, materials.distant);
+      model.world = instanced(model.shapes.world, model.cars, model.materials.world);
+      model.distant = instanced(model.shapes.distant, model.cars, model.materials.distant);
       scene.add(model.world, model.distant);
     }
     for (const list of ["world", "distant"] as const) {
@@ -152,7 +154,7 @@ export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"ve
     update(camera: Vector3) {
       for (const list of ["world", "distant"] as const) {
         const centre = centres[list];
-        if (!centre || Math.hypot(camera.x - centre.x, camera.z - centre.z) > LISTS[list].marginM) refill(list, camera.x, camera.z);
+        if (!centre || Math.hypot(camera.x - centre.x, camera.z - centre.z) > MARGIN_M[list]) refill(list, camera.x, camera.z);
       }
     },
     /** Every mesh shown, for compiling before the drive; `false` puts back what has places. */
@@ -176,9 +178,9 @@ export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"ve
         for (const mesh of [model.world, model.distant]) mesh?.geometry.dispose();
         model.shapes.world.dispose();
         model.shapes.distant.dispose();
+        model.materials.world.dispose();
+        model.materials.distant.dispose();
       }
-      materials.world.dispose();
-      materials.distant.dispose();
     },
   };
 }

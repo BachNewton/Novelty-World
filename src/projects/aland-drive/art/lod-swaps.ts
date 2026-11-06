@@ -6,7 +6,7 @@ import SWAPS from "./lod-check/swaps.json";
  * Where a model swaps to its far version is measured, not chosen: `lod-check/check.mjs --write` finds, for every model
  * it can draw, the nearest swap at which the change isn't noticed, and writes it to `lod-check/swaps.json` under its
  * versions' fingerprint. Every kit's model constructor passes its model through `measuredSwap`, so the game draws each
- * model at the swap the check found. A model the check can't draw keeps the swap its kit gives, and a model whose art
+ * model at the swap the check found; the world cars, drawn their own way, read it through `measuredSwapM`. A model the check can't draw keeps the swap its kit gives, and a model whose art
  * has changed since the table was written fails the check until it's written again.
  */
 
@@ -40,9 +40,12 @@ export function isMeasured(model: RoadsideModel): boolean {
   return model.far === null || TABLE[fingerprint(model.near, model.far)] !== undefined;
 }
 
+/** The swap the check measured for two versions, or `swapM` where it hasn't drawn them. */
+export function measuredSwapM(near: BufferGeometry, far: BufferGeometry, swapM: number): number {
+  return TABLE[fingerprint(near, far)]?.swapM ?? swapM;
+}
+
 /** The swap the check measured for a model's two versions, or the kit's own where it hasn't drawn them. */
 export function measuredSwap(model: RoadsideModel): RoadsideModel {
-  if (model.far === null) return model;
-  const measured = TABLE[fingerprint(model.near, model.far)];
-  return measured === undefined ? model : { ...model, swapM: measured.swapM };
+  return model.far === null ? model : { ...model, swapM: measuredSwapM(model.near, model.far, model.swapM) };
 }
