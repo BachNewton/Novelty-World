@@ -159,7 +159,7 @@ function WeatherChoice({ weather, onWeather }: { weather: Game["weather"]; onWea
   );
 }
 
-/** Cars and cyclists on the lanes round the car, on or off. Offline only: the shared world has no traffic until it's shared. */
+/** Cars, cyclists and walkers on the lanes round the car, on or off. Offline only: in the shared world, null, it's always on, since everyone sees the same. */
 function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraffic: (on: boolean) => void }) {
   const [on, setOn] = useState(traffic);
   const offline = on !== null;
@@ -167,21 +167,21 @@ function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraf
     <button
       type="button"
       role="switch"
-      aria-checked={on === true}
+      aria-checked={on !== false}
       aria-label="Traffic"
       disabled={!offline}
-      title={offline ? undefined : "Offline only, until traffic is shared online"}
+      title={offline ? undefined : "Always on in the shared world, where everyone sees the same traffic"}
       className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm disabled:cursor-default disabled:opacity-50"
-      style={{ borderColor: on === true ? ACCENT : INK }}
+      style={{ borderColor: on !== false ? ACCENT : INK }}
       onClick={() => {
         if (on === null) return;
         setOn(!on);
         onTraffic(!on);
       }}
     >
-      <Car aria-hidden className="size-4" style={on === true ? { color: ACCENT } : undefined} />
-      <Bike aria-hidden className="size-4" style={on === true ? { color: ACCENT } : undefined} />
-      <span className="grow text-left">{on === true ? "On" : "Off"}</span>
+      <Car aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <Bike aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <span className="grow text-left">{on !== false ? "On" : "Off"}</span>
     </button>
   );
 }

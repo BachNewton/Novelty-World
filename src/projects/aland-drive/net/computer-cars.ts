@@ -19,7 +19,8 @@ import type { ComputerCarMessage } from "./protocol";
  *
  * Each car counts its handovers, and every message carries the count, so a
  * state sent before a handover and arriving after it is known for stale: the
- * newest runner is whoever the highest count names.
+ * newest runner is whoever the highest count names. Two players who take one
+ * car at once (both hit one traffic car) settle on the lower id.
  *
  * What a driver's record holds, and how a car is driven from it, is the
  * driver's own: here it is only carried.
@@ -45,6 +46,8 @@ export interface ComputerCarsLink {
   send: (car: ComputerCarMessage) => boolean;
   /** A car another player runs, as they sent it. */
   onHeard: (car: ComputerCarMessage) => void;
+  /** A car its runner took out of the world. */
+  onGone: (id: string) => void;
 }
 
 interface Kept {
@@ -108,8 +111,13 @@ export function createComputerCars(link: ComputerCarsLink) {
 
     /** A car as another player sent it: news unless a newer runner has sent it since. */
     hear(from: string, car: ComputerCarMessage): void {
-      const known = kept.get(car.id);
-      if (known && (car.handovers < known.car.handovers || (car.handovers === known.car.handovers && from !== known.car.runner))) return;
+      const known = kept.get(car.id)?.car;
+      if (known && car.handovers < known.handovers) return;
+      if (known && car.handovers === known.handovers && (car.runner === known.runner ? from !== known.runner : car.runner > known.runner)) return;
+      if (car.gone) {
+        if (kept.delete(car.id)) link.onGone(car.id);
+        return;
+      }
       kept.set(car.id, { car, nearer: null });
       // Handed to this player, it carries on from here, and is sent as it goes.
       if (!runsHere(car)) link.onHeard(car);
@@ -152,6 +160,14 @@ export function createComputerCars(link: ComputerCarsLink) {
         each.nearer = null;
         link.send(each.car);
       }
+    },
+
+    /** Takes a car this player runs out of the world, for everyone. */
+    remove(id: string): void {
+      const each = kept.get(id);
+      if (!each || !runsHere(each.car)) throw new Error(`this player doesn't run the computer-driven car ${id}`);
+      kept.delete(id);
+      link.send({ ...each.car, gone: true });
     },
 
     /** The cars this player runs: each carries on from its state and its driver's record. */
