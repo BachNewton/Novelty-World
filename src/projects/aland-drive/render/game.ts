@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
@@ -227,6 +227,8 @@ export interface GameProbe {
   mapShown: () => number;
   /** Where the camera is, and which way it looks. */
   cameraPlace: () => number[];
+  /** Where a place on the ground is on the page, in CSS pixels, as the camera sees it: for a tool that zooms the world map about a place. */
+  screenOf: (x: number, z: number) => [number, number];
   /** Puts the car on the nearest loaded road to a place. */
   placeNear: (x: number, z: number) => void;
   /** What's held: the JS heap, what the GPU holds for loaded tiles' meshes, and the fixed images. */
@@ -627,8 +629,11 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
   const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3, detail.surface.aprons), 3);
   const townRun = new BufferAttribute(ribbon.runs, 2);
   const group = new Group();
-  const cells = ribbon.cells.map(({ indices, x, z }) => {
+  const cells = ribbon.cells.map(({ indices, x, z, bounds: [centreX, centreY, centreZ, radius] }) => {
     const geometry = new BufferGeometry();
+    // three sorts a mesh by its geometry's sphere, which it would otherwise measure over every vertex of the tile's
+    // ribbon on the frame the cell is first drawn: a town tile's cells read 26 million vertices in one frame.
+    geometry.boundingSphere = new Sphere(new Vector3(centreX, centreY, centreZ), radius);
     geometry.setAttribute("position", position);
     geometry.setAttribute("across", across);
     geometry.setAttribute("along", along);
@@ -2327,6 +2332,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       mapShown: () => worldMap?.flight ?? 0,
       cameraPlace: () => [...camera.position.toArray(), ...camera.getWorldDirection(new Vector3()).toArray()],
+      screenOf: (x, z) => {
+        const onScreen = new Vector3(x, groundAt(x, z), z).project(camera);
+        const { width, height } = renderer.domElement.getBoundingClientRect();
+        return [((onScreen.x + 1) / 2) * width, ((1 - onScreen.y) / 2) * height];
+      },
       placeNear: (x, z) => {
         const road = world.roads.nearest(x, z);
         if (!road) throw new Error(`no loaded road near ${x}, ${z}`);

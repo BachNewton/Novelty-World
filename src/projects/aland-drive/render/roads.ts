@@ -12,6 +12,8 @@ export interface RibbonCell {
   /** Where its middle is in the scene. */
   x: number;
   z: number;
+  /** A sphere round its own triangles, centre and radius: its mesh shares the whole tile's vertices, so three would measure them all. */
+  bounds: [number, number, number, number];
 }
 
 export interface RibbonMesh {
@@ -138,6 +140,15 @@ function ribbonCells(positions: Float32Array, indices: Uint32Array): RibbonCell[
     triangles.forEach((triangle, at) => {
       cellIndices.set(indices.subarray(triangle, triangle + 3), at * 3);
     });
-    return { indices: cellIndices, x: (column + 0.5) * RIBBON_CELL_M, z: (row + 0.5) * RIBBON_CELL_M };
+    const low = [Infinity, Infinity, Infinity];
+    const high = [-Infinity, -Infinity, -Infinity];
+    for (const vertex of cellIndices) {
+      for (let axis = 0; axis < 3; axis++) {
+        low[axis] = Math.min(low[axis], positions[vertex * 3 + axis]);
+        high[axis] = Math.max(high[axis], positions[vertex * 3 + axis]);
+      }
+    }
+    const bounds: RibbonCell["bounds"] = [(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, (low[2] + high[2]) / 2, Math.hypot(high[0] - low[0], high[1] - low[1], high[2] - low[2]) / 2];
+    return { indices: cellIndices, x: (column + 0.5) * RIBBON_CELL_M, z: (row + 0.5) * RIBBON_CELL_M, bounds };
   });
 }
