@@ -457,11 +457,17 @@ jobs:
         run: |
           set -f
           mkdir records
+          pids=""
           for core in $(seq 0 $(($(nproc) - 1))); do
             src/projects/risk/native/target/release/risk-native play $ARGS --seeds "$SEEDS-$SHARD-$core" --out "records/$SEEDS-$SHARD-$core.jsonl.gz" &
+            pids="$pids $!"
           done
-          wait
+          # `wait` with no arguments ignores the recorders' exit codes; a recorder that failed
+          # (a label the crate doesn't know) must fail the job, not leave a quiet gap.
+          failed=0
+          for pid in $pids; do wait "$pid" || failed=1; done
           ls -l records
+          exit $failed
       - uses: actions/upload-artifact@v4
         with:
           name: risk-records-${{ matrix.shard }}
