@@ -76,8 +76,12 @@ export function projectOfSpec(specName, projects) {
  * What to run for a change: `{ all: reason }`, or `{ runs: [{ spec, lines: number[] | null, why }] }` where null lines
  * is the whole spec. `specs` maps each spec's repo path to its text; `changed` lists repo paths.
  */
-export function select(changed, specs, projects) {
+/** What no page serves: unit tests, notes and docs. A change to these alone runs no e2e test. */
+export const NOT_SERVED = ["**/*.test.{ts,tsx,mjs}", "**/*.md", "**/docs/**", "**/ideas/**"];
+
+export function select(changedPaths, specs, projects) {
   const matches = (globs, file) => globs.some((glob) => globToRegExp(glob).test(file));
+  const changed = changedPaths.filter((file) => /\.spec\.ts$/.test(file) || !matches(NOT_SERVED, file));
   const trigger = changed.find((file) => matches(EVERYTHING, file) && !/\.spec\.ts$/.test(file));
   if (trigger) return { all: `${trigger} changed` };
 

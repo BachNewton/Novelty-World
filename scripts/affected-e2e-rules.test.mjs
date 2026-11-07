@@ -29,8 +29,9 @@ describe("select", () => {
     });
   });
 
-  it("runs nothing for a change no test covers, even in the project", () => {
+  it("runs nothing for a change no test covers, even in the project, nor for unit tests and notes", () => {
     expect(select(["src/projects/aland-drive/art/boats/hull.ts"], specs, projects)).toEqual({ runs: [] });
+    expect(select(["src/projects/frogmino/logic.test.ts", "src/projects/frogmino/CLAUDE.md"], specs, projects)).toEqual({ runs: [] });
   });
 
   it("falls back to the whole project for a spec that names no covers", () => {
