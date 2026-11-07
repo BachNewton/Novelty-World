@@ -102,6 +102,20 @@ By hand, the same loop is `risk-native games <args> --shard i/N --out <file>` on
 
 **A rare game may differ between the laptop and the runners.** A native game is a pure function of its seed and seating on one platform, but Rust's float functions (`powf`, `exp`, `ln` and the like) come from each platform's C library, as Node's `Math.pow` does, and Windows' and Linux's can disagree in the last bit. Any bot or odds computation that uses them can then decide differently on a rare position, so a run on Actions may not replay game for game on the laptop. Every machine of one run is Linux, so the shards agree with each other.
 
+## Game records
+
+The same workflow records native bots' games as game records (`risk-native play`; the format is the GPU engine's, `ideas/gpu-engine.md`, "Game records"), the data an imitation learns from (`ideas/learned-bot.md`): pick the tool `native-play` and type `play`'s arguments without `--seeds` or `--out`. Like `record`, it is data and not a measurement, so there are no rounds or report. `play` plays one game at a time, so each of `shards` machines runs one recorder per core, each on its own run of seeds under the `seeds` input (`<seeds>-<shard>-<core>-<n>`), and `--count` is per core: twenty machines of four cores at `--count 60` record 4,800 games. The files are gathered into one artifact, `risk-records`, kept for 90 days, and read together as they are:
+
+```bash
+gh workflow run risk-measure.yml --ref main -f tool=native-play -f seeds=imit-5m -f args='--bots native-v2 --players 5 --count 60'
+```
+
+```bash
+gh run download <run id> --name risk-records --dir src/projects/risk/gpu/runs/records/<teacher>
+```
+
+A lost machine loses its own games and nothing else, since no game depends on another; the recording is simply smaller. A recorder writes its file when its games are done, so a machine's share is sized to finish well inside the six-hour limit. The records are data, never committed: `gpu/runs/` is ignored.
+
 ## The run's record
 
 The report job writes the run-log record, as a local run does, but the figures are the play jobs' own. Games, decisions and speed are summed over every machine. The machine is one runner. CPU is each machine's load, averaged over all of them. Memory is the largest any one machine used. The wall time runs from the first round's plan to the report. The record's `remote` field says how many shards played the run, over how many rounds, so the timeline can tell a laptop's run from an Actions run. Its arguments are the tool's own, without the flags that only say where the games came from.
@@ -120,5 +134,4 @@ Within a round, the page shows the round's starting point, not each game: the ma
 
 ## Not yet
 
-- **`risk:gpu-fixtures`**, a teacher's games as game records for imitation (`ideas/learned-bot.md`, stage 1): a `fixtures` tool shaped like `record` (a fixed number of games, `shards` machines, one artifact), with one recorder process per core, since the recorder plays one game at a time. It lands on `main` before the first imitation recording.
 - **`risk:tune`.** Each SNES generation depends on the one before, so a tuning run is a chain of short rounds, one per generation, typically twenty. Each round's start-up would cost more than its games. It would need the round loop to carry the tuner's state from round to round, a different shape from a gauntlet's. It stays on the laptop until a tuning run is long enough to be worth that.
