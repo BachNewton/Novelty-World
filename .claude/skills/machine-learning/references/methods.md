@@ -10,6 +10,7 @@ Orders of magnitude from this machine's measurements, each on one of this repo's
 |---|---|
 | A reference game engine in TypeScript on 14 workers (Risk's, Monopoly's) | about a million cheap games; thousands with a searching bot |
 | A native engine (Rust) on 16 threads (Risk's) | a hundred times that per game |
+| GitHub Actions' free runners (20 machines of 4 cores at once, Linux, 6 hours a job) | about five times the laptop's games for the same bots, in rounds, with the laptop left free: a searching bot's recording or gauntlet that is a night here is an hour or two there |
 | A vectorized engine on the RTX 4070 with a small net in the loop (Risk's) | about a billion decisions |
 | Supervised training of a small net on the GPU | tens of millions of examples seen; a dataset of 10⁶ rows fitted many times over |
 | Fine-tuning a pretrained model under 12 GB | thousands of optimizer steps: a full fine-tune of a small corpus, several times |
