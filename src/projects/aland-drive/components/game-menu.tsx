@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type RefObject } from "react";
-import { ArrowLeft, Car, Check, CircleDot, Disc, Footprints, Navigation, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, Play, Plus, Repeat, Route, Ruler, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, Car, Check, CircleDot, Disc, Footprints, Navigation, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, Play, Plus, Repeat, Route, Ruler, RotateCcw, Snowflake, Sun, ToggleLeft, ToggleRight, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
@@ -366,6 +366,7 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
             >
               <Icon aria-hidden className="size-5 shrink-0" />
               <span className="grow">{label}</span>
+              {on !== undefined && (on ? <ToggleRight aria-hidden className="size-7 shrink-0" style={{ color: ACCENT }} /> : <ToggleLeft aria-hidden className="size-7 shrink-0 opacity-50" />)}
             </button>
           );
         })}
