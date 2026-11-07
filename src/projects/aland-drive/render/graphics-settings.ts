@@ -11,7 +11,7 @@ import { getProjectStorage } from "@/shared/lib/storage";
  * from making the rendering cheaper, never from quietly drawing fewer pixels.
  */
 
-export const RENDER_SCALES = [0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
+export const RENDER_SCALES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
 export type RenderScale = (typeof RENDER_SCALES)[number];
 
 export interface GraphicsSettings {
