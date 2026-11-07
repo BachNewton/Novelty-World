@@ -142,3 +142,33 @@ Only if the trial reads clean on all three does the old system get deleted and t
 - **Tile edges.** Paving cut at a tile's edge must be cut identically from both sides, from data both tiles see; a cut that differs shows as a crack.
 - **Paving over water.** A causeway's embankments run into the water, which is drawn on the grid's triangles, not the cut cells'. The shore there may need the cut cells' own water line.
 - **Odd OSM.** A footprint merged from bad data (a way drawn twice, a sliver between two lines) becomes odd paving. Today's layers hide some of it by accident; the new system shows it, and each case is fixed in how the shape is made.
+
+## Where the trial stands
+
+The paving is merged and built with `build.py --paving` on L2334E, L2334F, L2343H (Godby) and L3121B only; every other tile, the fixture and the published tiles are still ribbons. The owner judged it the biggest improvement yet, and Godby's underpass, with its straight edge line, fine as an underpass rather than a tunnel. Packed, a paved tile is between 10% smaller and 20% larger than its ribbon build (L2343C 8.65 → 10.42 MB, L2334E 18.85 → 16.95 MB). Seams match to 0.0 mm, the car's surface matches the drawn one to 1 mm, and no pop shows where the cut cells end.
+
+**The owner's calls, still open:**
+
+- **Step three: cut the paving where its look changes.** Where a sidewalk changes surface along its length, the two looks meet in a sawtooth along the triangles; cutting the paving at each change gives a straight join.
+- **Paving as the build's default, and the island rebuilt from main.** That is when the ribbon system goes, and the rebuild should be one with the lanes (below).
+
+**Left after that, in order** (`pipeline/paving_audit.py L2334E L2334F --report <file>` counts most of them):
+
+1. Spiky gap pieces between a street and an asphalt-tagged cycleway, which wear its surface and so show as hard surface: shape the closed gaps, not their look.
+2. A ridge between the cycleway and the gravel path at the underpass's far side.
+3. About twenty sidewalk sides still wrong, mostly where a path is mapped some way off or a street's band eases away at a tile's edge.
+4. Kinks in a sidewalk's outline at crossing nodes.
+5. Give-way and stop lines on the paving.
+6. The road surface's rings (1.4–3.4 MB a tile) could be packed as the cut ground was.
+7. A slab lattice breaks where one OSM way meets the next, and a piece between a street and a path can wear a crossing path's surface.
+8. Driving it: `tools/road-check.ts` and `tools/junction-check.ts` on paved tiles, and an e2e fixture that is paved, since the fixture is ribbons and the paved path has no e2e coverage.
+
+Known and left alone: one-pixel gaps where the clipmap's cut meets the cut mesh, visible only from about 120 m up, which the owner saw no problem with live.
+
+## Getting it to players
+
+Traffic, cyclists and walkers drive the lane map, which follows the drawn road surface, and road lanes must carry their traffic counts (`pipeline/traffic_volume.py`; `traffic/lane-map.ts` refuses a lane without one). The published tiles have neither paving nor lanes, so players see neither yet. One rebuild and one publish brings both, so players download the map once:
+
+1. Paving as the build's default (the owner's call above).
+2. The island rebuilt from main: `build.py --island` with paving, then `pipeline/lanes.py` over every tile. It holds the machine for a long while, so it needs the owner's go-ahead and the machine's budget (`npm run slot -- cores:N`).
+3. The checks the upload needs (`pipeline/check_seams.py`), then `pipeline/upload.py`, `TILES_VERSION` in `render/tile-address.ts` set to what it prints, the game checked on the published tiles, and main pushed.
