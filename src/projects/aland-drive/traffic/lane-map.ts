@@ -58,6 +58,9 @@ export interface LaneLine {
 
 export interface Lane extends LaneLine {
   kind: string;
+  /** The road or path it's one way of: a two-way one's other way has the same chain, running the other way. */
+  chain: number;
+  forward: boolean;
   /** A footway or cycleway's, for cyclists and walkers. */
   path: boolean;
   width: number;
@@ -117,7 +120,7 @@ export function decodeLanes(file: LanesFile): TileLanes {
     at += values.length;
     return line;
   };
-  const lanes: Lane[] = file.lanes.map((lane) => ({ ...place(lane.points), kind: lane.kind, path: PATH_KINDS.has(lane.kind), width: lane.width, speeds: lane.speeds, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true }));
+  const lanes: Lane[] = file.lanes.map((lane) => ({ ...place(lane.points), kind: lane.kind, chain: lane.chain, forward: lane.forward, path: PATH_KINDS.has(lane.kind), width: lane.width, speeds: lane.speeds, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true }));
   const connectors: Connector[] = file.connectors.map((connector, index) => {
     if (connector.from >= lanes.length || connector.to >= lanes.length) throw new Error(`connector ${index} joins lanes the file doesn't have`);
     lanes[connector.from].next.push(index);

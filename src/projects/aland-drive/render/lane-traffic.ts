@@ -7,6 +7,7 @@ import type { HitCarView } from "../traffic/contact";
 import type { LaneCar, LaneTraffic } from "../traffic/lane-driver";
 import type { Sighted } from "../traffic/sight";
 import { BIKE_REACH_M } from "../art/bikes";
+import { PEOPLE_REACH_M } from "../art/people/material";
 import { instanced, write, type Car } from "./parked-cars";
 import { PARKED_CARS } from "./parked-places";
 
@@ -19,18 +20,19 @@ import { PARKED_CARS } from "./parked-places";
 /** Half the width and length of each kind of car traffic drives, in the order `LaneCar.model` counts them. */
 export const TRAFFIC_KINDS = PARKED_CARS.map(({ half }) => half);
 
-/** A world car's height, and a cyclist's, near enough for whether one can be seen. */
-const CAR_HEIGHT_M = 1.6;
-const RIDER_HEIGHT_M = 1.9;
+/** A world car's height, a cyclist's and a walker's, near enough for whether one can be seen. */
+const HEIGHTS_M = { car: 1.6, bike: 1.9, walker: 1.9 } as const;
+/** How far off each kind is drawn: the fleet's reach, the bikes' and the people's. */
+const REACHES_M = { car: REACH_M, bike: BIKE_REACH_M, walker: PEOPLE_REACH_M } as const;
 
-/** A car or cyclist as the camera judges whether it's in sight: drawn to the fleet's reach, or the bikes'. */
+/** A car, cyclist or walker as the camera judges whether it's in sight. */
 export const sightOf = ({ kind, pose, half }: Pick<LaneCar, "kind" | "pose" | "half">): Sighted => ({
   x: pose.x,
   y: pose.y,
   z: pose.z,
   radiusM: Math.hypot(...half),
-  heightM: kind === "bike" ? RIDER_HEIGHT_M : CAR_HEIGHT_M,
-  reachM: kind === "bike" ? BIKE_REACH_M : REACH_M,
+  heightM: HEIGHTS_M[kind],
+  reachM: REACHES_M[kind],
 });
 
 export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
