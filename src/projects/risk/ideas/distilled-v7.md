@@ -1,6 +1,6 @@
-# Distilling v7: v7's judgement at v6's cost (an idea, not built)
+# Distilling v7: v7's judgement at v6's cost
 
-This is the plan behind a bot. The kill test's tooling is built (below), and its first experiments on the pilot data are measured. The student bot is built, as `student-v1` (`student-v1.md`), with the pilot's best student as its first weights; it is not yet measured. The doc says why distilling should work where v8 didn't, and the cheap test that decides whether a student is worth playing.
+The plan behind a bot, and its measurements. The kill test's tooling is built (below) and measured on every recording so far. The student bot is built and measured, as `student-v1` (`student-v1.md`): better than v6 at 3 to 5 players on holdout seeds, even at 6. The doc says why distilling should work where v8 didn't, and the cheap test that decides whether a student is worth playing. Its findings stand, and the line's next step is folded into the learned bot's plan (`learned-bot.md`) rather than pursued as a further doubling of this recording.
 
 ## The problem it answers
 
