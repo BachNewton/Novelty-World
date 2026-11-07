@@ -4,6 +4,8 @@ import { seedOf, unitOf } from "../hash";
 import { band, pulses } from "../surfaces/coverage";
 import IDS from "./facade-ids.json";
 import { farWindowLight, windowLight, type Night } from "../night";
+import { eavesLights, type PaneFrame, type WinterWall } from "../night/festive";
+import type { SeasonNodes } from "../season";
 
 /*
  * Seven more ways for a wall to look, in the terms of the wall shader (`render/buildings.ts`): boxes and bands laid out
@@ -53,6 +55,8 @@ export interface FacadeInput {
   colour: (name: string) => V3;
   linear: (name: string) => Vector3;
   night: Night;
+  /** The season's dials, for the winter's lights in windows and along eaves. */
+  season?: SeasonNodes;
 }
 
 interface Wall {
@@ -76,6 +80,8 @@ interface Wall {
   building: F;
   /** What the wall's lit windows add, gathered as its panes are drawn. */
   glow: V3;
+  /** The season's lights, as this look takes to them. */
+  winter?: WinterWall;
 }
 
 /** A number from 0 to 1 for whole numbers: a cell, a pane, a building's seed (`art/hash.ts`). */
@@ -104,15 +110,19 @@ function glass(wall: Wall, height: F, id: F, shows: F): V3 {
   return mix(wall.colour("wall-glass"), wall.colour("sky"), sky.mul(0.42).add(light.mul(0.14)));
 }
 
-/** Lights a wall's panes where `mask` says they are: each pane a room, lit or not at this hour. */
-function lightPanes(wall: Wall, mask: F, id: F, height: F, shows: F) {
-  wall.glow.addAssign(windowLight(wall.night, { id, building: wall.building, up: height, shown: shows }).mul(mask));
+/** Lights a wall's panes where `mask` says they are: each pane a room, lit or not at this hour, and in winter perhaps a candlestick or a star in it. */
+function lightPanes(wall: Wall, mask: F, id: F, height: F, shows: F, frame?: PaneFrame) {
+  const winter = wall.winter && frame && { wall: wall.winter, frame };
+  wall.glow.addAssign(windowLight(wall.night, { id, building: wall.building, up: height, shown: shows, winter }).mul(mask));
 }
 
 /** A wall too far off for its panes to be told apart still holds rooms with the light on. */
 function lightFar(wall: Wall, shows: F) {
-  wall.glow.addAssign(farWindowLight(wall.night, wall.building, shows));
+  wall.glow.addAssign(farWindowLight(wall.night, wall.building, shows, wall.winter));
 }
+
+/** A pane in its own metres, from where the pixel is in its bay and storey: its middle along, and up from its foot. */
+const paneFrame = (wall: Wall, x: F, fromMiddle: F, halfTall: F): PaneFrame => ({ x, y: fromMiddle.add(halfTall), height: halfTall.mul(2), wide: wall.wide, tall: wall.tall });
 
 /** The wall painted, boards and all, for the villas: lapped boards above a panelled base, with a belt between floors. */
 function villa(wall: Wall): V3 {
@@ -173,7 +183,7 @@ function villa(wall: Wall): V3 {
   const paneUp = inStorey.div(halfTall).mul(0.5).add(0.5);
   const window = mix(glass(wall, paneUp, paneId, windowsShow), trim, bars);
   out = mix(out, window, pane.mul(onWall));
-  lightPanes(wall, pane.mul(onWall).mul(float(1).sub(bars)), paneId, paneUp, windowsShow);
+  lightPanes(wall, pane.mul(onWall).mul(float(1).sub(bars)), paneId, paneUp, windowsShow, paneFrame(wall, inBay, inStorey, halfTall));
   lightFar(wall, windowsShow);
 
   // The door on the middle axis, panelled, with a fanlight.
@@ -242,7 +252,7 @@ function brick(wall: Wall): V3 {
   out = mix(out, colour("wall-trim"), frame);
   const paneUp = inStorey.div(halfTall).mul(0.5).add(0.5);
   out = mix(out, mix(glass(wall, paneUp, paneId, windowsShow), colour("wall-trim"), bars), pane);
-  lightPanes(wall, pane.mul(float(1).sub(bars)), paneId, paneUp, windowsShow);
+  lightPanes(wall, pane.mul(float(1).sub(bars)), paneId, paneUp, windowsShow, paneFrame(wall, inBay, inStorey, halfTall.sub(0.07)));
   lightFar(wall, windowsShow);
 
   const door = rect(wall, fromCentre, 0.75, up.sub(1.1), 1.1).mul(wall.hasDoor);
@@ -304,8 +314,11 @@ function block(wall: Wall): V3 {
   const punchedWall = mix(mix(out, colour("wall-trim"), punchedFrame), punchedColour, punched);
   const ribbons = select(rollA.lessThan(0.48), float(1), float(0));
   out = mix(out, mix(punchedWall, ribbonWall, ribbons), body);
-  lightPanes(wall, ribbon.mul(float(1).sub(mullions)).mul(body).mul(ribbons), ribbonId, height, ribbonShows);
-  lightPanes(wall, punched.mul(float(1).sub(punchedBars)).mul(body).mul(float(1).sub(ribbons)), punchedId, height, punchedShows);
+  const fromMiddle = floorUp.sub(middle);
+  const inCell = fract(along.div(mullionStep)).sub(0.5).mul(mullionStep);
+  const inBay = fract(along.div(bay)).sub(0.5).mul(bay);
+  lightPanes(wall, ribbon.mul(float(1).sub(mullions)).mul(body).mul(ribbons), ribbonId, height, ribbonShows, paneFrame(wall, inCell, fromMiddle, halfTall));
+  lightPanes(wall, punched.mul(float(1).sub(punchedBars)).mul(body).mul(float(1).sub(ribbons)), punchedId, height, punchedShows, paneFrame(wall, inBay, fromMiddle, halfTall));
   lightFar(wall, storeysShow);
 
   // Balconies stacked in columns on a long facade: a dark recess with a door, a slab, a parapet panel, a shadow under.
@@ -481,7 +494,13 @@ function granite(wall: Wall): V3 {
 }
 
 /** A wall in one of the styles here, which its tint says it is. */
-export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night }: FacadeInput) {
+/** How likely each look is to dress its windows and string its eaves at Christmas, from the villa on: homes far more than offices, halls, barns and churches. */
+const WINTER_WINDOWS = [0.85, 0.45, 0.5, 0.06, 0.02, 0, 0] as const;
+const WINTER_EAVES = [0.8, 0.08, 0, 0, 0, 0, 0] as const;
+
+export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night, season }: FacadeInput) {
+  const windowsShare = uniformArray([...WINTER_WINDOWS]);
+  const eavesShare = uniformArray([...WINTER_EAVES]);
   const palette = uniformArray(PAINTS.map(linear));
   return Fn(() => {
     const style = round(tint.a.mul(255)).toVar();
@@ -506,6 +525,9 @@ export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, l
       building: seed.add(round(tint.r.mul(255)).mod(32).mul(256)).toVar(),
       glow: vec3(0).toVar(),
     };
+    const look = int(style.sub(STYLE.villa).clamp(0, WINTER_WINDOWS.length - 1));
+    const winter: WinterWall | undefined = season && { season, windows: windowsShare.element(look) as unknown as F, eaves: eavesShare.element(look) as unknown as F };
+    drawn.winter = winter;
     const result = vec3(0).toVar();
     If(style.lessThan(STYLE.brick - 0.5), () => {
       result.assign(villa(drawn));
@@ -528,6 +550,7 @@ export function facadeArt({ along, up, width, eaves, tint, wide, tall, colour, l
       .Else(() => {
         result.assign(granite(drawn));
       });
+    if (winter) drawn.glow.addAssign(eavesLights(night, winter, { along, up, width, eaves, wide, tall, building: drawn.building, front: drawn.hasDoor }));
     return WallLight(result, drawn.glow);
   })();
 }

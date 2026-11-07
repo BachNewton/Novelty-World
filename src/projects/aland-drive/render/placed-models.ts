@@ -1,12 +1,18 @@
 import type { Mesh, Scene } from "three/webgpu";
 import { placeModel, type Placement, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
+import type { SeasonLook } from "../art/season";
+import type { InSeason } from "../climate/placed-season";
+import { inSeasonMaterials, markInSeason } from "./in-season";
 import type { TileModels } from "./tile-models";
 
 /*
  * Models the pipeline placed in each tile's lists, drawn by the kits. Each model is
  * one list of places across every loaded tile, so it is two draw calls (near and
  * far) however many tiles are near, and a tile landing or leaving rebuilds only the
- * lists of the models it has, which are a few floats a place.
+ * lists of the models it has, which are a few floats a place. A kind out only in
+ * its season (`climate/placed-season.ts`) draws through a copy of its kit's materials that
+ * folds each place away on its own threshold, so the season rebuilds nothing: one copy a kit,
+ * which every kind of that kit draws through, each mesh marked with its kind.
  */
 
 export interface PlacedKind {
@@ -16,15 +22,26 @@ export interface PlacedKind {
   fit: (places: Float32Array) => Placement[];
   /** Keep the kit's own reach rather than the one every model here shares. */
   ownReach?: boolean;
+  /** Out only in its season, each place on its own threshold. */
+  inSeason?: InSeason;
 }
 
 /** A model with no places keeps one folded to nothing, so its meshes always exist to be compiled before the drive. */
 const NOWHERE: Placement = { x: 0, y: 0, z: 0, scale: 0 };
 
-export function createPlacedModels(scene: Scene, kinds: Record<string, PlacedKind>, reachM: number, what: string) {
-  const models = Object.entries(kinds).map(([name, { build, materials, fit, ownReach = false }]) => {
+export function createPlacedModels(scene: Scene, kinds: Record<string, PlacedKind>, reachM: number, what: string, season?: SeasonLook) {
+  // One copy of a kit's materials that follows the season, for every kind of a kit any of whose kinds does.
+  const seasonalKits = new Set(Object.values(kinds).flatMap(({ materials, inSeason }) => (inSeason === undefined ? [] : [materials])));
+  const copies = new Map<RoadsideMaterials, RoadsideMaterials>();
+  const materialsOf = (materials: RoadsideMaterials) => {
+    if (season === undefined || !seasonalKits.has(materials)) return materials;
+    const copy = copies.get(materials) ?? inSeasonMaterials(materials, season);
+    copies.set(materials, copy);
+    return copy;
+  };
+  const models = Object.entries(kinds).map(([name, { build, materials, fit, ownReach = false, inSeason }]) => {
     const built = build();
-    return { name, model: ownReach ? built : { ...built, reachM }, materials, fit, meshes: [] as Mesh[], count: 0 };
+    return { name, model: ownReach ? built : { ...built, reachM }, materials: materialsOf(materials), inSeason, fit, meshes: [] as Mesh[], count: 0 };
   });
   const tiles = new Map<string, TileModels>();
 
@@ -37,7 +54,7 @@ export function createPlacedModels(scene: Scene, kinds: Record<string, PlacedKin
       }
       const places = [...tiles.values()].flatMap((tile) => (entry.name in tile ? entry.fit(tile[entry.name]) : []));
       entry.count = places.length;
-      entry.meshes = placeModel(entry.model, places.length > 0 ? places : [NOWHERE], entry.materials);
+      entry.meshes = markInSeason(placeModel(entry.model, places.length > 0 ? places : [NOWHERE], entry.materials), entry.inSeason);
       for (const mesh of entry.meshes) {
         mesh.visible = places.length > 0;
         scene.add(mesh);
@@ -71,6 +88,10 @@ export function createPlacedModels(scene: Scene, kinds: Record<string, PlacedKin
         for (const mesh of meshes) mesh.geometry.dispose();
         model.near.dispose();
         model.far?.dispose();
+      }
+      for (const { near, far } of copies.values()) {
+        near.dispose();
+        far.dispose();
       }
     },
   };

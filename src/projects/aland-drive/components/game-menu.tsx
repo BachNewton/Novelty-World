@@ -8,7 +8,7 @@ import { useDriveSoundSettings } from "../audio/settings";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
-import type { GameMenu as GameMenuState, MenuItemId, MenuResult, RaceCard, RaceResult } from "../render/game-menu";
+import { tyreOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
 import type { Tyre } from "../sim/surfaces";
 
 /*
@@ -34,11 +34,14 @@ const medalColour = (medal: Medal) => `var(--color-aland-drive-ui-${medal})`;
 const MEDAL_NAMES: Record<Medal, string> = { gold: "Gold", silver: "Silver", bronze: "Bronze" };
 const GROUND_NAMES: Record<RaceGround, string> = { road: "Road", "cross-country": "Cross country", "off-road": "Off-road" };
 
-const TYRE_LOOKS: Record<Tyre, ItemLook> = {
-  summer: { icon: Sun, label: "Summer tyres" },
-  winter: { icon: Snowflake, label: "Winter tyres" },
-  studded: { icon: CircleDot, label: "Studded tyres" },
+const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
+  summer: { icon: Sun, name: "Summer" },
+  winter: { icon: Snowflake, name: "Friction" },
+  studded: { icon: CircleDot, name: "Studded" },
 };
+
+type TyreItem = `tyres-${Tyre}`;
+const isTyreItem = (id: MenuItemId): id is TyreItem => id.startsWith("tyres-");
 
 interface ItemLook {
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
@@ -53,8 +56,12 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
     switch (id) {
       case "resume":
         return { icon: Play, label: "Resume" };
-      case "tyres":
-        return TYRE_LOOKS[menu.tyres ?? "summer"];
+      case "tyres-summer":
+      case "tyres-winter":
+      case "tyres-studded": {
+        const tyre = tyreOfItem(id);
+        return { icon: TYRE_LOOKS[tyre].icon, label: `${TYRE_LOOKS[tyre].name} tyres`, on: menu.tyres === tyre };
+      }
       case "abs":
         return { icon: Disc, label: "ABS", on: menu.assists?.abs ?? true };
       case "traction":
@@ -190,6 +197,35 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
   );
 }
 
+/** The tyres to fit, side by side, the fitted set marked: each picks its own, so none has to say whether it's the set on or the next. */
+function TyreChoice({ items, fitted, onPick }: { items: TyreItem[]; fitted: Tyre | undefined; onPick: (id: MenuItemId) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Tyres" className="grid grid-cols-3 gap-2">
+      {items.map((id) => {
+        const tyre = tyreOfItem(id);
+        const { icon: Icon, name } = TYRE_LOOKS[tyre];
+        const on = tyre === fitted;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            aria-label={`${name} tyres`}
+            className="relative flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-2 py-2 text-sm font-semibold"
+            style={{ borderColor: on ? ACCENT : "transparent", color: on ? ACCENT : INK }}
+            onClick={() => { onPick(id); }}
+          >
+            {on && <Check aria-hidden className="absolute top-1 right-1 size-4" />}
+            <Icon aria-hidden className="size-6" />
+            <span>{name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const DIALOG_NAMES = { menu: "Game menu", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
@@ -227,6 +263,7 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}
         {menu.items.map((id, index) => {
+          if (isTyreItem(id)) return id === menu.items.find(isTyreItem) ? <TyreChoice key="tyres" items={menu.items.filter(isTyreItem)} fitted={menu.tyres} onPick={onPick} /> : null;
           const { icon: Icon, label, on } = look(id);
           const back = id === menu.back;
           return (

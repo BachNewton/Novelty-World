@@ -7,6 +7,8 @@ description: Run many Claude sessions on Novelty World at once as their orchestr
 
 The owner works with one orchestrating session and many sub-sessions, each doing one task in its own worktree. The owner reads each sub-session's reports and gives it feedback there. This skill says who does what, so nothing is done twice or not at all.
 
+It is one system with the `worktree` skill and the `/ready` command: the `worktree` skill is how a worktree is made, landed and removed, `/ready` is a session's half of landing, and this skill is who does each step and the orchestrator's half.
+
 ## Who owns what
 
 | Step | Owner |
@@ -31,6 +33,8 @@ The owner works with one orchestrating session and many sub-sessions, each doing
 ## Landing work
 
 When a session reports ready (its branch, its commit, the owner's words):
+
+Landing is the `worktree` skill's two halves: the session has already merged `main` into its branch and gone green (`/ready`); the orchestrator merges the branch into `main`.
 
 1. **Check it's landable.** `git merge-tree --write-tree main <branch>` merges cleanly, and the branch contains `main` as it was when the session reported. If it doesn't merge cleanly, send it back: "merge main into your branch, resolve, rerun your checks, `/ready` again". The orchestrator resolves conflicts itself only when they're mechanical (both sides added lines side by side) and it can check the result with a typecheck.
 2. **Merge** into `main` (`git merge --no-ff refs/heads/<branch>`, with a `merge:` message saying what the work does). Batch whatever is ready at the same time.

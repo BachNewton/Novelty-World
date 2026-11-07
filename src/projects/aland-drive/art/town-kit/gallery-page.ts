@@ -5,7 +5,7 @@ import { buildBusShelter, buildStreetLamp, placeModel, roadsideMaterials, type P
 import { createCarFleet } from "../cars/fleet";
 import { WORLD_CARS } from "../cars/specs";
 import { buildBench, buildBikeRack, buildPlanter, rowAlong, streetMaterials, type LinePoint } from "../street";
-import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M, buildRoadFerry, yawForBearing } from "./index";
+import { alongWall, bikeRow, bladesOnPost, buildBalticFerry, buildBicycle, buildChristmasTree, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, createNameSheet, deliveryVan, ferryPlace, namePlateMaterial, placeNamePlates, placeTrafficLights, sceneOf, signalsAtJunction, STREET_PLATE, TERMINAL_ORIGIN, townMaterials, trafficLightMaterials, VILLAGE_PLATE, VILLAGE_PLATE_Y_M, buildRoadFerry, yawForBearing } from "./index";
 
 /*
  * The gallery's scene on the game's renderer, camera, haze and sun, with the harbour at its real place: the same
@@ -268,6 +268,14 @@ add(villageFrame, [{ x: villageX, y: 0.12, z: villageZ }]);
 const villageMesh = placeNamePlates(villagePlate, villageSheet, [{ x: villageX, y: 0.12 + VILLAGE_PLATE_Y_M, z: villageZ, name: "Önningeby" }], namePlateMaterial(inputs, villageSheet.texture).material);
 scene.add(villageMesh);
 look("village", "village sign", [villageX - 2, 1.5, villageZ + 8], [villageX, 1.6, villageZ], 40);
+
+// The town's Christmas tree in its square, near, at a driver's height and past its swap.
+const [treeX, treeZ] = [STREET_X + 60, STREET_Z + 500];
+add(buildChristmasTree(), [{ x: treeX, y: 0.12, z: treeZ }]);
+look("christmas-tree", "Christmas tree, from across the square", [treeX - 22, 1.7, treeZ + 14], [treeX, 6, treeZ], 46);
+look("christmas-tree-close", "Christmas tree, its foot and lowest boughs", [treeX - 5, 1.6, treeZ + 4], [treeX, 2.4, treeZ], 60);
+look("christmas-tree-top", "Christmas tree's top and star", [treeX - 6, 13, treeZ + 6], [treeX, 11.5, treeZ], 40);
+look("christmas-tree-far", "Christmas tree past its swap, 260 m", [treeX - 220, 2, treeZ + 140], [treeX, 6, treeZ], 8);
 
 
 

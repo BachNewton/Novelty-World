@@ -5,7 +5,7 @@ import { buildDistant } from "./body";
 import { axleY, buildCarParts, groundY, type CarSpec } from "./build";
 import { distantLamps, lampOptions, lampSpots, worldLamps } from "./indicators";
 import { SURFACES, type Soup } from "./mesh";
-import { geometryOf, worldCarMaterial } from "./material";
+import { geometryOf, worldCarMaterial, type WorldTierOptions } from "./material";
 import { measuredSwapM } from "../lod-swaps";
 import { type Sun } from "../sun";
 
@@ -135,8 +135,8 @@ export function distantGeometry(spec: CarSpec): BufferGeometry {
 export const modelSwapM = (world: BufferGeometry, distant: BufferGeometry) => measuredSwapM(world, distant, SWAP_M);
 
 /** A model's world and stand-in materials, swapping where the LOD check measured it. */
-export function tierMaterials(swapM: number, sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">) {
-  const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM, reachM: REACH_M });
+export function tierMaterials(swapM: number, sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">, snow: Pick<WorldTierOptions, "season" | "snowKept"> = {}) {
+  const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM, reachM: REACH_M, ...snow });
   return { world: tier("world"), distant: tier("distant") };
 }
 

@@ -4,6 +4,7 @@ import { distantGeometry, lookOf, modelSwapM, REACH_M, tierMaterials, worldGeome
 import { WORLD_CARS } from "../art/cars/specs";
 import { PARKED_CARS, PARKED_FLOATS, parkedAt, type TileParked } from "./parked-places";
 import { type Sun } from "../art/sun";
+import type { SeasonLook } from "../art/season";
 
 /*
  * The parked cars (`pipeline/parking.py`), drawn as `art/cars`' world cars: each
@@ -77,7 +78,7 @@ export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[])
   geometry.instanceCount = cars.length;
 }
 
-export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">) {
+export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, season?: SeasonLook) {
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`${name} parks, but there's no world car of that name`);
@@ -86,7 +87,7 @@ export function createParkedCars(scene: Scene, sun: Sun, hazed: (color: Node<"ve
   const models: Model[] = specs.map((spec) => {
     const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
     const swapM = modelSwapM(shapes.world, shapes.distant);
-    return { shapes, reachM: { world: swapM, distant: REACH_M }, materials: tierMaterials(swapM, sun, hazed), cars: [], world: null, distant: null };
+    return { shapes, reachM: { world: swapM, distant: REACH_M }, materials: tierMaterials(swapM, sun, hazed, { season }), cars: [], world: null, distant: null };
   });
   const tiles = new Map<string, TileParked>();
   let compiling = false;

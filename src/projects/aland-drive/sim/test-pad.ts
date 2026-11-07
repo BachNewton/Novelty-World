@@ -90,10 +90,35 @@ class Pad extends World {
   }
 }
 
-export function testPad(surface: Surface = "asphalt"): World {
+/** A pond between two of the pad's roads, x from west to east and z from north to south as the scene has them, its seabed and surface. */
+export const POND = { west: 1000, east: 1400, north: -580, south: -380, seabedM: GROUND_M - 3, surfaceM: GROUND_M - 0.2 } as const;
+
+/** Metres from the pond's edge, inward, at a node: below zero outside it. */
+function intoPond(column: number, row: number): number {
+  const [x, z] = [column * STEP_M, row * STEP_M - TILE_M];
+  return Math.min(x - POND.west, POND.east - x, z - POND.north, POND.south - z);
+}
+
+/** A grid of the detail's nodes, from what each is in the pond and out of it. */
+function pondGrid(inside: (into: number) => number, outside: number): HeightGrid {
+  const flat = grid(NODES, STEP_M, outside);
+  for (let row = 0; row < NODES; row++) {
+    for (let column = 0; column < NODES; column++) {
+      const into = intoPond(column, row);
+      if (into > -STEP_M) flat.heights[row * NODES + column] = inside(into);
+    }
+  }
+  return flat;
+}
+
+/** A pad of one surface, with the pond (`POND`) dug into it when asked: water as a tile has it, with its seabed, surface and shore. */
+export function testPad(surface: Surface = "asphalt", { pond = false } = {}): World {
   const world = new Pad(surface);
   world.addFar(NAME, grid(FAR_NODES, FAR_STEP_M, GROUND_M), grid(FAR_NODES, FAR_STEP_M, DRY_LEVEL_M), grid(FAR_NODES, FAR_STEP_M, DRY_LEVEL_M));
-  const detail = tileDetail(tile, grid(NODES, STEP_M, GROUND_M), roadBytes(), grid(NODES, STEP_M, DRY_LEVEL_M), grid(NODES, STEP_M, DRY_LEVEL_M), TILE_M);
+  const [ground, levels, shore] = pond
+    ? [pondGrid((into) => (into > 0 ? POND.seabedM : GROUND_M), GROUND_M), pondGrid(() => POND.surfaceM, DRY_LEVEL_M), pondGrid((into) => into, DRY_LEVEL_M)]
+    : [grid(NODES, STEP_M, GROUND_M), grid(NODES, STEP_M, DRY_LEVEL_M), grid(NODES, STEP_M, DRY_LEVEL_M)];
+  const detail = tileDetail(tile, ground, roadBytes(), levels, shore, TILE_M);
   detail.ribbonSurfaces.fill(SURFACES.indexOf(surface));
   world.addDetail(detail);
   return world;

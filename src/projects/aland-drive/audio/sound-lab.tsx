@@ -4,13 +4,27 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 import { SoundLab as Lab } from "@/shared/components/sound-lab";
 import { unlockAudio } from "@/shared/lib/sound";
 import { createDriveAudio } from "./graph";
-import type { DriveAudioState, Place } from "./model";
+import type { DriveAudioState, Place, SeasonHeard, WeatherHeard } from "./model";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
 import { CARS } from "../sim/cars";
 import { CONDITIONS, SURFACES, TYRES, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { pullAt, resistanceAt, restingEngine, stepEngine, topSpeedMS, type EngineRead } from "../sim/gearbox";
+import { gameTimeAt } from "../time/day";
+import { seasonAt } from "../climate/season";
+import { yearDay } from "../climate/calendar";
+
+/** A day in each season to hear the place beds on, at the hour the slider sets: the game's own sun and season for that date. */
+const SEASON_DATES = { winter: { year: 2027, month: 1, day: 20 }, spring: { year: 2027, month: 5, day: 20 }, summer: { year: 2026, month: 7, day: 10 }, autumn: { year: 2026, month: 10, day: 15 } } as const;
+type SeasonName = keyof typeof SEASON_DATES;
+const SEASON_NAMES = Object.keys(SEASON_DATES) as SeasonName[];
+
+function seasonHeard(name: SeasonName, hour: number): SeasonHeard {
+  const date = SEASON_DATES[name];
+  const { leaves, seaIce } = seasonAt(date, 0.5);
+  return { yearDay: yearDay(date.month, date.day) + hour / 24, sunDeg: gameTimeAt(hour / 24, date).sun.elevationDeg, hour, leafed: leaves.leafed, iceReach: seaIce.reach };
+}
 
 /*
  * The `?sounds` page: the shared audition for the one-shots, and above it a
@@ -42,9 +56,12 @@ interface Knobs {
   holdRpm: boolean;
   rpm: number;
   place: Place;
+  weather: WeatherHeard;
+  season: SeasonName;
+  hour: number;
 }
 
-const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 } };
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 }, season: "summer", hour: 14 };
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -159,6 +176,8 @@ function Bench() {
           tyres: knob.tyres,
           suspension: REST,
           place: knob.place,
+          weather: knob.weather,
+          season: seasonHeard(knob.season, knob.hour),
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
           engine,
         },
@@ -206,6 +225,9 @@ function Bench() {
         <Labelled label="Tyres">
           <Choice values={TYRES} label={capitalised} value={knobs.tyres} onChange={(tyres) => set({ tyres })} />
         </Labelled>
+        <Labelled label="Season, for the forest, shore and town">
+          <Choice values={SEASON_NAMES} label={capitalised} value={knobs.season} onChange={(season) => set({ season })} />
+        </Labelled>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Slider label="Speed, km/h" value={knobs.kmh} min={0} max={Math.round(topKmh)} onChange={(kmh) => set({ kmh, floorIt: false })} />
@@ -215,6 +237,9 @@ function Bench() {
         <Slider label="Forest" value={knobs.place.forest} min={0} max={1} step={0.05} onChange={(forest) => set({ place: { ...latest.current.place, forest } })} />
         <Slider label="Shore" value={knobs.place.shore} min={0} max={1} step={0.05} onChange={(shore) => set({ place: { ...latest.current.place, shore } })} />
         <Slider label="Town" value={knobs.place.town} min={0} max={1} step={0.05} onChange={(town) => set({ place: { ...latest.current.place, town } })} />
+        <Slider label={`Hour (sun ${seasonHeard(knobs.season, knobs.hour).sunDeg.toFixed(0)}°)`} value={knobs.hour} min={0} max={23.75} step={0.25} onChange={(hour) => set({ hour })} />
+        <Slider label="Rain" value={knobs.weather.rain} min={0} max={1} step={0.05} onChange={(rain) => set({ weather: { ...latest.current.weather, rain } })} />
+        <Slider label="Wind, m/s" value={knobs.weather.windMS} min={0} max={20} step={0.5} onChange={(windMS) => set({ weather: { ...latest.current.weather, windMS } })} />
       </div>
       <div className="flex flex-wrap gap-2">
         <Toggle label="Floor it, through the gears" on={knobs.floorIt} onChange={(floorIt) => set({ floorIt })} />

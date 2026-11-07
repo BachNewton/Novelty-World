@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mix, noJolts, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
+import { mix, noJolts, placeMix, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { engineCycle, gravelLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
+import { engineCycle, gravelLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -107,7 +107,7 @@ describe("the mix", () => {
     expect(flying.gravelLevel + flying.rumbleLevel + flying.asphaltLevel).toBe(0);
     const paused = mixed({ speedMS: 40, paused: true, place: { forest: 1, shore: 0, town: 0 } });
     expect(paused.windLowLevel + paused.asphaltLevel + paused.engineLevel).toBe(0);
-    expect(paused.forestLevel).toBeGreaterThan(0);
+    expect(paused.leavesLevel).toBeGreaterThan(0);
   });
 
   it("lets wind and road rise with speed", () => {
@@ -167,11 +167,64 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);
     }
   });
 
+});
+
+describe("the weather", () => {
+  const heard = (weather: DriveAudioState["weather"], changes: Partial<DriveAudioState> = {}) => mix({ state: state({ weather, ...changes }), engine: null, time: 0, wander: 0 });
+
+  it("drums rain on the roof only while it rains, harder the harder it falls, and still while the drive is stopped", () => {
+    const rainOf = (mixed: Mix) => mixed.rainLightLevel + mixed.rainHeavyLevel;
+    expect(rainOf(heard({ rain: 0, snowfall: 0, windMS: 5 }))).toBe(0);
+    expect(rainOf(heard({ rain: 0.8, snowfall: 0, windMS: 5 }))).toBeGreaterThan(rainOf(heard({ rain: 0.2, snowfall: 0, windMS: 5 })));
+    expect(rainOf(heard({ rain: 0.5, snowfall: 0, windMS: 5 }, { paused: true }))).toBeGreaterThan(0);
+  });
+
+  it("is drops one by one in light rain and a hiss in heavy rain, and harder driving into it", () => {
+    const light = heard({ rain: 0.15, snowfall: 0, windMS: 5 });
+    expect(light.rainLightLevel).toBeGreaterThan(light.rainHeavyLevel);
+    const heavy = heard({ rain: 0.9, snowfall: 0, windMS: 5 });
+    expect(heavy.rainHeavyLevel).toBeGreaterThan(heavy.rainLightLevel);
+    expect(heard({ rain: 0.4, snowfall: 0, windMS: 5 }, { speedMS: 40 }).rainHeavyLevel).toBeGreaterThan(heard({ rain: 0.4, snowfall: 0, windMS: 5 }).rainHeavyLevel);
+  });
+
+  it("blows a wind of its own only past a breeze, rising with its speed", () => {
+    expect(heard({ rain: 0, snowfall: 0, windMS: 2 }).galeLevel).toBe(0);
+    expect(heard({ rain: 0, snowfall: 0, windMS: 15 }).galeLevel).toBeGreaterThan(heard({ rain: 0, snowfall: 0, windMS: 8 }).galeLevel);
+    expect(heard(undefined).galeLevel).toBe(0);
+  });
+});
+
+describe("the place by the season and the hour", () => {
+  const forest = { forest: 1, shore: 0, town: 0 };
+  const shore = { forest: 0, shore: 1, town: 0 };
+
+  it("has no birdsong in January, by day or by night, but a crow or a tit by day", () => {
+    const winterDay = placeMix(forest, { yearDay: 20, sunDeg: 7, hour: 12, leafed: 0, iceReach: 0.3 });
+    const winterNight = placeMix(forest, { yearDay: 20, sunDeg: -40, hour: 23, leafed: 0, iceReach: 0.3 });
+    expect(winterDay.birdsLevel).toBe(0);
+    expect(winterNight.birdsLevel + winterNight.winterCallsLevel).toBe(0);
+    expect(winterDay.winterCallsLevel).toBeGreaterThan(0);
+    expect(winterDay.winterLevel).toBeGreaterThan(winterDay.leavesLevel);
+  });
+
+  it("sings loudest at a spring dawn, less at noon and in rain, and hardly on a light midsummer night", () => {
+    const at = (sunDeg: number, hour: number, rain = 0) => placeMix(forest, { yearDay: 140, sunDeg, hour, leafed: 1, iceReach: 0 }, { rain, snowfall: 0, windMS: 4 }).birdsLevel;
+    expect(at(1, 4)).toBeGreaterThan(at(50, 13) * 1.5);
+    expect(at(50, 13, 0.8)).toBeLessThan(at(50, 13) * 0.4);
+    expect(at(-6.5, 1)).toBeLessThan(at(50, 13) * 0.25);
+  });
+
+  it("swaps the waves for wind over ice when the sea freezes", () => {
+    const open = placeMix(shore, { yearDay: 20, sunDeg: 7, hour: 12, leafed: 0, iceReach: 0 });
+    const frozen = placeMix(shore, { yearDay: 40, sunDeg: 15, hour: 12, leafed: 0, iceReach: 0.8 });
+    expect(frozen.shoreLevel).toBe(0);
+    expect(frozen.winterLevel).toBeGreaterThan(open.winterLevel);
+  });
 });

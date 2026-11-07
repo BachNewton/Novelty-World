@@ -8,8 +8,10 @@ foot, where a mask of what's built would blur by a whole pixel.
 What counts as a building is what the game draws or stops the car at, read off the built tiles: every triangle of
 `solids.bin.gz` seen from above (modelled, generated and raised buildings, whose roofs cover their footprints) and
 its walls (every outline, a raised building's posts and a landmark's plan among them), and the rural kit's sheds,
-boathouses and windmills, which stand in `models.json` and `tile.json` rather than as shapes. A neighbour's
-buildings are read too, so a building over a tile's edge clears its trees on both sides.
+boathouses and windmills, which stand in `models.json` and `tile.json` rather than as shapes, and every sea mark
+that stands ashore (`sea/marks.json`: leading marks, cairns, skerry lights, lighthouses, radar and fixed marks, as
+discs their foot's size), which a tree would otherwise stand through. A neighbour's buildings are read too, so a
+building over a tile's edge clears its trees on both sides.
 
 It reads only finished tiles, so it runs after they're all built, and alone it adds the image to tiles already built:
 
@@ -47,6 +49,11 @@ REACH_M = (255 - ZERO) * UNIT_M
 RASTER_M = 1
 BUILDING_MODELS = ("shed-", "boathouse-")
 SOLIDS_COLUMNS = 7
+SEA_MARKS = Path(__file__).resolve().parent.parent / "sea" / "marks.json"
+# How far out from its middle each kind of sea mark ashore stands on the ground, by its model's name's start: a
+# lighthouse's tower, a skerry light's, a cairn's or a leading mark's frame. A tree keeps its crown clear of that.
+SEA_MARK_FOOT_M = {"lighthouse": 4.0, "skerry-light": 2.5, "cairn": 1.5, "leading-": 1.5, "radar-": 1.5, "fixed-": 1.0}
+DISC_SIDES = 8
 
 
 def solid_shapes(folder: Path) -> tuple[list[np.ndarray], np.ndarray]:
@@ -81,6 +88,22 @@ def model_boxes(folder: Path) -> list[np.ndarray]:
         across, along = np.array([np.cos(yaw), -np.sin(yaw)]) * wide / 2, np.array([np.sin(yaw), np.cos(yaw)]) * long / 2
         boxes.append(np.array([x, z]) + np.array([across + along, along - across, -across - along, across - along]))
     return boxes
+
+
+def sea_mark_outlines(marks: list[list] | None = None) -> list[np.ndarray]:
+    """Every sea mark that stands ashore or on a rock, as an octagon its foot's size, in the scene's x and z. A floating mark has no ground to clear."""
+    if marks is None:
+        marks = json.loads(SEA_MARKS.read_text(encoding="utf-8"))["marks"]
+    angles = np.linspace(0, 2 * np.pi, DISC_SIDES, endpoint=False)
+    # Its corners out past the foot's circle, so the octagon holds the whole of it.
+    ring = np.column_stack((np.cos(angles), np.sin(angles))) / np.cos(np.pi / DISC_SIDES)
+    outlines = []
+    for model, x, z, _, floats, _ in marks:
+        foot = next((metres for start, metres in SEA_MARK_FOOT_M.items() if model.startswith(start)), None)
+        if floats or foot is None:
+            continue
+        outlines.append(np.array([x, z]) + ring * foot)
+    return outlines
 
 
 def around(name: str, tiles: Path) -> list[Path]:
@@ -155,7 +178,8 @@ def bake(name: str, tiles: Path) -> float:
     tile = tile_from_name(name)
     folder = tiles / name
     west, north = to_local(tile.west, tile.north)
-    signed = distances(*drawn(around(name, tiles)), west, -north)
+    outlines, walls = drawn(around(name, tiles))
+    signed = distances(outlines + sea_mark_outlines(), walls, west, -north)
     encode(signed).save(folder / FILE, optimize=True)
     manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
     (folder / "tile.json").write_text(json.dumps({**manifest, "clearing": MANIFEST}, ensure_ascii=False, indent=2), encoding="utf-8")

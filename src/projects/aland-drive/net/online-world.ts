@@ -15,6 +15,10 @@ import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTraff
  * but one state with no motion, sent again whenever someone new arrives or
  * the car is put somewhere.
  *
+ * The world's time (`time/`) is the host's: each guest asks for it once it's
+ * in and takes it, so everyone present shares one month and hour, and a guest
+ * who claims the world when the host goes already has it to hand on.
+ *
  * A co-op challenge's messages go the same way, to one player or to everyone:
  * a guest sends each up, and the host hands it on to the one it's for, or to
  * every other guest, naming who it's from. The host only relays: what a
@@ -37,6 +41,10 @@ export interface OnlineEvents {
   onPlayers: (others: readonly Player[]) => void;
   /** A co-op challenge's message from another player, for this one or for everyone. */
   onChallenge: (peerId: string, message: ChallengeMessage) => void;
+  /** The world's time as the host has it, in game days, heard once on joining. */
+  onTime: (gameDays: number) => void;
+  /** This page's time, in game days, which a host hands to each guest that asks. */
+  timeNow: () => number;
   /** A computer-driven car, from the player who ran it when they sent it. */
   onComputerCar: (peerId: string, car: ComputerCarMessage) => void;
   /** Lane traffic, from the player who ran it when they sent it. */
@@ -70,6 +78,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   let sentStill = false;
   /** Challenge messages wait out a reconnect, rather than being lost and leaving two clients on different attempts. */
   const owedChallenges: { to: string | null; message: ChallengeMessage }[] = [];
+  /** Asked once: a guest who stays one when a new host claims the world already shares its time. */
+  let askedTime = false;
 
   function forget(keep: ReadonlySet<string>): void {
     for (const peerId of known) {
@@ -113,12 +123,20 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       forget(new Set(others.map((player) => player.peerId)));
       if (next.players.map((player) => player.peerId).join() !== before) owed = true;
       events.onPlayers(others);
+      if (next.status === "connected" && next.role === "guest" && !askedTime) {
+        askedTime = true;
+        room.sendToHost({ kind: "ask-time" });
+      }
       flushChallenges();
     },
     onGuestMessage(from, data) {
       const message = parseGuestMessage(data);
       if (message === null) {
         console.warn("aland-drive online: dropping a malformed guest message", from.peerId, data);
+        return;
+      }
+      if (message.kind === "ask-time") {
+        room.sendTo(from.peerId, { kind: "time", gameDays: events.timeNow() });
         return;
       }
       if (message.kind === "car") {
@@ -150,7 +168,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         console.warn("aland-drive online: dropping a malformed host message", data);
         return;
       }
-      if (message.kind === "car") hear(message.from, message.state);
+      if (message.kind === "time") events.onTime(message.gameDays);
+      else if (message.kind === "car") hear(message.from, message.state);
       else if (message.kind === "computer") hearComputerCar(message.from, message.car);
       else if (message.kind === "traffic") hearTraffic(message.from, message.traffic);
       else hearChallenge(message.from, message.message);

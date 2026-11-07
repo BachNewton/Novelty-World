@@ -55,17 +55,20 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
 });
 
 // e2e-covers: src/projects/aland-drive/garage/** src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
-test("the game menu's Tyres changes the car's tyres in turn and its aids turn off, and both are kept after a reload", async ({ page }) => {
+test("the game menu's tyre choices fit the set picked and mark it, its aids turn off, and the car keeps both after a reload", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const menu = page.getByRole("dialog", { name: "Game menu" });
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("summer");
 
   await page.keyboard.press("Escape");
-  await menu.getByRole("button", { name: "Summer tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Winter tyres" })).toBeVisible();
-  await menu.getByRole("button", { name: "Winter tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Studded tyres" })).toBeFocused();
+  await expect(menu.getByRole("radio", { name: "Summer tyres" })).toBeChecked();
+  await menu.getByRole("radio", { name: "Friction tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).toBeChecked();
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("winter");
+  await menu.getByRole("radio", { name: "Studded tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
   expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: true, stability: true });
   await menu.getByRole("button", { name: "Traction control" }).click();

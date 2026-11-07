@@ -4,6 +4,8 @@
  * kept apart from what draws them, so the tile worker reads them without the art.
  */
 
+import { BALES, GRAZING, type InSeason } from "../climate/placed-season";
+
 /** A tile's places by model: x, y, z, yaw, width, length, `PLACE_FLOATS` to a place, in the scene. */
 export type TileModels = Record<string, Float32Array>;
 export const PLACE_FLOATS = 6;
@@ -40,6 +42,17 @@ const PROP_BOXES: Record<string, readonly [number, number, number, number]> = {
   "cow-lying": COW_BOX,
 };
 
+/** The props out only in their season (`climate/placed-season.ts`), whose walls go with them. */
+export const PROP_SEASONS: Readonly<Record<string, InSeason>> = {
+  "bale-wrapped": BALES,
+  "bale-hay": BALES,
+  "cow-grazing": GRAZING,
+  "cow-standing": GRAZING,
+  "cow-lying": GRAZING,
+};
+/** The kinds a seasonal wall's season is an index into, from 1. */
+export const WALL_SEASONS: readonly InSeason[] = [GRAZING, BALES];
+
 /** A windmill's place in `tile.json` (`pipeline/farm.py`): x, y, z, yaw, then its body's outline across and along. */
 export type WindmillPlace = [x: number, y: number, z: number, yaw: number, width: number, length: number];
 /** The kit's mill body is this long, front to back, at scale 1, and a mill is scaled to its outline within this. */
@@ -58,8 +71,9 @@ const turned = (x: number, z: number, yaw: number, scale: number, along: number,
  * on the ground: every boulder as a ring of walls round its foot, each prop that stops the car as the box of its foot,
  * and every windmill as a ring round its trestle and a wall along its steps.
  */
-export function modelWalls(models: TileModels, windmills: readonly WindmillPlace[] = []): Float32Array {
+export function modelWalls(models: TileModels, windmills: readonly WindmillPlace[] = [], which: "all" | "always" = "all"): Float32Array {
   const walls: number[] = [];
+  if (which === "always") models = Object.fromEntries(Object.entries(models).filter(([name]) => !(name in PROP_SEASONS)));
   const boulders = new Set<string>(BOULDER_MODELS);
   const ring = (x: number, z: number, yaw: number, radius: number) => {
     const corner = (side: number) => [x + radius * Math.sin(yaw + (side * 2 * Math.PI) / BOULDER_WALL_SIDES), z + radius * Math.cos(yaw + (side * 2 * Math.PI) / BOULDER_WALL_SIDES)];
@@ -85,6 +99,30 @@ export function modelWalls(models: TileModels, windmills: readonly WindmillPlace
     walls.push(...turned(x, z, yaw, scale, MILL_STEPS_M[0], 0), ...turned(x, z, yaw, scale, MILL_STEPS_M[1], 0));
   }
   return Float32Array.from(walls);
+}
+
+/** The walls of props out only in their season, laid out as `modelWalls`, and for each its season's kind (`WALL_SEASONS`, from 1) and its prop's place. */
+export interface SeasonalWalls {
+  walls: Float32Array;
+  /** Three to a wall: the kind, then the prop's x and z, which its threshold rolls from. */
+  seasons: Float32Array;
+}
+
+export const NO_SEASONAL_WALLS: SeasonalWalls = { walls: new Float32Array(0), seasons: new Float32Array(0) };
+
+export function seasonalWalls(models: TileModels): SeasonalWalls {
+  const walls: number[] = [];
+  const seasons: number[] = [];
+  for (const [name, places] of Object.entries(models)) {
+    if (!(name in PROP_SEASONS)) continue;
+    const kind = WALL_SEASONS.indexOf(PROP_SEASONS[name]) + 1;
+    for (let at = 0; at < places.length; at += PLACE_FLOATS) {
+      const one = modelWalls({ [name]: places.subarray(at, at + PLACE_FLOATS) });
+      walls.push(...one);
+      for (let wall = 0; wall < one.length / 4; wall++) seasons.push(kind, places[at], places[at + 2]);
+    }
+  }
+  return { walls: Float32Array.from(walls), seasons: Float32Array.from(seasons) };
 }
 
 export interface DocksFile extends ModelsFile {

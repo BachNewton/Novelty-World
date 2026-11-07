@@ -46,8 +46,6 @@ export interface GlowInstance {
   /** Grid bearings the eye may look along towards the light, clockwise from north, degrees; `toDeg` under `fromDeg` wraps. Leave out for all round. */
   fromDeg?: number;
   toDeg?: number;
-  /** Takes its flash from the eye's bearing, as a turning beam shows it. */
-  turning?: boolean;
   /** How late it strikes, as a share of `lampsOn`: lamps don't all come on at once. */
   strikes?: number;
   /** A reflection hanging down from here on the water, rather than a round glow. */
@@ -61,7 +59,7 @@ function writeGlow(columns: readonly Float32Array[], at: number, glow: GlowInsta
   columns[0].set([glow.x, glow.y, glow.z, glow.sizeM], at * FLOATS_A_VEC);
   columns[1].set([glow.colour.r * glow.brightness, glow.colour.g * glow.brightness, glow.colour.b * glow.brightness, glow.reachM], at * FLOATS_A_VEC);
   columns[2].set([glow.rhythm, glow.periodS, glow.phase, glow.minPixels], at * FLOATS_A_VEC);
-  columns[3].set([(fromDeg * Math.PI) / 180, (span * Math.PI) / 180, glow.turning === true ? 1 : 0, shape + (glow.strikes ?? 0)], at * FLOATS_A_VEC);
+  columns[3].set([(fromDeg * Math.PI) / 180, (span * Math.PI) / 180, 0, shape + (glow.strikes ?? 0)], at * FLOATS_A_VEC);
 }
 
 /** Each rhythm a row of one texture. */
@@ -116,8 +114,7 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
   const distance = toLight.length();
   const eyeBearing = atan(toLight.x, toLight.z.negate());
   const period = max(beat.y, float(0.05));
-  const turned = select(sector.z.greaterThan(0.5), eyeBearing.div(TAU).negate(), float(0));
-  const share = fract(night.seconds.div(period).add(beat.z).add(turned));
+  const share = fract(night.seconds.div(period).add(beat.z));
   const beating: F = select(beat.x.lessThan(0), float(1), textureLoad(sheet, ivec2(int(share.mul(RHYTHM_SAMPLES - 1)), int(beat.x.max(0)))).r);
 
   const fromStart = fract(eyeBearing.sub(sector.x).div(TAU)).mul(TAU);

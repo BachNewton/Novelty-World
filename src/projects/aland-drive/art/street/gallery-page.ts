@@ -3,7 +3,8 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildPier, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
-import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
+import { SUMMER, type SeasonDials } from "../season";
+import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeSet, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, bareLindenMaterials, buildBareLinden, buildLinden, buildLindenHaze, buildMidsummerPole, lindenHazeMaterials, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildWildflowers, GUARD_RAIL_M, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
 
 /*
  * The gallery's scene, built as the roadside gallery's is (its page has no exports:
@@ -212,6 +213,24 @@ add(buildMidsummerPole(), [{ x: station(9), y: 0, z: VERGE_Z - 6, yaw: 0.25 }]);
 look("midsummer", "midsummer pole", station(9), [-14, 1.5, 1.5], [0, 8.4, VERGE_Z - 6], 70);
 look("midsummer-top", "its crossbar and rings", station(9), [-10, 1.5, 6], [0, 11, VERGE_Z - 6], 32);
 look("midsummer-far", "far version, 170 m", station(9), [-165, 1.5, 2], [0, 7, VERGE_Z - 6], 9);
+
+// 10: the same esplanade in January and mid-October: bare lindens, their branches, clumps and twigs' haze.
+const bareLindenRow = (stationAt: number, season: SeasonDials) => {
+  const leafy = streetMaterials({ ...inputs, season });
+  const branches = bareLindenMaterials({ ...inputs, season });
+  const haze = lindenHazeMaterials({ ...inputs, season });
+  const bare = buildBareLinden();
+  const places = shareOut([...treeRow(line(stationAt - 50, stationAt + 50, 0), 10, 7, { heightM: 14, heightSpreadM: 1.5, seed: 5 }), ...treeRow(line(stationAt - 50, stationAt + 50, 0), 10, -7, { heightM: 14, heightSpreadM: 1.5, seed: 7 })], lindens.length, 2);
+  lindens.forEach((model, index) => scene.add(...placeModel(model, places[index], leafy)));
+  for (const model of [bare.wood, bare.clumps]) scene.add(...placeModel(model, places.flat(), branches));
+  scene.add(...placeModel(buildLindenHaze(), places.flat(), haze));
+};
+bareLindenRow(station(10), { ...SUMMER, leafed: 0, turned: 1, snowCover: 1, snowDepthCm: 12 });
+look("linden-bare", "bare lindens in January", station(10), [-48, 1.3, 1.5], [30, 6, 0], 56);
+look("linden-bare-side", "one bare linden", station(10), [3, 1.3, 1.5], [3, 7, 9], 76);
+look("linden-bare-far", "bare lindens from 300 m, in their haze", station(10), [-330, 1.5, 3], [0, 6, 5], 12);
+bareLindenRow(station(11), { ...SUMMER, leafed: 0.55, turned: 0.95 });
+look("linden-autumn", "lindens in mid-October, full, thinning and bare", station(11), [-48, 1.3, 1.5], [30, 6, 0], 56);
 
 // 12: harbour, on a pier and the water past the land's end.
 const harbourX = LAND_END_X + 24;

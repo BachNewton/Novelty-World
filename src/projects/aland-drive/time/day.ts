@@ -1,12 +1,13 @@
+import { calendarAt, dateAt, gameDayOfDate, gameDaysOf, type GameCalendar } from "./calendar";
 import { moonPlace, sunPlace, type MoonPlace, type SkyPlace } from "./sky-places";
 
 /*
- * The game's time of day, worked out from the world's clock (`sea/clock.ts`) with nothing sent over the network, so
- * every player has the same hour. The date is Åland's real date; the hour runs fast, a game day replaying that date's
- * real sun path in `GAME_DAY_S` real seconds. The sky is the real one at that date and hour: the sun and moon stand
- * where they would over Åland at that local clock time.
+ * The game's time: a moment of its own calendar (`time/calendar.ts`), which runs on from wherever the world's time
+ * was last saved or shared at a game day every `GAME_DAY_S` real seconds, read off the world's clock (`sea/clock.ts`).
+ * The sky is the real one at the date and hour shown: the sun and moon stand where they would over Åland at that local
+ * clock time, blended from one date to the next as the date runs on through a game day.
  *
- * What hangs off it later (the weather, the seasons) reads `GameTime`: the date is the season's, the hour the day's.
+ * What hangs off it (the weather, the seasons) reads `GameTime`: the date is the season's, the hour the day's.
  */
 
 /** How long a game day lasts, in real seconds: a starting value, tuned by the owner in the game. */
@@ -23,11 +24,14 @@ export interface CalendarDate {
 }
 
 export interface GameTime {
+  /** The world's time, game days since the first of 2000's (`time/calendar.ts`). */
+  gameDays: number;
+  calendar: GameCalendar;
+  /** The real date shown, and how far it is through to the next as it runs on through a game day: a held date stays at its noon. */
   date: CalendarDate;
+  through: number;
   /** Åland's local clock time, 0 to 24. */
   hour: number;
-  /** The real instant whose sky is shown: that date at that local hour. */
-  skyMs: number;
   sun: SkyPlace;
   moon: MoonPlace;
 }
@@ -58,12 +62,48 @@ export function alandInstant(date: CalendarDate, hour: number) {
   return asIfUtc - alandOffsetHours(asIfUtc - 2 * HOUR_MS) * HOUR_MS;
 }
 
-/** The fast hour at a moment of the world's clock: every player's game day starts at the same moment. */
-export const fastHour = (seconds: number) => (((seconds % GAME_DAY_S) + GAME_DAY_S) % GAME_DAY_S) / GAME_DAY_S * 24;
+/** The calendar at a real instant: Åland's date and clock time then. */
+export function gameDaysAtInstant(utcMs: number) {
+  const date = alandDate(utcMs);
+  const hour = (((utcMs / HOUR_MS + alandOffsetHours(utcMs)) % 24) + 24) % 24;
+  return gameDaysOf({ year: date.year, month: date.month, day: gameDayOfDate(date), hour });
+}
 
-export function gameTimeAt(date: CalendarDate, hour: number): GameTime {
-  const skyMs = alandInstant(date, hour);
-  return { date, hour, skyMs, sun: sunPlace(skyMs), moon: moonPlace(skyMs) };
+const turned = (from: number, to: number, share: number) => from + ((((to - from + 540) % 360) - 180) * share);
+
+function between<T extends SkyPlace>(from: T, to: T, share: number): SkyPlace {
+  return { azimuthDeg: turned(from.azimuthDeg, to.azimuthDeg, share), elevationDeg: from.elevationDeg + (to.elevationDeg - from.elevationDeg) * share };
+}
+
+const dayNumberOf = ({ year, month, day }: CalendarDate) => Date.UTC(year, month - 1, day) / DAY_MS;
+
+function dateOfDayNumber(dayNumber: number): CalendarDate {
+  const at = new Date(dayNumber * DAY_MS);
+  return { year: at.getUTCFullYear(), month: at.getUTCMonth() + 1, day: at.getUTCDate() };
+}
+
+/**
+ * The time at a moment of the calendar, or on a date held still at that moment's hour. The sky is the real one at the
+ * game's hour on the date its day started on, blended to the next, so the hour turning back to 0 at a game day's end
+ * doesn't take the sky back a day.
+ */
+export function gameTimeAt(gameDays: number, heldDate: CalendarDate | null = null): GameTime {
+  const shown = calendarAt(gameDays);
+  const { date, through } = heldDate ? { date: heldDate, through: 0.5 } : dateAt(gameDays);
+  const calendar = heldDate ? { ...shown, year: heldDate.year, month: heldDate.month, day: gameDayOfDate(heldDate) } : shown;
+  const started = heldDate ? dayNumberOf(heldDate) : dayNumberOf(date) + through - shown.hour / 24;
+  const share = started - Math.floor(started);
+  const [from, to] = [alandInstant(dateOfDayNumber(Math.floor(started)), shown.hour), alandInstant(dateOfDayNumber(Math.floor(started) + 1), shown.hour)];
+  const [moonFrom, moonTo] = [moonPlace(from), moonPlace(to)];
+  return {
+    gameDays,
+    calendar,
+    date,
+    through,
+    hour: shown.hour,
+    sun: between(sunPlace(from), sunPlace(to), share),
+    moon: { ...between(moonFrom, moonTo, share), lit: moonFrom.lit + (moonTo.lit - moonFrom.lit) * share, waxing: share < 0.5 ? moonFrom.waxing : moonTo.waxing },
+  };
 }
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -79,7 +119,7 @@ export function parseDate(text: string): CalendarDate {
 
 export const dateText = ({ year, month, day }: CalendarDate) => `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-/** What a link asks of the day: `?date=2026-06-21` for another date, `?hour=22.5` to start the day there. Either runs on at the game's pace. */
+/** What a link asks of the day: `?date=2026-06-21` to hold that date, `?hour=22.5` to start the day there. The hour runs on at the game's pace. */
 export function dayAsked(search: string): { date: CalendarDate | null; hour: number | null } {
   const params = new URLSearchParams(search);
   const date = params.get("date");
@@ -89,52 +129,83 @@ export function dayAsked(search: string): { date: CalendarDate | null; hour: num
   return { date: date === null ? null : parseDate(date), hour: hourValue };
 }
 
+/** Where a page's time starts: the world's time as this browser saved it, or the real date and time with no save, moved by a link. */
+export function startOfDay(search: string, saved: number | null, nowMs: number): { gameDays: number; date: CalendarDate | null; linked: boolean } {
+  const asked = dayAsked(search);
+  let gameDays = saved ?? gameDaysAtInstant(nowMs);
+  if (asked.date) gameDays = gameDaysOf({ ...asked.date, day: gameDayOfDate(asked.date), hour: calendarAt(gameDays).hour });
+  if (asked.hour !== null) gameDays = Math.floor(gameDays) + asked.hour / 24;
+  return { gameDays, date: asked.date, linked: asked.date !== null || asked.hour !== null };
+}
+
 /**
- * The page's day: the shared one, unless a link or the dev menu has moved it. A date set here stays that date; an
- * hour set here shifts this page's day, which then runs on at the game's pace, or stands still while held.
+ * The page's time, running on from where it started at the game's pace, or standing still while held. A date held
+ * (a link's, a tool's) stays that date while the hour runs.
  */
 export class DayClock {
-  private date: CalendarDate | null = null;
-  private shiftHours = 0;
+  /** The world's clock when game day 0 began, set at the first reading, so a clock `?sea=` moves on its first frame doesn't move the day. */
+  private zeroSeconds: number | null = null;
   private heldAt: number | null = null;
+  private date: CalendarDate | null;
 
-  /** The hour shown at a moment of the world's clock. */
-  hourAt(seconds: number) {
-    if (this.heldAt !== null) return this.heldAt;
-    return (((fastHour(seconds) + this.shiftHours) % 24) + 24) % 24;
-  }
-
-  at(seconds: number): GameTime {
-    return gameTimeAt(this.date ?? alandDate(seconds * 1000), this.hourAt(seconds));
-  }
-
-  setDate(date: CalendarDate | null) {
+  constructor(
+    private startGameDays: number,
+    date: CalendarDate | null = null,
+  ) {
     this.date = date;
   }
 
-  /** Shows this hour now, and runs on from it. */
-  setHour(hour: number, seconds: number) {
-    this.shiftHours = hour - fastHour(seconds);
-    if (this.heldAt !== null) this.heldAt = hour;
+  gameDaysAt(seconds: number) {
+    if (this.heldAt !== null) return this.heldAt;
+    this.zeroSeconds ??= seconds - this.startGameDays * GAME_DAY_S;
+    return (seconds - this.zeroSeconds) / GAME_DAY_S;
   }
 
-  /** Stops the hour where it is, or lets it run on from there. */
+  at(seconds: number): GameTime {
+    return gameTimeAt(this.gameDaysAt(seconds), this.date);
+  }
+
+  /** Shows this moment of the calendar now, and runs on from it. */
+  setGameDays(gameDays: number, seconds: number) {
+    this.startGameDays = gameDays;
+    this.zeroSeconds = seconds - gameDays * GAME_DAY_S;
+    if (this.heldAt !== null) this.heldAt = gameDays;
+  }
+
+  /** Holds a real date, or lets the calendar's own run on with null. */
+  setDate(date: CalendarDate | null, seconds: number) {
+    this.date = date;
+    if (date) this.setCalendar(date.month, gameDayOfDate(date), seconds, date.year);
+  }
+
+  /** Moves to a month and one of its game days, keeping the hour. */
+  setCalendar(month: number, day: number, seconds: number, year = calendarAt(this.gameDaysAt(seconds)).year) {
+    this.setGameDays(gameDaysOf({ year, month, day, hour: calendarAt(this.gameDaysAt(seconds)).hour }), seconds);
+  }
+
+  /** Shows this hour now, keeping the day, and runs on from it. */
+  setHour(hour: number, seconds: number) {
+    this.setGameDays(Math.floor(this.gameDaysAt(seconds)) + hour / 24, seconds);
+  }
+
+  /** Stops the time where it is, or lets it run on from there. */
   hold(held: boolean, seconds: number) {
     if (held === (this.heldAt !== null)) return;
     if (held) {
-      this.heldAt = this.hourAt(seconds);
+      this.heldAt = this.gameDaysAt(seconds);
       return;
     }
-    const hour = this.heldAt ?? 0;
+    const gameDays = this.heldAt ?? 0;
     this.heldAt = null;
-    this.setHour(hour, seconds);
+    this.setGameDays(gameDays, seconds);
   }
 
   get held() {
     return this.heldAt !== null;
   }
 
-  get shared() {
-    return this.date === null && this.shiftHours === 0 && this.heldAt === null;
+  /** Whether a real date is held here, by a link or a tool, rather than the calendar's own. */
+  get dateHeld() {
+    return this.date !== null;
   }
 }
