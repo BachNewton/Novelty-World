@@ -19,10 +19,13 @@ export const DEFAULT_CAR: CarId = "skerry-gt";
 
 export const isCarId = (id: string): id is CarId => (CAR_IDS as readonly string[]).includes(id);
 
-/** The car a link asks to start in (`?car=grus`), or the default when it asks for none. */
-export function carAsked(search: string): CarId {
+/** The car a player starts in: one that drives well on and off the road, while the game is in development. */
+export const PLAYER_START_CAR: CarId = "grus";
+
+/** The car a link asks to start in (`?car=grus`), or `otherwise` when it asks for none. */
+export function carAsked(search: string, otherwise: CarId = DEFAULT_CAR): CarId {
   const asked = new URLSearchParams(search).get("car");
-  if (asked === null) return DEFAULT_CAR;
+  if (asked === null) return otherwise;
   if (!isCarId(asked)) throw new Error(`?car= takes ${CAR_IDS.join(", ")}, not ${asked}`);
   return asked;
 }

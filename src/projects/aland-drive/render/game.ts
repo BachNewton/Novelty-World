@@ -113,7 +113,7 @@ import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../s
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
-import { CARS as TUNINGS, carAsked, DEFAULT_CAR, type CarId } from "../sim/cars";
+import { CARS as TUNINGS, carAsked, DEFAULT_CAR, PLAYER_START_CAR, type CarId } from "../sim/cars";
 import { tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { auroraAsked, createSeasonFeed } from "./season-feed";
 import { seasonNodes, type SeasonDials } from "../art/season";
@@ -1233,7 +1233,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const askedRoad = askedAt ? world.roads.nearest(askedAt.x, askedAt.z) : undefined;
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
-  const startCar = carAsked(window.location.search);
+  // Tools and tests measured what they hold against the default car, so they keep it.
+  const startCar = carAsked(window.location.search, toolPage ? DEFAULT_CAR : PLAYER_START_CAR);
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   // A link's tyres are for this drive only: what's kept is what the player fitted.
   drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
