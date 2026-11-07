@@ -1,8 +1,9 @@
-import { DoubleSide, Mesh, MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { DoubleSide, Mesh, MeshBasicNodeMaterial, type Node, type StorageBufferAttribute } from "three/webgpu";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, storage, uniformArray, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import type { RoadsideInputs } from "../roadside/material";
 import type { Crowd } from "./crowd";
+import { KNEE_FOLD, KNEE_REST, LIFT_LEAD, THIGH_LEAN, THIGH_SWING } from "./gait";
 import { PARTS } from "./parts";
 import { DRIVES, ROCK_MAX_DEGREES, ROCK_MAX_RATE, type Drive } from "./soup";
 import "./tokens.css";
@@ -16,6 +17,10 @@ import { towardsSun } from "../sun";
  *
  * A near figure gives way to its far outline by a screen pattern, as the street kit's
  * objects do, and the outline grows out of nothing at the edge of its reach.
+ *
+ * A baked crowd's figures carry their place and gait on every vertex. A walking
+ * crowd's carry only their slot, and read where they are now and how far through
+ * a stride from two small lists rewritten each frame.
  */
 
 export interface PeopleInputs extends RoadsideInputs {
@@ -65,12 +70,25 @@ function aroundZ(point: Node<"vec3">, pivot: Node<"vec3">, angle: Node<"float">)
   return vec3(from.x.mul(c).sub(from.y.mul(s)), from.x.mul(s).add(from.y.mul(c)), from.z).add(pivot);
 }
 
+/** Where a figure stands, (x, y, z, yaw), and its gait: the phase of its stride, strides a second, and the stride's share of an adult's full one. */
+interface FigureSource {
+  place: Node<"vec4">;
+  gait: Node<"vec3">;
+}
+
+const baked = (): FigureSource => ({ place: attribute<"vec4">("place", "vec4"), gait: attribute<"vec3">("gait", "vec3") });
+
+/** A walking crowd's figures, by their slot in its lists of places and gaits. */
+function listed(places: StorageBufferAttribute, gaits: StorageBufferAttribute): FigureSource {
+  const slot = int(attribute<"float">("slot", "float"));
+  return { place: storage(places, "vec4", places.count).toReadOnly().element(slot), gait: storage(gaits, "vec4", gaits.count).toReadOnly().element(slot).xyz };
+}
+
 /** A figure's own coordinates, moved by its rig for this moment. */
-function moved(time: Node<"float">): Node<"vec3"> {
+function moved(time: Node<"float">, gait: Node<"vec3">): Node<"vec3"> {
   const rig = attribute<"vec4">("rig", "vec4");
   const inner = attribute<"vec3">("inner", "vec3");
   const outer = attribute<"vec3">("outer", "vec3");
-  const gait = attribute<"vec3">("gait", "vec3");
   const drive = round(rig.r.mul(255));
   const [phase, rate, stride] = [gait.x, gait.y, gait.z];
 
@@ -81,9 +99,9 @@ function moved(time: Node<"float">): Node<"vec3"> {
   // An arm swings with the opposite leg, so an arm's own side is half a turn from its leg's.
   const beat = step.add(select(isArm, select(opposite, float(0), float(RIGHT_PHASE)), select(opposite, float(RIGHT_PHASE), float(0))));
   const s = sin(beat);
-  const lifted = max(cos(beat.add(0.5)), float(0));
-  const thigh = s.mul(0.36).add(0.03);
-  const knee = lifted.mul(lifted).mul(0.78).add(0.1).negate();
+  const lifted = max(cos(beat.add(LIFT_LEAD)), float(0));
+  const thigh = s.mul(THIGH_SWING).add(THIGH_LEAN);
+  const knee = lifted.mul(lifted).mul(KNEE_FOLD).add(KNEE_REST).negate();
   const shoulder = s.mul(0.36);
   const elbow = s.mul(0.16).add(0.24);
   const upper = select(isLeg, thigh, select(isArm, shoulder, float(0))).mul(stride);
@@ -102,8 +120,7 @@ function moved(time: Node<"float">): Node<"vec3"> {
   return walked.add(vec3(sway, bob, float(0)));
 }
 
-function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMaterial {
-  const place = attribute<"vec4">("place", "vec4");
+function figureMaterial(inputs: PeopleInputs, isNear: boolean, { place, gait }: FigureSource): MeshBasicNodeMaterial {
   const tint = attribute<"vec4">("tint", "vec4");
   const distance = place.xz.sub(cameraPosition.xz).length();
 
@@ -112,7 +129,7 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMat
   const shown = isNear ? distance.lessThan(PEOPLE_SWAP_M * (1 + SWAP_BAND)) : distance.greaterThanEqual(PEOPLE_SWAP_M * (1 - SWAP_BAND)).and(distance.lessThan(PEOPLE_REACH_M));
   const size = select(shown, grown, float(0));
 
-  const local = moved(inputs.time);
+  const local = moved(inputs.time, gait);
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const material = new MeshBasicNodeMaterial();
   material.positionNode = vec3(place.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), place.y.add(local.y.mul(size)), place.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
@@ -128,14 +145,30 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean): MeshBasicNodeMat
   return material;
 }
 
-function shadowMaterial({ sun, colour }: PeopleInputs): MeshBasicNodeMaterial {
+/** A shadow's middle on the ground, and its corner's reach across and along the body as two (x, z) ways. */
+interface ShadowSource {
+  middle: Node<"vec3">;
+  spread: Node<"vec4">;
+  place: Node<"vec4">;
+}
+
+const bakedShadow = (): ShadowSource => ({ middle: positionGeometry, spread: attribute<"vec4">("spread", "vec4"), place: attribute<"vec4">("place", "vec4") });
+
+/** A walking crowd's shadows: each corner's slot, and its patch's offset from the feet and size, turned by where the figure faces now. */
+function listedShadow(places: StorageBufferAttribute): ShadowSource {
+  const place = storage(places, "vec4", places.count).toReadOnly().element(int(attribute<"float">("slot", "float")));
+  const shape = attribute<"vec4">("shape", "vec4");
+  const [c, s] = [cos(place.w), sin(place.w)];
+  const middle = place.xyz.add(vec3(shape.x.mul(c).add(shape.y.mul(s)), 0, shape.y.mul(c).sub(shape.x.mul(s))));
+  return { middle, spread: vec4(c.mul(shape.z), s.mul(shape.z).negate(), s.mul(shape.w), c.mul(shape.w)), place };
+}
+
+function shadowMaterial({ sun, colour }: PeopleInputs, { middle, spread, place }: ShadowSource): MeshBasicNodeMaterial {
   const corner = attribute<"vec2">("corner", "vec2");
-  const spread = attribute<"vec4">("spread", "vec4");
-  const place = attribute<"vec4">("place", "vec4");
   const toSun = towardsSun(sun);
   const away = vec2(toSun.x, toSun.z).negate().normalize().mul(SHADOW_DRIFT_M);
   const material = new MeshBasicNodeMaterial();
-  material.positionNode = positionGeometry.add(vec3(spread.x.mul(corner.x).add(spread.z.mul(corner.y)).add(away.x), SHADOW_LIFT_M, spread.y.mul(corner.x).add(spread.w.mul(corner.y)).add(away.y)));
+  material.positionNode = middle.add(vec3(spread.x.mul(corner.x).add(spread.z.mul(corner.y)).add(away.x), SHADOW_LIFT_M, spread.y.mul(corner.x).add(spread.w.mul(corner.y)).add(away.y)));
   const distance = place.xz.sub(cameraPosition.xz).length();
   const fade = float(1).sub(smoothstep(float(PEOPLE_REACH_M * (1 - GROW_SHARE)), float(PEOPLE_REACH_M), distance));
   const edge = float(1).sub(corner.dot(corner)).max(0);
@@ -149,7 +182,12 @@ function shadowMaterial({ sun, colour }: PeopleInputs): MeshBasicNodeMaterial {
 
 /** The kit's materials, made once for the game; every crowd shares them. */
 export function peopleMaterials(inputs: PeopleInputs) {
-  return { near: figureMaterial(inputs, true), far: figureMaterial(inputs, false), shadow: shadowMaterial(inputs) };
+  return { near: figureMaterial(inputs, true, baked()), far: figureMaterial(inputs, false, baked()), shadow: shadowMaterial(inputs, bakedShadow()) };
+}
+
+/** A walking crowd's materials, reading each figure's place and gait from its slot in the two lists. */
+export function walkingMaterials(inputs: PeopleInputs, places: StorageBufferAttribute, gaits: StorageBufferAttribute) {
+  return { near: figureMaterial(inputs, true, listed(places, gaits)), far: figureMaterial(inputs, false, listed(places, gaits)), shadow: shadowMaterial(inputs, listedShadow(places)) };
 }
 
 export type PeopleMaterials = ReturnType<typeof peopleMaterials>;

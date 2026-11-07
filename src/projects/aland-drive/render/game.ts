@@ -1,12 +1,19 @@
-import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
-import { TrafficContact } from "../traffic/contact";
-import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
-import { createLaneTrafficView, TRAFFIC_KINDS } from "./lane-traffic";
+import { hitCarView, TrafficContact, type HitCarView } from "../traffic/contact";
+import { LaneTraffic, type DrivenCar, type LaneCar } from "../traffic/lane-driver";
+import { eyeOf, sees, type Eye } from "../traffic/sight";
+import { createLaneTrafficView, sightOf, TRAFFIC_KINDS } from "./lane-traffic";
+import { createCyclistsView } from "./cyclists";
+import { createWalkersView, standingPlaces, walkerPace } from "./walkers";
+import { PEOPLE_REACH_M } from "../art/people/material";
+import { Bubble } from "../traffic/bubble";
+import { REACH_M as CAR_REACH_M } from "../art/cars/fleet";
+import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
 import { BAKED_SKY_SHARE, BAKED_SUN_SHARE, FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
@@ -18,7 +25,7 @@ import { seaClock, seaSeconds } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
 import { dateText, type CalendarDate } from "../time/day";
-import { bakedLightAtHour, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
+import { bakedLightAtHour, createHeadlights, forestAtHour, OTHERS_LIT, type Beam, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
 import { createPeople } from "./people";
@@ -58,6 +65,9 @@ import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
+import { createComputerCars } from "../net/computer-cars";
+import { createSharedTraffic, parseHitDriver, type HitDriver } from "../net/shared-traffic";
+import { parseScriptedDriver, scriptedState, scriptedStep, type ScriptedDriver } from "../net/scripted-car";
 import { GAME } from "../net/protocol";
 import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
 import type { PlayerProfile } from "@/shared/lib/profile";
@@ -70,17 +80,18 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, type GameMenu, type MenuItemId } from "./game-menu";
+import { drivingMenu, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
-import { challengeRoute, runOn } from "../challenge/line";
-import { CHALLENGES } from "../challenge/list";
-import { PASSES_KEY } from "../challenge/passes";
-import { countdownLeftS, gatesPassed, partnerNeeds, type Outcome } from "../challenge/run";
+import { challengeRoute, raceRoute, runOn } from "../challenge/line";
+import { CHALLENGES, RACES } from "../challenge/list";
+import { PASSES_KEY, type PlayMode } from "../challenge/passes";
+import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
+import { FINISHING_PLACE, medalForPlace } from "../challenge/standings";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
 import type { ChallengeMessage, ChallengeType } from "../net/protocol";
-import type { Challenge, ChallengeKind, StartPlace } from "../challenge/types";
+import type { Challenge, ChallengeKind, RaceChallenge, StartPlace } from "../challenge/types";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
 import { Navigator } from "../map/navigator";
@@ -90,12 +101,12 @@ import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
 import { NO_INPUT, type DriveInput } from "../sim/car";
-import { headingOf, speedOf, type CarState } from "../sim/car-state";
+import { headingOf, speedOf, type CarState, type Vector3 as CarVector } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
-import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
+import { CARS as TUNINGS, carAsked, DEFAULT_CAR, type CarId } from "../sim/cars";
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { groundCondition } from "../climate/feed";
 import { fitTyres, tyresOn } from "../garage/tyres";
@@ -152,12 +163,22 @@ export interface GameProbe {
   lanes: () => LaneNet;
   /** Draws the lanes and connectors over the road, coloured by right of way, or leaves them out. */
   showLanes: (shown: boolean) => void;
-  /** Keeps this many cars driving the lanes round the camera, with none at 0, and whether they see the player's car from now on. */
-  traffic: (count: number, options?: { withPlayer?: boolean }) => void;
-  /** How many cars drive the lanes, how many of them are stopped giving way, and how many have been hit out of traffic. */
-  trafficCounts: () => { cars: number; waiting: number; hit: number };
-  /** Every car driving the lanes, as the driver holds it. */
+  /** Fills the lanes round the camera with cars at a density, 1 for Åland's own and 0 for none, and whether they see the player's car from now on. */
+  traffic: (density: number, options?: { withPlayer?: boolean }) => void;
+  /** The same for cyclists, on the paths and the roads' edges. */
+  cyclists: (density: number) => void;
+  /** The same for walkers, on the paths. */
+  walkers: (density: number) => void;
+  /** How many cars, cyclists and walkers are on the lanes, how many of them are stopped giving way, how many cars have been hit out of traffic, and how many the bubble has made and taken away. */
+  trafficCounts: () => { cars: number; bikes: number; walkers: number; waiting: number; hit: number; spawned: number; gone: number };
+  /** Every car, cyclist and walker on the lanes, as the driver holds it. */
   trafficCars: () => LaneCar[];
+  /** Whether the camera could see a car, cyclist or walker where it stands now: in view, within its kind's reach and not behind the ground. */
+  trafficSeen: (car: Pick<LaneCar, "kind" | "pose" | "half">) => boolean;
+  /** The people placed standing or sitting within a reach of a place, as walkers see them. */
+  standingNear: (x: number, z: number, reachM: number) => { x: number; z: number; half: readonly [number, number] }[];
+  /** What the walkers drew last frame. */
+  walkersDrawn: () => { walkers: number; draws: number; triangles: number };
   reedsDrawn: () => ReedsDrawn;
   /** Shows the reed beds or leaves them out, to see what they do. */
   showReeds: (shown: boolean) => void;
@@ -228,6 +249,16 @@ export interface GameProbe {
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
+  /** A computer-driven car this player runs, along one of the start tile's chains at a steady speed; its id. */
+  addScriptedCar: (chain: number, along: number, speedMS: number) => string;
+  /** Every car, cyclist and walker on the lanes here: where it is, whether this player runs it, and how many times it has changed hands. */
+  sharedTraffic: () => { id: string; kind: LaneCar["kind"]; x: number; z: number; speedMS: number; runsHere: boolean; handovers: number }[];
+  /** Sends every vehicle this player runs to everyone at once, for a test to compare pages; how many it sent. */
+  flushTraffic: () => number;
+  /** How many traffic messages this page has heard from other players. */
+  trafficHeard: () => number;
+  /** Every computer-driven car: who runs it, how many times it has changed hands, where it is here and its driver's record, and the furthest it has moved here in one step. */
+  computerCars: () => { id: string; runner: string; handovers: number; runsHere: boolean; position: number[]; driver: Record<string, unknown>; furthestStepM: number }[];
   /** How many other players each map drew last. */
   mapPlayers: () => { mini: number; world: number };
   /** The ids of the places found, once the road network has arrived. */
@@ -238,7 +269,7 @@ export interface GameProbe {
   day: () => DayShown;
   /** Moves this page's day: another date (null for today's), an hour that runs on from there, or holds it. */
   setDay: (change: DayChange) => void;
-  /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
+  /** Shows the night's lamps, sea lights and glows or leaves them out, to see what they cost. */
   showNightLights: (shown: boolean) => void;
   /** Every boat under way, where it was last drawn. */
   boatsUnderWay: () => UnderWay[];
@@ -254,8 +285,8 @@ export interface GameProbe {
   challenge: () => ChallengeProbe | null;
   /** The scripted driver along the challenge's route, from where the car is on it. */
   driveChallenge: (cruiseMS: number) => void;
-  /** The best kept for a challenge, or null if it hasn't been passed. */
-  challengeBest: (id: string) => number | null;
+  /** The best kept for a challenge in a mode, solo unless asked, or null if it hasn't been passed so. */
+  challengeBest: (id: string, mode?: PlayMode) => number | null;
   /** Where this client stands in co-op, naming the other player, and how many of each challenge message it has heard. */
   coop: () => { kind: string; peer: string | null; name: string | null; heard: Partial<Record<ChallengeType, number>> };
   /** Invites the player of this name to the challenge whose start ring the car is in, as choosing Co-op does. */
@@ -275,6 +306,8 @@ export interface ChallengeProbe {
   phase: SessionPhase;
   clockS: number;
   gates: { passed: number; of: number };
+  /** A race's lap, from 1, and how many. */
+  lap: { lap: number; of: number };
   outcome: Outcome | null;
   seat: 0 | 1;
   players: number;
@@ -293,9 +326,13 @@ export interface ChallengeReading {
   countdownS: number;
   /** Seconds since the green light. */
   clockS: number;
-  /** The time to beat, or the speed to reach. */
-  target: number;
+  /** The time to beat, or the speed to reach; a race has none. */
+  target: number | null;
   gates: { passed: number; of: number };
+  /** A race's lap, null for a challenge. */
+  race: { lap: number; laps: number } | null;
+  /** A race's ground, which colours its panel. */
+  ground: RaceChallenge["ground"] | null;
   /** Co-op, once the partner is in and this player isn't: the time to finish by, or the speed to reach, for the team to pass. */
   needs: number | null;
   /** The partner's name in co-op. */
@@ -306,6 +343,8 @@ export interface ChallengeReading {
 export interface ChallengeOffer {
   title: string;
   partner: string | null;
+  /** A race's ground, which colours its prompt; null for a challenge. */
+  ground: RaceChallenge["ground"] | null;
 }
 
 /** A co-op challenge on its way: this player has asked someone, or been asked, or is joining. */
@@ -367,13 +406,15 @@ export interface GameEvents {
   onCoopNotice?: (notice: CoopNoticeReading) => void;
   /** The car has reached a place it hadn't found before. */
   onPlaceFound?: (place: FindablePlace) => void;
-  /** How many of the places have been found and of the challenges passed, when the maps arrive and whenever either changes. */
+  /** How many of the places have been found, of the challenges passed and of the races with a medal, when the maps arrive and whenever any changes. */
   onProgress?: (progress: Progress) => void;
 }
 
 export interface Progress {
   places: { done: number; total: number };
   challenges: { done: number; total: number };
+  /** Races with a medal won. */
+  races: { done: number; total: number };
 }
 
 /** The online world to join, which `net/protocol.ts`'s `onlineRelay` decides; none drives alone. */
@@ -420,6 +461,9 @@ export interface Game {
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
+  /** Whether cars, cyclists and walkers ride the lanes round the car, or null in the shared world, where traffic is everyone's and always on. */
+  trafficOn: () => boolean | null;
+  setTraffic: (on: boolean) => void;
   /** What the weather has made of every surface, until there is weather. */
   condition: () => Condition;
   day: () => DayShown;
@@ -466,12 +510,20 @@ const POOLS_ON_GROUND_M = 280;
 /** Where the headlamps sit off the car's origin, which rides at its axles' height. */
 const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
+
+/** Where a car's headlamps shine from and the way they point, written into `beam`. */
+function beamOf({ position, rotation: [x, y, z, w] }: CarState, beam: Beam): Beam {
+  beam.forward.set(-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))).normalize();
+  beam.lamps.set(position[0], position[1] + HEADLAMPS_UP_M, position[2]).addScaledVector(beam.forward, HEADLAMPS_AHEAD_M);
+  return beam;
+}
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
-/** The lane lab's traffic: at most this many cars, kept within a reach of the camera, and once they're all out, new ones put down no nearer than this. */
+/** Traffic: room for this many cars, cyclists and walkers drawn, and the bubble round the camera judged every this many traffic steps. */
 const TRAFFIC_MOST = 200;
-const TRAFFIC_REACH_M = 400;
-const TRAFFIC_NEAREST_M = 150;
+const CYCLISTS_MOST = 120;
+const WALKERS_MOST = 160;
+const BUBBLE_EVERY = 4;
 /** It steps once every this many of the simulation's steps: cars with no physics need no more, and are drawn between steps. */
 const TRAFFIC_EVERY = 4;
 const EDGE_WALL_HEIGHT_M = 2.5;
@@ -511,6 +563,9 @@ const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 /** The scripted driver's line runs on past a challenge's finish, so it doesn't turn for the line's last point. */
 const CHALLENGE_RUN_ON_M = 150;
+
+/** What a run is measured against: a Route's target time, a Speed trap's speed; a race has none, only places. */
+const targetOf = (challenge: Challenge) => (challenge.kind === "route" ? challenge.targetS : challenge.kind === "race" ? null : challenge.targetKmh);
 /** The car on the start line and through the countdown: the handbrake, since the brake held at a standstill is reverse. */
 const HELD: DriveInput = { ...NO_INPUT, handbrake: true };
 
@@ -729,8 +784,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const groundColor = townGround({ place: positionWorld.xz, tiled, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
-  scene.add(headlights.cones);
-  // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
+  // Every colour drawn goes through here: the hour's light on it, the headlights on it, the player's and the nearest others', then the haze.
   const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);
   const seaHazed = hazedAtHour(seaAtHour);
@@ -890,19 +944,33 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let lampRevision = -1;
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);
-  const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS);
+  const laneTraffic = new LaneTraffic(laneNet, TRAFFIC_KINDS, 1, walkerPace);
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
-  let trafficWanted = 0;
+  const cyclistsView = createCyclistsView(scene, sun, hazed, CYCLISTS_MOST);
+  const walkersView = createWalkersView(scene, { colour: colorOf, linear, hazed, sun }, WALKERS_MOST);
+  // At Åland's own density, offline and in the shared world, where every player sees the same (`net/shared-traffic.ts`); only offline can it be turned off.
+  const trafficOffered = online === undefined;
+  // Online, a vehicle's id says who made it too: another player may have one from the same slot far off.
+  const trafficTag = Math.random().toString(36).slice(2, 6);
+  let trafficMade = 0;
+  const nameVehicle = online ? (slot: string) => `${slot}~${onlineWorld?.state().selfId ?? trafficTag}${(trafficMade++).toString(36)}` : undefined;
+  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 1 }, bike: { reachM: BIKE_REACH_M, density: 1 }, walker: { reachM: PEOPLE_REACH_M, density: 1 } }, nameVehicle);
   let trafficSeesPlayer = true;
-  // The first fill puts cars anywhere in reach; after that, new ones come in out of the way.
-  let trafficFilled = false;
   let trafficSteps = 0;
+  let bubbleSteps = 0;
   const trafficFocus = { x: 0, z: 0 };
+  const viewProjection = new Matrix4();
+  /** The camera as it stands, for whether something on the road is in sight. */
+  const eyeNow = (): Eye => {
+    camera.updateMatrixWorld();
+    viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    return eyeOf(camera.position, viewProjection.elements);
+  };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
   const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
-  const challengeBoard = new ChallengeBoard(CHALLENGES, { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
+  const challengeBoard = new ChallengeBoard([...CHALLENGES, ...RACES], { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
-  const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + 8);
+  const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const cutGrounds = new Map<string, Mesh>();
@@ -946,6 +1014,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         outbuildings.add(detail.name, models);
         docks.add(detail.name, moored);
         people.add(detail.name, crowd);
+        if (crowd) laneTraffic.setStill(detail.name, standingPlaces(crowd));
         stoneWalls.add(detail.name, walls);
         for (const clearing of Object.values(wallClearings)) clearing.add(detail.name, [{ sections: walls, outM: 0 }, ...furnitureClearances(placed.models)]);
         roadside.add(detail.name, placed);
@@ -994,6 +1063,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         outbuildings.remove(detail.name);
         docks.remove(detail.name);
         people.remove(detail.name);
+        laneTraffic.forgetStill(detail.name);
         stoneWalls.remove(detail.name);
         for (const clearing of Object.values(wallClearings)) clearing.remove(detail.name);
         roadside.remove(detail.name);
@@ -1152,7 +1222,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!discovery) return;
     events.onProgress?.({
       places: { done: discovery.foundCount, total: discovery.places.length },
-      challenges: { done: challengeBoard.passedCount, total: challengeBoard.challenges.length },
+      challenges: challengeBoard.bucketList,
+      races: challengeBoard.races,
     });
   };
   const pickDestination = (x: number, z: number) => {
@@ -1198,6 +1269,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
             jumping = false;
           });
         },
+        (id) => {
+          const challenge = challengeBoard.byId(id);
+          return routeOf(challenge)?.line.points ?? null;
+        },
       );
       stream.addBytes(data.bytes);
       events.onMapReady?.();
@@ -1210,6 +1285,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
+  /**
+   * After a jump, traffic starts again round the car as it does when a page opens: nobody saw it arrive, so it may fill
+   * anywhere. What was left behind goes as it would on a drive away, or online passes to whoever is nearer it now.
+   */
+  const refillTraffic = () => {
+    const { position } = drive.stateAt(1);
+    trafficFocus.x = position[0];
+    trafficFocus.z = position[2];
+    bubble.refill();
+  };
   /** Loads round a place, with the first load's bar, and puts the car there once it has landed. */
   const loadRound = async (x: number, z: number, place: () => void) => {
     jumping = true;
@@ -1224,6 +1309,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     await stream.settled();
     place();
     chaseCamera.snap();
+    refillTraffic();
     loadingAround = null;
     stream.onLanded = () => undefined;
     jumping = false;
@@ -1303,7 +1389,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!roadGraph) return null;
     let route = routes.get(challenge.id);
     if (!route) {
-      route = challengeRoute(roadGraph, challenge.waypoints);
+      route = challenge.kind === "race" ? raceRoute(roadGraph, challenge) : challengeRoute(roadGraph, challenge.waypoints);
       routes.set(challenge.id, route);
     }
     return route;
@@ -1334,7 +1420,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const menuNow = (): GameMenu => {
     if (!session) return drivingMenu(drive.tyres);
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
-    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: session.challenge.title };
+    const { challenge } = session;
+    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
   };
   const showMenu = (menu: GameMenu | null) => {
     gameMenu = menu;
@@ -1366,12 +1453,33 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const challenge = ringNow();
     if (!challenge) return;
     const partner = partnerInRing(challenge);
+    if (challenge.kind === "race") {
+      offered = { challenge, partner };
+      showMenu(raceCardMenu(challenge, partner));
+      return;
+    }
     if (partner === null) {
       startChallenge(challenge);
       return;
     }
     offered = { challenge, partner };
     showMenu({ kind: "start", items: ["start-solo", "start-coop", "cancel"], back: "cancel", pauses: true, challenge: challenge.title, partner: nameOf(partner) });
+  };
+  /** A race's card: the track, its car, what each medal takes and what's been won, then Start, and Co-op with another player in the ring. */
+  const raceCardMenu = (race: RaceChallenge, partner: string | null): GameMenu => {
+    const record = (mode: PlayMode) => {
+      const kept = challengeBoard.passOf(race, mode);
+      return kept && { medal: kept.medal ?? null, place: kept.best };
+    };
+    return {
+      kind: "race",
+      items: partner === null ? ["start-solo", "cancel"] : ["start-solo", "start-coop", "cancel"],
+      back: "cancel",
+      pauses: true,
+      challenge: race.title,
+      partner: partner === null ? undefined : nameOf(partner),
+      race: { number: race.number, ground: race.ground, shape: race.shape, laps: race.laps, lengthM: race.lengthM, car: TUNINGS[race.car].name, records: { solo: record("solo"), coop: record("coop") } },
+    };
   };
 
   let placedWaiters: (() => void)[] = [];
@@ -1399,19 +1507,25 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     showRoute: (challenge) => {
       const route = challenge ? routeOf(challenge) : null;
-      if (challenge && route) navigator?.holdRoute(route, challenge.kind === "route" ? challenge.gates[challenge.gates.length - 1] : challenge.camera);
+      if (challenge && route) {
+        // A race's route ends at its finish; a challenge's runs on past it.
+        const finish = challenge.kind === "race" ? null : challenge.kind === "route" ? challenge.gates[challenge.gates.length - 1] : challenge.camera;
+        navigator?.holdRoute(route, finish ? route.line.nearest(finish.x, finish.z).along : route.line.length);
+      }
       else navigator?.clearRoute();
       worldMap?.setRoute(route);
     },
     onOver: (challenge, outcome) => {
-      challengeBoard.record(challenge, outcome);
+      const mode = session?.coop ? "coop" : "solo";
+      challengeBoard.record(challenge, mode, outcome);
       const seat = session?.seat ?? 0;
-      const best = challengeBoard.passOf(challenge)?.best ?? null;
-      const target = challenge.kind === "route" ? challenge.targetS : challenge.targetKmh;
+      const best = challengeBoard.passOf(challenge, mode)?.best ?? null;
+      const target = targetOf(challenge);
       const partner = coop.partner;
       const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
       const result = outcome.average ?? outcome.results[seat];
-      showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team } });
+      const race = challenge.kind === "race" ? raceResult(challenge, mode) : undefined;
+      showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
     },
     onRetry: (attempt) => {
       coop.retried(attempt);
@@ -1426,6 +1540,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       coop.lost(attempt, results);
     },
   };
+  /** How a race finished, for its result card: the place, its medal, and the best medal kept in this mode. */
+  const raceResult = (race: RaceChallenge, mode: PlayMode): RaceResult => ({
+    ground: race.ground,
+    place: FINISHING_PLACE,
+    medal: medalForPlace(FINISHING_PLACE),
+    bestMedal: challengeBoard.medal(race, mode),
+  });
   const startChallenge = (challenge: Challenge, seat: 0 | 1 = 0, players: 1 | 2 = 1): ChallengeSession => {
     if (session) throw new Error(`${challenge.id} started during ${session.challenge.id}`);
     if (jumping || mapFrom) throw new Error(`${challenge.id} started while the car was being moved`);
@@ -1595,6 +1716,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let seaHeldAt: number | null = null;
   let autopilot: Autopilot | null = null;
   let owedSeconds = 0;
+  let owedTrafficSeconds = 0;
   let lastFrame: number | null = null;
   let frames = 0;
   let gpuMs: number | null = null;
@@ -1632,16 +1754,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
     trafficContact.beforeStep(trafficSteps);
+    driveComputerCars();
     drive.step(lastInput);
     trafficContact.afterStep();
+    if (sharedTraffic) updateHitCars();
+    measureComputerCars();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
-    if (trafficWanted > 0 && trafficSteps === 0) {
-      const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
-      laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
-      laneTraffic.keep(trafficFocus.x, trafficFocus.z, trafficWanted, TRAFFIC_REACH_M, trafficFilled ? TRAFFIC_NEAREST_M : 0);
-      trafficFilled ||= laneTraffic.count() >= trafficWanted;
-      laneTraffic.step(STEP_S * TRAFFIC_EVERY);
-    }
+    if (trafficSteps === 0) stepTraffic();
     tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.tyres, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
     const placed = drive.placements !== sampledPlacements;
@@ -1651,9 +1770,137 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     session.step(STEP_S, { x: state.position[0], z: state.position[2], speedMS: speedOf(state), placed });
   };
 
+  /** Every simulated car traffic sees: this player's and the hit cars it runs, and every other player's and hit car, as their stand-ins have them here. */
+  const trafficDriven = (): DrivenCar[] => {
+    const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
+    const seen = (id: string, state: CarState, half: readonly [number, number]): DrivenCar => ({ id, x: state.position[0], z: state.position[2], heading: headingOf(state.rotation), vx: state.velocity[0], vz: state.velocity[2], half });
+    const driven = trafficContact.driven(trafficSeesPlayer ? [wide, long] : null);
+    for (const [peerId, { heard }] of others) {
+      if (!heard) continue;
+      const state = drive.remotes.stateAt(peerId, 1);
+      const [otherWide, , otherLong] = TUNINGS[state.car].car.halfSize;
+      driven.push(seen(peerId, state, [otherWide, otherLong]));
+    }
+    for (const { id } of hitCarsElsewhere()) {
+      const state = drive.remotes.stateAt(standInOf(id), 1);
+      const [hitWide, , hitLong] = TUNINGS[state.car].car.halfSize;
+      driven.push(seen(id, state, [hitWide, hitLong]));
+    }
+    return driven;
+  };
+  /** Where every other player's car is, as heard here. */
+  const otherPlaces = (): { x: number; z: number }[] => [...others].flatMap(([peerId, { heard }]) => (heard ? [drive.remotes.stateAt(peerId, 1).position] : [])).map(([x, , z]) => ({ x, z }));
+  /** Whether this page is in the world and has heard where every other player in it is. */
+  const worldHeard = () => onlineWorld?.state().status === "connected" && [...others.values()].every(({ heard }) => heard);
+  /** Every player's car, this one's included, by their id. */
+  const playerPlaces = () => {
+    const places = new Map<string, CarVector>([[onlineWorld?.state().selfId ?? "", drive.player.position]]);
+    for (const [peerId, { heard }] of others) if (heard) places.set(peerId, drive.remotes.stateAt(peerId, 1).position);
+    return places;
+  };
+  /** One traffic step: its bubble round the camera, every vehicle on the lanes, and online what this player runs of them sent. */
+  const stepTraffic = () => {
+    if (bubble.density("car") === 0 && bubble.density("bike") === 0 && bubble.density("walker") === 0) return;
+    laneTraffic.setDriven(trafficDriven());
+    if (bubbleSteps === 0) {
+      const eye = eyeNow();
+      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() } : undefined);
+    }
+    bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
+    laneTraffic.step(STEP_S * TRAFFIC_EVERY);
+    sharedTraffic?.step();
+  };
+
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
   const remoteViews = createRemoteCarViews(scene, sun, hazed);
+  const othersBeams: Beam[] = Array.from({ length: OTHERS_LIT }, () => ({ lamps: new Vector3(), forward: new Vector3() }));
   const others = new Map<string, { name: string; heard: boolean }>();
+  // Computer-driven cars, each run by the player nearest it (`net/computer-cars.ts`), and a stand-in here like another player's; so far only a test's scripted cars.
+  const standInOf = (id: string) => `computer:${id}`;
+  const computerCars = createComputerCars({
+    selfId: () => onlineWorld?.state().selfId ?? null,
+    hosts: () => onlineWorld?.state().role === "host",
+    places: playerPlaces,
+    send: (car) => onlineWorld?.sendComputerCar(car) ?? false,
+    onHeard: (car) => {
+      // A hit car this page ran, handed on, or taken by another who hit it at the same moment.
+      if (trafficContact.running().some((hit) => hit.id === car.id)) trafficContact.release(car.id);
+      drive.remotes.hear(standInOf(car.id), car.state);
+    },
+    onGone: (id) => {
+      drive.remotes.forget(standInOf(id));
+      remoteViews.forget(standInOf(id));
+    },
+  });
+  // Lane traffic online (`net/shared-traffic.ts`): each vehicle run by the player nearest it, and driven here between their messages.
+  let trafficHeard = 0;
+  const sharedTraffic = online
+    ? createSharedTraffic(laneTraffic, { selfId: () => onlineWorld?.state().selfId ?? null, places: playerPlaces, edgeM: (kind) => bubble.edgeM(kind), send: (traffic) => onlineWorld?.sendTraffic(traffic) ?? false }, TRAFFIC_EVERY)
+    : null;
+  const isHit = (driver: Record<string, unknown>) => driver.kind === "hit";
+  /** The hit cars another player runs, each drawn here as the world car it was. */
+  const hitCarsElsewhere = () => {
+    const running = new Set(computerCars.running().map(({ id }) => id));
+    return computerCars.all().filter(({ id, driver }) => isHit(driver) && !running.has(id));
+  };
+  const hitDriverOf = (hit: { model: number; seed: number; stoppedS: number }, hitAt: number): HitDriver => ({ kind: "hit", model: hit.model, seed: hit.seed, stoppedS: hit.stoppedS, hitAt });
+  /** The handovers each hit car run here was hit at, which it carries back into the traffic. */
+  const hitAts = new Map<string, number>();
+  if (sharedTraffic) {
+    trafficContact.others = otherPlaces;
+    // This page's car hit it, so this page runs it, as a computer-driven car everyone else sees.
+    trafficContact.onHit = (hit) => {
+      const hitAt = sharedTraffic.hit(hit.id);
+      hitAts.set(hit.id, hitAt);
+      computerCars.add(hit.id, hit.car.stateAt(1), { ...hitDriverOf(hit, hitAt) });
+    };
+    trafficContact.onDone = (hit, rejoined) => {
+      computerCars.remove(hit.id);
+      if (rejoined) sharedTraffic.rejoined(rejoined, hitAts.get(hit.id) ?? 0);
+      hitAts.delete(hit.id);
+    };
+  }
+  const scriptedDrivers = new Map<string, ScriptedDriver>();
+  /** Before the world steps: each car this player runs drives on from its driver's record, the one it was handed when it has just come here. */
+  const driveComputerCars = () => {
+    const running = computerCars.running();
+    for (const id of scriptedDrivers.keys()) if (!running.some((car) => car.id === id)) scriptedDrivers.delete(id);
+    for (const car of running) {
+      if (isHit(car.driver)) {
+        // Handed here: built as a simulated car where the state it was handed has it.
+        if (trafficContact.running().some((hit) => hit.id === car.id)) continue;
+        const driver = parseHitDriver(car.driver);
+        drive.remotes.forget(standInOf(car.id));
+        trafficContact.take(car.id, car.state, driver.model, driver.seed, driver.stoppedS);
+        hitAts.set(car.id, driver.hitAt);
+        continue;
+      }
+      const was = scriptedDrivers.get(car.id) ?? parseScriptedDriver(car.driver);
+      const line = startLine(was.chain);
+      const driver = scriptedStep(was, STEP_S, line);
+      scriptedDrivers.set(car.id, driver);
+      const state = scriptedState(driver, line, car.state.car);
+      computerCars.update(car.id, state, { ...driver });
+      drive.remotes.hear(standInOf(car.id), state);
+    }
+  };
+  /** After the world steps: each hit car this page runs is sent as it now stands. */
+  const updateHitCars = () => {
+    for (const hit of trafficContact.running()) {
+      if (computerCars.running().some((car) => car.id === hit.id)) computerCars.update(hit.id, hit.car.stateAt(1), { ...hitDriverOf(hit, hitAts.get(hit.id) ?? 0) });
+    }
+  };
+  /** Where a computer-driven car is here: a hit car this page runs is a simulated car, and every other a stand-in. */
+  const computerCarAt = (id: string, share: number): CarState => trafficContact.running().find((hit) => hit.id === id)?.car.stateAt(share) ?? drive.remotes.stateAt(standInOf(id), share);
+  const furthestSteps = new Map<string, { at: CarVector; furthestM: number }>();
+  const measureComputerCars = () => {
+    for (const { id } of computerCars.all()) {
+      const at = computerCarAt(id, 1).position;
+      const was = furthestSteps.get(id);
+      furthestSteps.set(id, { at, furthestM: was ? Math.max(was.furthestM, Math.hypot(at[0] - was.at[0], at[1] - was.at[1], at[2] - was.at[2])) : 0 });
+    }
+  };
+  let scriptedCarsAdded = 0;
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
         onCar: (peerId, state) => {
@@ -1661,6 +1908,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
           other.heard = true;
           drive.remotes.hear(peerId, state);
+        },
+        onComputerCar: (peerId, car) => {
+          computerCars.hear(peerId, car);
+        },
+        onTraffic: (peerId, traffic) => {
+          trafficHeard++;
+          sharedTraffic?.hear(peerId, traffic);
         },
         onGone: (peerId) => {
           drive.remotes.forget(peerId);
@@ -1673,6 +1927,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           const before = new Map(others);
           others.clear();
           for (const { peerId, name } of players) others.set(peerId, { name, heard: before.get(peerId)?.heard ?? false });
+          const present = new Set([...others.keys(), onlineWorld?.state().selfId ?? ""]);
+          computerCars.players(present);
+          sharedTraffic?.players(present);
           events.onPlayers?.(players.map(({ name }) => name));
         },
         onChallenge: hearChallenge,
@@ -1684,14 +1941,25 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const drawRemotes = (share: number): MapPlayer[] => {
     const shown: MapPlayer[] = [];
     const lamps: CarAtNight[] = [];
+    const lit: { state: CarState; away: number }[] = [];
     for (const [peerId, { name, heard }] of others) {
       if (!heard) continue;
       const state = drive.remotes.stateAt(peerId, share);
-      const [x, y, z] = state.position;
+      const [x, , z] = state.position;
       remoteViews.draw(peerId, state, world.tileAt(x, z)?.detail != null);
       shown.push({ x, z, headingClockwise: headingClockwise(state), name });
-      const heading = headingOf(state.rotation);
-      if (state.lamps.head) lamps.push({ x, y, z, forwardX: -Math.sin(heading), forwardZ: -Math.cos(heading), braking: state.lamps.brake });
+      if (!state.lamps.head) continue;
+      lamps.push(remoteViews.atNight(state));
+      // A car that isn't drawn here would light the ground round nothing.
+      if (remoteViews.drawn(peerId)) lit.push({ state, away: Math.hypot(x - camera.position.x, z - camera.position.z) });
+    }
+    lit.sort((a, b) => a.away - b.away);
+    headlights.updateOthers(lit.slice(0, OTHERS_LIT).map(({ state }, index) => beamOf(state, othersBeams[index])));
+    for (const { id, driver } of computerCars.all()) {
+      // A hit traffic car is drawn as the world car it was, with the rest of the traffic.
+      if (isHit(driver)) continue;
+      const state = drive.remotes.stateAt(standInOf(id), share);
+      remoteViews.draw(standInOf(id), state, world.tileAt(state.position[0], state.position[2])?.detail != null);
     }
     nightLights.setCars(lamps);
     return shown;
@@ -1709,8 +1977,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       phase: session.phase,
       countdownS: countdownLeftS(run),
       clockS: Math.max(run.clockS, 0),
-      target: challenge.kind === "route" ? challenge.targetS : challenge.targetKmh,
+      target: targetOf(challenge),
       gates: gatesPassed(run, seat),
+      ground: challenge.kind === "race" ? challenge.ground : null,
+      race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps } : null,
       needs: needs?.player === seat ? needs.result : null,
       partner: partner === null ? null : nameOf(partner),
     };
@@ -1724,7 +1994,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const challenge = ringNow();
     if (!challenge) return null;
     const partner = partnerInRing(challenge);
-    return { title: challenge.title, partner: partner === null ? null : nameOf(partner) };
+    return { title: challenge.title, partner: partner === null ? null : nameOf(partner), ground: challenge.kind === "race" ? challenge.ground : null };
   };
   /** The line the car is to cross next, standing in the world: a gate, the finish, or the camera. */
   const showNextLine = () => {
@@ -1741,10 +2011,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       return;
     }
     const next = run.players[seat].nextGate;
+    const lines = linesOf(challenge);
+    // A race's lines still to cross this lap, the start line ending it; the finish is the last lap's.
+    const lapEnd = challenge.kind === "race" ? Math.min(lines, (Math.floor(next / challenge.gates.length) + 1) * challenge.gates.length) : lines;
     navigator?.setGates(`${challenge.id}:${run.attempt}:${next}`, () =>
-      challenge.gates.slice(next).map((gate, index) => ({ ...gate, next: index === 0, finish: next + index === challenge.gates.length - 1 })),
+      Array.from({ length: Math.max(0, lapEnd - next) }, (_, index) => ({ ...lineAt(challenge, next + index), next: index === 0, finish: next + index === lines - 1 })),
     );
-    challengeMarks.setLine(next < challenge.gates.length ? challenge.gates[next] : null, next === challenge.gates.length - 1 ? "finish" : "gate");
+    challengeMarks.setLine(next < lines ? lineAt(challenge, next) : null, next === lines - 1 ? "finish" : "gate");
   };
 
   const detailSpotAt = new Vector3();
@@ -1781,12 +2054,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     day.update(now, 0);
   };
 
-  const lampsAt = new Vector3();
-  const lampsFacing = new Vector3();
-  const aimHeadlights = ({ position, rotation: [x, y, z, w], lamps }: CarState) => {
-    lampsFacing.set(-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))).normalize();
-    lampsAt.set(position[0], position[1] + HEADLAMPS_UP_M, position[2]).addScaledVector(lampsFacing, HEADLAMPS_AHEAD_M);
-    headlights.update(lampsAt, lampsFacing, lamps.head);
+  const ownBeam: Beam = { lamps: new Vector3(), forward: new Vector3() };
+  const aimHeadlights = (car: CarState) => {
+    beamOf(car, ownBeam);
+    headlights.update(ownBeam.lamps, ownBeam.forward, car.lamps.head);
   };
 
   const frame = (now: number) => {
@@ -1804,6 +2075,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       for (let step = 0; step < stepped; step++) simStep(nextInput());
       owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
+    } else if (sharedTraffic && !held) {
+      // Paused, this page still runs its share of the shared traffic, which everyone else sees go on.
+      owedTrafficSeconds = Math.min(owedTrafficSeconds + seconds, MOST_STEPS_A_FRAME * STEP_S);
+      for (; owedTrafficSeconds >= STEP_S * TRAFFIC_EVERY; owedTrafficSeconds -= STEP_S * TRAFFIC_EVERY) stepTraffic();
     }
     const car = drive.stateAt(share);
     carView.draw(car);
@@ -1811,6 +2086,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     placeCarVolume(car);
     tyres.draw(share);
     onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements);
+    computerCars.step(stepped);
     sentPlacements = drive.placements;
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
@@ -1859,7 +2135,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
-      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), passed: challengeBoard.passOf(challenge) !== null })));
+      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), tone: challenge.kind === "race" ? challenge.ground : challengeBoard.passed(challenge) ? "passed" : "challenge" })));
       showProgress();
     }
     showNextLine();
@@ -1895,9 +2171,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.condition = ground.at(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
-    trafficFocus.x = camera.position.x;
-    trafficFocus.z = camera.position.z;
-    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
+    // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
+    // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
+    const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;
+    trafficFocus.x = trafficAt.x;
+    trafficFocus.z = trafficAt.z;
+    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, [...trafficContact.hitCars(share), ...hitCarsElsewhere().map(({ id, driver }): HitCarView => {
+      const { model, seed } = parseHitDriver(driver);
+      return hitCarView(id, model, seed, drive.remotes.stateAt(standInOf(id), share));
+    })]);
+    cyclistsView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
+    walkersView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
     roadside.update(camera.position);
     showRibbons(spot);
     landmarks.update(spot);
@@ -1950,14 +2234,25 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showParked: parkedCars.show,
       lanes: () => laneNet,
       showLanes: laneOverlay.show,
-      traffic: (count, options) => {
-        trafficWanted = Math.min(count, TRAFFIC_MOST);
+      traffic: (density, options) => {
+        bubble.setDensity("car", density);
         if (options?.withPlayer !== undefined) trafficSeesPlayer = options.withPlayer;
-        trafficFilled = false;
-        if (trafficWanted === 0) for (const car of [...laneTraffic.all()]) laneTraffic.remove(car.id);
+      },
+      cyclists: (density) => {
+        bubble.setDensity("bike", density);
+      },
+      walkers: (density) => {
+        bubble.setDensity("walker", density);
       },
       trafficCars: () => [...laneTraffic.all()],
-      trafficCounts: () => ({ cars: laneTraffic.count(), waiting: [...laneTraffic.all()].filter((car) => car.waiting).length, hit: trafficContact.count() }),
+      trafficSeen: (car) => sees(eyeNow(), groundAt, sightOf(car)),
+      trafficCounts: () => {
+        const all = [...laneTraffic.all()];
+        const of = (kind: LaneCar["kind"]) => all.filter((vehicle) => vehicle.kind === kind).length;
+        return { cars: of("car"), bikes: of("bike"), walkers: of("walker"), waiting: all.filter((vehicle) => vehicle.waiting).length, hit: trafficContact.count(), ...bubble.counts() };
+      },
+      standingNear: (x, z, reachM) => laneTraffic.stillNear(x, z, reachM),
+      walkersDrawn: walkersView.counts,
       reedsDrawn: reeds.drawn,
       showReeds: reeds.show,
       shrubsDrawn: shrubs.drawn,
@@ -2064,14 +2359,35 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           drawn: remoteViews.drawn(peerId),
           ghost: drive.remotes.ghost(peerId),
         })),
+      addScriptedCar: (chain, along, speedMS) => {
+        const id = `${onlineWorld?.state().selfId ?? "alone"}-scripted-${++scriptedCarsAdded}`;
+        const driver: ScriptedDriver = { kind: "scripted", chain, along, speedMS };
+        const state = scriptedState(driver, startLine(chain), DEFAULT_CAR);
+        computerCars.add(id, state, { ...driver });
+        drive.remotes.hear(standInOf(id), state);
+        return id;
+      },
+      sharedTraffic: () => {
+        const runners = sharedTraffic?.runners();
+        return [...laneTraffic.all()].map(({ id, kind, pose, speedMS }) => ({ id, kind, x: pose.x, z: pose.z, speedMS, runsHere: !laneTraffic.elsewhere.has(id), handovers: runners?.get(id)?.handovers ?? 0 }));
+      },
+      flushTraffic: () => sharedTraffic?.flush() ?? 0,
+      trafficHeard: () => trafficHeard,
+      computerCars: () =>
+        computerCars.all().map(({ id, runner, handovers, driver }) => ({
+          id,
+          runner,
+          handovers,
+          runsHere: computerCars.running().some((car) => car.id === id),
+          position: computerCarAt(id, 1).position,
+          driver,
+          furthestStepM: furthestSteps.get(id)?.furthestM ?? 0,
+        })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
       day: dayShown,
       setDay,
-      showNightLights: (shown) => {
-        nightLights.show(shown);
-        headlights.cones.visible = shown;
-      },
+      showNightLights: nightLights.show,
       holdSea: (seconds) => {
         seaHeldAt = seconds;
       },
@@ -2098,6 +2414,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           phase: session.phase,
           clockS: run.clockS,
           gates: gatesPassed(run, seat),
+          lap: lapOf(run, seat),
           outcome: run.outcome,
           seat,
           players: run.players.length,
@@ -2118,7 +2435,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         }
         autopilot = new Autopilot(runOn(route.line, CHALLENGE_RUN_ON_M), cruiseMS, from);
       },
-      challengeBest: (id) => challengeBoard.passOf(challengeBoard.byId(id))?.best ?? null,
+      challengeBest: (id, mode = "solo") => challengeBoard.passOf(challengeBoard.byId(id), mode)?.best ?? null,
       coop: () => {
         const standing = coop.now;
         const peer = standing.kind === "free" ? null : standing.peer;
@@ -2150,6 +2467,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
+    trafficOn: () => (trafficOffered ? bubble.density("car") > 0 : null),
+    setTraffic: (on) => {
+      if (!trafficOffered) throw new Error("the shared world's traffic is everyone's, and can't be turned off on one page");
+      bubble.setDensity("car", on ? 1 : 0);
+      bubble.setDensity("bike", on ? 1 : 0);
+      bubble.setDensity("walker", on ? 1 : 0);
+    },
     condition: () => drive.condition,
     setCondition: (condition) => {
       ground.hold(condition);
@@ -2220,6 +2544,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       parkedCars.dispose();
       laneOverlay.dispose();
       laneTrafficView.dispose();
+      cyclistsView.dispose();
+      walkersView.dispose();
       buildingAddOns.dispose();
       landmarks.dispose();
       challengeMarks.dispose();

@@ -2,11 +2,12 @@ import { playgroundAsked } from "../playground/place";
 import { RELAY_PARAM, relayUrlFromSearch } from "@/shared/lib/peer";
 import { LAMPS_OFF, type CarLamps, type CarState, type Rotation, type Vector3 } from "../sim/car-state";
 import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
+import type { LaneRecord, VehicleKind } from "../traffic/lane-driver";
 
 /*
  * What players send each other in the online world: each car's state, as its
- * own client has it, which names the car it is, and the messages of a co-op
- * challenge. A guest sends its own up; the host hands each one on to every
+ * own client has it, which names the car it is, each computer-driven car's
+ * from the player running it, the lane traffic each player runs, and the messages of a co-op challenge. A guest sends its own up; the host hands each one on to every
  * other guest, or to the one player a challenge message is for, naming whose
  * it is, and sends its own down. Every payload off the wire is untrusted and
  * parsed here.
@@ -40,9 +41,48 @@ export type ChallengeMessage =
 
 export type ChallengeType = ChallengeMessage["type"];
 
+/**
+ * A computer-driven car (`computer-cars.ts`), sent by the player who runs it:
+ * its state, the player running it now, how many times it has changed hands,
+ * and its driver's record, whose shape is its driver's own; or, with `gone`,
+ * taken out of the world by whoever ran it.
+ */
+export interface ComputerCarMessage {
+  id: string;
+  runner: string;
+  handovers: number;
+  state: CarState;
+  driver: Record<string, unknown>;
+  gone?: true;
+}
+
+/**
+ * A vehicle of the lane traffic (`shared-traffic.ts`), from the player running it, or handed by them to another: its
+ * driver's whole record, how many times it has changed hands, and who runs it now, the sender when null.
+ */
+export interface TrafficVehicle {
+  record: LaneRecord;
+  handovers: number;
+  runner: string | null;
+}
+
+/** The traffic one player sends at once: the vehicles it runs that someone is near, and those it has taken away, or out of the traffic as hit. */
+export interface TrafficMessage {
+  vehicles: TrafficVehicle[];
+  gone: { id: string; handovers: number; hit: boolean }[];
+}
+
 /** A challenge message for one player, or for everyone when `to` is left out. */
-export type GuestMessage = ({ kind: "car" } & CarMessage) | { kind: "challenge"; to?: string; message: ChallengeMessage };
-export type HostMessage = ({ kind: "car"; from: string } & CarMessage) | { kind: "challenge"; from: string; message: ChallengeMessage };
+export type GuestMessage =
+  | ({ kind: "car" } & CarMessage)
+  | { kind: "challenge"; to?: string; message: ChallengeMessage }
+  | { kind: "computer"; car: ComputerCarMessage }
+  | { kind: "traffic"; traffic: WireTraffic };
+export type HostMessage =
+  | ({ kind: "car"; from: string } & CarMessage)
+  | { kind: "challenge"; from: string; message: ChallengeMessage }
+  | { kind: "computer"; from: string; car: ComputerCarMessage }
+  | { kind: "traffic"; from: string; traffic: WireTraffic };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -137,8 +177,18 @@ function parseCar(value: Record<string, unknown>): CarMessage | null {
 }
 
 const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;
-/** More attempts than anyone makes, and well inside what a number counts exactly. */
+/** More attempts, or handovers, than any session makes, and well inside what a number counts exactly. */
 const MOST_ATTEMPTS = 1_000_000;
+
+export function parseComputerCar(value: unknown): ComputerCarMessage | null {
+  if (!isRecord(value)) return null;
+  const { id, runner, handovers, driver } = value;
+  if (!isName(id) || !isName(runner) || !isRecord(driver) || Array.isArray(driver)) return null;
+  if (typeof handovers !== "number" || !Number.isInteger(handovers) || handovers < 0 || handovers > MOST_ATTEMPTS) return null;
+  if (value.gone !== undefined && value.gone !== true) return null;
+  const state = parseState(value.state);
+  return state && { id, runner, handovers, state, driver, ...(value.gone ? { gone: true as const } : {}) };
+}
 const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
 const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -157,8 +207,138 @@ export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
   return null;
 }
 
+/*
+ * Traffic on the wire is compact, since a crowded street has a hundred vehicles in it: each vehicle an array, its
+ * numbers in centimetres and ten-thousandths, and the fields at its end that hold their usual value left off.
+ */
+type WireVehicle = (string | number)[];
+/** A gone vehicle: its id, handovers and 1 if it was hit. */
+type WireGone = [string, number, number];
+export interface WireTraffic {
+  v: WireVehicle[];
+  g: WireGone[];
+}
+
+const KINDS: readonly VehicleKind[] = ["car", "bike", "walker"];
+const MEETINGS: readonly LaneRecord["meeting"][] = [null, "passes", "yields", "creeps"];
+const FLAGS = { finished: 1, waiting: 2, onRoad: 4, goingRound: 8 } as const;
+/** A line's kind on the wire: a lane, a connector or a link. */
+const lineCode = (line: { connector: boolean; link?: boolean }) => (line.link ? 2 : line.connector ? 1 : 0);
+const lineOfCode = (code: number) => ({ connector: code === 1, ...(code === 2 ? { link: true } : {}) });
+/** The usual values of a vehicle's last fields: no next line, crossing or exit, and no time waited or blocked. */
+const USUAL_TAIL = [-1, -1, -1, 0, 0, 0];
+const TAIL_FROM = 19;
+
+export function wireTraffic({ vehicles, gone }: TrafficMessage): WireTraffic {
+  const v = vehicles.map(({ record, handovers, runner }): WireVehicle => {
+    const { place, body, next, exit } = record;
+    if (next && next.tile !== place.tile) throw new Error(`${record.id}'s next line is on ${next.tile}, not its own ${place.tile}`);
+    const flags =
+      (record.finished ? FLAGS.finished : 0) | (record.waiting ? FLAGS.waiting : 0) | (record.onRoad ? FLAGS.onRoad : 0) | (record.goingRound ? FLAGS.goingRound : 0) | (MEETINGS.indexOf(record.meeting) << 4);
+    const wire: WireVehicle = [
+      record.id,
+      handovers,
+      runner ?? "",
+      KINDS.indexOf(record.kind),
+      record.seed,
+      record.model,
+      place.tile,
+      lineCode(place),
+      place.index,
+      metres(place.along),
+      metres(record.speedMS),
+      metres(body.x),
+      metres(body.z),
+      fine(body.heading),
+      fine(body.wheels),
+      metres(record.shiftM),
+      metres(record.wantShiftM),
+      flags,
+      record.picks,
+      next ? next.index * 3 + lineCode(next) : -1,
+      record.crossing ?? -1,
+      exit ? exit.link : -1,
+      exit ? metres(exit.along) : 0,
+      metres(record.waitedS),
+      metres(record.blockedS),
+    ];
+    while (wire.length > TAIL_FROM && wire[wire.length - 1] === USUAL_TAIL[wire.length - 1 - TAIL_FROM]) wire.pop();
+    return wire;
+  });
+  return { v, g: gone.map(({ id, handovers, hit }): WireGone => [id, handovers, hit ? 1 : 0]) };
+}
+
+const isCount = (value: unknown, most = MOST_ATTEMPTS): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= most;
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+/** -1 for none, or a whole number. */
+const isChoice = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= MOST_ATTEMPTS;
+
+function parseVehicle(value: unknown): TrafficVehicle | null {
+  if (!Array.isArray(value) || value.length < TAIL_FROM || value.length > TAIL_FROM + USUAL_TAIL.length) return null;
+  const wire = [...(value as unknown[]), ...USUAL_TAIL.slice(value.length - TAIL_FROM)];
+  const [id, handovers, runner, kind, seed, model, tile, line, index, along, speedMS, x, z, heading, wheels, shiftM, wantShiftM, flags, picks, next, crossing, exitLink, exitAlong, waitedS, blockedS] = wire;
+  if (!isName(id) || !isCount(handovers) || typeof runner !== "string" || runner.length > 64 || !isCount(kind, KINDS.length - 1) || !isCount(seed, 2 ** 32) || !isCount(model, 255) || !isName(tile)) return null;
+  if (!isCount(line, 2) || !isCount(index) || !isCount(flags, 63) || flags >> 4 >= MEETINGS.length || !isCount(picks) || !isChoice(next) || !isChoice(crossing) || !isChoice(exitLink)) return null;
+  if (!isNumber(along) || !isNumber(speedMS) || !isNumber(x) || !isNumber(z) || !isNumber(heading) || !isNumber(wheels) || !isNumber(shiftM) || !isNumber(wantShiftM) || !isNumber(exitAlong) || !isNumber(waitedS) || !isNumber(blockedS)) return null;
+  const record: LaneRecord = {
+    id,
+    kind: KINDS[kind],
+    seed,
+    model,
+    place: { tile, index, ...lineOfCode(line), along },
+    speedMS,
+    next: next === -1 ? null : { tile, index: Math.floor(next / 3), ...lineOfCode(next % 3) },
+    crossing: crossing === -1 ? null : crossing,
+    onRoad: (flags & FLAGS.onRoad) !== 0,
+    exit: exitLink === -1 ? null : { link: exitLink, along: exitAlong },
+    finished: (flags & FLAGS.finished) !== 0,
+    body: { x, z, heading, wheels },
+    shiftM,
+    wantShiftM,
+    meeting: MEETINGS[flags >> 4],
+    waitedS,
+    goingRound: (flags & FLAGS.goingRound) !== 0,
+    blockedS,
+    waiting: (flags & FLAGS.waiting) !== 0,
+    picks,
+  };
+  return { record, handovers, runner: runner === "" ? null : runner };
+}
+
+function parseGone(value: unknown): TrafficMessage["gone"][number] | null {
+  if (!Array.isArray(value) || value.length !== 3) return null;
+  const [id, handovers, hit] = value as unknown[];
+  return isName(id) && isCount(handovers) && (hit === 0 || hit === 1) ? { id, handovers, hit: hit === 1 } : null;
+}
+
+/** Traffic off the wire; one vehicle that isn't one makes the whole message none, as for any malformed message. */
+export function parseTraffic(value: unknown): TrafficMessage | null {
+  if (!isRecord(value) || !Array.isArray(value.v) || !Array.isArray(value.g)) return null;
+  const vehicles: TrafficVehicle[] = [];
+  for (const each of value.v as unknown[]) {
+    const vehicle = parseVehicle(each);
+    if (!vehicle) return null;
+    vehicles.push(vehicle);
+  }
+  const gone: TrafficMessage["gone"] = [];
+  for (const each of value.g as unknown[]) {
+    const one = parseGone(each);
+    if (!one) return null;
+    gone.push(one);
+  }
+  return { vehicles, gone };
+}
+
 export function parseGuestMessage(value: unknown): GuestMessage | null {
   if (!isRecord(value)) return null;
+  if (value.kind === "traffic") {
+    // Kept as it came, to be handed on: what it says is read where it's heard.
+    return parseTraffic(value.traffic) && { kind: "traffic", traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "computer") {
+    const car = parseComputerCar(value.car);
+    return car && { kind: "computer", car };
+  }
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     if (!message) return null;
@@ -172,6 +352,13 @@ export function parseGuestMessage(value: unknown): GuestMessage | null {
 
 export function parseHostMessage(value: unknown): HostMessage | null {
   if (!isRecord(value) || !isName(value.from)) return null;
+  if (value.kind === "traffic") {
+    return parseTraffic(value.traffic) && { kind: "traffic", from: value.from, traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "computer") {
+    const car = parseComputerCar(value.car);
+    return car && { kind: "computer", from: value.from, car };
+  }
   if (value.kind === "challenge") {
     const message = parseChallengeMessage(value.message);
     return message && { kind: "challenge", from: value.from, message };

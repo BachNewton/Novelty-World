@@ -5,11 +5,11 @@
 // through `game-page.mjs`, so a page that throws or loses part of the map ends the run rather than filming on.
 //
 // Prereq: a dev server and a tile server (`tools/serve-tiles.mjs`). Usage:
-//   node src/projects/aland-drive/tools/film.mjs <out.mp4> <east,north,height,yaw,pitch> [--sea=<ISO time>] [--speed=1] [--seconds=20] [--fps=30] [--size=1280x720] [--traffic=<count> [--with-player]]
+//   node src/projects/aland-drive/tools/film.mjs <out.mp4> <east,north,height,yaw,pitch> [--sea=<ISO time>] [--speed=1] [--seconds=20] [--fps=30] [--size=1280x720] [--traffic=<density> [--with-player]] [--bikes=<density>] [--walkers=<density>] [--hide-lanes]
 // The place is `?at=`'s five numbers; --sea is the boats' clock at the video's first frame (`tools/sea-times.ts` says
 // when one passes), stepped a frame's time each frame after, or --speed times that for a time-lapse of a ship's
-// slow manoeuvre: only the boats speed up, while the water and the sky keep real time. In the lane lab, --traffic=<count>
-// keeps that many cars on its lanes. The player's car stands on the road where the look puts it, and traffic leaves it
+// slow manoeuvre: only the boats speed up, while the water and the sky keep real time. In the lane lab, --traffic, --bikes and --walkers
+// fill its lanes with cars, cyclists and walkers at a density, 1 for Åland's own, and --hide-lanes leaves its lanes undrawn. The player's car stands on the road where the look puts it, and traffic leaves it
 // out unless --with-player, when traffic brakes for it and goes round it.
 // ALAND_DRIVE_URL is the page's address, with ?tiles=local:<port> for the local tile server.
 
@@ -29,13 +29,24 @@ const SECONDS = Number(option("seconds") ?? 20);
 const SEA = option("sea");
 const SPEED = Number(option("speed") ?? 1);
 const TRAFFIC = option("traffic");
+const BIKES = option("bikes");
+const WALKERS = option("walkers");
+const HIDE_LANES = flags.includes("--hide-lanes");
 const WITH_PLAYER = flags.includes("--with-player");
 const BASE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const url = `${BASE}${BASE.includes("?") ? "&" : "?"}at=${at}`;
 
 const { page, step, reported, close } = await openGame(url, { width: WIDTH, height: HEIGHT });
 // Everything round the place lands before the clock is taken, so the video starts on a whole view.
-if (TRAFFIC !== undefined) await step("starting traffic", () => page.evaluate(({ traffic, withPlayer }) => window.__alandDrive.traffic(traffic, { withPlayer }), { traffic: Number(TRAFFIC), withPlayer: WITH_PLAYER }));
+await step("starting the road's users", () =>
+  page.evaluate(({ traffic, bikes, walkers, hideLanes, withPlayer }) => {
+    const probe = window.__alandDrive;
+    if (traffic !== undefined) probe.traffic(Number(traffic), { withPlayer });
+    if (bikes !== undefined) probe.cyclists(Number(bikes));
+    if (walkers !== undefined) probe.walkers(Number(walkers));
+    if (hideLanes) probe.showLanes(false);
+  }, { traffic: TRAFFIC, bikes: BIKES, walkers: WALKERS, hideLanes: HIDE_LANES, withPlayer: WITH_PLAYER }),
+);
 await step("loading the place", () => settleFrames(page, 10));
 
 // The frame meter measures the machine, which reads as nonsense on a clock that moves a frame at a time.

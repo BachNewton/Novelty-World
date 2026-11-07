@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { STEP_S } from "../sim/tuning";
+import { Bubble } from "./bubble";
 import { LaneTraffic } from "./lane-driver";
 import { decodeLanes } from "./lane-map";
 import { LaneNet } from "./lane-net";
 import { touching, twoWayRoad } from "./test-lanes";
 
 /*
- * A single track kept full both ways for three minutes, as the lane lab's spawner fills a quiet country road: the
+ * A single track kept full both ways for three minutes, by the bubble at many times a country road's density: the
  * passing rules only show a jam (two queues each waiting for the other, or one waiting for good) after many meetings
  * of cars in queues, which no short case reaches. Seeded, so each run is the same.
  */
@@ -17,12 +18,14 @@ function busyTrack(width: number, seed: number) {
   const net = new LaneNet();
   net.add("R", decodeLanes(twoWayRoad(width, 1000)));
   const cars = new LaneTraffic(net, [[0.92, 2.3], [0.73, 1.375], [0.99, 2.75]], seed);
+  // Nothing is ever seen, so cars come and go wherever the bubble likes, and none leaves the road before its end.
+  const bubble = new Bubble(net, cars, { car: { reachM: 400, density: 25 }, bike: { reachM: 0, density: 0 }, walker: { reachM: 0, density: 0 } });
   const still = new Map<string, number>();
   const born = new Map<string, number>();
   let longestStill = 0;
   let touches = 0;
   for (let step = 0; step < 180 / (STEP_S * EVERY); step++) {
-    cars.keep(500, 0, 20, 500, 0);
+    if (step % EVERY === 0) bubble.update({ x: 500, z: 0 }, () => false);
     cars.step(STEP_S * EVERY);
     const all = [...cars.all()];
     for (const car of all) {
@@ -31,7 +34,7 @@ function busyTrack(width: number, seed: number) {
       still.set(car.id, time);
       longestStill = Math.max(longestStill, time);
     }
-    // A car put down head on a few seconds from another is the stand-in spawner's doing, not the driver's.
+    // A car put down head on a few seconds from another is the bubble's doing, which only does it out of sight.
     const settled = all.filter((car) => (step - (born.get(car.id) ?? 0)) * STEP_S * EVERY > 5);
     for (const one of settled) for (const other of settled) if (one.id < other.id && Math.cos(one.pose.yaw - other.pose.yaw) < 0 && touching({ ...one.pose, half: one.half }, { ...other.pose, half: other.half })) touches++;
   }

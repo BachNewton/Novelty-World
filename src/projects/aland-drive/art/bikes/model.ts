@@ -4,7 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Rotation, Vector3 as Position } from "../../sim/car-state";
 import { buildBikeMesh, type BikeDetail } from "./build";
 import { riderLook, type RiderLook } from "./look";
-import { bikeGeometry, bikeMaterial } from "./material";
+import { bikeGeometry, bikeMaterial, bikeSlots, RIDER_SLOTS, riderTokens } from "./material";
 import { poseBike, restMotion, stepMotion, type RideInput, type RideMotion } from "./rig";
 import type { BikeSpec } from "./specs";
 import "./tokens.css";
@@ -17,12 +17,27 @@ import { type Sun } from "../sun";
  * a number.
  */
 
-const SHADOW_STRENGTH = 0.5;
-const SHADOW_LIFT_M = 0.02;
-const SHADOW_WIDE_M = 0.38;
-const SHADOW_PAST_AXLE_M = 0.55;
-const SHADOW_LEAN_M = 0.7;
+/** A soft patch of shade under the bike, half as wide and long as these, slid to the side it leans. */
+export const SHADOW = { strength: 0.5, liftM: 0.02, wideM: 0.38, pastAxleM: 0.55, leanM: 0.7 } as const;
+export const shadowLengthM = (spec: BikeSpec) => spec.wheelbaseM / 2 + SHADOW.pastAxleM;
 const REACH_M = 2.6;
+
+/** The shadow's quad, flat on the ground, two units across. */
+export function shadowQuad(): PlaneGeometry {
+  const quad = new PlaneGeometry(2, 2);
+  quad.rotateX(-Math.PI / 2);
+  return quad;
+}
+
+/** The shadow's look: soft from the middle of its quad out. `fade` takes it away, for a crowd's shadows at their reach. */
+export function bikeShadowMaterial(fade: Node<"float"> = float(1)) {
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  const { r, g, b } = themeColor("--color-aland-drive-bike-shadow");
+  material.colorNode = vec3(r, g, b);
+  const outside = vec2(positionGeometry.x, positionGeometry.z).length();
+  material.opacityNode = float(1).sub(smoothstep(float(0.35), float(1), outside)).mul(SHADOW.strength).mul(fade);
+  return material;
+}
 
 /** The geometry, which any number of cyclists of one spec can share. */
 export interface BikeArt {
@@ -57,48 +72,32 @@ export function createBikeModel(art: BikeArt, sun: Sun, options: BikeViewOptions
   const { spec } = art;
   const { material, setPose, setSlot } = bikeMaterial({ sun, hazed: options.hazed });
 
-  setSlot("frame", spec.paint);
-  setSlot("accent", spec.accent);
-  setSlot("tyre", "bike-tyre");
-  setSlot("metal", "bike-metal");
-  setSlot("dark", "bike-dark");
-  setSlot("saddle", "bike-saddle");
-  setSlot("bag", "bike-bag");
-  setSlot("basket", "bike-basket");
-  setSlot("lamp", "bike-lamp");
+  for (const [slot, tokenName] of bikeSlots(spec)) setSlot(slot, tokenName);
 
   let look: RiderLook = riderLook(options.seed ?? 0, options.helmet);
   const setLook = (seed: number, helmet = options.helmet) => {
     look = riderLook(seed, helmet);
-    setSlot("skin", look.skin);
-    setSlot("hair", look.hair);
-    setSlot("top", look.top);
-    setSlot("bottom", look.bottom);
-    setSlot("shoe", look.shoe);
-    setSlot("helmet", look.helmetColour);
+    riderTokens(look).forEach((tokenName, at) => {
+      setSlot(RIDER_SLOTS[at], tokenName);
+    });
   };
   setLook(options.seed ?? 0);
 
   const root = new Group();
   root.add(new Mesh(art.geometry, material));
 
-  const shadowGeometry = new PlaneGeometry(2, 2);
-  shadowGeometry.rotateX(-Math.PI / 2);
-  const shadowMaterial = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
-  const { r, g, b } = themeColor("--color-aland-drive-bike-shadow");
-  shadowMaterial.colorNode = vec3(r, g, b);
-  const outside = vec2(positionGeometry.x, positionGeometry.z).length();
-  shadowMaterial.opacityNode = float(1).sub(smoothstep(float(0.35), float(1), outside)).mul(SHADOW_STRENGTH);
+  const shadowGeometry = shadowQuad();
+  const shadowMaterial = bikeShadowMaterial();
   const shadow = new Mesh(shadowGeometry, shadowMaterial);
-  shadow.scale.set(SHADOW_WIDE_M, 1, spec.wheelbaseM / 2 + SHADOW_PAST_AXLE_M);
-  shadow.position.y = SHADOW_LIFT_M;
+  shadow.scale.set(SHADOW.wideM, 1, shadowLengthM(spec));
+  shadow.position.y = SHADOW.liftM;
   root.add(shadow);
 
   const motion: RideMotion = restMotion();
   const pose = (input: RideInput) => {
     const posed = poseBike(spec, input, motion, { rider: options.rider ?? true, helmet: look.helmet, hair: look.hairStyle, firstPerson: options.firstPerson });
     setPose(posed.matrices);
-    shadow.position.x = Math.sin(input.lean) * SHADOW_LEAN_M;
+    shadow.position.x = Math.sin(input.lean) * SHADOW.leanM;
     return posed;
   };
 

@@ -1,6 +1,6 @@
 import type { RoadGraph, Route } from "../map/road-graph";
 import { RoadLine } from "../sim/road-net";
-import type { ScenePoint } from "./types";
+import type { RaceChallenge, ScenePoint } from "./types";
 
 /*
  * A challenge's route as one line: the GPS's own routes from each waypoint to
@@ -48,4 +48,28 @@ export function challengeLine(graph: RoadGraph, waypoints: readonly ScenePoint[]
 export function runOn(line: RoadLine, metres: number): RoadLine {
   const end = line.at(line.length);
   return new RoadLine(Float32Array.from([...line.points, end.x - Math.sin(end.heading) * metres, 0, end.z - Math.cos(end.heading) * metres]));
+}
+
+/** The line cut short at a distance along it, its last point where the cut falls. */
+export function cutAt(line: RoadLine, metres: number): RoadLine {
+  const points: number[] = [];
+  for (let at = 0; at < line.lengths.length && line.lengths[at] < metres; at++) points.push(line.points[at * 3], line.points[at * 3 + 1], line.points[at * 3 + 2]);
+  const end = line.at(metres);
+  points.push(end.x, end.y, end.z);
+  return new RoadLine(Float32Array.from(points));
+}
+
+/**
+ * A race's whole route as the GPS shows it, from its first waypoint to the
+ * finish: a sprint's route, or a circuit's lap round and round from the first
+ * waypoint to the start line on its last lap, so the route ends at the finish.
+ */
+export function raceRoute(graph: RoadGraph, race: RaceChallenge): Route {
+  const lap = challengeRoute(graph, race.waypoints);
+  if (race.shape === "sprint") return lap;
+  const points: number[] = [];
+  for (let round = 0; round <= race.laps; round++) points.push(...(round === 0 ? lap.line.points : lap.line.points.slice(3)));
+  const line = cutAt(new RoadLine(Float32Array.from(points)), race.lineM + race.laps * race.lapM);
+  const end = line.at(line.length);
+  return { line, end: { x: end.x, z: end.z } };
 }

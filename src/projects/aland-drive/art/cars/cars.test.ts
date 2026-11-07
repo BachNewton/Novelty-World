@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { CAR_IDS, CARS as TUNINGS } from "../../sim/cars";
 import { buildDistant } from "./body";
-import { buildCarParts } from "./build";
+import { buildCarParts, groundY, lampCentres } from "./build";
 import type { Soup } from "./mesh";
 import { CARS, WORLD_CARS } from "./specs";
 
 const HERO_BUDGET = 25000;
 const FAR_BUDGET = 2000;
-const DISTANT_BUDGET = 45;
+const DISTANT_BUDGET = 160;
 
 const total = ({ body, glass, wheel }: { body: Soup; glass: Soup | null; wheel: Soup }) => body.triangles + (glass?.triangles ?? 0) + wheel.triangles * 4;
 
@@ -38,8 +38,8 @@ describe("the cars", () => {
     expect(signedVolume(far.body)).toBeGreaterThan(0);
   });
 
-  it.each([...CARS, ...WORLD_CARS].map((car) => [car.name, car] as const))("%s has a stand-in of about thirty triangles, facing out", (_, car) => {
-    const distant = buildDistant(car.body, 0);
+  it.each([...CARS, ...WORLD_CARS].map((car) => [car.name, car] as const))("%s has a stand-in of its near version simplified, in its budget and facing out", (_, car) => {
+    const distant = buildDistant(car.body, groundY(car), buildCarParts(car, "far").body);
     expect(distant.triangles).toBeLessThan(DISTANT_BUDGET);
     expect(signedVolume(distant)).toBeGreaterThan(0);
   });
@@ -63,5 +63,23 @@ describe("the cars", () => {
     expect(Math.abs(halfSize[2] - (high[2] - low[2]) / 2)).toBeLessThan(0.12);
     expect(boxUpM - halfSize[1]).toBeGreaterThan(low[1] + 0.15);
     expect(boxUpM + halfSize[1]).toBeLessThan(high[1]);
+  });
+
+  it.each(CARS.map((car) => [car.name, car] as const))("%s has its lamps on its ends, where its lenses are, not off the body", (_, car) => {
+    const { body } = buildCarParts(car, "hero");
+    const { head, tail } = lampCentres(body);
+    const low = [Infinity, Infinity, Infinity];
+    const high = [-Infinity, -Infinity, -Infinity];
+    for (let at = 0; at < body.positions.length; at++) {
+      low[at % 3] = Math.min(low[at % 3], body.positions[at]);
+      high[at % 3] = Math.max(high[at % 3], body.positions[at]);
+    }
+    for (const [lamp, end] of [[head, low[2]], [tail, high[2]]] as const) {
+      expect(Math.abs(lamp[2] - end)).toBeLessThan(0.4);
+      expect(lamp[0]).toBeGreaterThan(0.2);
+      expect(lamp[0]).toBeLessThan(high[0]);
+      expect(lamp[1] - groundY(car)).toBeGreaterThan(0.3);
+      expect(lamp[1]).toBeLessThan(high[1] - 0.3);
+    }
   });
 });

@@ -1,4 +1,6 @@
-import type { Challenge, ChallengeKind } from "./types";
+import type { BucketChallenge, ChallengeKind } from "./types";
+
+type TargetKind = Exclude<ChallengeKind, "race">;
 
 /*
  * One rule for every challenge's target, from its par: the scripted driver's
@@ -17,24 +19,24 @@ const ROUTE_SHARE: Record<Difficulty, number> = { easy: 1.08, medium: 1.03, hard
 /** A Speed trap's target speed, as a share of par. */
 const TRAP_SHARE: Record<Difficulty, number> = { easy: 0.93, medium: 0.96, hard: 0.99 };
 /** The most a player can be asked to beat par by: a Route's time, a Speed trap's speed. */
-const FLOOR_SHARE: Record<ChallengeKind, number> = { route: 1, "speed-trap": 1 };
+const FLOOR_SHARE: Record<TargetKind, number> = { route: 1, "speed-trap": 1 };
 
 /** Seconds rounded up to a tenth and speeds down to a whole km/h, so rounding only ever eases a target. */
-export function targetFromPar(kind: ChallengeKind, par: number, difficulty: Difficulty): number {
+export function targetFromPar(kind: TargetKind, par: number, difficulty: Difficulty): number {
   return kind === "route" ? Math.ceil(par * ROUTE_SHARE[difficulty] * 10) / 10 : Math.floor(par * TRAP_SHARE[difficulty]);
 }
 
-const shareOf = (challenge: Challenge) => (challenge.kind === "route" ? challenge.targetS / challenge.parS : challenge.targetKmh / challenge.parKmh);
+const shareOf = (challenge: BucketChallenge) => (challenge.kind === "route" ? challenge.targetS / challenge.parS : challenge.targetKmh / challenge.parKmh);
 
 /** By how far the target sits past par, halfway between the rule's steps, so a target set by hand is labelled too. */
-export function difficultyOf(challenge: Challenge): Difficulty {
+export function difficultyOf(challenge: BucketChallenge): Difficulty {
   const share = shareOf(challenge);
   if (challenge.kind === "route") return share >= (ROUTE_SHARE.easy + ROUTE_SHARE.medium) / 2 ? "easy" : share >= (ROUTE_SHARE.medium + ROUTE_SHARE.hard) / 2 ? "medium" : "hard";
   return share <= (TRAP_SHARE.easy + TRAP_SHARE.medium) / 2 ? "easy" : share <= (TRAP_SHARE.medium + TRAP_SHARE.hard) / 2 ? "medium" : "hard";
 }
 
 /** Whether par, scaled by the most a player can beat the scripted driver by, still makes the target. */
-export function reachableByPar(challenge: Challenge): boolean {
+export function reachableByPar(challenge: BucketChallenge): boolean {
   const floor = FLOOR_SHARE[challenge.kind];
   return challenge.kind === "route" ? challenge.parS * floor <= challenge.targetS : challenge.parKmh * floor >= challenge.targetKmh;
 }

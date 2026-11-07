@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildFar, buildNear } from "./body";
 import { CLEAR, drawHair } from "./head";
-import { bakeCrowd } from "./crowd";
+import { bakeCrowd, strideShare } from "./crowd";
+import { soleOf, solePlace, strideM } from "./gait";
+import { FAR_SLOT, NEAR_SLOT } from "./walking";
 import { cyclist, HAIR_STYLES, rollFigure, sailor, worker, type FigureSpec, type Hat, type HairStyle, type Outfit } from "./figure";
 import { CHILD_POSES, posed, POSES } from "./poses";
 import { dot, measure, sub, type Frame, type V3 } from "./skeleton";
@@ -157,5 +159,43 @@ describe("a crowd", () => {
     expect(place.getX(0)).toBe(3);
     expect(place.getX(place.count - 1)).toBe(-4);
     expect(crowd.shadow.getAttribute("position").count).toBe(8);
+  });
+});
+
+describe("walking figures", () => {
+  it("fit the room a walking crowd's slot keeps, whatever they wear", () => {
+    for (const fixed of wardrobe) {
+      const spec = rollFigure(3, fixed);
+      const [near, far] = [buildNear(spec, "walk"), buildFar(spec, "walk")];
+      expect(near.vertexCount).toBeLessThanOrEqual(NEAR_SLOT.vertices);
+      expect(near.indices.length).toBeLessThanOrEqual(NEAR_SLOT.indices);
+      expect(far.vertexCount).toBeLessThanOrEqual(FAR_SLOT.vertices);
+      expect(far.indices.length).toBeLessThanOrEqual(FAR_SLOT.indices);
+    }
+  });
+
+  // Moved along the ground a whole stride for every `strideM`, a foot sweeping back carries the figure as far as it sweeps:
+  // the sine swing slips within the sweep, but a wrong sign or a stride's length off by its half would slide every foot.
+  it.each([
+    rollFigure(1, { age: "adult", heightM: 1.9, outfit: "shirt-trousers" }),
+    rollFigure(2, { age: "older" }),
+    rollFigure(3, { age: "adult", outfit: "summer-dress", heightM: 1.58 }),
+  ])("steps so a foot sweeping back holds its place on the ground", (spec) => {
+    const share = strideShare(spec);
+    const length = strideM(spec, share);
+    const sole = soleOf(spec);
+    const STEPS = 720;
+    const footAt = (step: number) => solePlace(sole, (2 * Math.PI * step) / STEPS, share)[2];
+    let [worst, from] = [0, null as number | null];
+    for (let step = 0; step <= STEPS; step++) {
+      const onGround = (length * step) / STEPS + footAt(step);
+      if (footAt(step + 1) < footAt(step)) from ??= onGround;
+      else if (from !== null) {
+        worst = Math.max(worst, Math.abs(onGround - from));
+        from = null;
+      }
+    }
+    expect(length).toBeGreaterThan(0.8);
+    expect(worst).toBeLessThan(0.15 * length);
   });
 });

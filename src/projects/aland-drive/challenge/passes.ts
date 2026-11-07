@@ -1,39 +1,69 @@
 import type { Outcome } from "./run";
+import { FINISHING_PLACE, medalForPlace, MEDALS, type Medal } from "./standings";
 import type { Challenge } from "./types";
 
 /*
  * Which challenges have been passed in this browser, each with its best: the
- * fastest time on a Route, the highest speed at a Speed trap. The best is what
- * the pass was judged on, so in co-op it is the team's average, and a pass in
- * co-op counts for both players. It is a plain object, as `getProjectStorage`
- * keeps it, and a challenge the list no longer has is dropped on reading.
+ * fastest time on a Route, the highest speed at a Speed trap. Solo and co-op are
+ * kept apart, each its own pass and best, because a team's average isn't a solo
+ * time. In co-op the best is the team's average, and the pass counts for both
+ * players. It is a plain object, as `getProjectStorage` keeps it, and a challenge
+ * the list no longer has is dropped on reading.
+ *
+ * A race keeps every finish rather than only a pass, and no time, since in a
+ * race only the place counts: its best is the best finishing place, and the
+ * medal that place earned.
  */
 
 export const PASSES_KEY = "challenge-passes";
 
+export type PlayMode = "solo" | "coop";
+
+export const PLAY_MODES: readonly PlayMode[] = ["solo", "coop"];
+
 export interface ChallengePass {
+  /** The fastest time or highest speed; a race's best place. */
   best: number;
+  /** A race's best medal, which may be none yet. */
+  medal?: Medal | null;
 }
 
-export type ChallengePasses = Readonly<Record<string, ChallengePass>>;
+export type ChallengePasses = Readonly<Record<PlayMode, Readonly<Record<string, ChallengePass>>>>;
 
-/** What was kept, with anything that isn't a pass of a challenge on the list left out. */
-export function readPasses(saved: unknown, challenges: readonly Challenge[]): ChallengePasses {
-  if (typeof saved !== "object" || saved === null) return {};
+export const NO_PASSES: ChallengePasses = { solo: {}, coop: {} };
+
+function readMode(saved: unknown, challenges: readonly Challenge[]): Record<string, ChallengePass> {
   const kept: Record<string, ChallengePass> = {};
-  for (const { id } of challenges) {
+  if (typeof saved !== "object" || saved === null) return kept;
+  for (const { id, kind } of challenges) {
     const pass: unknown = (saved as Record<string, unknown>)[id];
-    if (typeof pass === "object" && pass !== null && Number.isFinite((pass as { best?: unknown }).best)) kept[id] = { best: (pass as ChallengePass).best };
+    if (typeof pass !== "object" || pass === null || !Number.isFinite((pass as { best?: unknown }).best)) continue;
+    const { best, medal } = pass as ChallengePass;
+    kept[id] = kind === "race" ? { best, medal: MEDALS.includes(medal as Medal) ? (medal as Medal) : null } : { best };
   }
   return kept;
 }
 
-const better = (challenge: Challenge, a: number, b: number) => (challenge.kind === "route" ? a < b : a > b);
+/** What was kept, with anything that isn't a pass of a challenge on the list left out. */
+export function readPasses(saved: unknown, challenges: readonly Challenge[]): ChallengePasses {
+  if (typeof saved !== "object" || saved === null) return NO_PASSES;
+  const modes = saved as Partial<Record<PlayMode, unknown>>;
+  return { solo: readMode(modes.solo, challenges), coop: readMode(modes.coop, challenges) };
+}
 
-/** The passes after an attempt: unchanged unless it passed, and its best only where this beats it. */
-export function withOutcome(passes: ChallengePasses, challenge: Challenge, outcome: Outcome): ChallengePasses {
+const better = (challenge: Challenge, a: number, b: number) => (challenge.kind === "speed-trap" ? a > b : a < b);
+
+/**
+ * The passes after an attempt played in a mode: unchanged unless it passed, and that mode's best only where this beats
+ * it. A race's finish is kept as its place and medal, where it betters the best.
+ */
+export function withOutcome(passes: ChallengePasses, challenge: Challenge, mode: PlayMode, outcome: Outcome): ChallengePasses {
+  const kept = passes[mode][challenge.id] as ChallengePass | undefined;
+  if (challenge.kind === "race") {
+    if (outcome.average === null || (kept && kept.best <= FINISHING_PLACE)) return passes;
+    return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: FINISHING_PLACE, medal: medalForPlace(FINISHING_PLACE) } } };
+  }
   if (!outcome.passed || outcome.average === null) return passes;
-  const kept = passes[challenge.id] as ChallengePass | undefined;
   if (kept && !better(challenge, outcome.average, kept.best)) return passes;
-  return { ...passes, [challenge.id]: { best: outcome.average } };
+  return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: outcome.average } } };
 }

@@ -31,7 +31,7 @@ def rules(sign=None, oneway: dict | None = None, limits: dict | None = None) -> 
         tags = (oneway or {}).get("tags", {})
         return tags, (oneway or {}).get("runs", 1)
 
-    return Rules(sign=sign or (lambda chain, along, host: None), signals=[], way=way, limits=lambda chain: (limits or {}).get(chain.index, []), built_up=lambda point: False)
+    return Rules(sign=sign or (lambda chain, along, host: None), signals=[], way=way, limits=lambda chain: (limits or {}).get(chain.index, []), built_up=lambda point: False, daily=lambda chain: 0.0)
 
 
 def flat(east: float, north: float) -> float:
