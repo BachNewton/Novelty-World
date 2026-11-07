@@ -212,9 +212,10 @@ class Surroundings:
         self.road_clear_m = ndimage.distance_transform_edt(drawn((shape, 1) for shape in surface) == 0) * SAMPLE_M if surface else np.full((SAMPLES, SAMPLES), np.inf)
         self.building_clear_m = ndimage.distance_transform_edt(drawn((shape, 1) for shape in buildings) == 0) * SAMPLE_M if buildings else np.full((SAMPLES, SAMPLES), np.inf)
         self.fields = drawn((shape, 1) for shape in fields).astype(bool) if fields else np.zeros((SAMPLES, SAMPLES), bool)
-        # A pair across the NaN between two chains has no length, and isn't drawn.
-        sections = [LineString(pair) for pair in zip(centres[:-1], centres[1:])]
-        lines = drawn(((section, index + 1) for index, section in enumerate(sections) if section.length > 0), "int32") if len(sections) else np.zeros((SAMPLES, SAMPLES), np.int32)
+        # A pair across the NaN between two chains isn't a section, and neither is one of no length.
+        pairs = np.stack((centres[:-1], centres[1:]), axis=1) if len(centres) > 1 else np.zeros((0, 2, 2))
+        drawable = np.isfinite(pairs).all(axis=(1, 2)) & (np.abs(pairs[:, 1] - pairs[:, 0]).sum(axis=1) > 0)
+        lines = drawn(((LineString(pairs[index]), index + 1) for index in np.flatnonzero(drawable)), "int32") if drawable.any() else np.zeros((SAMPLES, SAMPLES), np.int32)
         distance, (rows, columns) = ndimage.distance_transform_edt(lines == 0, return_indices=True)
         self.road_m = distance * SAMPLE_M
         self.nearest = lines[rows, columns] - 1
