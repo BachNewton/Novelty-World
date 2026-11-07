@@ -1,6 +1,6 @@
 import type { ChallengeBoard } from "../challenge/board";
 import type { Discovery } from "./discovery";
-import { drawCar, drawChallenges, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, placeAt, type MapInk, type MapPlayer, type MapView } from "./draw";
+import { drawCar, drawChallenges, drawNames, drawPlaces, drawPlayers, drawRaceRoute, drawRoads, drawRoute, placeAt, type MapChallenge, type MapInk, type MapPlayer, type MapView } from "./draw";
 import type { MapTarget } from "../render/map-camera";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -80,6 +80,8 @@ export class WorldMap {
     private readonly challenges: ChallengeBoard,
     private readonly onPick: (x: number, z: number) => void,
     private readonly onLeave: () => void,
+    /** A race's whole route, which the map shows while the cursor is over its start. */
+    private readonly raceLine: (id: string) => Float32Array | null = () => null,
   ) {
     const pen = canvas.getContext("2d");
     if (!pen) throw new Error("no 2D canvas for the world map");
@@ -234,6 +236,9 @@ export class WorldMap {
     drawPlaces(pen, view, discovery.places.map((place) => ({ place, found: discovery.isFound(place) })), PLACE_PX, ink, streets);
     this.drawnFound = discovery.revision;
     const challenges = this.challenges.marks();
+    const hovered = cursor && this.flight === 1 ? placeAt(view, challenges, cursor.x, cursor.y, PLACE_PX + 4) : null;
+    const raceLine = hovered?.race ? this.raceLine(hovered.id) : null;
+    if (hovered?.race && raceLine) drawRaceRoute(pen, view, raceLine, hovered.race.ground, ink);
     drawChallenges(pen, view, challenges, PLACE_PX, ink, streets);
     this.drawnChallenges = this.challenges.revision;
     drawPlayers(pen, view, this.players, 10, ink, { margin: PLAYER_MARGIN_PX }, true);
@@ -246,9 +251,10 @@ export class WorldMap {
       pen.beginPath();
       pen.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
       pen.stroke();
-      const challenge = placeAt(view, challenges, cursor.x, cursor.y, PLACE_PX + 4);
+      const challenge = hovered;
       const place = challenge ? null : placeAt(view, discovery.places, cursor.x, cursor.y, PLACE_PX + 4);
-      if (challenge) this.drawCard({ name: challenge.title, note: null, colour: challenge.passed ? ink.pass : ink.challenge }, cursor.x, cursor.y);
+      if (challenge?.race) this.drawCard({ name: `${challenge.race.number} ${challenge.title}`, note: raceNote(challenge.race), colour: ink.race[challenge.race.ground] }, cursor.x, cursor.y);
+      else if (challenge) this.drawCard({ name: challenge.title, note: null, colour: challenge.passed ? ink.pass : ink.challenge }, cursor.x, cursor.y);
       else if (place) {
         const found = discovery.isFound(place);
         this.drawCard({ name: place.name, note: found ? place.note : null, colour: found ? ink.place : ink.ink }, cursor.x, cursor.y);
@@ -300,4 +306,13 @@ export class WorldMap {
   dispose(): void {
     this.abort.abort();
   }
+}
+
+const GROUNDS = { road: "Road", "cross-country": "Cross country", "off-road": "Off-road" } as const;
+const MEDALS = { gold: "Gold", silver: "Silver", bronze: "Bronze" } as const;
+
+/** What a race's card on the map says under its name: its ground, laps or sprint, length and the best medal won. */
+function raceNote({ ground, shape, laps, lengthM, medal }: NonNullable<MapChallenge["race"]>): string {
+  const run = shape === "circuit" ? `${laps} lap${laps === 1 ? "" : "s"}` : "sprint";
+  return `${GROUNDS[ground]}, ${run}, ${(lengthM / 1000).toFixed(1)} km${medal ? `. ${MEDALS[medal]} medal` : ""}`;
 }

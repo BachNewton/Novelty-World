@@ -12,7 +12,7 @@ function setUp(density: number) {
   const net = new LaneNet();
   net.add("R", decodeLanes(twoWayRoad(7, 3000)));
   const traffic = new LaneTraffic(net, [[0.92, 2.3], [0.73, 1.375]]);
-  const bubble = new Bubble(net, traffic, { car: { reachM: 400, density }, bike: { reachM: 200, density } });
+  const bubble = new Bubble(net, traffic, { car: { reachM: 400, density }, bike: { reachM: 200, density }, walker: { reachM: 200, density: 0 } });
   return { traffic, bubble };
 }
 
@@ -23,7 +23,7 @@ describe("the bubble", () => {
     const net = new LaneNet();
     net.add("R", decodeLanes(twoWayRoad(7, 1500)));
     const traffic = new LaneTraffic(net, [[0.92, 2.3], [0.73, 1.375]]);
-    const bubble = new Bubble(net, traffic, { car: { reachM: 400, density: 20 }, bike: { reachM: 200, density: 20 } });
+    const bubble = new Bubble(net, traffic, { car: { reachM: 400, density: 20 }, bike: { reachM: 200, density: 20 }, walker: { reachM: 200, density: 0 } });
     // The player stands near where the westbound lane ends, looking west past it: cars end their trips there in sight,
     // and those starting in sight eastbound drive off to the far end and go, leaving their slots in sight empty.
     const player = { x: 200, z: 0 };
@@ -56,14 +56,14 @@ describe("the bubble", () => {
   });
 
   it("fills a road with the same vehicles each time, each slot its own seed", () => {
-    const { traffic, bubble } = setUp(5);
+    const { traffic, bubble } = setUp(10);
     const who = () => new Map([...traffic.all()].map((vehicle) => [vehicle.id, `${vehicle.kind} ${vehicle.seed} ${vehicle.model}`]));
     bubble.update({ x: 1500, z: 0 }, () => false);
     const first = who();
     bubble.setDensity("car", 0);
     bubble.setDensity("bike", 0);
-    bubble.setDensity("car", 5);
-    bubble.setDensity("bike", 5);
+    bubble.setDensity("car", 10);
+    bubble.setDensity("bike", 10);
     bubble.update({ x: 1500, z: 0 }, () => false);
     expect(first.size).toBeGreaterThan(5);
     expect(who()).toEqual(first);
@@ -73,7 +73,7 @@ describe("the bubble", () => {
     const net = new LaneNet();
     net.add("P", decodeLanes(pathMeetsRoad()));
     const traffic = new LaneTraffic(net, [[0.92, 2.3]]);
-    const bubble = new Bubble(net, traffic, { car: { reachM: 400, density: 30 }, bike: { reachM: 400, density: 30 } });
+    const bubble = new Bubble(net, traffic, { car: { reachM: 400, density: 30 }, bike: { reachM: 400, density: 30 }, walker: { reachM: 200, density: 0 } });
     bubble.update({ x: 300, z: 0 }, () => false);
     const lanesOf = (kind: string) => new Set([...traffic.all()].filter((vehicle) => vehicle.kind === kind).map((vehicle) => vehicle.place.index));
     expect([...lanesOf("car")].sort()).toEqual([0, 1]);

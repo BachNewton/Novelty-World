@@ -115,7 +115,7 @@ class RemoteCar {
   shove = { linear: 0, angular: 0 };
   /** Where the car should be this step, and the velocity and spin it was steered with towards it. */
   private target: CarState;
-  private steered: { linear: Vector3; angular: Vector3 } = { linear: [0, 0, 0], angular: [0, 0, 0] };
+  steered: { linear: Vector3; angular: Vector3 } = { linear: [0, 0, 0], angular: [0, 0, 0] };
   /** How its body really moves after the last step, contact and all. */
   moving: { velocity: Vector3; spin: Vector3 } = { velocity: [0, 0, 0], spin: [0, 0, 0] };
   before: CarState;
@@ -228,11 +228,17 @@ export class RemoteCars {
     return car.shove;
   }
 
-  /** A stand-in as its body stands after the last step, moving as the step left it rather than as it was steered. */
+  /**
+   * A stand-in as its body stands after the last step, moving across the ground as the step left it rather than as it was
+   * steered. It has no ground and no weight on wheels, so the lift, pitch and roll a hit gives it are what a real car's
+   * tyres and springs would take: out of the ground's plane it moves as it was steered.
+   */
   bodyState(id: string): CarState {
     const car = this.cars.get(id);
     if (!car) throw new Error(`no stand-in ${id}`);
-    return { ...car.after, ...car.moving };
+    const { velocity, spin } = car.moving;
+    const { linear, angular } = car.steered;
+    return { ...car.after, velocity: [velocity[0], linear[1], velocity[2]], spin: [angular[0], spin[1], angular[2]] };
   }
 
   /** Whether a car still touches nothing, having been put where it is. */

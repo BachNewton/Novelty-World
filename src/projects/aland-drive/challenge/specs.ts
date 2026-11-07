@@ -1,6 +1,6 @@
 import type { CarId } from "../sim/cars";
 import type { Difficulty } from "./targets";
-import type { ChallengeKind, ScenePoint } from "./types";
+import type { BucketChallenge, ScenePoint } from "./types";
 
 /*
  * The list (`ideas/bucket-list.md`), as written by hand: each challenge's
@@ -15,7 +15,7 @@ import type { ChallengeKind, ScenePoint } from "./types";
 export interface ChallengeSpec {
   id: string;
   title: string;
-  kind: ChallengeKind;
+  kind: BucketChallenge["kind"];
   car: CarId;
   where: string;
   waypoints: ScenePoint[];

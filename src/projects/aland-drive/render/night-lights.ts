@@ -17,7 +17,8 @@ const LAMPS_MOST = 12000;
 const POOLS_MARGIN_M = 100;
 /** A lamp and a car out of sight, so no list is empty while the pipelines are built before the drive. */
 const NOWHERE_LAMP: LampSpot = { kind: "road", x: 0, y: -10000, z: 0 };
-const NOWHERE_CAR: CarAtNight = { x: 0, y: -10000, z: 0, forwardX: 0, forwardZ: -1, braking: false };
+const NOWHERE: readonly [number, number, number] = [0, -10000, 0];
+const NOWHERE_CAR: CarAtNight = { head: [NOWHERE, NOWHERE], tail: [NOWHERE, NOWHERE], forwardX: 0, forwardZ: -1, braking: false };
 const CARS_MOST = 64;
 
 export interface NightLights {

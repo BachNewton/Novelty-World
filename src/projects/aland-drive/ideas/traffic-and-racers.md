@@ -1,6 +1,6 @@
 # Car traffic and AI racers
 
-A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), so is the grip by surface the racers need, and so are the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10), and the bubble with cyclists as its first users (piece 11), as the project's `CLAUDE.md` describes; the rest isn't. The architecture, the order of work and four of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
+A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), so is the grip by surface the racers need, and so are the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10), and the bubble with cyclists as its first users (piece 11), as the project's `CLAUDE.md` describes, and walkers on the same lanes; the rest isn't. The architecture, the order of work and five of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
 
 The two are designed together because they stand on the same foundation, and because the obvious framing, cheap cars for traffic and real cars for racers, needed testing against the code before either is built. It holds, with three corrections the code forced:
 
@@ -78,12 +78,16 @@ A place shows a mix of models rather than all eighteen, so the draws stay a hand
 
 ### Collisions
 
-Kept to what already works:
+Every car a simulated car can touch is a real car before it's touched, as the open-world games with physical traffic have it, so a hit is only physics: nothing changes what a car is at the moment of impact (see "The owner's decisions").
 
-- **A traffic car away from any simulated car is no body at all**: a place on a lane. Nothing can touch it, and nothing needs to.
-- **Near a simulated car it is a stand-in**, exactly as another player's car is: a body with its own box and weight, steered each step to where its lane driver says it is, so a hit trades momentum by weight and nothing passes through anything. "Near" is within 100 m, inside the 120 m the simulated car's own ground already covers, so it costs no ground.
-- **A traffic car that is hit becomes a car.** A stand-in is always pulled back on its way and has no ground, so a shove would be undone or leave it floating over a ditch. Once hit, or pushed off its lane, it is built as a real simulated car where the stand-in was, moving as it moved, as `Drive.setCar` does when the player swaps cars. Then it rolls, slides into the verge and stops on its own wheels. Its driver brakes and puts the hazards on. When it's back on its lane and the player has gone, it becomes a place on a lane again.
+- **A traffic car away from every simulated car is no body at all**: a place on a lane. Nothing can touch it, and nothing needs to.
+- **Near a simulated car it is a full simulated car**, driven through its `DriveInput` by its lane driver, as a racer is by its racing line. "Near" is within about 100 m, inside the 120 m the simulated car's own ground already covers, so it costs no ground. It changes from a place on a lane to a car, and back, at that reach, where nothing can touch it yet and nobody can see a small difference: the car starts where its place is, moving as it moved, settled on its springs at the place's height, with no step sat out unless its ground was only just made. A film of a car crossing the reach that nobody hits holds that the change shows nothing. Its driver keeps the lane driver's whole behaviour (following, giving way, junctions) and turns it into throttle, brake and steering, by the pursuit steering traffic already shares with the autopilot and a speed controller of the same kind; how closely the car then keeps to where the lane driver wants it is measured, not assumed.
+- **Hit, it is already a car.** Its own wheels, springs and ground take the blow, so it dives, hops, rolls and spins as the physics gives, and falls at full gravity. Its driver brakes and puts the hazards on. When it's back on its wheels by its lane and the player has gone, it drives on, and past the reach it becomes a place on a lane again.
+- **Drawn as it lies.** A physical traffic car tilts as it brakes, corners, rides a bump and is hit, so it is drawn with its whole rotation, not turned only about the vertical, fitted into the vertex buffers the world cars already use. The material that draws it is built before the drive starts, as every other is, so no car's first tilt stalls a frame.
 - **A world car's handling** comes from the drivable car nearest it in size and weight (the post van drives as the van), until it matters enough to give each its own character in `sim/cars.ts`.
+- **Parked cars sleep.** Round each simulated car, within the same reach, a parked car is a full body asleep in its place, which the physics engine all but skips until something touches it, instead of the four walls it is today. Touched, it wakes and is shoved, spun or pushed into the next car by the physics, as heavy as the world car it is; once it stops it sleeps again where it lies. Past the reach, and wherever no car has touched it, it is the drawn car at its place, and a car moved out of its place goes back there once nobody can see it. Drawing one that has moved takes it out of its place's list and draws it as a physical traffic car is drawn.
+
+The stand-in stays for what this machine doesn't run: another player's car, and online, a traffic car, racer or woken parked car another player runs (see "Online: the nearest player runs it").
 
 ### The simulation holds more than one car
 
@@ -126,7 +130,7 @@ Traffic sees the player as it sees any car ahead, so most of this falls out of f
 - **The player cuts in front**: it brakes as hard as it must and drops back to its gap. Nothing chases, flashes or punishes.
 - **The player comes up fast behind**: it carries on. It doesn't pull over for a racing car; that's the player's to pass.
 - **The player drives on the wrong side**: oncoming traffic slows and edges to its verge, as far as the road allows.
-- **The player hits it**: it becomes a car (see Collisions), takes the hit by its weight, stops with hazards on, and after a while drives on if it can. Cars behind it queue and go round.
+- **The player hits it**: it is a car already (see Collisions), takes the hit by its weight on its own wheels, stops with hazards on, and after a while drives on if it can. Cars behind it queue and go round.
 - **Another player does any of this**: the same, since traffic sees every player the same way, on whichever machine runs it.
 
 Police aren't part of this. Åland has its own (Ålands polismyndighet), and the real thing would be stops and Finland's income-based fines rather than chases, but how police fit the game is open. A patrol car would be a traffic car with a job, so nothing here stands in its way.
@@ -142,11 +146,11 @@ A few voices, not one per car: a petrol car, a diesel, a van and an electric, on
 ### What it costs, and how it scales down
 
 - **A traffic car away from the player**: no physics. Each step it moves along a line and asks the index what's ahead, a handful of arithmetic.
-- **Near the player**: a stand-in body, one more body in the solver, still no rays and no ground.
-- **Hit**: a full car, 4 rays and a body, for as long as it takes to stop and drive on. Only the few the player has touched.
+- **Near a simulated car**: a full car, 4 rays and a body, as each racer is. At Åland's light density that is a handful of cars round each player, more in Mariehamn by day; how many, and what they cost per step, is counted before it's built, since the simulation runs on the main thread.
+- **Parked cars near a simulated car**: asleep, all but free until one is touched; a woken one costs what a body with no wheels costs, until it sleeps again.
 - **Drawing**: two draw calls per model in use, a full model at most 2,000 triangles and a stand-in 30. Twenty cars in view are about 40,000 triangles beside a frame's 0.5–1.1 million.
 
-Everything that costs is a number a frame reads, the forest's way: how many cars a road gets, how far the bubble reaches, how near a car has to be to become a stand-in, and how many are voiced. A weaker machine turns the first two down; no setting changes how a car drives.
+Everything that costs is a number a frame reads, the forest's way: how many cars a road gets, how far the bubble reaches, how near a car has to be to become a full car, and how many are voiced. A weaker machine turns the first two down; no setting changes how a car drives.
 
 ## Racers
 
@@ -193,7 +197,7 @@ Online racing is **co-op, the way Forza Horizon's team races are**: players toge
 | The lane map | Drives on it | Only through traffic, and to start on a road |
 | Knowing what's around | Yes | Yes, along the route |
 | Drawing | The fleet, world cars | The drivable cars' full art |
-| Physics | None, then a stand-in near a car, then a car when hit | Always a full car, within detail |
+| Physics | None, then a full car within about 100 m of a simulated car | Always a full car, within detail |
 | Ground of its own | Never: it is near the player when physical | Yes, round each racer |
 | Its driver | Lane following, giving way | Racing line and speed plan |
 | Online | Run by the nearest player, seen by everyone | The same |
@@ -207,14 +211,14 @@ Each piece is small enough for one session, and says what it needs first. Racers
 1. **More than one simulated car.** Built. The simulation holds several cars, each with its own input, and loads the ground round all of them. Holds by test that two simulated cars collide and that a car 1 km from the player drives on real ground.
 2. **Each car's limits, measured.** Built. A tool drives each of the 14 cars through set manoeuvres in the simulation and records its grip at speed, its braking and its pull, into a table the racers read.
 
-**Grip by surface comes before the racing line.** Built (`ideas/surface-grip.md`): each wheel grips by the surface under it (asphalt, gravel, grass, rock) and the condition (dry, wet, snow, ice), so the Ytterby gravel stage no longer drives like tarmac. Surfaces are the car's physics, not a racer's: every car has them, and the racers have them for free because they drive the same car. The limits table has a row per surface and condition, which the speed plan reads for the ground under each stretch of its route. Traffic doesn't need it: a traffic car away from the player runs no physics, and near one it is a stand-in steered to its lane, so a surface reaches it only as its lane's speed. Getting the feel right is the work, since the balance between arcade and realism is hard to strike. It is judged by the owner in the game against Test Drive Unlimited, Forza Horizon and The Crew, the games this one stands among: gravel that lets go earlier and slides predictably, and grass and verges that punish without spinning the car, rather than a simulator's.
+**Grip by surface comes before the racing line.** Built (`ideas/surface-grip.md`): each wheel grips by the surface under it (asphalt, gravel, grass, rock) and the condition (dry, wet, snow, ice), so the Ytterby gravel stage no longer drives like tarmac. Surfaces are the car's physics, not a racer's: every car has them, and the racers have them for free because they drive the same car. The limits table has a row per surface and condition, which the speed plan reads for the ground under each stretch of its route. Traffic has it the same way: away from every simulated car it runs no physics and a surface reaches it only as its lane's speed, and near one it is a full car on the ground under it. Getting the feel right is the work, since the balance between arcade and realism is hard to strike. It is judged by the owner in the game against Test Drive Unlimited, Forza Horizon and The Crew, the games this one stands among: gravel that lets go earlier and slides predictably, and grass and verges that punish without spinning the car, rather than a simulator's.
 
 **Racers** (needs 1, 2 and grip by surface; phase 6's race start and finish are their own work, and the racers need only a route)
 
 3. **The racing line and speed plan**, for a route on real roads, inside the laid edges. Checked against the real stages of `docs/DRIVING-CULTURE.md`: every car finishes Norra Sundsvägen and the Ytterby gravel, and the times come out by count.
 4. **The racer.** The autopilot grown into a driver of the plan, with recovery by its own reset, and difficulty as above.
 5. **Racecraft**: racers seeing each other and the player along the route, passing and defending.
-6. **Computer-driven cars online**: the nearest-player rule, built once for racers and traffic alike. A car's state and its driver's record sent to everyone, handed over to the nearest player, held mid-fight. Proven first on racers, by two pages on the e2e run's own relay racing one racer and swapping who runs it. Needs 4.
+6. **Computer-driven cars online**: the nearest-player rule, built once for racers and traffic alike. Built (`net/computer-cars.ts`): a car's state and its driver's record sent to everyone 20 times a second by whoever runs it, handed over once another player has been clearly nearer for half a second, held while any other car is within a few metres, and handed on by the host when its runner leaves; each car counts its handovers, so a state sent before one is known for stale. Proven before there were racers on a scripted car (`net/scripted-car.ts`), a steady roll along a road whose record is where it is, since a racer or a lane driver would have brought their own work into the proof: `e2e/aland-drive-computer-cars.spec.ts` has two pages on the run's own relay swap who runs it twice, see it in the same place, and see it move no further in a step than its speed and a stand-in's pull allow. A car is run here as a stand-in steered to its driver, as traffic near the player is; a racer will be a full simulated car. Not yet: taking a car out of the world, and a driver record of a kind this version doesn't know.
 7. **Co-op races online**, the team against the racers. Needs 5, 6 and the online race itself.
 
 **Lanes** (needs nothing; can run beside the racers)
@@ -225,12 +229,13 @@ Each piece is small enough for one session, and says what it needs first. Racers
 
 **The bubble, then life on the roads** (needs 9 and 10)
 
-11. **The bubble**: spawning and despawning out of sight round the player, by density. **Its first users are the cyclists**, which settle it: always kinematic, on path lanes and road edges, the simplest traffic there is. Walkers follow on the same lanes once the people layer can walk. Built, in the lane lab (`traffic/bubble.ts`, `traffic/sight.ts`): seeded slots on every lane, a density per road and path kind per kilometre, cars and cyclists both, out of sight being past a kind's reach, out of view or behind the ground; trees and buildings don't count as cover yet. The densities per kind of road and path are starting values: the owner judges them by feel in play once traffic runs in the game, not in the lab. Cyclists are `art/bikes`' crowd. The player's car doesn't touch one yet: traffic and cyclists brake for it, but it passes through a cyclist, and what a hit should do is still open.
-12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels. Begun: cars on the lanes follow, slow for bends and limits, give way, steer on their wheels and signal their turns, and on a road too narrow for two pass slowly at its edges or stop on the verge for each other, drawn by the fleet, in the lane lab only (`traffic/lane-driver.ts`); no lights and no signals' phases yet.
-13. **Traffic and the player**: the reactions above, stand-ins near a simulated car, a car once hit. Needs 1. Begun, in the lane lab: traffic brakes for a simulated car lying across its path at any angle and goes round one standing once the oncoming side is clear; near one, each traffic car has a stand-in, and a car hit hard becomes a simulated car that stops with its hazards on and after a few seconds rejoins its lane, or waits for the player to go (`traffic/contact.ts`). Not yet: the horn, the small human flaws, and a hit car drawn rolled or pitched (the world cars turn only about the vertical), with the handling and collision box, once hit, of the drivable car nearest it in size.
+11. **The bubble**: spawning and despawning out of sight round the player, by density. **Its first users are the cyclists**, which settle it: always kinematic, on path lanes and road edges, the simplest traffic there is. Walkers follow on the same lanes. Built, walkers too, in the lane lab, as the project's `CLAUDE.md` describes: `art/people`' walking crowd on the paths, by their own rules, crossing roads to the path beyond, cyclists and cars stopping for them; at four times Åland's density a standoff by a crossing can still hold walkers a while. Only the walk the people kit already has is used. Later, walkers get art of their own: joggers, and people pushing prams, which the owner wants but not yet. Built, in the lane lab and in the drive offline (`traffic/bubble.ts`, `traffic/sight.ts`): seeded slots on every lane, a density per road and path kind per kilometre, cars and cyclists both, out of sight being past a kind's reach, out of view or behind the ground; trees and buildings don't count as cover yet. A road's cars come from kartor.ax's real counts, road by road where a road has one and by class otherwise (`pipeline/traffic_volume.py`), at a daytime hour, half as busy again as the real island; paths' cyclists are still densities per kind, with no counts behind them. The owner judges the result in play. Cyclists are `art/bikes`' crowd. The player's car doesn't touch one yet: traffic and cyclists brake for it, but it passes through a cyclist, and what a hit should do is still open.
+12. **Traffic driving**: lanes, speed, following, junctions, giving way, drawn by the fleet with lights and turning wheels. Begun: cars on the lanes follow, slow for bends and limits, give way, steer on their wheels and signal their turns, and on a road too narrow for two pass slowly at its edges or stop on the verge for each other, drawn by the fleet, in the lane lab and in the drive offline (`traffic/lane-driver.ts`); no lights and no signals' phases yet.
+13. **Traffic and the player**: the reactions above, and traffic physical near a simulated car (see Collisions). Needs 1. Begun, in the lane lab and the drive offline, on the design this replaces: traffic brakes for a simulated car lying across its path at any angle and goes round one standing once the oncoming side is clear; near one, each traffic car has a stand-in, and a car hit hard becomes a simulated car that stops with its hazards on and after a few seconds rejoins its lane, or waits for the player to go (`traffic/contact.ts`). A stand-in has no ground, so at speed the whole blow lands on it in one step before the car exists, and the car takes none of it on its wheels; handed the stand-in's spin, it reared up and floated, so it now takes only the hit's push along the road and its turn about the vertical, and stays level. Next, in this order: the lane driver driving a full car through its input, kept to its lane as closely as the lane driver wants, measured; the change at the reach, both ways, with its film; the stand-in and the promotion gone; every physical traffic car drawn with its whole rotation. Not yet: the horn and the small human flaws.
 14. **Shared traffic**: traffic on the nearest-player rule, with spawning by whoever keeps a stretch of lane, so players together see one traffic. Traffic isn't turned on online until this is in. Needs 6 and 13.
 15. **Density by place and time, sound, and the settings that scale it down.** Cyclists included: how many ride follows the hour and the season, busiest on summer days and in the commuting hours, few at night and fewest in winter, from the game's own clock and calendar (`time/`, `climate/`). Until then the bubble's densities are the same at any hour and in any month.
 16. **Races through traffic.** Needs 5 and 14.
+17. **Parked cars that move**: a parked car near a simulated car is a sleeping body, woken by a touch, drawn where it lies once moved and put back unseen (see Collisions). Needs 13's drawing with the whole rotation. Online, a woken parked car is run as a traffic car is (piece 14), and a sleeping one is the same on every machine, from the map.
 
 ## The owner's decisions
 
@@ -269,6 +274,20 @@ Asked what other games do, from reviews and player forums (none of these studios
 **Decided: like TDU's, calm real drivers with their small human flaws.**
 
 **Still open: police.** Åland has police, and the real consequence of speeding there is being stopped and fined by income, not chased. The owner doesn't want police now and hasn't decided how they'd fit the game. Nothing here blocks them: a patrol car would be a traffic car with a job.
+
+### Traffic and parked cars are physical near the player
+
+A traffic car hit at speed took the whole blow on its stand-in in one step, before it was a car at all, and its car never felt the hit on its wheels. Asked how games with traffic and physics do it:
+
+| | Ours as built: a stand-in, a car once hit | Physical within a reach | Asleep until touched | Same body switched on contact |
+|---|---|---|---|---|
+| What it is | Kinematic, a stand-in near a car, a new car after a hard hit | Real cars round the player, driven by inputs; on rails beyond | Real bodies the engine skips until touched | Kinematic until a contact, then the same body made dynamic within it |
+| A hit | Lands on the stand-in; the car feels none of it | Physics, on its own wheels | Physics | Physics, if the switch lands inside the hit |
+| Where it changes | At the hit, in view | At the reach, where nothing touches it | Nowhere | At the hit |
+| Cost | Least | A full car each, within the reach | All but nothing until touched | Least, with delicate timing |
+| Fits | | Traffic | Parked cars and props | |
+
+**Decided: traffic is physical within a reach of every simulated car, and parked cars are asleep there until touched.** It also makes the system consistent: a traffic car near the player is what a racer is, a full car driven through its input, differing only in what drives it, and a hit is the physics' with no special case for it.
 
 ### Who runs the racers online: the nearest player
 

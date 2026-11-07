@@ -6,7 +6,7 @@ export function encoded(points: [number, number, number][]): number[] {
   return centimetres.flatMap((point, index) => (index === 0 ? point : point.map((value, axis) => value - centimetres[index - 1][axis])));
 }
 
-export const lane = (points: [number, number, number][], extra: Partial<LanesFile["lanes"][number]> = {}): LanesFile["lanes"][number] => ({ points: encoded(points), kind: "tertiary", chain: 0, forward: true, lane: 0, of: 1, width: 3, speeds: [[0, 70]], ...extra });
+export const lane = (points: [number, number, number][], extra: Partial<LanesFile["lanes"][number]> = {}): LanesFile["lanes"][number] => ({ points: encoded(points), kind: "tertiary", chain: 0, forward: true, lane: 0, of: 1, width: 3, speeds: [[0, 70]], daily: 300, ...extra });
 
 /**
  * East along z = 0 to a junction at x = 100, where a lane carries on east and a side road comes in from the south
@@ -78,6 +78,38 @@ export function pathMeetsRoad(): LanesFile {
     links: [
       { path: 2, road: 0, along: 102, onToRoad: true, points: encoded([[100, 0, 4], [101, 0, 2.5], [102, 0, 1.5]]) },
       { path: 3, road: 0, along: 298, onToRoad: false, points: encoded([[298, 0, 1.5], [299, 0, 2.5], [300, 0, 4]]) },
+    ],
+  };
+}
+
+/** A path's two ways along a line, `width` metres wide, each walked keeping right: one chain, forward along the points and back. */
+export function twoWayPath(points: [number, number, number][], chain: number, width: number, kind = "footway"): LanesFile["lanes"] {
+  const shifted = (sign: number) =>
+    points.map(([x, y, z], at): [number, number, number] => {
+      const [from, to] = [points[Math.max(0, at - 1)], points[Math.min(points.length - 1, at + 1)]];
+      const length = Math.hypot(to[0] - from[0], to[2] - from[2]);
+      // Right of the way (dx, dz) on the ground is (-dz, dx).
+      return [x - ((to[2] - from[2]) / length) * sign * (width / 4), y, z + ((to[0] - from[0]) / length) * sign * (width / 4)];
+    });
+  const path = { kind, chain, width: width / 2, speeds: [[0, 5]] as [number, number][] };
+  return [lane(shifted(1), { ...path, forward: true }), lane(shifted(-1).reverse(), { ...path, forward: false })];
+}
+
+/**
+ * A two-way road 6 m wide along z = 0 (as `twoWayRoad`), with a footway 2 m wide coming up to it from the south at
+ * x = 100 and another going on north from its far side: walking north, a link from the south footway on to the
+ * eastbound lane, and one off the westbound lane on to the north footway.
+ */
+export function footwaysAcrossRoad(): LanesFile {
+  const road = twoWayRoad(6, 600);
+  const south = twoWayPath([[100, 0, 60], [100, 0, 4]], 1, 2);
+  const north = twoWayPath([[100, 0, -4], [100, 0, -60]], 2, 2);
+  return {
+    ...road,
+    lanes: [...road.lanes.map((each) => ({ ...each, chain: 0 })), ...south, ...north],
+    links: [
+      { path: 2, road: 0, along: 100.5, onToRoad: true, points: encoded([[100.5, 0, 4], [100.5, 0, 1.5]]) },
+      { path: 4, road: 1, along: 499.5, onToRoad: false, points: encoded([[100.5, 0, -1.5], [100.5, 0, -4]]) },
     ],
   };
 }

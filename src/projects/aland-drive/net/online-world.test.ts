@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
 import { createOnlineWorld, SEND_EVERY_STEPS, type OnlineWorld } from "./online-world";
-import type { ChallengeMessage, GuestMessage, HostMessage } from "./protocol";
+import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
@@ -18,6 +18,8 @@ interface Client {
   challenges: { from: string; message: ChallengeMessage }[];
   /** The page's time in game days: its own until it takes the world's. */
   time: number;
+  /** Computer-driven cars heard, each with who sent it. */
+  computerCars: { from: string; car: ComputerCarMessage }[];
 }
 
 /** An in-memory star: sends queue up and are delivered in order by `flush`, as over the relay. */
@@ -34,8 +36,8 @@ function createStar() {
     for (const id of [host, ...guests]) nodes.get(id)?.onState?.(state(id));
   };
 
-  function add(id: string, time: number): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time };
+  function add(id: string, time = 0): Client {
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time, computerCars: [] };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -72,6 +74,7 @@ function createStar() {
           client.time = gameDays;
         },
         timeNow: () => client.time,
+        onComputerCar: (from, car) => client.computerCars.push({ from, car }),
       },
     );
     clients.set(id, client);
@@ -216,6 +219,18 @@ describe("the online world", () => {
     star.flush();
     for (const client of [host, b]) expect(client.challenges).toEqual([{ from: "a", message: start }]);
     expect(a.challenges).toEqual([]);
+  });
+
+  it("hands a computer-driven car's state from the player running it to everyone else, naming who sent it", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    const car = { id: "car", runner: "a", handovers: 2, state: STATE, driver: { along: 4 } };
+    expect(a.world.sendComputerCar(car)).toBe(true);
+    star.flush();
+    for (const client of [host, b]) expect(client.computerCars).toEqual([{ from: "a", car }]);
+    expect(a.computerCars).toEqual([]);
   });
 
   it("keeps a challenge message sent while the world reconnects, and sends it once it's back", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bike, Car } from "lucide-react";
+import { Bike, Car, PersonStanding } from "lucide-react";
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { GameProbe, Place } from "../render/game";
 import { JUNCTION_SPOTS, fromAbove, placeOf } from "../render/junction-spots";
@@ -13,7 +13,7 @@ import { AlandDrive } from "./aland-drive";
  * judge each junction's lanes, connectors and right of way. The list is the
  * audit's, for the loaded tiles: every place a lane or connector can't sit
  * cleanly on the drawn road, a click away from above. The junction lab's hardest
- * junctions are here too, and cars and cyclists on the lanes round the camera,
+ * junctions are here too, and cars, cyclists and walkers on the lanes round the camera,
  * coming and going out of sight, to see the lanes and their right of way at work. `?at=` opens it at a place, as the
  * audit's links do.
  */
@@ -77,6 +77,7 @@ export function LaneLab() {
   const [paths, setPaths] = useState(false);
   const [cars, setCars] = useState(OPENS_WITH);
   const [bikes, setBikes] = useState(OPENS_WITH);
+  const [walkers, setWalkers] = useState(OPENS_WITH);
   const net = probe?.lanes() ?? null;
   useLanes(net);
 
@@ -85,6 +86,7 @@ export function LaneLab() {
     started.showLanes(true);
     started.traffic(OPENS_WITH);
     started.cyclists(OPENS_WITH);
+    started.walkers(OPENS_WITH);
     setProbe(started);
   }, []);
   const look = (at: Place) => {
@@ -115,6 +117,7 @@ export function LaneLab() {
         </label>
         <DensityPicker name="Cars on the lanes" icon={<Car className="size-4" aria-hidden />} value={cars} onPick={(density) => { setCars(density); probe?.traffic(density); }} />
         <DensityPicker name="Cyclists on the lanes" icon={<Bike className="size-4" aria-hidden />} value={bikes} onPick={(density) => { setBikes(density); probe?.cyclists(density); }} />
+        <DensityPicker name="Walkers on the paths" icon={<PersonStanding className="size-4" aria-hidden />} value={walkers} onPick={(density) => { setWalkers(density); probe?.walkers(density); }} />
         <ul className="flex flex-col gap-0.5 text-xs">
           {LEGEND.map(({ token, label }) => (
             <li key={token} className="flex items-center gap-2">

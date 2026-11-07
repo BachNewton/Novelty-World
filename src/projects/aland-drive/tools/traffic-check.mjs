@@ -1,24 +1,26 @@
-// Runs the lane lab's cars and cyclists round a place in headless Chromium, held and stepped by hand, and prints every car that
+// Runs the lane lab's cars, cyclists and walkers round a place in headless Chromium, held and stepped by hand, and prints every car that
 // stood still too long: a jam the lanes or the driver caused, each with a link to look at it from above. A car waiting
 // at a junction for a while is ordinary; one stopped for most of a minute is stuck. It also prints the places cars
 // strayed furthest from their lanes as their wheels steered them round, which a tight corner can make them cut, and every
-// time two cars' outlines overlapped or passed within a hand's width of each other, checked at every step traffic takes.
+// time two cars' outlines overlapped or passed within a hand's width of each other, checked at every step traffic takes, and
+// every walker that walked into someone the people files placed standing or sitting.
 // The camera stands a little above the place and turns round once a minute, and every car that came or went in its sight
 // (`trafficSeen`: in view, in reach and not behind the ground) is a pop, counted after the first fill has settled.
 //
 // Prereq: a dev server and a tile server (`tools/serve-tiles.mjs`). Usage:
-//   node src/projects/aland-drive/tools/traffic-check.mjs <east,north> [--minutes=3] [--cars=1] [--bikes=1] [--stuck=45] [--height=25] [--settle=30] [--with-player]
-// --cars and --bikes are densities, 1 for Åland's own. ALAND_DRIVE_URL is the lane lab's address, with ?lane-lab&tiles=local:<port>.
+//   node src/projects/aland-drive/tools/traffic-check.mjs <east,north> [--minutes=3] [--cars=1] [--bikes=1] [--walkers=1] [--stuck=45] [--height=25] [--settle=30] [--with-player]
+// --cars, --bikes and --walkers are densities, 1 for Åland's own. ALAND_DRIVE_URL is the lane lab's address, with ?lane-lab&tiles=local:<port>.
 
 import { openGame } from "./game-page.mjs";
 
 const flags = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
 const [at] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const option = (name) => flags.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
-if (at === undefined) throw new Error("usage: traffic-check.mjs <east,north> [--minutes=3] [--cars=1] [--bikes=1] [--stuck=45] [--height=25] [--settle=30] [--with-player]");
+if (at === undefined) throw new Error("usage: traffic-check.mjs <east,north> [--minutes=3] [--cars=1] [--bikes=1] [--walkers=1] [--stuck=45] [--height=25] [--settle=30] [--with-player]");
 const MINUTES = Number(option("minutes") ?? 3);
 const CARS = Number(option("cars") ?? 1);
 const BIKES = Number(option("bikes") ?? 1);
+const WALKERS = Number(option("walkers") ?? 1);
 const STUCK_S = Number(option("stuck") ?? 45);
 const HEIGHT_M = Number(option("height") ?? 25);
 /** Pops aren't counted until the first fill has had this long to settle: a new page puts traffic down wherever it likes. */
@@ -43,7 +45,7 @@ const result = await step(
   "driving",
   () =>
     page.evaluate(
-      async ({ minutes, cars, bikes, stuckS, stepsASecond, every, closeM, withPlayer, east, north, heightM, pitch, turnS, settleS }) => {
+      async ({ minutes, cars, bikes, walkers, stuckS, stepsASecond, every, closeM, withPlayer, east, north, heightM, pitch, turnS, settleS }) => {
         const probe = window.__alandDrive;
         // Two outlines on the ground (middle, yaw, half width and length, grown by `grow`): whether they overlap, by the separating axes of both.
         const corners = ({ x, z, yaw }, [wide, long]) =>
@@ -68,6 +70,7 @@ const result = await step(
         probe.hold(true);
         probe.traffic(cars, { withPlayer });
         probe.cyclists(bikes);
+        probe.walkers(walkers);
         const still = new Map();
         const stuck = new Map();
         const strayed = new Map();
@@ -84,6 +87,15 @@ const result = await step(
               for (const [id, car] of before) if (!now.has(id) && probe.trafficSeen(car)) pops.push({ way: "out", second, ...car, x: car.pose.x, z: car.pose.z });
             }
             before = now;
+            for (const walker of cars) {
+              if (walker.kind !== "walker") continue;
+              for (const [at, person] of probe.standingNear(walker.pose.x, walker.pose.z, 2).entries()) {
+                const standing = { id: `standing ${Math.round(person.x)},${Math.round(person.z)},${at}`, pose: { x: person.x, z: person.z, yaw: 0 }, half: person.half, kind: "standing person", place: walker.place };
+                if (!overlap(walker, standing, 0)) continue;
+                const key = `${walker.id} ${standing.id}`;
+                if (!meetings.has(key)) meetings.set(key, { kind: "overlap", faced: "standing", who: "standing person and walker", x: walker.pose.x, z: walker.pose.z, place: `${walker.place.tile} ${walker.place.connector ? "connector" : "lane"} ${walker.place.index}` });
+              }
+            }
             for (let a = 0; a < cars.length; a++) {
               for (let b = a + 1; b < cars.length; b++) {
                 const [one, two] = [cars[a], cars[b]];
@@ -103,21 +115,22 @@ const result = await step(
             const time = car.speedMS < 0.3 ? (still.get(car.id) ?? 0) + 1 : 0;
             still.set(car.id, time);
             const known = strayed.get(car.id);
-            const way = car.place.connector ? `${probe.lanes().tile(car.place.tile)?.connectors[car.place.index].turn ?? ""} turn` : "lane";
-            if (!known || car.offLaneM > known.offM) strayed.set(car.id, { offM: car.offLaneM, x: car.pose.x, z: car.pose.z, place: `${car.place.tile} ${way} ${car.place.index}` });
+            const way = car.place.connector ? `${probe.lanes().tile(car.place.tile)?.connectors[car.place.index].turn ?? ""} turn` : car.place.link ? "link" : `${car.kind === "walker" ? "path" : "lane"}`;
+            // A walker crossing a road walks straight to the path beyond, off every lane on the way.
+            if (!car.onRoad && (!known || car.offLaneM > known.offM)) strayed.set(car.id, { offM: car.offLaneM, x: car.pose.x, z: car.pose.z, place: `${car.place.tile} ${way} ${car.place.index}` });
             if (time >= stuckS) stuck.set(car.id, { id: car.id, x: car.pose.x, z: car.pose.z, waiting: car.waiting, finished: car.finished, seconds: time, place: `${car.place.tile} ${car.place.connector ? "connector" : "lane"} ${car.place.index}` });
           }
           // A wait between frames lets the page breathe; the clock is held, so it changes nothing.
           if (second % 10 === 0) await new Promise(requestAnimationFrame);
         }
-        return { stuck: [...stuck.values()], strayed: [...strayed.values()].sort((a, b) => b.offM - a.offM), cars: seen.size, bikes: [...seen].filter((id) => id.startsWith("bike:")).length, meetings: [...meetings.values()], pops };
+        return { stuck: [...stuck.values()], strayed: [...strayed.values()].sort((a, b) => b.offM - a.offM), cars: seen.size, bikes: [...seen].filter((id) => id.startsWith("bike:")).length, walkers: [...seen].filter((id) => id.startsWith("walker:")).length, meetings: [...meetings.values()], pops };
       },
-      { minutes: MINUTES, cars: CARS, bikes: BIKES, stuckS: STUCK_S, stepsASecond: STEPS_A_SECOND, every: TRAFFIC_EVERY, closeM: CLOSE_M, withPlayer: WITH_PLAYER, east, north, heightM: HEIGHT_M, pitch: PITCH, turnS: TURN_S, settleS: SETTLE_S },
+      { minutes: MINUTES, cars: CARS, bikes: BIKES, walkers: WALKERS, stuckS: STUCK_S, stepsASecond: STEPS_A_SECOND, every: TRAFFIC_EVERY, closeM: CLOSE_M, withPlayer: WITH_PLAYER, east, north, heightM: HEIGHT_M, pitch: PITCH, turnS: TURN_S, settleS: SETTLE_S },
     ),
   MINUTES * 60 * 5,
 );
 await close();
-console.log(`${result.cars - result.bikes} cars and ${result.bikes} cyclists rode in ${MINUTES} min; ${result.stuck.length} stood still ${STUCK_S} s or more`);
+console.log(`${result.cars - result.bikes - result.walkers} cars, ${result.bikes} cyclists and ${result.walkers} walkers went in ${MINUTES} min; ${result.stuck.length} stood still ${STUCK_S} s or more`);
 const base = URL.replace(/&?tiles=[^&]*/, "").replace("?&", "?");
 const linkTo = ({ x, z }) => `${base}&at=${Math.round(x + ORIGIN.east)},${Math.round(ORIGIN.north - z)},60,0,-1.5708`;
 for (const car of result.stuck) console.log(`  ${car.place}, ${car.finished ? "trip ended in sight" : car.waiting ? "giving way" : "queued"} ${car.seconds} s  ${linkTo(car)}`);
@@ -126,7 +139,7 @@ console.log(`furthest each car strayed from its lane: median ${offs[Math.floor(o
 for (const car of result.strayed.slice(0, 5)) console.log(`  ${car.offM.toFixed(2)} m on ${car.place}  ${linkTo(car)}`);
 const overlaps = result.meetings.filter(({ kind }) => kind === "overlap");
 const near = result.meetings.filter(({ kind }) => kind === "close");
-const by = (list) => [...["oncoming", "same way"].map((faced) => `${list.filter((meeting) => meeting.faced === faced).length} ${faced}`), ...[...new Set(list.map((meeting) => meeting.who))].map((who) => `${list.filter((meeting) => meeting.who === who).length} ${who}`)].join(", ");
+const by = (list) => [...["oncoming", "same way", "standing"].map((faced) => `${list.filter((meeting) => meeting.faced === faced).length} ${faced}`), ...[...new Set(list.map((meeting) => meeting.who))].map((who) => `${list.filter((meeting) => meeting.who === who).length} ${who}`)].join(", ");
 console.log(`${overlaps.length} pairs of cars overlapped (${by(overlaps)}); ${near.length} more passed within ${CLOSE_M} m (${by(near)})`);
 for (const meeting of [...overlaps, ...near].slice(0, 8)) console.log(`  ${meeting.kind}, ${meeting.who}, ${meeting.faced}, on ${meeting.place}  ${linkTo(meeting)}`);
 const popsOf = (way) => result.pops.filter((pop) => pop.way === way);
