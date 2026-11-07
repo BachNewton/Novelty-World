@@ -335,6 +335,13 @@ const GLYPHS: Record<PlaceKind, (pen: CanvasRenderingContext2D) => void> = {
     const angle = (corner * Math.PI) / 4 - Math.PI / 2;
     return [radius * Math.cos(angle), radius * Math.sin(angle)];
   })),
+  lighthouse: (pen) => {
+    fill(pen, [-0.36, 0.85], [-0.2, -0.4], [0.2, -0.4], [0.36, 0.85]);
+    fill(pen, [-0.24, -0.45], [-0.24, -0.68], [0.24, -0.68], [0.24, -0.45]);
+    fill(pen, [-0.32, -0.7], [0, -0.95], [0.32, -0.7]);
+    line(pen, [-0.42, -0.57], [-0.85, -0.7]);
+    line(pen, [0.42, -0.57], [0.85, -0.7]);
+  },
   viewpoint: (pen) => {
     fill(pen, [-0.9, 0.7], [-0.25, -0.45], [0.05, 0.05], [0.3, -0.25], [0.9, 0.7]);
     pen.beginPath();

@@ -83,6 +83,20 @@ export const PAINT = {
   lamp: { from: "car-lamp" },
   "deck-paint": { from: "wall-grey", to: "water", share: 0.25, gain: 0.8 },
   "ramp-yellow": { from: "flag-ax-yellow", gain: 0.85 },
+  // The lighthouses' own (`art/lighthouses`).
+  "brick-red": { from: "wall-red", to: "wall-door", share: 0.25, gain: 0.9 },
+  "band-black": { from: "wall-plinth", gain: 0.32 },
+  "roof-red": { from: "flag-ax-red", to: "wall-red", share: 0.5, gain: 0.85 },
+  copper: { from: "copper" },
+  "limewash-red": { from: "limewash-red" },
+  "solar-panel": { from: "car-glass", to: "wall-plinth", share: 0.5, gain: 0.6 },
+  // A wind turbine's tower, white over Enercon's green rings, darkest at the foot.
+  "turbine-white": { from: "wall-trim", to: "wall-pale", share: 0.3 },
+  "turbine-green-1": { from: "tree-spruce", to: "tree-birch", share: 0.55, gain: 1.15 },
+  "turbine-green-2": { from: "tree-birch", gain: 1.12 },
+  "turbine-green-3": { from: "tree-birch", to: "wall-trim", share: 0.28, gain: 1.08 },
+  "turbine-green-4": { from: "tree-birch", to: "wall-trim", share: 0.52, gain: 1.04 },
+  "turbine-green-5": { from: "tree-birch", to: "wall-trim", share: 0.76 },
 } as const satisfies Record<string, { from: string; to?: string; share?: number; gain?: number; pattern?: Pattern }>;
 
 export type IdentityPart = keyof typeof PAINT;
@@ -91,6 +105,9 @@ export const IDENTITY_PARTS = Object.keys(PAINT) as IdentityPart[];
 /** Bits of `tint.a` over the three of the motion kind. */
 const PATTERN_UNIT = 8;
 export const AFLOAT_UNIT = 64;
+export const SPIN_UNIT = 128;
+/** A held thin part's roll: under any share its cover falls to, so it is never let go. */
+const HELD_ROLL = 0.001;
 const STAND_IN: Part = "lens";
 const LUMP_TOP: Part = "needles-lit";
 const LUMP_UNDER: Part = "needles";
@@ -98,10 +115,10 @@ const LUMP_UNDER: Part = "needles";
 /** What moves, and how far, for a vertex of a part at a place in the model. */
 export type Motion = (part: IdentityPart, at: V3) => { kind: MotionKind; metres?: number };
 
-export function codeOf(part: IdentityPart, kind: MotionKind, afloat: boolean): number {
+export function codeOf(part: IdentityPart, kind: MotionKind, afloat: boolean, spins = false): number {
   const paint = PAINT[part];
   const pattern = PATTERNS.indexOf("pattern" in paint ? paint.pattern : "plain");
-  return MOTION_KINDS.indexOf(kind) + pattern * PATTERN_UNIT + (afloat ? AFLOAT_UNIT : 0);
+  return MOTION_KINDS.indexOf(kind) + pattern * PATTERN_UNIT + (afloat ? AFLOAT_UNIT : 0) + (spins ? SPIN_UNIT : 0);
 }
 
 export class IdentityMesh {
@@ -112,10 +129,16 @@ export class IdentityMesh {
   private thinParts = 0;
   private readonly indices: number[] = [];
   private readonly afloat: boolean;
+  private readonly spins: boolean;
 
-  /** `afloat` leaves off the foot shade: the last metre above water isn't dark the way it is above grass. */
-  constructor({ afloat = false }: { afloat?: boolean } = {}) {
+  /**
+   * `afloat` leaves off the foot shade: the last metre above water isn't dark the way it is above grass. A model that
+   * `spins` turns on the material's clock about its own z axis through its origin, a rotor about its hub, from a start
+   * rolled per place; it stands nowhere near the ground, so it has no foot shade either.
+   */
+  constructor({ afloat = false, spins = false }: { afloat?: boolean; spins?: boolean } = {}) {
     this.afloat = afloat;
+    this.spins = spins;
   }
 
   private take(draw: (model: Model) => Model, partOf: (drawnIn: number) => IdentityPart): this {
@@ -162,9 +185,20 @@ export class IdentityMesh {
     return this.thin(from, to, () => this.tube(from, to, radius, sides, options, part));
   }
 
-  private thin(from: V3, to: V3, draw: () => this): this {
+  /**
+   * Whatever `draw` adds, held to a pixel about the axis from `from` to `to` as `thinBeam` is. A `held` one is never let
+   * go: a landmark's tower or blade that has to read on the horizon as a line, however far off.
+   */
+  thinShape(from: V3, to: V3, draw: (mesh: this) => void, { held = false }: { held?: boolean } = {}): this {
+    return this.thin(from, to, () => {
+      draw(this);
+      return this;
+    }, held);
+  }
+
+  private thin(from: V3, to: V3, draw: () => this, held = false): this {
     // Golden-ratio steps spread the parts' rolls evenly, so they go at evenly spread distances.
-    const roll = 0.04 + 0.95 * ((this.thinParts++ * 0.618034 + 0.37) % 1);
+    const roll = held ? HELD_ROLL : 0.04 + 0.95 * ((this.thinParts++ * 0.618034 + 0.37) % 1);
     const first = this.parts.length;
     draw();
     const axis: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
@@ -191,7 +225,7 @@ export class IdentityMesh {
     this.parts.forEach((part, index) => {
       const at: V3 = [this.positions[index * 3], this.positions[index * 3 + 1], this.positions[index * 3 + 2]];
       const { kind, metres = 0 } = motion?.(part, at) ?? { kind: "still" as const };
-      tints.set([IDENTITY_PARTS.indexOf(part), Math.min(255, this.shades[index]), Math.round(Math.min(1, metres / MOTION_RANGE_M) * 255), codeOf(part, kind, this.afloat)], index * 4);
+      tints.set([IDENTITY_PARTS.indexOf(part), Math.min(255, this.shades[index]), Math.round(Math.min(1, metres / MOTION_RANGE_M) * 255), codeOf(part, kind, this.afloat, this.spins)], index * 4);
     });
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(Float32Array.from(this.positions), 3));

@@ -1,9 +1,10 @@
 import { audioContext, listenForAudioUnlock, renderSound, SoundPlayer, unlockAudio, type SoundSettings } from "@/shared/lib/sound";
 import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { landing, mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
+import { landing, mix, noJolts, PLACED_VOICES, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
+import { createPlacedVoices, type PlacedLoop, type PlacedSoundId } from "./placed";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, birdsBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, leavesBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, townBed, winterBed, winterCallsBed, type Loop } from "./synthesis";
+import { CYCLE_RPM, engineCycle, birdsBed, freewheelLoop, grassLoop, gravelLoop, iceBed, lakeBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, winterCallsBed, type Loop } from "./synthesis";
 import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -27,6 +28,15 @@ export interface DriveAudio {
   audition(): Promise<SoundPlayer<SoundId>>;
   /** What the last frame asked for and which gear it's in, for the audition's readout. */
   reading(): { mix: Mix; engine: EngineRead | null } | null;
+  /**
+   * The loops placed in the world this frame (`audio/placed.ts`): each named by an id that keeps it one voice from frame
+   * to frame, a sound, a place and a loudness. Heard from the frame's `listener`; the loudest play, up to the budget.
+   */
+  placeLoops(loops: readonly PlacedLoop[]): void;
+  /** Plays a sound once from a place in the world, if it's heard and the budget has room; `rate` 1 as rendered. */
+  placeOnce(sound: PlacedSoundId, x: number, z: number, loudness: number, rate?: number): void;
+  /** How many placed sounds may play at once (`PLACED_VOICES` to start): a setting's number. */
+  setPlacedBudget(voices: number): void;
   dispose(): void;
 }
 
@@ -207,13 +217,12 @@ interface Rig {
   squeakTones: OscillatorNode[];
   squeakFilter: BiquadFilterNode;
   squeakLevel: GainNode;
-  leaves: GainNode;
   birds: GainNode;
-  winter: GainNode;
   winterCalls: GainNode;
   shore: GainNode;
-  gulls: GainNode;
-  town: GainNode;
+  lake: GainNode;
+  ice: GainNode;
+  placed: ReturnType<typeof createPlacedVoices>;
   ticks: AudioBuffer;
   cycles: Map<EngineId, AudioBuffer>;
   sources: AudioScheduledSourceNode[];
@@ -236,13 +245,11 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
   const studs = looped(context, studsLoop(), master);
   const rainLight = looped(context, rainLightLoop(), master);
   const rainHeavy = looped(context, rainHeavyLoop(), master);
-  const leaves = looped(context, leavesBed(), master);
   const birds = looped(context, birdsBed(), master);
-  const winter = looped(context, winterBed(), master);
   const winterCalls = looped(context, winterCallsBed(), master);
   const shore = looped(context, shoreBed(), master);
-  const gulls = looped(context, gullsBed(), master);
-  const town = looped(context, townBed(), master);
+  const lake = looped(context, lakeBed(), master);
+  const ice = looped(context, iceBed(), master);
 
   const squealFilter = new BiquadFilterNode(context, { type: "bandpass", frequency: 1500, Q: 5 });
   const squealLevel = new GainNode(context, { gain: 0 });
@@ -313,16 +320,15 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     squeakTones,
     squeakFilter,
     squeakLevel,
-    leaves: leaves.level,
     birds: birds.level,
-    winter: winter.level,
     winterCalls: winterCalls.level,
     shore: shore.level,
-    gulls: gulls.level,
-    town: town.level,
+    lake: lake.level,
+    ice: ice.level,
+    placed: createPlacedVoices(context, master, toBuffer),
     ticks: toBuffer(freewheelLoop()),
     cycles: new Map(),
-    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rainLight.source, rainHeavy.source, leaves.source, birds.source, winter.source, winterCalls.source, shore.source, gulls.source, town.source, ...squealTones, ...squeakTones, stickSlip],
+    sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rainLight.source, rainHeavy.source, birds.source, winterCalls.source, shore.source, lake.source, ice.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
 
@@ -348,6 +354,9 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
   let last: Mix | null = null;
   let stones = 0;
   let clods = 0;
+  let gulls = 0;
+  let placedBudget = PLACED_VOICES;
+  let placedLoops: readonly PlacedLoop[] = [];
 
   const ready = (async () => {
     const audio = context ?? (await audioContext());
@@ -416,13 +425,11 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     to(built.rainHeavy.level.gain, mixed.rainHeavyLevel, PLACE_FOLLOW_S);
     to(built.gale.level.gain, mixed.galeLevel, 0.3);
     to(built.gale.filter.frequency, mixed.galeHz, 0.3);
-    to(built.leaves.gain, mixed.leavesLevel, PLACE_FOLLOW_S);
     to(built.birds.gain, mixed.birdsLevel, PLACE_FOLLOW_S);
-    to(built.winter.gain, mixed.winterLevel, PLACE_FOLLOW_S);
     to(built.winterCalls.gain, mixed.winterCallsLevel, PLACE_FOLLOW_S);
     to(built.shore.gain, mixed.shoreLevel, PLACE_FOLLOW_S);
-    to(built.gulls.gain, mixed.gullsLevel, PLACE_FOLLOW_S);
-    to(built.town.gain, mixed.townLevel, PLACE_FOLLOW_S);
+    to(built.lake.gain, mixed.lakeLevel, PLACE_FOLLOW_S);
+    to(built.ice.gain, mixed.iceLevel, PLACE_FOLLOW_S);
   }
 
   return {
@@ -448,6 +455,16 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
         clods = torn.carry;
         for (let i = 0; i < torn.count; i++) rig.player.play("clod");
       }
+      if (state.listener !== undefined) {
+        rig.placed.frame(state.listener, placedLoops, placedBudget);
+        // Gulls call from over the water, somewhere off the nearest sea, each a little higher or lower.
+        const sea = state.place.seaAt;
+        if (last !== null && sea !== undefined) {
+          const called = landing(gulls, last.gullsPerS, dt, Math.random());
+          gulls = called.carry;
+          for (let i = 0; i < called.count; i++) rig.placed.once("gull", sea.x + (Math.random() - 0.5) * 80, sea.z + (Math.random() - 0.5) * 80, 1.4, placedBudget, 0.9 + 0.2 * Math.random());
+        }
+      }
 
       since += dt;
       if (since < STEER_EVERY_S) return;
@@ -472,12 +489,22 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
       return rig.player;
     },
     reading: () => (last === null ? null : { mix: last, engine }),
+    placeLoops(loops) {
+      placedLoops = loops;
+    },
+    placeOnce(sound, x, z, loudness, rate) {
+      rig?.placed.once(sound, x, z, loudness, placedBudget, rate);
+    },
+    setPlacedBudget(voices) {
+      placedBudget = voices;
+    },
     dispose() {
       stopListening?.();
       voice?.stop();
       voice = null;
       if (rig === null) return;
       for (const source of rig.sources) source.stop();
+      rig.placed.stopAll();
       rig.master.disconnect();
       rig = null;
     },

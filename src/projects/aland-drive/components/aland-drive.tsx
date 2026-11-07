@@ -16,6 +16,7 @@ import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
+import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
 
 /*
@@ -95,24 +96,6 @@ function TimeCover({ jump, onDone }: { jump: () => void; onDone: () => void }) {
   );
 }
 
-/** The air's temperature as a driver reads it, in whole degrees with a true minus: "−7°". */
-function temperatureText(celsius: number): string {
-  const degrees = Math.round(celsius);
-  return `${degrees < 0 ? "−" : ""}${Math.abs(degrees)}°`;
-}
-
-/** The hour as a 24-hour clock: "14:05". */
-function hourText(hour: number): string {
-  const minutes = Math.floor(hour * 60);
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
-/** A distance as a driver reads one: tens of metres near, and tenths of a kilometre far. */
-function distanceText(metres: number): string {
-  if (metres >= 1000) return `${(metres / 1000).toFixed(1)} km`;
-  return `${Math.round(metres / 10) * 10} m`;
-}
-
 /** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
 function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
   const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
@@ -146,6 +129,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [failure, setFailure] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [input, setInput] = useState<InputKind>("keyboard-mouse");
+  const units = useUnits((state) => state.units);
   const [camera, setCamera] = useState<CameraMode>("chase");
   const [loading, setLoading] = useState<LoadingProgress | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -209,7 +193,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       }
       if (!challenge) return;
       if (needsRow.current) needsRow.current.style.display = challenge.needs === null ? "none" : "flex";
-      if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs)}`;
+      if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs, useUnits.getState().units)}`;
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
@@ -228,17 +212,17 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         shownMonth = clock.month;
         monthShown.current.textContent = MONTH_NAMES[clock.month - 1];
       }
-      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
+      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour, useUnits.getState().units);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
       if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
       if (temperatureRow.current) temperatureRow.current.style.display = clock.temperatureC === null ? "none" : "flex";
-      if (temperatureShown.current && clock.temperatureC !== null) temperatureShown.current.textContent = temperatureText(clock.temperatureC);
-      if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
+      if (temperatureShown.current && clock.temperatureC !== null) temperatureShown.current.textContent = temperatureText(clock.temperatureC, useUnits.getState().units);
+      if (speedText.current) speedText.current.textContent = String(speedNumber(speedKmh, useUnits.getState().units));
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
       revNeedle.current?.setAttribute("transform", `rotate(${revs * DIAL_SWEEP * 360} 50 50)`);
       if (cue.current) cue.current.style.display = toGoM === null ? "none" : "flex";
-      if (toGoM !== null && cueText.current) cueText.current.textContent = distanceText(toGoM);
+      if (toGoM !== null && cueText.current) cueText.current.textContent = distanceText(toGoM, useUnits.getState().units);
     };
     void (async () => {
       const adapter = "gpu" in navigator ? await navigator.gpu.requestAdapter() : null;
@@ -373,7 +357,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                       <div className="flex items-baseline gap-2 tabular-nums">
                         <Timer className="size-5 shrink-0 self-center" aria-hidden />
                         <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
-                        {playing.target !== null && <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>}
+                        {playing.target !== null && <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target, units)}</span>}
                       </div>
                       <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
                         <Flag className="size-5 shrink-0" aria-hidden />
@@ -384,7 +368,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                   {playing.kind === "speed-trap" && (
                     <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
                       <Gauge className="size-6 shrink-0" aria-hidden />
-                      {playing.target !== null && <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>}
+                      {playing.target !== null && <span aria-label="Target">{resultText("speed-trap", playing.target, units)}</span>}
                     </div>
                   )}
                   </>
@@ -430,8 +414,11 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                 <circle cx={50} cy={50} r={44} pathLength={1} stroke={REDLINE} strokeDasharray={`${DIAL_SWEEP * (1 - REDLINE_FROM)} 1`} strokeDashoffset={-DIAL_SWEEP * REDLINE_FROM} />
                 <line ref={revNeedle} x1={78} y1={50} x2={98} y2={50} stroke={INK} strokeWidth={2.5} strokeLinecap="round" />
               </svg>
-              <span ref={speedText} className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-6xl font-bold tabular-nums" role="status" aria-label="Speed in kilometres an hour">
+              <span ref={speedText} className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-6xl font-bold tabular-nums" role="status" aria-label={units === "metric" ? "Speed in kilometres an hour" : "Speed in miles an hour"}>
                 0
+              </span>
+              <span className="absolute inset-x-0 top-[68%] text-center text-sm font-semibold opacity-80" aria-hidden>
+                {speedUnit(units)}
               </span>
               <span ref={gearText} className="absolute inset-x-0 bottom-1 text-center text-3xl font-bold tabular-nums" aria-label="Gear">
                 1

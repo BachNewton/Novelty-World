@@ -206,6 +206,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     lifts = None
     sites = landmark_sites.Landmarks(tile)
     sites.replace_also(farm.windmill_sites(tile))
+    sites.replace_also(landmark_sites.lighthouse_sites(tile))
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         roads, buildings, osm_timestamp = vectors.build(osm_file, tile)

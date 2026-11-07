@@ -423,6 +423,26 @@ def sea_chart_path(layer: str) -> Path:
     return path
 
 
+# Every sea light OSM maps over the sea chart's box, with its characteristic: the tiles' own answers hold only those
+# near a tile, and a lighthouse on an outer skerry is in none of them. Asked of Overpass for the lights alone.
+OVERPASS = "https://overpass-api.de/api/interpreter"
+SEA_LIGHTS_QUERY = '[out:json][timeout:90];node[~"^seamark:light(:[0-9]+)?:character$"~"."]({south},{west},{north},{east});out body;'
+
+
+def osm_sea_lights_path() -> Path:
+    """OSM's sea lights over the sea chart's box, as Overpass answered, fetched once and kept."""
+    path = RAW / "osm-lights" / "sea-lights.json"
+    if path.exists():
+        return path
+    to_lonlat = Transformer.from_crs("EPSG:3067", "EPSG:4326", always_xy=True)
+    west, south, east, north = SEA_CHART_BOX
+    corners = [to_lonlat.transform(x, y) for x in (west, east) for y in (south, north)]
+    box = {"west": min(c[0] for c in corners), "south": min(c[1] for c in corners), "east": max(c[0] for c in corners), "north": max(c[1] for c in corners)}
+    query = SEA_LIGHTS_QUERY.format(**{name: f"{value:.6f}" for name, value in box.items()})
+    _download(urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(), headers={"User-Agent": USER_AGENT}), path)
+    return path
+
+
 def traffic_counts_path() -> Path:
     """Every regular traffic count on Åland's roads, in ETRS-TM35FIN: a site, its road number and the vehicles a day
     both ways over the week it was counted."""
