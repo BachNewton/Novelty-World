@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mix, noJolts, placeMix, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
+import { bellStrikesBetween, heardAt, mix, noJolts, placeMix, voicesHeard, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
@@ -225,6 +225,60 @@ describe("the place by the season and the hour", () => {
     const open = placeMix(shore, { yearDay: 20, sunDeg: 7, hour: 12, leafed: 0, iceReach: 0 });
     const frozen = placeMix(shore, { yearDay: 40, sunDeg: 15, hour: 12, leafed: 0, iceReach: 0.8 });
     expect(frozen.shoreLevel).toBe(0);
-    expect(frozen.winterLevel).toBeGreaterThan(open.winterLevel);
+    expect(frozen.iceLevel).toBeGreaterThan(open.iceLevel);
+  });
+
+  it("laps at a lake rather than breaking, and goes quiet to the ice when the lake freezes", () => {
+    const lake = { forest: 0.6, shore: 0, town: 0, lake: 0.4 };
+    const summer = placeMix(lake, { yearDay: 190, sunDeg: 40, hour: 14, leafed: 1, iceReach: 0 });
+    expect(summer.lakeLevel).toBeGreaterThan(0);
+    expect(summer.shoreLevel + summer.gullsPerS).toBe(0);
+    const winter = placeMix(lake, { yearDay: 20, sunDeg: 7, hour: 12, leafed: 0, iceReach: 0.3 });
+    expect(winter.lakeLevel).toBe(0);
+    expect(winter.iceLevel).toBeGreaterThan(0);
+  });
+});
+
+describe("sounds placed in the world", () => {
+  const facingNorth = { x: 0, z: 0, rightX: 1, rightZ: 0 };
+
+  it("comes from its own side, and falls off with distance", () => {
+    expect(heardAt(facingNorth, 30, 0, 1).pan).toBeCloseTo(1, 9);
+    expect(heardAt(facingNorth, -30, 0, 1).pan).toBeCloseTo(-1, 9);
+    expect(heardAt(facingNorth, 0, -30, 1).pan).toBeCloseTo(0, 9);
+    expect(heardAt(facingNorth, 0, -200, 1).gain).toBeLessThan(heardAt(facingNorth, 0, -20, 1).gain);
+    expect(heardAt(facingNorth, 0, -5000, 1).gain).toBe(0);
+  });
+
+  it("plays only the loudest heard, up to the budget", () => {
+    const sounds = [
+      { id: "far", x: 0, z: -400, loudness: 1 },
+      { id: "near", x: 0, z: -20, loudness: 1 },
+      { id: "loud", x: 0, z: -100, loudness: 8 },
+      { id: "gone", x: 0, z: -9000, loudness: 1 },
+    ];
+    expect(voicesHeard(facingNorth, sounds, 2).map(({ id }) => id)).toEqual(["loud", "near"]);
+    expect(voicesHeard(facingNorth, sounds, 10).map(({ id }) => id)).not.toContain("gone");
+    expect(voicesHeard(facingNorth, sounds, 0)).toEqual([]);
+  });
+});
+
+describe("the church bells", () => {
+  const DAY_S = 1800;
+  const strikesOver = (from: number, to: number, step = 0.002) => {
+    let strikes = 0;
+    for (let hour = from; hour < to; hour += step) strikes += bellStrikesBetween(hour, hour + step, DAY_S);
+    return strikes;
+  };
+
+  it("strikes each hour's number by day, frame by frame, and nothing at night", () => {
+    expect(strikesOver(14.9, 15.5)).toBe(3);
+    expect(strikesOver(11.9, 12.5)).toBe(12);
+    expect(strikesOver(1.5, 6.5)).toBe(0);
+    expect(strikesOver(21.9, 22.5)).toBe(0);
+  });
+
+  it("strikes nothing for a jump of the clock", () => {
+    expect(bellStrikesBetween(9.9, 15.1, DAY_S)).toBe(0);
   });
 });
