@@ -302,8 +302,9 @@ export function wheelShares(wheels: readonly Surface[], suspension: readonly num
 
 const BIKE_TYRE_SHARE = 0.5;
 
-const WIND_LOW = 0.7;
-const WIND_HIGH = 0.2;
+/** The wind of the car's speed, low and high bands: about half as loud as it was, which drowned the rest at speed. */
+const WIND_LOW = 0.4;
+const WIND_HIGH = 0.11;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
 const PLACE = { birds: 0.36, winterCalls: 0.3, ice: 0.5, shore: 0.42, lake: 0.6 };

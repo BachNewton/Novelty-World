@@ -110,21 +110,40 @@ export function engineCycle(spec: EngineSpec, seed: number): Loop {
   return { rate: HIGH_RATE, channels: [channel] };
 }
 
-/** Stones under a tyre: thousands of short ticks and fewer low pops. */
+/** A short burst of noise through a one-pole low-pass at `corner`, dying away over `decayS`: unpitched, as stone on stone is. */
+function crunchBurst(next: () => number, decayS: number, corner: number, rate: number): Float32Array {
+  const out = new Float32Array(Math.round(decayS * 5 * rate));
+  const share = 1 - Math.exp((-TAU * corner) / rate);
+  let held = 0;
+  for (let i = 0; i < out.length; i++) {
+    held += (next() * 2 - 1 - held) * share;
+    out[i] = held * Math.exp(-i / rate / decayS);
+  }
+  return out;
+}
+
+/**
+ * Stones under a tyre: a gritty grind of crushed gravel, thousands of short unpitched crunches over it, and fewer low
+ * knocks of bigger stones. No pings: tuned clicks in their thousands are heard as rain or running water.
+ */
 export function gravelLoop(): Loop {
   const next = random(23);
   const seconds = 3.7;
-  const channels = [samplesOf(seconds, HIGH_RATE), samplesOf(seconds, HIGH_RATE)];
-  for (let i = 0; i < 2400; i++) {
-    const hz = 1200 + 5200 * next() * next();
-    const decayS = 0.0005 + 0.0016 * next();
-    const level = 0.15 + 0.85 * next() * next();
-    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.4 - 0.7, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  const length = Math.round(seconds * HIGH_RATE);
+  const channels = [0, 1].map(() => {
+    const grit = lowNoise(length, next, () => 1800, HIGH_RATE);
+    const held = lowNoise(length, next, () => 250, HIGH_RATE);
+    return grit.map((sample, i) => 0.9 * (sample - held[i]));
+  });
+  for (let i = 0; i < 1600; i++) {
+    const burst = crunchBurst(next, 0.002 + 0.006 * next(), 500 + 2200 * next() * next(), HIGH_RATE);
+    const level = 0.6 + 2.4 * next() * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, burst.length / HIGH_RATE, next() * 1.4 - 0.7, (t) => level * burst[Math.min(Math.round(t * HIGH_RATE), burst.length - 1)]);
   }
-  for (let i = 0; i < 260; i++) {
-    const hz = 240 + 500 * next();
-    const decayS = 0.003 + 0.006 * next();
-    const level = 0.5 + next();
+  for (let i = 0; i < 200; i++) {
+    const hz = 140 + 220 * next();
+    const decayS = 0.004 + 0.008 * next();
+    const level = 0.4 + 0.8 * next();
     addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() - 0.5, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
   }
   normalise(channels, 0.9);
