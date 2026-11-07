@@ -20,7 +20,8 @@ It is one system with the `worktree` skill and the `/ready` command: the `worktr
 | Telling the orchestrator it's ready: `/ready` | the sub-session, then it stops |
 | Merging into `main` | the orchestrator |
 | The e2e tests for what landed | the orchestrator |
-| Tearing down the worktree, deleting the merged branch, archiving the session | the orchestrator |
+| Tearing down the worktree and archiving the session, as soon as its `/ready` arrives | the orchestrator |
+| Deleting the branch once it has landed | the orchestrator |
 
 **One writer to `main`.** Only the orchestrator merges into `main` while it runs, so merges never race, and a conflict is always met by the session that wrote the code (below). A sub-session never merges into `main`, tears down its own worktree or archives itself, even when told to "merge it": it runs `/ready`, which hands all of that over.
 
@@ -32,7 +33,7 @@ It is one system with the `worktree` skill and the `/ready` command: the `worktr
 
 ## Landing work
 
-When a session reports ready (its branch, its commit, the owner's words):
+When a session reports ready (its branch, its commit, the owner's words), its job is over: remove its worktree keeping the branch (`.\.claude\skills\worktree\teardown.ps1 -Name <worktree folder> -KeepBranch`) and archive it at once, before landing. A branch that later needs work goes to the archived session reopened, or to a new one.
 
 Landing is the `worktree` skill's two halves: the session has already merged `main` into its branch and gone green (`/ready`); the orchestrator merges the branch into `main`.
 
@@ -40,7 +41,7 @@ Landing is the `worktree` skill's two halves: the session has already merged `ma
 2. **Merge** into `main` (`git merge --no-ff refs/heads/<branch>`, with a `merge:` message saying what the work does). Batch whatever is ready at the same time.
 3. **Run the e2e tests the batch reaches**, once: `npm run test:e2e` on `main`, which picks the tests whose `e2e-covers` the merged changes touch. The tests run on a build of what landed, so a batch costs one build.
 4. **A failure goes back to the branch that caused it.** Its selector line says which change reached the failing test; send that session the failure and the command to reproduce it. Revert the merge from `main` if the failure blocks other work; otherwise leave it, and land the fix.
-5. **Tear down and archive**: `.\.claude\skills\worktree\teardown.ps1 -Name <worktree folder>` (it deletes the merged branch too), then archive the session. Tell the owner in one line what landed.
+5. **Delete the landed branch** (`git branch -d <branch>`), and tell the owner in one line what landed.
 
 Nothing is pushed unless the owner asks.
 

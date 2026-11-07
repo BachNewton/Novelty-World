@@ -4,7 +4,7 @@ import { createComputerCars, FIGHT_M, NEARER_FOR_STEPS, type ComputerCars } from
 import { SEND_EVERY_STEPS } from "./online-world";
 import type { ComputerCarMessage } from "./protocol";
 
-const at = (x: number): CarState => ({ position: [x, 0, 0], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0, 0, 0, 0], roll: 0, lamps: { head: true, brake: false, reverse: false } });
+const at = (x: number): CarState => ({ position: [x, 0, 0], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0, 0, 0, 0], roll: [0, 0, 0, 0], lamps: { head: true, brake: false, reverse: false } });
 
 interface Client {
   cars: ComputerCars;

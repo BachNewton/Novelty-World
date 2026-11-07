@@ -27,7 +27,7 @@ const restState = ({ id, ride }: CarSpec, steer: number, roll: number): CarState
   car: id ?? "skerry-gt",
   steer,
   suspension: [ride.sagM, ride.sagM, ride.sagM, ride.sagM],
-  roll,
+  roll: [roll, roll, roll, roll],
   lamps: LAMPS_OFF,
 });
 

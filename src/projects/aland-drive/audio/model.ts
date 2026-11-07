@@ -102,24 +102,30 @@ const SLIDE_STARTS_MS = 1.2;
 const SLIDE_FULL_MS = 7;
 const LOCKED_WHEELS_SLIP = 0.55;
 
-/** How hard the tyres are sliding, from the car's motion across its own nose. */
-export function slipOf(car: CarState, handbrake: boolean): number {
+/** How hard the tyres are sliding, from the car's motion across its own nose and how fast any tread spins or locks against the road. */
+export function slipOf(car: CarState, handbrake: boolean, spinsMS: readonly number[] = []): number {
   const speed = speedOf(car);
   const across = Math.abs(dot(car.velocity, rotate([1, 0, 0], car.rotation)));
   const sliding = clamp((across - SLIDE_STARTS_MS) / (SLIDE_FULL_MS - SLIDE_STARTS_MS));
+  const spinning = clamp((Math.max(0, ...spinsMS.map(Math.abs)) - SLIDE_STARTS_MS) / (SLIDE_FULL_MS - SLIDE_STARTS_MS));
   const locked = handbrake && speed > 3 ? LOCKED_WHEELS_SLIP : 0;
-  return Math.max(sliding, locked);
+  return Math.max(sliding, spinning, locked);
 }
 
-/** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "listener" | "paused" | "engine">): DriveAudioState {
+/** A frame's state from the simulation's car, with what only the game knows passed in: each wheel's spin among it. */
+export function stateFromCar(
+  car: CarState,
+  input: DriveInput,
+  known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "listener" | "paused" | "engine">,
+  spinsMS: readonly number[] = [],
+): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
     throttle: input.throttle,
     brake: input.brake,
     handbrake: input.handbrake,
-    slip: slipOf(car, input.handbrake),
+    slip: slipOf(car, input.handbrake, spinsMS),
     suspension: car.suspension,
   };
 }

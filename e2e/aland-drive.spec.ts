@@ -55,7 +55,7 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
 });
 
 // e2e-covers: src/projects/aland-drive/garage/** src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
-test("the game menu's tyre choices fit the set picked and mark it, and the car keeps them after a reload", async ({ page }) => {
+test("the game menu's tyre choices fit the set picked and mark it, its aids turn off, and the car keeps both after a reload", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const menu = page.getByRole("dialog", { name: "Game menu" });
@@ -70,10 +70,14 @@ test("the game menu's tyre choices fit the set picked and mark it, and the car k
   await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
   await expect(menu.getByRole("radio", { name: "Friction tyres" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: true, stability: true });
+  await menu.getByRole("button", { name: "Traction control" }).click();
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: false, stability: true });
 
   await page.reload();
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: false, stability: true });
 });
 
 // e2e-covers: src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts src/projects/aland-drive/render/graphics-settings.ts

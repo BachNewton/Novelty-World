@@ -6,7 +6,7 @@ import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, T
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
-const STATE: CarState = { position: [10, 2, -30], rotation: [0, 0, 0, 1], velocity: [5, 0, -12], spin: [0, 0.3, 0], car: "skerry-gt", steer: 0.1, suspension: [0.1, 0.1, 0.1, 0.1], roll: 3, lamps: { head: true, brake: true, reverse: false } };
+const STATE: CarState = { position: [10, 2, -30], rotation: [0, 0, 0, 1], velocity: [5, 0, -12], spin: [0, 0.3, 0], car: "skerry-gt", steer: 0.1, suspension: [0.1, 0.1, 0.1, 0.1], roll: [3, 3, 3, 3], lamps: { head: true, brake: true, reverse: false } };
 const player = (peerId: string): Player => ({ id: `profile-${peerId}`, name: peerId, peerId });
 
 interface Client {

@@ -67,7 +67,7 @@ The engine is built in stages, each one earning the next:
 
 ## Bots
 
-The bot direction is a rules-based bot. `ideas/risk-bot-ai.md` is the research behind that choice and the survey of stronger methods. `ideas/roadmap.md` says where each line of bot work stands (v7, the stall, distillation, native, self-play) and its next step.
+The bot direction is a rules-based bot. `ideas/risk-bot-ai.md` is the research behind that choice and the survey of stronger methods. `ideas/roadmap.md` says where each line of bot work stands (v7, the stall, native, the learned bot) and its next step. Anything that learns follows the `machine-learning` skill (`.claude/skills/machine-learning/`), and `ideas/learned-bot.md` is the learned bot's one plan: its brief, its ruler, its stages and the next run's predictions.
 
 - **One build, laptop to server.** A bot ships as the exact code that was tuned on the laptop. There is no separate "tuning" bot and "shipping" bot to drift apart.
 - **Bots run on the server.** Game state lives in the database and a server function plays the bot seats, as in Monopoly, so a phone only shows the game and sends its player's moves. Thinking time is spent once per turn, planning it, not on each of a turn's many small decisions.

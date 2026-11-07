@@ -3,7 +3,7 @@ import { axleShare, sagOf, STEP_S, wheelBaseOf, type CarTuning } from "./tuning"
 import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
 import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
-import { pullAt, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
+import { pullAt, radiansPerMetre, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
 import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip, type Tyre } from "./surfaces";
 
 /*
@@ -33,6 +33,22 @@ export interface DriveInput {
 
 export const NO_INPUT: DriveInput = { throttle: 0, brake: 0, steer: 0, handbrake: false };
 
+/**
+ * The driver's aids, each the player's to turn off, as in Forza Horizon. With all three on the car is as forgiving
+ * as it was tuned: no wheel spins or locks, and the car turns no faster than its tyres can take.
+ */
+export interface Assists {
+  /** The brakes never lock a wheel. Off, a locked front wheel steers nothing. */
+  abs: boolean;
+  /** The engine never spins a wheel. Off, the whole engine reaches the wheels, and a tyre can spin. */
+  traction: boolean;
+  /** Steadies the car's turn to what its steering asks. Off, the car turns only as its tyres push it. */
+  stability: boolean;
+}
+
+export const ALL_ASSISTS: Assists = { abs: true, traction: true, stability: true };
+export const ASSISTS = ["abs", "traction", "stability"] as const satisfies readonly (keyof Assists)[];
+
 /** What the wheels stand on: the surface a ray landed on, and the condition it's in there. */
 export interface Underfoot {
   groundUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): { surface: Surface; condition: Condition };
@@ -47,6 +63,8 @@ export interface Tread {
   slideMS: number;
   /** What the tyre was asked for over what it could grip: past 1 it was sliding, spinning or locked. 0 off the ground. */
   demand: number;
+  /** How much faster the tyre's tread turned than the ground passed under it, metres a second: above 0 spinning, below it locking. */
+  spinMS: number;
 }
 
 const WHEELS = [
@@ -60,6 +78,18 @@ const SLOW_MS = 0.6;
 const STOPPED_FOR_REVERSE_MS = 1;
 /** The share of the peak slip angle the lock allows on top of the path, measured: more and the fronts slide past their peak at middle speeds. */
 const SLIP_ROOM = 0.3;
+/** How far past the angle they grip best at the steering lets the front tyres run, wherever the car is heading. */
+const FRONT_SLIP_HELD = 1;
+/** Under this speed the steering turns as far as the wheel asks: a hairpin taken slowly needs the lock before the car has turned to it. */
+const FRONT_SLIP_HELD_FROM_MS = 10;
+/** A wheel and its brake disc turning, kg m². */
+const WHEEL_INERTIA = 1.2;
+/** The engine's flywheel and the gearbox turning with it, kg m²: in a low gear it is most of what a driven wheel has to spin up. */
+const ENGINE_INERTIA = 0.2;
+/** How much faster or slower than the road a tyre's tread turns where it grips best, as a share of the road's speed. */
+const PEAK_SLIP_RATIO = 0.1;
+/** A spinning or locked wheel's own turning is worked out in this many steps a step: it settles faster than the car moves. */
+const WHEEL_SUBSTEPS = 16;
 
 function rotate(q: Rotation, v: Vector3): Vector3 {
   const [x, y, z, w] = q;
@@ -103,7 +133,12 @@ export class Car {
   readonly body: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
   private steer = 0;
-  private roll = 0;
+  private readonly roll: CarState["roll"] = [0, 0, 0, 0];
+  /** How fast each tyre's tread turns, metres a second: the road's speed while it grips, its own while it spins or locks. */
+  private readonly wheelMS = [0, 0, 0, 0];
+  private readonly slipping = [false, false, false, false];
+  /** The driver's aids, which a car keeps until they're changed. */
+  assists: Assists = ALL_ASSISTS;
   private reversingNow = false;
   private brakingNow = false;
   /** The headlamps: always on while driving, as the law has it. */
@@ -117,7 +152,7 @@ export class Car {
   /** The condition of what each wheel was on the last time it touched. */
   readonly conditions: Condition[] = ["dry", "dry", "dry", "dry"];
   /** How each wheel's tyre met the ground on the last step. */
-  readonly treads: Tread[] = WHEELS.map(() => ({ contact: [0, 0, 0], rollMS: 0, slideMS: 0, demand: 0 }));
+  readonly treads: Tread[] = WHEELS.map(() => ({ contact: [0, 0, 0], rollMS: 0, slideMS: 0, demand: 0, spinMS: 0 }));
 
   readonly tuning: CarTuning;
 
@@ -153,6 +188,13 @@ export class Car {
     const up = rotate(before.rotation, [0, this.rideM - from.rideM, 0]);
     this.resume({ ...before, position: [before.position[0] + up[0], before.position[1] + up[1], before.position[2] + up[2]] });
     this.reversingNow = from.reversingNow;
+    this.assists = from.assists;
+  }
+
+  /** Every wheel turning with the road at a speed, none spinning or locked. */
+  private rollingAt(forward: number): void {
+    this.wheelMS.fill(forward);
+    this.slipping.fill(false);
   }
 
   /** Carries on from a state: there, moving as it moves, the engine in the gear this speed asks for. */
@@ -164,7 +206,8 @@ export class Car {
     this.body.setLinvel({ x: state.velocity[0], y: state.velocity[1], z: state.velocity[2] }, true);
     this.body.setAngvel({ x: state.spin[0], y: state.spin[1], z: state.spin[2] }, true);
     this.steer = state.steer;
-    this.roll = state.roll;
+    for (let wheel = 0; wheel < 4; wheel++) this.roll[wheel] = state.roll[wheel];
+    this.rollingAt(dot(state.velocity, rotate(state.rotation, [0, 0, -1])));
     this.reversingNow = false;
     this.engineNow = runningEngine(this.tuning.gearbox, Math.hypot(...state.velocity));
   }
@@ -181,6 +224,7 @@ export class Car {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.steer = 0;
+    this.rollingAt(0);
     this.reversingNow = false;
     this.brakingNow = false;
     this.engineNow = restingEngine(this.tuning.gearbox);
@@ -210,7 +254,12 @@ export class Car {
     if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
     if (input.throttle > 0) this.reversingNow = false;
     this.brakingNow = input.brake > 0 && !this.reversingNow;
-    this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S).read;
+    const shares = WHEELS.map((wheel) => (wheel.end === 1 ? 1 - power.rearShare : power.rearShare) / 2);
+    const driven = shares.reduce((sum, share, index) => sum + share * Math.abs(this.wheelMS[index]), 0);
+    this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S, driven).read;
+    // What a tread has to turn to spin its wheel up: the wheel itself, and the engine through the gear for its share of the drive.
+    const engineKg = ENGINE_INERTIA * radiansPerMetre(tuning, this.engineNow.gear) ** 2;
+    const wheelKg = shares.map((share) => WHEEL_INERTIA / car.wheelRadiusM ** 2 + share * engineKg);
 
     const drive = this.driveForce(input, forward);
     const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: -up[0], y: -up[1], z: -up[2] });
@@ -234,7 +283,7 @@ export class Car {
       contacts.push(contact);
       const tread = this.treads[index];
       for (let axis = 0; axis < 3; axis++) tread.contact[axis] = contact[axis];
-      tread.rollMS = tread.slideMS = tread.demand = 0;
+      tread.rollMS = tread.slideMS = tread.demand = tread.spinMS = 0;
       if (hit) {
         const under = this.underfoot.groundUnder(hit, contact[0], contact[2]);
         this.surfaces[index] = under.surface;
@@ -249,7 +298,17 @@ export class Car {
     const touching = this.contact.filter(Boolean).length;
     const felt = touching === 0 ? FIRM_FOOTING : { grip: footing.grip / touching, peakSlip: footing.peakSlip / touching };
 
-    const target = input.steer * steerLimit(tuning, speed, input.handbrake, felt);
+    let target = input.steer * steerLimit(tuning, speed, input.handbrake, felt);
+    const frontAxle = along(velocity, cross(spin, rotate(rotation, [0, 0, car.axleZ[0]])), 1);
+    const frontForward = dot(frontAxle, nose);
+    if (!input.handbrake && frontForward > FRONT_SLIP_HELD_FROM_MS) {
+      // The fronts turn no further past the way they're going than the angle they grip best at: braking into a bend, the
+      // lock the speed allows opens out as the car slows, and past that angle the tyres plough on rather than turn.
+      const heading = Math.atan2(dot(frontAxle, rotate(rotation, [1, 0, 0])), frontForward);
+      const most = grip.peakSlip * felt.peakSlip * FRONT_SLIP_HELD;
+      if (target > 0) target = Math.min(target, Math.max(0, heading + most));
+      if (target < 0) target = Math.max(target, Math.min(0, heading - most));
+    }
     const rate = (Math.abs(target) < Math.abs(this.steer) ? steering.returnPerS : steering.turnPerS) * STEP_S;
     this.steer += clamp(target - this.steer, -rate, rate);
 
@@ -284,22 +343,63 @@ export class Car {
       const reachGrip = (isFront ? grip.frontMu : grip.rearMu) * ground.grip * (handbraked ? grip.handbrakeRearShare : 1) * load;
       const slip = Math.atan2(slideSpeed, Math.max(Math.abs(rollSpeed), grip.lowSpeedMS));
       const curve = { peakSlip: grip.peakSlip * ground.peakSlip, slideShare: grip.slideShare + (1 - grip.slideShare) * ground.holdOn };
-      let side = -reachGrip * gripAt(curve, slip);
-      let ahead = (isFront ? 1 - power.rearShare : power.rearShare) * drive / 2;
+      const push = shares[index] * drive;
       const braking = input.brake > 0 && !this.reversingNow ? input.brake * power.brakeN * (isFront ? power.brakeFrontShare : 1 - power.brakeFrontShare) / 2 : 0;
       const handbrake = handbraked ? power.handbrakeN / 2 : 0;
       const parked = input.throttle === 0 && input.brake === 0 && speed < SLOW_MS ? power.brakeN / 8 : power.rollingN / 4 + (ground.rolling + ground.rollingPerMS * Math.abs(rollSpeed)) * load;
-      ahead -= clamp(rollSpeed / SLOW_MS, -1, 1) * (braking + handbrake + parked);
-
-      const asked = Math.hypot(side, ahead);
+      const holding = braking + handbrake + parked;
+      const wanted = push - clamp(rollSpeed / SLOW_MS, -1, 1) * holding;
+      // Traction control and ABS keep a tyre at its grip rather than let it spin or lock.
+      const helped = (wanted > 0 && this.assists.traction) || (wanted < 0 && this.assists.abs);
       const tread = this.treads[index];
       tread.rollMS = rollSpeed;
       tread.slideMS = slideSpeed;
-      tread.demand = reachGrip > 0 ? asked / reachGrip : 0;
-      if (asked > reachGrip) {
-        side *= reachGrip / asked;
-        ahead *= reachGrip / asked;
+
+      let side: number;
+      let ahead: number;
+      if (handbraked || (!this.slipping[index] && (Math.abs(wanted) <= reachGrip || helped))) {
+        // Turning with the road, or locked by the handbrake: the tyre gives what's asked, up to its grip.
+        side = -reachGrip * gripAt(curve, slip);
+        ahead = wanted;
+        const asked = Math.hypot(side, ahead);
+        tread.demand = reachGrip > 0 ? asked / reachGrip : 0;
+        if (asked > reachGrip) {
+          side *= reachGrip / asked;
+          ahead *= reachGrip / asked;
+        }
+        this.slipping[index] = false;
+        this.wheelMS[index] = handbraked ? 0 : rollSpeed;
+      } else {
+        // Spinning or locking: the wheel turns at its own speed, the engine and the brakes on one side of it and the
+        // tyre's grip on the other, and the tyre's slip along and across share one curve.
+        const base = Math.max(Math.abs(rollSpeed), grip.lowSpeedMS);
+        const peakRatio = PEAK_SLIP_RATIO * ground.peakSlip;
+        if (!this.slipping[index]) this.wheelMS[index] = rollSpeed + Math.sign(wanted) * peakRatio * base;
+        const across = slip / curve.peakSlip;
+        const kg = wheelKg[index];
+        const dt = STEP_S / WHEEL_SUBSTEPS;
+        let turning = this.wheelMS[index];
+        side = ahead = 0;
+        let size = 0;
+        for (let sub = 0; sub < WHEEL_SUBSTEPS; sub++) {
+          const lengthwise = (turning - rollSpeed) / base / peakRatio;
+          size = Math.hypot(lengthwise, across);
+          const perSlip = size > 0 ? (reachGrip * Math.abs(gripAt(curve, size * curve.peakSlip))) / size : 0;
+          const grips = perSlip * lengthwise;
+          side -= (perSlip * across) / WHEEL_SUBSTEPS;
+          ahead += grips / WHEEL_SUBSTEPS;
+          // The brakes and rolling hold the wheel against whichever way it turns, and hold it still once stopped.
+          const free = turning + ((push - grips) * dt) / kg;
+          const held = (holding * dt) / kg;
+          turning = Math.abs(free) <= held ? 0 : free - Math.sign(free) * held;
+        }
+        this.wheelMS[index] = turning;
+        tread.demand = size;
+        const lengthwise = (turning - rollSpeed) / base;
+        this.slipping[index] = !(Math.abs(lengthwise) <= peakRatio && (Math.abs(wanted) <= reachGrip || helped));
+        if (!this.slipping[index]) this.wheelMS[index] = rollSpeed;
       }
+      tread.spinMS = this.wheelMS[index] - rollSpeed;
 
       const applied = along(contact, up, grip.forceLiftM);
       const impulse = along(along(scale(normal, load), sideways, side), rolling, ahead);
@@ -311,7 +411,7 @@ export class Car {
     const air = along(scale(velocity, -drag), up, -downforce);
     this.body.applyImpulse({ x: air[0] * STEP_S, y: air[1] * STEP_S, z: air[2] * STEP_S }, true);
 
-    if (grounded === 4 && !input.handbrake && speed > SLOW_MS) {
+    if (this.assists.stability && grounded === 4 && !input.handbrake && speed > SLOW_MS) {
       // The rate the wheels' angle asks for, but no faster than the tyres can turn the car at this speed.
       const most = (steering.cornerMS2 * felt.grip) / Math.abs(forward);
       const asked = clamp((forward * Math.tan(this.steer)) / wheelBase, -most, most);
@@ -320,13 +420,19 @@ export class Car {
       this.body.applyTorqueImpulse({ x: up[0] * assist, y: up[1] * assist, z: up[2] * assist }, true);
     }
 
-    this.roll += (forward / car.wheelRadiusM) * STEP_S;
+    for (let wheel = 0; wheel < 4; wheel++) {
+      // A wheel off the ground turns with the car, or carries on spinning or locked as it was.
+      if (!this.contact[wheel] && !this.slipping[wheel]) this.wheelMS[wheel] = forward;
+      this.roll[wheel] += (this.wheelMS[wheel] / car.wheelRadiusM) * STEP_S;
+    }
   }
 
   private driveForce(input: DriveInput, forward: number): number {
     const { power } = this.tuning;
+    // The handbrake holds the clutch in, as the driving games do: it always beats the engine.
+    if (input.handbrake) return 0;
     if (this.reversingNow) return forward > -power.reverseSpeedMS ? -input.brake * power.reverseN : 0;
-    return pullAt(this.tuning, this.engineNow, input.throttle);
+    return pullAt(this.tuning, this.engineNow, input.throttle, this.assists.traction);
   }
 
   rotation(): Rotation {
@@ -350,7 +456,7 @@ export class Car {
       car: this.id,
       steer: this.steer,
       suspension: [...this.suspension],
-      roll: this.roll,
+      roll: [...this.roll],
       lamps: { head: this.headlamps, brake: this.brakingNow, reverse: this.reversingNow },
     };
   }
