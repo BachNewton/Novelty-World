@@ -712,10 +712,8 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
         xy = shapely.get_coordinates(middles[borrows])
         look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, crosses, owner[borrows], xy), on_paving)
     found = [Piece(face, int(who), GROUND, bool(on_walk), int(worn)) for face, who, on_walk, worn in zip(faces, owner, walk, look)]
-    found += _below_pieces(chains, prints, paved)
-    for index, by_level in prints.items():
-        if ABOVE in by_level:
-            found += [Piece(part, index, ABOVE) for part in _flat(shapely.segmentize(by_level[ABOVE], LONGEST_SECTION_M))]
+    found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, BELOW)
+    found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, ABOVE)
     return found
 
 
@@ -802,23 +800,36 @@ def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapel
     return owner
 
 
-def _below_pieces(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], paved: shapely.Geometry) -> list[Piece]:
-    """The underpasses' paving, merged as the ground's is: two paths sharing an underpass are one floor. It's cut where the
-    ground's paving passes over it, so its points stand under the deck's edges and its walls rise from them."""
-    below = {index: by_level[BELOW] for index, by_level in prints.items() if BELOW in by_level}
-    if not below:
+def _off_ground_pieces(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], levels: dict[int, np.ndarray], crosses: dict[int, Cross], paved: shapely.Geometry, tile: shapely.Polygon, level: int) -> list[Piece]:
+    """The paving on a level off the ground, merged as the ground's is: two paths sharing an underpass are one floor, and
+    two ways meeting on a bridge one deck. It's cut along every way's carriageway and centre line, as the ground's is, so
+    the edge of a road's carriageway is where its points are, and where the ground's paving passes over or under it, so an
+    underpass's points stand under the deck's edges and its walls rise from them."""
+    on_level = {index: by_level[level] for index, by_level in prints.items() if level in by_level}
+    if not on_level:
         return []
-    indices = list(below)
-    laid = shapely.union_all(list(below.values()))
-    joined = _between_ways(_closed_in(laid, GAP_PAVED_M / 2), [chains[index] for index in indices], [below[index] for index in indices])
+    indices = list(on_level)
+    laid = shapely.union_all(list(on_level.values()))
+    joined = _between_ways(_closed_in(laid, GAP_PAVED_M / 2), [chains[index] for index in indices], [on_level[index] for index in indices])
     shape = shapely.union_all([laid, *joined])
-    lines = [shape.boundary, shapely.intersection(paved.boundary, shape)] + [shapely.intersection(part.boundary, shape) for part in below.values()]
+    carriageways = {index: footprints(chains[index], levels[index], tile, crosses[index].carriageway).get(level) for index in indices}
+    carriageways = {index: shapely.intersection(found, shape) for index, found in carriageways.items() if found is not None}
+    lines = [shape.boundary, shapely.intersection(paved.boundary, shape)]
+    lines += [shapely.intersection(part.boundary, shape) for part in [*on_level.values(), *carriageways.values()]]
+    for index in indices:
+        chain = chains[index]
+        # A way's outline on a level reaches a station either side of its run there, and so does its centre line.
+        for first, last in _runs(levels[index] == level):
+            line = shapely.LineString(chain.xy[max(first - 1, 0) : last + 2])
+            lines.append(shapely.intersection(shapely.simplify(line, OUTLINE_WITHIN_M), shape))
     linework = shapely.segmentize(shapely.union_all([line for line in lines if not line.is_empty], grid_size=GRID_M), LONGEST_SECTION_M)
     faces = shapely.get_parts(shapely.polygonize(shapely.get_parts(linework)))
     middles = shapely.point_on_surface(faces)
     inside = shapely.contains(shape.buffer(SLIVER_M), middles)
-    owner = _greatest(chains, below, middles[inside])
-    return [Piece(face, int(who), BELOW) for face, who in zip(faces[inside], owner)]
+    faces, middles = faces[inside], middles[inside]
+    owner = _greatest(chains, carriageways, middles)
+    owner = np.where(owner == JUNCTION, _greatest(chains, on_level, middles), owner)
+    return [Piece(face, int(who), level) for face, who in zip(faces, owner)]
 
 
 @dataclass

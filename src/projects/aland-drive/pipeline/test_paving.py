@@ -561,5 +561,24 @@ class Underpasses(unittest.TestCase):
         # Away from the road both are on the ground, one paving with the strip between them, not two trenches.
         self.assertTrue(np.isfinite(paving.Cover(corners[:, :, :3]).at(np.array([[599.75, 650.0], [599.75, 550.0]]))).all())
 
+    def test_a_road_under_a_deck_keeps_its_carriageway_s_edge_where_it_is_outside(self):
+        """The floor under a deck was cut only along its outline, so its triangles ran from the centre to the shoulder's edge
+        and the carriageway's edge, drawn where across is 1, came three quarters of the way out: inward, by a jog at each end."""
+        ways = [road([(600, 400), (600, 800)], "footway", motor=False), road([(100, 600), (1100, 600)], "primary", tunnel="yes")]
+        paved = paving.lay(ways, land())
+        primary = next(chain for chain in paved.chains if chain.kind_name == "primary")
+        corners = paved.points[paved.triangles]
+        mine = (corners[:, :, 6].astype(int) == primary.index).all(axis=1)
+        deck = float(corners[(corners[:, :, 6].astype(int) != primary.index).all(axis=1)][:, :, 2].max())
+        floor = corners[mine & (corners[:, :, 2] < deck - paving.UNDERPASS_CLEAR_M + 0.01).all(axis=1)]
+        self.assertGreater(len(floor), 0)
+        half = float(primary.half.max())
+        for north in (600 + half, 600 - half):
+            at = np.array([[600.0, north - np.sign(north - 600) * 0.01]])
+            held = shapely.STRtree(shapely.polygons(np.concatenate((floor[:, :, :2], floor[:, :1, :2]), axis=1))).query(shapely.points(at), predicate="intersects")[1]
+            self.assertGreater(len(held), 0)
+            across = paving._on_planes(floor[held][:, :, [0, 1, 3]], np.repeat(at, len(held), axis=0))
+            np.testing.assert_allclose(np.abs(across), 1, atol=0.02)
+
 if __name__ == "__main__":
     unittest.main()
