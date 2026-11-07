@@ -31,6 +31,7 @@ test.afterAll(() => {
 test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(90_000);
 
+// e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/render/stream.ts src/projects/aland-drive/components/aland-drive*.tsx src/projects/aland-drive/sim/{drive,car}.ts src/projects/aland-drive/input/**
 test("the drive starts on WebGPU and the car moves under the keyboard", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -53,6 +54,7 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+// e2e-covers: src/projects/aland-drive/garage/** src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
 test("the game menu's Tyres changes the car's tyres in turn, and the car keeps them after a reload", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -71,6 +73,7 @@ test("the game menu's Tyres changes the car's tyres in turn, and the car keeps t
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
 });
 
+// e2e-covers: src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts src/projects/aland-drive/render/graphics-settings.ts
 test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes it", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -105,6 +108,7 @@ test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes 
   await expect(menu).toBeHidden();
 });
 
+// e2e-covers: src/projects/aland-drive/render/{verge,planting}.ts
 test("the verge grows beside the road, and leaving it out takes its triangles away", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -116,6 +120,7 @@ test("the verge grows beside the road, and leaving it out takes its triangles aw
   await page.waitForFunction(() => window.__alandDrive?.vergeDrawn().triangles === 0);
 });
 
+// e2e-covers: src/projects/aland-drive/render/{forest,tree-place,tree-shapes,foliage-light}.ts
 test("the forest draws only what the GPU picked, and a setting changes that with no rebuild", async ({ page }) => {
   await page.goto(`${onFixture}&forest-lab`);
   const drawnOnce = (reach: number) =>
@@ -142,6 +147,7 @@ test("the forest draws only what the GPU picked, and a setting changes that with
   expect(narrow.turned + narrow.cone).toBeLessThan(wide.turned + wide.cone);
 });
 
+// e2e-covers: src/projects/aland-drive/map/** src/projects/aland-drive/render/map-camera.ts
 test("a place picked on the world map sets a route on both maps, and the map closes back to the drive", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });
@@ -189,6 +195,7 @@ test("a place picked on the world map sets a route on both maps, and the map clo
   await expect(page.getByLabel("Distance to go")).toBeHidden();
 });
 
+// e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/components/aland-drive*.tsx
 test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ page }) => {
   // The failure three hides: an adapter is there, the device can't be made, and it quietly drops to WebGL2.
   await page.addInitScript(() => {
@@ -199,6 +206,7 @@ test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ p
   expect(await page.evaluate(() => window.__alandDrive)).toBeUndefined();
 });
 
+// e2e-covers: src/projects/aland-drive/render/{stream,tile.worker,tile-layers}.ts
 test("a tile that can't be fetched says so, and the page doesn't pretend otherwise", async ({ page }) => {
   // A world whose tiles aren't there: the same path a dropped connection or a bad deploy takes.
   const folder = mkdtempSync(join(tmpdir(), "aland-drive-"));
