@@ -69,8 +69,10 @@ export interface GameMenu {
   challenge?: string;
   result?: MenuResult;
   kind?: MenuKind;
-  /** The other player a co-op choice is about. */
+  /** The player whose co-op invite this is. */
   partner?: string;
+  /** How many other players a co-op invite would ask: set when one can be sent. */
+  players?: number;
   /** The tyres on the car, which the tyre choices mark. */
   tyres?: Tyre;
   /** The driver's aids, which their items show and turn on and off. */

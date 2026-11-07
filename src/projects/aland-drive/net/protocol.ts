@@ -32,15 +32,16 @@ export interface CarMessage {
 
 /**
  * A co-op challenge's messages (`challenge/coop.ts`), each naming the challenge
- * and the attempt it's about. Invite, accept, decline: pairing. Start: the
- * inviter has the pair, told to everyone so no third player is offered either.
- * Retry: the attempt both go back for. Ready: this car is on its start place
- * for the attempt. Result: this player's own time or speed. Lost: this client
- * called the attempt lost on its own clock, with the results it had. Leave:
- * out of the challenge, or an invite taken back.
+ * and the attempt it's about. Invite, to everyone, and accept: pairing. Start:
+ * the inviter has the pair, told to everyone so no third player is offered
+ * either and every other invitee drops the invite. Retry: the attempt both go
+ * back for. Ready: this car is on its start place for the attempt. Result:
+ * this player's own time or speed. Lost: this client called the attempt lost
+ * on its own clock, with the results it had. Leave: out of the challenge, or
+ * an invite or accept taken back.
  */
 export type ChallengeMessage =
-  | { type: "invite" | "accept" | "decline" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
+  | { type: "invite" | "accept" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
   | { type: "start"; challenge: string; attempt: number; partner: string }
   | { type: "result"; challenge: string; attempt: number; result: number }
   | { type: "lost"; challenge: string; attempt: number; results: (number | null)[] };
@@ -232,7 +233,7 @@ export function parseComputerCar(value: unknown): ComputerCarMessage | null {
   const gone = value.gone ? { gone: true as const } : {};
   return isTime(value.at) ? { id, runner, handovers, state, at: value.at, driver, ...gone } : { id, runner, handovers, state, driver, ...gone };
 }
-const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
+const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "retry", "ready", "leave"]);
 const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
