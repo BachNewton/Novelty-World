@@ -24,7 +24,9 @@ or kinking with the ground), the tile's list of issues says where, for the road
 fixes to work from. The game draws it all in the lane lab.
 
 Run alone, it adds `lanes.json.gz` to tiles already built, which needs no
-rebuild: it reads the road surface, the roads and OSM's signs and signals.
+rebuild: it reads the road surface, the roads and OSM's signs and signals. Each
+motor lane also carries its road's vehicles a day, from Åland's traffic counts
+(`traffic_volume.py`), which sets how busy the game makes it.
 """
 
 import argparse
@@ -43,9 +45,10 @@ from grid import WORLD_ORIGIN, neighbour, tile_from_name
 from progress import Progress
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Roadside, other_than_seam, replace_text, roll
 from roads import APRON_CORNER_M, CLASSES
+from traffic_volume import TrafficVolume
 
 FILE = "lanes.json.gz"
-LICENCE = roadside.LICENCE
+LICENCE = {"license": "ODbL-1.0", "attribution": f"{roadside.LICENCE['attribution']}; traffic counts © Ålands landskapsregering, CC BY 4.0"}
 # Where a road's end lands on another: within the other's half width and this.
 LANDING_REACH_M = roadside.MOUTH_M
 # A junction reaches this far along the road a lesser one lands on, past the lesser road's edges, and its corner more.
@@ -103,6 +106,7 @@ class Rules:
     way: object  # (point, the chain's way there) -> (OSM's tags, +1 if the OSM way runs with the chain, -1 against it).
     limits: object  # (chain) -> [(along, km/h)], OSM's limits as the speed signs read them.
     built_up: object  # (point) -> bool.
+    daily: object  # (motor chain) -> vehicles a day both ways (`traffic_volume.py`).
 
 
 @dataclass
@@ -983,6 +987,7 @@ class LaneMap:
                 "of": lane.of,
                 "width": round(lane.width, 2),
                 "speeds": [[along, speed] for along, speed in lane.speeds],
+                **({"daily": round(self.rules.daily(lane.chain))} if lane.chain.motor else {}),
                 **({"from": junction_ids[self.root(lane.start)]} if lane.start is not None and self.root(lane.start) in junction_ids else {}),
                 **({"to": junction_ids[self.root(lane.end)]} if lane.end is not None and self.root(lane.end) in junction_ids else {}),
                 **({"seamStart": True} if lane.seam_start else {}),
@@ -1062,7 +1067,7 @@ def apron_triangles(folder: Path, manifest: dict) -> list[np.ndarray]:
     return list(points[triangles][:, :, :3])
 
 
-def lane_map(name: str, tiles: Path) -> LaneMap:
+def lane_map(name: str, tiles: Path, volume: TrafficVolume) -> LaneMap:
     tile = tile_from_name(name)
     folder = tiles / name
     side = Roadside(tile, folder, tiles)
@@ -1072,13 +1077,16 @@ def lane_map(name: str, tiles: Path) -> LaneMap:
         speeds = [roadside.speed_of(side.ways.at(ring[CENTRE, :2])) for ring in chain.rings]
         return [(float(chain.along[index]), speed) for index, speed in roadside.limit_changes(chain.along, speeds)]
 
-    rules = Rules(sign=side.junction_sign, signals=signal_phases(side), way=Ways(roads), limits=limits, built_up=side.built_up)
+    def daily(chain: Chain) -> float:
+        return volume.daily(chain, bool(side.built_up(chain.ring_at(chain.length / 2)[CENTRE, :2])))
+
+    rules = Rules(sign=side.junction_sign, signals=signal_phases(side), way=Ways(roads), limits=limits, built_up=side.built_up, daily=daily)
     return LaneMap(side.chains, apron_triangles(folder, side.manifest) if "roadSurface" in side.manifest else [], side.box, rules, side.heights.at).build()
 
 
-def bake(name: str, tiles: Path) -> dict:
+def bake(name: str, tiles: Path, volume: TrafficVolume) -> dict:
     """Writes a tile's lane map and returns its manifest entry."""
-    lanes = lane_map(name, tiles)
+    lanes = lane_map(name, tiles, volume)
     written = lanes.written()
     temporary = tiles / name / (FILE + ".new")
     temporary.write_bytes(gzip.compress(json.dumps(written, separators=(",", ":")).encode(), 9, mtime=0))
@@ -1156,10 +1164,12 @@ def main() -> None:
 
 
 def bake_tiles(names: list[str], tiles: Path) -> None:
-    """Adds the lane map to built tiles. It reads only each tile's own files, and OSM's signs and signals."""
+    """Adds the lane map to built tiles. It reads each tile's own files, OSM's signs and signals, and the traffic counts
+    with every built tile's roads."""
+    volume = TrafficVolume.counted(tiles)
     progress = Progress("lanes", len(names))
     for name in names:
-        entry = bake(name, tiles)
+        entry = bake(name, tiles, volume)
         print(f"  {name}: {entry['count']}", flush=True)
         progress.finished(name)
 

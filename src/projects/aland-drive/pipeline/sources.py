@@ -7,6 +7,7 @@ missing.
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 from datetime import datetime, timezone
@@ -45,6 +46,8 @@ MSNFI_RIM_PIXELS = 60
 # 32766 couldn't be computed, 32767 isn't forest land.
 MSNFI_NODATA_FROM = 32766
 MSNFI_OUTSIDE = 32767
+# Ålands landskapsregering's traffic counts (CC BY 4.0, kartor.ax): each site counted for a week, about twice a year.
+TRAFFIC_COUNTS = "https://kartor.regeringen.ax/arcgis/rest/services/Infrastruktur/Trafikmatningar/MapServer/0/query"
 
 
 def _download(request: urllib.request.Request, path: Path) -> None:
@@ -417,4 +420,14 @@ def sea_chart_path(layer: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path.write_text(json.dumps({"source": service, "layer": name, "asOf": fetched, "features": features}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def traffic_counts_path() -> Path:
+    """Every regular traffic count on Åland's roads, in ETRS-TM35FIN: a site, its road number and the vehicles a day
+    both ways over the week it was counted."""
+    path = RAW / "kartor-traffic" / "counts.json"
+    if not path.exists():
+        query = urllib.parse.urlencode({"where": "1=1", "outFields": "ROADNR,POSITIONID,TRAFFVOLUME,STARTDATE", "outSR": "3067", "f": "json", "resultRecordCount": "5000"})
+        _download(urllib.request.Request(f"{TRAFFIC_COUNTS}?{query}", headers={"User-Agent": USER_AGENT}), path)
     return path

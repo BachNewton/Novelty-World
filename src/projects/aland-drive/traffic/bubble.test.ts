@@ -56,14 +56,14 @@ describe("the bubble", () => {
   });
 
   it("fills a road with the same vehicles each time, each slot its own seed", () => {
-    const { traffic, bubble } = setUp(5);
+    const { traffic, bubble } = setUp(10);
     const who = () => new Map([...traffic.all()].map((vehicle) => [vehicle.id, `${vehicle.kind} ${vehicle.seed} ${vehicle.model}`]));
     bubble.update({ x: 1500, z: 0 }, () => false);
     const first = who();
     bubble.setDensity("car", 0);
     bubble.setDensity("bike", 0);
-    bubble.setDensity("car", 5);
-    bubble.setDensity("bike", 5);
+    bubble.setDensity("car", 10);
+    bubble.setDensity("bike", 10);
     bubble.update({ x: 1500, z: 0 }, () => false);
     expect(first.size).toBeGreaterThan(5);
     expect(who()).toEqual(first);

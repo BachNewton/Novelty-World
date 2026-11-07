@@ -16,18 +16,20 @@ import type { LaneNet } from "./lane-net";
  * was there to see appear.
  */
 
-/** Vehicles per kilometre of one lane, at Åland's own light traffic: busiest on the main roads, a car every few minutes on a village lane. */
-const CARS_PER_KM: Partial<Record<string, number>> = {
-  primary: 0.8,
-  secondary: 0.6,
-  tertiary: 0.4,
-  unclassified: 0.2,
-  residential: 0.25,
-  living_street: 0.1,
-  road: 0.2,
-  service: 0.03,
-  track: 0.01,
-};
+/**
+ * Cars on a lane come from its road's real vehicles a day (`Lane.daily`): a road holds its flow over its speed at any
+ * moment, so a lane at Åland's own density holds half the day's traffic, at an average daytime hour's share of it,
+ * over its limit. Until the day's hours change it (piece 15 of `ideas/traffic-and-racers.md`), every hour is that one.
+ */
+const DAYTIME_HOUR_SHARE = 0.065;
+/** As games are, busier than the real island by half, so a drive away from town meets something about once a minute. */
+const BUSIER_THAN_REAL = 1.5;
+
+/** Cars per kilometre of a road lane at a density of 1. */
+function carsPerKm(lane: Lane): number {
+  const [[, speedKmh]] = lane.speeds;
+  return (BUSIER_THAN_REAL * DAYTIME_HOUR_SHARE * lane.daily) / 2 / speedKmh;
+}
 
 /** Cyclists per kilometre of one lane: most on the cycleways, a few on footways and quiet streets, fewest on the main roads. */
 const BIKES_PER_KM: Partial<Record<string, number>> = {
@@ -61,7 +63,7 @@ interface KindRules {
 }
 
 const RULES: Record<VehicleKind, KindRules> = {
-  car: { perKm: (lane) => (lane.path ? 0 : (CARS_PER_KM[lane.kind] ?? 0)), nearestM: 80, clearM: 25 },
+  car: { perKm: (lane) => (lane.path ? 0 : carsPerKm(lane)), nearestM: 80, clearM: 25 },
   bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8 },
 };
 

@@ -6,7 +6,7 @@ export function encoded(points: [number, number, number][]): number[] {
   return centimetres.flatMap((point, index) => (index === 0 ? point : point.map((value, axis) => value - centimetres[index - 1][axis])));
 }
 
-export const lane = (points: [number, number, number][], extra: Partial<LanesFile["lanes"][number]> = {}): LanesFile["lanes"][number] => ({ points: encoded(points), kind: "tertiary", chain: 0, forward: true, lane: 0, of: 1, width: 3, speeds: [[0, 70]], ...extra });
+export const lane = (points: [number, number, number][], extra: Partial<LanesFile["lanes"][number]> = {}): LanesFile["lanes"][number] => ({ points: encoded(points), kind: "tertiary", chain: 0, forward: true, lane: 0, of: 1, width: 3, speeds: [[0, 70]], daily: 300, ...extra });
 
 /**
  * East along z = 0 to a junction at x = 100, where a lane carries on east and a side road comes in from the south
