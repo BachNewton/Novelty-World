@@ -2005,7 +2005,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     onHeard: (car) => {
       // A hit car this page ran, handed on, or taken by another who hit it at the same moment.
       if (trafficContact.running().some((hit) => hit.id === car.id)) trafficContact.release(car.id);
-      drive.remotes.hear(standInOf(car.id), car.state);
+      drive.remotes.hear(standInOf(car.id), car.state, car.at === undefined ? undefined : { sentMs: car.at, heardMs: performance.now(), source: car.runner });
     },
     onGone: (id) => {
       drive.remotes.forget(standInOf(id));
@@ -2083,11 +2083,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let scriptedCarsAdded = 0;
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
-        onCar: (peerId, state) => {
+        onCar: (peerId, state, at) => {
           const other = others.get(peerId);
           if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
           other.heard = true;
-          drive.remotes.hear(peerId, state);
+          drive.remotes.hear(peerId, state, at === undefined ? undefined : { sentMs: at, heardMs: performance.now(), source: peerId });
         },
         onComputerCar: (peerId, car) => {
           computerCars.hear(peerId, car);
@@ -2307,20 +2307,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!held && !mapFrom && !jumping && !menuHolds) {
       owedSeconds += seconds;
       stepped = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
-      for (let step = 0; step < stepped; step++) simStep(nextInput());
       owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
+      // Other players' cars play out on the clock their states are heard by: these steps end at now, less what's owed.
+      drive.remotes.setClock(now - (owedSeconds + stepped * STEP_S) * 1000);
+      for (let step = 0; step < stepped; step++) simStep(nextInput());
       share = owedSeconds / STEP_S;
     } else if (sharedTraffic && !held) {
       // Paused, this page still runs its share of the shared traffic, which everyone else sees go on.
       owedTrafficSeconds = Math.min(owedTrafficSeconds + seconds, MOST_STEPS_A_FRAME * STEP_S);
       for (; owedTrafficSeconds >= STEP_S * TRAFFIC_EVERY; owedTrafficSeconds -= STEP_S * TRAFFIC_EVERY) stepTraffic();
     }
+    const steppedAt = now - owedSeconds * 1000;
     const car = drive.stateAt(share);
     carView.draw(car);
     carView.setLights(lightsOf(car.lamps));
     placeCarVolume(car);
     tyres.draw(share);
-    onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements);
+    onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements, steppedAt);
     computerCars.step(stepped);
     sentPlacements = drive.placements;
     const players = drawRemotes(share);
@@ -2524,6 +2527,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
       advance: (steps, input) => {
+        drive.remotes.setClock(performance.now() - steps * STEP_S * 1000);
         for (let step = 0; step < steps; step++) simStep(input ?? nextInput());
         if (seaHeldAt !== null) seaHeldAt += steps * STEP_S;
       },
