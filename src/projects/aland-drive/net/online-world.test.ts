@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
 import { createOnlineWorld, SEND_EVERY_STEPS, type OnlineWorld } from "./online-world";
-import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage } from "./protocol";
+import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, SharedDestination } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
@@ -18,6 +18,8 @@ interface Client {
   challenges: { from: string; message: ChallengeMessage }[];
   /** Computer-driven cars heard, each with who sent it. */
   computerCars: { from: string; car: ComputerCarMessage }[];
+  /** The room's destination as last heard. */
+  destination: SharedDestination | null;
 }
 
 /** An in-memory star: sends queue up and are delivered in order by `flush`, as over the relay. */
@@ -35,7 +37,7 @@ function createStar() {
   };
 
   function add(id: string): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], computerCars: [] };
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], computerCars: [], destination: null };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -69,6 +71,9 @@ function createStar() {
         },
         onChallenge: (from, message) => client.challenges.push({ from, message }),
         onComputerCar: (from, car) => client.computerCars.push({ from, car }),
+        onDestination: (destination) => {
+          client.destination = destination;
+        },
       },
     );
     clients.set(id, client);
@@ -238,5 +243,36 @@ describe("the online world", () => {
     star.reclaim();
     star.flush();
     expect(a.challenges).toEqual([{ from: "b", message: { type: "retry", challenge: "c", attempt: 4 } }]);
+  });
+
+  it("settles two destinations picked at once on the same one for everyone, the one the host heard last", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    a.world.sendDestination({ x: 1, z: 2 });
+    b.world.sendDestination({ x: 3, z: 4 });
+    star.flush();
+    const settled = { point: { x: 3, z: 4 }, setter: "b", name: "b" };
+    for (const client of [host, a, b]) expect(client.destination).toEqual(settled);
+    host.world.sendDestination(null);
+    star.flush();
+    for (const client of [host, a, b]) expect(client.destination).toEqual({ point: null, setter: "h", name: "h" });
+  });
+
+  it("hands the destination to a player who arrives later, even after the host who settled it has gone", () => {
+    const star = createStar();
+    star.join("h");
+    const a = star.join("a");
+    star.join("b");
+    a.world.sendDestination({ x: 5, z: 6 });
+    star.flush();
+    const late = star.join("late");
+    star.flush();
+    expect(late.destination).toEqual({ point: { x: 5, z: 6 }, setter: "a", name: "a" });
+    star.loseHost();
+    const later = star.join("later");
+    star.flush();
+    expect(later.destination).toEqual({ point: { x: 5, z: 6 }, setter: "a", name: "a" });
   });
 });

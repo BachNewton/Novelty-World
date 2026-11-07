@@ -42,6 +42,8 @@ const MINI_RIM_PX = 12;
 
 export class Navigator {
   route: Route | null = null;
+  /** The name of the other player who set the destination, or null for this player's own or a challenge's. */
+  setter: string | null = null;
   /** A challenge's route, which the car is sent back to rather than rerouted from. */
   private held = false;
   private along = 0;
@@ -76,10 +78,11 @@ export class Navigator {
     this.pen = pen;
   }
 
-  /** Sets the GPS to a place on the map, from where the car is. False when no road leads there. */
-  setDestination(fromX: number, fromZ: number, headingClockwise: number, toX: number, toZ: number): boolean {
+  /** Sets the GPS to a place on the map, from where the car is, set by another player when `setter` names them. False when no road leads there. */
+  setDestination(fromX: number, fromZ: number, headingClockwise: number, toX: number, toZ: number, setter: string | null = null): boolean {
     const route = this.graph.route(fromX, fromZ, headingClockwise, toX, toZ);
     this.route = route;
+    this.setter = setter;
     this.held = false;
     this.along = 0;
     this.toAlong = route?.line.length ?? 0;
@@ -90,6 +93,7 @@ export class Navigator {
   /** A route laid elsewhere, a challenge's, kept as it is however far the car strays from it, counting down to its finish line or camera, `finishM` along it. */
   holdRoute(route: Route, finishM: number): void {
     this.route = route;
+    this.setter = null;
     this.held = true;
     this.along = 0;
     this.toAlong = finishM;
@@ -104,7 +108,13 @@ export class Navigator {
 
   clearRoute(): void {
     this.route = null;
+    this.setter = null;
     this.held = false;
+  }
+
+  /** Whether the route is a challenge's, held as it is. */
+  get holding(): boolean {
+    return this.held;
   }
 
   get alongRoute(): number {
@@ -138,7 +148,7 @@ export class Navigator {
       return null;
     }
     if (!this.held && off > OFF_ROUTE_M && Math.hypot(this.lastRoute.x - x, this.lastRoute.z - z) > REROUTE_EVERY_M) {
-      this.setDestination(x, z, headingClockwise, end.x, end.z);
+      this.setDestination(x, z, headingClockwise, end.x, end.z, this.setter);
       return null;
     }
     return Math.max(this.toAlong - this.along, 0);
@@ -181,7 +191,7 @@ export class Navigator {
     const { pen, ink } = this;
     drawLand(pen, view, this.land, this.format, this.sharp, ink, MINI_LAND_DIM);
     drawRoads(pen, view, this.graph, 3, ink);
-    if (this.route) drawRoute(pen, view, this.route, this.along, ink);
+    if (this.route) drawRoute(pen, view, this.route, this.along, ink, this.setter, false);
     drawGates(pen, view, this.gates, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
     drawPlaces(pen, view, this.discovery.places.map((place) => ({ place, found: this.discovery.isFound(place) })), MINI_PLACE_PX, ink, false);
