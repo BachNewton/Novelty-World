@@ -15,7 +15,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -69,7 +69,7 @@ export interface GameMenu {
   kind?: MenuKind;
   /** The other player a co-op choice is about. */
   partner?: string;
-  /** The tyres on the car, which the Tyres item shows and changes. */
+  /** The tyres on the car, which the tyre choices mark. */
   tyres?: Tyre;
   /** The race a card is for. */
   race?: RaceCard;
@@ -81,4 +81,9 @@ export interface GameMenu {
  * The menu outside a challenge, on the car's tyres. Changing tyres is here until homes and car shops exist, and
  * never in a challenge, whose car is the challenge's.
  */
-export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres", "sound"], back: "resume", pauses: true, tyres });
+const TYRE_ITEMS: Record<`tyres-${Tyre}`, Tyre> = { "tyres-summer": "summer", "tyres-winter": "winter", "tyres-studded": "studded" };
+
+/** The tyres a tyre choice fits. */
+export const tyreOfItem = (id: `tyres-${Tyre}`): Tyre => TYRE_ITEMS[id];
+
+export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "sound"], back: "resume", pauses: true, tyres });

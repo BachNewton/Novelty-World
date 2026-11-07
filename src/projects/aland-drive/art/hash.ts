@@ -1,5 +1,6 @@
-import { float, floor, int, uint } from "three/tsl";
+import { float, floor, Fn, int, uint } from "three/tsl";
 import type { Node } from "three/webgpu";
+import { pcgOf } from "./hash-of";
 
 /*
  * Random numbers for shaders that come out the same on every GPU and on the CPU. The usual shader trick, the fraction of
@@ -14,17 +15,14 @@ import type { Node } from "three/webgpu";
  * vertex stage (`varying`), where its attributes are exact: an integer varying reaches every pixel unchanged.
  */
 
-const pcg = (value: Node<"uint">): Node<"uint"> => {
+// One function in the shader, called wherever a hash is: inlined, a pattern's few dozen hashes, repeated in every branch
+// that reads them, made shaders the GPU's compiler took seconds over.
+const pcgFn = Fn(([value]: [Node<"uint">]) => {
   const state = value.mul(uint(747796405)).add(uint(2891336453));
   const word = state.shiftRight(state.shiftRight(uint(28)).add(uint(4))).bitXor(state).mul(uint(277803737));
   return word.shiftRight(uint(22)).bitXor(word);
-};
-
-const pcgOf = (value: number): number => {
-  const state = (Math.imul(value >>> 0, 747796405) + 2891336453) >>> 0;
-  const word = Math.imul(((state >>> ((state >>> 28) + 4)) ^ state) >>> 0, 277803737) >>> 0;
-  return ((word >>> 22) ^ word) >>> 0;
-};
+}).setLayout({ name: "pcgHash", type: "uint", inputs: [{ name: "value", type: "uint" }] });
+const pcg = (value: Node<"uint">): Node<"uint"> => pcgFn(value);
 
 const toBits = (whole: Node<"float">): Node<"uint"> => uint(int(floor(whole)));
 
@@ -38,24 +36,18 @@ export function placeSeed(at: Node<"vec2">): Node<"uint"> {
   return seedOf(at.x.mul(100), at.y.mul(100));
 }
 
+/** A salt as `unitOfSalted` takes it: for a shader function that takes its salt as an argument rather than as a constant. */
+export const salted = (salt: number): Node<"uint"> => uint(pcgOf(salt));
+
+/** `salted` worked out on the GPU, for a salt that is itself a uniform. */
+export const saltedOn = (salt: Node<"uint">): Node<"uint"> => pcg(salt);
+
+/** `unitOf` with its salt already made by `salted`. */
+export function unitOfSalted(seed: Node<"uint">, salt: Node<"uint">): Node<"float"> {
+  return float(pcg(seed.bitXor(salt)).shiftRight(uint(8))).mul(1 / 2 ** 24);
+}
+
 /** A number from 0 to 1 from a seed, a different one for each salt. */
-export function unitOf(seed: Node<"uint">, salt: number): Node<"float"> {
-  return float(pcg(seed.bitXor(uint(pcgOf(salt)))).shiftRight(uint(8))).mul(1 / 2 ** 24);
-}
+export const unitOf = (seed: Node<"uint">, salt: number): Node<"float"> => unitOfSalted(seed, salted(salt));
 
-const f = Math.fround;
-
-/** `seedOf` on the CPU: the same bits. */
-export function seedOfWhole(...whole: number[]): number {
-  return whole.slice(1).reduce((seed, next) => pcgOf((seed ^ Math.floor(next)) >>> 0), pcgOf(Math.floor(whole[0])));
-}
-
-/** `placeSeed` on the CPU, from a place as the GPU reads it: 32-bit floats. */
-export function placeSeedOf(x: number, z: number): number {
-  return seedOfWhole(f(f(x) * 100), f(f(z) * 100));
-}
-
-/** `unitOf` on the CPU. */
-export function unitOfSeed(seed: number, salt: number): number {
-  return (pcgOf((seed ^ pcgOf(salt)) >>> 0) >>> 8) / 2 ** 24;
-}
+export { placeSeedOf, seedOfWhole, unitOfSeed } from "./hash-of";

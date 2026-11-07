@@ -3,8 +3,11 @@ import { bridgeKit, type BridgeKit } from "../render/bridges";
 import { ribbonMesh, type RibbonMesh } from "../render/roads";
 import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
 import { RoadNet, tileRoads, type TileRoads } from "./road-net";
+import { NO_SEASONAL_WALLS, WALL_SEASONS, type SeasonalWalls } from "../render/tile-models";
+import { isOutAt, type InSeasonDial } from "../climate/placed-season";
+import { exposureAt, type ExposureGrid } from "./sea-ice";
 import { roadGrip, ribbonClasses } from "./road-grip";
-import type { Surface } from "./surfaces";
+import type { Condition, Surface } from "./surfaces";
 
 /*
  * Everything known about the land, for the simulation and the terrain mesh
@@ -64,6 +67,10 @@ export interface TileDetail {
   /** What the car can't pass, `WALL_FLOATS` to a wall: the outlines of the tile's buildings and the sides of its bridges. */
   walls: Float32Array;
   blockWalls: BlockList;
+  /** The walls of what's out only in its season (cows and bales), `WALL_FLOATS` to a wall, and three to a wall of `seasons`: its kind and its prop's place. */
+  seasonalWalls: Float32Array;
+  wallSeasons: Float32Array;
+  blockSeasonalWalls: BlockList;
 }
 
 /** The whole world's heights, coarse, from the start. */
@@ -165,7 +172,31 @@ function blockRoads(ribbon: { positions: Float32Array; indices: Uint32Array }, w
   return { first, triangles, blocksAcross };
 }
 
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterLevels: HeightGrid, shore: HeightGrid, tileM: number, walls: Float32Array = new Float32Array(0), cutBytes: ArrayBuffer = new ArrayBuffer(0), rock: Uint8Array | null = null): TileDetail {
+/** What a tyre is on, and the condition of it there. */
+export interface Ground {
+  surface: Surface;
+  condition: Condition;
+}
+
+/** Sea ice that bears a car: hard and smooth as a road, and icy whatever the weather. */
+export const ON_SEA_ICE: Ground = { surface: "asphalt", condition: "ice" };
+/** The drivable reach is kept to this step, so the ground under the car is built again only when the ice has grown or shrunk by it. */
+const ICE_STEP = 0.005;
+/** The season's shares of placed things are kept to this step, so the walls are built again only when they've moved by it. */
+const SHARE_STEP = 0.002;
+
+export function tileDetail(
+  manifest: TileManifest,
+  grid: HeightGrid,
+  surfaceBytes: ArrayBuffer,
+  waterLevels: HeightGrid,
+  shore: HeightGrid,
+  tileM: number,
+  walls: Float32Array = new Float32Array(0),
+  cutBytes: ArrayBuffer = new ArrayBuffer(0),
+  rock: Uint8Array | null = null,
+  seasonal: SeasonalWalls = NO_SEASONAL_WALLS,
+): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest, grid);
   const cut = decodeGroundCut(cutBytes, manifest, grid);
   const cutCells = new Uint8Array((grid.nodes - 1) * (grid.nodes - 1));
@@ -174,6 +205,7 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
   const dress = roadAttributes(surface, manifest.solids.cells);
   const bridges = bridgeKit(surface, grid);
   const allWallsHere = allWalls(walls, bridges.rails);
+  const seasonalWalls = allWalls(seasonal.walls, new Float32Array(0));
   const column = Math.round(manifest.bounds.west / tileM);
   const row = Math.round(-manifest.bounds.north / tileM);
   return {
@@ -197,6 +229,9 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
     bridges,
     walls: allWallsHere,
     blockWalls: blockWalls(allWallsHere, manifest.bounds.west, manifest.bounds.north, tileM),
+    seasonalWalls,
+    wallSeasons: seasonal.seasons,
+    blockSeasonalWalls: blockWalls(seasonalWalls, manifest.bounds.west, manifest.bounds.north, tileM),
   };
 }
 
@@ -229,6 +264,16 @@ export class World {
   revision = 0;
   /** Grows whenever far heights come or go. */
   farRevision = 0;
+  /** How exposed each place on the water is, for the sea ice: none until the game has worked it out, so no water freezes. */
+  private iceExposure: ExposureGrid | null = null;
+  /** How far out the ice bears a car, as an exposure (`climate/season.ts`), in steps of `ICE_STEP`. */
+  private iceDrivable = 0;
+  /** Grows whenever the ice that bears a car grows or shrinks. */
+  iceRevision = 0;
+  /** The season's shares of placed things out, in steps of `SHARE_STEP`: what's out stops the car, and what isn't doesn't. All out until the game says. */
+  private placedShares: Record<InSeasonDial, number> = { terraces: 1, grazing: 1, boatsAfloat: 1, bales: 1 };
+  /** Grows whenever those shares change. */
+  placedRevision = 0;
 
   constructor(readonly manifest: WorldManifest) {
     this.tileM = manifest.tileM;
@@ -384,6 +429,47 @@ export class World {
     return grid.heights[gridRow * grid.nodes + gridColumn];
   }
 
+  /** How exposed each place on the water is (`sim/sea-ice.ts`), which the sea ice reads. */
+  setIceExposure(grid: ExposureGrid): void {
+    this.iceExposure = grid;
+    this.iceRevision++;
+  }
+
+  /** How far out the ice bears a car: the season's `iceDrivable`. */
+  setIceDrivable(drivable: number): void {
+    const stepped = Math.round(drivable / ICE_STEP) * ICE_STEP;
+    if (stepped === this.iceDrivable) return;
+    this.iceDrivable = stepped;
+    this.iceRevision++;
+  }
+
+  /** The season's shares of placed things out (`climate/placed-season.ts`), for the walls of what's out only in its season. */
+  setPlacedSeason(shares: Readonly<Record<InSeasonDial, number>>): void {
+    const stepped = { terraces: 0, grazing: 0, boatsAfloat: 0, bales: 0 };
+    for (const dial of Object.keys(stepped) as InSeasonDial[]) stepped[dial] = Math.round(shares[dial] / SHARE_STEP) * SHARE_STEP;
+    if ((Object.keys(stepped) as InSeasonDial[]).every((dial) => stepped[dial] === this.placedShares[dial])) return;
+    this.placedShares = stepped;
+    this.placedRevision++;
+  }
+
+  /** Whether the water at a place is frozen thick enough to bear a car, wherever the water is. */
+  private iceBearsAt(x: number, z: number): boolean {
+    return this.iceExposure !== null && this.iceDrivable > 0 && exposureAt(this.iceExposure, x, z) < this.iceDrivable;
+  }
+
+  /** Whether a point is on sea ice that bears a car: past the shore, and frozen thick enough there. */
+  bearsCar(x: number, z: number): boolean {
+    return this.iceDrivable > 0 && this.isWater(x, z) && this.iceBearsAt(x, z);
+  }
+
+  /** A node's height as the car meets it: the ground's, or the water's surface where ice that bears a car lies on it. */
+  drivenNode(column: number, row: number): number {
+    const ground = this.node(column, row);
+    if (this.iceDrivable <= 0) return ground;
+    const level = this.waterLevel(column, row);
+    return level > ground && this.iceBearsAt(column * this.stepM, row * this.stepM) ? level : ground;
+  }
+
   /** The height of the drawn ground at a point, at the best detail loaded there. */
   height(x: number, z: number): number {
     const tile = this.tileAt(x, z);
@@ -404,6 +490,11 @@ export class World {
   isWater(x: number, z: number): boolean {
     const shore = this.tileAt(x, z)?.detail?.shore;
     return shore !== undefined && surfaceHeight(shore, x, -z) > 0;
+  }
+
+  /** What a tyre on the ground itself is on, and in what condition: sea ice that bears a car, or the ground's own surface in the weather's. */
+  groundUnder(x: number, z: number, condition: Condition): Ground {
+    return this.bearsCar(x, z) ? ON_SEA_ICE : { surface: this.groundSurface(x, z), condition };
   }
 
   /** What a tyre on the ground itself is on: rock where the map has it, grass everywhere else. */
@@ -447,7 +538,7 @@ export class World {
     }
   }
 
-  /** Every loaded tile's building walls crossing a block. */
+  /** Every loaded tile's walls crossing a block: its buildings' and the rest that stop the car, and those of what's out only in its season while it's out. */
   forWallsInBlock(blockColumn: number, blockRow: number, visit: (walls: Float32Array, wall: number) => void): void {
     const blocks = Math.round(this.tileM / BLOCK_M);
     for (const { detail } of this.tiles.values()) {
@@ -458,6 +549,12 @@ export class World {
       if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
       const block = row * blocksAcross + column;
       for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.walls, items[entry]);
+      const seasonal = detail.blockSeasonalWalls;
+      const { wallSeasons } = detail;
+      for (let entry = seasonal.first[block]; entry < seasonal.first[block + 1]; entry++) {
+        const at = (seasonal.items[entry] / WALL_FLOATS) * 3;
+        if (isOutAt(this.placedShares, wallSeasons[at + 1], wallSeasons[at + 2], WALL_SEASONS[wallSeasons[at] - 1])) visit(detail.seasonalWalls, seasonal.items[entry]);
+      }
     }
   }
 }

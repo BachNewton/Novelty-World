@@ -1,8 +1,8 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { patchIndices } from "../render/tile";
 import { WORLD_GROUPS } from "./groups";
-import { SURFACES, type Condition, type Surface } from "./surfaces";
-import { BLOCK_M, WALL_FLOATS, type World } from "./world";
+import { SURFACES, type Condition } from "./surfaces";
+import { BLOCK_M, WALL_FLOATS, type Ground, type World } from "./world";
 
 /*
  * What the car can touch: the drawn triangles themselves, ground and road, in
@@ -14,7 +14,9 @@ import { BLOCK_M, WALL_FLOATS, type World } from "./world";
  *
  * Each block knows what each of its triangles is, so a wheel's ray tells it
  * the surface under that wheel: a road triangle is its road's, the ground the
- * world's. The condition is every surface's at once, as weather would set it.
+ * world's. The condition is every surface's at once, as weather would set it,
+ * except on sea ice that bears a car, which is ice whatever the weather. There the
+ * ground is the frozen water's surface, so the car drives on it rather than sinking.
  */
 
 const BLOCK_CELLS = 30;
@@ -60,21 +62,21 @@ export class GroundBlocks {
 
   /** What a block was built from: the tiles its corners and a road's or wall's reach beyond them lie in. Only their changing can change it. */
   private stampOf(row: number, column: number): number {
-    let stamp = 0;
+    let stamp = this.world.iceRevision * 65537 + this.world.placedRevision;
     for (const r of [row - 1, row + 2]) {
       for (const c of [column - 1, column + 2]) stamp = stamp * 31 + (this.world.tileAt(c * BLOCK_M, r * BLOCK_M)?.revision ?? 0);
     }
     return stamp;
   }
 
-  /** What a wheel's ray landed on: the road triangle's surface, or the ground's own where it hit the land. */
-  surfaceUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): Surface {
+  /** What a wheel's ray landed on: the road triangle's surface in the weather's condition, or the ground's own where it hit the land. */
+  groundUnder(hit: RAPIER.RayColliderIntersection, x: number, z: number): Ground {
     const block = this.surfaces.get(hit.collider.handle);
     // Not a block: the world's edge, whose wall no wheel rolls on but one may brush.
-    if (!block || hit.featureId === undefined) return this.world.groundSurface(x, z);
+    if (!block || hit.featureId === undefined) return this.world.groundUnder(x, z, this.condition);
     // Rapier numbers a triangle hit from beneath as its index plus the mesh's count, and a ribbon may be wound either way.
     const road = (hit.featureId % block.triangles) - block.groundTriangles;
-    return road >= 0 && road < block.roads.length ? SURFACES[block.roads[road]] : this.world.groundSurface(x, z);
+    return road >= 0 && road < block.roads.length ? { surface: SURFACES[block.roads[road]], condition: this.condition } : this.world.groundUnder(x, z, this.condition);
   }
 
   /** How many blocks are loaded now. */
@@ -132,7 +134,7 @@ export class GroundBlocks {
       for (let c = 0; c < across; c++) {
         const at = (r * across + c) * 3;
         vertices[at] = (left + c) * stepM;
-        vertices[at + 1] = world.node(left + c, top + r);
+        vertices[at + 1] = world.drivenNode(left + c, top + r);
         vertices[at + 2] = (top + r) * stepM;
       }
     }

@@ -8,6 +8,8 @@ import { groundFloor, groundKinds, rockFloor } from "../art/surfaces";
 import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 import { towardsSun } from "../art/sun";
+import type { SeasonLook } from "../art/season";
+import { snowfall, snowHeld, snowOnGround, type Snowfall } from "../art/surfaces/snow";
 
 /*
  * Åland's granite where it breaks through the ground: bare domes and slabs along the
@@ -111,6 +113,12 @@ function tallest(shape: BufferGeometry): number {
   return top;
 }
 
+/** A rock's face under the ground's own snow where it stands, as much as the face looks up, so no grey stone stands proud of a white field. */
+function snowedFace(colour: Node<"vec3">, fall: Snowfall, { photo, rock, upward, away }: { photo: Node<"vec3">; rock: number; upward: Node<"vec3">; away: Node<"float"> }): Node<"vec3"> {
+  const snowed = snowOnGround(colour, fall, { place: positionWorld.xz, up: upward, photo, rock: float(rock), roads: float(0), paved: float(0), toCamera: away });
+  return mix(colour, snowed, snowHeld(upward.y));
+}
+
 export interface GraniteInputs {
   rockAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   fieldsAt: (place: Node<"vec2">) => Node<"float">;
@@ -129,6 +137,8 @@ export interface GraniteInputs {
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   litterColour: Node<"vec3">;
   sun: RoadsideInputs["sun"];
+  /** The season, for the snow on what faces up, as the ground under it has it. */
+  season?: SeasonLook;
 }
 
 export interface GraniteDrawn {
@@ -142,7 +152,8 @@ export interface GraniteDrawn {
 export const graniteModels = () => ({ outcrops: SEEDS.map((seed) => buildOutcrop(seed)), stones: ROCK_SEEDS.map((seed) => buildBoulder(seed)) });
 
 export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: GraniteInputs) {
-  const { rockAt, fieldsAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun } = inputs;
+  const { rockAt, fieldsAt, canopyAt, waterAt, roadsAt, landAt, closeLandAt, groundAt, groundOnMeshAt, lightOf, linear, colour, hazed, litterColour, sun, season } = inputs;
+  const fall = snowfall(season, colour);
   const { outcrops: models, stones: boulders } = graniteModels();
   const fars = models.map(({ far }) => {
     if (far === null) throw new Error("The kit's outcrop has no far version");
@@ -228,7 +239,8 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const floor = rockFloor(groundFloor(photo, litterColour, kinds), granite, float(1), kinds.grassShare.mul(float(1).sub(TURF_GREYED)));
       const away = positionWorld.sub(cameraPosition).length();
       const crystals = mix(vec3(1), rapakivi({ colour }, granite, metres, away, abs(upward.y).mul(LICHEN_UPWARD), foot).div(granite), SURFACE);
-      material.colorNode = hazed(floor.mul(crystals).mul(lightOf(close.shade)).mul(relit));
+      const rock = snowedFace(floor.mul(crystals), fall, { photo, rock: 1, upward, away });
+      material.colorNode = hazed(rock.mul(lightOf(close.shade)).mul(relit));
 
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());
@@ -295,7 +307,8 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const away = positionWorld.sub(cameraPosition).length();
       const foot = varying(local.y.mul(live.z).add(0.05).max(0).mul(MOSS_FOOT));
       const painted = rapakivi({ colour }, base, varying(turned.add(standing.w.mul(37))), away, abs(upward.y), foot);
-      material.colorNode = hazed(painted.mul(lightOf(close.shade)).mul(lightOn(upward)));
+      const stone = snowedFace(painted, fall, { photo: close.photo.pow(vec3(2.2)), rock: 0, upward, away });
+      material.colorNode = hazed(stone.mul(lightOf(close.shade)).mul(lightOn(upward)));
 
       const pixels = varying(vec2(live.x, live.y));
       material.maskNode = pattern.greaterThanEqual(pixels.x).and(pattern.lessThan(pixels.y)).and(outsideCar());

@@ -1,6 +1,7 @@
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, type Node } from "three/webgpu";
 import { cameraPosition, dot, float, max, mix, normalize, positionWorld, pow, reflect, smoothstep, texture, time, vec2, vec3 } from "three/tsl";
 import { towardsSun, type Sun } from "../art/sun";
+import type { IceLook } from "./sea-ice";
 
 /*
  * The water, for the terrain's lakes and sea and the plane past the tiles alike: one
@@ -13,6 +14,10 @@ import { towardsSun, type Sun } from "../art/sun";
  * reflection of the world. How shallow it is comes from whoever draws it: the
  * water's depth over the tiles' seabed, or past them, how near land is in the
  * overview's image, blurred by its own mips.
+ *
+ * Frozen, it is the ice over it (`render/sea-ice.ts`), with no ripples or glints: new ice dark and glassy, a mirror of
+ * the sky with the sun a broad sheen on it, and old ice that bears a car pale and matt, lit as the land is, with snow on
+ * it, pressure ridges heaped across it in the snow's shade, and cracks.
  */
 
 const SLOPE_PIXELS = 256;
@@ -52,6 +57,17 @@ const SHALLOW_TO = 0.85;
 const SHORE_MIRRORS_TO = 0.75;
 /** Water this deep over the seabed is as dark as open water. */
 const SHALLOWS_DEPTH_M = 2.2;
+
+/** How new ice mirrors the sky: less than calm water, since its face is never quite flat. */
+const ICE_MIRRORS = 0.75;
+const ICE_SHEEN_SHARP = 90;
+const ICE_SHEEN = 0.5;
+/** Matt ice and its snow, lit as the land is: the sky's share and the sun's. */
+const ICE_AMBIENT = 0.62;
+const ICE_SUN = 0.55;
+/** How dark a crack is against its ice, and how deep a pressure ridge's shade is across the snow heaped on it. */
+const CRACK_DARK = 0.35;
+const RIDGE_SHADE = 0.55;
 
 /** The overview's mip level the shallows are read at: 160 m a texel, blurred, so a shore's tint needs no seams or detail. */
 export const WATER_SHORE_MIP = 2;
@@ -106,8 +122,8 @@ export interface WaterInputs {
 }
 
 export interface Water {
-  /** The water at this pixel, given how much land is about it: 0 in open water, 1 at the shore. */
-  colorFor: (shore: Node<"float">) => Node<"vec3">;
+  /** The water at this pixel, given how much land is about it: 0 in open water, 1 at the shore; and the ice on it, if any is drawn. */
+  colorFor: (shore: Node<"float">, ice?: IceLook) => Node<"vec3">;
   dispose: () => void;
 }
 
@@ -159,12 +175,30 @@ export function createWater({ colour, sun, skyAlong, meltAlong }: WaterInputs): 
   const glint = pow(max(dot(glintWay, toSun), 0), mix(float(SUN_SHARP_NEAR), float(SUN_SHARP_FAR), farShare));
   const sunlight = colour("sun").mul(glint).mul(mix(float(SUN_BRIGHT_NEAR), float(SUN_BRIGHT_FAR), farShare));
 
+  // Ice is flat to the eye: the sky straight along the mirror, and the sun a broad sheen rather than glints.
+  const flatFacing = max(view.y, 0);
+  const flatFresnel = float(FRESNEL_HEAD_ON).add(float(FRESNEL_MOST - FRESNEL_HEAD_ON).mul(pow(float(1).sub(flatFacing), float(FRESNEL_POWER))));
+  const flatBounce = vec3(view.x.negate(), max(view.y, 0.002), view.z.negate());
+  const flatSky = skyAlong ? skyAlong(flatBounce) : colour("sky");
+  const sheen = colour("sun").mul(pow(max(dot(flatBounce, toSun), 0), float(ICE_SHEEN_SHARP))).mul(ICE_SHEEN);
+  const mattLight = float(ICE_AMBIENT).add(toSun.y.max(0).mul(ICE_SUN));
+
+  const iceOver = (water: Node<"vec3">, { frozen, thick, snow, ridge, crack }: IceLook) => {
+    const glassy = mix(colour("ice-new"), flatSky, flatFresnel.mul(ICE_MIRRORS)).add(sheen);
+    const cracked = mix(colour("ice-old"), colour("ice-new"), crack.mul(CRACK_DARK)).mul(mattLight);
+    const ice = mix(mix(glassy, colour("ice-new").mul(mattLight), crack.mul(CRACK_DARK)), cracked, thick);
+    const snowed = mix(ice, colour("snow").mul(mattLight), snow.max(ridge));
+    const ridged = mix(snowed, colour("snow-shade").mul(mattLight), ridge.mul(RIDGE_SHADE));
+    return mix(water, ridged, frozen);
+  };
+
   return {
-    colorFor(shore) {
+    colorFor(shore, ice) {
       // Beside land the low reflection is the trees and rocks, not the sky.
       const mirrored = mix(sky, colour("tree-spruce"), shore.mul(SHORE_MIRRORS_TO));
       const body = mix(colour("water-deep"), colour("water-shallow"), shore);
-      const seen = mix(body, mirrored, fresnel).add(sunlight);
+      const water = mix(body, mirrored, fresnel).add(sunlight);
+      const seen = ice ? iceOver(water, ice) : water;
       return meltAlong ? mix(meltAlong(seen, toEye.negate()), seen, shore) : seen;
     },
     dispose() {

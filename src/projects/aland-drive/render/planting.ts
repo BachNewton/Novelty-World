@@ -107,8 +107,14 @@ export interface PlantingSpec {
   /** How many rows of four floats a plant carries. */
   rows: number;
   visit: (at: PlaceAt) => void;
-  /** A shape's material, reading the rows of the plant each instance draws, and where the camera is over the ground. */
-  materialOf: (shape: number, rows: Node<"vec4">[], camera: Node<"vec2">) => Material;
+  /** Which material each shape draws through: shapes of a family share one, and so one shader pipeline. None if the planting has one. */
+  familyOf?: (shape: number) => number;
+  /**
+   * A family's material, reading the rows of the plant each instance draws, and where the camera is over the ground.
+   * Whatever differs between its shapes is read from the plant's rows or from tables by its kind, never a constant of
+   * one shape, or each shape would compile its own pipeline.
+   */
+  materialOf: (family: number, rows: Node<"vec4">[], camera: Node<"vec2">) => Material;
 }
 
 export interface Planting {
@@ -122,7 +128,7 @@ export interface Planting {
   dispose: () => void;
 }
 
-export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattices, widestM, shapes, capacities, rows, visit, materialOf }: PlantingSpec): Planting {
+export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattices, widestM, shapes, capacities, rows, visit, familyOf = () => 0, materialOf }: PlantingSpec): Planting {
   const camera2d = uniform(new Vector2());
   const view = viewSides(WORLD_HEIGHTS_M, widestM);
 
@@ -193,12 +199,23 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
   })().compute(1);
   const computes = [reset, ...passes.map(({ cull }) => cull), cap];
 
+  // Where a shape's plants start in the shared list is read per mesh, so a family's shapes share one shader.
+  const materials = new Map<number, Material>();
+  const materialFor = (family: number) => {
+    const made = materials.get(family);
+    if (made !== undefined) return made;
+    const first = uniform(0, "uint").onObjectUpdate(({ object }) => (object?.userData.firstRow as number | undefined) ?? 0);
+    const read = storage(list, "vec4", totalRows).toReadOnly();
+    const carried = Array.from({ length: rows }, (_, at) => read.element(instanceIndex.mul(rows).add(first).add(at)).toVar());
+    const material = materialOf(family, carried, camera2d);
+    materials.set(family, material);
+    return material;
+  };
   const meshes = shapes.map((shape, index) => {
     const geometry = shape.clone();
     geometry.setIndirect(draws, index * DRAW_WORDS * Uint32Array.BYTES_PER_ELEMENT);
-    const read = storage(list, "vec4", totalRows).toReadOnly();
-    const carried = Array.from({ length: rows }, (_, at) => read.element(instanceIndex.mul(rows).add(firsts[index] + at)).toVar());
-    const mesh = new Mesh(geometry, materialOf(index, carried, camera2d));
+    const mesh = new Mesh(geometry, materialFor(familyOf(index)));
+    mesh.userData.firstRow = firsts[index];
     mesh.frustumCulled = false;
     scene.add(mesh);
     return mesh;
@@ -243,8 +260,8 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
       for (const mesh of meshes) {
         scene.remove(mesh);
         mesh.geometry.dispose();
-        mesh.material.dispose();
       }
+      for (const material of materials.values()) material.dispose();
       for (const shape of shapes) shape.dispose();
       reset.dispose();
       for (const { cull } of passes) cull.dispose();

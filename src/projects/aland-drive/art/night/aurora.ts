@@ -15,15 +15,6 @@ const HIGH_DEG = 24;
 const TRUE_NORTH_GRID_DEG = 6.25;
 const DRIFT = 0.016;
 const STRENGTH = 0.15;
-/** About one night in this many has one at all. */
-const NIGHTS_PER_AURORA = 12;
-
-/** How strong tonight's aurora is, 0 to 1, by the night's number: the same night always gives the same answer, and most give none. */
-export function auroraTonight(nightNumber: number) {
-  const value = Math.sin(nightNumber * 127.1) * 43758.5453;
-  const roll = value - Math.floor(value);
-  return roll < 1 / NIGHTS_PER_AURORA ? 0.45 + roll * NIGHTS_PER_AURORA * 0.55 : 0;
-}
 
 function stripGeometry(reach: number) {
   const positions: number[] = [];
@@ -52,7 +43,7 @@ export interface Aurora {
   mesh: Mesh;
   /** Each frame: keeps the curtain round the eye. */
   update: (eye: Vector3) => void;
-  /** Tonight's strength, from `auroraTonight`. */
+  /** How strong it is now, 0 to 1: the weather's `aurora`, which picks the nights and their bursts. */
   setStrength: (strength: number) => void;
   dispose: () => void;
 }
@@ -72,7 +63,8 @@ export function createAurora(night: Night, reach: number): Aurora {
   const rays = sin(arc.mul(43).add(shift.mul(9))).mul(sin(arc.mul(71).sub(shift.mul(5)))).mul(0.3).add(0.7);
   const banks = smoothstep(float(-1), float(0.5), fold(3.3, 0.7, 1)).mul(0.65).add(0.35);
   const ends = smoothstep(float(0.95), float(0.5), place.x.div(reach).abs().mul(1.35));
-  const deepest = smoothstep(float(0.72), float(0.95), night.amount);
+  // Only a night darker than midsummer's shows it, and the darker the brighter: a moonlit or a light night washes it out.
+  const deepest = smoothstep(float(0.72), float(0.95), night.amount).mul(smoothstep(float(0.15), float(0.7), night.dark));
   const colour = mix(nightColour("aurora-low"), nightColour("aurora-high"), smoothstep(base.add(0.05), base.add(0.18), rise));
   material.colorNode = colour.mul(curtain.mul(rays).mul(banks).mul(ends).mul(deepest).mul(strength).mul(STRENGTH));
 

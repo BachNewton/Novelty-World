@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
+import { MONTH_NAMES } from "../time/calendar";
 import { GameMenu, raceColour } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
@@ -71,9 +72,33 @@ const NOTICE_LOOKS = {
   withdrawn: { icon: UserX, label: "Invite off" },
 } as const;
 
-/** A date as `?date=` takes it, as a driver reads one: "Mon 21 Dec". */
-function dayText(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const TIME_COVER = "@keyframes aland-time-cover { from { opacity: 0 } to { opacity: 1 } }";
+const TIME_COVER_S = 0.4;
+
+/** Covers the view while the page takes the online world's time, so the sky doesn't jump in sight: a fade out, the jump, a fade back in. */
+function TimeCover({ jump, onDone }: { jump: () => void; onDone: () => void }) {
+  const [covered, setCovered] = useState(false);
+  return (
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{ background: SHADE, animation: `aland-time-cover ${TIME_COVER_S}s ease-in-out ${covered ? "reverse" : "normal"} forwards` }}
+      key={covered ? "uncover" : "cover"}
+      onAnimationEnd={() => {
+        if (covered) {
+          onDone();
+          return;
+        }
+        jump();
+        setCovered(true);
+      }}
+    />
+  );
+}
+
+/** The air's temperature as a driver reads it, in whole degrees with a true minus: "−7°". */
+function temperatureText(celsius: number): string {
+  const degrees = Math.round(celsius);
+  return `${degrees < 0 ? "−" : ""}${Math.abs(degrees)}°`;
 }
 
 /** The hour as a 24-hour clock: "14:05". */
@@ -108,10 +133,12 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const revArc = useRef<SVGCircleElement>(null);
   const revNeedle = useRef<SVGLineElement>(null);
   const miniMap = useRef<HTMLCanvasElement>(null);
-  const dateShown = useRef<HTMLSpanElement>(null);
+  const monthShown = useRef<HTMLSpanElement>(null);
   const hourShown = useRef<HTMLSpanElement>(null);
   const sunIcon = useRef<SVGSVGElement>(null);
   const moonIcon = useRef<SVGSVGElement>(null);
+  const temperatureRow = useRef<HTMLSpanElement>(null);
+  const temperatureShown = useRef<HTMLSpanElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
   const cueText = useRef<HTMLSpanElement>(null);
@@ -124,7 +151,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "weather" | "setWeather" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
@@ -139,6 +166,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
+  const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
   const needsRow = useRef<HTMLDivElement>(null);
   const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
@@ -160,7 +188,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     let shownPlay = "";
     let shownOffer = "";
     let shownCoop = "";
-    let shownDate = "";
+    let shownMonth = 0;
     const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
       const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
       if (offerKey !== shownOffer) {
@@ -196,13 +224,15 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     const showSpeed = (reading: HudReading) => {
       const { speedKmh, gear, revs, toGoM, clock } = reading;
       showChallenge(reading);
-      if (clock.date !== shownDate && dateShown.current) {
-        shownDate = clock.date;
-        dateShown.current.textContent = dayText(clock.date);
+      if (clock.month !== shownMonth && monthShown.current) {
+        shownMonth = clock.month;
+        monthShown.current.textContent = MONTH_NAMES[clock.month - 1];
       }
       if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
       if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
+      if (temperatureRow.current) temperatureRow.current.style.display = clock.temperatureC === null ? "none" : "flex";
+      if (temperatureShown.current && clock.temperatureC !== null) temperatureShown.current.textContent = temperatureText(clock.temperatureC);
       if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
@@ -238,6 +268,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onProgress: setProgress,
+          onTimeJump: (jump) => { setTimeJump({ jump }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -271,7 +302,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   return (
     <div className="fixed inset-0" style={{ background: SHADE, ["--prompt-body" as string]: SHADE, ["--prompt-ink" as string]: INK }}>
       <div ref={container} className="absolute inset-0" />
-      <style>{ROAD_LABEL_FADE}</style>
+      <style>{ROAD_LABEL_FADE}{TIME_COVER}</style>
       {(stillLoading || (loading !== null && loading.done < loading.total)) && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: SHADE }}>
           <div className="h-2 w-72 overflow-hidden rounded-full" role="progressbar" aria-label="Loading the island" aria-valuemin={0} aria-valuemax={loading?.total ?? 1} aria-valuenow={loading?.done ?? 0} style={{ background: INK, opacity: 0.9 }}>
@@ -280,16 +311,17 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </div>
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
-      {/* The day over the mini map, as wide as it: date, and the hour with the sun or the moon. */}
-      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Date and time">
-        <span className="flex items-center gap-1" title="Date">
-          <CalendarDays className="size-5 shrink-0" aria-hidden />
-          <span ref={dateShown} aria-label="Date" />
-        </span>
+      {/* The time over the mini map, at least as wide as it: the month, the hour with the sun or the moon, and the air's temperature. */}
+      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Month, time and temperature">
+        <span ref={monthShown} title="Month" aria-label="Month" />
         <span className="flex items-center gap-1" title="Time">
           <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
           <Moon ref={moonIcon} className="size-5 shrink-0" style={{ display: "none" }} aria-hidden />
           <span ref={hourShown} aria-label="Time" />
+        </span>
+        <span ref={temperatureRow} className="items-center gap-1" style={{ display: "none" }} title="Temperature">
+          <Thermometer className="size-5 shrink-0" aria-hidden />
+          <span ref={temperatureShown} aria-label="Temperature" />
         </span>
       </div>
       <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
@@ -447,8 +479,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           </ul>
         </>
       )}
+      {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>

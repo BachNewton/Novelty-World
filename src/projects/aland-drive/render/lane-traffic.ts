@@ -2,6 +2,7 @@ import type { InstancedBufferGeometry, Mesh, Node, Scene } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { distantGeometry, lookOf, modelSwapM, REACH_M, tierMaterials, worldGeometry } from "../art/cars/fleet";
 import { type Sun } from "../art/sun";
+import type { SeasonLook } from "../art/season";
 import { WORLD_CARS } from "../art/cars/specs";
 import type { HitCarView } from "../traffic/contact";
 import type { LaneCar, LaneTraffic } from "../traffic/lane-driver";
@@ -20,6 +21,9 @@ import { PARKED_CARS } from "./parked-places";
 /** Half the width and length of each kind of car traffic drives, in the order `LaneCar.model` counts them. */
 export const TRAFFIC_KINDS = PARKED_CARS.map(({ half }) => half);
 
+/** A car being driven has been swept: only a share of them keep snow on the roof. */
+const DRIVEN_SNOW_KEPT = 0.3;
+
 /** A world car's height, a cyclist's and a walker's, near enough for whether one can be seen. */
 const HEIGHTS_M = { car: 1.6, bike: 1.9, walker: 1.9 } as const;
 /** How far off each kind is drawn: the fleet's reach, the bikes' and the people's. */
@@ -35,7 +39,7 @@ export const sightOf = ({ kind, pose, half }: Pick<LaneCar, "kind" | "pose" | "h
   reachM: REACHES_M[kind],
 });
 
-export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number) {
+export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Node<"vec3">) => Node<"vec3">, room: number, season?: SeasonLook) {
   const specs = PARKED_CARS.map(({ name }) => {
     const spec = WORLD_CARS.find((car) => car.name === name);
     if (!spec) throw new Error(`${name} drives, but there's no world car of that name`);
@@ -43,7 +47,7 @@ export function createLaneTrafficView(scene: Scene, sun: Sun, hazed: (color: Nod
   });
   const models = specs.map((spec) => {
     const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
-    const materials = tierMaterials(modelSwapM(shapes.world, shapes.distant), sun, hazed);
+    const materials = tierMaterials(modelSwapM(shapes.world, shapes.distant), sun, hazed, { season, snowKept: DRIVEN_SNOW_KEPT });
     const lists: Mesh<InstancedBufferGeometry>[] = [instanced(shapes.world, [], materials.world, room), instanced(shapes.distant, [], materials.distant, room)];
     scene.add(...lists);
     return { shapes, materials, lists };

@@ -72,3 +72,11 @@ describe("a car's state", () => {
     expect(parseGuestMessage({ kind: "car", state })).toEqual({ kind: "car", state: { ...state, lamps: { head: false, brake: false, reverse: false } } });
   });
 });
+
+describe("the world's time", () => {
+  it("comes from the host as a number of game days, or is dropped", () => {
+    expect(parseHostMessage({ kind: "time", gameDays: 1270.25 })).toEqual({ kind: "time", gameDays: 1270.25 });
+    for (const gameDays of [null, "1270", Number.NaN, Infinity]) expect(parseHostMessage({ kind: "time", gameDays })).toBeNull();
+    expect(parseGuestMessage({ kind: "ask-time" })).toEqual({ kind: "ask-time" });
+  });
+});
