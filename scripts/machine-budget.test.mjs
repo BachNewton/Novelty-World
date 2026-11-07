@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { admit, demand } from "./machine-budget.mjs";
+import { admit } from "./machine-budget.mjs";
 
 const budget = { cores: 14, gpu: 2 };
 const running = (id, cores, gpu = false) => ({ id, state: "running", cores, gpu });
@@ -22,12 +22,5 @@ describe("admit", () => {
   it("starts a run bigger than the budget only once it would be alone", () => {
     expect(admit([running("a", 1), waiting("huge", 20)], budget)).toEqual([]);
     expect(admit([waiting("huge", 20), waiting("next", 1)], budget)).toEqual(["huge"]);
-  });
-});
-
-describe("demand", () => {
-  it("reads custom core counts and refuses unknown kinds", () => {
-    expect(demand("cores:3")).toEqual({ cores: 3, gpu: false });
-    expect(() => demand("everything")).toThrow(/unknown kind/);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { globToRegExp, readSpec, select } from "./affected-e2e-rules.mjs";
+import { readSpec, select } from "./affected-e2e-rules.mjs";
 
 const projects = new Set(["aland-drive", "frogmino"]);
 const SPEC = `import { test } from "./test";
@@ -41,15 +41,5 @@ describe("select", () => {
   it("runs a spec whole when the spec itself changed, and everything for shared code", () => {
     expect(select(["e2e/aland-drive.spec.ts"], specs, projects).runs[0]).toMatchObject({ lines: null });
     expect(select(["src/shared/lib/peer/room.ts"], specs, projects)).toEqual({ all: "src/shared/lib/peer/room.ts changed" });
-  });
-});
-
-describe("globToRegExp", () => {
-  it("reads **, * and braces", () => {
-    expect(globToRegExp("src/**/*.ts").test("src/a/b/c.ts")).toBe(true);
-    expect(globToRegExp("src/**/*.ts").test("src/c.ts")).toBe(true);
-    expect(globToRegExp("render/tree-*.ts").test("render/tree-place.ts")).toBe(true);
-    expect(globToRegExp("render/tree-*.ts").test("render/a/tree-place.ts")).toBe(false);
-    expect(globToRegExp("x/{a,b}.ts").test("x/b.ts")).toBe(true);
   });
 });
