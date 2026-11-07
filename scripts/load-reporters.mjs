@@ -206,14 +206,16 @@ export class VitestLoadReporter {
 
   onTestModuleEnd(testModule) {
     this.files.set(testModule.moduleId, testModule.diagnostic().duration);
-    // A file that failed with no failed test (an import that threw, a hook outside every test) is a failure of its own.
+    // A file that failed with no failed test (an import that threw, a hook that failed) is a failure of its own.
     if (testModule.state() !== "failed" || [...testModule.children.allTests("failed")].length > 0) return;
     const end = Date.now();
     const ms = testModule.diagnostic().duration;
+    // A describe's own hook reports its error on that describe, not on the file.
+    const errors = [testModule, ...testModule.children.allSuites()].flatMap((suite) => suite.errors());
     this.watch?.failed(end - ms, end, {
       file: testModule.moduleId,
-      name: "(the file)",
-      timeout: testModule.errors().some((error) => TIMED_OUT.test(error.message)),
+      name: "(the file or a hook)",
+      timeout: errors.some((error) => TIMED_OUT.test(error.message)),
       ms,
     });
   }
