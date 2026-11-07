@@ -120,7 +120,7 @@ function stateOn(path: Path, ms: number): CarState {
     car: DEFAULT_CAR,
     steer: 0,
     suspension: [0.1, 0.1, 0.1, 0.1],
-    roll: 0,
+    roll: [0, 0, 0, 0],
     lamps: LAMPS_OFF,
   };
 }
