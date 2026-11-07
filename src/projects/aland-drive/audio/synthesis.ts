@@ -2,7 +2,7 @@ import { BIKE, type EngineSpec } from "./vehicles";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
- * firing cycle, the tyres' grit, snow and spray, rain on the roof, the freewheel and the beds of each place. No
+ * firing cycle, the tyres' grit, snow and spray, rain on the roof, the freewheel and the sounds of each place. No
  * files and no Web Audio here, and seeded, so a loop is the same every visit.
  * A loop's end meets its start because everything in one is periodic in its
  * length: events wrap round it, and a filter's memory comes from a first pass.
@@ -371,63 +371,6 @@ function chirp(channels: Float32Array[], at: number, seconds: number, pan: numbe
   }
 }
 
-/**
- * Gusts on a loop: each comes up and dies away over its own few seconds, at its own strength, with stiller air
- * between, wrapping round the loop. Irregular on purpose: wind that swells and falls on a steady beat is heard as
- * waves on a shore.
- */
-function gustsOver(seconds: number, next: () => number, lengthS: readonly [number, number], gapS: readonly [number, number]) {
-  const gusts: { at: number; lengthS: number; strength: number }[] = [];
-  for (let at = next() * gapS[1]; at < seconds; at += gapS[0] + (gapS[1] - gapS[0]) * next()) {
-    gusts.push({ at, lengthS: lengthS[0] + (lengthS[1] - lengthS[0]) * next(), strength: 0.35 + 0.65 * next() });
-  }
-  return (t: number) => {
-    let sum = 0;
-    for (const { at, lengthS: span, strength } of gusts) {
-      const into = (((t - at) % seconds) + seconds) % seconds;
-      if (into < span) sum += strength * Math.sin((Math.PI * into) / span) ** 2;
-    }
-    return Math.min(sum, 1.3);
-  };
-}
-
-/** A fast, uneven flutter round 1, periodic in the loop: leaves catching the air and letting go, many times a second. */
-function flutterOver(seconds: number, next: () => number) {
-  const parts = Array.from({ length: 6 }, () => ({ cycles: Math.round((7 + 18 * next()) * seconds), phase: next() * TAU }));
-  return (t: number) => {
-    let sum = 0;
-    for (const { cycles, phase } of parts) sum += Math.sin((TAU * cycles * t) / seconds + phase);
-    return Math.max(0, 0.55 + 0.35 * sum);
-  };
-}
-
-/** Forest in leaf: leaves rustling in gusts, a bright flickering hiss with leaves ticking in it, and quieter air between. */
-export function leavesBed(): Loop {
-  const next = random(41);
-  const seconds = 29;
-  const length = Math.round(seconds * BED_RATE);
-  const gust = gustsOver(seconds, next, [1.5, 4.5], [1.5, 5]);
-  const channels = [0, 1].map(() => {
-    const bright = lowNoise(length, next, () => 7000, BED_RATE);
-    const dull = lowNoise(length, next, () => 1500, BED_RATE);
-    const flutter = flutterOver(seconds, next);
-    return bright.map((sample, i) => {
-      const t = i / BED_RATE;
-      return (sample - dull[i]) * (0.12 + gust(t)) * flutter(t);
-    });
-  });
-  for (let i = 0; i < 4000; i++) {
-    const at = next() * seconds;
-    if (next() > 0.15 + gust(at)) continue;
-    const hz = 2500 + 4500 * next();
-    const decayS = 0.0004 + 0.0012 * next();
-    const level = 0.04 + 0.12 * next() * next();
-    addPanned(channels, BED_RATE, at, decayS * 5, next() * 1.8 - 0.9, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
-  }
-  normalise(channels, 0.8);
-  return { rate: BED_RATE, channels };
-}
-
 /** Spring and summer's birds: a few kinds of small bird, near and far, singing over one another with short gaps, so a chorus is this bed played loud. */
 export function birdsBed(): Loop {
   const next = random(42);
@@ -477,44 +420,13 @@ export function birdsBed(): Loop {
 }
 
 /**
- * Winter's wind: a steady rush through bare branches and spruce that never falls quiet, its pitch rising as each gust
- * comes through, with the needles' thin hiss on top; the same wind blows over a frozen sea.
- */
-export function winterBed(): Loop {
-  const next = random(44);
-  const seconds = 31;
-  const length = Math.round(seconds * BED_RATE);
-  const gust = gustsOver(seconds, next, [3, 8], [2, 6]);
-  const gusting = Float32Array.from({ length }, (_, i) => gust(i / BED_RATE));
-  const channels = [0, 1].map(() => {
-    const rush = lowNoise(length, next, (i) => 450 + 900 * gusting[i], BED_RATE);
-    const held = lowNoise(length, next, () => 140, BED_RATE);
-    const needles = lowNoise(length, next, () => 7000, BED_RATE);
-    const needlesHeld = lowNoise(length, next, () => 3000, BED_RATE);
-    return rush.map((sample, i) => {
-      const blowing = gusting[i];
-      return (0.6 + 0.4 * blowing) * (sample - 0.7 * held[i]) + 0.25 * blowing * (needles[i] - needlesHeld[i]);
-    });
-  });
-  normalise(channels, 0.8);
-  return { rate: BED_RATE, channels };
-}
-
-/**
- * A frozen sea: a dry, steady wind over the flat ice with nothing to break on, never swelling, and now and then the ice
- * itself: a low creak as it shifts, or the falling "pew" of a crack running far across it, its high notes arriving
- * first.
+ * A frozen sea or lake: the ice itself, now and then, in the quiet: a low creak as it shifts, or the falling "pew" of a
+ * crack running far across it, its high notes arriving first. The wind is the car's own.
  */
 export function iceBed(): Loop {
   const next = random(49);
   const seconds = 33;
-  const length = Math.round(seconds * BED_RATE);
-  const channels = [0, 1].map(() => {
-    const bright = lowNoise(length, next, () => 5200, BED_RATE);
-    const dull = lowNoise(length, next, () => 1200, BED_RATE);
-    const low = lowNoise(length, next, () => 300, BED_RATE);
-    return bright.map((sample, i) => 0.7 * (sample - dull[i]) + 0.35 * low[i]);
-  });
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
   for (let at = 2 + next() * 3; at < seconds - 2; at += 5 + 6 * next()) {
     const pan = next() * 1.6 - 0.8;
     if (next() < 0.55) {
@@ -705,39 +617,3 @@ export function churchBell(): Loop {
   return { rate: BED_RATE, channels: [channel, Float32Array.from(channel)] };
 }
 
-/**
- * A town beyond what's in view: the low hum of a town far off, and in the centre a murmur of voices, a few people
- * talking at once some way off, rising and falling. The traffic, cyclists and walkers are the world's own, heard where
- * they are; this is only what no one in sight makes.
- */
-export function townBed(): Loop {
-  const next = random(53);
-  const seconds = 37;
-  const length = Math.round(seconds * BED_RATE);
-  const channels = [0, 1].map(() => {
-    const low = lowNoise(length, next, () => 160, BED_RATE);
-    const lower = lowNoise(length, next, () => 60, BED_RATE);
-    return low.map((sample, i) => 0.9 * sample + 2.2 * lower[i]);
-  });
-  // Voices: each talks in spurts of a few seconds, syllable by syllable, a band of speech far enough off to lose the words.
-  for (let voice = 0; voice < 7; voice++) {
-    const pan = next() * 1.6 - 0.8;
-    const pitch = 0.8 + 0.5 * next();
-    const level = 0.5 + 0.5 * next();
-    for (let at = next() * 4; at < seconds; at += 1 + 4 * next()) {
-      const spurtS = 1 + 3 * next();
-      const syllableHz = (3.5 + 2.5 * next()) * pitch;
-      const speech = lowNoise(Math.round(spurtS * BED_RATE), next, () => 1400 * pitch, BED_RATE);
-      const dull = lowNoise(Math.round(spurtS * BED_RATE), next, () => 300 * pitch, BED_RATE);
-      addPanned(channels, BED_RATE, at, spurtS, pan, (t) => {
-        const i = Math.min(Math.round(t * BED_RATE), speech.length - 1);
-        const syllable = Math.max(0, Math.sin(TAU * syllableHz * t + voice)) ** 1.5;
-        return level * 6 * Math.sin((Math.PI * t) / spurtS) * syllable * (speech[i] - dull[i]);
-      });
-    }
-  }
-  const humHz = 100;
-  for (const channel of channels) for (let i = 0; i < length; i++) channel[i] += 0.006 * Math.sin((TAU * Math.round(humHz * seconds) * i) / length);
-  normalise(channels, 0.8);
-  return { rate: BED_RATE, channels };
-}
