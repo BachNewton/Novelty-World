@@ -1,5 +1,6 @@
 import { SEA_LIGHTS, type SeaLight } from "../art/night";
 import data from "../sea/marks.json";
+import { markFoot, markLampM } from "./sea-marks";
 
 /*
  * The sea's lights come from OSM (`art/night/lights.json`), and the marks they stand on from the official register
@@ -24,7 +25,10 @@ function kindOf(model: string): SeaLight["kind"] {
   return "beacon";
 }
 
-export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[]): SeaLight[] {
+/** A sea light with the register's mark it stands on. */
+export type MarkedLight = SeaLight & { mark: Mark };
+
+export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[]): MarkedLight[] {
   return lights.flatMap((light) => {
     let nearest: Mark | null = null;
     let nearestM = SAME_PLACE_M;
@@ -33,9 +37,15 @@ export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[
       if (apart < nearestM) [nearest, nearestM] = [mark, apart];
     }
     if (nearest === null) return [];
-    return [{ ...light, x: nearest[1], z: nearest[2], kind: kindOf(nearest[0]) }];
+    return [{ ...light, x: nearest[1], z: nearest[2], kind: kindOf(nearest[0]), mark: nearest }];
   });
 }
 
 /** Every sea light, on the register's marks. */
 export const LIGHTS_ON_MARKS = lightsOnMarks(SEA_LIGHTS, REGISTER_MARKS);
+
+/** Where a light shines from: the lamp of the mark drawn under it, standing where the sea marks stand it now. */
+export const lampOnMark =
+  (groundAt: (x: number, z: number) => number) =>
+  ({ mark: [model, x, z, , floats, heightM] }: MarkedLight): number =>
+    markFoot(x, z, floats === 1, groundAt) + markLampM(model, heightM);

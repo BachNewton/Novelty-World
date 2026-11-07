@@ -911,7 +911,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
   const parkedCars = createParkedCars(scene, sun, hazed);
   // A lamp's pool lies on the clipmap's finest heights, which reach this far before the ring folds.
-  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M } });
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, groundAt: { at: (place) => clipmap.groundBlendedAt(0, place), reachM: POOLS_ON_GROUND_M }, ground: { height: (x, z) => world.height(x, z), revision: () => world.revision } });
   let lampRevision = -1;
   const laneNet = new LaneNet();
   const laneOverlay = createLaneOverlay(scene, laneNet, token);

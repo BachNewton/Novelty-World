@@ -1,12 +1,12 @@
 import type { Scene } from "three/webgpu";
-import { createCarGlows, createGlows, createLampPools, createSeaBeams, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type GroundAt, type LampSpot, type Night } from "../art/night";
-import { placesOf } from "../art/marina/places";
-import { LIGHTS_ON_MARKS } from "./lights-on-marks";
+import { createCarGlows, createGlows, createLampPools, createSeaBeams, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type GroundAt, type LampSpot, type Night } from "../art/night";
+import { LIGHTS_ON_MARKS, lampOnMark } from "./lights-on-marks";
 
 /*
  * The night's lights in the game (`art/night`): every lamp beside the roads, with its pool on the ground, the sea's
- * lights from OSM with the great lights' turning beams, the harbours' working lamps, and other players' head and tail
- * lamps, all as glows in one draw and pools in another. None of it lights anything else. By day, before the first lamp
+ * lights from OSM with the great lights' turning beams, and other players' head and tail lamps, all as glows in one draw
+ * and pools in another. Every glow is in the lamp of a model drawn there: a roadside lamp's glass, a sea mark's lamp. A
+ * light with no model to shine from isn't drawn. None of it lights anything else. By day, before the first lamp
  * strikes, none of it is drawn at all.
  */
 
@@ -33,12 +33,30 @@ export interface NightLights {
   dispose: () => void;
 }
 
-export function createNightLights(scene: Scene, night: Night, { onAland, groundAt }: { onAland: boolean; groundAt: GroundAt }): NightLights {
-  const sea = onAland ? seaLightGlows(LIGHTS_ON_MARKS) : { glows: [], rhythms: [] };
-  const fixed = [...sea.glows, ...(onAland ? harbourGlows(placesOf("marina")) : [])];
+/** The ground as the world has it, and a count that changes whenever it does. */
+interface Ground {
+  height: (x: number, z: number) => number;
+  revision: () => number;
+}
+
+export function createNightLights(scene: Scene, night: Night, { onAland, groundAt, ground }: { onAland: boolean; groundAt: GroundAt; ground: Ground }): NightLights {
+  const seaLights = onAland ? LIGHTS_ON_MARKS : [];
+  const lampY = lampOnMark(ground.height);
+  const sea = seaLightGlows(seaLights, lampY);
+  const fixed = sea.glows;
   const glows = createGlows(night, fixed, sea.rhythms, fixed.length + LAMPS_MOST);
   const pools = createLampPools(night, LAMPS_MOST, groundAt);
-  const beams = onAland ? createSeaBeams(night, LIGHTS_ON_MARKS) : null;
+  const beams = onAland ? createSeaBeams(night, seaLights, lampY) : null;
+  // A sea mark ashore stands on the ground as the world has it, which sharpens as tiles land, so its light follows.
+  let groundRevision = ground.revision();
+  const standSeaLights = () => {
+    groundRevision = ground.revision();
+    seaLightGlows(seaLights, lampY).glows.forEach((glow, at) => {
+      glows.set(at, glow);
+    });
+    glows.upload(glowCount);
+    beams?.stand(lampY);
+  };
   const cars = createCarGlows(night, CARS_MOST);
   const meshes = [glows.mesh, pools.mesh, cars.mesh, ...(beams ? [beams.mesh] : [])];
   scene.add(...meshes);
@@ -47,11 +65,13 @@ export function createNightLights(scene: Scene, night: Night, { onAland, groundA
   // Every lamp has its glow, but a pool is only seen near, so the pools' list holds only the lamps within their reach.
   let lamps: readonly LampSpot[] = [];
   let poolsAround: { x: number; z: number } | null = null;
+  let glowCount = fixed.length;
   const writeLamps = (spots: readonly LampSpot[]) => {
     spots.forEach((spot, at) => {
       glows.set(fixed.length + at, lampGlow(spot));
     });
-    glows.upload(fixed.length + spots.length);
+    glowCount = fixed.length + spots.length;
+    glows.upload(glowCount);
   };
   const refillPools = (camera: { x: number; z: number }) => {
     poolsAround = { x: camera.x, z: camera.z };
@@ -74,6 +94,7 @@ export function createNightLights(scene: Scene, night: Night, { onAland, groundA
       cars.update(seen);
     },
     update(camera) {
+      if (ground.revision() !== groundRevision) standSeaLights();
       show();
       if (poolsAround === null || Math.hypot(camera.x - poolsAround.x, camera.z - poolsAround.z) > POOLS_MARGIN_M) refillPools(camera);
     },

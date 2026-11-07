@@ -1,21 +1,22 @@
-import { AdditiveBlending, BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, type Node } from "three/webgpu";
+import { AdditiveBlending, Box3, BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type BufferGeometry, type Node } from "three/webgpu";
 import { attribute, cameraPosition, float, positionGeometry, select, smoothstep, varying, vec2, vec3 } from "three/tsl";
 import type { GlowInstance } from "./glows";
+import { PARTS } from "../roadside/mesh";
+import { buildStreetLamp } from "../roadside/models";
+import { TOWN_PARTS } from "../town-kit/paint";
+import { buildTownLamp } from "../town-kit/lamps";
 import { nightRgb, type F, type Night } from "./night";
 
 /*
- * Lamps: where each kind's lantern is on the models in `art/roadside` and `art/town-kit`, turned into glows, and the soft
+ * Lamps: each kind's glass on the models in `art/roadside` and `art/town-kit`, turned into glows, and the soft
  * pool of light each lays on the ground, one draw for all of them. A pool is a little grid draped on the terrain by the
  * clipmap's own heights in its vertex shader, so it can't cut into a slope. It's added, so it shows on the road at night
  * and melts away by day, and it lights nothing else.
  */
 
-export type LampKind = "road" | "town" | "wall" | "harbour";
+export type LampKind = "road" | "town";
 
 interface LampLook {
-  /** The lantern, from the model's origin, along its reach: `art/roadside`'s arm, `art/town-kit`'s post. */
-  headM: number;
-  outM: number;
   token: string;
   haloM: number;
   poolM: number;
@@ -24,10 +25,33 @@ interface LampLook {
 }
 
 export const LAMP_LOOKS: Record<LampKind, LampLook> = {
-  road: { headM: 9.05, outM: 1.75, token: "lamp-road", haloM: 2.4, poolM: 15, poolLight: 0.2, reachM: 2400 },
-  town: { headM: 4.65, outM: 0, token: "lamp-town", haloM: 1.6, poolM: 10, poolLight: 0.14, reachM: 1500 },
-  wall: { headM: 2.6, outM: 0.58, token: "lamp-town", haloM: 0.8, poolM: 5, poolLight: 0.12, reachM: 500 },
-  harbour: { headM: 6.5, outM: 0, token: "lamp-harbour", haloM: 2, poolM: 12, poolLight: 0.17, reachM: 4500 },
+  road: { token: "lamp-road", haloM: 2.4, poolM: 15, poolLight: 0.2, reachM: 2400 },
+  town: { token: "lamp-town", haloM: 1.6, poolM: 10, poolLight: 0.14, reachM: 1500 },
+};
+
+/** The bounds of one part of a model, from its own vertices, in the model's frame: empty where it has none. */
+export function partBounds(geometry: BufferGeometry, part: number): Box3 {
+  const position = geometry.getAttribute("position");
+  const tint = geometry.getAttribute("tint");
+  const box = new Box3();
+  const point = new Vector3();
+  for (let vertex = 0; vertex < position.count; vertex++) {
+    if (Math.round(tint.getX(vertex) * 255) === part) box.expandByPoint(point.fromBufferAttribute(position, vertex));
+  }
+  return box;
+}
+
+/** The middle of a model's glass: where its light comes from. */
+export function glassMiddle(geometry: BufferGeometry, glass: number): Vector3 {
+  const box = partBounds(geometry, glass);
+  if (box.isEmpty()) throw new Error(`a lamp model with no glass (part ${glass})`);
+  return box.getCenter(new Vector3());
+}
+
+/** Each kind's lamp head, from the very models the roadside draws (`art/roadside`'s galvanised lamp, `art/town-kit`'s post-top one), so a glow can't drift from its glass. */
+export const LAMP_HEADS: Record<LampKind, Vector3> = {
+  road: glassMiddle(buildStreetLamp().near, PARTS.indexOf("lens")),
+  town: glassMiddle(buildTownLamp().near, TOWN_PARTS.indexOf("lamp-glass")),
 };
 
 const POOL_CELLS = 5;
@@ -53,9 +77,11 @@ const roll = (x: number, z: number) => {
   return value - Math.floor(value);
 };
 
-const headOf = ({ kind, x, y, z, yaw = 0 }: LampSpot) => {
-  const look = LAMP_LOOKS[kind];
-  return { x: x + Math.sin(yaw) * look.outM, y: y + look.headM, z: z + Math.cos(yaw) * look.outM };
+/** Where a lamp's head stands, turned with its post as a placement turns a model (`art/roadside/material.ts`): +z towards (sin yaw, cos yaw). */
+export const headOf = ({ kind, x, y, z, yaw = 0 }: LampSpot) => {
+  const head = LAMP_HEADS[kind];
+  const [cos, sin] = [Math.cos(yaw), Math.sin(yaw)];
+  return { x: x + head.x * cos + head.z * sin, y: y + head.y, z: z + head.z * cos - head.x * sin };
 };
 
 /** A lamp as a glow for `createGlows`. */

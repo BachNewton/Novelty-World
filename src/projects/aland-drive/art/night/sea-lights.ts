@@ -43,7 +43,6 @@ const FALLBACK_RANGE_NM = 3;
 const RANGE_GAIN = 1.6;
 const SIZE_M: Record<string, number> = { lighthouse: 14, leading: 10, beacon: 7, buoy: 4 };
 const MIN_PIXELS: Record<string, number> = { lighthouse: 16, leading: 12, beacon: 10, buoy: 8 };
-const FALLBACK_HEIGHT_M: Record<string, number> = { lighthouse: 12, leading: 14, beacon: 7, buoy: 4.2 };
 const COLOURS: Record<string, string> = { white: "sea-white", red: "sea-red", green: "sea-green", yellow: "sea-yellow" };
 /** The longest a great light's beam: it needn't reach as far as the flash. */
 const BEAM_LONG_M = 1600;
@@ -63,13 +62,16 @@ export const shareOf = (x: number, z: number) => {
 
 export const turns = (light: SeaLight) => light.kind === "lighthouse" && light.sectors.every(({ character, periodS }) => (character === "Fl" || character === "LFl") && periodS >= MIN_TURNING_PERIOD_S);
 
+/** Where a light's lamp is above the scene's level: the lamp of the mark drawn under it. */
+export type LampHeight<L extends SeaLight> = (light: L) => number;
+
 /** Every sea light as glows, a reflection under each, and the rhythms they read: each distinct rhythm once. */
-export function seaLightGlows(lights: readonly SeaLight[] = SEA_LIGHTS): { glows: GlowInstance[]; rhythms: Rhythm[] } {
+export function seaLightGlows<L extends SeaLight>(lights: readonly L[], lampY: LampHeight<L>): { glows: GlowInstance[]; rhythms: Rhythm[] } {
   const rhythms: Rhythm[] = [];
   const rows = new Map<string, number>();
   const glows: GlowInstance[] = [];
   for (const light of lights) {
-    const y = light.heightM ?? FALLBACK_HEIGHT_M[light.kind];
+    const y = lampY(light);
     const reachM = (light.rangeNm ?? FALLBACK_RANGE_NM) * METRES_A_NAUTICAL_MILE * RANGE_GAIN;
     const phase = shareOf(light.x, light.z);
     const turning = turns(light);
@@ -102,29 +104,10 @@ export function seaLightGlows(lights: readonly SeaLight[] = SEA_LIGHTS): { glows
   return { glows, rhythms };
 }
 
-const HARBOUR_LAMPS = 7;
-const HARBOUR_SPREAD_M = 70;
-const HARBOUR_LAMP_M = 6;
-const HARBOUR_REACH_M = 5000;
-
-/** Warm working lamps round a place that's a harbour, each with its streak on the water: real harbours, invented lamps. `marina.places` has no lamps of its own. */
-export function harbourGlows(harbours: readonly { x: number; z: number }[]): GlowInstance[] {
-  const glows: GlowInstance[] = [];
-  for (const { x, z } of harbours) {
-    for (let lamp = 0; lamp < HARBOUR_LAMPS; lamp++) {
-      const turn = shareOf(x + lamp * 91, z - lamp * 37) * Math.PI * 2;
-      const out = shareOf(x - lamp * 53, z + lamp * 11) * HARBOUR_SPREAD_M;
-      const glow: GlowInstance = { x: x + Math.cos(turn) * out, y: HARBOUR_LAMP_M, z: z + Math.sin(turn) * out, sizeM: 3, minPixels: 7, colour: nightRgb("lamp-harbour"), brightness: 1, reachM: HARBOUR_REACH_M, rhythm: -1, periodS: 1, phase: 0, strikes: shareOf(z, x) * 0.7 };
-      glows.push(glow, { ...glow, y: WATER_Y, brightness: 0.5, streak: true, reachM: HARBOUR_REACH_M * 0.4 });
-    }
-  }
-  return glows;
-}
-
 const ATTRIBUTE_FLOATS = 4;
 
-/** The sweeping beams of the great lights: a soft quad per flash in a period, turning round its lighthouse, one draw. */
-export function createSeaBeams(night: Night, lights: readonly SeaLight[] = SEA_LIGHTS) {
+/** The sweeping beams of the great lights: a soft quad per flash in a period, turning round its lighthouse, one draw. `stand` moves them to their lamps again, as the ground under them sharpens. */
+export function createSeaBeams<L extends SeaLight>(night: Night, lights: readonly L[], lampY: LampHeight<L>) {
   const beams = lights.filter(turns).flatMap((light) => {
     const found = rhythm(light.sectors[0]);
     return found.flashes.map(({ fromS, toS }) => ({ light, periodS: found.periodS, angle: 0.5 - (fromS + toS) / 2 / found.periodS, phase: shareOf(light.x, light.z) }));
@@ -133,11 +116,18 @@ export function createSeaBeams(night: Night, lights: readonly SeaLight[] = SEA_L
   geometry.instanceCount = beams.length;
   const places = new Float32Array(beams.length * ATTRIBUTE_FLOATS);
   const turning = new Float32Array(beams.length * ATTRIBUTE_FLOATS);
-  beams.forEach(({ light, periodS, angle, phase }, at) => {
-    places.set([light.x, light.heightM ?? FALLBACK_HEIGHT_M.lighthouse, light.z, 0], at * ATTRIBUTE_FLOATS);
+  const placeAttribute = new InstancedBufferAttribute(places, ATTRIBUTE_FLOATS);
+  const stand = (heightOf: LampHeight<L>) => {
+    beams.forEach(({ light }, at) => {
+      places.set([light.x, heightOf(light), light.z, 0], at * ATTRIBUTE_FLOATS);
+    });
+    placeAttribute.needsUpdate = true;
+  };
+  stand(lampY);
+  beams.forEach(({ periodS, angle, phase }, at) => {
     turning.set([periodS, phase + angle, 0, 0], at * ATTRIBUTE_FLOATS);
   });
-  geometry.setAttribute("beamPlace", new InstancedBufferAttribute(places, ATTRIBUTE_FLOATS));
+  geometry.setAttribute("beamPlace", placeAttribute);
   geometry.setAttribute("beamTurn", new InstancedBufferAttribute(turning, ATTRIBUTE_FLOATS));
 
   const place = attribute<"vec4">("beamPlace", "vec4");
@@ -166,6 +156,7 @@ export function createSeaBeams(night: Night, lights: readonly SeaLight[] = SEA_L
   return {
     mesh,
     beams: beams.length,
+    stand,
     dispose() {
       geometry.dispose();
       material.dispose();

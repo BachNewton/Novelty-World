@@ -1,7 +1,10 @@
-import type { Mesh, Scene } from "three/webgpu";
+import { Vector3, type Mesh, type Scene } from "three/webgpu";
 import { uniform } from "three/tsl";
 import { buildKummel, buildLighthouse, identityMaterials } from "../art/identity/index";
 import { buildFixedMark, buildLeadingMark, buildPillarBuoy, buildRadarMark, buildSkerryLight, buildSpar, LEADING_PATTERNS, marinaMaterials, RADAR_BANDS, radarMarkScale, SEA_MARKS } from "../art/marina/index";
+import { IDENTITY_PARTS } from "../art/identity/mesh";
+import { MARINA_PARTS } from "../art/marina/paint";
+import { partBounds } from "../art/night";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
 import data from "../sea/marks.json";
 import { showVersionsInReach } from "./versions-in-reach";
@@ -42,6 +45,33 @@ export function seaMarkKinds(): Record<string, Kind> {
   return found;
 }
 
+/** The level a mark stands at: on the drawn sea if it floats, else on the ground as the world has it now. */
+export const markFoot = (x: number, z: number, floats: boolean, groundAt: (x: number, z: number) => number) => (floats ? WATER_Y : groundAt(x, z));
+
+/** The part a kit's lit marks shine from: a buoy's or skerry light's lens, a lighthouse's lamp in its lantern. */
+const LAMP_PARTS: Record<Kit, number> = { marina: MARINA_PARTS.indexOf("mark-lens"), identity: IDENTITY_PARTS.indexOf("lamp") };
+const lamps = new Map<string, number>();
+
+/**
+ * Where a mark's light shines from, up from its foot, from the very model drawn there: its lamp where the model has one,
+ * and where it has none (a spar, a cairn, a leading board), the top of the mark, where a lit one carries its lantern.
+ */
+export function markLampM(model: string, heightM: number): number {
+  const kinds = seaMarkKinds();
+  if (!(model in kinds)) throw new Error(`a light on a ${model}, which there isn't`);
+  const { kit, build, scaleFor } = kinds[model];
+  let lamp = lamps.get(model);
+  if (lamp === undefined) {
+    const geometry = build().near;
+    const glass = partBounds(geometry, LAMP_PARTS[kit]);
+    geometry.computeBoundingBox();
+    if (geometry.boundingBox === null) throw new Error(`the ${model} has no bounds`);
+    lamp = glass.isEmpty() ? geometry.boundingBox.max.y : glass.getCenter(new Vector3()).y;
+    lamps.set(model, lamp);
+  }
+  return lamp * (scaleFor?.(heightM) ?? 1);
+}
+
 export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (x: number, z: number) => number) {
   const materials: Record<Kit, RoadsideMaterials> = {
     marina: marinaMaterials({ ...inputs, time: uniform(0) }),
@@ -70,7 +100,7 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
       const reach = list.model.reachM + CELL_M;
       const near = list.marks.filter(({ x, z }) => Math.abs(x - cx) < reach && Math.abs(z - cz) < reach);
       list.near = near;
-      const places: Placement[] = near.map(({ x, z, yaw, floats, scale }) => ({ x, y: floats ? WATER_Y : groundAt(x, z), z, yaw, scale }));
+      const places: Placement[] = near.map(({ x, z, yaw, floats, scale }) => ({ x, y: markFoot(x, z, floats, groundAt), z, yaw, scale }));
       list.shown = places.length;
       list.meshes = places.length > 0 ? placeModel(list.model, places, materials[list.kit]) : [];
       for (const mesh of list.meshes) scene.add(mesh);
