@@ -222,8 +222,11 @@ export interface RibbonInput {
   run: Node<"vec2">;
   /** The class's three bits, red, green, blue, from `townRibbonBits`. */
   bits: Node<"vec3">;
-  /** What the road's own dress drew. */
+  /** What the road's own dress drew, and its gravel. */
   carriageway: Node<"vec3">;
+  roadGravel: Node<"vec3">;
+  /** How built up the place is, 0 to 1, as the road's dress reads it. */
+  town: Node<"float">;
   colour: Colour;
   detail: Texture;
 }
@@ -240,7 +243,7 @@ function treads(along: Node<"float">, tone: Node<"vec4">, colour: Colour, shown:
 }
 
 /** A street or path's own surface, on its ribbon, on the same lattice as the terrain's paving beside it. */
-export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, bits, carriageway, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
+export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, bits, carriageway, roadGravel, town, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
   const tone = texture(detail, tiled(COARSE_M).add(vec2(0.61, 0.17)));
   const fineTone = texture(detail, tiled(FINE_M).add(vec2(0.13, 0.57)));
@@ -248,7 +251,9 @@ export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, 
   const wayAngle = fract(atan(wayRun.y, wayRun.x).div(2 * Math.PI));
   const run: Run = { ...runOf(place, select(wayRun.length().greaterThan(0.5), wayAngle, angle)), tone, colour, shown };
   const paved = select(isB, setts(run), slabs(run));
-  const soft = select(isG, lawned(tone, fineTone, tone.a, colour, shown), select(isB, tarmac(run, float(0)).mul(WALKED_TARMAC), gravelled(tone, fineTone, tone.a, colour, shown)));
+  // A gravel path in the country is worn as a gravel road is, in its tracks and into the land at its sides; in town it's a park's raked gravel.
+  const gravel = mix(roadGravel, gravelled(tone, fineTone, tone.a, colour, shown), town);
+  const soft = select(isG, lawned(tone, fineTone, tone.a, colour, shown), select(isB, tarmac(run, float(0)).mul(WALKED_TARMAC), gravel));
   const isSteps = isB.and(isR.or(isG).not());
   const claimed = select(isR.or(isG).or(isSteps), float(1), float(0));
   const surface = select(isSteps, treads(along, tone, colour, shown), select(isR.and(isG), paved, soft));

@@ -829,7 +829,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const dressed = dressRoad({ tiled, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
   // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
-  const townRoad = townRibbon({ place: positionWorld.xz, tiled, toCamera, along, angle: townAngle, run: attribute<"vec2">("townRun", "vec2"), bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const townRoad = townRibbon({ place: positionWorld.xz, tiled, toCamera, along, angle: townAngle, run: attribute<"vec2">("townRun", "vec2"), bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, roadGravel: dressed.gravel, town: roadInfo.y, colour: colorOf, detail });
   const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
   // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
   const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
