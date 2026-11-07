@@ -65,7 +65,7 @@ export interface CarTuning {
   };
   gearbox: Gearbox;
   power: {
-    /** The limit to pull off the line, whatever first gear could do. */
+    /** What traction control lets the engine pull with, whatever first gear could do: what the tyres put down off the line. */
     launchN: number;
     /** The share of drive to the rear wheels; the rest goes to the front. */
     rearShare: number;

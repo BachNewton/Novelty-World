@@ -105,7 +105,7 @@ import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
-import { NO_INPUT, type DriveInput } from "../sim/car";
+import { NO_INPUT, type Assists, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState, type Vector3 as CarVector } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
@@ -121,6 +121,7 @@ import { clearForAurora, type Weather, type WeatherState } from "../climate/weat
 import { createRoadWeather, hazeInFog } from "./weather";
 import { roadWeather } from "./road-weather";
 import { createPrecipitation } from "./precipitation";
+import { keepAssists, keptAssists } from "../garage/assists";
 import { fitTyres, tyresOn } from "../garage/tyres";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -261,6 +262,8 @@ export interface GameProbe {
   setCondition: (condition: Condition) => void;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
+  /** The driver's aids the car is driven with. */
+  assists: () => Assists;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
@@ -1214,6 +1217,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   // A link's tyres are for this drive only: what's kept is what the player fitted.
   drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
+  drive.assists = keptAssists();
   const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
@@ -1519,7 +1523,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
   const menuNow = (): GameMenu => {
-    if (!session) return drivingMenu(drive.tyres);
+    if (!session) return drivingMenu(drive.tyres, drive.assists);
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
     const { challenge } = session;
     return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
@@ -1706,7 +1710,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "tyres-studded": {
         const fitted = tyreOfItem(id);
         setTyres(fitted);
-        showMenu(drivingMenu(fitted));
+        showMenu(drivingMenu(fitted, drive.assists));
+        break;
+      }
+      case "abs":
+      case "traction":
+      case "stability": {
+        const assists = { ...drive.assists, [id]: !drive.assists[id] };
+        keepAssists(assists);
+        drive.assists = assists;
+        showMenu(drivingMenu(drive.tyres, assists));
         break;
       }
       case "sound":
@@ -2286,7 +2299,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), paused: mapFrom !== null || jumping || menuHolds }), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), paused: mapFrom !== null || jumping || menuHolds }, drive.player.treads().map((tread) => tread.spinMS)), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -2510,6 +2523,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         drive.condition = condition;
       },
       tyres: () => drive.tyres,
+      assists: () => drive.assists,
       online: () => {
         const state = onlineWorld?.state();
         return { status: state?.status ?? "idle", role: state?.role ?? null };

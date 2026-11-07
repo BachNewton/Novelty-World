@@ -72,7 +72,7 @@ export function parkedState(spec: CarSpec, { x, z, yaw }: CarSlot, floorY = 0): 
     steer: 0,
     car: spec.id ?? "skerry-gt",
     suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
-    roll: 0,
+    roll: [0, 0, 0, 0],
     lamps: LAMPS_OFF,
   };
 }

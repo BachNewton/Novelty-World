@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ComponentType } from "react";
-import { Car, Check, CircleDot, Flag, LogOut, Medal as MedalIcon, Play, Repeat, Route, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { Car, Check, CircleDot, Disc, Footprints, Navigation, Flag, LogOut, Medal as MedalIcon, Play, Repeat, Route, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
@@ -62,6 +62,12 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
         const tyre = tyreOfItem(id);
         return { icon: TYRE_LOOKS[tyre].icon, label: `${TYRE_LOOKS[tyre].name} tyres`, on: menu.tyres === tyre };
       }
+      case "abs":
+        return { icon: Disc, label: "ABS", on: menu.assists?.abs ?? true };
+      case "traction":
+        return { icon: Footprints, label: "Traction control", on: menu.assists?.traction ?? true };
+      case "stability":
+        return { icon: Navigation, label: "Stability", on: menu.assists?.stability ?? true };
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
       case "start-solo":

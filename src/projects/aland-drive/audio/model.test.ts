@@ -155,7 +155,7 @@ describe("the tyres", () => {
 });
 
 describe("the slide", () => {
-  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0, lamps: LAMPS_OFF });
+  const car = (velocity: [number, number, number]): CarState => ({ position: [0, 0, 0], rotation: [0, 0, 0, 1], velocity, spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: [0, 0, 0, 0], lamps: LAMPS_OFF });
 
   it("reads motion along the nose as none and motion across it as sliding", () => {
     expect(slipOf(car([0, 0, -40]), false)).toBe(0);

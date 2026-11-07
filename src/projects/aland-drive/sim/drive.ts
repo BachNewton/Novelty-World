@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Car, NO_INPUT, type DriveInput, type Tread } from "./car";
+import { Car, NO_INPUT, type Assists, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
 import type { EngineRead } from "./gearbox";
@@ -102,6 +102,15 @@ export class SimulatedCar {
 
   set tyres(tyres: Tyre) {
     this.car.tyres = tyres;
+  }
+
+  /** The driver's aids the car is driven with, which a swapped car keeps. */
+  get assists(): Assists {
+    return this.car.assists;
+  }
+
+  set assists(assists: Assists) {
+    this.car.assists = assists;
   }
 
   swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
@@ -326,6 +335,15 @@ export class Drive {
 
   set tyres(tyres: Tyre) {
     this.player.tyres = tyres;
+  }
+
+  /** The driver's aids on the car being driven. */
+  get assists(): Assists {
+    return this.player.assists;
+  }
+
+  set assists(assists: Assists) {
+    this.player.assists = assists;
   }
 
   /** What the weather has made of every surface, for every car: dry until something says otherwise. */

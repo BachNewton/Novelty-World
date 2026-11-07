@@ -61,7 +61,7 @@ describe("a challenge message's envelope", () => {
 });
 
 describe("a car's state", () => {
-  const state = { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0 };
+  const state = { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: [0, 0, 0, 0] };
 
   it("carries its lamps, so other players see a car brake and back up", () => {
     const lamps = { head: true, brake: true, reverse: false };

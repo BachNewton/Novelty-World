@@ -50,7 +50,7 @@ const SKERRY_GT: CarTuning = {
     antiRollNPerM: 14000,
   },
   grip: {
-    frontMu: 1.3,
+    frontMu: 1.35,
     rearMu: 1.4,
     peakSlip: 0.14,
     slideShare: 0.8,
@@ -230,7 +230,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.45,
     damping: 0.38,
     rollStiffness: 0.4,
-    grip: [1.15, 1.2],
+    grip: [1.175, 1.2],
     peakSlip: 0.12,
     slideShare: 0.82,
     engine: {
@@ -267,7 +267,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.35,
     damping: 0.38,
     rollStiffness: 0.42,
-    grip: [1.22, 1.26],
+    grip: [1.24, 1.26],
     peakSlip: 0.14,
     slideShare: 0.82,
     engine: {
@@ -305,7 +305,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.75,
     damping: 0.45,
     rollStiffness: 0.55,
-    grip: [1.45, 1.6],
+    grip: [1.525, 1.6],
     peakSlip: 0.12,
     slideShare: 0.75,
     handbrakeRearShare: 0.45,
@@ -346,7 +346,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rollStiffness: 0.3,
     droopM: 0.45,
     travelM: 0.36,
-    grip: [0.98, 1.02],
+    grip: [1, 1.02],
     peakSlip: 0.17,
     slideShare: 0.85,
     engine: {
@@ -384,7 +384,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     damping: 0.32,
     rollStiffness: 0.32,
     travelM: 0.32,
-    grip: [1, 1.05],
+    grip: [1.025, 1.05],
     peakSlip: 0.15,
     slideShare: 0.85,
     engine: {
@@ -422,7 +422,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.2,
     damping: 0.3,
     rollStiffness: 0.3,
-    grip: [1, 1.05],
+    grip: [1.025, 1.05],
     peakSlip: 0.16,
     slideShare: 0.85,
     engine: {
@@ -459,7 +459,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.5,
     damping: 0.33,
     rollStiffness: 0.35,
-    grip: [1.05, 1.1],
+    grip: [1.075, 1.1],
     peakSlip: 0.13,
     slideShare: 0.8,
     engine: {
@@ -536,7 +536,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rollStiffness: 0.25,
     droopM: 0.48,
     travelM: 0.4,
-    grip: [0.92, 0.95],
+    grip: [0.935, 0.95],
     peakSlip: 0.18,
     slideShare: 0.88,
     engine: {
@@ -573,7 +573,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.5,
     damping: 0.42,
     rollStiffness: 0.5,
-    grip: [1.25, 1.3],
+    grip: [1.275, 1.3],
     peakSlip: 0.13,
     slideShare: 0.8,
     engine: {
@@ -611,7 +611,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.25,
     damping: 0.42,
     rollStiffness: 0.45,
-    grip: [1.25, 1.3],
+    grip: [1.275, 1.3],
     peakSlip: 0.14,
     slideShare: 0.8,
     engine: {
@@ -649,7 +649,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     rideHz: 1.3,
     damping: 0.36,
     rollStiffness: 0.4,
-    grip: [1.2, 1.3],
+    grip: [1.25, 1.3],
     peakSlip: 0.14,
     slideShare: 0.8,
     engine: {
@@ -687,7 +687,7 @@ export const CARS: Readonly<Record<CarId, CarTuning>> = {
     damping: 0.42,
     rollStiffness: 0.5,
     travelM: 0.32,
-    grip: [1.35, 1.4],
+    grip: [1.375, 1.4],
     peakSlip: 0.14,
     slideShare: 0.82,
     handbrakeRearShare: 0.38,

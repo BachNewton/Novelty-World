@@ -51,20 +51,25 @@ export function runningEngine(box: Gearbox, speed: number): EngineRead {
   return { gear, rpm: Math.min(Math.max(revsIn(box, gear, speed), box.idleRpm), box.redlineRpm), load: 0, shiftLeftS: 0 };
 }
 
-/** One step of the revs, the gear and the load. `shifted` says a change happened in this step. */
-export function stepEngine(box: Gearbox, read: EngineRead, speed: number, throttle: number, dt: number): { read: EngineRead; shifted: boolean } {
+/**
+ * One step of the revs, the gear and the load. `shifted` says a change happened in this step. The revs follow the
+ * driven wheels, which a spinning tyre turns faster than the car goes, and so does the box once the car is under way:
+ * a car spinning its wheels on the spot stays in first, at the limiter.
+ */
+export function stepEngine(box: Gearbox, read: EngineRead, speed: number, throttle: number, dt: number, wheelSpeed = speed): { read: EngineRead; shifted: boolean } {
   let { gear, shiftLeftS } = read;
   let shifted = false;
   shiftLeftS = Math.max(0, shiftLeftS - dt);
 
   if (shiftLeftS === 0) {
+    const by = speed < box.gearTopMS[0] * CLUTCH_SHARE ? speed : wheelSpeed;
     const upAt = lerp(box.gentleShift, 0.97, throttle) * box.redlineRpm;
     const downAt = lerp(DOWNSHIFT_AT[0], DOWNSHIFT_AT[1], throttle) * box.redlineRpm;
     const last = box.gearTopMS.length - 1;
-    if (gear < last && revsIn(box, gear, speed) > upAt && revsIn(box, gear + 1, speed) > downAt) {
+    if (gear < last && revsIn(box, gear, by) > upAt && revsIn(box, gear + 1, by) > downAt) {
       gear += 1;
       shifted = true;
-    } else if (gear > 0 && revsIn(box, gear, speed) < downAt && revsIn(box, gear - 1, speed) < upAt * 0.92) {
+    } else if (gear > 0 && revsIn(box, gear, by) < downAt && revsIn(box, gear - 1, by) < upAt * 0.92) {
       gear -= 1;
       shifted = true;
     }
@@ -72,8 +77,8 @@ export function stepEngine(box: Gearbox, read: EngineRead, speed: number, thrott
   }
 
   const hasClutch = box.idleRpm > 0;
-  const atWheels = revsIn(box, gear, speed);
-  const slipping = hasClutch && gear === 0 && speed < box.gearTopMS[0] * CLUTCH_SHARE;
+  const atWheels = revsIn(box, gear, wheelSpeed);
+  const slipping = hasClutch && gear === 0 && wheelSpeed < box.gearTopMS[0] * CLUTCH_SHARE;
   const clutchRevs = slipping ? lerp(box.idleRpm, box.redlineRpm * CLUTCH_REVS, throttle) : 0;
   const target = Math.min(Math.max(atWheels, clutchRevs, box.idleRpm), box.redlineRpm * 1.01);
   const rpm = read.rpm + (target - read.rpm) * settle(dt, slipping ? REV_FREE_S : REV_FOLLOW_S);
@@ -99,11 +104,14 @@ export const radiansPerMetre = ({ gearbox }: CarTuning, gear: number) => (gearbo
 /** How hard the closed throttle holds the car back at some revs, in newton metres. */
 export const engineBrakeAt = ({ engine, gearbox }: CarTuning, rpm: number) => (engine.engineBrakeNm * Math.max(0, rpm - gearbox.idleRpm)) / (gearbox.redlineRpm - gearbox.idleRpm);
 
-/** The drive at the road for a throttle, with the engine where it is: what the car pulls with, before the tyres have their say. */
-export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead, throttle: number): number {
+/**
+ * The drive at the road for a throttle, with the engine where it is: what the car pulls with, before the tyres have
+ * their say. Traction control holds it to what the tyres put down off the line; without it, the engine's all.
+ */
+export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead, throttle: number, traction = true): number {
   if (shiftLeftS > 0) return 0;
   const toRoad = radiansPerMetre(tuning, gear);
-  const pull = Math.min(tuning.power.launchN, torqueAt(tuning, rpm) * toRoad);
+  const pull = Math.min(traction ? tuning.power.launchN : Infinity, torqueAt(tuning, rpm) * toRoad);
   return throttle * pull - (1 - throttle) * engineBrakeAt(tuning, rpm) * toRoad;
 }
 

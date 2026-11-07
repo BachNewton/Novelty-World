@@ -1,6 +1,7 @@
 import type { PlayMode } from "../challenge/passes";
 import type { Medal } from "../challenge/standings";
 import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
+import type { Assists } from "../sim/car";
 import type { Tyre } from "../sim/surfaces";
 
 /*
@@ -15,7 +16,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -71,6 +72,8 @@ export interface GameMenu {
   partner?: string;
   /** The tyres on the car, which the tyre choices mark. */
   tyres?: Tyre;
+  /** The driver's aids, which their items show and turn on and off. */
+  assists?: Assists;
   /** The race a card is for. */
   race?: RaceCard;
   /** Set when the items are about a race, being played or over: its ground. */
@@ -78,12 +81,13 @@ export interface GameMenu {
 }
 
 /**
- * The menu outside a challenge, on the car's tyres. Changing tyres is here until homes and car shops exist, and
- * never in a challenge, whose car is the challenge's.
+ * The menu outside a challenge, on the car's tyres and the driver's aids. Changing tyres is here until homes and car
+ * shops exist, and never in a challenge, whose car is the challenge's; the aids are the player's, so they go with
+ * them into one.
  */
 const TYRE_ITEMS: Record<`tyres-${Tyre}`, Tyre> = { "tyres-summer": "summer", "tyres-winter": "winter", "tyres-studded": "studded" };
 
 /** The tyres a tyre choice fits. */
 export const tyreOfItem = (id: `tyres-${Tyre}`): Tyre => TYRE_ITEMS[id];
 
-export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "sound"], back: "resume", pauses: true, tyres });
+export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "sound"], back: "resume", pauses: true, tyres, assists });

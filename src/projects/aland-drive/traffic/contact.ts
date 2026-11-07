@@ -199,7 +199,7 @@ export class TrafficContact {
       spin: [0, turn / seconds, 0],
       steer: car.body.wheels,
       suspension: [0, 0, 0, 0],
-      roll: 0,
+      roll: [0, 0, 0, 0],
       lamps: { head: true, brake: false, reverse: false },
     };
   }
