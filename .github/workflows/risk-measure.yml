@@ -12,6 +12,10 @@
 # skips the rounds and splits its games over `shards` machines once (actions.md).
 # The `native-games` tool is the native crate's `risk-native games`: a fixed count of games, split
 # over `shards` machines once like `record`, then merged into the report one local run gives.
+# The `native-play` tool is the crate's `risk-native play`: native bots' games kept as game records
+# (seed, every move, the hashes the GPU engine replays against), the data an imitation learns from.
+# Each machine runs one recorder per core, each on its own run of seeds under `seeds`, and the
+# files are gathered into one artifact; `--count` is per core.
 
 name: Risk measure
 
@@ -21,12 +25,16 @@ on:
       tool:
         description: The measuring tool
         type: choice
-        options: [gauntlet, ratings, record, native-games]
+        options: [gauntlet, ratings, record, native-games, native-play]
         default: gauntlet
       args:
-        description: "Its arguments, as typed after `npm run risk:<tool> --` (native-games: after `risk-native games`), split at spaces, unquoted"
+        description: "Its arguments, as typed after `npm run risk:<tool> --` (native-games: after `risk-native games`; native-play: after `risk-native play`, without --seeds or --out), split at spaces, unquoted"
         type: string
         required: true
+      seeds:
+        description: "native-play only: the seed prefix; each machine's cores play their own run of seeds under it"
+        type: string
+        default: play
       shards:
         description: The most machines a round is split across
         type: number
@@ -301,7 +309,7 @@ jobs:
           retention-days: 90
 
   shard-list:
-    if: inputs.tool == 'record' || inputs.tool == 'native-games'
+    if: inputs.tool == 'record' || inputs.tool == 'native-games' || inputs.tool == 'native-play'
     runs-on: ubuntu-latest
     outputs:
       list: ${{ steps.list.outputs.list }}
@@ -421,4 +429,57 @@ jobs:
         with:
           name: risk-native-results
           path: results/
+          retention-days: 90
+
+  # Each machine's cores each record their own run of games (`risk-native play` plays one game at
+  # a time), seeds `<seeds>-<shard>-<core>-<n>`, into one file each. A lost machine loses its
+  # games and nothing else: a recording is data, not a measurement, so nothing is replayed.
+  native-play:
+    needs: shard-list
+    if: inputs.tool == 'native-play'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        shard: ${{ fromJSON(needs.shard-list.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/projects/risk/native
+      - run: cargo build --release --locked
+        working-directory: src/projects/risk/native
+      - env:
+          ARGS: ${{ inputs.args }}
+          SEEDS: ${{ inputs.seeds }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -f
+          mkdir records
+          for core in $(seq 0 $(($(nproc) - 1))); do
+            src/projects/risk/native/target/release/risk-native play $ARGS --seeds "$SEEDS-$SHARD-$core" --out "records/$SEEDS-$SHARD-$core.jsonl.gz" &
+          done
+          wait
+          ls -l records
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-records-${{ matrix.shard }}
+          path: records/
+          retention-days: 7
+
+  native-play-collect:
+    needs: native-play
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: risk-records-*
+          path: records
+          merge-multiple: true
+      - run: ls -l records >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-records
+          path: records/
           retention-days: 90
