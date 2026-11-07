@@ -5,6 +5,7 @@ import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { GAME_DAY_S } from "../src/projects/aland-drive/time/day";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * The online world: pages join one world on this run's own relay with no code,
@@ -31,7 +32,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.describe.configure({ mode: "serial" });
 test.setTimeout(180_000);
 

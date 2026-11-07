@@ -4,6 +4,7 @@ import type { Browser, Page } from "@playwright/test";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * Shared traffic: the cars, cyclists and walkers on the lanes, each run by the
@@ -41,7 +42,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(240_000);
 
 type Vehicle = { id: string; kind: string; x: number; z: number; runsHere: boolean; handovers: number };

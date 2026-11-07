@@ -6,6 +6,7 @@ import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { along, carAt, challengeOf, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * A co-op challenge for two, on the run's own relay: two pages in a world of
@@ -41,7 +42,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(240_000);
 
 async function joinWorld(browser: Browser, world: string, startMs = 90_000): Promise<Page> {

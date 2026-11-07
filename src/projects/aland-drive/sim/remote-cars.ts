@@ -2,6 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { blendCarStates, type CarState, type Rotation, type Vector3 } from "./car-state";
 import { GHOST_GROUPS, REMOTE_GROUPS } from "./groups";
 import { CARS } from "./cars";
+import type { PhysicsCentre } from "./physics-centre";
 import { Timeline, type Heard } from "./remote-timeline";
 import { STEP_S } from "./tuning";
 
@@ -88,6 +89,7 @@ class RemoteCar {
 
   constructor(
     rapier: RAPIER.World,
+    private readonly centre: PhysicsCentre,
     readonly timeline: Timeline,
     state: CarState,
     readonly shape: StandInShape,
@@ -110,9 +112,8 @@ class RemoteCar {
   }
 
   put(state: CarState): void {
-    const [x, y, z] = state.position;
     const [rx, ry, rz, rw] = state.rotation;
-    this.body.setTranslation({ x, y, z }, true);
+    this.body.setTranslation(this.centre.toPhysics(state.position), true);
     this.body.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
     this.fade();
   }
@@ -124,22 +125,27 @@ class RemoteCar {
   }
 
   near(at: Vector3): boolean {
-    return Math.hypot(...difference(at, point(this.body.translation()))) <= CLEAR_M;
+    return Math.hypot(...difference(at, this.position())) <= CLEAR_M;
+  }
+
+  /** Where its body is in the world. */
+  private position(): Vector3 {
+    return this.centre.fromPhysics(this.body.translation());
   }
 
   /** Steers the stand-in for the coming step. */
   steer(cars: readonly Vector3[], nowMs: number): void {
     const target = this.timeline.sample(nowMs);
     this.target = target;
-    if (Math.hypot(...difference(target.position, point(this.body.translation()))) > SNAP_M) this.put(target);
-    const off = difference(target.position, point(this.body.translation()));
+    if (Math.hypot(...difference(target.position, this.position())) > SNAP_M) this.put(target);
+    const off = difference(target.position, this.position());
     const { x, y, z, w } = this.body.rotation();
     const linear = add(target.velocity, capped(off, MOST_CORRECTION_MS / PULL_PER_S), PULL_PER_S);
     const angular = add(target.spin, capped(spinBetween([x, y, z, w], target.rotation), MOST_TURN_CORRECTION / PULL_PER_S), PULL_PER_S);
     this.body.setLinvel({ x: linear[0], y: linear[1], z: linear[2] }, true);
     this.body.setAngvel({ x: angular[0], y: angular[1], z: angular[2] }, true);
     this.steered = { linear, angular };
-    const at = point(this.body.translation());
+    const at = this.position();
     if (this.ghost && cars.every((car) => Math.hypot(...difference(at, car)) > CLEAR_M)) {
       this.ghost = false;
       this.collider.setCollisionGroups(REMOTE_GROUPS);
@@ -152,7 +158,7 @@ class RemoteCar {
     const spin = point(this.body.angvel());
     this.shove = { linear: Math.hypot(...difference(velocity, this.steered.linear)), angular: Math.hypot(...difference(spin, this.steered.angular)) };
     this.before = this.after;
-    this.after = { ...this.target, position: point(this.body.translation()), rotation: [x, y, z, w] };
+    this.after = { ...this.target, position: this.position(), rotation: [x, y, z, w] };
     this.moving = { velocity, spin };
   }
 }
@@ -162,7 +168,11 @@ export class RemoteCars {
   /** The time the last step stood for, in ms on the clock states are heard by: each step is a step on from it. */
   private clockMs = 0;
 
-  constructor(private readonly rapier: RAPIER.World) {}
+  constructor(
+    private readonly rapier: RAPIER.World,
+    /** Where Rapier's origin is in the world. */
+    private readonly centre: PhysicsCentre,
+  ) {}
 
   /** Keeps the steps on the clock states are heard by: the time the last step stood for. */
   setClock(ms: number): void {
@@ -180,7 +190,7 @@ export class RemoteCars {
     if (car?.shape === shape) return;
     // A player who swaps car needs a stand-in of the new one's size and weight, put where it is.
     if (car) this.forget(id);
-    this.cars.set(id, new RemoteCar(this.rapier, timeline, car ? timeline.sample(this.clockMs) : state, shape));
+    this.cars.set(id, new RemoteCar(this.rapier, this.centre, timeline, car ? timeline.sample(this.clockMs) : state, shape));
   }
 
   forget(id: string): void {

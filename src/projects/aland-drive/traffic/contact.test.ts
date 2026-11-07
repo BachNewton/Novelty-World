@@ -3,6 +3,7 @@ import { Autopilot } from "../sim/autopilot";
 import { NO_INPUT, type DriveInput } from "../sim/car";
 import { headingOf, speedOf } from "../sim/car-state";
 import { Drive, initPhysics } from "../sim/drive";
+import { STEP_S } from "../sim/tuning";
 import { FIXTURE_TILES, readWorld } from "../sim/read-tile";
 import { chainLine } from "../sim/road-net";
 import { CARS } from "../sim/cars";
@@ -49,7 +50,7 @@ function setUp(oncoming = false) {
     steps = (steps + 1) % EVERY;
     if (steps === 0) {
       traffic.setDriven(contact.driven([wide, long]));
-      traffic.step(drive.rapier.timestep * EVERY);
+      traffic.step(STEP_S * EVERY);
     }
   };
   return { traffic, drive, contact, step, half: [wide, long] as const };
@@ -63,7 +64,7 @@ describe("traffic and the player's car", () => {
     let hitAt: number | null = null;
     let fastestHit = 0;
     let overlapped = false;
-    for (let at = 0; at < 30 / drive.rapier.timestep; at++) {
+    for (let at = 0; at < 30 / STEP_S; at++) {
       const player = drive.stateAt(1);
       // Once it has hit, the player stops: on the brake, which would reverse a car once it stood, then the handbrake.
       step(hitAt === null ? pilot.input(player) : speedOf(player) > 1 ? { ...NO_INPUT, brake: 1 } : { ...NO_INPUT, handbrake: true });
@@ -92,7 +93,7 @@ describe("traffic and the player's car", () => {
     let highestRise = 0;
     let leastUp = 1;
     let lastOffWheels = 0;
-    for (let at = 0; at < 20 / drive.rapier.timestep; at++) {
+    for (let at = 0; at < 20 / STEP_S; at++) {
       const player = drive.stateAt(1);
       step(hitAt === null ? pilot.input(player) : speedOf(player) > 1 ? { ...NO_INPUT, brake: 1 } : { ...NO_INPUT, handbrake: true });
       if (hitAt === null && contact.count() > 0) {
@@ -101,7 +102,7 @@ describe("traffic and the player's car", () => {
         handedHeight = drive.cars()[0].stateAt(1).position[1];
       }
       // The first two seconds after the hit, while it's shoved and skids.
-      if (hitAt === null || at - hitAt > 2 / drive.rapier.timestep || drive.cars().length === 0) continue;
+      if (hitAt === null || at - hitAt > 2 / STEP_S || drive.cars().length === 0) continue;
       const hit = drive.cars()[0].stateAt(1);
       const [x, , z] = hit.rotation;
       highestRise = Math.max(highestRise, hit.position[1] - handedHeight);
@@ -113,7 +114,7 @@ describe("traffic and the player's car", () => {
     // A stand-in has no ground, so a hit pitches it freely: handed on, that spin reared the car on its back wheels, 0.6 m up and 25° nose high, and it sank back over a second.
     expect(highestRise).toBeLessThan(0.15);
     expect(leastUp).toBeGreaterThan(0.97);
-    expect(lastOffWheels * drive.rapier.timestep).toBeLessThan(0.25);
+    expect(lastOffWheels * STEP_S).toBeLessThan(0.25);
   });
 
 });

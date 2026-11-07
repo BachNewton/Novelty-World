@@ -4,6 +4,7 @@ import type { Browser, Page } from "@playwright/test";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * Computer-driven cars online: each is run by the player nearest it and seen by
@@ -43,7 +44,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(180_000);
 
 async function joinWorld(browser: Browser, world: string): Promise<Page> {

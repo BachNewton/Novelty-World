@@ -1,4 +1,3 @@
-import RAPIER from "@dimforge/rapier3d-compat";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -191,9 +190,7 @@ describe("a paved tile's ground", () => {
     for (let step = 0; step < 400; step++) places.push([280.113 + (step % 40) * 1.017, -(400.319 + Math.floor(step / 40) * 37.21)]);
     let cutCellsHit = 0;
     for (const [x, z] of places) {
-      drive.ground.around([{ x, z }]);
-      drive.rapier.step();
-      const hit = drive.rapier.castRay(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
+      const hit = drive.castDown(x, z, 300);
       if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
       expect(Math.abs(300 - hit.timeOfImpact - drawnAt(x, z, detail))).toBeLessThan(0.002);
       if (isCut(x, z, detail)) cutCellsHit++;
@@ -217,9 +214,7 @@ describe("a paved tile's ground", () => {
 
     /** What a wheel's ray finds at a place, or nothing when it hit something other than the surface at that height (a deck over it). */
     const castAt = (drive: Drive, x: number, z: number, height: number): Surface | null => {
-      drive.ground.around([{ x, z }]);
-      drive.rapier.step();
-      const hit = drive.rapier.castRayAndGetNormal(new RAPIER.Ray({ x, y: 300, z }, { x: 0, y: -1, z: 0 }), 600, true);
+      const hit = drive.castDown(x, z, 300);
       if (!hit) throw new Error(`nothing to collide with at ${x}, ${z}`);
       return Math.abs(300 - hit.timeOfImpact - height) > 0.002 ? null : drive.ground.groundUnder(hit, x, z).surface;
     };
