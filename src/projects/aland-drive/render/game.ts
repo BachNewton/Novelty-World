@@ -27,6 +27,7 @@ import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createWindmills } from "./windmills";
+import { createWindTurbines } from "./wind-turbines";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
@@ -946,10 +947,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const viewHeight = uniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
   const streetClock = uniform(0);
+  const identityKit = identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock });
+  // Båtskär's turbines turn on the same clock as the roadside's flags.
+  const windTurbines = createWindTurbines(scene, identityKit, { height: (x, z) => world.height(x, z), revision: () => world.revision });
+  if (inPlayground) windTurbines.show(false);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
     street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }),
-    identity: identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
+    identity: identityKit,
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
@@ -1123,6 +1128,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(true);
   outbuildings.showAll(true);
   windmills.showAll(true);
+  windTurbines.showAll(true);
   docks.showAll(true);
   seaMarks.showAll(true);
   people.showAll(true);
@@ -1149,6 +1155,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(false);
   outbuildings.showAll(false);
   windmills.showAll(false);
+  windTurbines.showAll(false);
   docks.showAll(false);
   seaMarks.showAll(false);
   people.showAll(false);
@@ -1988,6 +1995,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!inPlayground) {
       boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, camera.position);
       seaMarks.update(spot.x, spot.z, camera.position);
+      windTurbines.update();
     }
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
     if (!(lifted || held || jumping || menuHolds)) {
@@ -2340,6 +2348,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       wallMaterial.dispose();
       outbuildings.dispose();
       windmills.dispose();
+      windTurbines.dispose();
       docks.dispose();
       boatsUnderWay.dispose();
       seaMarks.dispose();

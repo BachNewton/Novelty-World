@@ -1,4 +1,5 @@
 export type { LighthouseArt } from "./kit";
+export { buildTurbineRotor, buildTurbineTower, HUB_M, rotorAt } from "./turbine";
 import { FLOTJAN } from "./flotjan";
 import { HOGSTEN } from "./hogsten";
 import { KOBBA_KLINTAR } from "./kobba-klintar";
