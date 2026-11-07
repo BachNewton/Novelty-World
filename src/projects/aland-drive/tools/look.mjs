@@ -7,8 +7,9 @@
 // Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
 // --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
-// says when one passes). --pair saves each look twice from the one camera, as <out> and <out>-without, the second with
-// the boats under way and the sea marks left out: a before and after of them.
+// says when one passes). An hour in the link (`?hour=`) is held for every look. --pair saves each look twice from the
+// one camera, as <out> and <out>-without, the second with the boats under way and the sea marks left out: a before and
+// after of them.
 
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";
 
@@ -32,6 +33,9 @@ const looks = SHOTS
 const { page, step, reported, close } = await openGame(URL, { width: WIDTH, height: HEIGHT, args: UNCAPPED_ARGS });
 
 if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), Date.parse(SEA) / 1000);
+// A link's hour runs on at the game's pace, a day in half an hour, so on a busy machine a run's last shots were evenings.
+const HOUR = new globalThis.URL(URL).searchParams.get("hour");
+if (HOUR !== null) await page.evaluate((hour) => window.__alandDrive.setDay({ hour, held: true }), Number(HOUR));
 
 const shoot = async (place) => {
   if (place.length === 5) {

@@ -1,6 +1,6 @@
 import { BufferGeometry, Group, Mesh, type Node, type Object3D, type Scene } from "three/webgpu";
 import type { CarState } from "../../sim/car-state";
-import { axleY, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
+import { axleY, buildCarParts, groundY, lampCentres, type CarDetail, type CarSpec, type LampCentres } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
 import { type Sun } from "../sun";
 
@@ -19,6 +19,8 @@ export interface CarArt {
   wheel: BufferGeometry;
   /** A hero's see-through glass. */
   glass: BufferGeometry | null;
+  /** Where its lamps are, in the car's own frame. */
+  lamps: LampCentres;
   triangles: { body: number; glass: number; wheel: number; total: number };
   dispose: () => void;
 }
@@ -34,6 +36,7 @@ export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
     body,
     wheel,
     glass,
+    lamps: lampCentres(parts.body),
     triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 },
     dispose() {
       body.dispose();

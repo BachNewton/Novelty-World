@@ -4,7 +4,7 @@ import { headingOf, speedOf, type CarState, type Vector3 } from "../sim/car-stat
 import type { Drive, SimulatedCar } from "../sim/drive";
 import type { StandInShape } from "../sim/remote-cars";
 import { sagOf, STEP_S } from "../sim/tuning";
-import { SIGNAL, type DrivenCar, type LaneTraffic, type Pose } from "./lane-driver";
+import { SIGNAL, type DrivenCar, type LaneCar, type LaneTraffic, type Pose } from "./lane-driver";
 
 /*
  * Where traffic meets the simulation. A traffic car away from every simulated
@@ -22,6 +22,11 @@ import { SIGNAL, type DrivenCar, type LaneTraffic, type Pose } from "./lane-driv
  *
  * A world car's handling is the drivable car's nearest it in size, and its
  * collision box, once hit, is that car's too.
+ *
+ * In the shared world a hit car is a computer-driven car, run by whoever hit
+ * it and handed on as any is (`net/shared-traffic.ts`): this page is told of a
+ * hit, can take one up from the state it was handed and let one go, and waits
+ * for every player to be far off before one that can't drive on goes.
  */
 
 /** Within this of a simulated car, a traffic car has a stand-in: inside the ground the simulated car already has round it. */
@@ -38,7 +43,7 @@ const UPRIGHT = 0.8;
 /** A hit car that can't drive on goes once the player is this far away. */
 const GONE_M = 150;
 
-interface Hit {
+export interface Hit {
   id: string;
   model: number;
   seed: number;
@@ -55,7 +60,7 @@ export interface HitCarView {
   signal: number;
 }
 
-const rideOf = (id: CarId) => CARS[id].car.wheelRadiusM + CARS[id].suspension.droopM - sagOf(CARS[id]);
+export const rideOf = (id: CarId) => CARS[id].car.wheelRadiusM + CARS[id].suspension.droopM - sagOf(CARS[id]);
 
 /** The drivable car nearest a world car in size. */
 function handlingOf([wide, long]: readonly [number, number]): CarId {
@@ -79,10 +84,21 @@ const upOf = ([x, , z]: CarState["rotation"]) => 1 - 2 * (x * x + z * z);
 /** How fast a car rolls the way its nose points. */
 const forwardOf = ({ rotation, velocity }: CarState) => -Math.sin(headingOf(rotation)) * velocity[0] - Math.cos(headingOf(rotation)) * velocity[2];
 
+/** A hit car drawn as the world car it was, where its state has it, with its hazards on. */
+export function hitCarView(id: string, model: number, seed: number, state: CarState): HitCarView {
+  return { id, model, seed, pose: { x: state.position[0], y: state.position[1] - rideOf(state.car), z: state.position[2], yaw: headingOf(state.rotation) }, signal: SIGNAL.hazards };
+}
+
 export class TrafficContact {
   private readonly handling: CarId[];
   private readonly shapes: StandInShape[];
   private readonly hits = new Map<string, Hit>();
+  /** A traffic car this page's car hit, as it becomes a simulated car. */
+  onHit: (hit: Hit) => void = () => undefined;
+  /** A hit car this page ran that is gone from the simulation: back in the traffic, or gone for good. */
+  onDone: (hit: Hit, rejoined: LaneCar | null) => void = () => undefined;
+  /** Where every other player's car is: a hit car that can't drive on waits for them to be far off too. */
+  others: () => readonly { x: number; z: number }[] = () => [];
 
   constructor(
     private readonly drive: Drive,
@@ -126,10 +142,11 @@ export class TrafficContact {
       hit.stoppedS = speedOf(state) < STOPPED_MS ? hit.stoppedS + STEP_S : 0;
       if (hit.stoppedS < WAIT_S) continue;
       const [x, y, z] = state.position;
-      const rejoined = upOf(state.rotation) > UPRIGHT && this.traffic.rejoin(hit.id, { x, y: y - rideOf(hit.car.id), z, heading: headingOf(state.rotation) }, hit.model, hit.seed);
-      if (rejoined || Math.hypot(x - px, z - pz) > GONE_M) {
+      const rejoined = upOf(state.rotation) > UPRIGHT ? this.traffic.rejoin(hit.id, { x, y: y - rideOf(hit.car.id), z, heading: headingOf(state.rotation) }, hit.model, hit.seed) : null;
+      if (rejoined || [{ x: px, z: pz }, ...this.others()].every((player) => Math.hypot(x - player.x, z - player.z) > GONE_M)) {
         this.drive.removeCar(hit.car);
         this.hits.delete(hit.id);
+        this.onDone(hit, rejoined);
       }
     }
   }
@@ -140,7 +157,28 @@ export class TrafficContact {
     const state = this.drive.traffic.bodyState(id);
     this.drive.traffic.forget(id);
     this.traffic.remove(id);
-    this.hits.set(id, { id, model: car.model, seed: car.seed, car: this.drive.addMovingCar(state), stoppedS: 0 });
+    const hit = { id, model: car.model, seed: car.seed, car: this.drive.addMovingCar(state), stoppedS: 0 };
+    this.hits.set(id, hit);
+    this.onHit(hit);
+  }
+
+  /** A hit car handed to this page, built where the state it was handed has it. */
+  take(id: string, state: CarState, model: number, seed: number, stoppedS: number): void {
+    if (this.hits.has(id)) throw new Error(`the hit car ${id} is already run here`);
+    this.hits.set(id, { id, model, seed, car: this.drive.addMovingCar(state), stoppedS });
+  }
+
+  /** A hit car run here no longer: another page runs it now. */
+  release(id: string): void {
+    const hit = this.hits.get(id);
+    if (!hit) throw new Error(`the hit car ${id} isn't run here`);
+    this.drive.removeCar(hit.car);
+    this.hits.delete(id);
+  }
+
+  /** The hit cars this page runs. */
+  running(): readonly Hit[] {
+    return [...this.hits.values()];
   }
 
   /** Where a traffic car's stand-in is at the start of a simulation step `steps` into the drawn traffic step, moving as the drawn car does. */
@@ -175,10 +213,7 @@ export class TrafficContact {
 
   /** The hit cars a share of the way from the last simulation step to this one. */
   hitCars(share: number): HitCarView[] {
-    return [...this.hits.values()].map(({ id, model, seed, car }) => {
-      const state = car.stateAt(share);
-      return { id, model, seed, pose: { x: state.position[0], y: state.position[1] - rideOf(car.id), z: state.position[2], yaw: headingOf(state.rotation) }, signal: SIGNAL.hazards };
-    });
+    return [...this.hits.values()].map(({ id, model, seed, car }) => hitCarView(id, model, seed, car.stateAt(share)));
   }
 
   count(): number {

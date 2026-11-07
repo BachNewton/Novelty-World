@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/tic-tac-toe/** src/projects/euchre/** public/tic-tac-toe/** public/euchre/**
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { LOCAL_RELAY } from "./relay";

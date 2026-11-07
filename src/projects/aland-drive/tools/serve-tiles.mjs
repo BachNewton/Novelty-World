@@ -9,7 +9,7 @@
 
 // The paths below come from a request, checked to stay inside the folder served, on a localhost-only tool.
 /* eslint-disable security/detect-non-literal-fs-filename -- see above */
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,9 @@ import { fileURLToPath } from "node:url";
 const TYPES = { ".json": "application/json", ".webp": "image/webp", ".png": "image/png", ".gz": "application/octet-stream" };
 const SLICE_BYTES = 16 * 1024;
 
-export function serveTiles(folder, kbps = null, listenPort = 0, { revalidate = false } = {}) {
+// `withLanes` serves each tile with the lane map beside it, which its own tile.json leaves out: the fixture keeps one that
+// only the shared traffic's spec reads, so every other spec drives on roads with no traffic.
+export function serveTiles(folder, kbps = null, listenPort = 0, { revalidate = false, withLanes = false } = {}) {
   let served = 0;
   const requests = [];
   const server = createServer((request, response) => {
@@ -37,6 +39,15 @@ export function serveTiles(folder, kbps = null, listenPort = 0, { revalidate = f
     const stat = statSync(path, { throwIfNoEntry: false });
     if (!stat?.isFile()) {
       response.writeHead(404).end();
+      return;
+    }
+    const lanes = join(path, "..", "lanes.json.gz");
+    if (withLanes && path.endsWith("tile.json") && statSync(lanes, { throwIfNoEntry: false })?.isFile()) {
+      const body = JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), lanes: { file: "lanes.json.gz" } });
+      response.writeHead(200, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store" });
+      served += Buffer.byteLength(body);
+      requests.push(url.pathname);
+      response.end(body);
       return;
     }
     const type = TYPES[extname(path)] ?? "application/octet-stream";

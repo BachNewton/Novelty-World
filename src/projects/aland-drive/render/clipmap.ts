@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, floor, If, ivec2, max, min, mix, mod, positionGeometry, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { abs, float, floor, If, ivec2, max, min, mix, mod, positionGeometry, positionWorld, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -18,6 +18,12 @@ import type { World } from "../sim/world";
  *
  * The innermost ring is exactly the 4 m mesh, with the same diagonals as the
  * blocks the car collides with (`sim/ground.ts`).
+ *
+ * Where the paving cuts the ground (`pipeline/paving.py`), the innermost ring leaves out the cells the cut ground
+ * replaces, and the cut ground is drawn there instead, its corners on the ring's nodes. That holds only where the ring is
+ * at its own detail: farther out its vertices fold on to the next ring's, the cut no longer meets them, and the ring
+ * draws every cell, the paving lying over it as all roads did before the cut. Both sides of that line are decided per
+ * pixel by the same test, so between them each pixel is drawn once.
  *
  * The water is the same rings again, at the water's level instead of the ground's,
  * on the same triangles, so the shore is where the two cross and a pixel's depth is
@@ -69,6 +75,7 @@ interface Ring {
   shoreTexture: DataTexture;
   waterLevelAt: (place: Node<"vec2">) => Node<"float">;
   shoreAt: (place: Node<"vec2">) => Node<"float">;
+  upAt: (place: Node<"vec2">) => Node<"vec3">;
   origin: { value: Vector2 };
   /** The lattice node of the ring's first vertex, to know when it moved. */
   column: number;
@@ -94,6 +101,10 @@ export interface Clipmap {
   waterLevelAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** Metres from the shore at a place, out into the water and below zero on land, read between the ring's four nearest nodes as the waterline is drawn. */
   shoreAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** Which way the ground faces at the ring's nearest node to a place, unnormalised, as the ring lights its own. */
+  upAt: (level: number, place: Node<"vec2">) => Node<"vec3">;
+  /** 1 where a pixel of cut ground at a place is drawn, inside the innermost ring's own detail; 0 where the ring draws its cells whole. */
+  cutDrawnAt: (place: Node<"vec2">) => Node<"float">;
   /**
    * The same read from the finest ring that holds the place, for what stands farther out than the first ring reaches, at
    * a place no farther than `reachM` from the camera: only the rings that reach can need are read, since each is a
@@ -136,6 +147,15 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
 
   const cameraSpot = uniform(new Vector2());
   const materials: MeshBasicNodeMaterial[] = [];
+  // The innermost ring's cells the paving's cut ground replaces, by their north-west node.
+  const cuts = new Float32Array(across * across);
+  const cutTexture = new DataTexture(cuts, across, across, RedFormat, FloatType);
+  cutTexture.minFilter = cutTexture.magFilter = NearestFilter;
+  const exactHalf = FOLD_STARTS * (CELLS / 2) * stepM;
+  const exactAt = (place: Node<"vec2">) => {
+    const offset = abs(place.sub(cameraSpot));
+    return float(1).sub(step(float(exactHalf), max(offset.x, offset.y)));
+  };
 
   const rings: Ring[] = Array.from({ length: LEVELS }, (_, level) => {
     const ringStep = stepM * nodeStride(level);
@@ -178,6 +198,13 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(moved.x, ground.add(lift(moved, level)), moved.y);
     material.colorNode = groundColour(depth, fromShore, up.normalize());
+    // Where the cut ground is drawn instead, 0: the ring's ground leaves the cell to it. Its water doesn't, since the cut
+    // ground meets the grid on its nodes and lies under the same water.
+    const uncut = level === 0 ? float(1).sub(textureLoad(cutTexture, ivec2(floor(positionWorld.xz.sub(origin).div(ringStep)))).r.mul(exactAt(positionWorld.xz))) : float(1);
+    if (level === 0) {
+      material.opacityNode = uncut;
+      material.alphaTest = 0.5;
+    }
     materials.push(material);
 
     const geometry = new BufferGeometry();
@@ -226,7 +253,11 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     const groundBlendedAt = blendedAt(texture);
     const waterLevelAt = (spot: Node<"vec2">) => textureLoad(levelTexture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
     const shoreAt = blendedAt(shoreTexture);
-    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
+    const upAt = (spot: Node<"vec2">) => {
+      const slopeHere = slopeAt(round(spot.sub(origin).div(ringStep)), 1);
+      return vec3(slopeHere.x.negate(), 1, slopeHere.y.negate());
+    };
+    return { stepM: ringStep, groundAt, groundBlendedAt, groundOnMeshAt, heights, texture, levels, levelTexture, shore, shoreTexture, waterLevelAt, shoreAt, upAt, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh, water };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -237,9 +268,11 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
       for (let column = 0; column < across; column++) {
         heights[at] = world.node(ring.column + column * stride, ring.row + row * stride);
         levels[at] = world.waterLevel(ring.column + column * stride, ring.row + row * stride);
+        if (level === 0) cuts[at] = world.isCut(ring.column + column, ring.row + row) ? 1 : 0;
         shore[at++] = world.shore(ring.column + column * stride, ring.row + row * stride);
       }
     }
+    if (level === 0) cutTexture.needsUpdate = true;
     ring.texture.needsUpdate = true;
     ring.levelTexture.needsUpdate = true;
     ring.shoreTexture.needsUpdate = true;
@@ -262,6 +295,10 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     shoreAt(level, place) {
       return rings[level].shoreAt(place);
     },
+    upAt(level, place) {
+      return rings[level].upAt(place);
+    },
+    cutDrawnAt: exactAt,
     shoreAround(place, reachM) {
       const off = abs(place.sub(cameraSpot)).toVar();
       const from = max(off.x, off.y);
@@ -327,6 +364,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
         ring.levelTexture.dispose();
         ring.shoreTexture.dispose();
       }
+      cutTexture.dispose();
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
     },
