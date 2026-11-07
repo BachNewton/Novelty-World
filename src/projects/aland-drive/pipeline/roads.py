@@ -33,7 +33,7 @@ EDGE_FADE_M = 24.0
 EDGE_PIN_RADIUS_M = 24.0
 EDGE_PIN_LIFT_M = 0.03
 PIN_WEIGHT = 1e7
-# Over this run a road eases on to its seam section: straight, level across, and its class's own widths.
+# Over this run a road eases on to its seam section: on its own line, level across, and its class's own widths.
 SEAM_RUN_M = 40.0
 # How obliquely a road's width is read along an edge it crosses: never more than this many half-widths.
 SEAM_LONGEST_REACH = 3.0
@@ -511,7 +511,10 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
 
     xy = _round_corners(stations, chain.kind.corner_m / STATION_M)
 
-    # Each end on a tile's edge eases on to the straight line through the crossing, the way the whole road runs there.
+    # Each end on a tile's edge eases off the rounding on to the road's own line, which is the same line on the tile beyond:
+    # roads are moved clear of buildings whole, before they're cut at the edges, so both halves are one line and meet there.
+    # Eased on to a straight line through the crossing instead, a road moved round a building near an edge was pulled back
+    # across it.
     seam_ends = []
     # A short road that dips across an edge and back has two seams, and neither may move the other's end.
     seam_run = min(SEAM_RUN_M, along[-1] / 2)
@@ -521,8 +524,7 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
         distance = along if station == 0 else along[-1] - along
         share = 1 - _smoothstep(distance / seam_run)
         forwards = 1.0 if (xy[-1] - xy[0]) @ seam >= 0 else -1.0
-        straight = xy[station] + forwards * seam * (along - along[station])[:, None]
-        xy = xy + share[:, None] * (straight - xy)
+        xy = xy + share[:, None] * (stations - xy)
         seam_ends.append((station, share, forwards * seam))
 
     tangent = np.gradient(xy, axis=0)

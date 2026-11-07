@@ -46,7 +46,7 @@ import raised
 import walls
 import seated
 import waterfront
-from give_way import give_way
+from give_way import drawn_over_buildings, give_way
 from progress import Progress, stage
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
@@ -175,21 +175,28 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     openings = []
+    outlines: list = []
     lifts = None
     sites = landmark_sites.Landmarks(tile)
     sites.replace_also(farm.windmill_sites(tile))
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
-        roads, buildings, osm_timestamp = vectors.build(osm_file, tile)
+        lifts = raised.Lookup(raised.read(osm_file))
+        outlines = solids.outlines_near(tile, sites, lifts)
+        meetings = None
+
+        def meet(whole: list[dict]) -> list[dict]:
+            nonlocal meetings
+            meetings = give_way(sites.off_raised(whole, osm_file), outlines)
+            return meetings.roads
+
+        roads, buildings, osm_timestamp = vectors.build(osm_file, tile, meet)
+        openings = meetings.openings
         piers, marinas = docks.read(osm_file)
         piers += docks.boardwalks(roads)
         quay_piers = docks.quays(roads, piers)
         roads = docks.off_piers(roads, [pier for pier in piers if pier not in quay_piers])
-        roads = sites.off_raised(roads, osm_file)
-        lifts = raised.Lookup(raised.read(osm_file))
-        meetings = give_way(roads, solids.outlines_near(tile, sites, lifts))
-        roads, openings = meetings.roads, meetings.openings
-        print(f"  {meetings.stopped} road parts stop at a building, {len(openings)} pass through one, {meetings.pushed} pushed clear of one beside them")
+        print(f"  {meetings.stopped} roads stop at a building, {len(openings)} pass through one, {meetings.pushed} pushed clear of one beside them, in or near the tile")
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
         compact = {"ensure_ascii": False, "separators": (",", ":")}
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
@@ -208,6 +215,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
             aprons = road_surface.aprons_on_ground(surface.aprons, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
         if not all(np.isfinite(ring).all() for _, ring, _, _ in ribbons):
             raise ValueError(f"{tile.name}: a road surface came out with no height")
+        if over := drawn_over_buildings([ring for chain, ring, _, _ in ribbons if chain.motor], outlines, openings, solids.OVERHANG_M):
+            print(f"  roads drawn on a building at {len(over)} places, {sum(area for area, _ in over):.0f} m²: " + ", ".join(f"{area:.1f} m² at {at.x:.0f},{at.y:.0f}" for area, at in sorted(over, key=lambda found: -found[0])[:10]))
         baked = [(ring, tier) for _, ring, tier, _ in ribbons]
         motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
         (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked, aprons))

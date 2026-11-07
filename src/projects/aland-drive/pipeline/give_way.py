@@ -15,10 +15,16 @@ drove through. A road no push gets clear stops at the walls like any other.
 
 A road that passes beside a building keeps clear of it: where its width would
 reach a wall, its line is pushed out, the push fading along the road, so the wall
-stands beside the road rather than on it. A junction's point and a tile edge's
-stay where they are, so roads still meet and seams still match. Both tiles at an
-edge read the same buildings, their neighbours' too, so a road crossing the edge
-is cut and pushed the same way on both sides.
+stands beside the road rather than on it. A junction's point stays where it is, so
+roads still meet.
+
+All of this happens to OSM's whole ways, before they're cut into tiles. A push
+near a tile's edge moves the point where the road crosses it, and both tiles at
+the edge read the same ways and the same buildings near it, so both move the road
+alike and its two halves still meet. A tile that pushed only its own half could
+never move that point, and the road builder runs a road straight through the
+crossing for a stretch either side, which dragged a road pushed near an edge back
+over the building.
 """
 
 from collections import Counter
@@ -43,10 +49,20 @@ THROUGH_RANK = CLASSES["unclassified"].rank
 # never more than 2.7 m. Deeper than this, the road would bend round the building, and stops at its wall instead.
 CLIP_M = 4.0
 SAME_POINT_M = 0.01
-# Beyond its half width, a road keeps this clear of a wall: room for its rounding through a bend.
-CLEARANCE_M = 0.5
-# A push fades to nothing over this far along the road either side of where it's needed.
+# A road's drawn edge on a building by less than this is rounding, not a road on a building.
+SAME_AREA_M2 = 0.05
+# Beyond its verges, a road keeps this clear of a wall: the eaves overhang it and the ground paints a road's edge a little wide,
+# so less than this reads as the road touching the building.
+CLEARANCE_M = 2.0
+# A road this near a building that has nowhere better to go is still clear of its eaves.
+EAVES_ROOM_M = 0.5
+# How far across the road a point of it looks for somewhere to stand, either way.
+ACROSS_M = 12.0
+ACROSS_STEP_M = 0.25
+# A push fades to nothing over this far along the road either side of where it's needed, at least,
 PUSH_FADE_M = 8.0
+# and over this many times its own size: a road moved metres aside bends there gently, as it would have been built, not in a jog.
+PUSH_TAPER = 12.0
 # Points along a road being pushed, at most this far apart.
 PUSH_STEP_M = 2.0
 # A road between two buildings is pushed from each in turn, this many times.
@@ -65,18 +81,18 @@ def passes_as_passage(road: dict) -> bool:
     return road.get("tunnel") == "building_passage" or road.get("covered") == "yes"
 
 
-def _goes_through(piece: LineString, outline: Polygon, seam_ends: list[Point]) -> bool:
-    """A stretch of road inside a building goes through it when both its ends are on the wall, or carry on over the tile's edge."""
-    return all(outline.exterior.distance(end) < SAME_POINT_M or any(end.distance(seam) < SAME_POINT_M for seam in seam_ends) for end in (Point(piece.coords[0]), Point(piece.coords[-1])))
+def _goes_through(piece: LineString, outline: Polygon) -> bool:
+    """A stretch of road inside a building goes through it when both its ends are on the wall."""
+    return all(outline.exterior.distance(end) < SAME_POINT_M for end in (Point(piece.coords[0]), Point(piece.coords[-1])))
 
 
-def _clips(road: dict, line: LineString, outline: Polygon, seam_ends: list[Point]) -> bool:
+def _clips(road: dict, line: LineString, outline: Polygon) -> bool:
     """A public road whose line enters a building and leaves it again near one of its sides: it's pushed clear rather than cut."""
     kind = CLASSES.get(road["kind"])
     if kind is None or kind.rank > THROUGH_RANK:
         return False
     pieces = [piece for piece in shapely.get_parts(line.intersection(outline)) if piece.geom_type == "LineString"]
-    return all(_goes_through(piece, outline, seam_ends) and _depth_across(piece, outline) <= CLIP_M for piece in pieces)
+    return all(_goes_through(piece, outline) and _depth_across(piece, outline) <= CLIP_M for piece in pieces)
 
 
 def _depth_across(piece: LineString, outline: Polygon) -> float:
@@ -88,8 +104,8 @@ def _depth_across(piece: LineString, outline: Polygon) -> float:
 
 
 def give_way(roads: list[dict], outlines: list[Polygon]) -> Meetings:
-    """Roads cut where they stop at a wall and pushed clear of one beside them, and where walls open for a road.
-    `outlines` are every building standing near the tile."""
+    """Roads cut where they stop at a wall and pushed clear of one beside them, and where walls open for a road. `roads` are
+    OSM's whole ways, not yet cut into tiles, and `outlines` every building standing near enough the tile to move a road in it."""
     if not outlines:
         return Meetings(roads, [], 0, 0)
     tree = shapely.STRtree(outlines)
@@ -101,14 +117,13 @@ def give_way(roads: list[dict], outlines: list[Polygon]) -> Meetings:
     for road in roads:
         line = LineString(road["line"])
         inside = [index for index in tree.query(line, predicate="intersects") if line.intersection(outlines[index]).length > 0] if road["motor"] else []
-        seam_ends = [Point(seam[0], seam[1]) for seam in road.get("seams", ())]
         half = half_width(road)
         blocking, through = [], set()
         for index in inside:
             if passes_as_passage(road):
                 openings.append(line.intersection(outlines[index].buffer(half + CAR_ROOM_M)).buffer(half + CAR_ROOM_M))
                 through.add(int(index))
-            elif not _clips(road, line, outlines[index], seam_ends):
+            elif not _clips(road, line, outlines[index]):
                 blocking.append(outlines[index])
         if blocking:
             stopped += 1
@@ -138,17 +153,8 @@ def _cut(road: dict, blocking: list[Polygon]) -> list[dict]:
     pieces = []
     left = LineString(road["line"]).difference(shapely.union_all([outline.buffer(CLEAR_M) for outline in blocking]))
     for part in shapely.get_parts(left):
-        if not isinstance(part, LineString) or part.is_empty:
-            continue
-        ends = (Point(part.coords[0]), Point(part.coords[-1]))
-        seams = [seam for seam in road.get("seams", ()) if any(end.distance(Point(seam[0], seam[1])) < SAME_POINT_M for end in ends)]
-        if part.length < SHORTEST_LEFT_M and not seams:
-            continue
-        piece = {**road, "line": [[round(x, 2), round(y, 2)] for x, y in part.coords]}
-        piece.pop("seams", None)
-        if seams:
-            piece["seams"] = seams
-        pieces.append(piece)
+        if isinstance(part, LineString) and part.length >= SHORTEST_LEFT_M:
+            pieces.append({**road, "line": [[round(x, 2), round(y, 2)] for x, y in part.coords]})
     return pieces
 
 
@@ -163,15 +169,14 @@ def _still_inside(road: dict, outlines: list[Polygon], tree: shapely.STRtree, th
 def _junctions_out_of_buildings(roads: list[dict], outlines: list[Polygon], tree: shapely.STRtree, joined: set[tuple[float, float]]) -> list[dict]:
     """A junction never moves in a push, so one a public road meets inside a building would hold that road inside it: it
     moves out first, the same for every road meeting there, as far as the widest of them needs. Where only lesser roads meet,
-    they stop at the wall instead. A point on the tile's edge can't move, or the seam would tear."""
-    seams = {(seam[0], seam[1]) for road in roads for seam in road.get("seams", ())}
+    they stop at the wall instead."""
     reach: dict[tuple[float, float], float] = {}
     public: set[tuple[float, float]] = set()
     for road in roads:
         if road["motor"]:
             for point in road["line"]:
-                if (key := tuple(point)) in joined and key not in seams:
-                    reach[key] = max(reach.get(key, 0.0), half_width(road) + CLEARANCE_M)
+                if (key := tuple(point)) in joined:
+                    reach[key] = max(reach.get(key, 0.0), drawn_half_width(road) + CLEARANCE_M)
                     if road["kind"] in CLASSES and CLASSES[road["kind"]].rank <= THROUGH_RANK:
                         public.add(key)
     moves = {}
@@ -193,57 +198,83 @@ def half_width(road: dict) -> float:
     return CLASSES[road["kind"]].width_m / 2 if road["kind"] in CLASSES else 1.0
 
 
+def drawn_half_width(road: dict) -> float:
+    """Half of all the road that's drawn, its verges too: on gravel a verge reads as road, so a building on one stands on the road."""
+    return half_width(road) + (CLASSES[road["kind"]].shoulder_m if road["kind"] in CLASSES else 0.0)
+
+
 def _joined_points(roads: list[dict]) -> set[tuple[float, float]]:
-    """Points where roads meet, and where they leave the tile: these never move."""
+    """Points where roads meet: these never move in a push."""
     counts = Counter(tuple(point) for road in roads for point in road["line"])
-    return {point for point, count in counts.items() if count > 1} | {(seam[0], seam[1]) for road in roads for seam in road.get("seams", ())}
+    return {point for point, count in counts.items() if count > 1}
 
 
 def _clear_of(road: dict, outlines: list[Polygon], tree: shapely.STRtree, through: set[int], joined: set[tuple[float, float]]) -> list[list[float]] | None:
-    """The road's line pushed clear of the buildings beside it, or None if it's clear already."""
-    reach = half_width(road) + CLEARANCE_M
+    """The road's line moved clear of the buildings beside it, or None if it's clear already. Each point of the road too
+    near a building looks across the road for where to stand: the nearest place with the room it wants, if one is nearer
+    than the nearest gap; otherwise the middle of the nearest gap the whole drawn road fits through, so a road between two
+    buildings runs down the middle rather than being shoved off one on to the other. The moves are then eased along the
+    road into one smooth bend."""
+    half = drawn_half_width(road)
+    wants, fits = half + CLEARANCE_M, half + EAVES_ROOM_M
     line = LineString(road["line"])
-    beside = [int(index) for index in tree.query(line.buffer(reach), predicate="intersects") if int(index) not in through]
-    if not beside:
+    if not [index for index in tree.query(line.buffer(wants), predicate="intersects") if int(index) not in through]:
         return None
+    walls = shapely.union_all([outlines[index] for index in tree.query(line.buffer(wants + ACROSS_M)) if int(index) not in through])
     points, fixed = _dense(np.array(road["line"], dtype=float), joined)
     step = np.gradient(points, axis=0)
-    ways = step / np.maximum(np.hypot(*step.T), 1e-9)[:, None]
+    across = np.column_stack((-step[:, 1], step[:, 0])) / np.maximum(np.hypot(*step.T), 1e-9)[:, None]
     along = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points, axis=0).T))))
-    # How far along the road each point is from the nearest one that can't move: a push fades to nothing there.
+    # How far along the road each point is from the nearest one that can't move: a move fades to nothing there.
     pinned = np.min(np.abs(along[:, None] - along[fixed][None, :]), axis=1) if fixed.any() else np.full(len(points), np.inf)
+    offsets = np.arange(-ACROSS_M, ACROSS_M + ACROSS_STEP_M / 2, ACROSS_STEP_M)
     moved = False
     for _ in range(PUSH_ROUNDS):
-        needs = np.zeros_like(points)
-        for i, point in enumerate(points):
-            if not fixed[i]:
-                needs[i] = _push(point, [outlines[index] for index in beside], reach, ways[i])
-        size = np.hypot(*needs.T)
+        crowded = np.flatnonzero((shapely.distance(shapely.points(points), walls) < wants) & ~fixed)
+        if len(crowded) == 0:
+            break
+        tried = points[crowded][:, None, :] + offsets[None, :, None] * across[crowded][:, None, :]
+        room = shapely.distance(shapely.points(tried.reshape(-1, 2)), walls).reshape(tried.shape[:2])
+        target = np.zeros(len(points))
+        target[crowded] = [_place(offsets, row, wants, fits) for row in room]
+        size = np.abs(target)
         if size.max() < SAME_POINT_M:
             break
-        # Each point takes the largest push near it, faded by how far along the road that push is needed.
-        fade = np.clip(1 - np.abs(along[:, None] - along[None, :]) / PUSH_FADE_M, 0, None) * size[None, :]
+        # Each point takes the largest move near it, faded by how far along the road that move is needed. Only the points
+        # that need one can give one, which keeps this small on a whole way kilometres long.
+        giving = np.flatnonzero(size >= SAME_POINT_M)
+        reach_along = np.maximum(PUSH_FADE_M, PUSH_TAPER * size[giving])
+        left = np.clip(1 - np.abs(along[:, None] - along[giving][None, :]) / reach_along[None, :], 0, None)
+        # Eased at both ends, so the bend has no corner where it starts or where it peaks.
+        fade = left * left * (3 - 2 * left) * size[giving][None, :]
         strongest = fade.argmax(axis=1)
-        share = fade[np.arange(len(points)), strongest] / np.maximum(size[strongest], 1e-9)
-        points = points + needs[strongest] * (share * np.clip(pinned / PUSH_FADE_M, 0, 1))[:, None]
+        share = fade[np.arange(len(points)), strongest] / size[giving][strongest]
+        points = points + (target[giving][strongest] * share * np.clip(pinned / PUSH_FADE_M, 0, 1))[:, None] * across
         moved = True
     if not moved:
         return None
     return [[round(float(x), 2), round(float(y), 2)] for x, y in points]
 
 
-def _push(point: np.ndarray, outlines: list[Polygon], reach: float, along: np.ndarray | None = None) -> np.ndarray:
-    """How far a point of the road must move to be `reach` from every wall near it. A point inside a building, on a road
-    running `along` a way, moves across the road out of the side nearer to it: its nearest wall can be one the road runs into,
-    and a move towards that only slides the point along its own road."""
+def _place(offsets: np.ndarray, room: np.ndarray, wants: float, fits: float) -> float:
+    """Where across the road one point should stand, from the room it has at each offset: the nearest offset with all the
+    room it wants, unless a gap the road fits through is nearer, whose middle it takes; and with nowhere to fit, the offset
+    with the most room."""
+    nearest = lambda among: float(among[np.abs(among).argmin()])
+    if not (room >= fits).any():
+        return nearest(offsets[room >= room.max() - SAME_POINT_M])
+    runs = np.split(np.arange(len(offsets)), np.flatnonzero(np.diff(room >= fits)) + 1)
+    run = min((run for run in runs if room[run[0]] >= fits), key=lambda run: np.abs(offsets[run]).min())
+    if (room[run] >= wants).any():
+        return nearest(offsets[run][room[run] >= wants])
+    return nearest(offsets[run][room[run] >= room[run].max() - SAME_POINT_M])
+
+
+def _push(point: np.ndarray, outlines: list[Polygon], reach: float) -> np.ndarray:
+    """How far a point must move to be `reach` from every wall near it."""
     at = Point(point)
     need = np.zeros(2)
     for outline in outlines:
-        if along is not None and outline.contains(at):
-            across = np.array([-along[1], along[0]])
-            sides = (np.asarray(outline.exterior.coords) - point) @ across
-            need += across * (sides.max() + reach) if sides.max() < -sides.min() else across * (sides.min() - reach)
-            continue
         away = point - np.array(nearest_points(outline.exterior, at)[0].coords[0])
         gap = float(np.hypot(*away))
         if gap < 1e-6:
@@ -275,3 +306,26 @@ def open_walls(outline: Polygon, openings: list[Polygon]) -> list[LineString]:
     gaps = shapely.union_all(near)
     left = [ring.difference(gaps) for ring in rings]
     return [part for walls in left for part in shapely.get_parts(walls) if isinstance(part, LineString) and not part.is_empty]
+
+
+def drawn_over_buildings(rings: list[np.ndarray], outlines: list[Polygon], openings: list[Polygon], eaves_m: float) -> list[tuple[float, Point]]:
+    """Where a road as drawn, verges and all, lies on a building, its eaves `eaves_m` past its walls, and how much: the road surface's rings
+    (outer left to outer right at each section) against every building but where its wall opened for the road. The line
+    a road is laid from can clear a building that the laid road doesn't: the laying rounds it, and eases it on to the
+    straight line through a tile's edge."""
+    if not outlines or not rings:
+        return []
+    roofs = [outline.buffer(eaves_m, join_style="mitre") for outline in outlines]
+    tree = shapely.STRtree(roofs)
+    opened = shapely.union_all(openings) if openings else None
+    found = []
+    for ring in rings:
+        strips = [Polygon([a[0, :2], a[4, :2], b[4, :2], b[0, :2]]).buffer(0) for a, b in zip(ring[:-1], ring[1:])]
+        drawn = shapely.union_all([strip for strip in strips if not strip.is_empty])
+        for index in tree.query(drawn, predicate="intersects"):
+            over = drawn.intersection(roofs[index])
+            if opened is not None:
+                over = over.difference(opened)
+            if over.area > SAME_AREA_M2:
+                found.append((float(over.area), over.centroid))
+    return found

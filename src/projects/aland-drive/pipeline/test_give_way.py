@@ -7,8 +7,9 @@ import numpy as np
 from shapely.geometry import LineString, Point, box
 
 from buildings import Face, RoofFrame
-from give_way import CLEAR_M, CLEARANCE_M, give_way, open_walls
+from give_way import CLEAR_M, drawn_half_width, give_way, open_walls
 from roads import CLASSES
+from vectors import Bounds, clip_line, seam_direction
 
 SHED = box(0, 0, 10, 6)
 
@@ -29,8 +30,18 @@ class GiveWay(unittest.TestCase):
         meetings = give_way([road("unclassified", [[-20, 5], [30, 5]])], [SHED])
         self.assertEqual(meetings.openings, [])
         self.assertEqual(len(meetings.roads), 1)
-        self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), CLASSES["unclassified"].width_m / 2)
+        # Verges and all: on gravel a verge reads as road.
+        self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), drawn_half_width(meetings.roads[0]))
         self.assertEqual(sum(wall.length for wall in open_walls(SHED, meetings.openings)), SHED.length)
+
+    def test_a_road_moved_off_a_house_runs_down_the_middle_of_the_gap_to_the_barn_across_it(self):
+        # Aludden: OSM's line runs 2.7 m inside the house's side, and the barn across the way leaves a gap of 9.3 m, room for
+        # the whole drawn road but not for its margin either side. Shoved off the house it landed on the barn.
+        house, barn = box(0, 0, 9, 12), box(-17.3, 0, -9.3, 12)
+        street = road("unclassified", [[2.7, -200], [2.7, 200]])
+        line = LineString(give_way([street], [house, barn]).roads[0]["line"])
+        self.assertGreater(min(line.distance(house), line.distance(barn)), drawn_half_width(street))
+        self.assertAlmostEqual(line.interpolate(line.project(Point(-4.65, 6))).x, -4.65, delta=0.3)
 
     def test_a_junction_inside_a_building_moves_out_with_every_road_meeting_there(self):
         street = road("residential", [[-30, 1], [5, 1], [40, -10]])
@@ -60,20 +71,26 @@ class GiveWay(unittest.TestCase):
 
     def test_a_drive_beside_a_building_is_pushed_clear_of_it(self):
         meetings = give_way([road("service", [[-30, -0.5], [40, -0.5]])], [SHED])
-        reach = CLASSES["service"].width_m / 2 + CLEARANCE_M
         self.assertEqual(meetings.pushed, 1)
-        self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), reach - 0.1)
+        self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), drawn_half_width(meetings.roads[0]))
 
-    def test_where_roads_meet_and_where_one_leaves_the_tile_nothing_moves(self):
-        drive = road("service", [[-30, -0.5], [5, -0.5], [40, -0.5]], seams=[[-30, -0.5, 1, 0]])
+    def test_where_roads_meet_nothing_moves(self):
+        drive = road("service", [[-30, -0.5], [5, -0.5], [40, -0.5]])
         branch = road("service", [[5, -0.5], [5, -30]])
-        pushed = give_way([drive, branch], [SHED]).roads[0]["line"]
-        self.assertIn([-30, -0.5], pushed)
-        self.assertIn([5, -0.5], pushed)
+        self.assertIn([5, -0.5], give_way([drive, branch], [SHED]).roads[0]["line"])
 
-    def test_a_road_crossing_the_tile_edge_inside_a_building_keeps_its_seam_beyond_the_cut(self):
-        meetings = give_way([road("service", [[5, 3], [30, 3]], seams=[[30, 3, 1, 0]])], [SHED])
-        self.assertEqual(meetings.roads[0]["seams"], [[30, 3, 1, 0]])
+    def test_both_tiles_at_an_edge_move_a_road_alike_and_its_halves_still_meet(self):
+        # The tiles meet at x = 0, a house stands just east of it on the road, and each tile also sees a building far off on
+        # its own side that the other doesn't. The road is moved whole on each, then cut at the edge.
+        street = road("unclassified", [[-400, 2], [400, 2]])
+        house = box(8, 0, 18, 10)
+        west = give_way([street], [house, box(-390, 20, -380, 30)]).roads[0]["line"]
+        east = give_way([street], [house, box(380, 20, 390, 30)]).roads[0]["line"]
+        halves = [clip_line(np.array(line), bounds)[0] for line, bounds in ((west, Bounds(-6000, -3000, 0, 3000)), (east, Bounds(0, -3000, 6000, 3000)))]
+        self.assertEqual(halves[0][-1].tolist(), halves[1][0].tolist())
+        np.testing.assert_array_equal(seam_direction(np.array(west), halves[0][-1]), seam_direction(np.array(east), halves[1][0]))
+        # And the move reaches over the edge: the crossing itself moved off the house's line.
+        self.assertGreater(abs(halves[0][-1][1] - 2), 1)
 
 
 class Roofs(unittest.TestCase):

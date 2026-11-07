@@ -65,8 +65,10 @@ FLAT_ROOF_SLOPE = 0.06
 SINK_M = 0.4
 ROOF_PITCH = math.tan(math.radians(35))
 LOWEST_EAVES_M = 2.3
-# Roads within this of a tile are cut by its buildings, so both tiles at an edge cut a road crossing it alike.
-OUTLINE_REACH_M = 20.0
+# Every building this near a tile moves or cuts the roads it builds. A push moves a road over a stretch along it, a round
+# at a time, so a road near a tile's edge is moved by buildings this far beyond: both tiles at the edge have to see them all
+# to move that road alike.
+OUTLINE_REACH_M = 400.0
 # (eaves, ridge) when the laser saw nothing there, and the tallest ridge believed when it did, by class: it sees trees too.
 SHAPE = {HOUSE: (3.0, 6.5, 10.0), APARTMENTS: (9.0, 11.0, 28.0), **dict.fromkeys(COTTAGE, (2.5, 4.8, 6.5)), **dict.fromkeys(INDUSTRIAL, (6.0, 8.0, 16.0))}
 SMALL_SHAPE = (2.3, 4.2, 7.0)
