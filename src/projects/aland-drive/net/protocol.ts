@@ -86,7 +86,7 @@ export type HostMessage =
   | ({ kind: "car"; from: string } & CarMessage)
   | { kind: "challenge"; from: string; message: ChallengeMessage }
   | { kind: "computer"; from: string; car: ComputerCarMessage }
-  | { kind: "traffic"; from: string; traffic: WireTraffic };
+  | { kind: "traffic"; from: string; traffic: WireTraffic }
   | { kind: "time"; gameDays: number };
 
 /**
