@@ -1,6 +1,9 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
 import { VitestLoadReporter } from "./scripts/load-reporters.mjs";
+import { requireSlot } from "./scripts/machine-budget.mjs";
+
+requireSlot("A vitest run", { interactiveOk: true });
 
 // Other checkouts nested inside this one: agent worktrees under
 // `.claude/worktrees/` and `.opencode/worktrees/`. To this checkout they don't
