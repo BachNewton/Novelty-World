@@ -5,7 +5,6 @@ import { Bike, CalendarDays, Car, Check, RotateCcw, Cloud, CloudFog, CloudRain, 
 import type { CarChoice, DayChange, DayShown, Game } from "../render/game";
 import { HELD_WEATHER, type HeldWeather } from "../climate/held";
 import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
-import { parseDate } from "../time/day";
 import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
 import { playgroundAsked, playgroundLink } from "../playground/place";
@@ -157,6 +156,8 @@ function WeatherChoice({ weather, onWeather }: { weather: Game["weather"]; onWea
         );
       })}
     </div>
+  );
+}
 
 /** Cars and cyclists on the lanes round the car, on or off. Offline only: the shared world has no traffic until it's shared. */
 function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraffic: (on: boolean) => void }) {

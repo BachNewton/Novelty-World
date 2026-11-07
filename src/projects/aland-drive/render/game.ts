@@ -111,7 +111,7 @@ import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
 import { CARS as TUNINGS, carAsked, DEFAULT_CAR, type CarId } from "../sim/cars";
-import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
+import { tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { auroraAsked, createSeasonFeed } from "./season-feed";
 import { seasonNodes, type SeasonDials } from "../art/season";
 import { weatherFeed } from "../climate/feed";
