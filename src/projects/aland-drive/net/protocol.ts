@@ -7,7 +7,8 @@ import type { LaneRecord, VehicleKind } from "../traffic/lane-driver";
 /*
  * What players send each other in the online world: each car's state, as its
  * own client has it, which names the car it is, each computer-driven car's
- * from the player running it, the lane traffic each player runs, and the messages of a co-op challenge. A guest sends its own up; the host hands each one on to every
+ * from the player running it, the lane traffic each player runs, the messages of a co-op challenge, and the
+ * room's one shared GPS destination. A guest sends its own up; the host hands each one on to every
  * other guest, or to the one player a challenge message is for, naming whose
  * it is, and sends its own down. Every payload off the wire is untrusted and
  * parsed here.
@@ -20,21 +21,27 @@ export const WORLD_CODE = "island";
 export const WORLD_PARAM = "drive-world";
 const WORLD_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+/**
+ * A car's state, and when its client stepped it, in ms on that client's own clock, so it's shown by when it happened
+ * rather than when it arrived (`sim/remote-timeline.ts`). A version of the game from before that sends no time.
+ */
 export interface CarMessage {
   state: CarState;
+  at?: number;
 }
 
 /**
  * A co-op challenge's messages (`challenge/coop.ts`), each naming the challenge
- * and the attempt it's about. Invite, accept, decline: pairing. Start: the
- * inviter has the pair, told to everyone so no third player is offered either.
- * Retry: the attempt both go back for. Ready: this car is on its start place
- * for the attempt. Result: this player's own time or speed. Lost: this client
- * called the attempt lost on its own clock, with the results it had. Leave:
- * out of the challenge, or an invite taken back.
+ * and the attempt it's about. Invite, to everyone, and accept: pairing. Start:
+ * the inviter has the pair, told to everyone so no third player is offered
+ * either and every other invitee drops the invite. Retry: the attempt both go
+ * back for. Ready: this car is on its start place for the attempt. Result:
+ * this player's own time or speed. Lost: this client called the attempt lost
+ * on its own clock, with the results it had. Leave: out of the challenge, or
+ * an invite or accept taken back.
  */
 export type ChallengeMessage =
-  | { type: "invite" | "accept" | "decline" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
+  | { type: "invite" | "accept" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
   | { type: "start"; challenge: string; attempt: number; partner: string }
   | { type: "result"; challenge: string; attempt: number; result: number }
   | { type: "lost"; challenge: string; attempt: number; results: (number | null)[] };
@@ -44,7 +51,7 @@ export type ChallengeType = ChallengeMessage["type"];
 /**
  * A computer-driven car (`computer-cars.ts`), sent by the player who runs it:
  * its state, the player running it now, how many times it has changed hands,
- * and its driver's record, whose shape is its driver's own; or, with `gone`,
+ * when it was stepped, and its driver's record, whose shape is its driver's own; or, with `gone`,
  * taken out of the world by whoever ran it.
  */
 export interface ComputerCarMessage {
@@ -52,6 +59,8 @@ export interface ComputerCarMessage {
   runner: string;
   handovers: number;
   state: CarState;
+  /** As a player's car's: when the runner stepped it, on the runner's clock. */
+  at?: number;
   driver: Record<string, unknown>;
   gone?: true;
 }
@@ -76,6 +85,23 @@ export interface TrafficMessage {
   knows: string[];
 }
 
+/** A place on the ground, in metres. */
+export interface MapPoint {
+  x: number;
+  z: number;
+}
+
+/**
+ * The room's GPS destination as the host last set it: the point everyone's GPS
+ * routes to from where they are, or null once cleared, and the player who set
+ * or cleared it, by peer id and by name, so it still names them after they go.
+ */
+export interface SharedDestination {
+  point: MapPoint | null;
+  setter: string;
+  name: string;
+}
+
 /**
  * A challenge message for one player, or for everyone when `to` is left out. A guest asks the host for the world's
  * time once it's in (`ask-time`), and the host answers with where the game's calendar stands (`time`, game days).
@@ -85,13 +111,15 @@ export type GuestMessage =
   | { kind: "challenge"; to?: string; message: ChallengeMessage }
   | { kind: "computer"; car: ComputerCarMessage }
   | { kind: "traffic"; traffic: WireTraffic }
-  | { kind: "ask-time" };
+  | { kind: "ask-time" }
+  | { kind: "destination"; point: MapPoint | null };
 export type HostMessage =
   | ({ kind: "car"; from: string } & CarMessage)
   | { kind: "challenge"; from: string; message: ChallengeMessage }
   | { kind: "computer"; from: string; car: ComputerCarMessage }
   | { kind: "traffic"; from: string; traffic: WireTraffic }
-  | { kind: "time"; gameDays: number };
+  | { kind: "time"; gameDays: number }
+  | { kind: "destination"; from: string; destination: SharedDestination };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -117,6 +145,9 @@ export function worldCodeFromSearch(search: string): string {
 /** Centimetres and ten-thousandths: what a drawn car can show, in a third of the characters. */
 const metres = (value: number) => Math.round(value * 100) / 100;
 const fine = (value: number) => Math.round(value * 10000) / 10000;
+/** A tenth of a millisecond: a car at top speed moves 7 mm in it. */
+export const wireTime = (ms: number) => Math.round(ms * 10) / 10;
+const isTime = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 export function wireState(state: CarState): CarState {
   return {
@@ -183,7 +214,8 @@ function parseLamps(value: unknown): CarLamps {
 
 function parseCar(value: Record<string, unknown>): CarMessage | null {
   const state = parseState(value.state);
-  return state && { state };
+  if (!state) return null;
+  return isTime(value.at) ? { state, at: value.at } : { state };
 }
 
 const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;
@@ -197,9 +229,11 @@ export function parseComputerCar(value: unknown): ComputerCarMessage | null {
   if (typeof handovers !== "number" || !Number.isInteger(handovers) || handovers < 0 || handovers > MOST_ATTEMPTS) return null;
   if (value.gone !== undefined && value.gone !== true) return null;
   const state = parseState(value.state);
-  return state && { id, runner, handovers, state, driver, ...(value.gone ? { gone: true as const } : {}) };
+  if (!state) return null;
+  const gone = value.gone ? { gone: true as const } : {};
+  return isTime(value.at) ? { id, runner, handovers, state, at: value.at, driver, ...gone } : { id, runner, handovers, state, driver, ...gone };
 }
-const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
+const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "retry", "ready", "leave"]);
 const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
@@ -340,12 +374,33 @@ export function parseTraffic(value: unknown): TrafficMessage | null {
   return { vehicles, gone, knows: value.k as string[] };
 }
 
+/** Further than any road on Åland is from the world's origin. */
+const FARTHEST_M = 1_000_000;
+
+function parsePoint(value: unknown): MapPoint | null | undefined {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { x, z } = value;
+  const within = (part: unknown): part is number => typeof part === "number" && Number.isFinite(part) && Math.abs(part) <= FARTHEST_M;
+  return within(x) && within(z) ? { x, z } : undefined;
+}
+
+export function parseDestination(value: unknown): SharedDestination | null {
+  if (!isRecord(value) || !isName(value.setter) || !isName(value.name)) return null;
+  const point = parsePoint(value.point);
+  return point === undefined ? null : { point, setter: value.setter, name: value.name };
+}
+
 export function parseGuestMessage(value: unknown): GuestMessage | null {
   if (!isRecord(value)) return null;
   if (value.kind === "ask-time") return { kind: "ask-time" };
   if (value.kind === "traffic") {
     // Kept as it came, to be handed on: what it says is read where it's heard.
     return parseTraffic(value.traffic) && { kind: "traffic", traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "destination") {
+    const point = parsePoint(value.point);
+    return point === undefined ? null : { kind: "destination", point };
   }
   if (value.kind === "computer") {
     const car = parseComputerCar(value.car);
@@ -368,6 +423,10 @@ export function parseHostMessage(value: unknown): HostMessage | null {
   if (!isName(value.from)) return null;
   if (value.kind === "traffic") {
     return parseTraffic(value.traffic) && { kind: "traffic", from: value.from, traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "destination") {
+    const destination = parseDestination(value.destination);
+    return destination && { kind: "destination", from: value.from, destination };
   }
   if (value.kind === "computer") {
     const car = parseComputerCar(value.car);

@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import type { Challenge } from "../src/projects/aland-drive/challenge/types";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
-import { along, challengeOf, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
+import { along, carAt, challengeOf, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
 
@@ -14,7 +14,8 @@ import { expect, test } from "./test";
  * ring, each page's simulation is held and stepped by hand, so every countdown
  * and run plays out the same however fast the machine draws; what crosses the
  * wire is waited on as an event (the probe's challenge state, and the count of
- * messages each page has heard).
+ * messages each page has heard). The invite goes to everyone in the world, so
+ * the one who joins is down the road from the ring, and goes back there after.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
@@ -43,10 +44,10 @@ test.afterAll(() => {
 test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(240_000);
 
-async function joinWorld(browser: Browser, world: string): Promise<Page> {
+async function joinWorld(browser: Browser, world: string, startMs = 90_000): Promise<Page> {
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
   await page.goto(`${PAGE}?tiles=local:${tilesPort}&${LOCAL_RELAY}&drive-world=${world}`);
-  await page.waitForFunction(() => window.__alandDrive?.online().status === "connected" && window.__alandDrive.mapReady(), null, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__alandDrive?.online().status === "connected" && window.__alandDrive.mapReady(), null, { timeout: startMs });
   return page;
 }
 
@@ -78,25 +79,25 @@ const countingDown = (page: Page, attempt: number) =>
     return run?.attempt === wanted && run.phase === "countdown";
   }, attempt, { timeout: 30_000 });
 
-test("a co-op Route for two: paired in its ring, started and retried together, passed on the average, and left", async ({ browser }) => {
+test("a co-op Route for two: asked from its ring, joined from down the road, started and retried together, passed on the average, and left", async ({ browser }) => {
   const world = `coop-${crypto.randomUUID()}`;
   const first = await joinWorld(browser, world);
   const second = await joinWorld(browser, world);
   const { challenge, line } = await layChallenge(first, { id: ID, title: TITLE, target: { ms: TARGET_MS } });
   for (const page of [first, second]) await page.evaluate((added: Challenge) => window.__alandDrive?.addChallenge(added), challenge);
 
-  // Both drive into the ring, a few metres apart on the road, and each sees the other there.
-  const behind = along(line, 7);
+  // The first drives into the ring and the second is down the road, out of it: Co-op is offered all the same.
+  const away = along(line, 200);
   await first.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), challenge.starts[0]);
-  await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), behind);
+  await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), away);
   await expect(first.getByLabel("Co-op with")).toBeVisible({ timeout: 30_000 });
-  await expect(second.getByLabel("Co-op with")).toBeVisible({ timeout: 30_000 });
   for (const page of [first, second]) await page.evaluate(() => window.__alandDrive?.hold(true));
+  const [awayX, , awayZ] = await carAt(second);
 
-  // The first's button offers Solo or Co-op; Co-op asks the second, whose button answers it.
+  // The first's button offers Solo or Co-op; Co-op asks everyone, and the second's button answers it where it is.
   await first.keyboard.press("KeyE");
   const choice = first.getByRole("dialog", { name: "Start challenge" });
-  await choice.getByRole("button", { name: /^Co-op with / }).click();
+  await choice.getByRole("button", { name: /^Co-op/ }).click();
   await expect(choice).toBeHidden();
   await expect(second.getByLabel("Co-op invite")).toContainText(TITLE);
   await second.keyboard.press("KeyE");
@@ -170,14 +171,58 @@ test("a co-op Route for two: paired in its ring, started and retried together, p
   expect((await challengeOf(first))?.outcome).toEqual(slow?.outcome);
   for (const page of [first, second]) await expect(page.getByRole("dialog", { name: "Challenge result" })).toContainText("Passed");
 
-  // The first leaves: it's over for the second, with a notice, and both have their cars back.
+  // The first leaves: it's over for the second, with a notice, and both have their cars back, the second where the invite took it from.
   await first.keyboard.press("Escape");
   await first.getByRole("dialog", { name: "Challenge result" }).waitFor({ state: "hidden" });
   expect(await challengeOf(first)).toBeNull();
   await second.waitForFunction(() => window.__alandDrive?.challenge() === null);
   await expect(second.getByLabel("Co-op notice")).toBeVisible();
   for (const page of [first, second]) expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe(PREVIOUS_CAR);
+  expect(await offStart(second, { x: awayX, z: awayZ })).toBeLessThan(1);
+  expect(await offStart(first, challenge.starts[0])).toBeGreaterThan(20);
 
   await first.context().close();
   await second.context().close();
+});
+
+test("a world-wide invite joined by two at once: the first the inviter hears gets the seat, the other is told it was taken", async ({ browser }) => {
+  // A page starts more slowly the more game pages are already drawing beside it, so the three start together, with time for that.
+  test.setTimeout(480_000);
+  const world = `coop-${crypto.randomUUID()}`;
+  const [inviter, ...joiners] = await Promise.all([0, 1, 2].map(() => joinWorld(browser, world, 240_000)));
+  const { challenge, line } = await layChallenge(inviter, { id: ID, title: TITLE, target: { ms: TARGET_MS } });
+  for (const page of [inviter, ...joiners]) await page.evaluate((added: Challenge) => window.__alandDrive?.addChallenge(added), challenge);
+  await inviter.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), challenge.starts[0]);
+  for (const [index, page] of joiners.entries()) await page.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), along(line, 150 + 100 * index));
+  await expect(inviter.getByLabel("Co-op with")).toHaveText("2", { timeout: 30_000 });
+  for (const page of [inviter, ...joiners]) await page.evaluate(() => window.__alandDrive?.hold(true));
+
+  await inviter.evaluate(() => window.__alandDrive?.coopInvite());
+  for (const page of joiners) await expect(page.getByLabel("Co-op invite")).toContainText(TITLE);
+  // Both join before either can hear the inviter's answer to the other.
+  for (const page of joiners) await page.evaluate(() => window.__alandDrive?.holdChallengeMessages(true));
+  for (const page of joiners) await page.evaluate(() => window.__alandDrive?.coopAccept());
+  for (const page of joiners) await page.evaluate(() => window.__alandDrive?.holdChallengeMessages(false));
+
+  await countingDown(inviter, 1);
+  expect((await challengeOf(inviter))?.seat).toBe(0);
+  const seats = await Promise.all(joiners.map(async (page) => (await page.waitForFunction(() => {
+    const probe = window.__alandDrive;
+    const run = probe?.challenge();
+    if (run) return run.phase === "countdown" ? "seated" : null;
+    return probe?.coop().kind === "free" ? "free" : null;
+  }, null, { timeout: 30_000 })).jsonValue()));
+  expect([...seats].sort()).toEqual(["free", "seated"]);
+  const winner = joiners[seats.indexOf("seated")];
+  const loser = joiners[seats.indexOf("free")];
+  expect((await challengeOf(winner))?.seat).toBe(1);
+  expect(await challengeOf(loser)).toBeNull();
+  const notice = loser.getByLabel("Co-op notice");
+  await expect(notice).toHaveAttribute("title", "Someone joined first");
+  await expect(notice.getByLabel("Joined by")).toBeVisible();
+  // The invite is gone for the one who missed it, and the pair isn't offered to it.
+  expect(await loser.evaluate(() => window.__alandDrive?.coop().kind)).toBe("free");
+  await expect(loser.getByLabel("Co-op invite")).toBeHidden();
+
+  for (const page of [inviter, ...joiners]) await page.context().close();
 });

@@ -3,7 +3,8 @@ import { abs, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positi
 import { createClipmap } from "./clipmap";
 import { createForest, forestBands, forestKnobs, type ForestDrawn, type ForestModel, type ForestSettings } from "./forest";
 import { startFreeCamera } from "./free-camera";
-import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, FOREST_DEFAULTS, NoWebGpuError, RENDER_SCALE, token } from "./game";
+import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, FOREST_DEFAULTS, NoWebGpuError, token } from "./game";
+import { pixelRatio } from "./graphics-settings";
 import { TileFetcher, TileStream } from "./stream";
 import type { WorldManifest } from "./tile";
 import { tileBase } from "./tile-address";
@@ -93,7 +94,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     throw new NoWebGpuError();
   }
   renderer.setClearColor(new Color(token("sky")));
-  renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
+  renderer.setPixelRatio(pixelRatio());
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";

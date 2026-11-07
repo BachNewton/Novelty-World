@@ -1,13 +1,13 @@
 import type { Scene, WebGPURenderer } from "three/webgpu";
-import { createCarGlows, createGlows, createLampLight, harbourGlows, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
+import { createCarGlows, createGlows, createLampLight, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
 import { uniform } from "three/tsl";
-import { placesOf } from "../art/marina/places";
-import { lampAt, ON_WATER_Y } from "./lighthouses";
+import { lampAt } from "./lighthouses";
 import { LIGHTS_ON_MARKS } from "./lights-on-marks";
+import { lampOnMark } from "./sea-marks";
 
 /*
  * The night's lights in the game (`art/night`): every lamp beside the roads, the sea's lights from OSM flashing from
- * their own lamps, the harbours' working lamps, and other players' head and tail lamps, all as glows in one draw;
+ * their own lamps, and other players' head and tail lamps, all as glows in one draw;
  * and the light the lamps near the camera cast, which every colour drawn takes (`lightOn`). By day, before the first
  * lamp strikes, none of it is drawn or cast.
  */
@@ -47,13 +47,13 @@ interface Ground {
 }
 
 export function createNightLights(scene: Scene, night: Night, { onAland, ground }: { onAland: boolean; ground: Ground }): NightLights {
-  const sea = onAland ? seaLightGlows(LIGHTS_ON_MARKS) : { glows: [], rhythms: [] };
-  const fixed = [...sea.glows, ...(onAland ? harbourGlows(placesOf("marina")) : [])];
-  // A lighthouse's light shines from its tower's lamp, which stands on the ground as the world has it now.
-  const lighthouseGlows = fixed.flatMap((glow, at) => {
-    const lamp = glow.streak === true ? undefined : lampAt(glow.x, glow.z);
-    return lamp === undefined ? [] : [{ at, lamp }];
-  });
+  // Every glow is in the lamp of a model drawn there: a sea light in the mark under it, a lighthouse's in its tower's
+  // lamp, pulled out to clear its lantern. A light with no model to shine from isn't drawn.
+  const seaLights = onAland ? LIGHTS_ON_MARKS : [];
+  const lampY = lampOnMark(ground.height);
+  const sea = seaLightGlows(seaLights, lampY);
+  const fixed = sea.glows;
+  const lanterns = fixed.map((glow) => (glow.streak === true ? undefined : lampAt(glow.x, glow.z)?.outM));
   let groundRevision: number | null = null;
   const glows = createGlows(night, fixed, sea.rhythms, fixed.length + LAMPS_MOST);
   const pools = createLampLight(night, LAMPS_MOST);
@@ -74,13 +74,14 @@ export function createNightLights(scene: Scene, night: Night, { onAland, ground 
     glowCount = fixed.length + spots.length;
     glows.upload(glowCount);
   };
-  const standLighthouses = () => {
+  // A sea mark ashore stands on the ground as the world has it, which sharpens as tiles land, so its light follows.
+  const standSeaLights = () => {
     groundRevision = ground.revision();
-    for (const { at, lamp } of lighthouseGlows) {
-      const foot = lamp.onWater ? ON_WATER_Y : ground.height(fixed[at].x, fixed[at].z);
-      fixed[at] = { ...fixed[at], y: foot + lamp.upM, outM: lamp.outM };
+    seaLightGlows(seaLights, lampY).glows.forEach((glow, at) => {
+      const outM = lanterns[at];
+      fixed[at] = outM === undefined ? glow : { ...glow, outM };
       glows.set(at, fixed[at]);
-    }
+    });
     glows.upload(glowCount);
   };
   const refillPools = (camera: { x: number; z: number }) => {
@@ -104,7 +105,7 @@ export function createNightLights(scene: Scene, night: Night, { onAland, ground 
       cars.update(seen);
     },
     update(renderer, camera) {
-      if (ground.revision() !== groundRevision) standLighthouses();
+      if (ground.revision() !== groundRevision) standSeaLights();
       show();
       if (!lit()) return;
       if (poolsAround === null || Math.hypot(camera.x - poolsAround.x, camera.z - poolsAround.z) > POOLS_MARGIN_M) refillPools(camera);

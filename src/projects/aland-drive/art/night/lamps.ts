@@ -8,7 +8,7 @@ import { buildTownLamp } from "../town-kit/lamps";
 import { nightRgb, type Night, type V3 } from "./night";
 
 /*
- * Lamps: where each kind's lantern is on the models in `art/roadside` and `art/town-kit`, turned into glows, and the
+ * Lamps: each kind's glass on the models in `art/roadside` and `art/town-kit`, turned into glows, and the
  * light each casts on what's under it (`createLampLight`).
  */
 
@@ -27,15 +27,21 @@ export const LAMP_LOOKS: Record<LampKind, LampLook> = {
   town: { token: "lamp-town", haloM: 1.6, poolM: 10, poolLight: 0.14, reachM: 1500 },
 };
 
-/** The middle of a model's glass, from its own vertices, in the model's frame: where its light comes from. */
-export function glassMiddle(geometry: BufferGeometry, glass: number): Vector3 {
+/** The bounds of one part of a model, from its own vertices, in the model's frame: empty where it has none. */
+export function partBounds(geometry: BufferGeometry, part: number): Box3 {
   const position = geometry.getAttribute("position");
-  const part = geometry.getAttribute("tint");
+  const tint = geometry.getAttribute("tint");
   const box = new Box3();
   const point = new Vector3();
   for (let vertex = 0; vertex < position.count; vertex++) {
-    if (Math.round(part.getX(vertex) * 255) === glass) box.expandByPoint(point.fromBufferAttribute(position, vertex));
+    if (Math.round(tint.getX(vertex) * 255) === part) box.expandByPoint(point.fromBufferAttribute(position, vertex));
   }
+  return box;
+}
+
+/** The middle of a model's glass: where its light comes from. */
+export function glassMiddle(geometry: BufferGeometry, glass: number): Vector3 {
+  const box = partBounds(geometry, glass);
   if (box.isEmpty()) throw new Error(`a lamp model with no glass (part ${glass})`);
   return box.getCenter(new Vector3());
 }

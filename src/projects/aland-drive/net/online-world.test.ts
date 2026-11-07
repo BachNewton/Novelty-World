@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
 import { createOnlineWorld, SEND_EVERY_STEPS, type OnlineWorld } from "./online-world";
-import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, TrafficMessage } from "./protocol";
+import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, SharedDestination, TrafficMessage } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
@@ -13,6 +13,8 @@ interface Client {
   world: OnlineWorld;
   /** What this client heard: each other car's last state, by peer id. */
   cars: Map<string, CarState>;
+  /** When each other car's last state was stepped, on its own client's clock. */
+  times: Map<string, number | undefined>;
   others: string[];
   /** Challenge messages heard, each with who sent it. */
   challenges: { from: string; message: ChallengeMessage }[];
@@ -22,6 +24,8 @@ interface Client {
   computerCars: { from: string; car: ComputerCarMessage }[];
   /** Traffic heard, each with who sent it. */
   traffic: { from: string; traffic: TrafficMessage }[];
+  /** The room's destination as last heard. */
+  destination: SharedDestination | null;
 }
 
 /** An in-memory star: sends queue up and are delivered in order by `flush`, as over the relay. */
@@ -39,7 +43,7 @@ function createStar() {
   };
 
   function add(id: string, time = 0): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time, computerCars: [], traffic: [] };
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), times: new Map(), others: [], challenges: [], time, computerCars: [], traffic: [], destination: null };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -66,7 +70,10 @@ function createStar() {
         };
       },
       {
-        onCar: (peerId, carState) => client.cars.set(peerId, carState),
+        onCar: (peerId, carState, at) => {
+          client.cars.set(peerId, carState);
+          client.times.set(peerId, at);
+        },
         onGone: (peerId) => client.cars.delete(peerId),
         onPlayers: (others) => {
           client.others = others.map((other) => other.peerId);
@@ -78,6 +85,9 @@ function createStar() {
         timeNow: () => client.time,
         onComputerCar: (from, car) => client.computerCars.push({ from, car }),
         onTraffic: (from, traffic) => client.traffic.push({ from, traffic }),
+        onDestination: (destination) => {
+          client.destination = destination;
+        },
       },
     );
     clients.set(id, client);
@@ -124,20 +134,25 @@ function createStar() {
 }
 
 /** A frame in which the car stepped this many times. */
-const drive = (client: Client, steps = SEND_EVERY_STEPS, at: CarState = STATE) => client.world.send(steps, at);
+const drive = (client: Client, steps = SEND_EVERY_STEPS, state: CarState = STATE, at = 1000) => client.world.send(steps, state, false, at);
 
 describe("the online world", () => {
-  it("hands every car to everyone else through the host, and nobody hears their own", () => {
+  it("hands every car to everyone else through the host, with when its client stepped it, and nobody hears their own", () => {
     const star = createStar();
     const host = star.join("h");
     const a = star.join("a");
     const b = star.join("b");
-    for (const client of [host, a, b]) drive(client);
+    drive(host, SEND_EVERY_STEPS, STATE, 10.25);
+    drive(a, SEND_EVERY_STEPS, STATE, 20.5);
+    drive(b, SEND_EVERY_STEPS, STATE, 30.75);
     star.flush();
     expect([...host.cars.keys()].sort()).toEqual(["a", "b"]);
     expect([...a.cars.keys()].sort()).toEqual(["b", "h"]);
     expect([...b.cars.keys()].sort()).toEqual(["a", "h"]);
     expect(a.cars.get("b")?.position).toEqual(STATE.position);
+    // Each sender's own clock, through the host and on to another guest, to a tenth of a millisecond.
+    expect(Object.fromEntries(a.times)).toEqual({ h: 10.3, b: 30.8 });
+    expect(host.times.get("a")).toBe(20.5);
   });
 
   it("sends 20 times a second, and once when paused, with the car standing still", () => {
@@ -154,7 +169,7 @@ describe("the online world", () => {
     expect(star.sent()).toBe(before + 2);
 
     // Put somewhere while paused, it's sent again where it is now.
-    a.world.send(0, { ...STATE, position: [40, 2, -30] }, true);
+    a.world.send(0, { ...STATE, position: [40, 2, -30] }, true, 2000);
     expect(star.sent()).toBe(before + 3);
   });
 
@@ -192,7 +207,7 @@ describe("the online world", () => {
     expect([...a.cars.keys()]).toEqual(["b"]);
     expect([...b.cars.keys()]).toEqual(["a"]);
 
-    b.world.send(1, { ...STATE, position: [99, 2, -30] });
+    b.world.send(1, { ...STATE, position: [99, 2, -30] }, false, 2000);
     star.flush();
     expect(a.cars.get("b")?.position).toEqual([99, 2, -30]);
   });
@@ -224,15 +239,16 @@ describe("the online world", () => {
     expect(a.challenges).toEqual([]);
   });
 
-  it("hands a computer-driven car's state from the player running it to everyone else, naming who sent it", () => {
+  it("hands a computer-driven car's state from the player running it to everyone else, naming who sent it and when its frame stepped it", () => {
     const star = createStar();
     const host = star.join("h");
     const a = star.join("a");
     const b = star.join("b");
+    drive(a, 0, STATE, 1234.5);
     const car = { id: "car", runner: "a", handovers: 2, state: STATE, driver: { along: 4 } };
     expect(a.world.sendComputerCar(car)).toBe(true);
     star.flush();
-    for (const client of [host, b]) expect(client.computerCars).toEqual([{ from: "a", car }]);
+    for (const client of [host, b]) expect(client.computerCars).toEqual([{ from: "a", car: { ...car, at: 1234.5 } }]);
     expect(a.computerCars).toEqual([]);
   });
 
@@ -309,5 +325,36 @@ describe("the online world", () => {
     star.loseHost();
     star.flush();
     expect(b.time).toBe(10.5);
+  });
+
+  it("settles two destinations picked at once on the same one for everyone, the one the host heard last", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    a.world.sendDestination({ x: 1, z: 2 });
+    b.world.sendDestination({ x: 3, z: 4 });
+    star.flush();
+    const settled = { point: { x: 3, z: 4 }, setter: "b", name: "b" };
+    for (const client of [host, a, b]) expect(client.destination).toEqual(settled);
+    host.world.sendDestination(null);
+    star.flush();
+    for (const client of [host, a, b]) expect(client.destination).toEqual({ point: null, setter: "h", name: "h" });
+  });
+
+  it("hands the destination to a player who arrives later, even after the host who settled it has gone", () => {
+    const star = createStar();
+    star.join("h");
+    const a = star.join("a");
+    star.join("b");
+    a.world.sendDestination({ x: 5, z: 6 });
+    star.flush();
+    const late = star.join("late");
+    star.flush();
+    expect(late.destination).toEqual({ point: { x: 5, z: 6 }, setter: "a", name: "a" });
+    star.loseHost();
+    const later = star.join("later");
+    star.flush();
+    expect(later.destination).toEqual({ point: { x: 5, z: 6 }, setter: "a", name: "a" });
   });
 });
