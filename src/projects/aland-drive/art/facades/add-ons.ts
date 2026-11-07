@@ -178,30 +178,53 @@ export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6)
   return material;
 }
 
-/** One instanced mesh per kind, for these add-ons: a kind with none has one folded to nothing, so it can still be compiled. */
-export function addOnMeshes(addOns: AddOn[], paint: Painter, material: MeshBasicNodeMaterial): InstancedMesh[] {
-  const meshes: InstancedMesh[] = [];
+/** Room in each kind's list: more than the whole island holds, whose most are Mariehamn's L2334E's 37 porches. */
+export const ADD_ONS_MOST = 256;
+
+export interface AddOnLists {
+  /** One instanced mesh per kind, made once. */
+  meshes: InstancedMesh[];
+  /** Puts these add-ons in the lists: a kind with none has one folded to nothing, so it can still be compiled. */
+  place: (addOns: readonly AddOn[]) => void;
+}
+
+/**
+ * The add-ons as one instanced list per kind, with room for `capacity`, rewritten in place. three bakes an instanced
+ * mesh's count into its shader and keys that shader by the mesh, so a list made anew or resized mid-drive compiled four
+ * pipelines in the frame a villa's tile landed, a stall of seconds.
+ */
+export function addOnLists(paint: Painter, material: MeshBasicNodeMaterial, capacity = ADD_ONS_MOST): AddOnLists {
   const matrix = new Matrix4();
   const up = new Vector3(0, 1, 0);
   const turn = new Quaternion();
-  for (const [kind, build] of Object.entries(ADD_ON_MODELS) as [AddOnKind, (paint: Painter) => LandmarkMesh][]) {
-    const placed = addOns.filter((addOn) => addOn.kind === kind);
-    const own = placed.length > 0 ? placed : [{ kind, x: 0, y: 0, z: 0, outX: 0, outZ: 1, scale: 0 }];
+  const kinds = (Object.entries(ADD_ON_MODELS) as [AddOnKind, (paint: Painter) => LandmarkMesh][]).map(([kind, build]) => {
     const geometry = geometryOf(build(paint));
-    const anchors = new Float32Array(own.length * 3);
-    const outwards = new Float32Array(own.length * 3);
-    const instanced = new InstancedMesh(geometry, material, own.length);
-    own.forEach(({ x, y, z, outX, outZ, scale }, at) => {
-      turn.setFromAxisAngle(up, Math.atan2(outX, outZ));
-      matrix.compose(new Vector3(x, y, z), turn, scale === 0 ? new Vector3(0, 0, 0) : new Vector3(scale, 1, 1));
-      instanced.setMatrixAt(at, matrix);
-      anchors.set([x, y, z], at * 3);
-      outwards.set([outX, 0, outZ], at * 3);
-    });
-    geometry.setAttribute("anchor", new InstancedBufferAttribute(anchors, 3));
-    geometry.setAttribute("outward", new InstancedBufferAttribute(outwards, 3));
-    instanced.frustumCulled = false;
-    meshes.push(instanced);
-  }
-  return meshes;
+    const anchors = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    const outwards = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    geometry.setAttribute("anchor", anchors);
+    geometry.setAttribute("outward", outwards);
+    const mesh = new InstancedMesh(geometry, material, capacity);
+    mesh.frustumCulled = false;
+    return { kind, mesh, anchors, outwards };
+  });
+  const place = (addOns: readonly AddOn[]) => {
+    for (const { kind, mesh, anchors, outwards } of kinds) {
+      const placed = addOns.filter((addOn) => addOn.kind === kind);
+      if (placed.length > capacity) throw new Error(`${placed.length} ${kind} add-ons, and room for ${capacity}`);
+      const own = placed.length > 0 ? placed : [{ kind, x: 0, y: 0, z: 0, outX: 0, outZ: 1, scale: 0 }];
+      own.forEach(({ x, y, z, outX, outZ, scale }, at) => {
+        turn.setFromAxisAngle(up, Math.atan2(outX, outZ));
+        matrix.compose(new Vector3(x, y, z), turn, scale === 0 ? new Vector3(0, 0, 0) : new Vector3(scale, 1, 1));
+        mesh.setMatrixAt(at, matrix);
+        anchors.setXYZ(at, x, y, z);
+        outwards.setXYZ(at, outX, 0, outZ);
+      });
+      mesh.count = own.length;
+      mesh.instanceMatrix.needsUpdate = true;
+      anchors.needsUpdate = true;
+      outwards.needsUpdate = true;
+    }
+  };
+  place([]);
+  return { meshes: kinds.map(({ mesh }) => mesh), place };
 }
