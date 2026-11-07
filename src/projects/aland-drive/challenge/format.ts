@@ -1,4 +1,5 @@
 import type { ChallengeKind } from "./types";
+import { speedText, type Units } from "../units";
 
 /** A time as a driver reads a stopwatch: minutes, seconds and tenths, rounded down so a shown time never flatters. */
 export function timeText(seconds: number): string {
@@ -8,9 +9,9 @@ export function timeText(seconds: number): string {
   return `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
 }
 
-/** A Route's or a race's time, or a Speed trap's speed. */
-export function resultText(kind: ChallengeKind, value: number): string {
-  return kind === "speed-trap" ? `${Math.floor(value)} km/h` : timeText(value);
+/** A Route's or a race's time, or a Speed trap's speed (kept in km/h) in the player's units. */
+export function resultText(kind: ChallengeKind, value: number, units: Units): string {
+  return kind === "speed-trap" ? speedText(value, units) : timeText(value);
 }
 
 /** A finishing place as a racer says it: 1st, 2nd, 3rd, 4th. */

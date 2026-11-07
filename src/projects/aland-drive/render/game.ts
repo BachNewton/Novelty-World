@@ -25,7 +25,7 @@ import { seaClock } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
 import { createWinterLights } from "./winter-lights";
-import { dateText, gameDaysAtInstant, startOfDay, type CalendarDate } from "../time/day";
+import { dateText, GAME_DAY_S, gameDaysAtInstant, startOfDay, type CalendarDate } from "../time/day";
 import { bakedLightAtHour, createAurora, createHeadlights, forestAtHour, OTHERS_LIT, type Beam, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
@@ -34,6 +34,7 @@ import { createRegattas } from "./regatta";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createWindmills } from "./windmills";
+import { createWindTurbines } from "./wind-turbines";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
@@ -60,7 +61,7 @@ import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, typ
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { createDriveAudio } from "../audio/graph";
-import { stateFromCar, type SeasonHeard } from "../audio/model";
+import { bellStrikesBetween, stateFromCar, type Listener, type Mix, type Place as PlaceHeard, type SeasonHeard } from "../audio/model";
 import { yearDay } from "../climate/calendar";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
@@ -85,7 +86,8 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, tyreOfItem, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { drivingMenu, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
@@ -261,6 +263,8 @@ export interface GameProbe {
   showTyres: (shown: boolean) => void;
   /** Rain streaks and snowflakes drawn now. */
   precipitationCounts: () => { rain: number; snow: number };
+  /** What the sound hears round the car: how much of it is forest, shore and town, and the levels it last mixed. */
+  sound: () => { place: PlaceHeard; mix: Mix | null };
   setCondition: (condition: Condition) => void;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
@@ -589,6 +593,10 @@ const DETAIL_FADE_M = 400;
 const FAR_FADE_FROM_M = 4400;
 const FAR_SEEN_M = 5800;
 const HAZE_M = 16000;
+/** The landmarks that are churches, whose bells strike the hour (`audio/model.ts`). */
+const CHURCH_MODELS = new Set(["church", "eckero", "finstrom", "foglo", "geta", "hammarland", "jomala", "lemland", "saltvik", "sund", "vardo"]);
+/** A church bell as loud as this 8 m off: heard over a village, faintly a kilometre away. */
+const BELL_LOUDNESS = 5;
 /** Haze thins with the camera's height above this, so the island stays clear from above. */
 const HAZE_CLEARS_FROM_M = 120;
 /** Past this height the mask's mips blur a road into a band, so the paint fades out, and the overlay's roads fade in. */
@@ -852,7 +860,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const groundColor = townGround({ place: positionWorld.xz, tiled, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
-  const nightLights = createNightLights(scene, night, { onAland: !inPlayground });
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, ground: { height: (x, z) => world.height(x, z), revision: () => world.revision } });
   // Every colour drawn goes through here: the hour's light on it, the headlights on it, the player's and the nearest
   // others', the lamps' light on it, then the haze.
   const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)).add(nightLights.lightOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
@@ -1026,10 +1034,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const viewHeight = uniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
   const streetClock = uniform(0);
+  const identityKit = identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock });
+  // Båtskär's turbines turn on the same clock as the roadside's flags.
+  const windTurbines = createWindTurbines(scene, identityKit, { height: (x, z) => world.height(x, z), revision: () => world.revision });
+  if (inPlayground) windTurbines.show(false);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
     street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }),
-    identity: identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock }),
+    identity: identityKit,
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
     town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
@@ -1241,6 +1253,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(true);
   outbuildings.showAll(true);
   windmills.showAll(true);
+  windTurbines.showAll(true);
   docks.showAll(true);
   seaMarks.showAll(true);
   people.showAll(true);
@@ -1267,6 +1280,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   clipmap.showWide(false);
   outbuildings.showAll(false);
   windmills.showAll(false);
+  windTurbines.showAll(false);
   docks.showAll(false);
   seaMarks.showAll(false);
   people.showAll(false);
@@ -1758,6 +1772,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         showMenu(drivingMenu(drive.tyres, assists));
         break;
       }
+      case "units-metric":
+      case "units-imperial":
+        useUnits.getState().setUnits(unitsOfItem(id));
+        break;
       case "sound":
         useDriveSoundSettings.getState().toggleMuted();
         break;
@@ -2236,6 +2254,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     else events.onTimeJump(jump);
   };
 
+  /** Where the sound is heard from: the camera, and the way to its right, flat. */
+  const listener: Listener = { x: 0, z: 0, rightX: 1, rightZ: 0 };
+  const listenerRight = new Vector3();
+  const heardFrom = (): Listener => {
+    listenerRight.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    return Object.assign(listener, { x: camera.position.x, z: camera.position.z, rightX: listenerRight.x, rightZ: listenerRight.z });
+  };
+  // Every church strikes the hour by day, heard from where it stands.
+  const churches = manifest.tiles.flatMap((tile) => (tile.landmarks ?? []).filter(({ model }) => CHURCH_MODELS.has(model)));
+  let bellHour: number | null = null;
+  const ringBells = () => {
+    const { hour } = day.time();
+    const strikes = bellHour === null ? 0 : bellStrikesBetween(bellHour, hour, GAME_DAY_S);
+    bellHour = hour;
+    for (let strike = 0; strike < strikes; strike++) for (const church of churches) audio.placeOnce("bell", church.x, church.z, BELL_LOUDNESS);
+  };
+
   /** The season and hour the place beds follow, as the render draws them. */
   const seasonHeard = (): SeasonHeard => {
     const { date, hour, sun: place } = day.time();
@@ -2334,7 +2369,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       audio.reset();
     }
     const [carX, , carZ] = car.position;
-    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), paused: mapFrom !== null || jumping || menuHolds }, drive.player.treads().map((tread) => tread.spinMS)), seconds);
+    audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), listener: heardFrom(), paused: mapFrom !== null || jumping || menuHolds }, drive.player.treads().map((tread) => tread.spinMS)), seconds);
+    ringBells();
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -2350,6 +2386,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!inPlayground) {
       boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, camera.position);
       seaMarks.update(spot.x, spot.z, camera.position);
+      windTurbines.update();
     }
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
     if (!(lifted || held || jumping || menuHolds)) {
@@ -2554,6 +2591,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       tyreCounts: tyres.counts,
       showTyres: tyres.show,
       precipitationCounts: precipitation.counts,
+      sound: () => {
+        const [carX, , carZ] = drive.stateAt(1).position;
+        return { place: placeAround(world, carX, carZ), mix: audio.reading()?.mix ?? null };
+      },
       setCondition: (condition) => {
         weatherNow.holdGround(condition);
         drive.condition = condition;
@@ -2761,6 +2802,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       wallMaterial.dispose();
       outbuildings.dispose();
       windmills.dispose();
+      windTurbines.dispose();
       docks.dispose();
       boatsUnderWay.dispose();
       seaMarks.dispose();

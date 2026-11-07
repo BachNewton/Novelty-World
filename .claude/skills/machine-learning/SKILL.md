@@ -41,6 +41,7 @@ Each of these is a scar from the record, not a preference.
 - **Never act on the first plausible cause.** A plateau has about ten causes with tests between them; the diagnosis is the test, in the order of cost.
 - **Count work, never time.** The laptop throttles and the eGPU drops out; progress is samples trained and decisions played, and a speed claim is a count of work or a paired ratio (root `CLAUDE.md`).
 - **The GPU does batched work:** training, vectorized environments, batched inference inside a search. Single-sample inference across the external link is slower than the CPU. Learned code is Python and PyTorch; the retired TypeScript training stack is not extended.
+- **CPU work that splits into independent games or cases goes to GitHub Actions' runners first** (measurement, recording, labels): twenty 4-core machines at once, free, faster than the laptop for such work and leaving the laptop's CPU for the trainer and for what can't be sharded. The two run at the same time, not in turn. A kind of work the workflow doesn't carry yet is added to it rather than run on the laptop for a night.
 - **No timers and no silent fallbacks** (root `CLAUDE.md`): a run that can't find its device fails at start; a model that fails a parity test doesn't ship.
 - **The repo's project docs are evidence; this skill is the method.** Where a project doc's "locked decision" or "next step" conflicts with this skill, this skill wins, and the doc is amended when next touched. `references/history.md` lists the ones already known.
 
@@ -89,7 +90,7 @@ An owner's ruling that goes against standard practice is stated once with its co
 
 ## The machine, the stack, the assets
 
-`references/budget.md` has the machine and its measured rates: a 16-thread laptop that throttles, 62 GB, an RTX 4070 with 12 GB on an external link that has dropped out, Python with PyTorch and CUDA on Windows (WSL sees the card too, under a memory cap the owner will raise when a project needs it), GitHub Actions' free runners for sharded measurement.
+`references/budget.md` has the machine and its measured rates: a 16-thread laptop that throttles, 62 GB, an RTX 4070 with 12 GB on an external link that has dropped out, Python with PyTorch and CUDA on Windows (WSL sees the card too, under a memory cap the owner will raise when a project needs it), and GitHub Actions' free runners as hardware in their own right: twenty 4-core machines at once for any CPU work that splits into independent games or cases.
 
 Game-agnostic pieces live in `src/shared/lib/bot-lab/`: the worker pool, the SPRT with a multiplayer par mapped into Elo, the Bradley–Terry ladder with its error, the pairing loop and crown gate, the SNES optimizer, the run log, the live Bot Lab page a long run is watched from. Any new game's harness is built on these, not beside them. Per game, as worked examples and parts to reuse: Risk's harness (`src/projects/risk/eval/`), GPU engine and trainer (`src/projects/risk/gpu/`) and native engine (`src/projects/risk/native/`); Monopoly's evaluation and optimizer (`src/projects/monopoly/bots/eval/`, `bots/optimize/`). Their records are in `references/history.md`.
 

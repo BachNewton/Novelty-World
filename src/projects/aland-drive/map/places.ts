@@ -5,7 +5,7 @@
  * note, and those left out for want of a source, are in `docs/HISTORY.md`.
  */
 
-export const PLACE_KINDS = ["church", "castle", "fort", "ancient", "graves", "monument", "museum", "landmark", "viewpoint", "ship", "golf"] as const;
+export const PLACE_KINDS = ["church", "castle", "fort", "ancient", "graves", "monument", "museum", "landmark", "viewpoint", "ship", "golf", "lighthouse"] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
 export interface Place {
@@ -14,6 +14,8 @@ export interface Place {
   kind: PlaceKind;
   x: number;
   z: number;
+  /** For one out on the water no road reaches: the road on the shore it's seen and found from. */
+  foundFrom?: { x: number; z: number };
   note: string;
 }
 
@@ -344,5 +346,95 @@ export const PLACES: readonly Place[] = [
     x: -2885,
     z: 6277,
     note: "Mariehamn's water tower stands on Badhusberget, which has long been the town's favourite lookout. An earlier tower here, a lookout built in 1933, began holding water in 1947, before this one replaced it in the 1950s.",
+  },
+
+  // Lighthouses (`art/lighthouses`). One out on the water is found from the road on the shore that looks out to it.
+  {
+    id: "lighthouse-market",
+    name: "Märket lighthouse",
+    kind: "lighthouse",
+    x: -44199,
+    z: -20894,
+    foundFrom: { x: -25348, z: -15044 },
+    note: "When this lighthouse was built in 1885, its builders chose the skerry's highest point, which turned out to be on the Swedish half of an island split by the 1809 border. A century later Finland and Sweden redrew the line in a zigzag, swapping equal patches of rock so the lighthouse stood in Finland. It is the smallest sea island shared by two countries, and Finland's westernmost land.",
+  },
+  {
+    id: "lighthouse-salskar",
+    name: "Sälskär lighthouse",
+    kind: "lighthouse",
+    x: -17441,
+    z: -30216,
+    foundFrom: { x: -12080, z: -25571 },
+    note: "Lit in 1868, this brick tower guards the reefs off Åland's north-west corner, where sailors once had only the Geta hills to steer by in daylight. Storms in the 1890s cracked its walls and threw down the lantern, so in 1904 it was bound with four iron hoops and held by steel cables. Its keepers left when a gas light made it automatic, around 1949.",
+  },
+  {
+    id: "lighthouse-lagskar",
+    name: "Lågskär lighthouse",
+    kind: "lighthouse",
+    x: -6732,
+    z: 35019,
+    foundFrom: { x: -2982, z: 22200 },
+    note: "A wooden beacon stood here from 1794 and a light from 1840, but Russian troops blew up the brick lighthouse in 1915. The concrete pyramid that replaced it in 1920 carried a lens 1.7 m across, which turned on its own, driven by the gas that fed its flame. Since the keepers left in 1961, the island has been a bird-ringing station.",
+  },
+  {
+    id: "lighthouse-flotjan",
+    name: "Flötjan lighthouse",
+    kind: "lighthouse",
+    x: -14392,
+    z: 37864,
+    foundFrom: { x: -2982, z: 22200 },
+    note: "In 1811 this tiny skerry was written into the treaty map as one of the corner points of Finland's new border with Sweden. A concrete cairn with a gas light came in 1901–08, and the tower in 1953. It was cast in one continuous pour and has no stairs inside, only a ladder.",
+  },
+  {
+    id: "lighthouse-nyhamn",
+    name: "Nyhamn lighthouse",
+    kind: "lighthouse",
+    x: -2940,
+    z: 22166,
+    note: "Sweden's king had a stone lighthouse built on Lilla Båtskär in 1751, because rocks under the sea made ships' compasses lie. Russian forces destroyed it in 1808–09. In 1958 a company sank a 360 m iron-ore mine shaft here; the mine failed within two years, but the light lived on at the top of the shaft tower until 2007.",
+  },
+  {
+    id: "lighthouse-kobba-klintar",
+    name: "Kobba Klintar",
+    kind: "lighthouse",
+    x: -6154,
+    z: 13949,
+    foundFrom: { x: -2563, z: 11938 },
+    note: "From 1861 Mariehamn's pilots rowed out from this rock to guide sailing ships into harbour, under a white pyramid seamark. The 1910 house hid a diesel-driven foghorn in its attic, which blew through doors in the gable. The station closed in 1972; the pyramid is a 2012 copy of the one pulled down in 1954.",
+  },
+  {
+    id: "lighthouse-marhallan",
+    name: "Marhällan lighthouse",
+    kind: "lighthouse",
+    x: -6711,
+    z: 13726,
+    foundFrom: { x: -2563, z: 11938 },
+    note: "After the barques Virgo, Plus and Fred were wrecked at the harbour mouth in 1928 and 1933, this striped concrete light went up in 1938 with an automatic fog bell. The fog signal kept by this pair of stations was the last working in Finland when it fell silent in 1985.",
+  },
+  {
+    id: "lighthouse-ledskar",
+    name: "Ledskär båk",
+    kind: "lighthouse",
+    x: 9070,
+    z: 22956,
+    foundFrom: { x: 9908, z: 22152 },
+    note: "This striped stone beacon was finished in 1748 to mark the narrow Ledsund passage, which the Swedish fleet sailed through in 1720 to attack the Russian galleys. A year earlier the Russian galley fleet had anchored here, and Tsar Peter the Great is said to have had his monogram cut into the rock. The red and white stripes were added in 1899.",
+  },
+  {
+    id: "lighthouse-hogsten",
+    name: "Högsten båk",
+    kind: "lighthouse",
+    x: -25887,
+    z: -24595,
+    foundFrom: { x: -19148, z: -22782 },
+    note: "A sea mark has stood on this Eckerö island since 1740. The first was destroyed in the war between Russia and Sweden in 1808–09; the red wooden pyramid of 1845 was restored in 1981.",
+  },
+  {
+    id: "lighthouse-sjokvarteret",
+    name: "Sjökvarteret's harbour light",
+    kind: "lighthouse",
+    x: -1776,
+    z: 5969,
+    note: "This little lantern guided ships at Stegskär from 1898 before it was moved to Mariehamn's Maritime Quarter, where it still serves as a harbour light.",
   },
 ];

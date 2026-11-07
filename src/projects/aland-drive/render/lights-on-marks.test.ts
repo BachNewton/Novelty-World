@@ -24,4 +24,10 @@ describe("a sea light on the register's marks", () => {
     expect(lightsOnMarks([flashing("lighthouse", 1e6, 1e6)], REGISTER_MARKS)).toEqual([]);
     expect(LIGHTS_ON_MARKS.some(({ x, z }) => Math.hypot(x - 18078, z - 6814) < 200)).toBe(false);
   });
+
+  it("lights every lighthouse the register has lit and OSM gives a rhythm, the outer skerries' too", () => {
+    // Sandbäck, Flötjan, Sälskär, Märket, Lågskär and Salkobb, in scene metres. Enskär, off the Finnish coast, has no light in OSM; the register's daymark towers are unlit.
+    const lit = [[49343, -62893.4], [-14396, 37876.2], [-17432.4, -30208.5], [-44198.9, -20889.2], [-6722.3, 35016.3], [3314.9, 29069.2]];
+    for (const [x, z] of lit) expect(LIGHTS_ON_MARKS.some((light) => light.x === x && light.z === z), `${x}, ${z}`).toBe(true);
+  });
 });

@@ -120,4 +120,5 @@ Within a round, the page shows the round's starting point, not each game: the ma
 
 ## Not yet
 
+- **`risk:gpu-fixtures`**, a teacher's games as game records for imitation (`ideas/learned-bot.md`, stage 1): a `fixtures` tool shaped like `record` (a fixed number of games, `shards` machines, one artifact), with one recorder process per core, since the recorder plays one game at a time. It lands on `main` before the first imitation recording.
 - **`risk:tune`.** Each SNES generation depends on the one before, so a tuning run is a chain of short rounds, one per generation, typically twenty. Each round's start-up would cost more than its games. It would need the round loop to carry the tuner's state from round to round, a different shape from a gauntlet's. It stays on the laptop until a tuning run is long enough to be worth that.

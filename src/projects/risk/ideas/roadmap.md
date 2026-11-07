@@ -1,6 +1,6 @@
 # Risk bots: where each line stands and what comes next
 
-A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot stronger than the strongest seated bot that players can feel, and fast enough to simulate and train with.
+A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot that masters the game: one whose strength keeps rising with the training it is given, until it beats any person (`learned-bot.md`). The rule bots are its floor, its teachers and its yardsticks, and the seated best is the bot players feel meanwhile.
 
 ## rule-v7.1: v7's search on v6.1, seated
 

@@ -11,6 +11,8 @@ import data from "../sea/marks.json";
 
 /** A light this near a register mark is that mark's light. */
 const SAME_PLACE_M = 25;
+/** OSM puts a lighthouse's light on its building, which can stand well off the register's point for the tower. */
+const LIGHTHOUSE_SAME_PLACE_M = 60;
 
 /** A register mark as `sea/marks.json` rows it: its model, and where it stands in the scene. */
 export type Mark = readonly [model: string, x: number, z: number, ...rest: number[]];
@@ -27,10 +29,10 @@ function kindOf(model: string): SeaLight["kind"] {
 export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[]): SeaLight[] {
   return lights.flatMap((light) => {
     let nearest: Mark | null = null;
-    let nearestM = SAME_PLACE_M;
+    let nearestM = Infinity;
     for (const mark of marks) {
       const apart = Math.hypot(mark[1] - light.x, mark[2] - light.z);
-      if (apart < nearestM) [nearest, nearestM] = [mark, apart];
+      if (apart < nearestM && apart < (mark[0] === "lighthouse" ? LIGHTHOUSE_SAME_PLACE_M : SAME_PLACE_M)) [nearest, nearestM] = [mark, apart];
     }
     if (nearest === null) return [];
     return [{ ...light, x: nearest[1], z: nearest[2], kind: kindOf(nearest[0]) }];
