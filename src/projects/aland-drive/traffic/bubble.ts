@@ -14,6 +14,12 @@ import type { LaneNet } from "./lane-net";
  * the bubble; a vehicle goes once it's out of sight past the bubble's edge, or
  * its trip has ended. The first fill, as a page opens, goes anywhere: nothing
  * was there to see appear.
+ *
+ * In the shared world every player runs a bubble, and a slot is kept by the
+ * player nearest it: only they fill it, and only beyond every other player's
+ * reach, since what another player's camera sees isn't known here. A vehicle is
+ * taken away only by the player running it, once it's past every player's edge;
+ * one another player runs is only let go of here, as it leaves this one's.
  */
 
 /**
@@ -92,6 +98,12 @@ const RULES: Record<VehicleKind, KindRules> = {
 /** Whether two kinds ever meet on a lane: a walker on a pavement is no reason for a car not to start beside it. */
 const meet = (one: VehicleKind, other: VehicleKind) => !(one === "car" && other === "walker") && !(one === "walker" && other === "car");
 
+/** A slot is kept by the player nearer it than any other by this much; between two players, until one is, by neither. */
+export const KEEP_MARGIN_M = 10;
+
+/** The slot a vehicle came from: its name, less what a player added to tell it from another out of the same slot. */
+export const slotOf = (id: string) => id.split("~")[0];
+
 /** A whole number from a slot's name, the same each time. */
 function seedOf(name: string): number {
   let hash = 0x811c9dc5;
@@ -108,8 +120,17 @@ export interface BubbleKind {
 /** Whether the player could see a vehicle standing where it would. */
 export type Seen = (vehicle: Pick<LaneCar, "kind" | "pose" | "half">) => boolean;
 
+/** Where the other players are, and whether this player runs a vehicle; alone, there are none and it runs them all. */
+export interface Sharing {
+  others: readonly { x: number; z: number }[];
+  runsHere: (vehicle: LaneCar) => boolean;
+}
+
+const ALONE: Sharing = { others: [], runsHere: () => true };
+
 export class Bubble {
   private seen: Seen = () => true;
+  private sharing = ALONE;
   /** Kinds whose next fill is the first, which may go anywhere. */
   private readonly fresh = new Set<VehicleKind>();
   private readonly made = { spawned: 0, gone: 0 };
@@ -118,8 +139,11 @@ export class Bubble {
     private readonly net: LaneNet,
     private readonly traffic: LaneTraffic,
     private readonly kinds: Record<VehicleKind, BubbleKind>,
+    /** A new vehicle's id from its slot's: the slot's alone, but online, where another player may have one from it far off. */
+    private readonly nameOf: (slot: string) => string = (slot) => slot,
   ) {
-    traffic.mayGo = (vehicle) => !this.seen(vehicle);
+    // Out of this player's sight, and of every other player's reach.
+    traffic.mayGo = (vehicle) => !this.seen(vehicle) && this.sharing.others.every((other) => Math.hypot(vehicle.pose.x - other.x, vehicle.pose.z - other.z) > this.kinds[vehicle.kind].reachM);
     for (const kind of Object.keys(kinds) as VehicleKind[]) if (kinds[kind].density > 0) this.fresh.add(kind);
   }
 
@@ -133,6 +157,11 @@ export class Bubble {
     if (density === 0) for (const vehicle of [...this.traffic.all()]) if (vehicle.kind === kind) this.traffic.remove(vehicle.id);
   }
 
+  /** The next fill of every kind turned on goes anywhere, as a page's first does: after a jump, nobody saw the car arrive. */
+  refill(): void {
+    for (const kind of Object.keys(this.kinds) as VehicleKind[]) if (this.kinds[kind].density > 0) this.fresh.add(kind);
+  }
+
   density(kind: VehicleKind): number {
     return this.kinds[kind].density;
   }
@@ -142,28 +171,38 @@ export class Bubble {
     return { ...this.made };
   }
 
-  /** Takes away what has gone out of sight past the bubble's edge, and fills the slots out of sight within it. */
-  update(focus: { x: number; z: number }, seen: Seen): void {
+  /** How far from a player a vehicle of a kind is past the bubble's edge, and goes. */
+  edgeM(kind: VehicleKind): number {
+    const { beyondM, leaveM } = RULES[kind];
+    return this.kinds[kind].reachM + beyondM + leaveM;
+  }
+
+  /** Takes away what has gone out of sight past the bubble's edge, and fills the slots out of sight within it that this player keeps. */
+  update(focus: { x: number; z: number }, seen: Seen, sharing: Sharing = ALONE): void {
     this.seen = seen;
+    this.sharing = sharing;
     for (const vehicle of [...this.traffic.all()]) {
-      const { reachM } = this.kinds[vehicle.kind];
-      const { beyondM, leaveM } = RULES[vehicle.kind];
-      if (Math.hypot(vehicle.pose.x - focus.x, vehicle.pose.z - focus.z) > reachM + beyondM + leaveM && !seen(vehicle)) {
+      const edge = this.edgeM(vehicle.kind);
+      const past = (at: { x: number; z: number }) => Math.hypot(vehicle.pose.x - at.x, vehicle.pose.z - at.z) > edge;
+      if (!past(focus) || seen(vehicle)) continue;
+      if (!sharing.runsHere(vehicle)) this.traffic.remove(vehicle.id);
+      else if (sharing.others.every(past)) {
         this.traffic.remove(vehicle.id);
         this.made.gone++;
       }
     }
     for (const kind of Object.keys(this.kinds) as VehicleKind[]) {
-      if (this.kinds[kind].density > 0) this.fill(kind, focus);
+      if (this.kinds[kind].density > 0) this.fill(kind, focus, sharing.others);
     }
   }
 
-  private fill(kind: VehicleKind, focus: { x: number; z: number }): void {
+  private fill(kind: VehicleKind, focus: { x: number; z: number }, others: Sharing["others"]): void {
     const { reachM, density } = this.kinds[kind];
     const { perKm, nearestM, clearM, beyondM, slotM, shortLanes } = RULES[kind];
     const bubbleM = reachM + beyondM;
     const fresh = this.fresh.has(kind);
-    const others = [...this.traffic.all()];
+    const near = [...this.traffic.all()];
+    const taken = new Set(near.map((vehicle) => slotOf(vehicle.id)));
     let lanes = 0;
     for (const ref of this.net.lanesNear(focus.x, focus.z, bubbleM)) {
       lanes++;
@@ -179,14 +218,17 @@ export class Bubble {
       for (let slot = 0; slot < slots; slot++) {
         const id = `${kind}:${ref.tile}:${ref.lane}:${slot}`;
         const seed = seedOf(id);
-        if (seedShare(seed) >= share || this.traffic.get(id)) continue;
+        if (seedShare(seed) >= share || taken.has(id)) continue;
         const at = pointAlong(tile.points, lane, (slot + 0.5) * spacing);
         const away = Math.hypot(at.x - focus.x, at.z - focus.z);
         if (away > bubbleM || (!fresh && away < nearestM)) continue;
-        if (others.some((other) => meet(other.kind, kind) && Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
+        // Another player's: nearer them, or in their sight, which is judged by their reach alone.
+        if (others.some((other) => Math.hypot(at.x - other.x, at.z - other.z) < Math.max(reachM, away + KEEP_MARGIN_M))) continue;
+        if (near.some((other) => meet(other.kind, kind) && Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
         const half = kind === "car" ? this.traffic.halfOf(seed) : null;
         if (!fresh && this.seen({ kind, pose: { ...at, yaw: 0 }, half: half ?? [0.5, 1] })) continue;
-        others.push(this.traffic.enter({ ...place, along: (slot + 0.5) * spacing }, { kind, seed, id }));
+        near.push(this.traffic.enter({ ...place, along: (slot + 0.5) * spacing }, { kind, seed, id: this.nameOf(id) }));
+        taken.add(id);
         this.made.spawned++;
       }
     }
