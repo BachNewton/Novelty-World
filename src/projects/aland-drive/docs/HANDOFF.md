@@ -32,14 +32,13 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 - **Signs (`art/surfaces`):** in the game, with the roadside (`render/roadside.ts`): the plates, posts and their look are `art/surfaces`' own, placed through `art/roadside/signs.ts`. The later kits' `integration.mjs` lists were written before the surfaces went in, so their replacements on those lines need redoing.
 - **Town ground (`art/town-ground`): tabled, merged switched off.** `build.py` bakes the town image only with `--town`, and a tile without one draws as it always has, so nothing of it shows. With it, the game draws the town's ground and each path's own surface (see `CLAUDE.md`, "The town's ground" and "Paths"), and the owner judged it worse than the game without it, so it waits. The art on its own is fine and could lift the towns; what it sits on isn't ready: junctions, merges, roads and paths close together, and roads over changing ground still look janky, and a ground surface drawn up to those edges only shows them more. Those come first. When it's taken up again, the owner's review found: a flat green lawn read as bare, so lawns stay the terrain's ground with the verge on them; a path's edge must keep wearing into grass; and in villages the paving strip along every street and the gravel round buildings turn grassy ground grey, so both should follow only what the map records. A fair before/after rebuilds the before tiles with the base commit's pipeline from the same raw data. Paths laid flat on the land (no crown, a 10 m profile rather than 30, `_PATH` in `pipeline/roads.py`) were part of it and are back to a road's profile: try them again with the junction work. Its hedges and fountains (`models.ts`) aren't placed.
 - **Models in `art/facades`:** the facades, shop fronts and churches are in the game. Its other models aren't: villas' porches and add-ons, supermarket entrances and fuel stations, which the gallery (`gallery.mjs`) stands in the world. None of those have collision. `church-yards.json` and `fuel-stations.json` came from scripts that were not kept.
-- **Night (`art/night`):** in the game, driven by the sun (`CLAUDE.md`, "The day"). The aurora waits for the seasons and the weather.
+- **Night (`art/night`):** in the game, driven by the sun (`CLAUDE.md`, "The day"). The aurora on clear dark nights, from the weather.
 
 ## Decisions waiting on the owner
 
-1. **Lighthouses.** No light on Åland really rotates. Six long-flash lights are read as turning to give a sweeping beam, each keeping its true rhythm at any one spot. Kept as built unless the owner says otherwise.
-2. **Aerial photo resolution:** the open question in `docs/PLAN.md`, decided once the ground detail is in the game.
-3. **Hosting.** Stay on Supabase while it's the owner's own game, and move to Cloudflare R2 before sharing it widely.
-4. **Offered, not decided:** Northern Lights in the plan, radio music from Composer, and Åland culture events in phase 6.
+1. **Aerial photo resolution:** the open question in `docs/PLAN.md`, decided once the ground detail is in the game.
+2. **Hosting.** Stay on Supabase while it's the owner's own game, and move to Cloudflare R2 before sharing it widely.
+3. **Offered, not decided:** Northern Lights in the plan, radio music from Composer, and Åland culture events in phase 6.
 
 Road sign lettering is decided: the regulation letters stay. The credits page lists them as all rights reserved by Traficom, because no licence for them was found.
 

@@ -1,10 +1,13 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, placeVersion, placeWires, SWAP_SPREAD, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
 import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../art/identity/index";
-import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, LINDEN_SEEDS, type StreetMaterials } from "../art/street/index";
+import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildBareLinden, buildLinden, buildLindenHaze, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, LINDEN_SEEDS, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
 import { createTownRoadside, TOWN_MODELS, type TownLooks } from "./town-roadside";
 import type { LampKind, LampSpot } from "../art/night";
+import { dialsNow, type SeasonLook } from "../art/season";
+import { TERRACES } from "../climate/placed-season";
+import { inSeasonMaterials, markInSeason } from "./in-season";
 
 /*
  * What stands beside the roads (`pipeline/roadside.py`): lamps, power poles and
@@ -21,7 +24,9 @@ import type { LampKind, LampSpot } from "../art/night";
  * the camera has moved that margin, as the parked cars' are, so a place far off runs
  * no near vertices; the material still chooses each place's version by its own
  * distance, so the list changing shows nothing. A far version is a few triangles,
- * and its list holds every place.
+ * and its list holds every place. A café terrace is out only in its season, each
+ * terrace on its own day (`climate/placed-season.ts`), its tables and parasols
+ * folding away in their shader.
  */
 
 type Kit = "roadside" | "street" | "identity";
@@ -53,6 +58,9 @@ const MODELS: Record<string, { build: () => RoadsideModel; kit: Kit }> = {
   "viewing-tower": { build: buildViewingTower, kit: "identity" },
   "viewpoint-platform": { build: buildViewpointPlatform, kit: "identity" },
 };
+
+/** A café terrace's models, out only in its season. */
+const TERRACE_MODELS = new Set(["cafe-set", "parasol"]);
 
 /** The lamps the night lights, by the model that holds each. */
 const LAMPS: Record<string, LampKind> = { lamp: "road", "town-lamp": "town" };
@@ -98,10 +106,32 @@ export interface RoadsideLooks {
   wires: MeshBasicNodeMaterial;
   signs: SignKit;
   town: TownLooks;
+  /** The season, for the café terraces: always out without one. */
+  season?: SeasonLook;
+  /** A bare linden's branches and its twigs' haze (`art/street/bare-linden.ts`), drawn at every linden while the season has any short of leaves. */
+  bareLindens?: { branches: RoadsideMaterials; haze: RoadsideMaterials };
 }
 
+/** The lindens' own lists, under whichever seed's crown they wear. */
+const LINDENS = LINDEN_SEEDS.map((seed) => `linden-${seed}`);
+
 export function createRoadside(scene: Scene, looks: RoadsideLooks) {
-  const models = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: looks[kit], places: [] as Placement[], near: [] as Mesh[], far: [] as Mesh[] }));
+  // The street kit draws through one copy that folds its terraces out of season, the rest of its models marked as out all year.
+  const street = looks.season === undefined ? looks.street : inSeasonMaterials(looks.street, looks.season);
+  const models: { name: string; model: RoadsideModel; materials: RoadsideMaterials; inSeason?: typeof TERRACES; from?: readonly string[]; when?: (leafed: number) => boolean; places: Placement[]; near: Mesh[]; far: Mesh[] }[] = Object.entries(MODELS).map(([name, { build, kit }]) => ({ name, model: build(), materials: kit === "street" ? street : looks[kit], inSeason: TERRACE_MODELS.has(name) ? TERRACES : undefined, places: [], near: [], far: [] }));
+  // A bare linden's branches and haze stand at every linden, but only while some linden is short of its leaves, and its
+  // clumps of leaves only while some is part way through them, so in summer they cost nothing and in winter no clumps.
+  if (looks.bareLindens !== undefined) {
+    const bare = buildBareLinden();
+    const shortOfLeaves = (leafed: number) => leafed < 1;
+    const losingLeaves = (leafed: number) => leafed > 0 && leafed < 1;
+    models.push({ name: "linden-bare", model: bare.wood, materials: looks.bareLindens.branches, from: LINDENS, when: shortOfLeaves, places: [], near: [], far: [] });
+    models.push({ name: "linden-clumps", model: bare.clumps, materials: looks.bareLindens.branches, from: LINDENS, when: losingLeaves, places: [], near: [], far: [] });
+    models.push({ name: "linden-haze", model: buildLindenHaze(), materials: looks.bareLindens.haze, from: LINDENS, when: shortOfLeaves, places: [], near: [], far: [] });
+  }
+  const leafedNow = () => (looks.season === undefined ? 1 : dialsNow(looks.season).leafed);
+  const seasonKey = () => models.map(({ when }) => (when === undefined ? "" : when(leafedNow()) ? "1" : "0")).join("");
+  let seasonShown = seasonKey();
   let centre: { x: number; z: number } | null = null;
   const wireModel = buildWireSpan();
   const tiles = new Map<string, TileRoadside>();
@@ -132,14 +162,15 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
   const refillNear = (entry: (typeof models)[number]) => {
     const range = nearRangeM(entry.model);
     const near = centre === null ? [] : entry.places.filter(({ x, z }) => Math.hypot(x - (centre?.x ?? 0), z - (centre?.z ?? 0)) < range);
-    entry.near = swap(entry.near, placeVersion(entry.model, "near", near.length > 0 ? near : [NOWHERE], entry.materials), near.length > 0);
+    entry.near = swap(entry.near, markInSeason(placeVersion(entry.model, "near", near.length > 0 ? near : [NOWHERE], entry.materials), entry.inSeason), near.length > 0);
   };
 
   const rebuildModels = (names: ReadonlySet<string>) => {
-    for (const entry of models.filter(({ name }) => names.has(name))) {
-      entry.places = [...tiles.values()].flatMap((tile) => (entry.name in tile.models ? placesOf(tile.models[entry.name], tile.scales[entry.name]) : []));
+    for (const entry of models.filter(({ name, from }) => names.has(name) || from?.some((each) => names.has(each)))) {
+      const listed = entry.from ?? [entry.name];
+      entry.places = entry.when !== undefined && !entry.when(leafedNow()) ? [] : [...tiles.values()].flatMap((tile) => listed.flatMap((name) => (name in tile.models ? placesOf(tile.models[name], tile.scales[name]) : [])));
       const shown = entry.places.length > 0;
-      entry.far = swap(entry.far, placeVersion(entry.model, "far", shown ? entry.places : [NOWHERE], entry.materials), shown);
+      entry.far = swap(entry.far, markInSeason(placeVersion(entry.model, "far", shown ? entry.places : [NOWHERE], entry.materials), entry.inSeason), shown);
       refillNear(entry);
     }
   };
@@ -189,6 +220,10 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
     },
     /** Each frame, before drawing: the near lists follow the camera. */
     update(camera: { x: number; z: number }) {
+      if (seasonKey() !== seasonShown) {
+        seasonShown = seasonKey();
+        rebuildModels(new Set(LINDENS));
+      }
       if (centre !== null && Math.hypot(camera.x - centre.x, camera.z - centre.z) <= NEAR_MARGIN_M) return;
       centre = { x: camera.x, z: camera.z };
       for (const entry of models) refillNear(entry);

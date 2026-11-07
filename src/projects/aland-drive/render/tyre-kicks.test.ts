@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CONDITIONS, SURFACES, TYRES } from "../sim/surfaces";
 import { kicksOf, type TyreRead } from "./tyre-kicks";
 
-const kinds = (read: Omit<TyreRead, "tyres"> & Partial<TyreRead>) => kicksOf({ tyres: "summer", ...read }).rates.map(([kick]) => kick);
+const kinds = (read: Omit<TyreRead, "tyres" | "spinMS"> & Partial<TyreRead>) => kicksOf({ tyres: "summer", spinMS: 0, ...read }).rates.map(([kick]) => kick);
 const dryAsphalt = { surface: "asphalt", condition: "dry" } as const;
 
 describe("what a tyre throws up", () => {
@@ -16,6 +16,12 @@ describe("what a tyre throws up", () => {
   it("smokes on a dry road only past the grip, sliding or locked", () => {
     expect(kinds({ ...dryAsphalt, rollMS: 20, slideMS: 12, demand: 0.9 })).toEqual(["smoke"]);
     expect(kinds({ ...dryAsphalt, rollMS: 30, slideMS: 0, demand: 2 })).toEqual(["smoke"]);
+  });
+
+  it("throws its ground from a wheel spinning on the spot, and smoke off a dry road", () => {
+    expect(kinds({ ...dryAsphalt, rollMS: 0, slideMS: 0, demand: 1, spinMS: 20 })).toEqual(["smoke"]);
+    expect(kinds({ surface: "grass", condition: "dry", rollMS: 0, slideMS: 0, demand: 1, spinMS: 20 })).toContain("clod");
+    expect(kinds({ surface: "gravel", condition: "dry", rollMS: 0, slideMS: 0, demand: 1, spinMS: 20 })).toContain("stone");
   });
 
   it("throws a wheel's own ground just by rolling over loose or wet ground, and no smoke there", () => {

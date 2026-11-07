@@ -1,6 +1,11 @@
+import type { Node, Vector3 } from "three/webgpu";
+import { float, mix, step, varying, vec2, vec3 } from "three/tsl";
+import { placeSeed, unitOf } from "../hash";
+import { crownLeftOf, FALL_SPAN, FRESH_SHARE, leavesOf } from "../leaves";
+import type { SeasonNodes } from "../season";
 import { seeded, type V3 } from "../roadside/mesh";
 import type { RoadsideModel } from "../roadside/models";
-import { Painted, streetModel, type StreetPart } from "./paint";
+import { Painted, STREET_PARTS, streetModel, type StreetPart } from "./paint";
 
 /*
  * A planted linden one unit tall, to be scaled by the tree's height, like the
@@ -73,7 +78,7 @@ function crown(into: Painted, splits: number, lobes: readonly Lobe[], wide: numb
     const up = (centre + 1) / 2;
     // A loose edge between the crown's greens, or it's a clean line round the tree.
     const dappled = up + (random() - 0.5) * 0.26;
-    const part: StreetPart = dappled < 0.3 ? "leaf-under" : dappled > 0.58 ? "leaf-lit" : "leaf";
+    const part: StreetPart = dappled < 0.3 ? "linden-leaf-under" : dappled > 0.58 ? "linden-leaf-lit" : "linden-leaf";
     const shade = (0.8 + up * 0.36) * (0.9 + random() * 0.2);
     into.face(triangle.map((point) => onCrown(point, lobes, wide)), part, shade);
   }
@@ -103,4 +108,58 @@ export function buildLinden(seed = 3): RoadsideModel {
   crown(near, NEAR_SPLITS, lobes, wide, random);
   const far = crown(new Painted().tube([0, SINK, 0], [0, 0.3, 0], 0.027, 3, { radiusTo: 0.02, shadeFrom: 0.9 }, "bark"), FAR_SPLITS, lobes, wide, random);
   return streetModel(near, far, LINDEN_SWAP_M, LINDEN_REACH_M);
+}
+
+/** How far a linden's crown reaches out at a height, as shares of the tree's height, without its lobes: what its bare branches and clumps keep inside. */
+export function lindenCrownReach(height: number): number {
+  const up = (height - CROWN_LOW) / (CROWN_HIGH - CROWN_LOW);
+  if (up <= 0 || up >= 1) return 0;
+  const point = Math.sqrt(1 - (up * 2 - 1) ** 2);
+  return CROWN_WIDE * point * (1 - 0.34 * Math.max(0, up - 0.34) ** 1.3);
+}
+
+/** The crown's shell at the far version's coarseness, one seed's, for the bare linden's twig haze to fill. */
+export function buildLindenHaze(): RoadsideModel {
+  const random = seeded(LINDEN_SEEDS[0]);
+  const lobes = Array.from({ length: LOBES }, (): Lobe => ({ way: unit([random() - 0.5, (random() - 0.5) * 1.4, random() - 0.5]), wide: 2 + random() * 3 }));
+  return { near: crown(new Painted(), FAR_SPLITS, lobes, CROWN_WIDE * HAZE_SPREAD, random).build(), far: null, swapM: LINDEN_REACH_M, reachM: LINDEN_REACH_M };
+}
+
+/** How much of the leafy crown a bare linden's twig haze fills. */
+const HAZE_SPREAD = 0.92;
+
+/*
+ * A linden through the year (`art/leaves.ts`): yellow in early to mid October, then its leaves fall over a fortnight or
+ * so of its own, each tree on a threshold rolled from its place, so an avenue turns and thins tree by tree. As they go
+ * its leafy crown shrinks away into its middle while clumps of leaves grow out on its bare branches (`bare-linden.ts`),
+ * which then fall one by one. Only the linden's own leaves (the last of the street's paints) change, so nothing else the
+ * street's material draws does.
+ */
+const FIRST_LINDEN_LEAF = STREET_PARTS.indexOf("linden-leaf");
+const LINDEN_ROLL = 51;
+const LINDEN_GOES: [number, number] = [0.05, 0.75];
+/** Where a shrinking crown draws in to, as a share of the tree's height. */
+export const LINDEN_CROWN_MIDDLE = (CROWN_LOW + CROWN_HIGH) / 2;
+
+/** A linden's leaves at a place, the same for its leafy crown, its bare branches and its twigs' haze. */
+export const lindenLeaves = (season: SeasonNodes, place: Node<"vec2">) => leavesOf(season, mix(float(LINDEN_GOES[0]), float(LINDEN_GOES[1]), unitOf(placeSeed(place), LINDEN_ROLL)), FALL_SPAN);
+
+export interface LindenYear {
+  /** How much of a vertex's crown is left, drawn in on the crown's middle: 1 for all but a linden's leaves. */
+  crownLeft: Node<"float">;
+  /** A vertex's paint as the season has it, from its summer paint. */
+  paint: (summer: Node<"vec3">) => Node<"vec3">;
+}
+
+/** A vertex of a part, at a place, in its paint's shade, through the year. */
+export function lindenThroughYear(season: SeasonNodes, place: Node<"vec2">, part: Node<"float">, shade: Node<"float">, linear: (name: string) => Vector3): LindenYear {
+  const isLeaf = step(float(FIRST_LINDEN_LEAF - 0.5), part);
+  const leaves = lindenLeaves(season, place);
+  // Worked out where the place is exact, and handed on whole, so no pixel rolls its own tree.
+  const state = varying(vec2(leaves.turned.mul(isLeaf), leaves.fresh.mul(FRESH_SHARE).mul(isLeaf)));
+  const token = (name: string) => vec3(linear(name)).mul(shade);
+  return {
+    crownLeft: mix(float(1), crownLeftOf(leaves.inLeaf), isLeaf),
+    paint: (summer) => mix(mix(summer, token("tree-fresh"), state.y), token("autumn-linden"), state.x),
+  };
 }

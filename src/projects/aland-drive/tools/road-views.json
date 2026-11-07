@@ -1,0 +1,29 @@
+{
+  "about": "The cameras every road-surface change is shot from (docs/ROAD-SURFACES.md), each a look.mjs look: east, north, height above the ground, yaw and pitch. tools/road-views.mjs shoots them.",
+  "time": { "date": "2026-03-28", "hour": 14.4 },
+  "views": [
+    { "name": "town", "tile": "L2334E", "look": [107151.3, 6683064.6, 2.806, -2.846, -0.094] },
+    { "name": "town-up", "tile": "L2334E", "look": [107153.0, 6683070.0, 21.905, -2.846, -1.0] },
+    { "name": "junction", "tile": "L2334E", "look": [108106.9, 6683381.7, 2.92, 0.048, -0.094] },
+    { "name": "junction-up", "tile": "L2334E", "look": [108106.6, 6683372.0, 21.95, 0, -1.0] },
+    { "name": "paths", "tile": "L2334F", "look": [107819.4, 6685153.5, 3.136, 0.735, -0.094] },
+    { "name": "seams", "tile": "L2334F", "look": [107798.7, 6686640.4, 12.041, -0.369, -1.241] },
+    { "name": "strip", "tile": "L2334F", "look": [109068.5, 6688610.6, 2.182, -1.538, -0.094] },
+    { "name": "strip-up", "tile": "L2334F", "look": [109080.0, 6688611.0, 16.715, -1.538, -1.0] },
+    { "name": "hill", "tile": "L2334F", "look": [109195.1, 6688606.4, 2.978, 1.627, -0.094] },
+    { "name": "floating", "tile": "L2334E", "look": [107103.6, 6683260.8, 1.614, -0.087, -0.094] },
+    { "name": "bank", "tile": "L2334E", "look": [107089.6, 6683313.0, 1.464, -0.41, -0.07] },
+    { "name": "underpass", "tile": "L2334F", "look": [107975.0, 6685366.0, 3.445, -1.5708, -0.15] },
+    { "name": "underpass-far", "tile": "L2334F", "look": [108002.6, 6685370.9, -0.364, -1.041, -0.094] },
+    { "name": "sidewalk", "tile": "L2334F", "look": [108212.7, 6687398.7, 2.851, 2.71, -0.094] },
+    { "name": "sidewalk-up", "tile": "L2334F", "look": [108208.0, 6687390.0, 21.93, 2.71, -1.4] },
+    { "name": "mouth", "tile": "L2334E", "look": [107162.0, 6683050.0, 10.0, -2.846, -1.45] },
+    { "name": "crossings", "tile": "L2334E", "look": [107150.0, 6683056.0, 8.0, -2.846, -1.45] },
+    { "name": "drive-close", "tile": "L2334F", "look": [108207.0, 6687390.0, 9.0, 2.71, -1.5] },
+    { "name": "corner-close", "tile": "L2334F", "look": [107801.5, 6686644.5, 6.0, -0.369, -1.45] },
+    { "name": "sign-secondary", "tile": "L2334E", "look": [107831.0, 6680882.0, 12.0, -2.846, -1.3] },
+    { "name": "sign-tertiary", "tile": "L2334E", "look": [108507.0, 6682265.0, 12.0, -2.846, -1.3] },
+    { "name": "godby", "tile": "L2343H", "look": [113576.8, 6698277.8, 3.2, 2.67, -0.094] },
+    { "name": "l3121b", "tile": "L3121B", "look": [117218.2, 6697191.9, 1.6, -0.41, -0.094] }
+  ]
+}

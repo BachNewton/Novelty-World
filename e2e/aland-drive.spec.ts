@@ -31,6 +31,7 @@ test.afterAll(() => {
 test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(90_000);
 
+// e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/render/stream.ts src/projects/aland-drive/components/aland-drive*.tsx src/projects/aland-drive/sim/{drive,car}.ts src/projects/aland-drive/input/**
 test("the drive starts on WebGPU and the car moves under the keyboard", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -53,24 +54,59 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
-test("the game menu's Tyres changes the car's tyres in turn, and the car keeps them after a reload", async ({ page }) => {
+// e2e-covers: src/projects/aland-drive/garage/** src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
+test("the game menu's tyre choices fit the set picked and mark it, its aids turn off, and the car keeps both after a reload", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const menu = page.getByRole("dialog", { name: "Game menu" });
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("summer");
 
   await page.keyboard.press("Escape");
-  await menu.getByRole("button", { name: "Summer tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Winter tyres" })).toBeVisible();
-  await menu.getByRole("button", { name: "Winter tyres" }).click();
-  await expect(menu.getByRole("button", { name: "Studded tyres" })).toBeFocused();
+  await expect(menu.getByRole("radio", { name: "Summer tyres" })).toBeChecked();
+  await menu.getByRole("radio", { name: "Friction tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).toBeChecked();
+  expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("winter");
+  await menu.getByRole("radio", { name: "Studded tyres" }).click();
+  await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
+  await expect(menu.getByRole("radio", { name: "Friction tyres" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: true, stability: true });
+  await menu.getByRole("button", { name: "Traction control" }).click();
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: false, stability: true });
 
   await page.reload();
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+  expect(await page.evaluate(() => window.__alandDrive?.assists())).toEqual({ abs: true, traction: false, stability: true });
 });
 
+// e2e-covers: src/projects/aland-drive/render/graphics-settings.ts src/projects/aland-drive/components/game-menu.tsx
+test("the world draws every physical pixel unless the player lowers the render scale, which applies live and is kept", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  const drawn = () => page.evaluate(() => window.__alandDrive?.counts().width);
+  const full = await page.evaluate(() => Math.floor(window.innerWidth * window.devicePixelRatio));
+  expect(await drawn()).toBe(full);
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Graphics" }).click();
+  const graphics = page.getByRole("dialog", { name: "Graphics" });
+  await expect(graphics.getByRole("button", { name: "Lower render scale" })).toBeFocused();
+  await expect(graphics.getByRole("status", { name: "Render scale" })).toHaveText("100%");
+  await graphics.getByRole("button", { name: "Lower render scale" }).click();
+  await graphics.getByRole("button", { name: "Lower render scale" }).click();
+  await expect(graphics.getByRole("status", { name: "Render scale" })).toHaveText("80%");
+  expect(await drawn()).toBe(Math.floor(full * 0.8));
+  // Esc steps back to the game menu, not out of it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Game menu" })).toBeVisible();
+
+  await page.reload();
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  expect(await drawn()).toBe(Math.floor(full * 0.8));
+});
+
+// e2e-covers: src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts src/projects/aland-drive/render/graphics-settings.ts
 test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes it", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -105,6 +141,7 @@ test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes 
   await expect(menu).toBeHidden();
 });
 
+// e2e-covers: src/projects/aland-drive/render/{verge,planting}.ts
 test("the verge grows beside the road, and leaving it out takes its triangles away", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
@@ -116,6 +153,7 @@ test("the verge grows beside the road, and leaving it out takes its triangles aw
   await page.waitForFunction(() => window.__alandDrive?.vergeDrawn().triangles === 0);
 });
 
+// e2e-covers: src/projects/aland-drive/render/{forest,tree-place,tree-shapes,foliage-light}.ts
 test("the forest draws only what the GPU picked, and a setting changes that with no rebuild", async ({ page }) => {
   await page.goto(`${onFixture}&forest-lab`);
   const drawnOnce = (reach: number) =>
@@ -142,6 +180,7 @@ test("the forest draws only what the GPU picked, and a setting changes that with
   expect(narrow.turned + narrow.cone).toBeLessThan(wide.turned + wide.cone);
 });
 
+// e2e-covers: src/projects/aland-drive/map/** src/projects/aland-drive/render/map-camera.ts
 test("a place picked on the world map sets a route on both maps, and the map closes back to the drive", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });
@@ -189,6 +228,7 @@ test("a place picked on the world map sets a route on both maps, and the map clo
   await expect(page.getByLabel("Distance to go")).toBeHidden();
 });
 
+// e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/components/aland-drive*.tsx
 test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ page }) => {
   // The failure three hides: an adapter is there, the device can't be made, and it quietly drops to WebGL2.
   await page.addInitScript(() => {
@@ -199,6 +239,7 @@ test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ p
   expect(await page.evaluate(() => window.__alandDrive)).toBeUndefined();
 });
 
+// e2e-covers: src/projects/aland-drive/render/{stream,tile.worker,tile-layers}.ts
 test("a tile that can't be fetched says so, and the page doesn't pretend otherwise", async ({ page }) => {
   // A world whose tiles aren't there: the same path a dropped connection or a bad deploy takes.
   const folder = mkdtempSync(join(tmpdir(), "aland-drive-"));

@@ -1,7 +1,7 @@
 import { decodeHeights, decodeRoadSurface, fieldPixelsOf, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { tileAddOns, type TileAddOns } from "./tile-add-ons";
 import { decodeParked, parkedWalls, type ParkedFile, type TileParked } from "./parked-places";
-import { modelWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, type DocksFile, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
+import { modelWalls, decodeModels, decodeRoadside, dockWalls, NO_ROADSIDE, seasonalWalls, type DocksFile, type ModelsFile, type RoadsideFile, type TileModels, type TileRoadside } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
 import { wallFaces, wallSections, withWalls, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
@@ -223,9 +223,10 @@ async function roadMap(base: string, world: WorldManifest): Promise<RoadGraphDat
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
-  const [heights, surface, waterLevels, shore, shade, ground, solids, models, docks, walls, roadsideFile, peopleFiles, parkedFile, rock, lanesFile] = await Promise.all([
+  const [heights, surface, cut, waterLevels, shore, shade, ground, solids, models, docks, walls, roadsideFile, peopleFiles, parkedFile, rock, lanesFile] = await Promise.all([
     reader.inflated(world.heights.file),
     reader.inflated(manifest.roadSurface.file),
+    manifest.roadSurface.groundCut ? reader.inflated(manifest.roadSurface.groundCut.file) : new ArrayBuffer(0),
     reader.inflated(world.water.levelsFile),
     reader.inflated(world.water.shoreFile),
     reader.pixels(world.shade.file, world.shade.pixels, 1),
@@ -247,8 +248,8 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
   const stoneWalls = wallSections(walls, grid);
   const placed = decodeModels(models);
-  const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest), manifest.nearSites);
-  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills), dockWalls(docks), parkedWalls(parked), addOnWalls), rockShares(rock, world));
+  const { walls: addOnWalls, ...addOns } = tileAddOns(cells, decodeRoadSurface(surface, manifest, grid), manifest.nearSites);
+  const detail = tileDetail(manifest, grid, surface, decodeHeights(new Int16Array(waterLevels), world.heights, tile), decodeHeights(new Int16Array(shore), world.heights, tile), world.tileM, withWalls(outlines, wallFaces(stoneWalls), roadside.walls, modelWalls(placed, manifest.windmills, "always"), dockWalls(docks), parkedWalls(parked), addOnWalls), cut, rockShares(rock, world), seasonalWalls(placed));
   return { detail, shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), town, townRibbons: townRibbons ?? new Uint8Array(detail.surface.tiers.length), buildings: cells, models: placed, docks: decodeModels(docks ?? { models: {} }), stoneWalls, roadside, people: tileCrowd(peopleFiles), parked, addOns, lanes: lanesFile ? decodeLanes(JSON.parse(new TextDecoder().decode(lanesFile)) as LanesFile) : NO_LANES, bytes: reader.bytes };
 }
 
@@ -263,7 +264,7 @@ async function townOf(reader: Reader, manifest: TileManifest, world: WorldManife
 }
 
 function detailTransfers({ detail, shade, ground, town, townRibbons, buildings, models, docks, stoneWalls, roadside, people, parked, lanes }: DetailTile): Transferable[] {
-  const { ribbon, surface, dress, ribbonSurfaces, rock, roads, blockRoads, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
+  const { ribbon, surface, dress, ribbonSurfaces, rock, roads, blockRoads, cut, cutCells, blockCut, grid, waterLevels, shore, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
     waterLevels.heights,
@@ -273,6 +274,7 @@ function detailTransfers({ detail, shade, ground, town, townRibbons, buildings, 
     ribbon.across,
     ribbon.along,
     ribbon.tiers,
+    ribbon.runs,
     ribbon.indices,
     dress.surface,
     dress.mark,
@@ -288,6 +290,12 @@ function detailTransfers({ detail, shade, ground, town, townRibbons, buildings, 
     roads.cellSegments,
     blockRoads.first,
     blockRoads.triangles,
+    cut.cells,
+    cut.positions,
+    cut.indices,
+    cutCells,
+    blockCut.first,
+    blockCut.triangles,
     bridges.positions,
     bridges.parts,
     bridges.rails,

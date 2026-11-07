@@ -38,9 +38,9 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
   };
   return {
     /** A tree's height at a place anywhere, off the image of whichever tile holds it, at a level of its mips. */
-    canopyAt(place: Node<"vec2">, mip: number) {
+    canopyAt(place: Node<"vec2">, mip: number | Node<"float">) {
       const { uv, layer, held } = slotOf(place);
-      const units = texture(layers.canopy, uv).depth(layer).level(float(mip)).r.mul(255);
+      const units = texture(layers.canopy, uv).depth(layer).level(typeof mip === "number" ? float(mip) : mip).r.mul(255);
       return select(held, units.mul(canopyUnitM), float(0));
     },
     /** Metres from a place to the nearest building's outline, below zero inside one, as far as the image tells apart. Over a tile not held, as far. */
@@ -110,9 +110,7 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
   };
 }
 
-export function canopyLift(canopyAt: (place: Node<"vec2">, mip: number) => Node<"float">, cameraSpot: Node<"vec2">, forestReach: Node<"float">): TerrainLift {
-  return (place, level) => {
-    if (level < 1) return float(0);
-    return canopyAt(place, level).mul(MEAN_HEIGHT).mul(smoothstep(forestReach.sub(CANOPY_RISE_FROM_M), forestReach.sub(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length()));
-  };
+export function canopyLift(canopyAt: (place: Node<"vec2">, mip: Node<"float">) => Node<"float">, cameraSpot: Node<"vec2">, forestReach: Node<"float">): TerrainLift {
+  // The innermost ring is the 4 m mesh the car collides with, and never rises.
+  return (place, level) => select(level.lessThan(0.5), float(0), canopyAt(place, level).mul(MEAN_HEIGHT).mul(smoothstep(forestReach.sub(CANOPY_RISE_FROM_M), forestReach.sub(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length())));
 }

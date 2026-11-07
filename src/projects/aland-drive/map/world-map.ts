@@ -61,6 +61,7 @@ export class WorldMap {
   private cursor: { x: number; y: number } | null = null;
   private car = { x: 0, z: 0, heading: 0 };
   private route: Route | null = null;
+  private setter: string | null = null;
   private along = 0;
   private players: readonly MapPlayer[] = [];
   private drawnPlayers: readonly MapPlayer[] = [];
@@ -158,9 +159,10 @@ export class WorldMap {
     this.onPick(worldX, worldZ);
   }
 
-  startAt(carX: number, carZ: number, heading: number, route: Route | null, along: number): void {
+  startAt(carX: number, carZ: number, heading: number, route: Route | null, along: number, setter: string | null): void {
     this.car = { x: carX, z: carZ, heading };
     this.route = route;
+    this.setter = setter;
     this.along = along;
     this.cursor = null;
     this.opened = false;
@@ -177,8 +179,10 @@ export class WorldMap {
     if (players.length !== last.length || players.some((player, index) => player.name !== last[index].name || Math.hypot(player.x - last[index].x, player.z - last[index].z) * scale >= PLAYER_REDRAW_PX)) this.stale = true;
   }
 
-  setRoute(route: Route | null): void {
+  /** The route to show, and the other player who set its destination, if one did. */
+  setRoute(route: Route | null, setter: string | null = null): void {
     this.route = route;
+    this.setter = setter;
     this.along = 0;
     this.stale = true;
   }
@@ -230,7 +234,7 @@ export class WorldMap {
     const streets = view.scale >= STREETS_FROM_SCALE;
     // Thin near the car, where the road itself shows, and full width by the time it can't.
     drawRoads(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 1, ink, Math.min(1, 0.5 + ROADS_THICKEN_FROM_SCALE / view.scale));
-    if (this.route) drawRoute(pen, view, this.route, this.along, ink);
+    if (this.route) drawRoute(pen, view, this.route, this.along, ink, this.setter, true);
     drawNames(pen, view, graph, zoomedIn ? 3 : streets ? 2 : 0, zoomedIn ? ALL_NAMES : streets ? STREET_NAMES : MAIN_NAMES, ink);
     const { discovery } = this;
     drawPlaces(pen, view, discovery.places.map((place) => ({ place, found: discovery.isFound(place) })), PLACE_PX, ink, streets);

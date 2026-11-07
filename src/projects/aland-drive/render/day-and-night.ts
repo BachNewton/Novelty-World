@@ -2,13 +2,16 @@ import { createNight, DARKEST_LIGHT, skyAtHour, NIGHT_STOPS, type Night } from "
 import type { MoonPlace } from "../time/sky-places";
 import type { Sky, SkyLook } from "../art/sky/sky";
 import { createLiveSun, type LiveSun } from "../art/sun";
-import { DayClock, dayAsked, type GameTime } from "../time/day";
+import { DayClock, gameTimeAt, type CalendarDate, type GameTime } from "../time/day";
+import type { Weather } from "../climate/weather";
+import { eased, gloomedNight, sunThrough, weatheredLook } from "./weather";
 
 /*
  * The game's day, as the render sees it: each frame the hour is read off the world's clock, the live sun moves to
  * where it stands, and the night's one dial (`art/night`) follows the sun's height, so dusk, the lamps and the lit
  * windows come when the real sun says, not by a dial of their own. The sky takes the look for that dial, with the real
- * sun in it.
+ * sun in it, and the weather's grey lid, storm and fog over it (`render/weather.ts`), which also hide the sun, lower the
+ * light and bring the lamps on early through the same dials.
  */
 
 /** The sun's height at each of the night's looks: the golden hour, dusk, and the deepest midsummer night. */
@@ -74,27 +77,33 @@ export interface DayAndNight {
   night: Night;
   /** The hour last drawn. */
   time: () => GameTime;
-  /** Each frame, before drawing: the world's clock in seconds, and the seconds the game's own clock moved. */
-  update: (worldSeconds: number, gameSeconds: number) => void;
+  /** The weather last drawn, eased towards the weather now: none on a tool's page. */
+  weather: () => Weather | null;
+  /**
+   * Each frame, before drawing: the world's clock in seconds, the seconds the game's own clock moved, and the real
+   * seconds since the last frame, which ease the weather in even while the game is held.
+   */
+  update: (worldSeconds: number, gameSeconds: number, realSeconds: number) => void;
 }
 
-export function createDayAndNight(sky: Sky, search: string, startSeconds: number): DayAndNight {
-  const clock = new DayClock();
-  const asked = dayAsked(search);
-  clock.setDate(asked.date);
-  // A link's hour is set on the first frame's clock, which `?sea=` may have moved.
-  let hourAsked = asked.hour;
-  if (hourAsked !== null) clock.setHour(hourAsked, startSeconds);
-  let time = clock.at(startSeconds);
+/** The weather at a moment of the page's time. */
+export type WeatherOfDay = (time: GameTime) => Weather | null;
+
+export function createDayAndNight(sky: Sky, start: { gameDays: number; date: CalendarDate | null }, weatherOf: WeatherOfDay): DayAndNight {
+  const clock = new DayClock(start.gameDays, start.date);
+  // The clock is read first on the first frame, whose world clock `?sea=` may have moved.
+  let time = gameTimeAt(start.gameDays, start.date);
+  let weather = weatherOf(time);
   const sun = createLiveSun(time.sun);
   const night = createNight(nightAmount(time.sun.elevationDeg));
   const lookAtHour = skyAtHour();
   const show = () => {
-    sun.setSun(time.sun);
-    night.amount.value = nightAmount(time.sun.elevationDeg);
-    night.dark.value = darkness(time.sun.elevationDeg, time.moon);
+    sun.setSun(time.sun, sunThrough(weather));
+    const gloomed = gloomedNight(nightAmount(time.sun.elevationDeg), darkness(time.sun.elevationDeg, time.moon), weather);
+    night.amount.value = gloomed.amount;
+    night.dark.value = gloomed.dark;
     night.late.value = lateness(time.hour);
-    sky.setLook({ ...darkened(lookAtHour(night.amount.value), night.dark.value), sun: time.sun });
+    sky.setLook({ ...darkened(weatheredLook(lookAtHour(night.amount.value), weather, night.amount.value), night.dark.value), sun: time.sun });
   };
   show();
   return {
@@ -102,10 +111,10 @@ export function createDayAndNight(sky: Sky, search: string, startSeconds: number
     sun,
     night,
     time: () => time,
-    update(worldSeconds, gameSeconds) {
-      if (hourAsked !== null) clock.setHour(hourAsked, worldSeconds);
-      hourAsked = null;
+    weather: () => weather,
+    update(worldSeconds, gameSeconds, realSeconds) {
       time = clock.at(worldSeconds);
+      weather = eased(weather, weatherOf(time), realSeconds);
       night.seconds.value += gameSeconds;
       show();
     },

@@ -11,11 +11,47 @@ import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
  * and pitches all of that asks for. `graph.ts` plays what this says.
  */
 
+/** The weather round the car, as the shared weather has it: none in the audition, or on a tool's page. */
+export interface WeatherHeard {
+  /** How hard it rains, 0 to 1. */
+  rain: number;
+  /** How hard it snows, 0 to 1: falling snow is near silent, a soft patter at most. */
+  snowfall: number;
+  windMS: number;
+}
+
+/** The time of year and day round the car, as the render reads it: what the place beds follow. None in the audition's default, which is a summer's day. */
+export interface SeasonHeard {
+  /** Days since the 1st of January, with the fraction through the day. */
+  yearDay: number;
+  /** The sun's height, degrees. */
+  sunDeg: number;
+  /** Åland's local hour, 0 to 24: a dawn is a morning's. */
+  hour: number;
+  /** The share of broadleaf trees in leaf (the season's `leafed`). */
+  leafed: number;
+  /** How far out the sea is frozen, as an exposure (the season's `iceReach`). */
+  iceReach: number;
+}
+
 /** How much of each place is round the car, 0 to 1. Places overlap: a shore town is both. */
 export interface Place {
   forest: number;
+  /** The sea's shore. */
   shore: number;
   town: number;
+  /** A lake's or a pond's bank: water above sea level, which laps rather than breaks. */
+  lake?: number;
+  /** Where the sea lies nearest round the car, for what's heard over the water (the gulls); none with no sea in reach. */
+  seaAt?: { x: number; z: number };
+}
+
+/** Where the sound is heard from: a place in the scene, and the way to its right, flat, for which side a sound is on. */
+export interface Listener {
+  x: number;
+  z: number;
+  rightX: number;
+  rightZ: number;
 }
 
 export interface DriveAudioState {
@@ -35,7 +71,11 @@ export interface DriveAudioState {
   /** How far each wheel has risen into its arch, as `CarState` has it. */
   suspension: readonly [number, number, number, number];
   place: Place;
-  /** The drive is stopped, as under the world map: only the place is heard. */
+  weather?: WeatherHeard;
+  season?: SeasonHeard;
+  /** Where the sound is heard from, for sounds placed in the world (the gulls over the water). */
+  listener?: Listener;
+  /** The drive is stopped, as under the world map: only the place and the weather are heard. */
   paused?: boolean;
   /** Holds the revs here instead of the gearbox's, for the audition's slider. */
   heldRpm?: number;
@@ -62,24 +102,30 @@ const SLIDE_STARTS_MS = 1.2;
 const SLIDE_FULL_MS = 7;
 const LOCKED_WHEELS_SLIP = 0.55;
 
-/** How hard the tyres are sliding, from the car's motion across its own nose. */
-export function slipOf(car: CarState, handbrake: boolean): number {
+/** How hard the tyres are sliding, from the car's motion across its own nose and how fast any tread spins or locks against the road. */
+export function slipOf(car: CarState, handbrake: boolean, spinsMS: readonly number[] = []): number {
   const speed = speedOf(car);
   const across = Math.abs(dot(car.velocity, rotate([1, 0, 0], car.rotation)));
   const sliding = clamp((across - SLIDE_STARTS_MS) / (SLIDE_FULL_MS - SLIDE_STARTS_MS));
+  const spinning = clamp((Math.max(0, ...spinsMS.map(Math.abs)) - SLIDE_STARTS_MS) / (SLIDE_FULL_MS - SLIDE_STARTS_MS));
   const locked = handbrake && speed > 3 ? LOCKED_WHEELS_SLIP : 0;
-  return Math.max(sliding, locked);
+  return Math.max(sliding, spinning, locked);
 }
 
-/** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "paused" | "engine">): DriveAudioState {
+/** A frame's state from the simulation's car, with what only the game knows passed in: each wheel's spin among it. */
+export function stateFromCar(
+  car: CarState,
+  input: DriveInput,
+  known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "listener" | "paused" | "engine">,
+  spinsMS: readonly number[] = [],
+): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
     throttle: input.throttle,
     brake: input.brake,
     handbrake: input.handbrake,
-    slip: slipOf(car, input.handbrake),
+    slip: slipOf(car, input.handbrake, spinsMS),
     suspension: car.suspension,
   };
 }
@@ -195,10 +241,24 @@ export interface Mix {
   windHighLevel: number;
   windHighHz: number;
 
-  forestLevel: number;
+  /** Rain on the roof and glass: drops heard one by one, and the dense hiss of heavy rain, which takes over as it falls harder or the car drives faster into it. */
+  rainLightLevel: number;
+  rainHeavyLevel: number;
+  /** The weather's own wind round the car, gusting, apart from the wind of its speed. */
+  galeLevel: number;
+  galeHz: number;
+
+  /** Spring and summer's birds, loudest at a spring dawn. */
+  birdsLevel: number;
+  /** A frozen sea or lake: the ice's creaks and cracks. */
+  iceLevel: number;
+  /** A lake's wavelets lapping at the bank. */
+  lakeLevel: number;
+  /** A crow or a tit now and then, by day in winter. */
+  winterCallsLevel: number;
   shoreLevel: number;
-  gullsLevel: number;
-  townLevel: number;
+  /** Gulls calling over the water, a second: played as placed sounds, where the sea is. */
+  gullsPerS: number;
 }
 
 /** Wind and tyres are full at the speed that's flat out for the vehicle: a bicycle hears them much sooner. */
@@ -248,11 +308,69 @@ export function wheelShares(wheels: readonly Surface[], suspension: readonly num
 
 const BIKE_TYRE_SHARE = 0.5;
 
-const WIND_LOW = 0.7;
-const WIND_HIGH = 0.2;
+/** The wind of the car's speed, low and high bands: about half as loud as it was, which drowned the rest at speed. */
+const WIND_LOW = 0.4;
+const WIND_HIGH = 0.11;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
-const PLACE = { forest: 0.44, shore: 0.42, gulls: 0.28, town: 0.42 };
+const PLACE = { birds: 0.36, winterCalls: 0.3, ice: 0.5, shore: 0.42, lake: 0.6 };
+/** Gull calls a second over a shore in their season, by day. */
+const GULLS_PER_S = 0.22;
+
+/** A midsummer's afternoon, for when nothing says otherwise (the audition): the beds as they always were. */
+const SUMMER_DAY: SeasonHeard = { yearDay: 180, sunDeg: 45, hour: 14, leafed: 1, iceReach: 0 };
+
+const smooth = (share: number) => {
+  const clamped = clamp(share);
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
+/** A share of the year that rises from `from` to `full`, holds to `fade`, and falls to `gone`, in days of the year. */
+const yearShape = (day: number, from: number, full: number, fade: number, gone: number) => smooth((day - from) / (full - from)) * (1 - smooth((day - fade) / (gone - fade)));
+
+/** How much the birds sing by the time of year: from mid-March, full from May to mid-July, almost none from September to February. */
+export const songSeason = (yearDay: number) => yearShape(yearDay, 70, 120, 192, 245);
+/** Gulls over the shore, April to September, with a few through the winter where the sea is open. */
+const gullSeason = (yearDay: number) => 0.2 + 0.8 * yearShape(yearDay, 80, 115, 235, 280);
+/** Daylight by the sun's height: none in a dark night, full once it is up; a light midsummer night keeps a little. */
+export const daylight = (sunDeg: number) => smooth((sunDeg + 9) / 10);
+/** A morning's dawn chorus, while the sun is low and rising. */
+const dawn = (sunDeg: number, hour: number) => (hour < 12 ? smooth((sunDeg + 5) / 4) * (1 - smooth((sunDeg - 8) / 8)) : 0);
+/** The share of the shore that's ice rather than open water, as the sea freezes outward from the bays. */
+const frozenShore = (iceReach: number) => smooth((iceReach - 0.05) / 0.35);
+/** A lake freezes with the most sheltered bays, as soon as the sea starts to. */
+const frozenLake = (iceReach: number) => smooth(iceReach / 0.08);
+
+/** The place beds by the season, the hour and the weather: what's heard round the car, before its speed covers it. */
+export function placeMix(place: Place, season: SeasonHeard = SUMMER_DAY, weather?: WeatherHeard) {
+  const light = daylight(season.sunDeg);
+  const rain = weather?.rain ?? 0;
+  const frozen = frozenShore(season.iceReach);
+  const lakeIce = frozenLake(season.iceReach);
+  const lake = place.lake ?? 0;
+  const bare = 1 - season.leafed;
+  const singing = songSeason(season.yearDay) * light * (1 + 1.4 * dawn(season.sunDeg, season.hour)) * (1 - 0.85 * rain);
+  return {
+    birdsLevel: PLACE.birds * place.forest * Math.min(singing, 1.8),
+    iceLevel: PLACE.ice * (place.shore * frozen + lake * lakeIce),
+    lakeLevel: PLACE.lake * lake * (1 - lakeIce),
+    winterCallsLevel: PLACE.winterCalls * place.forest * bare * light * (1 - songSeason(season.yearDay)) * (1 - 0.7 * rain),
+    shoreLevel: PLACE.shore * place.shore * (1 - frozen),
+    gullsPerS: GULLS_PER_S * Math.min(1, 2 * place.shore) * gullSeason(season.yearDay) * light * (1 - 0.8 * frozen) * (1 - 0.5 * rain),
+  };
+}
+/** Rain on the roof at its hardest, each loop at its full, and wet snow's soft patter, which is a share of it. */
+const RAIN_LIGHT = 0.6;
+const RAIN_HEAVY = 0.34;
+/** Driving into rain meets more of it: at full speed it sounds this much harder on the windscreen. */
+const RAIN_HARDER_AT_SPEED = 0.6;
+const SNOW_PATTER = 0.12;
+/** The car's own noise covers some of the rain at speed. */
+const RAIN_COVERED_AT_SPEED = 0.35;
+/** The weather's wind is heard from a breeze, and full in a gale. */
+const GALE = 0.32;
+const GALE_FROM_MS = 3;
+const GALE_FULL_MS = 16;
 
 export interface MixInputs {
   state: DriveAudioState;
@@ -283,6 +401,25 @@ function engineMix({ spec, read }: { spec: EngineSpec; read: EngineRead }, heldR
     intakeLevel: spec.intakeLevel * (0.25 + 0.75 * load) * (0.35 + 0.65 * revs) * stirring,
   };
 }
+
+/** Rain on the car and the weather's wind: heard while the drive is stopped too, as the place is. */
+function weatherMix(weather: WeatherHeard | undefined, speed: number, time: number) {
+  if (weather === undefined) return { rainLightLevel: 0, rainHeavyLevel: 0, galeLevel: 0, galeHz: 300 };
+  const falling = Math.min(1, weather.rain + SNOW_PATTER * weather.snowfall);
+  const hitting = Math.min(1, falling * (1 + RAIN_HARDER_AT_SPEED * speed));
+  const heavy = clamp((hitting - 0.25) / 0.6);
+  const heard = falling === 0 ? 0 : (1 - RAIN_COVERED_AT_SPEED * speed) * Math.sqrt(hitting);
+  const gust = 1 + 0.35 * Math.sin(time * 0.37) + 0.2 * Math.sin(time * 1.13 + 2);
+  const blowing = clamp((weather.windMS - GALE_FROM_MS) / (GALE_FULL_MS - GALE_FROM_MS));
+  return {
+    rainLightLevel: RAIN_LIGHT * heard * (1 - 0.7 * heavy),
+    rainHeavyLevel: RAIN_HEAVY * heard * heavy,
+    galeLevel: GALE * blowing * blowing * gust,
+    galeHz: 220 + 22 * weather.windMS + 60 * gust,
+  };
+}
+
+const scaled = <T extends Record<string, number>>(levels: T, by: number) => Object.fromEntries(Object.entries(levels).map(([name, level]) => [name, level * by])) as T;
 
 export function mix({ state, engine, time, wander }: MixInputs): Mix {
   const { speedMS, slip, vehicle, place } = state;
@@ -349,10 +486,67 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
     windHighLevel: stage * WIND_HIGH * Math.pow(speed, 2.2) * gust,
     windHighHz: 1500 + 3600 * speed,
 
-    forestLevel: PLACE.forest * place.forest * placeShare,
-    shoreLevel: PLACE.shore * place.shore * placeShare,
-    gullsLevel: PLACE.gulls * place.shore * placeShare,
-    townLevel: PLACE.town * place.town * placeShare,
+    ...weatherMix(state.weather, speed, time),
+
+    ...scaled(placeMix(place, state.season, state.weather), placeShare),
   };
 }
 
+
+// ---- Placed sounds ----
+
+/** A placed sound is as loud as its loudness this near, and falls off as one over the distance past it. */
+const PLACED_NEAR_M = 8;
+/** Quieter than this, a placed sound isn't played at all. */
+const PLACED_QUIETEST = 0.01;
+/** How many placed sounds play at once, the loudest heard first: a number a frame reads, which a setting can turn down. */
+export const PLACED_VOICES = 8;
+
+/** How loud a sound at a place is heard, and from which side, -1 (left) to 1 (right). */
+export function heardAt(listener: Listener, x: number, z: number, loudness: number): { gain: number; pan: number } {
+  const dx = x - listener.x;
+  const dz = z - listener.z;
+  const distance = Math.hypot(dx, dz);
+  const gain = loudness * Math.min(1, PLACED_NEAR_M / Math.max(distance, 1e-6));
+  // Close enough to be inside it, it comes from all round.
+  const side = distance < 1 ? 0 : (dx * listener.rightX + dz * listener.rightZ) / distance;
+  return { gain: gain < PLACED_QUIETEST ? 0 : gain, pan: clamp(side, -1, 1) };
+}
+
+/** The placed sounds heard this frame: the loudest as heard, up to the budget, each with its gain and side. */
+export function voicesHeard<Sound extends { x: number; z: number; loudness: number }>(listener: Listener, sounds: readonly Sound[], budget: number): (Sound & { gain: number; pan: number })[] {
+  return sounds
+    .map((sound) => ({ ...sound, ...heardAt(listener, sound.x, sound.z, sound.loudness) }))
+    .filter(({ gain }) => gain > 0)
+    .sort((a, b) => b.gain - a.gain)
+    .slice(0, Math.max(0, Math.floor(budget)));
+}
+
+/** A church strikes the hour from 8 in the morning to 9 in the evening, quiet at night. */
+const BELLS_FROM_HOUR = 8;
+const BELLS_TO_HOUR = 21;
+/** The strikes of one hour, this many real seconds apart. */
+const BELL_APART_S = 2.6;
+/** A frame that moves the hour further than this is a jump (the dev menu, a link), not time passing: no bells for it. */
+const LONGEST_FRAME_H = 0.5;
+
+/**
+ * How many of the hour's strikes fall between two hours of the game's clock, a frame apart: the hour's number on a
+ * twelve-hour clock, from its start, `apartH` game hours apart (`BELL_APART_S` in the game's hours).
+ */
+export function bellStrikesBetween(fromHour: number, toHour: number, gameDayS: number): number {
+  const passed = (((toHour - fromHour) % 24) + 24) % 24;
+  if (passed === 0 || passed > LONGEST_FRAME_H) return 0;
+  const apartH = (BELL_APART_S / gameDayS) * 24;
+  let strikes = 0;
+  for (let hour = Math.floor(fromHour); hour <= Math.floor(fromHour + passed); hour++) {
+    const onClock = ((hour % 24) + 24) % 24;
+    if (onClock < BELLS_FROM_HOUR || onClock > BELLS_TO_HOUR) continue;
+    const count = onClock % 12 === 0 ? 12 : onClock % 12;
+    for (let strike = 0; strike < count; strike++) {
+      const at = hour + strike * apartH;
+      if (at > fromHour && at <= fromHour + passed) strikes++;
+    }
+  }
+  return strikes;
+}

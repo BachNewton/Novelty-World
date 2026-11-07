@@ -1,5 +1,5 @@
 import { InstancedBufferAttribute, type Mesh, type MeshBasicNodeMaterial, type Node, type Texture } from "three/webgpu";
-import { attribute, float, fract, int, mix, positionGeometry, round, select, smoothstep, texture, uniformArray } from "three/tsl";
+import { attribute, float, fract, int, mix, positionGeometry, round, select, smoothstep, texture } from "three/tsl";
 import { placeModel, signSheetUv, type Placement } from "../roadside/material";
 import type { RoadsideModel } from "../roadside/models";
 import { streetMaterials, type StreetInputs } from "../street/material";
@@ -7,6 +7,7 @@ import { TOWN_PARTS, type TownPart } from "./paint";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
 import { towardsSun } from "../sun";
+import { kitPalette } from "../palette";
 
 /*
  * The street kit's two materials, kept for where a vertex goes (the same instance layout, grow-in and near/far
@@ -65,6 +66,10 @@ const PAINT: Record<TownPart, { from: string; to?: string; share?: number; gain?
   "ferry-funnel-top": { from: "car-tyre", gain: 1.5 },
   "ferry-lifeboat": { from: "ferry-lifeboat" },
   "ferry-steel": { from: "wall-grey", to: "wall-plinth", share: 0.4 },
+  spruce: { from: "tree-spruce", gain: 1.05 },
+  "spruce-shade": { from: "tree-spruce", gain: 0.62 },
+  "spruce-bark": { from: "tree-pine-bark", gain: 0.85 },
+  "tree-star": { from: "plate-yellow", to: "wall-trim", share: 0.3, gain: 1.1 },
 };
 
 const AMBIENT = 0.68;
@@ -88,10 +93,12 @@ const partIs = (part: Node<"float">, name: TownPart) => part.equal(TOWN_PARTS.in
 const partOf = () => round(attribute<"vec4">("tint", "vec4").r.mul(255));
 
 function painted({ linear }: Pick<StreetInputs, "linear">) {
-  const palette = uniformArray(TOWN_PARTS.map((part) => {
-    const { from, to, share = 0, gain = 1 } = PAINT[part];
-    return linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
-  }));
+  const palette = kitPalette(linear, "town", () =>
+    TOWN_PARTS.map((part) => {
+      const { from, to, share = 0, gain = 1 } = PAINT[part];
+      return linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
+    }),
+  );
   return (palette.element(int(partOf())) as unknown as Node<"vec3">).mul(attribute<"vec4">("tint", "vec4").g.mul(255 / 128));
 }
 

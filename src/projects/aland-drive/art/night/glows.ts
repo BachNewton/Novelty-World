@@ -15,7 +15,7 @@ import type { F, Night } from "./night";
 const RHYTHM_SAMPLES = 512;
 /** Fades over the last of a light's reach. */
 const REACH_FADE_FROM = 0.7;
-/** Pulled towards the eye, so the lamp's own head doesn't cut its glow. */
+/** Pulled towards the eye, so the lamp's own head doesn't cut its glow, unless a glow says how far its lamp's glass reaches. */
 const TOWARDS_EYE_M = 0.7;
 const TAU = Math.PI * 2;
 /** A streak on the water, in lengths of the light's size. */
@@ -46,8 +46,8 @@ export interface GlowInstance {
   /** Grid bearings the eye may look along towards the light, clockwise from north, degrees; `toDeg` under `fromDeg` wraps. Leave out for all round. */
   fromDeg?: number;
   toDeg?: number;
-  /** Takes its flash from the eye's bearing, as a turning beam shows it. */
-  turning?: boolean;
+  /** How far towards the eye it's pulled to clear its own lamp's glass, if further than a street lamp's. */
+  outM?: number;
   /** How late it strikes, as a share of `lampsOn`: lamps don't all come on at once. */
   strikes?: number;
   /** A reflection hanging down from here on the water, rather than a round glow. */
@@ -61,7 +61,7 @@ function writeGlow(columns: readonly Float32Array[], at: number, glow: GlowInsta
   columns[0].set([glow.x, glow.y, glow.z, glow.sizeM], at * FLOATS_A_VEC);
   columns[1].set([glow.colour.r * glow.brightness, glow.colour.g * glow.brightness, glow.colour.b * glow.brightness, glow.reachM], at * FLOATS_A_VEC);
   columns[2].set([glow.rhythm, glow.periodS, glow.phase, glow.minPixels], at * FLOATS_A_VEC);
-  columns[3].set([(fromDeg * Math.PI) / 180, (span * Math.PI) / 180, glow.turning === true ? 1 : 0, shape + (glow.strikes ?? 0)], at * FLOATS_A_VEC);
+  columns[3].set([(fromDeg * Math.PI) / 180, (span * Math.PI) / 180, glow.outM ?? TOWARDS_EYE_M, shape + (glow.strikes ?? 0)], at * FLOATS_A_VEC);
 }
 
 /** Each rhythm a row of one texture. */
@@ -116,8 +116,7 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
   const distance = toLight.length();
   const eyeBearing = atan(toLight.x, toLight.z.negate());
   const period = max(beat.y, float(0.05));
-  const turned = select(sector.z.greaterThan(0.5), eyeBearing.div(TAU).negate(), float(0));
-  const share = fract(night.seconds.div(period).add(beat.z).add(turned));
+  const share = fract(night.seconds.div(period).add(beat.z));
   const beating: F = select(beat.x.lessThan(0), float(1), textureLoad(sheet, ivec2(int(share.mul(RHYTHM_SAMPLES - 1)), int(beat.x.max(0)))).r);
 
   const fromStart = fract(eyeBearing.sub(sector.x).div(TAU)).mul(TAU);
@@ -129,7 +128,11 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
   const hour = smoothstep(strikes.mul(0.6), strikes.mul(0.6).add(0.4), night.lampsOn);
   const shown = beating.mul(inSector).mul(reachFade).mul(hour);
 
-  const viewPlace = cameraViewMatrix.mul(vec4(place.xyz, 1));
+  const lit = cameraViewMatrix.mul(vec4(place.xyz, 1)).xyz;
+  // Pulled along the line to the eye, which keeps it over its lamp on screen: pulled along the view's axis, a near lamp
+  // off to the side drew its glow a metre or more off its glass.
+  const fromEye = lit.length();
+  const viewPlace = lit.mul(fromEye.sub(sector.z).max(fromEye.mul(0.5)).div(fromEye.max(0.01)));
   const depth = viewPlace.z.negate().max(0.01);
   const metresPerPixel = depth.mul(2).div(cameraProjectionMatrix.mul(vec4(0, 1, 0, 0)).y.mul(screenSize.y));
   const size = max(place.w, metresPerPixel.mul(beat.w)).mul(select(shown.greaterThan(0.001), float(1), float(0)));
@@ -137,7 +140,7 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
   const tall = select(isStreak, size.mul(STREAK_LONG), size);
   // A streak hangs from its place towards the eye, the reflection of the light above it.
   const fall = select(isStreak, positionGeometry.y.sub(1), positionGeometry.y);
-  const inView = vec4(viewPlace.x.add(positionGeometry.x.mul(wide)), viewPlace.y.add(fall.mul(tall)), viewPlace.z.add(TOWARDS_EYE_M), 1);
+  const inView = vec4(viewPlace.x.add(positionGeometry.x.mul(wide)), viewPlace.y.add(fall.mul(tall)), viewPlace.z, 1);
 
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending });
   material.vertexNode = cameraProjectionMatrix.mul(inView);

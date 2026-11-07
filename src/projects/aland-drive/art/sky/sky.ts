@@ -301,7 +301,8 @@ export function createSky({ reach, look }: SkyOptions): Sky {
 
     const withCirrus = mix(sky, uniforms.cloudLit, cirrus);
     const disc = smoothstep(float(SUN_RIM_COS), float(SUN_DISC_COS), dot(way, uniforms.toSun));
-    const seen = mix(withCirrus, uniforms.sunDisc, disc.mul(float(1).sub(cirrus)));
+    // The disc only ever brightens the sky behind it: a look that dims it (dusk, cloud) fades it into the sky, never to a dark spot.
+    const seen = mix(withCirrus, max(uniforms.sunDisc, withCirrus), disc.mul(float(1).sub(cirrus)));
     return mix(seen, cloud, cover);
   };
 

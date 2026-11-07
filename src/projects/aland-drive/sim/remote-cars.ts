@@ -2,14 +2,15 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { blendCarStates, type CarState, type Rotation, type Vector3 } from "./car-state";
 import { GHOST_GROUPS, REMOTE_GROUPS } from "./groups";
 import { CARS } from "./cars";
+import { Timeline, type Heard } from "./remote-timeline";
 import { STEP_S } from "./tuning";
 
 /*
  * Other players' cars, in this player's own Rapier world. Each player's client
  * is the authority over its own car and sends its `CarState` round; here each
  * of the others is a stand-in body with its own car's box, mass and inertia,
- * steered every step towards where that car is now: its last state carried on
- * by its own velocity and spin since it arrived, for a short while. The stand-in
+ * steered every step towards where that car is shown now, played out a little
+ * behind real time from the states it sent (`remote-timeline.ts`). The stand-in
  * is dynamic, not kinematic, so in a step where the two touch the solver trades
  * momentum between the two by their weights, so a van shoves a roadster aside
  * and is barely moved itself; the next step the stand-in is steered back on its way.
@@ -41,8 +42,6 @@ export interface StandInShape {
 
 const shapeOf = (id: CarState["car"]): StandInShape => CARS[id].car;
 
-/** A state carries on by its own motion this long at most: past it the car has stopped sending (a paused map, a hidden tab). */
-const CARRY_ON_STEPS = 30;
 /** How fast a stand-in closes on where its car is, a share a second, and the most that adds to its speed and spin. */
 const PULL_PER_S = 10;
 const MOST_CORRECTION_MS = 4;
@@ -60,22 +59,6 @@ const capped = (a: Vector3, most: number): Vector3 => {
 };
 const point = ({ x, y, z }: { x: number; y: number; z: number }): Vector3 => [x, y, z];
 
-function normalised(q: Rotation): Rotation {
-  const length = Math.hypot(...q);
-  return [q[0] / length, q[1] / length, q[2] / length, q[3] / length];
-}
-
-/** A rotation turned on by a world-frame spin for a time. */
-function turned([x, y, z, w]: Rotation, [sx, sy, sz]: Vector3, seconds: number): Rotation {
-  const half = seconds / 2;
-  return normalised([
-    x + half * (sx * w + sy * z - sz * y),
-    y + half * (sy * w + sz * x - sx * z),
-    z + half * (sz * w + sx * y - sy * x),
-    w - half * (sx * x + sy * y + sz * z),
-  ]);
-}
-
 /** The spin that would turn one rotation into another in a second, near enough for the small errors a stand-in has. */
 function spinBetween(from: Rotation, to: Rotation): Vector3 {
   const [ax, ay, az, aw] = from;
@@ -89,27 +72,9 @@ function spinBetween(from: Rotation, to: Rotation): Vector3 {
   return [x * sign, y * sign, z * sign];
 }
 
-/** Where a car heard some steps ago is now, by its own motion. */
-export function carriedOn(state: CarState, steps: number): CarState {
-  const seconds = Math.min(steps, CARRY_ON_STEPS) * STEP_S;
-  const [x, y, z, w] = state.rotation;
-  // The nose is -z in the car's frame.
-  const nose: Vector3 = [-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))];
-  const forward = state.velocity[0] * nose[0] + state.velocity[1] * nose[1] + state.velocity[2] * nose[2];
-  return {
-    ...state,
-    position: add(state.position, state.velocity, seconds),
-    rotation: turned(state.rotation, state.spin, seconds),
-    roll: state.roll + (forward / CARS[state.car].car.wheelRadiusM) * seconds,
-  };
-}
-
 class RemoteCar {
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
-  heard: CarState;
-  /** Steps since `heard` arrived. */
-  since = 0;
   ghost = true;
   /** How much the last step's contact changed its velocity, in m/s, and its spin, in rad/s. */
   shove = { linear: 0, angular: 0 };
@@ -123,6 +88,7 @@ class RemoteCar {
 
   constructor(
     rapier: RAPIER.World,
+    readonly timeline: Timeline,
     state: CarState,
     readonly shape: StandInShape,
   ) {
@@ -138,7 +104,7 @@ class RemoteCar {
       RAPIER.ColliderDesc.cuboid(x, y, z).setTranslation(0, shape.boxUpM, 0).setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GHOST_GROUPS),
       this.body,
     );
-    this.heard = this.target = state;
+    this.target = state;
     this.before = this.after = state;
     this.put(state);
   }
@@ -162,9 +128,8 @@ class RemoteCar {
   }
 
   /** Steers the stand-in for the coming step. */
-  steer(cars: readonly Vector3[]): void {
-    this.since++;
-    const target = carriedOn(this.heard, this.since);
+  steer(cars: readonly Vector3[], nowMs: number): void {
+    const target = this.timeline.sample(nowMs);
     this.target = target;
     if (Math.hypot(...difference(target.position, point(this.body.translation()))) > SNAP_M) this.put(target);
     const off = difference(target.position, point(this.body.translation()));
@@ -194,20 +159,28 @@ class RemoteCar {
 
 export class RemoteCars {
   private readonly cars = new Map<string, RemoteCar>();
+  /** The time the last step stood for, in ms on the clock states are heard by: each step is a step on from it. */
+  private clockMs = 0;
 
   constructor(private readonly rapier: RAPIER.World) {}
 
-  /** A car's state as its own client sent it, and its body: a drivable car's own, unless it's given. */
-  hear(id: string, state: CarState, shape = shapeOf(state.car)): void {
+  /** Keeps the steps on the clock states are heard by: the time the last step stood for. */
+  setClock(ms: number): void {
+    this.clockMs = ms;
+  }
+
+  /**
+   * A car's state as its own client sent it, with when it was sent and heard, or with nothing for the car as it is
+   * now, and its body: a drivable car's own, unless it's given.
+   */
+  hear(id: string, state: CarState, heard?: Heard, shape = shapeOf(state.car)): void {
     const car = this.cars.get(id);
+    const timeline = car?.timeline ?? new Timeline();
+    timeline.hear(state, this.clockMs, heard);
+    if (car?.shape === shape) return;
     // A player who swaps car needs a stand-in of the new one's size and weight, put where it is.
-    if (car && car.shape !== shape) this.forget(id);
-    else if (car) {
-      car.heard = state;
-      car.since = 0;
-      return;
-    }
-    this.cars.set(id, new RemoteCar(this.rapier, state, shape));
+    if (car) this.forget(id);
+    this.cars.set(id, new RemoteCar(this.rapier, timeline, car ? timeline.sample(this.clockMs) : state, shape));
   }
 
   forget(id: string): void {
@@ -253,7 +226,8 @@ export class RemoteCars {
 
   /** Before the world steps, with where every simulated car is. */
   steer(cars: readonly Vector3[]): void {
-    for (const remote of this.cars.values()) remote.steer(cars);
+    this.clockMs += STEP_S * 1000;
+    for (const remote of this.cars.values()) remote.steer(cars, this.clockMs);
   }
 
   /** After the world steps. */

@@ -1,8 +1,10 @@
 # Self-play: a league that keeps its best
 
-The roadmap's "opponents" cause (`roadmap.md`, Self-play, step 5), tested first because run sw128b
-showed it. This doc fixes the experiment and its predictions before the run; the results are
-added below them, never edited into them.
+The record of the from-scratch line's plateau: what sw128b showed, and the runs that tested each
+reading of it. Each experiment's predictions were fixed before its run and its results added
+below them, never edited into them. The plan that follows from the record is `learned-bot.md`,
+which supersedes the "What comes next" section at the end: the cheaper tests of the same
+question come before the bias diagnosis it names.
 
 ## What sw128b showed
 
@@ -557,6 +559,11 @@ still finds an uphill direction, so learning didn't stop: its step per iteration
 than the wander's. That is what pf4 tests.
 
 ## What comes next, and why
+
+Superseded by `learned-bot.md`, and kept as written. Step 3's bias diagnosis is right in kind,
+and the cheaper tests of the same question come first: the ruler (a fixed panel with the
+target's class in it, and the spread between two seeds), the league's missing class, and the
+imitation ceiling.
 
 1. **pf4 is done**: it held (22) and didn't climb (24 failed), so step 2 follows.
 2. **If pf4 holds (22) but doesn't climb (24 fails)**, the training needs more signal per

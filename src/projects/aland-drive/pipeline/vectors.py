@@ -17,7 +17,9 @@ NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
 # A car park on the ground: the others are buildings, or under one.
 PARKING_ON_THE_GROUND = {None, "surface", "lane", "street_side", "layby"}
-KEPT_TAGS = ("name", "ref", "surface", "footway", "lanes", "width", "oneway", "bridge", "tunnel", "covered", "maxspeed", "junction")
+KEPT_TAGS = ("name", "ref", "surface", "footway", "cycleway", "service", "lanes", "width", "oneway", "bridge", "tunnel", "covered", "maxspeed", "junction")
+# Every tag under these: a street's own sidewalks, their sides, widths and surfaces (`paving.tagged_sidewalks`).
+KEPT_PREFIXES = ("sidewalk",)
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
 SEAM_CHORD_M = 30.0
 
@@ -127,7 +129,7 @@ def build(osm_file: Path, tile: Tile, arrange: Callable[[list[dict]], list[dict]
         if element["type"] == "way" and "highway" in tags and tags["highway"] not in NOT_A_ROAD:
             kind = tags["highway"]
             road = {"id": element["id"], "kind": kind, "motor": kind not in FOOT_OR_BIKE, "line": _rounded(np.column_stack(to_local(*line_to_grid(element["geometry"]).T)))}
-            road.update({key: tags[key] for key in KEPT_TAGS if key in tags})
+            road.update({key: value for key, value in tags.items() if key in KEPT_TAGS or key.startswith(KEPT_PREFIXES)})
             whole_roads.append(road)
         if "building" in tags:
             if element["type"] == "way":

@@ -1,6 +1,8 @@
+// e2e-covers: src/projects/aland-drive/net/** src/projects/aland-drive/sim/remote-cars.ts src/projects/aland-drive/render/remote-cars.ts
 import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
+import { GAME_DAY_S } from "../src/projects/aland-drive/time/day";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
 
@@ -117,4 +119,35 @@ test("when the host leaves, the one left hosts the world, and a newcomer finds t
 
   await guest.context().close();
   await newcomer.context().close();
+});
+
+const timeOf = (page: Page) => page.evaluate(() => window.__alandDrive?.day().gameDays ?? Number.NaN);
+/** Within a few real seconds of each other: two pages are read a moment apart. */
+const SAME_TIME_DAYS = 0.003;
+
+test("everyone in the world shares the host's time, and it carries on when the host leaves", async ({ browser }) => {
+  const world = `time-${crypto.randomUUID()}`;
+  // Half a day from the real hour, so a page that kept its own time would be far off the host's.
+  const hour = (new Date().getUTCHours() + 14) % 24;
+  const host = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  await host.goto(`${PAGE}?tiles=local:${tilesPort}&${LOCAL_RELAY}&drive-world=${world}&hour=${hour}`);
+  await host.waitForFunction(() => window.__alandDrive?.online().status === "connected" && window.__alandDrive.mapReady(), null, { timeout: 90_000 });
+  const guest = await joinWorld(browser, world);
+  await guest.waitForFunction(
+    ([hostTime, near]) => Math.abs((window.__alandDrive?.day().gameDays ?? 0) - hostTime) < near,
+    [await timeOf(host), SAME_TIME_DAYS] as const,
+    { timeout: 30_000 },
+  );
+
+  // The one left hosts on from the shared time, not from a clock of its own. A newcomer to it adopts its time as the
+  // guest above adopted the first host's, so a third page would only start the game a third time.
+  const [before, left] = [await timeOf(guest), Date.now()];
+  await host.context().close();
+  await guest.waitForFunction(() => window.__alandDrive?.online().role === "host", null, { timeout: 30_000 });
+  const after = await timeOf(guest);
+  const passed = (Date.now() - left) / 1000 / GAME_DAY_S;
+  expect(after - before).toBeGreaterThanOrEqual(0);
+  expect(after - before).toBeLessThan(passed + SAME_TIME_DAYS);
+
+  await guest.context().close();
 });

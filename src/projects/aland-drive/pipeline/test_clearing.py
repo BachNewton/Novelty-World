@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from canopy import PIXELS
-from clearing import REACH_M, UNIT_M, ZERO, distances, encode
+from clearing import REACH_M, UNIT_M, ZERO, distances, encode, sea_mark_outlines
 from grid import TILE_SIZE_M
 
 PIXEL_M = TILE_SIZE_M / PIXELS
@@ -46,6 +46,20 @@ class Clearing(unittest.TestCase):
     def test_by_the_tiles_edge_a_neighbours_building_is_never_read_further_than_it_is(self):
         for x in np.arange(1.0, 4.0, 0.25):
             self.assertLessEqual(read(self.clearing, x, 1003.0), x - 1 + SLACK_M, x)
+
+    def test_a_sea_mark_ashore_is_cleared_as_a_building_is_and_a_floating_one_is_not(self):
+        marks = [["leading-front-red-yellow", 2000.0, 2000.0, 0, 0, 0], ["spar-port", 2200.0, 2000.0, 0, 1, 0]]
+        outlines = sea_mark_outlines(marks)
+        self.assertEqual(len(outlines), 1)
+        clearing = (np.asarray(encode(distances(outlines, np.zeros((0, 4)), 0.0, 0.0)), dtype=float) - ZERO) * UNIT_M
+        # A mark is small, so its distance curves within a pixel and a bilinear read can run a little past a straight
+        # wall's slack; the forest keeps 1.5 m of its own for what the image reads long (`CLEARING_SLACK_M`).
+        for x in np.arange(2000.0, 2012.0, 0.5):
+            self.assertLessEqual(read(clearing, x, 2000.0), max(x - 2000 - 1.5, 0) + SLACK_M + 0.25, x)
+        self.assertGreater(read(clearing, 2200.0, 2000.0), REACH_M - UNIT_M)
+
+    def test_every_kind_of_mark_ashore_in_the_register_has_a_foot(self):
+        self.assertGreater(len(sea_mark_outlines()), 250)
 
     def test_far_from_anything_reads_the_reach(self):
         self.assertAlmostEqual(read(self.clearing, 5000.0, 500.0), REACH_M, delta=UNIT_M)

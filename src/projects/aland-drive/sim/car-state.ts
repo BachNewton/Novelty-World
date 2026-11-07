@@ -31,8 +31,8 @@ export interface CarState {
   steer: number;
   /** How far each wheel has risen into its arch. */
   suspension: PerWheel;
-  /** How far the wheels have rolled, in radians. */
-  roll: number;
+  /** How far each wheel has turned, in radians: a spinning or locked wheel turns apart from the road. */
+  roll: PerWheel;
   lamps: CarLamps;
 }
 
@@ -56,7 +56,7 @@ export function blendCarStates(from: CarState, to: CarState, share: number): Car
       lerp(from.suspension[2], to.suspension[2], share),
       lerp(from.suspension[3], to.suspension[3], share),
     ],
-    roll: lerp(from.roll, to.roll, share),
+    roll: [lerp(from.roll[0], to.roll[0], share), lerp(from.roll[1], to.roll[1], share), lerp(from.roll[2], to.roll[2], share), lerp(from.roll[3], to.roll[3], share)],
     lamps: to.lamps,
   };
 }

@@ -213,6 +213,14 @@ function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt:
       shaded.set([1, town, PAVED_AREA_HALF_WIDTH_M, FAR_FROM_MARK_M], vertex * 4);
       continue;
     }
+    // A point of paving names its way; an apron's is the nearest.
+    const way = surface.aprons.ways.length ? surface.aprons.ways[vertex - surface.aprons.firstPoint] : -1;
+    if (way >= 0) {
+      const chain = surface.chains[way];
+      shaded.set([isPaved(chain, town) ? 1 : 0, town, halfWidthOf(surface.rings, chain.first), FAR_FROM_MARK_M], vertex * 4);
+      marks.set([shoulderOf(surface.rings, chain.first), NO_MARK], vertex * 2);
+      continue;
+    }
     const road = nearestSegment(grid, x, z);
     if (!road) throw new Error(`an apron point at ${x}, ${z} has no road within ${GRID_M} m`);
     shaded.set([isPaved(surface.chains[road.chain], town) ? 1 : 0, town, road.halfWidth, FAR_FROM_MARK_M], vertex * 4);

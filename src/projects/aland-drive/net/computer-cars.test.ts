@@ -4,7 +4,7 @@ import { createComputerCars, FIGHT_M, NEARER_FOR_STEPS, type ComputerCars } from
 import { SEND_EVERY_STEPS } from "./online-world";
 import type { ComputerCarMessage } from "./protocol";
 
-const at = (x: number): CarState => ({ position: [x, 0, 0], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0, 0, 0, 0], roll: 0, lamps: { head: true, brake: false, reverse: false } });
+const at = (x: number): CarState => ({ position: [x, 0, 0], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0, 0, 0, 0], roll: [0, 0, 0, 0], lamps: { head: true, brake: false, reverse: false } });
 
 interface Client {
   cars: ComputerCars;
@@ -28,6 +28,7 @@ function createPlayers(ids: string[], host = ids[0]) {
         return true;
       },
       onHeard: () => undefined,
+      onGone: () => undefined,
     });
     clients.set(id, { cars, places });
   }
@@ -107,6 +108,27 @@ describe("computer-driven cars online", () => {
     b.hear("a", { id: "car", runner: "b", handovers: 1, state: at(5), driver: {} });
     b.hear("a", { id: "car", runner: "a", handovers: 0, state: at(-30), driver: {} });
     expect(b.running().map((car) => car.state.position[0])).toEqual([5]);
+  });
+
+  it("taken by two players at once, as when both hit one traffic car, stay with the lower id on both", () => {
+    const players = createPlayers(["a", "b"]);
+    players.place({ a: -3, b: 3 });
+    players.client("b").cars.add("car", at(0), {});
+    players.client("a").cars.add("car", at(0.5), {});
+    players.frames(1);
+    for (const id of ["a", "b"]) expect(runnerOf(players.client(id).cars)).toBe("a");
+    expect(players.client("b").cars.running()).toEqual([]);
+  });
+
+  it("taken out of the world by whoever runs them, go for everyone", () => {
+    const players = createPlayers(["a", "b"]);
+    players.place({ a: 0, b: 30 });
+    players.client("a").cars.add("car", at(10), {});
+    players.frames(1);
+    expect(players.client("b").cars.all()).toHaveLength(1);
+    players.client("a").cars.remove("car");
+    players.frames(1);
+    expect(players.client("b").cars.all()).toEqual([]);
   });
 
   it("are handed on by the host to the player nearest them when their runner leaves", () => {

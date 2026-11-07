@@ -3,11 +3,16 @@ import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mi
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
+import { addOnPosition, standAsBuilt } from "../art/facades/add-ons";
 import { facadeArt, WallLight, wallParts } from "../art/facades/facade";
 import { farWindowLight, windowLight, type Night } from "../art/night";
 import { PAINT_STYLE } from "../art/landmarks/kit";
 import IDS from "../art/facades/facade-ids.json";
 import { towardsSun, type Sun } from "../art/sun";
+import { seedOf, unitOf } from "../art/hash";
+import { snowfall, snowOnTop } from "../art/surfaces/snow";
+import { eavesLights, type WinterWall } from "../art/night/festive";
+import { seasonNodes, type SeasonLook, type SeasonNodes } from "../art/season";
 
 /*
  * Buildings, a mesh per 600 m cell. Their walls have no art of their own: boards,
@@ -25,6 +30,10 @@ const STYLE = { roof: 0, timber: 1, plaster: 2, boards: 3 } as const;
 const FACADE_STYLES_FROM = IDS.styles.villa;
 const FRONT_PLATE = IDS.fronts.plate;
 const WALL_COLOURS = ["wall-red", "wall-white", "wall-yellow", "wall-cream", "wall-grey", "wall-pale"];
+
+/** Each roof's snow threshold lies in this range: a heated house sheds it sooner than a barn, which keeps it with the ground. */
+const ROOF_SNOW = [0.12, 0.85] as const;
+const ROOF_SNOW_SALT = 4409;
 
 const AMBIENT = 0.68;
 const SUN_SHARE = 0.5;
@@ -61,10 +70,14 @@ interface WallInput {
   colour: (name: string) => Node<"vec3">;
   linear: (name: string) => Vector3;
   night: Night;
+  season: SeasonNodes;
 }
 
+/** How likely the plain timber and plaster looks are to dress their windows and string their eaves at Christmas: boards have no windows, and are sheds. */
+const WINTER = { timber: { windows: 0.8, eaves: 0.75 }, plaster: { windows: 0.6, eaves: 0.35 } } as const;
+
 /** The pipeline's own three styles: timber, plaster and boards, with what their lit windows add. */
-function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night }: WallInput) {
+function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night, season }: WallInput) {
   const style = round(tint.a.mul(255));
   const isStyle = (name: keyof typeof STYLE) => abs(style.sub(STYLE[name])).lessThan(0.5);
   const pixel = wide.add(tall);
@@ -119,13 +132,22 @@ function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, 
   const building = round(tint.b.mul(255)).add(round(tint.r.mul(255)).mul(256));
   const windowsShow = float(1).sub(smoothstep(float(WINDOW.halfTall * 0.2), float(WINDOW.halfTall * 0.6), tall));
   const paneId = floor(along.div(bay)).add(floor(up.div(storey)).mul(37));
-  const rooms = windowLight(night, { id: paneId, building, up: inStorey.div(WINDOW.halfTall * 2).add(0.5), shown: windowsShow }).mul(pane.mul(onFacade).mul(hasWindows));
-  const glow = rooms.add(farWindowLight(night, building, windowsShow).mul(hasWindows));
+  const timberly = select(isStyle("timber"), float(1), float(0));
+  const winter: WinterWall = {
+    season,
+    windows: mix(float(WINTER.plaster.windows), float(WINTER.timber.windows), timberly).mul(hasWindows),
+    eaves: mix(float(WINTER.plaster.eaves), float(WINTER.timber.eaves), timberly).mul(hasWindows),
+  };
+  const inPane = { x: fract(along.div(bay)).sub(0.5).mul(bay), y: inStorey.add(WINDOW.halfTall), height: float(WINDOW.halfTall * 2), wide, tall };
+  const rooms = windowLight(night, { id: paneId, building, up: inStorey.div(WINDOW.halfTall * 2).add(0.5), shown: windowsShow, winter: { wall: winter, frame: inPane } }).mul(pane.mul(onFacade).mul(hasWindows));
+  const string = eavesLights(night, winter, { along, up, width, eaves, wide, tall, building, front: hasDoor });
+  const glow = rooms.add(farWindowLight(night, building, windowsShow, winter).mul(hasWindows)).add(string);
   return WallLight(mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall)), glow);
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night }): MeshBasicNodeMaterial {
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night; season?: SeasonLook; addOnReachM?: number }): MeshBasicNodeMaterial {
   const { night } = art;
+  const season = seasonNodes(art.season);
   const toSun = towardsSun(sun);
 
   const facade = attribute<"vec4">("facade", "vec4");
@@ -139,12 +161,21 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
   const photoRoof = vec3(tint.r, tint.g, tint.b).pow(vec3(2.2)).mul(1.15);
-  const roof = roofDetail({ base: photoRoof, across: facade.x, upSlope: facade.y, position: positionWorld, normal, toSun, moss: colour("surface-roof-moss"), detail: art.detail });
+  // A roof's tint is its own photo's median, the same on all its faces, so its whole numbers seed the building's own snow.
+  const roofSeed = seedOf(round(tint.r.mul(255)), round(tint.g.mul(255)), round(tint.b.mul(255)));
+  const roof = snowOnTop(
+    roofDetail({ base: photoRoof, across: facade.x, upSlope: facade.y, position: positionWorld, normal, toSun, moss: colour("surface-roof-moss"), detail: art.detail }),
+    snowfall(art.season, colour),
+    abs(normal.y),
+    mix(float(ROOF_SNOW[0]), float(ROOF_SNOW[1]), unitOf(roofSeed, ROOF_SNOW_SALT)),
+  );
 
   // Every shape on a wall is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
   // average rather than fading out: only lines too fine to draw fade, and they fade to their own average. A wall pays
-  // only for its own style, so the derivatives that measure the pixel are read before the styles branch.
-  const walls = Fn(() => {
+  // only for its own style, so the derivatives that measure the pixel are read before the styles branch. The wall's
+  // colour and its glow are both read in here, once: TSL inlines a function's whole body at each place its result is
+  // read, so reading them apart wrote the biggest shader the game has into it twice.
+  const shaded = Fn(() => {
     const wide = fwidth(along).toVar();
     const tall = fwidth(up).toVar();
     const reads = select(dFdx(along).lessThan(0), float(-1), float(1)).toVar();
@@ -157,22 +188,22 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
       const front = floor(red.div(32));
       const door = step(127.5, green);
       const shown = select(front.greaterThan(FRONT_PLATE - 0.5), front, front.mul(door));
-      const { colour: wall, glow: lights } = wallParts(facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night }));
+      const { colour: wall, glow: lights } = wallParts(facadeArt({ along, up, width, eaves, tint, wide, tall, colour, linear, night, season }));
       glow.assign(lights);
       drawn.assign(shopfront({ along, up, width, eaves, fromDoor: along.sub(width.mul(0.5)), front: shown, word: green.mod(128), wide, tall, reads, wall, colour, sky: colour("sky"), sheet: art.sheet }));
     }).ElseIf(style.greaterThan(0.5), () => {
-      const plain = wallParts(plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night }));
+      const plain = wallParts(plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, night, season }));
       drawn.assign(plain.colour);
       glow.assign(plain.glow);
     });
-    return WallLight(drawn, glow);
+    const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
+    const painted = style.greaterThan(PAINT_STYLE - 0.5);
+    return hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, drawn.mul(nearGround))).mul(lit)).add(glow);
   })();
-  const wall = wallParts(walls);
 
-  const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
   const material = new MeshBasicNodeMaterial();
-  const painted = style.greaterThan(PAINT_STYLE - 0.5);
-  material.colorNode = hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, wall.colour.mul(nearGround))).mul(lit)).add(wall.glow);
+  material.colorNode = shaded;
+  material.positionNode = addOnPosition(art.addOnReachM);
   material.side = 2;
   return material;
 }
@@ -186,6 +217,7 @@ export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMater
     geometry.setAttribute("facade", new BufferAttribute(facades, 4));
     geometry.setAttribute("tint", new BufferAttribute(tints, 4, true));
     geometry.setIndex(new BufferAttribute(indices, 1));
+    standAsBuilt(geometry);
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
     mesh.visible = false;

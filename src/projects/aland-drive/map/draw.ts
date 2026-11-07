@@ -211,8 +211,11 @@ export function drawGates(pen: CanvasRenderingContext2D, view: MapView, gates: r
   pen.lineCap = "butt";
 }
 
-/** The route still to drive, from the car's own place on it rather than the next of its points, which a long straight can leave far ahead. */
-export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: Route, fromAlong: number, ink: MapInk): void {
+/**
+ * The route still to drive, from the car's own place on it rather than the next of its points, which a long straight can leave far ahead.
+ * A destination another player set has its pin in their colour, and their name beside it where `named`.
+ */
+export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: Route, fromAlong: number, ink: MapInk, setter: string | null, named: boolean): void {
   const { line } = route;
   const { points, lengths } = line;
   const from = line.at(fromAlong);
@@ -229,13 +232,22 @@ export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: R
   pen.lineWidth = 4;
   pen.stroke();
   const [endX, endY] = view.toScreen(route.end.x, route.end.z);
-  pen.fillStyle = ink.accent;
+  pen.fillStyle = setter === null ? ink.accent : ink.player;
   pen.strokeStyle = ink.shade;
   pen.lineWidth = 2;
   pen.beginPath();
   pen.arc(endX, endY, 7, 0, Math.PI * 2);
   pen.fill();
   pen.stroke();
+  if (setter === null || !named) return;
+  pen.font = "600 12px system-ui, sans-serif";
+  pen.textAlign = "left";
+  pen.textBaseline = "middle";
+  pen.lineJoin = "round";
+  pen.lineWidth = 3;
+  pen.strokeText(setter, endX + 11, endY);
+  pen.fillStyle = ink.player;
+  pen.fillText(setter, endX + 11, endY);
 }
 
 /** Names along the roads in sight, the greatest roads first, none on top of another. */
@@ -335,6 +347,13 @@ const GLYPHS: Record<PlaceKind, (pen: CanvasRenderingContext2D) => void> = {
     const angle = (corner * Math.PI) / 4 - Math.PI / 2;
     return [radius * Math.cos(angle), radius * Math.sin(angle)];
   })),
+  lighthouse: (pen) => {
+    fill(pen, [-0.36, 0.85], [-0.2, -0.4], [0.2, -0.4], [0.36, 0.85]);
+    fill(pen, [-0.24, -0.45], [-0.24, -0.68], [0.24, -0.68], [0.24, -0.45]);
+    fill(pen, [-0.32, -0.7], [0, -0.95], [0.32, -0.7]);
+    line(pen, [-0.42, -0.57], [-0.85, -0.7]);
+    line(pen, [0.42, -0.57], [0.85, -0.7]);
+  },
   viewpoint: (pen) => {
     fill(pen, [-0.9, 0.7], [-0.25, -0.45], [0.05, 0.05], [0.3, -0.25], [0.9, 0.7]);
     pen.beginPath();

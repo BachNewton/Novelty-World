@@ -1,6 +1,8 @@
 import type { PlayMode } from "../challenge/passes";
 import type { Medal } from "../challenge/standings";
 import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
+import type { Units } from "../units";
+import type { Assists } from "../sim/car";
 import type { Tyre } from "../sim/surfaces";
 
 /*
@@ -15,7 +17,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -53,8 +55,8 @@ export interface MenuResult {
   race?: RaceResult;
 }
 
-/** What the dialog is: the game menu, or one of a challenge's choices. */
-export type MenuKind = "menu" | "start" | "invite" | "race";
+/** What the dialog is: the game menu, its Graphics page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "graphics" | "start" | "invite" | "race";
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -67,10 +69,14 @@ export interface GameMenu {
   challenge?: string;
   result?: MenuResult;
   kind?: MenuKind;
-  /** The other player a co-op choice is about. */
+  /** The player whose co-op invite this is. */
   partner?: string;
-  /** The tyres on the car, which the Tyres item shows and changes. */
+  /** How many other players a co-op invite would ask: set when one can be sent. */
+  players?: number;
+  /** The tyres on the car, which the tyre choices mark. */
   tyres?: Tyre;
+  /** The driver's aids, which their items show and turn on and off. */
+  assists?: Assists;
   /** The race a card is for. */
   race?: RaceCard;
   /** Set when the items are about a race, being played or over: its ground. */
@@ -78,7 +84,21 @@ export interface GameMenu {
 }
 
 /**
- * The menu outside a challenge, on the car's tyres. Changing tyres is here until homes and car shops exist, and
- * never in a challenge, whose car is the challenge's.
+ * The menu outside a challenge, on the car's tyres and the driver's aids. Changing tyres is here until homes and car
+ * shops exist, and never in a challenge, whose car is the challenge's; the aids are the player's, so they go with
+ * them into one.
  */
-export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres", "sound"], back: "resume", pauses: true, tyres });
+const TYRE_ITEMS: Record<`tyres-${Tyre}`, Tyre> = { "tyres-summer": "summer", "tyres-winter": "winter", "tyres-studded": "studded" };
+
+/** The tyres a tyre choice fits. */
+export const tyreOfItem = (id: `tyres-${Tyre}`): Tyre => TYRE_ITEMS[id];
+
+const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric", "units-imperial": "imperial" };
+
+/** The units a units choice sets. */
+export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
+
+export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+
+/** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
+export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };

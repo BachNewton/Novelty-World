@@ -1,9 +1,14 @@
-import type { Mesh, Scene } from "three/webgpu";
+import { Vector3, type Mesh, type Scene } from "three/webgpu";
 import { uniform } from "three/tsl";
 import { buildKummel, buildLighthouse, identityMaterials } from "../art/identity/index";
 import { buildFixedMark, buildLeadingMark, buildPillarBuoy, buildRadarMark, buildSkerryLight, buildSpar, LEADING_PATTERNS, marinaMaterials, RADAR_BANDS, radarMarkScale, SEA_MARKS } from "../art/marina/index";
+import { IDENTITY_PARTS } from "../art/identity/mesh";
+import { MARINA_PARTS } from "../art/marina/paint";
+import { partBounds } from "../art/night";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
-import data from "../sea/marks.json";
+import { LIGHTHOUSES } from "../art/lighthouses/index";
+import { lampAt, LANDMARK_LIGHTHOUSES, lighthouseScale, ON_WATER_Y } from "./lighthouses";
+import { REGISTER_MARKS, type MarkedLight } from "./lights-on-marks";
 import { showVersionsInReach } from "./versions-in-reach";
 
 /*
@@ -16,17 +21,17 @@ import { showVersionsInReach } from "./versions-in-reach";
  * on the drawn sea; one on a skerry or the shore on the ground as the world has it then.
  */
 
-const WATER_Y = -0.05;
 const CELL_M = 1000;
 
 type Kit = "marina" | "identity";
-type Kind = { kit: Kit; build: () => RoadsideModel; scaleFor?: (heightM: number) => number };
+type Kind = { kit: Kit; build: () => RoadsideModel; scaleFor?: (heightM: number, x: number, z: number) => number };
 
 /** Every model a mark in `sea/marks.json` may name, and how each is built. */
 export function seaMarkKinds(): Record<string, Kind> {
   const found: Record<string, Kind> = {
     cairn: { kit: "identity", build: buildKummel },
-    lighthouse: { kit: "identity", build: buildLighthouse },
+    // A lighthouse stands as tall as the register says, or with its lamp at its light's height (`render/lighthouses.ts`).
+    lighthouse: { kit: "identity", build: buildLighthouse, scaleFor: lighthouseScale },
     "skerry-light": { kit: "marina", build: buildSkerryLight },
   };
   for (const side of SEA_MARKS) {
@@ -37,10 +42,51 @@ export function seaMarkKinds(): Record<string, Kind> {
   for (const pattern of LEADING_PATTERNS) {
     for (const role of ["front", "rear"] as const) found[`leading-${role}-${pattern}`] = { kit: "marina", build: () => buildLeadingMark(role, pattern) };
   }
+  // Åland's landmark lighthouses are each their own, at their own size.
+  for (const [id, { build }] of Object.entries(LIGHTHOUSES)) found[`landmark-${id}`] = { kit: "identity", build };
   // A radar mark stands as tall as the register says, the one model scaled to it.
   for (const bands of RADAR_BANDS) found[`radar-${bands}`] = { kit: "marina", build: () => buildRadarMark(bands), scaleFor: (heightM) => (heightM > 0 ? radarMarkScale(heightM) : 1) };
   return found;
 }
+
+/** The level a mark stands at: on the drawn sea if it floats, else on the ground as the world has it now. */
+export const markFoot = (x: number, z: number, onWater: boolean, groundAt: (x: number, z: number) => number) => (onWater ? ON_WATER_Y : groundAt(x, z));
+
+/** The part a kit's lit marks shine from: a buoy's or skerry light's lens, a lighthouse's lamp in its lantern. */
+const LAMP_PARTS: Record<Kit, number> = { marina: MARINA_PARTS.indexOf("mark-lens"), identity: IDENTITY_PARTS.indexOf("lamp") };
+const lamps = new Map<string, number>();
+
+/**
+ * Where a mark's light shines from, up from its foot, from the very model drawn there: its lamp where the model has one,
+ * and where it has none (a spar, a cairn, a leading board), the top of the mark, where a lit one carries its lantern.
+ */
+export function markLampM(model: string, heightM: number, x: number, z: number): number {
+  const kinds = seaMarkKinds();
+  if (!(model in kinds)) throw new Error(`a light on a ${model}, which there isn't`);
+  const { kit, build, scaleFor } = kinds[model];
+  let lamp = lamps.get(model);
+  if (lamp === undefined) {
+    const geometry = build().near;
+    const glass = partBounds(geometry, LAMP_PARTS[kit]);
+    geometry.computeBoundingBox();
+    if (geometry.boundingBox === null) throw new Error(`the ${model} has no bounds`);
+    lamp = glass.isEmpty() ? geometry.boundingBox.max.y : glass.getCenter(new Vector3()).y;
+    lamps.set(model, lamp);
+  }
+  return lamp * (scaleFor?.(heightM, x, z) ?? 1);
+}
+
+/**
+ * Where a light shines from: a lighthouse's lamp (`render/lighthouses.ts`), or the lamp of the mark drawn under it,
+ * standing where the sea marks stand it now.
+ */
+export const lampOnMark =
+  (groundAt: (x: number, z: number) => number) =>
+  ({ mark: [model, x, z, , floats, heightM = 0] }: MarkedLight): number => {
+    const lighthouse = lampAt(x, z);
+    if (lighthouse) return markFoot(x, z, lighthouse.onWater, groundAt) + lighthouse.upM;
+    return markFoot(x, z, floats === 1, groundAt) + markLampM(model, heightM, x, z);
+  };
 
 export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (x: number, z: number) => number) {
   const materials: Record<Kit, RoadsideMaterials> = {
@@ -48,12 +94,20 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
     identity: identityMaterials({ ...inputs, time: uniform(0) }),
   };
   const known = seaMarkKinds();
-  const byModel = new Map<string, { x: number; z: number; yaw: number; floats: boolean; scale: number }[]>();
-  for (const [model, x, z, yaw, floats, heightM] of data.marks as [string, number, number, number, number, number][]) {
+  /** Where each model stands: on the drawn ground, or at the water's level (a floating mark, or a landmark on a rock of its own). */
+  const byModel = new Map<string, { x: number; z: number; yaw: number; onWater: boolean; scale: number }[]>();
+  const stand = (model: string, at: { x: number; z: number; yaw: number; onWater: boolean; scale: number }) => {
+    byModel.set(model, [...(byModel.get(model) ?? []), at]);
+  };
+  const takenOver = new Map(LANDMARK_LIGHTHOUSES.flatMap((landmark) => (landmark.mark ? [[landmark.mark, landmark] as const] : [])));
+  for (const mark of REGISTER_MARKS) {
+    const [model, x, z, yaw, floats, heightM = 0] = mark;
     if (!(model in known)) throw new Error(`sea/marks.json places a ${model}, which there isn't`);
-    const scale = known[model].scaleFor?.(heightM) ?? 1;
-    byModel.set(model, [...(byModel.get(model) ?? []), { x, z, yaw, floats: floats === 1, scale }]);
+    const landmark = takenOver.get(mark);
+    if (landmark) stand(`landmark-${landmark.id}`, { x, z, yaw: landmark.yaw, onWater: landmark.ownRock, scale: 1 });
+    else stand(model, { x, z, yaw, onWater: floats === 1, scale: known[model].scaleFor?.(heightM, x, z) ?? 1 });
   }
+  for (const { id, x, z, yaw, ownRock, mark } of LANDMARK_LIGHTHOUSES) if (mark === null) stand(`landmark-${id}`, { x, z, yaw, onWater: ownRock, scale: 1 });
   const lists = [...byModel].map(([name, marks]) => {
     const { kit, build } = known[name];
     return { name, marks, near: [] as typeof marks, model: build(), kit, meshes: [] as Mesh[], shown: 0 };
@@ -70,7 +124,7 @@ export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (
       const reach = list.model.reachM + CELL_M;
       const near = list.marks.filter(({ x, z }) => Math.abs(x - cx) < reach && Math.abs(z - cz) < reach);
       list.near = near;
-      const places: Placement[] = near.map(({ x, z, yaw, floats, scale }) => ({ x, y: floats ? WATER_Y : groundAt(x, z), z, yaw, scale }));
+      const places: Placement[] = near.map(({ x, z, yaw, onWater, scale }) => ({ x, y: markFoot(x, z, onWater, groundAt), z, yaw, scale }));
       list.shown = places.length;
       list.meshes = places.length > 0 ? placeModel(list.model, places, materials[list.kit]) : [];
       for (const mesh of list.meshes) scene.add(mesh);

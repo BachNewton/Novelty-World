@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bike, CalendarDays, Car, Check, RotateCcw, CloudRain, FlaskConical, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
-import type { CarChoice, DayChange, DayShown } from "../render/game";
-import { parseDate } from "../time/day";
+import { Bike, CalendarDays, Car, Check, RotateCcw, Cloud, CloudFog, CloudRain, CloudSnow, CloudSun, FlaskConical, Globe, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
+import type { CarChoice, DayChange, DayShown, Game } from "../render/game";
+import { HELD_WEATHER, type HeldWeather } from "../climate/held";
+import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
 import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
 import { playgroundAsked, playgroundLink } from "../playground/place";
@@ -116,7 +117,49 @@ function ConditionChoice({ condition, onCondition }: { condition: Condition; onC
   );
 }
 
-/** Cars and cyclists on the lanes round the car, on or off. Offline only: the shared world has no traffic until it's shared. */
+const WEATHER_ICONS: Record<HeldWeather, LucideIcon> = { clear: Sun, cloud: CloudSun, overcast: Cloud, rain: CloudRain, snowfall: CloudSnow, fog: CloudFog, ice: ThermometerSnowflake };
+const HELD = Object.keys(HELD_WEATHER) as HeldWeather[];
+
+/** The weather this page draws and drives on: one held, or the shared one running, whose state is marked. */
+function WeatherChoice({ weather, onWeather }: { weather: Game["weather"]; onWeather: Game["setWeather"] }) {
+  const [shown, setShown] = useState(weather);
+  const choose = (held: HeldWeather | null) => {
+    onWeather(held);
+    setShown({ ...weather(), held });
+  };
+  const { held, state } = shown;
+  const live = held === null;
+  return (
+    <div role="radiogroup" aria-label="Weather" className="grid grid-cols-4 gap-1">
+      <button type="button" role="radio" aria-checked={live} title="The shared weather, as every player has it" className="flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-1 py-1 text-xs" style={{ borderColor: live ? ACCENT : "transparent" }} onClick={() => { choose(null); }}>
+        <Globe aria-hidden className="size-4" style={{ color: live ? ACCENT : INK }} />
+        shared
+      </button>
+      {HELD.map((name) => {
+        const Icon = WEATHER_ICONS[name];
+        const chosen = name === held;
+        // The shared weather's own state is marked too, underlined, so what it is now can be seen.
+        const now = live && name === state;
+        return (
+          <button
+            key={name}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            className="flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-1 py-1 text-xs"
+            style={{ borderColor: chosen ? ACCENT : "transparent", textDecoration: now ? "underline" : undefined }}
+            onClick={() => { choose(name); }}
+          >
+            <Icon aria-hidden className="size-4" style={{ color: chosen || now ? ACCENT : INK }} />
+            {name === "ice" ? "black ice" : name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Cars, cyclists and walkers on the lanes round the car, on or off. Offline only: in the shared world, null, it's always on, since everyone sees the same. */
 function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraffic: (on: boolean) => void }) {
   const [on, setOn] = useState(traffic);
   const offline = on !== null;
@@ -124,28 +167,28 @@ function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraf
     <button
       type="button"
       role="switch"
-      aria-checked={on === true}
+      aria-checked={on !== false}
       aria-label="Traffic"
       disabled={!offline}
-      title={offline ? undefined : "Offline only, until traffic is shared online"}
+      title={offline ? undefined : "Always on in the shared world, where everyone sees the same traffic"}
       className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm disabled:cursor-default disabled:opacity-50"
-      style={{ borderColor: on === true ? ACCENT : INK }}
+      style={{ borderColor: on !== false ? ACCENT : INK }}
       onClick={() => {
         if (on === null) return;
         setOn(!on);
         onTraffic(!on);
       }}
     >
-      <Car aria-hidden className="size-4" style={on === true ? { color: ACCENT } : undefined} />
-      <Bike aria-hidden className="size-4" style={on === true ? { color: ACCENT } : undefined} />
-      <span className="grow text-left">{on === true ? "On" : "Off"}</span>
+      <Car aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <Bike aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <span className="grow text-left">{on !== false ? "On" : "Off"}</span>
     </button>
   );
 }
 
 const clockText = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
 
-/** The day this page draws: another date, an hour, or the hour held still. Today's shared day is the start. */
+/** The time this page shows: a month and one of its four game days, an hour, or the time held still. Now is the real date and time. */
 function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayChange) => void }) {
   const [shown, setShown] = useState(day);
   const change = (next: DayChange) => {
@@ -157,31 +200,50 @@ function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayCha
       <div className="flex items-center gap-2">
         <label className="flex grow items-center gap-2 text-sm">
           <CalendarDays aria-hidden className="size-4 shrink-0" />
-          <span className="sr-only">Date</span>
-          <input
-            type="date"
-            value={shown.date}
-            className="grow rounded border-2 bg-transparent px-1"
+          <span className="sr-only">Month</span>
+          <select
+            value={shown.month}
+            className="grow cursor-pointer rounded border-2 bg-transparent px-1"
             style={{ borderColor: INK }}
-            onChange={(event) => {
-              if (event.target.value !== "") change({ date: parseDate(event.target.value) });
-            }}
-          />
+            onChange={(event) => { change({ calendar: { month: Number(event.target.value), day: shown.day } }); }}
+          >
+            {MONTH_NAMES.map((name, at) => (
+              <option key={name} value={at + 1} style={{ background: SHADE }}>{name}</option>
+            ))}
+          </select>
         </label>
-        <button type="button" title="Today, as every player has it" aria-label="Today" className="cursor-pointer rounded border-2 px-2 py-1 text-xs" style={{ borderColor: shown.shared ? ACCENT : INK }} onClick={() => { change({ date: null }); }}>
-          Today
+        <button type="button" title="The real date and time" aria-label="Now" className="cursor-pointer rounded border-2 px-2 py-1 text-xs" style={{ borderColor: INK }} onClick={() => { change({ now: true }); }}>
+          Now
         </button>
       </div>
+      <div className="flex items-center gap-2" role="radiogroup" aria-label="Day of the month">
+        {Array.from({ length: DAYS_A_MONTH }, (_, at) => at + 1).map((number) => (
+          <button
+            key={number}
+            type="button"
+            role="radio"
+            aria-checked={number === shown.day && !shown.dateHeld}
+            className="grow cursor-pointer rounded border-2 py-1 text-sm tabular-nums"
+            style={{ borderColor: number === shown.day && !shown.dateHeld ? ACCENT : INK }}
+            onClick={() => { change({ calendar: { month: shown.month, day: number } }); }}
+          >
+            {number}
+          </button>
+        ))}
+      </div>
       <div className="flex items-center gap-2">
-        <button type="button" title={shown.held ? "Let the hour run" : "Hold the hour"} aria-label={shown.held ? "Let the hour run" : "Hold the hour"} className="cursor-pointer" onClick={() => { change({ held: !shown.held }); }}>
+        <button type="button" title={shown.held ? "Let the time run" : "Hold the time"} aria-label={shown.held ? "Let the time run" : "Hold the time"} className="cursor-pointer" onClick={() => { change({ held: !shown.held }); }}>
           {shown.held ? <Play className="size-4" /> : <Pause className="size-4" />}
         </button>
         <input type="range" aria-label="Hour" min={0} max={23.75} step={0.25} value={shown.hour} className="grow" style={{ accentColor: ACCENT }} onChange={(event) => { change({ hour: Number(event.target.value) }); }} />
         <span className="w-12 text-right text-sm tabular-nums">{clockText(shown.hour)}</span>
       </div>
-      <div className="flex items-center gap-2 text-xs" title="The sun's height over the horizon">
-        <Sunrise aria-hidden className="size-4" />
-        <span className="tabular-nums">{shown.sun.elevationDeg.toFixed(1)}°</span>
+      <div className="flex items-center gap-3 text-xs">
+        <span title="The real date whose sky is shown" className="tabular-nums">{shown.date}</span>
+        <span className="flex items-center gap-1" title="The sun's height over the horizon">
+          <Sunrise aria-hidden className="size-4" />
+          <span className="tabular-nums">{shown.sun.elevationDeg.toFixed(1)}°</span>
+        </span>
       </div>
     </div>
   );
@@ -220,7 +282,7 @@ function SpotList({ spots, onJump, onJumpToDestination }: { spots: readonly { id
   );
 }
 
-export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCondition, day, onDay, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; traffic: boolean | null; onTraffic: (on: boolean) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCondition, day, onDay, weather, onWeather, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; traffic: boolean | null; onTraffic: (on: boolean) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; weather: Game["weather"]; onWeather: Game["setWeather"]; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -234,7 +296,7 @@ export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCon
         <button type="button" aria-label="Close" title="Close" className="absolute top-2 right-2 cursor-pointer" onClick={onClose}>
           <X className="size-5" />
         </button>
-        {/* Three columns, so it fits a screen's height: the world's day and ground, where to go, and what to drive. */}
+        {/* Three columns, so it fits a screen's height: the world's day, weather and ground, where to go, and what to drive. */}
         <div className="flex flex-col gap-4">
           <Section title="Place">
             <CopyPlace whereabouts={whereabouts} />
@@ -245,6 +307,9 @@ export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCon
           </Section>
           <Section title="Day">
             <DayChoice day={day} onDay={onDay} />
+          </Section>
+          <Section title="Weather">
+            <WeatherChoice weather={weather} onWeather={onWeather} />
           </Section>
           <Section title="Ground">
             <ConditionChoice condition={condition} onCondition={onCondition} />

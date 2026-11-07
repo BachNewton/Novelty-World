@@ -2,7 +2,7 @@ import { BIKE, type EngineSpec } from "./vehicles";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
- * firing cycle, the tyres' grit, snow and spray, the freewheel and the beds of each place. No
+ * firing cycle, the tyres' grit, snow and spray, rain on the roof, the freewheel and the sounds of each place. No
  * files and no Web Audio here, and seeded, so a loop is the same every visit.
  * A loop's end meets its start because everything in one is periodic in its
  * length: events wrap round it, and a filter's memory comes from a first pass.
@@ -110,21 +110,40 @@ export function engineCycle(spec: EngineSpec, seed: number): Loop {
   return { rate: HIGH_RATE, channels: [channel] };
 }
 
-/** Stones under a tyre: thousands of short ticks and fewer low pops. */
+/** A short burst of noise through a one-pole low-pass at `corner`, dying away over `decayS`: unpitched, as stone on stone is. */
+function crunchBurst(next: () => number, decayS: number, corner: number, rate: number): Float32Array {
+  const out = new Float32Array(Math.round(decayS * 5 * rate));
+  const share = 1 - Math.exp((-TAU * corner) / rate);
+  let held = 0;
+  for (let i = 0; i < out.length; i++) {
+    held += (next() * 2 - 1 - held) * share;
+    out[i] = held * Math.exp(-i / rate / decayS);
+  }
+  return out;
+}
+
+/**
+ * Stones under a tyre: a gritty grind of crushed gravel, thousands of short unpitched crunches over it, and fewer low
+ * knocks of bigger stones. No pings: tuned clicks in their thousands are heard as rain or running water.
+ */
 export function gravelLoop(): Loop {
   const next = random(23);
   const seconds = 3.7;
-  const channels = [samplesOf(seconds, HIGH_RATE), samplesOf(seconds, HIGH_RATE)];
-  for (let i = 0; i < 2400; i++) {
-    const hz = 1200 + 5200 * next() * next();
-    const decayS = 0.0005 + 0.0016 * next();
-    const level = 0.15 + 0.85 * next() * next();
-    addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() * 1.4 - 0.7, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
+  const length = Math.round(seconds * HIGH_RATE);
+  const channels = [0, 1].map(() => {
+    const grit = lowNoise(length, next, () => 1800, HIGH_RATE);
+    const held = lowNoise(length, next, () => 250, HIGH_RATE);
+    return grit.map((sample, i) => 0.9 * (sample - held[i]));
+  });
+  for (let i = 0; i < 1600; i++) {
+    const burst = crunchBurst(next, 0.002 + 0.006 * next(), 500 + 2200 * next() * next(), HIGH_RATE);
+    const level = 0.6 + 2.4 * next() * next();
+    addPanned(channels, HIGH_RATE, next() * seconds, burst.length / HIGH_RATE, next() * 1.4 - 0.7, (t) => level * burst[Math.min(Math.round(t * HIGH_RATE), burst.length - 1)]);
   }
-  for (let i = 0; i < 260; i++) {
-    const hz = 240 + 500 * next();
-    const decayS = 0.003 + 0.006 * next();
-    const level = 0.5 + next();
+  for (let i = 0; i < 200; i++) {
+    const hz = 140 + 220 * next();
+    const decayS = 0.004 + 0.008 * next();
+    const level = 0.4 + 0.8 * next();
     addPanned(channels, HIGH_RATE, next() * seconds, decayS * 5, next() - 0.5, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * t));
   }
   normalise(channels, 0.9);
@@ -267,6 +286,77 @@ export function sprayLoop(): Loop {
   return { rate: HIGH_RATE, channels };
 }
 
+/**
+ * One drop striking a car: a short burst of noise (glass and paint are hard, so the tap is broadband, not a tone),
+ * and under some of them the dull thump of the roof panel it struck, low and damped.
+ */
+function addDrop(channels: Float32Array[], next: () => number, at: number, level: number, pan: number, thump: boolean): void {
+  const tapS = 0.00025 + 0.0007 * next();
+  addPanned(channels, HIGH_RATE, at, tapS * 5, pan, (t) => level * Math.exp(-t / tapS) * (next() * 2 - 1));
+  if (!thump) return;
+  const hz = 160 + 260 * next();
+  const ringS = 0.003 + 0.005 * next();
+  addPanned(channels, HIGH_RATE, at, ringS * 5, pan, (t) => 0.45 * level * Math.exp(-t / ringS) * Math.sin(TAU * hz * t));
+}
+
+/** A seamless loop through a one-pole low-pass, its memory from a first pass: what a roof and glass between drop and ear take off the top. */
+function softened(channel: Float32Array<ArrayBuffer>, corner: number): Float32Array<ArrayBuffer> {
+  const share = 1 - Math.exp((-TAU * corner) / HIGH_RATE);
+  const out = new Float32Array(channel.length);
+  let held = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < channel.length; i++) {
+      held += (channel[i] - held) * share;
+      out[i] = held;
+    }
+  }
+  return out;
+}
+
+/** Light rain on a car: drops heard one by one on the roof and the glass, a few hundred a second, over a faint hiss. */
+export function rainLightLoop(): Loop {
+  const next = random(83);
+  const seconds = 4.3;
+  const length = Math.round(seconds * HIGH_RATE);
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 5000, HIGH_RATE);
+    const dull = lowNoise(length, next, () => 900, HIGH_RATE);
+    return bright.map((sample, i) => 0.05 * (sample - dull[i]));
+  });
+  for (let i = 0; i < 1100; i++) {
+    const level = 0.15 + 0.85 * next() * next();
+    addDrop(channels, next, next() * seconds, level, next() * 1.8 - 0.9, next() < 0.3);
+  }
+  const soft = channels.map((channel) => softened(channel, 6000));
+  normalise(soft, 0.9);
+  return { rate: HIGH_RATE, channels: soft };
+}
+
+/** Heavy rain on a car: a dense hiss of countless drops, surging a little, with the nearer taps and thumps still standing out of it. */
+export function rainHeavyLoop(): Loop {
+  const next = random(89);
+  const seconds = 3.7;
+  const length = Math.round(seconds * HIGH_RATE);
+  const surges = Array.from({ length: 4 }, () => ({ count: 2 + Math.floor(next() * 9), phase: next() * TAU }));
+  const channels = [0, 1].map(() => {
+    const bright = lowNoise(length, next, () => 6500, HIGH_RATE);
+    const dull = lowNoise(length, next, () => 700, HIGH_RATE);
+    return bright.map((sample, i) => {
+      const place = (TAU * i) / length;
+      let surge = 0;
+      for (const { count, phase } of surges) surge += Math.sin(count * place + phase);
+      return 0.45 * (sample - dull[i]) * (0.85 + 0.15 * (surge / 4));
+    });
+  });
+  for (let i = 0; i < 3500; i++) {
+    const level = 0.08 + 0.5 * next() * next();
+    addDrop(channels, next, next() * seconds, level, next() * 1.8 - 0.9, next() < 0.3);
+  }
+  const soft = channels.map((channel) => softened(channel, 3800));
+  normalise(soft, 0.9);
+  return { rate: HIGH_RATE, channels: soft };
+}
+
 /** One turn of the rear wheel's freewheel, its pawls clicking over the ratchet. */
 export function freewheelLoop(): Loop {
   const next = random(31);
@@ -300,22 +390,11 @@ function chirp(channels: Float32Array[], at: number, seconds: number, pan: numbe
   }
 }
 
-/** Forest: leaves moving in the wind, and a few kinds of small bird, near and far, with long gaps. */
-export function forestBed(): Loop {
-  const next = random(41);
+/** Spring and summer's birds: a few kinds of small bird, near and far, singing over one another with short gaps, so a chorus is this bed played loud. */
+export function birdsBed(): Loop {
+  const next = random(42);
   const seconds = 29;
-  const length = Math.round(seconds * BED_RATE);
-  const swell = [0, 1].map(() => ({ a: 2 + Math.floor(next() * 3), b: 5 + Math.floor(next() * 5), phase: next() * TAU }));
-  const channels = swell.map(({ a, b, phase }) => {
-    const leaves = lowNoise(length, next, () => 2400, BED_RATE);
-    const held = lowNoise(length, next, () => 600, BED_RATE);
-    return leaves.map((sample, i) => {
-      const place = (TAU * i) / length;
-      const breeze = 0.5 + 0.3 * Math.sin(a * place + phase) + 0.2 * Math.sin(b * place);
-      return 0.16 * breeze * (sample - held[i]);
-    });
-  });
-
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
   let at = next() * 1.5;
   while (at < seconds - 3) {
     const pan = next() * 1.6 - 0.8;
@@ -343,82 +422,217 @@ export function forestBed(): Loop {
       const notes = [1, 1.26, 1.12, 1.5].map((ratio) => ratio * (1500 + next() * 400));
       notes.forEach((hz, i) => chirp(channels, at + i * 0.27, 0.25, pan, level * 1.1, (s) => hz * (1 + 0.04 * Math.sin(TAU * 5 * s))));
     }
-    at += 1.4 + next() * 4.6;
+    at += 0.6 + next() * 2.4;
+  }
+  // A woodpecker drumming, now and then: a burst of knocks on hollow wood, faster than anything else in the wood.
+  for (let at = 4 + next() * 4; at < seconds - 2; at += 9 + 6 * next()) {
+    const pan = next() * 1.4 - 0.7;
+    const rateHz = 15 + 5 * next();
+    const knocks = Math.round(rateHz * (0.5 + 0.4 * next()));
+    for (let k = 0; k < knocks; k++) {
+      const level = 0.25 * (1 - (0.4 * k) / knocks);
+      addPanned(channels, BED_RATE, at + k / rateHz, 0.03, pan, (t) => level * Math.exp(-t / 0.006) * (Math.sin(TAU * 1150 * t) + 0.7 * Math.sin(TAU * 420 * t)));
+    }
   }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
 
-/** Sea: swells that rise, break and draw back, each its own length, over a constant wash. */
+/**
+ * A frozen sea or lake: the ice itself, now and then, in the quiet: a low creak as it shifts, or the falling "pew" of a
+ * crack running far across it, its high notes arriving first. The wind is the car's own.
+ */
+export function iceBed(): Loop {
+  const next = random(49);
+  const seconds = 33;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
+  for (let at = 2 + next() * 3; at < seconds - 2; at += 5 + 6 * next()) {
+    const pan = next() * 1.6 - 0.8;
+    if (next() < 0.55) {
+      // A creak: a low groan, its pitch wandering as the ice grinds.
+      const hz = 70 + 70 * next();
+      const longS = 0.4 + 0.8 * next();
+      const wobble = 3 + 5 * next();
+      let phase = 0;
+      addPanned(channels, BED_RATE, at, longS, pan, (t) => {
+        phase += (TAU * hz * (1 + 0.15 * Math.sin(TAU * wobble * t))) / BED_RATE / 2;
+        const grind = 0.6 + 0.4 * (next() * 2 - 1);
+        return 0.5 * Math.sin((Math.PI * t) / longS) * grind * (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.3 * Math.sin(3 * phase));
+      });
+    } else {
+      // A crack running far across the ice: a falling whistle, then its echo.
+      const fromHz = 2600 + 1200 * next();
+      const longS = 0.5 + 0.4 * next();
+      for (const [delayS, level] of [[0, 0.5], [0.18, 0.2]] as const) {
+        let phase = 0;
+        addPanned(channels, BED_RATE, at + delayS, longS, pan, (t) => {
+          phase += (TAU * (220 + (fromHz - 220) * Math.exp(-t / (longS * 0.25)))) / BED_RATE / 2;
+          return level * Math.exp(-t / (longS * 0.5)) * Math.sin(phase);
+        });
+      }
+    }
+  }
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/** Winter's birds, few and far between: a crow's rough caws and now and then a tit's two notes, with long quiet between. */
+export function winterCallsBed(): Loop {
+  const next = random(46);
+  const seconds = 41;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
+  let at = 2 + next() * 3;
+  while (at < seconds - 4) {
+    const pan = next() * 1.8 - 0.9;
+    if (next() < 0.6) {
+      // A crow: two to four rough caws, each a falling note thick with harmonics.
+      const caws = 2 + Math.floor(next() * 3);
+      const hz = 520 + next() * 160;
+      const level = 0.2 + 0.25 * next();
+      for (let i = 0; i < caws; i++) {
+        const caw = (s: number) => hz * (1.08 - 0.2 * s) * (1 + 0.04 * Math.sin(TAU * 31 * s));
+        for (const [harmonic, share] of [[1, 1], [2, 0.7], [3, 0.5], [4, 0.3], [5, 0.2]] as const) chirp(channels, at, 0.32, pan, level * share, (s) => harmonic * caw(s));
+        at += 0.45 + next() * 0.15;
+      }
+    } else {
+      const high = 4100 + next() * 600;
+      const level = 0.08 + 0.1 * next();
+      for (let i = 0; i < 2; i++) {
+        chirp(channels, at + i * 0.36, 0.14, pan, level, () => high);
+        chirp(channels, at + i * 0.36 + 0.17, 0.13, pan, level, () => high * 0.72);
+      }
+    }
+    at += 7 + next() * 9;
+  }
+  normalise(channels, 0.8);
+  return { rate: BED_RATE, channels };
+}
+
+/**
+ * The sea on a rocky shore: each swell comes in rising, breaks, and washes back fizzing over the stones, at an uneven
+ * rhythm of six to nine seconds, over the far surf's low murmur. The fizz, thousands of bubbles bursting, is what
+ * tells water from wind.
+ */
 export function shoreBed(): Loop {
   const next = random(43);
-  const seconds = 23;
+  const seconds = 27;
   const length = Math.round(seconds * BED_RATE);
-  const waves = [0, 1, 2, 3, 4].map((i) => ({ at: (i + 0.8 * next()) / 5, width: 0.1 + 0.05 * next(), height: 0.65 + 0.35 * next() }));
-  /** Each wave rises slowly and falls away quicker, on a loop of 0 to 1. */
-  const swell = (share: number) => {
+  const waves: { breakS: number; riseS: number; washS: number; height: number }[] = [];
+  for (let at = 1 + next() * 2; at < seconds; at += 5.5 + 3 * next()) waves.push({ breakS: at, riseS: 1.4 + 0.8 * next(), washS: 2.2 + 1.4 * next(), height: 0.6 + 0.4 * next() });
+  /** How much water is moving at a moment: rising to the break, then drawing back. */
+  const surge = (t: number) => {
     let sum = 0;
-    for (const { at, width, height } of waves) {
-      const from = ((share - at + 1.5) % 1) - 0.5;
-      const shaped = from < 0 ? from / (width * 1.6) : from / (width * 0.8);
-      sum += height * Math.exp(-shaped * shaped);
+    for (const { breakS, riseS, washS, height } of waves) {
+      const from = ((((t - breakS) % seconds) + seconds * 1.5) % seconds) - seconds / 2;
+      if (from < 0 && from > -riseS) sum += height * (1 + from / riseS) ** 2;
+      else if (from >= 0) sum += height * Math.exp(-from / (washS * 0.45));
     }
-    return sum;
+    return Math.min(sum, 1.4);
   };
-  const channels = [0, 1].map((side) =>
-    lowNoise(length, next, (i) => 280 + 2300 * swell(((i / length + side * 0.012) % 1)), BED_RATE).map((sample, i) => sample * (0.16 + swell((i / length + side * 0.012) % 1))),
-  );
+  /** The water drawing back after each break, the hiss of it running over the stones. */
+  const washing = (t: number) => {
+    let sum = 0;
+    for (const { breakS, washS, height } of waves) {
+      const from = ((((t - breakS) % seconds) + seconds * 1.5) % seconds) - seconds / 2;
+      if (from >= 0) sum += height * Math.min(1, from / 0.15) * Math.exp(-from / (washS * 0.55));
+    }
+    return Math.min(sum, 1.2);
+  };
+  // Each worked out once a sample, not once a sample of every pass.
+  const surging = Float32Array.from({ length }, (_, i) => surge(i / BED_RATE));
+  const washed = Float32Array.from({ length }, (_, i) => washing(i / BED_RATE));
+  const channels = [0, 1].map((side) => {
+    // The right ear hears each wave a moment after the left.
+    const lag = Math.round(side * 0.03 * BED_RATE);
+    const at = (values: Float32Array, i: number) => values[(i + lag) % length];
+    const body = lowNoise(length, next, (i) => 220 + 2600 * at(surging, i), BED_RATE);
+    const far = lowNoise(length, next, () => 260, BED_RATE);
+    const hiss = lowNoise(length, next, () => 6500, BED_RATE);
+    const hissHeld = lowNoise(length, next, () => 1800, BED_RATE);
+    return body.map((sample, i) => sample * (0.06 + at(surging, i)) + 0.35 * far[i] + 1.4 * at(washed, i) * (hiss[i] - hissHeld[i]));
+  });
+  for (const { breakS, washS, height } of waves) {
+    // The break: a short burst as the crest falls.
+    addPanned(channels, BED_RATE, breakS, 0.35, next() * 0.8 - 0.4, (t) => height * 0.5 * Math.exp(-t / 0.09) * (next() * 2 - 1));
+    // The wash: bubbles bursting as it draws back over the stones, thick at first and thinning out.
+    for (let i = 0; i < 1000 * height; i++) {
+      const into = washS * next() ** 1.8;
+      const hz = 1800 + 4500 * next();
+      const decayS = 0.0005 + 0.0015 * next();
+      const level = 0.12 + 0.4 * next() * next();
+      addPanned(channels, BED_RATE, breakS + into, decayS * 5, next() * 1.6 - 0.8, (t) => level * Math.exp(-t / decayS) * Math.sin(TAU * hz * (1 + 4 * t) * t));
+    }
+  }
   normalise(channels, 0.85);
   return { rate: BED_RATE, channels };
 }
 
-/** Gulls, far off and now and then: falling cries in a run, on their own loop so they never line up with the waves. */
-export function gullsBed(): Loop {
-  const next = random(47);
-  const seconds = 37;
+/** A lake or a pond on a still day: small wavelets lapping at the bank, a slap and a gulp every second or two, and quiet between. */
+export function lakeBed(): Loop {
+  const next = random(45);
+  const seconds = 23;
   const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
-  let at = 2 + next() * 3;
-  while (at < seconds - 5) {
-    const pan = next() * 1.8 - 0.9;
-    const level = 0.15 + 0.35 * next();
-    const cries = 2 + Math.floor(next() * 4);
-    const hz = 900 + next() * 450;
-    for (let i = 0; i < cries; i++) {
-      const long = i === 0 ? 0.42 : 0.24;
-      const cry = (s: number) => hz * (1.45 - 0.55 * s) * (1 + 0.012 * Math.sin(TAU * 14 * s));
-      chirp(channels, at, long, pan, level, cry);
-      chirp(channels, at, long, pan, level * 0.42, (s) => 2 * cry(s));
-      chirp(channels, at, long, pan, level * 0.2, (s) => 3 * cry(s));
-      at += long + 0.08 + next() * 0.1;
-    }
-    at += 3 + next() * 7;
+  for (let at = next(); at < seconds - 0.5; at += 0.7 + 1.7 * next()) {
+    const pan = next() * 1.4 - 0.7;
+    const level = 0.3 + 0.7 * next();
+    const slapS = 0.025 + 0.03 * next();
+    const corner = 900 + 1200 * next();
+    let held = 0;
+    const share = 1 - Math.exp((-TAU * corner) / BED_RATE);
+    addPanned(channels, BED_RATE, at, slapS * 6, pan, (t) => {
+      held += (next() * 2 - 1 - held) * share;
+      return level * 0.6 * Math.exp(-t / slapS) * held * 6;
+    });
+    // The gulp: water closing over the air the wavelet trapped, a short note rising as the pocket shrinks.
+    const hz = 260 + 380 * next();
+    const gulpS = 0.03 + 0.04 * next();
+    addPanned(channels, BED_RATE, at + 0.02 + 0.05 * next(), gulpS * 5, pan, (t) => level * 0.35 * Math.exp(-t / gulpS) * Math.sin(TAU * hz * (1 + 6 * t) * t));
   }
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
 
-/** A town: far traffic's low wash, cars going by a street away, and a hum of machines. */
-export function townBed(): Loop {
-  const next = random(53);
-  const seconds = 19;
-  const length = Math.round(seconds * BED_RATE);
-  const channels = [0, 1].map(() => {
-    const low = lowNoise(length, next, () => 260, BED_RATE);
-    const lower = lowNoise(length, next, () => 70, BED_RATE);
-    return low.map((sample, i) => 1.6 * sample + 3 * lower[i]);
-  });
-  for (let i = 0; i < 6; i++) {
-    const at = (i + next()) * (seconds / 6);
-    const passS = 3 + 2 * next();
-    const pan = next() * 1.4 - 0.7;
-    const passing = lowNoise(Math.round(passS * BED_RATE), next, () => 900, BED_RATE);
-    addPanned(channels, BED_RATE, at, passS, pan, (t) => {
-      const share = t / passS;
-      return 1.2 * Math.sin(Math.PI * share) ** 2 * passing[Math.min(Math.round(t * BED_RATE), passing.length - 1)];
-    });
+/** A gull's call: a run of falling cries, each with its harsh upper harmonics. One call, for placing over the water. */
+export function gullCall(): Loop {
+  const next = random(47);
+  const cries = 2 + Math.floor(next() * 3);
+  const hz = 950 + next() * 400;
+  const seconds = cries * 0.5 + 0.4;
+  const channels = [samplesOf(seconds, BED_RATE), samplesOf(seconds, BED_RATE)];
+  let at = 0.02;
+  for (let i = 0; i < cries; i++) {
+    const long = i === 0 ? 0.42 : 0.24;
+    const cry = (s: number) => hz * (1.45 - 0.55 * s) * (1 + 0.012 * Math.sin(TAU * 14 * s));
+    chirp(channels, at, long, 0, 0.8, cry);
+    chirp(channels, at, long, 0, 0.34, (s) => 2 * cry(s));
+    chirp(channels, at, long, 0, 0.16, (s) => 3 * cry(s));
+    at += long + 0.08 + next() * 0.06;
   }
-  const humHz = 100;
-  for (const channel of channels) for (let i = 0; i < length; i++) channel[i] += 0.012 * Math.sin((TAU * Math.round(humHz * seconds) * i) / length);
   normalise(channels, 0.8);
   return { rate: BED_RATE, channels };
 }
+
+/** One strike of a church bell: a bell's partials (the hum, the prime, the minor third, the fifth and the nominal), each dying away at its own rate. */
+export function churchBell(): Loop {
+  const seconds = 4.5;
+  const base = 330;
+  const partials = [
+    [0.5, 0.5, 3.2],
+    [1, 0.8, 2.2],
+    [1.19, 0.5, 1.6],
+    [1.5, 0.35, 1.2],
+    [2, 0.45, 1],
+    [2.51, 0.2, 0.6],
+    [3.01, 0.15, 0.45],
+  ] as const;
+  const channel = samplesOf(seconds, BED_RATE);
+  for (let i = 0; i < channel.length; i++) {
+    const t = i / BED_RATE;
+    let sum = 0;
+    for (const [ratio, level, decayS] of partials) sum += level * Math.exp(-t / decayS) * Math.sin(TAU * base * ratio * t);
+    channel[i] = sum * Math.min(1, t / 0.002);
+  }
+  normalise([channel], 0.8);
+  return { rate: BED_RATE, channels: [channel, Float32Array.from(channel)] };
+}
+

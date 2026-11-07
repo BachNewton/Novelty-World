@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Car, NO_INPUT, type DriveInput, type Tread } from "./car";
+import { Car, NO_INPUT, type Assists, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
 import type { EngineRead } from "./gearbox";
@@ -104,6 +104,15 @@ export class SimulatedCar {
     this.car.tyres = tyres;
   }
 
+  /** The driver's aids the car is driven with, which a swapped car keeps. */
+  get assists(): Assists {
+    return this.car.assists;
+  }
+
+  set assists(assists: Assists) {
+    this.car.assists = assists;
+  }
+
   swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
     this.car.tyres = tyres;
     if (id === this.car.id) return;
@@ -128,6 +137,11 @@ export class SimulatedCar {
     return this.car.surfaces;
   }
 
+  /** The condition of what each wheel was on, in the same order: the weather's, or ice on the frozen sea. */
+  conditions(): readonly Condition[] {
+    return this.car.conditions;
+  }
+
   /** How each wheel's tyre met the ground on the last step, in the same order. */
   treads(): readonly Readonly<Tread>[] {
     return this.car.treads;
@@ -143,7 +157,7 @@ export class SimulatedCar {
   }
 
   private overWater(x: number, z: number): boolean {
-    if (!this.world.isWater(x, z)) return false;
+    if (!this.world.isWater(x, z) || this.world.bearsCar(x, z)) return false;
     const road = this.world.roads.nearest(x, z);
     return !road || road.distance > 6;
   }
@@ -321,6 +335,15 @@ export class Drive {
 
   set tyres(tyres: Tyre) {
     this.player.tyres = tyres;
+  }
+
+  /** The driver's aids on the car being driven. */
+  get assists(): Assists {
+    return this.player.assists;
+  }
+
+  set assists(assists: Assists) {
+    this.player.assists = assists;
   }
 
   /** What the weather has made of every surface, for every car: dry until something says otherwise. */

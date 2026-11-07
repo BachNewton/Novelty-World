@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { nextToLoad, isPastUnload } from "../render/stream";
 import { paintAlong, DASH_LENGTH_M } from "../render/roads";
 import type { HeightGrid, TileManifest, WorldManifest } from "../render/tile";
-import { modelWalls } from "../render/tile-models";
+import { modelWalls, seasonalWalls, type SeasonalWalls } from "../render/tile-models";
 import { parkedWalls } from "../render/parked-places";
 import { NO_INPUT } from "./car";
 import { Drive, initPhysics } from "./drive";
@@ -64,6 +64,8 @@ const manifest = {
 
 const ROAD_Z = -3000;
 const ROAD_HEIGHT_ABOVE_M = 0.2;
+/** Half a car's length: a car still this near the road's line after a hit is in line with what it hit. */
+const ALONG_THE_LINE_M = 2.5;
 
 /** A straight road along z = ROAD_Z from one tile's edge to the other's, with a section every 10 m. */
 function roadBytes(fromX: number, toX: number): { bytes: ArrayBuffer; sections: number } {
@@ -84,12 +86,12 @@ function tileManifest(name: string, west: number, sections: number): TileManifes
   return { tile: name, bounds: { west, east: west + TILE_M, south: 0, north: TILE_M }, roadSurface: { file: "", chains: [{ sections, kind: "primary", motor: true }] }, solids: { file: "", unitM: 0.02, cells: [], walls: 0 } };
 }
 
-function twoTiles(withEastDetail = true, walls?: Float32Array): World {
+function twoTiles(withEastDetail = true, walls?: Float32Array, seasonal?: SeasonalWalls): World {
   const world = new World(manifest);
   world.addFar("WEST", gridAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16));
   world.addFar("EAST", gridAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16));
   const west = roadBytes(-TILE_M, 0);
-  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls));
+  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls, undefined, null, seasonal));
   if (withEastDetail) {
     // Its chain runs the other way, towards the seam, as a neighbour's may.
     const east = roadBytes(TILE_M, 0);
@@ -108,7 +110,11 @@ const downOn = (drive: Drive, x: number, z: number) => {
   return 300 - hit.timeOfImpact;
 };
 
-/** Drives flat out east along the road from x = -2400, and says how fast the car got and how far east it came. */
+/**
+ * Drives flat out east along the road from x = -2400, and says how fast the car got and how far east it came along
+ * the road's line: a car thrown off a small prop at top speed may drive round it after, and only passing through it
+ * along the line is a failure.
+ */
 function flatOut(world: World): { fastest: number; furthest: number } {
   const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
   const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
@@ -118,7 +124,7 @@ function flatOut(world: World): { fastest: number; furthest: number } {
     drive.step({ ...NO_INPUT, throttle: 1 });
     const { position, velocity } = drive.stateAt(1);
     fastest = Math.max(fastest, velocity[0]);
-    furthest = Math.max(furthest, position[0]);
+    if (Math.abs(position[2] - ROAD_Z) < ALONG_THE_LINE_M) furthest = Math.max(furthest, position[0]);
   }
   drive.dispose();
   return { fastest, furthest };
@@ -198,6 +204,15 @@ describe("the farm", () => {
     const { fastest, furthest } = flatOut(twoTiles(true, modelWalls({ "bale-wrapped": Float32Array.of(baleX, 0, ROAD_Z, 0.4, 1, 1) })));
     expect(fastest).toBeGreaterThan(50);
     expect(furthest).toBeLessThan(baleX);
+  });
+
+  it("stops the car at a bale while it's out in the field, and lets it through once the bales are in", () => {
+    const baleX = -300;
+    const bales = seasonalWalls({ "bale-wrapped": Float32Array.of(baleX, 0, ROAD_Z, 0.4, 1, 1) });
+    expect(flatOut(twoTiles(true, undefined, bales)).furthest).toBeLessThan(baleX);
+    const winter = twoTiles(true, undefined, bales);
+    winter.setPlacedSeason({ terraces: 0, grazing: 0, boatsAfloat: 0, bales: 0 });
+    expect(flatOut(winter).furthest).toBeGreaterThan(baleX);
   });
 
   it("stops the car at a windmill's trestle at top speed", () => {

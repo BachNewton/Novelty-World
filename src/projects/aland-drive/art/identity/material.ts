@@ -1,14 +1,15 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, uniformArray, varying, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, cos, float, floor, fract, int, max, mix, mod, positionGeometry, positionWorld, round, select, sin, smoothstep, step, varying, vec3 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { rollOf, screenPattern, type RoadsideMaterials } from "../roadside/index";
 import { MOTION_KINDS, MOTION_RANGE_M } from "../street/paint";
 import type { StreetInputs } from "../street/index";
-import { AFLOAT_UNIT, IDENTITY_PARTS, PAINT, PATTERNS, type Pattern } from "./mesh";
+import { AFLOAT_UNIT, IDENTITY_PARTS, PAINT, PATTERNS, SPIN_UNIT, type Pattern } from "./mesh";
 import "./tokens.css";
 import { flatNormal } from "../flat-normal";
 import { towardsSun } from "../sun";
+import { kitPalette } from "../palette";
 
 /*
  * The street kit's two materials with this kit's palette: the same instance layout,
@@ -38,6 +39,9 @@ const THIN_BAND = 0.03;
 /** A thin part stays while it covers this share of its roll: a little heavier than its share reads truer than a railing with gaps. */
 const THIN_HOLD = 0.6;
 
+/** How fast a spinning model turns: an Enercon E-70's rotor at a fresh breeze, 15 turns a minute. */
+const SPIN_RAD_PER_S = (15 / 60) * 2 * Math.PI;
+
 const MOVES = { still: [0, 0], leaf: [1.25, 0.8], cloth: [3.4, 2.1], hull: [0.7, 0], run: [0, 0] } as const;
 
 const patternIs = (code: Node<"float">, name: Pattern) => mod(floor(code.div(8)), 8).equal(PATTERNS.indexOf(name));
@@ -51,7 +55,8 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const tint = attribute<"vec4">("tint", "vec4");
   const code = round(tint.a.mul(255));
   const kind = mod(code, 8);
-  const afloat = step(float(AFLOAT_UNIT), code);
+  const spins = step(float(SPIN_UNIT), code);
+  const afloat = step(float(AFLOAT_UNIT), mod(code, SPIN_UNIT));
   const distance = place.xz.sub(cameraPosition.xz).length();
   const roll = rollOf(place.xz);
 
@@ -64,7 +69,10 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const thin = attribute<"vec4">("thin", "vec4");
   const half = thin.xyz.length().mul(fit.x);
   const widened = max(float(1), distance.mul(PIXEL_M_PER_M * THIN_PIXELS).div(max(half, float(1e-4))));
-  const local = positionGeometry.add(thin.xyz.mul(widened.sub(1)));
+  const widenedAt = positionGeometry.add(thin.xyz.mul(widened.sub(1)));
+  // A spinning model turns about its own z axis, each place from a start of its own; a still one turns by nothing.
+  const turn = time.mul(SPIN_RAD_PER_S).add(roll.mul(6.283)).mul(spins);
+  const local = vec3(widenedAt.x.mul(cos(turn)).sub(widenedAt.y.mul(sin(turn))), widenedAt.x.mul(sin(turn)).add(widenedAt.y.mul(cos(turn))), widenedAt.z);
   const thinLeft = varying(select(thin.w.greaterThan(0), smoothstep(thin.w.sub(THIN_BAND), thin.w.add(THIN_BAND), float(1 / THIN_HOLD).div(widened)), float(1)));
 
   const x = local.x.mul(fit.y);
@@ -78,16 +86,18 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
 
   const toSun = towardsSun(sun);
-  const palette = uniformArray(IDENTITY_PARTS.map((part) => {
-    const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
-    const { from, to = from, share = 0, gain = 1 } = paint;
-    return linear(from).lerp(linear(to), share).multiplyScalar(gain);
-  }));
+  const palette = kitPalette(linear, "identity", () =>
+    IDENTITY_PARTS.map((part) => {
+      const paint: { from: string; to?: string; share?: number; gain?: number } = PAINT[part];
+      const { from, to = from, share = 0, gain = 1 } = paint;
+      return linear(from).lerp(linear(to), share).multiplyScalar(gain);
+    }),
+  );
   const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
 
   const normal = flatNormal();
   const lit = float(AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE));
-  const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), up.mul(fit.x))), float(1), afloat);
+  const grounded = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), up.mul(fit.x))), float(1), afloat.max(spins));
 
   const away = positionWorld.sub(cameraPosition).length();
   const metres = vec3(x, local.y, local.z).mul(fit.x);

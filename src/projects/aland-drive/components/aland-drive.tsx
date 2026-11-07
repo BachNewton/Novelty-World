@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
+import { MONTH_NAMES } from "../time/calendar";
 import { GameMenu, raceColour } from "./game-menu";
 import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
@@ -15,6 +16,7 @@ import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
 import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
+import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
 
 /*
@@ -67,28 +69,37 @@ const PLACE_CARD_S = 12;
 const NOTICE_S = 5;
 const NOTICE_LOOKS = {
   left: { icon: LogOut, label: "Left the challenge" },
-  declined: { icon: X, label: "Declined" },
   withdrawn: { icon: UserX, label: "Invite off" },
+  expired: { icon: UserX, label: "Invite off" },
+  taken: { icon: UserCheck, label: "Someone joined first" },
+  destination: { icon: MapPin, label: "Set the destination" },
+  cleared: { icon: MapPinOff, label: "Cleared the destination" },
 } as const;
 
-/** A date as `?date=` takes it, as a driver reads one: "Mon 21 Dec". */
-function dayText(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const TIME_COVER = "@keyframes aland-time-cover { from { opacity: 0 } to { opacity: 1 } }";
+const TIME_COVER_S = 0.4;
+
+/** Covers the view while the page takes the online world's time, so the sky doesn't jump in sight: a fade out, the jump, a fade back in. */
+function TimeCover({ jump, onDone }: { jump: () => void; onDone: () => void }) {
+  const [covered, setCovered] = useState(false);
+  return (
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{ background: SHADE, animation: `aland-time-cover ${TIME_COVER_S}s ease-in-out ${covered ? "reverse" : "normal"} forwards` }}
+      key={covered ? "uncover" : "cover"}
+      onAnimationEnd={() => {
+        if (covered) {
+          onDone();
+          return;
+        }
+        jump();
+        setCovered(true);
+      }}
+    />
+  );
 }
 
-/** The hour as a 24-hour clock: "14:05". */
-function hourText(hour: number): string {
-  const minutes = Math.floor(hour * 60);
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
-/** A distance as a driver reads one: tens of metres near, and tenths of a kilometre far. */
-function distanceText(metres: number): string {
-  if (metres >= 1000) return `${(metres / 1000).toFixed(1)} km`;
-  return `${Math.round(metres / 10) * 10} m`;
-}
-
-/** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
+/** A co-op partner left, an invite was taken back, someone else joined it first, or another player set or cleared the destination: who, and an icon for what. */
 function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
   const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
   return (
@@ -96,6 +107,7 @@ function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () 
       <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
       <span>{notice.name}</span>
       <Icon className="size-5 shrink-0" aria-label={label} />
+      {notice.partner !== undefined && <span aria-label="Joined by">{notice.partner}</span>}
     </div>
   );
 }
@@ -108,10 +120,12 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const revArc = useRef<SVGCircleElement>(null);
   const revNeedle = useRef<SVGLineElement>(null);
   const miniMap = useRef<HTMLCanvasElement>(null);
-  const dateShown = useRef<HTMLSpanElement>(null);
+  const monthShown = useRef<HTMLSpanElement>(null);
   const hourShown = useRef<HTMLSpanElement>(null);
   const sunIcon = useRef<SVGSVGElement>(null);
   const moonIcon = useRef<SVGSVGElement>(null);
+  const temperatureRow = useRef<HTMLSpanElement>(null);
+  const temperatureShown = useRef<HTMLSpanElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
   const cueText = useRef<HTMLSpanElement>(null);
@@ -119,12 +133,13 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [failure, setFailure] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [input, setInput] = useState<InputKind>("keyboard-mouse");
+  const units = useUnits((state) => state.units);
   const [camera, setCamera] = useState<CameraMode>("chase");
   const [loading, setLoading] = useState<LoadingProgress | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "weather" | "setWeather" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
   const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
@@ -139,6 +154,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
+  const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
   const needsRow = useRef<HTMLDivElement>(null);
   const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
@@ -160,14 +176,14 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     let shownPlay = "";
     let shownOffer = "";
     let shownCoop = "";
-    let shownDate = "";
+    let shownMonth = 0;
     const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
-      const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
+      const offerKey = offered ? `${offered.title}|${offered.players}` : "";
       if (offerKey !== shownOffer) {
         shownOffer = offerKey;
         setOffer(offered);
       }
-      const coopKey = pairing ? `${pairing.kind}|${pairing.name}|${pairing.title}` : "";
+      const coopKey = pairing ? `${pairing.kind}|${pairing.name ?? ""}|${pairing.title}` : "";
       if (coopKey !== shownCoop) {
         shownCoop = coopKey;
         setCoop(pairing);
@@ -181,7 +197,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       }
       if (!challenge) return;
       if (needsRow.current) needsRow.current.style.display = challenge.needs === null ? "none" : "flex";
-      if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs)}`;
+      if (needsText.current && challenge.needs !== null) needsText.current.textContent = challenge.kind === "route" ? `Make it by ${timeText(challenge.needs)}` : `Reach ${resultText("speed-trap", challenge.needs, useUnits.getState().units)}`;
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
@@ -196,19 +212,21 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     const showSpeed = (reading: HudReading) => {
       const { speedKmh, gear, revs, toGoM, clock } = reading;
       showChallenge(reading);
-      if (clock.date !== shownDate && dateShown.current) {
-        shownDate = clock.date;
-        dateShown.current.textContent = dayText(clock.date);
+      if (clock.month !== shownMonth && monthShown.current) {
+        shownMonth = clock.month;
+        monthShown.current.textContent = MONTH_NAMES[clock.month - 1];
       }
-      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour);
+      if (hourShown.current) hourShown.current.textContent = hourText(clock.hour, useUnits.getState().units);
       if (sunIcon.current) sunIcon.current.style.display = clock.sunUp ? "block" : "none";
       if (moonIcon.current) moonIcon.current.style.display = clock.sunUp ? "none" : "block";
-      if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
+      if (temperatureRow.current) temperatureRow.current.style.display = clock.temperatureC === null ? "none" : "flex";
+      if (temperatureShown.current && clock.temperatureC !== null) temperatureShown.current.textContent = temperatureText(clock.temperatureC, useUnits.getState().units);
+      if (speedText.current) speedText.current.textContent = String(speedNumber(speedKmh, useUnits.getState().units));
       if (gearText.current) gearText.current.textContent = gear;
       if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
       revNeedle.current?.setAttribute("transform", `rotate(${revs * DIAL_SWEEP * 360} 50 50)`);
       if (cue.current) cue.current.style.display = toGoM === null ? "none" : "flex";
-      if (toGoM !== null && cueText.current) cueText.current.textContent = distanceText(toGoM);
+      if (toGoM !== null && cueText.current) cueText.current.textContent = distanceText(toGoM, useUnits.getState().units);
     };
     void (async () => {
       const adapter = "gpu" in navigator ? await navigator.gpu.requestAdapter() : null;
@@ -238,6 +256,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onProgress: setProgress,
+          onTimeJump: (jump) => { setTimeJump({ jump }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -271,7 +290,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   return (
     <div className="fixed inset-0" style={{ background: SHADE, ["--prompt-body" as string]: SHADE, ["--prompt-ink" as string]: INK }}>
       <div ref={container} className="absolute inset-0" />
-      <style>{ROAD_LABEL_FADE}</style>
+      <style>{ROAD_LABEL_FADE}{TIME_COVER}</style>
       {(stillLoading || (loading !== null && loading.done < loading.total)) && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: SHADE }}>
           <div className="h-2 w-72 overflow-hidden rounded-full" role="progressbar" aria-label="Loading the island" aria-valuemin={0} aria-valuemax={loading?.total ?? 1} aria-valuenow={loading?.done ?? 0} style={{ background: INK, opacity: 0.9 }}>
@@ -280,16 +299,17 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         </div>
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
-      {/* The day over the mini map, as wide as it: date, and the hour with the sun or the moon. */}
-      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Date and time">
-        <span className="flex items-center gap-1" title="Date">
-          <CalendarDays className="size-5 shrink-0" aria-hidden />
-          <span ref={dateShown} aria-label="Date" />
-        </span>
+      {/* The time over the mini map, at least as wide as it: the month, the hour with the sun or the moon, and the air's temperature. */}
+      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Month, time and temperature">
+        <span ref={monthShown} title="Month" aria-label="Month" />
         <span className="flex items-center gap-1" title="Time">
           <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
           <Moon ref={moonIcon} className="size-5 shrink-0" style={{ display: "none" }} aria-hidden />
           <span ref={hourShown} aria-label="Time" />
+        </span>
+        <span ref={temperatureRow} className="items-center gap-1" style={{ display: "none" }} title="Temperature">
+          <Thermometer className="size-5 shrink-0" aria-hidden />
+          <span ref={temperatureShown} aria-label="Temperature" />
         </span>
       </div>
       <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
@@ -341,7 +361,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                       <div className="flex items-baseline gap-2 tabular-nums">
                         <Timer className="size-5 shrink-0 self-center" aria-hidden />
                         <span ref={clockText} className="text-3xl font-bold" aria-label="Time">0:00.0</span>
-                        {playing.target !== null && <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target)}</span>}
+                        {playing.target !== null && <span className="text-lg opacity-75" aria-label="Target">/ {resultText("route", playing.target, units)}</span>}
                       </div>
                       <div className="flex items-center gap-2 text-lg tabular-nums" title="Gates">
                         <Flag className="size-5 shrink-0" aria-hidden />
@@ -352,7 +372,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                   {playing.kind === "speed-trap" && (
                     <div className="flex items-center gap-2 text-2xl font-bold tabular-nums" title="Speed to reach at the camera">
                       <Gauge className="size-6 shrink-0" aria-hidden />
-                      {playing.target !== null && <span aria-label="Target">{resultText("speed-trap", playing.target)}</span>}
+                      {playing.target !== null && <span aria-label="Target">{resultText("speed-trap", playing.target, units)}</span>}
                     </div>
                   )}
                   </>
@@ -398,8 +418,11 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                 <circle cx={50} cy={50} r={44} pathLength={1} stroke={REDLINE} strokeDasharray={`${DIAL_SWEEP * (1 - REDLINE_FROM)} 1`} strokeDashoffset={-DIAL_SWEEP * REDLINE_FROM} />
                 <line ref={revNeedle} x1={78} y1={50} x2={98} y2={50} stroke={INK} strokeWidth={2.5} strokeLinecap="round" />
               </svg>
-              <span ref={speedText} className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-6xl font-bold tabular-nums" role="status" aria-label="Speed in kilometres an hour">
+              <span ref={speedText} className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-6xl font-bold tabular-nums" role="status" aria-label={units === "metric" ? "Speed in kilometres an hour" : "Speed in miles an hour"}>
                 0
+              </span>
+              <span className="absolute inset-x-0 top-[68%] text-center text-sm font-semibold opacity-80" aria-hidden>
+                {speedUnit(units)}
               </span>
               <span ref={gearText} className="absolute inset-x-0 bottom-1 text-center text-3xl font-bold tabular-nums" aria-label="Gear">
                 1
@@ -407,14 +430,14 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             </div>
           )}
           {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.partner === null ? "Start" : "Solo or co-op"}>
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.players === 0 ? "Start" : "Solo or co-op"}>
               <Prompt binding={BINDINGS.challenge} input={input} />
               {offer.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(offer.ground) }} aria-hidden /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />}
               <span>{offer.title}</span>
-              {offer.partner !== null && (
-                <span className="flex items-center gap-1" aria-label="Co-op with" title={`Co-op with ${offer.partner}`}>
+              {offer.players > 0 && (
+                <span className="flex items-center gap-1 tabular-nums" aria-label="Co-op with" title={`Co-op: ask everyone online (${offer.players})`}>
                   <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
-                  <span>{offer.partner}</span>
+                  <span>{offer.players}</span>
                 </span>
               )}
             </div>
@@ -423,8 +446,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}` }} aria-label={coop.kind === "invited" ? "Co-op invite" : "Co-op waiting"} title={coop.kind === "invited" ? "Join or decline" : coop.kind === "inviting" ? "Take the invite back" : "Joining"}>
               {coop.kind !== "joining" && <Prompt binding={BINDINGS.challenge} input={input} />}
               {coop.kind === "invited" ? <UserPlus className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden /> : <Hourglass className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />}
-              <span>{coop.name}</span>
-              <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
+              {coop.name === null ? <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-label="Everyone" /> : <span>{coop.name}</span>}
+              {coop.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(coop.ground) }} aria-label="Race" /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-label="Challenge" />}
               <span>{coop.title}</span>
             </div>
           )}
@@ -432,9 +455,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             <CoopNotice key={notice.seen} notice={notice} onDone={() => { setNotice(null); }} />
           )}
           {others.length > 0 && playing === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>
+            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Players online, you included" title={["You", ...others].join(", ")}>
               <Users className="size-5" style={{ color: PLAYER }} aria-hidden />
-              <span>{others.length}</span>
+              <span>{others.length + 1}</span>
             </div>
           )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>
@@ -447,8 +470,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           </ul>
         </>
       )}
+      {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>

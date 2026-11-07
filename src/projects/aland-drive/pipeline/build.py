@@ -35,6 +35,8 @@ import outbuildings
 import overview
 import parking
 import road_map
+import paving
+import paving_file
 import roads as road_surface
 import roadside
 import rocks
@@ -136,6 +138,31 @@ def corners_to_samples(corners: np.ndarray) -> np.ndarray:
     return corners[:-1, :-1] | corners[1:, :-1] | corners[:-1, 1:] | corners[1:, 1:]
 
 
+def paving_way_points(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray, list]], paved: paving.Paved) -> np.ndarray:
+    """The paving's points, each naming its way by where that way is in the tile's list of chains, which holds only the
+    ways with rings: a point of a way without is any way's, which the game reads as the nearest."""
+    listed = {chain.index: position for position, (chain, _, _, _) in enumerate(ribbons)}
+    points = paved.points.copy()
+    points[:, paving.WAY] = [value if value == paving.AREA else listed.get(value, paving.JUNCTION) for value in points[:, 6].astype(int)]
+    return points
+
+
+def encode_paving(ribbons: list[tuple[road_surface.Chain, np.ndarray, np.ndarray, list]], paved: paving.Paved, grid: paving_file.Grid) -> bytes:
+    """Every way's rings and tiers as a ribbon's, which the game doesn't draw, then the paving's points and triangles."""
+    rings = b"".join(ring.astype("<f4").tobytes() for _, ring, _, _ in ribbons)
+    tiers = b"".join(tier.astype("u1").tobytes() for _, _, tier, _ in ribbons)
+    return gzip.compress(rings + tiers + paving_file.paving_bytes(paving_way_points(ribbons, paved), paved.triangles, grid, (paved.junction_points, paved.area_points)), 9, mtime=0)
+
+
+def encode_ground_cut(cut: paving.GroundCut, grid: paving_file.Grid) -> bytes:
+    return gzip.compress(paving_file.ground_cut_bytes(cut.cells, cut.points, cut.triangles, cut.walls, grid), 9, mtime=0)
+
+
+def as_written(nodes: np.ndarray) -> np.ndarray:
+    """Heights as `encode_heights` writes them, to the whole unit."""
+    return np.round(np.asarray(nodes, dtype=np.float64) / HEIGHT_UNIT_M) * HEIGHT_UNIT_M
+
+
 def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]], aprons: list[road_surface.Apron]) -> bytes:
     """Every ribbon's rings of (east, north, height) as float32, then every section's tier as a byte, then the aprons."""
     rings = b"".join(ring.astype("<f4").tobytes() for ring, _ in ribbons)
@@ -154,7 +181,7 @@ def building_sheets(tile: Tile) -> list[str]:
     return sorted(near.name for near in around if buildings3d_path(near) is not None)
 
 
-def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_town: bool = False) -> None:
+def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_town: bool = False, with_paving: bool = False) -> None:
     folder = OUTPUT / tile.name
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -172,6 +199,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     roads: list[dict] = []
     buildings: list[dict] = []
     surface_manifest = None
+    paved: paving.Paved | None = None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
     motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     openings = []
@@ -179,6 +207,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     lifts = None
     sites = landmark_sites.Landmarks(tile)
     sites.replace_also(farm.windmill_sites(tile))
+    sites.replace_also(landmark_sites.lighthouse_sites(tile))
     if with_vectors:
         osm_file = osm_path(tile, refresh_osm)
         lifts = raised.Lookup(raised.read(osm_file))
@@ -206,23 +235,40 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         ribbons = []
         aprons = []
         if roads:
-            surface = road_surface.lay_roads(roads, ground, vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile), vectors.whole_lines(osm_file))
-            conformed = surface.conformed
+            areas = vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile)
+            if with_paving:
+                paved = paving.lay(roads, ground, areas, vectors.whole_lines(osm_file))
+                conformed = paved.conformed
+            else:
+                surface = road_surface.lay_roads(roads, ground, areas, vectors.whole_lines(osm_file))
+                conformed = surface.conformed
             if not all(np.array_equal(conformed[edge], raw[edge]) for edge in ((0, ...), (-1, ...), (..., 0), (..., -1))):
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
             mesh_nodes = terrain.height_nodes(conformed)
-            ribbons = road_surface.ribbons(surface, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
-            aprons = road_surface.aprons_on_ground(surface.aprons, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
+            mesh_step = TILE_SIZE_M / (mesh_nodes.shape[0] - 1)
+            if paved is not None:
+                ribbons = paving.rings_of(paved, mesh_nodes, mesh_step)
+            else:
+                ribbons = road_surface.ribbons(surface, mesh_nodes, mesh_step, west, north)
+                aprons = road_surface.aprons_on_ground(surface.aprons, mesh_nodes, mesh_step, west, north)
         if not all(np.isfinite(ring).all() for _, ring, _, _ in ribbons):
             raise ValueError(f"{tile.name}: a road surface came out with no height")
         if over := drawn_over_buildings([ring for chain, ring, _, _ in ribbons if chain.motor], outlines, openings, solids.OVERHANG_M):
             print(f"  roads drawn on a building at {len(over)} places, {sum(area for area, _ in over):.0f} m²: " + ", ".join(f"{area:.1f} m² at {at.x:.0f},{at.y:.0f}" for area, at in sorted(over, key=lambda found: -found[0])[:10]))
         baked = [(ring, tier) for _, ring, tier, _ in ribbons]
         motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
-        (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked, aprons))
-        footprints = road_surface.apron_footprints(aprons)
-        baked += footprints
-        motor_roads += footprints
+        if paved is not None:
+            if not np.isfinite(paved.points).all():
+                raise ValueError(f"{tile.name}: the paving came out with no height")
+            # Written once the heights are final: its heights are offsets from them.
+            footprints = paving.footprint_ribbons(paved)
+            baked += [(ring, tier) for ring, tier, _ in footprints]
+            motor_roads += [(ring, tier) for ring, tier, motor in footprints if motor]
+        else:
+            (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked, aprons))
+            footprints = road_surface.apron_footprints(aprons)
+            baked += footprints
+            motor_roads += footprints
         surface_manifest = {
             "file": "road-surface.bin.gz",
             "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the aprons: float32le points of (east, north, height, across, tier), then uint32le triangles",
@@ -239,6 +285,15 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
             },
             **osm_licence,
         }
+        if paved is not None:
+            # The paving is the drawn surface; each way's rings stay for what places things beside a road.
+            surface_manifest["paved"] = True
+            surface_manifest["encoding"] = (
+                "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the paving (pipeline/paving_file.py): "
+                "int32le columns of east (mm from the tile's west, each the difference from the last), north (mm south of the tile's north), height (mm off the height grid's drawn surface), along (cm) and way, "
+                "then int32le triangles (least corner first, sorted: its difference from the last's, then the others' from it), then int16le across (1024ths), then bytes of tier, class and run (steps of π/32 of twice its angle, 255 for none)"
+            )
+            surface_manifest["aprons"] = {"points": len(paved.points), "triangles": len(paved.triangles), "junctionPoints": paved.junction_points, "areaPoints": paved.area_points}
 
     levels = terrain.water_levels(mosaic, flat_water)
     # A road's own ground stays, so a culvert keeps its bank, but the land its blend levels out over the water doesn't.
@@ -257,6 +312,23 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
     shore_nodes = terrain.height_nodes(np.round(shore, 1))
 
     nodes = terrain.height_nodes(conformed)
+    if paved is not None:
+        # Cut from the heights as written, after the seabed: the cut ground meets the grid on its own nodes.
+        written = as_written(nodes)
+        grid = paving_file.Grid.of(written, west, north, TILE_SIZE_M / (nodes.shape[0] - 1))
+        (folder / "road-surface.bin.gz").write_bytes(encode_paving(ribbons, paved, grid))
+        cut = paved.ground_cut(written)
+        if not np.isfinite(cut.points).all():
+            raise ValueError(f"{tile.name}: the ground cut round the paving came out with no height")
+        (folder / "ground-cut.bin.gz").write_bytes(encode_ground_cut(cut, grid))
+        surface_manifest["groundCut"] = {
+            "file": "ground-cut.bin.gz",
+            "cells": len(cut.cells),
+            "points": len(cut.points),
+            "triangles": len(cut.triangles),
+            "walls": cut.walls,
+            "encoding": "gzip of int32le cells (row * cells + column of the 4 m height grid's cells, which the cut ground replaces, each the difference from the last), then int32le columns of the points' east, north and height as the paving's, then int32le triangles as the paving's, the last `walls` of them the underpasses' walls, coded on their own",
+        }
     level_nodes = terrain.height_nodes(levels)
     (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
     (folder / "heights-far.bin.gz").write_bytes(encode_heights(nodes[:: FAR_NODE_STRIDE, :: FAR_NODE_STRIDE]))
@@ -400,25 +472,25 @@ def tiles_with_new_sheets() -> list[str]:
     return stale
 
 
-def build_named(name: str, refresh_osm: bool = False, with_town: bool = False) -> str:
+def build_named(name: str, refresh_osm: bool = False, with_town: bool = False, with_paving: bool = False) -> str:
     tile = tile_from_name(name)
     if dem_path(tile) is None:
         print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
         return name
-    build_tile(tile, refresh_osm, with_town=with_town)
+    build_tile(tile, refresh_osm, with_town=with_town, with_paving=with_paving)
     return name
 
 
-def _build_named(job: tuple[str, bool, bool]) -> str:
+def _build_named(job: tuple[str, bool, bool, bool]) -> str:
     return build_named(*job)
 
 
-def build_all(names: list[str], jobs: int, refresh_osm: bool, with_town: bool = False) -> None:
+def build_all(names: list[str], jobs: int, refresh_osm: bool, with_town: bool = False, with_paving: bool = False) -> None:
     """Every tile named, a line saying how far the build is as each one finishes. The time left is the pace so far, and the
     island's road tiles come first and build slowest, so early on it overestimates. It counts the tiles only: the roadside
     and the world come after, each with lines of its own."""
     progress = Progress("tiles", len(names))
-    work = [(name, refresh_osm, with_town) for name in names]
+    work = [(name, refresh_osm, with_town, with_paving) for name in names]
 
     if jobs > 1:
         with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
@@ -437,6 +509,7 @@ def main() -> None:
     parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each")
     parser.add_argument("--refresh-osm", action="store_true", help="ask OSM's API again instead of reusing the kept copy")
     parser.add_argument("--town", action="store_true", help="bake the town's ground too, which is tabled and off by default")
+    parser.add_argument("--paving", action="store_true", help="lay the roads as one paved surface with the ground cut round it, on trial (docs/ROAD-SURFACES.md)")
     arguments = parser.parse_args()
     names = list(arguments.tiles)
     if arguments.island:
@@ -445,7 +518,7 @@ def main() -> None:
     if arguments.new_building_sheets:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
-    build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town)
+    build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town, arguments.paving)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     # Beside the roadside, whose sign rule its right of way reads. It needs only each tile's own surface and OSM's signs.
     lanes.bake_tiles(names, OUTPUT)

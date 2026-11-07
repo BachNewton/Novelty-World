@@ -335,6 +335,54 @@
     "name": "identity: wooden daymark",
     "swapM": 524
   },
+  "efaab0c8": {
+    "name": "lighthouses: flotjan",
+    "swapM": 539
+  },
+  "81dcee5d": {
+    "name": "lighthouses: hogsten",
+    "swapM": 75
+  },
+  "e65e9776": {
+    "name": "lighthouses: kobba-klintar",
+    "swapM": 282
+  },
+  "f747e22d": {
+    "name": "lighthouses: lagskar",
+    "swapM": 1109
+  },
+  "8b0f774c": {
+    "name": "lighthouses: ledskar",
+    "swapM": 322
+  },
+  "a20d8bef": {
+    "name": "lighthouses: marhallan",
+    "swapM": 105
+  },
+  "ce68889d": {
+    "name": "lighthouses: market",
+    "swapM": 1200
+  },
+  "e09c7b7c": {
+    "name": "lighthouses: nyhamn",
+    "swapM": 217
+  },
+  "c1ac86e5": {
+    "name": "lighthouses: salskar",
+    "swapM": 174
+  },
+  "8d3b5d78": {
+    "name": "lighthouses: sjokvarteret",
+    "swapM": 763
+  },
+  "77061c8f": {
+    "name": "lighthouses: turbine",
+    "swapM": 264
+  },
+  "41919c64": {
+    "name": "lighthouses: turbine rotor",
+    "swapM": 177
+  },
   "d676d42d": {
     "name": "marina: admiralty anchor",
     "swapM": 275
@@ -875,15 +923,15 @@
     "name": "street: harbour crane",
     "swapM": 240
   },
-  "cc66e679": {
+  "51c67269": {
     "name": "street: linden 14",
     "swapM": 6
   },
-  "049199bb": {
+  "d1d908db": {
     "name": "street: linden 3",
     "swapM": 6
   },
-  "ac2ef246": {
+  "3e60e846": {
     "name": "street: linden 8",
     "swapM": 6
   },
@@ -950,6 +998,10 @@
   "12751a68": {
     "name": "town-kit: bicycle bike-red",
     "swapM": 14
+  },
+  "635e5890": {
+    "name": "town-kit: christmas tree",
+    "swapM": 70
   },
   "aef2e052": {
     "name": "town-kit: road ferry",

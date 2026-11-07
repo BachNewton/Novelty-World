@@ -6,7 +6,6 @@ import { parseChallengeMessage, parseGuestMessage, parseHostMessage, type Challe
 const valid: ChallengeMessage[] = [
   { type: "invite", challenge: "ytterby-sprint", attempt: 1 },
   { type: "accept", challenge: "ytterby-sprint", attempt: 1 },
-  { type: "decline", challenge: "ytterby-sprint", attempt: 1 },
   { type: "start", challenge: "ytterby-sprint", attempt: 1, partner: "Ab3_x-9q" },
   { type: "retry", challenge: "ytterby-sprint", attempt: 7 },
   { type: "ready", challenge: "ytterby-sprint", attempt: 7 },
@@ -61,7 +60,7 @@ describe("a challenge message's envelope", () => {
 });
 
 describe("a car's state", () => {
-  const state = { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: 0 };
+  const state = { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0.1, 0.1, 0.1, 0.1], roll: [0, 0, 0, 0] };
 
   it("carries its lamps, so other players see a car brake and back up", () => {
     const lamps = { head: true, brake: true, reverse: false };
@@ -70,5 +69,13 @@ describe("a car's state", () => {
 
   it("shows a car from a version that sent no lamps with them off, rather than dropping it", () => {
     expect(parseGuestMessage({ kind: "car", state })).toEqual({ kind: "car", state: { ...state, lamps: { head: false, brake: false, reverse: false } } });
+  });
+});
+
+describe("the world's time", () => {
+  it("comes from the host as a number of game days, or is dropped", () => {
+    expect(parseHostMessage({ kind: "time", gameDays: 1270.25 })).toEqual({ kind: "time", gameDays: 1270.25 });
+    for (const gameDays of [null, "1270", Number.NaN, Infinity]) expect(parseHostMessage({ kind: "time", gameDays })).toBeNull();
+    expect(parseGuestMessage({ kind: "ask-time" })).toEqual({ kind: "ask-time" });
   });
 });

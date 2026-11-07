@@ -3,7 +3,8 @@ import { abs, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positi
 import { createClipmap } from "./clipmap";
 import { createForest, forestBands, forestKnobs, type ForestDrawn, type ForestModel, type ForestSettings } from "./forest";
 import { startFreeCamera } from "./free-camera";
-import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, FOREST_DEFAULTS, NoWebGpuError, RENDER_SCALE, token } from "./game";
+import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, FOREST_DEFAULTS, NoWebGpuError, token } from "./game";
+import { pixelRatio } from "./graphics-settings";
 import { TileFetcher, TileStream } from "./stream";
 import type { WorldManifest } from "./tile";
 import { tileBase } from "./tile-address";
@@ -11,6 +12,9 @@ import { TileLayers } from "./tile-layers";
 import { canopyLift, tileReads } from "./tile-reads";
 import { NEAR_STEP_M, readImage, ROAD_COVERAGE, ROAD_MASK_MIP, roadLevel, SHORTEST_M, treeHeight, treePlace, treeStands } from "./tree-place";
 import { World } from "../sim/world";
+import { dialsOf, SUMMER } from "../art/season";
+import { seasonAt } from "../climate/season";
+import { dayAsked } from "../time/day";
 
 /*
  * The forest on its own, to watch how its detail works (`?forest-lab`): the game's
@@ -20,7 +24,7 @@ import { World } from "../sim/world";
  * everything a drive does to it, and a change in the picture is the forest's and
  * never the view's. The same split lets the camera rise and look down on the bands.
  * The forest's settings change here on the running forest, and the page shows how
- * many trees each of its lists drew.
+ * many trees each of its lists drew. `?date=` shows the forest in that date's season, at its noon.
  */
 
 export type ForestLabView = "game" | "models" | "changing" | "slide";
@@ -78,6 +82,7 @@ export interface ForestLab {
 
 export async function startForestLab(container: HTMLElement, onFailure: (error: Error) => void): Promise<ForestLab> {
   const base = tileBase(window.location.search);
+  const { date } = dayAsked(window.location.search);
   const response = await fetch(`${base}/world.json`);
   if (!response.ok) throw new Error(`${base}/world.json: ${response.status}`);
   const manifest = (await response.json()) as WorldManifest;
@@ -89,7 +94,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     throw new NoWebGpuError();
   }
   renderer.setClearColor(new Color(token("sky")));
-  renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
+  renderer.setPixelRatio(pixelRatio());
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
@@ -132,7 +137,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, () => marked, () => colorOf("water-deep"), canopyLift(reads.canopyAt, lodSpot, knobs.forestReach));
 
   const isView = (view: ForestLabView) => abs(viewShown.sub(VIEWS.indexOf(view))).lessThan(0.5);
-  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone" };
+  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone", branches: "lab-branches", clumps: "lab-clumps", haze: "lab-haze" };
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt: reads.canopyAt,
@@ -143,6 +148,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     colour: colorOf,
     hazed: (color) => color,
     sun: manifest.sun,
+    season: date === null ? SUMMER : dialsOf(seasonAt(date, 0.5)),
     paint: ({ model, natural, changing, groundGap }) => {
       const slid = mix(colorOf("lab-still"), colorOf("lab-hot"), groundGap.div(SLIDE_FULL_M).clamp(0, 1));
       const going = select(changing, colorOf("lab-hot"), colorOf("lab-still"));

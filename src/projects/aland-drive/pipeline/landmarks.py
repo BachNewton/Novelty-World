@@ -28,6 +28,8 @@ from shapely.ops import unary_union
 from grid import Tile, to_local
 
 SITES_FILE = Path(__file__).resolve().parent.parent / "art" / "landmarks" / "sites.json"
+# The landmark lighthouses on a tile, drawn with the sea marks, whose plans take away any building under them as a mill's do.
+LIGHTHOUSE_SITES_FILE = Path(__file__).resolve().parent.parent / "art" / "lighthouses" / "sites.json"
 # How far past a tile's edge a site can still reach the tile's buildings: Bomarsund's arc is the widest, at 260 m.
 REACH_M = 400.0
 # Each of the plan's triangles grows by this, so they join as one shape and a wall, a line from above, is as thick as one.
@@ -66,6 +68,11 @@ def read_sites(path: Path = SITES_FILE) -> list[Site]:
         walls = [Polygon(outline) for outline in record["walls"]] if "walls" in record else None
         sites.append(Site(record["id"], record["east"], record["north"], record["baseM"], solids, replaces == "inside", plan, walls, record.get("nearOnly", False)))
     return sites
+
+
+def lighthouse_sites(tile: Tile) -> list[Site]:
+    """The landmark lighthouses in or just past the tile, as sites that replace every building under them."""
+    return [site for site in read_sites(LIGHTHOUSE_SITES_FILE) if tile.west - REACH_M <= site.east < tile.east + REACH_M and tile.south - REACH_M <= site.north < tile.north + REACH_M]
 
 
 def _under(shape: Polygon, site: Site) -> bool:

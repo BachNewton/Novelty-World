@@ -33,6 +33,31 @@ export const GNARL = 0.05;
 export type TreeKind = "spruce" | "pine" | "birch" | "round" | "upright";
 export const TREE_KINDS: TreeKind[] = ["spruce", "pine", "birch", "round", "upright"];
 
+/**
+ * The broadleaf species each shape stands for, through the year (Reference, Leaves): the share of its shape's trees
+ * each is, when its leaves go as a span of the season's shares (an early one turns and falls among the first, the oak
+ * last), and its autumn colour's token. Birch is its own shape.
+ */
+export interface Species {
+  share: number;
+  goes: [from: number, to: number];
+  autumn: string;
+}
+
+export const SPECIES: Record<"birch" | "round" | "upright", Species[]> = {
+  birch: [{ share: 1, goes: [0, 0.85], autumn: "autumn-birch" }],
+  round: [
+    { share: 0.5, goes: [0.6, 1], autumn: "autumn-oak" },
+    { share: 0.25, goes: [0.15, 0.8], autumn: "autumn-maple" },
+    { share: 0.25, goes: [0.05, 0.6], autumn: "autumn-ash" },
+  ],
+  upright: [
+    { share: 0.4, goes: [0.15, 0.75], autumn: "autumn-alder" },
+    { share: 0.35, goes: [0.05, 0.8], autumn: "autumn-aspen" },
+    { share: 0.25, goes: [0, 0.6], autumn: "autumn-rowan" },
+  ],
+};
+
 /** The young keep their branches to the ground, the grown clear their trunks, and the old carry a small crown high up. */
 const STAGED: Record<TreeKind, [young: Rings, grown: Rings, old: Rings]> = {
   spruce: [
@@ -40,6 +65,8 @@ const STAGED: Record<TreeKind, [young: Rings, grown: Rings, old: Rings]> = {
     [[0, 0.016], [0.1, 0.014], [0.11, 0.21], [0.34, 0.12], [0.36, 0.17], [0.58, 0.08], [0.6, 0.12], [0.8, 0.04], [1, 0]],
     [[0, 0.016], [0.2, 0.013], [0.21, 0.16], [0.42, 0.09], [0.44, 0.13], [0.63, 0.06], [0.65, 0.095], [0.84, 0.03], [1, 0]],
   ],
+  // A known gap: this closed oval reads as a leafy broadleaf's crown, not a pine's see-through tufts. Four attempts
+  // to change it were rejected and kept for the record in `ideas/pine-crowns.md`.
   pine: [
     [[0, 0.02], [0.05, 0.018], [0.06, 0.17], [0.22, 0.2], [0.3, 0.14], [0.48, 0.16], [0.56, 0.1], [0.8, 0.05], [1, 0]],
     [[0, 0.016], [0.36, 0.012], [0.38, 0.11], [0.5, 0.17], [0.63, 0.16], [0.75, 0.16], [0.86, 0.13], [0.95, 0.06], [1, 0]],
