@@ -1,5 +1,5 @@
-import { BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshBasicNodeMaterial, Quaternion, Vector3 } from "three/webgpu";
-import { attribute, cameraPosition, dot, float, positionLocal, select, smoothstep } from "three/tsl";
+import { BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial } from "three/webgpu";
+import { attribute, cameraPosition, dot, float, positionLocal, select, smoothstep, vec3 } from "three/tsl";
 import { createBuilder, type LandmarkMesh } from "../landmarks/kit";
 import type { AddOn, AddOnKind } from "./add-on-places";
 import type { Painter } from "./paint";
@@ -153,8 +153,8 @@ function fronton(paint: Painter): LandmarkMesh {
 
 export const ADD_ON_MODELS: Record<AddOnKind, (paint: Painter) => LandmarkMesh> = { veranda, porch, bay, fronton };
 
-function geometryOf(mesh: LandmarkMesh): BufferGeometry {
-  const geometry = new BufferGeometry();
+function geometryOf(mesh: LandmarkMesh): InstancedBufferGeometry {
+  const geometry = new InstancedBufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(mesh.positions, 3));
   geometry.setAttribute("facade", new BufferAttribute(mesh.facades, 4));
   geometry.setAttribute("tint", new BufferAttribute(mesh.tints, 4, true));
@@ -163,8 +163,9 @@ function geometryOf(mesh: LandmarkMesh): BufferGeometry {
 }
 
 /**
- * The wall material, with the fold: everything of an instance slides into the plane of its wall as the camera leaves,
- * and past `reachM`, where its building is no longer drawn, folds to a point.
+ * The wall material, with the place and the fold: each instance stands at its anchor, its +z turned along `outward` and
+ * its width stretched by `across`, slides into the plane of its wall as the camera leaves, and past `reachM`, where its
+ * building is no longer drawn, folds to a point.
  */
 export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
@@ -172,9 +173,13 @@ export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6)
   material.side = wallMaterial.side;
   const anchor = attribute<"vec3">("anchor", "vec3");
   const outward = attribute<"vec3">("outward", "vec3");
+  const across = attribute<"float">("across", "float");
+  // +x along the wall is +z turned a quarter clockwise seen from above: (outward.z, 0, -outward.x).
+  const along = positionLocal.x.mul(across);
+  const placed = anchor.add(vec3(along.mul(outward.z).add(positionLocal.z.mul(outward.x)), positionLocal.y, positionLocal.z.mul(outward.z).sub(along.mul(outward.x))));
   const distance = cameraPosition.sub(anchor).length();
   const folded = smoothstep(float(FOLD_M[0]), float(FOLD_M[1]), distance);
-  material.positionNode = select(distance.lessThan(reachM), positionLocal.sub(outward.mul(dot(positionLocal.sub(anchor), outward).mul(folded))), anchor);
+  material.positionNode = select(distance.lessThan(reachM).and(across.greaterThan(0)), placed.sub(outward.mul(dot(placed.sub(anchor), outward).mul(folded))), anchor);
   return material;
 }
 
@@ -183,46 +188,46 @@ export const ADD_ONS_MOST = 256;
 
 export interface AddOnLists {
   /** One instanced mesh per kind, made once. */
-  meshes: InstancedMesh[];
+  meshes: Mesh[];
   /** Puts these add-ons in the lists: a kind with none has one folded to nothing, so it can still be compiled. */
   place: (addOns: readonly AddOn[]) => void;
 }
 
 /**
- * The add-ons as one instanced list per kind, with room for `capacity`, rewritten in place. three bakes an instanced
- * mesh's count into its shader and keys that shader by the mesh, so a list made anew or resized mid-drive compiled four
- * pipelines in the frame a villa's tile landed, a stall of seconds.
+ * The add-ons as one instanced list per kind, with room for `capacity`, rewritten in place. Each is placed by its own
+ * attributes rather than three's instance matrices: three gives an `InstancedMesh` a uniform buffer of its own and
+ * names it in the shader, so the four kinds were four copies of the wall's whole shader, the biggest the game has, each
+ * a pipeline of seconds to compile at the start. On attributes the four share one, and a list never changes its
+ * shader, so a list rewritten mid-drive compiles nothing.
  */
 export function addOnLists(paint: Painter, material: MeshBasicNodeMaterial, capacity = ADD_ONS_MOST): AddOnLists {
-  const matrix = new Matrix4();
-  const up = new Vector3(0, 1, 0);
-  const turn = new Quaternion();
   const kinds = (Object.entries(ADD_ON_MODELS) as [AddOnKind, (paint: Painter) => LandmarkMesh][]).map(([kind, build]) => {
     const geometry = geometryOf(build(paint));
     const anchors = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     const outwards = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    const acrosses = new InstancedBufferAttribute(new Float32Array(capacity), 1);
     geometry.setAttribute("anchor", anchors);
     geometry.setAttribute("outward", outwards);
-    const mesh = new InstancedMesh(geometry, material, capacity);
+    geometry.setAttribute("across", acrosses);
+    const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
-    return { kind, mesh, anchors, outwards };
+    return { kind, mesh, geometry, anchors, outwards, acrosses };
   });
   const place = (addOns: readonly AddOn[]) => {
-    for (const { kind, mesh, anchors, outwards } of kinds) {
+    for (const { kind, geometry, anchors, outwards, acrosses } of kinds) {
       const placed = addOns.filter((addOn) => addOn.kind === kind);
       if (placed.length > capacity) throw new Error(`${placed.length} ${kind} add-ons, and room for ${capacity}`);
       const own = placed.length > 0 ? placed : [{ kind, x: 0, y: 0, z: 0, outX: 0, outZ: 1, scale: 0 }];
       own.forEach(({ x, y, z, outX, outZ, scale }, at) => {
-        turn.setFromAxisAngle(up, Math.atan2(outX, outZ));
-        matrix.compose(new Vector3(x, y, z), turn, scale === 0 ? new Vector3(0, 0, 0) : new Vector3(scale, 1, 1));
-        mesh.setMatrixAt(at, matrix);
+        const out = Math.hypot(outX, outZ);
         anchors.setXYZ(at, x, y, z);
-        outwards.setXYZ(at, outX, 0, outZ);
+        outwards.setXYZ(at, outX / out, 0, outZ / out);
+        acrosses.setX(at, scale);
       });
-      mesh.count = own.length;
-      mesh.instanceMatrix.needsUpdate = true;
+      geometry.instanceCount = own.length;
       anchors.needsUpdate = true;
       outwards.needsUpdate = true;
+      acrosses.needsUpdate = true;
     }
   };
   place([]);
