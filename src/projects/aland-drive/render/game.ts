@@ -99,7 +99,7 @@ import { getProjectStorage } from "@/shared/lib/storage";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
-import { NO_INPUT, type DriveInput } from "../sim/car";
+import { NO_INPUT, type Assists, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState, type Vector3 as CarVector } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
@@ -243,6 +243,8 @@ export interface GameProbe {
   setCondition: (condition: Condition) => void;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
+  /** The driver's aids the car is driven with. */
+  assists: () => Assists;
   /** Where the online world stands. */
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
@@ -2200,6 +2202,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         drive.condition = condition;
       },
       tyres: () => drive.tyres,
+      assists: () => drive.assists,
       online: () => {
         const state = onlineWorld?.state();
         return { status: state?.status ?? "idle", role: state?.role ?? null };
