@@ -785,7 +785,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
   scene.add(headlights.cones);
-  const nightLights = createNightLights(scene, night, { onAland: !inPlayground });
+  const nightLights = createNightLights(scene, night, { onAland: !inPlayground, ground: { height: (x, z) => world.height(x, z), revision: () => world.revision } });
   // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
   const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)).add(nightLights.lightOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);

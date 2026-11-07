@@ -200,6 +200,40 @@ Positions come from the OpenStreetMap data in `.data/raw/osm-api/` (© OpenStree
 **Västerhamn ferry terminal** · 60.09205, 19.92908 · `-2800, 7287` · L2334E
 > When the sailing ships stopped, the shipping families didn't stop. Car ferries began here in 1959, and shipping is still about a tenth of Åland's economy.
 
+### Lighthouses
+
+Each is a model of its own (`art/lighthouses`). One out on the water is found from the road on the shore that looks out to it, which `map/places.ts` names. Positions are the research's, from the Lighthouse Directory, Wikipedia and OpenStreetMap; the register's own mark wins where the lighthouse stands on one.
+
+**Märket lighthouse** · 60.30101, 19.13143 · `-44199, -20894` · found from Eckerö at `-25348, -15044`
+> When this lighthouse was built in 1885, its builders chose the skerry's highest point, which turned out to be on the Swedish half of an island split by the 1809 border. A century later Finland and Sweden redrew the line in a zigzag, swapping equal patches of rock so the lighthouse stood in Finland. It is the smallest sea island shared by two countries, and Finland's westernmost land. ([svWP](https://sv.wikipedia.org/wiki/M%C3%A4rket), [enWP](https://en.wikipedia.org/wiki/M%C3%A4rket), [Lighthouse Directory](https://www.ibiblio.org/lighthouse/ala.htm))
+
+**Sälskär lighthouse** · 60.41172, 19.59256 · `-17441, -30216` · found from Geta at `-12080, -25571`
+> Lit in 1868, this brick tower guards the reefs off Åland's north-west corner, where sailors once had only the Geta hills to steer by in daylight. Storms in the 1890s cracked its walls and threw down the lantern, so in 1904 it was bound with four iron hoops and held by steel cables. Its keepers left when a gas light made it automatic, around 1949. ([fiWP](https://fi.wikipedia.org/wiki/S%C3%A4lsk%C3%A4rin_majakka), [fyr.org](https://fyr.org/wiki/index.php/), [Lighthouse Directory](https://www.ibiblio.org/lighthouse/ala.htm); svWP gives 1948 for the gas light)
+
+**Lågskär lighthouse** · 59.84117, 19.91219 · `-6732, 35019` · found from Järsö at `-2982, 22200`
+> A wooden beacon stood here from 1794 and a light from 1840, but Russian troops blew up the brick lighthouse in 1915. The concrete pyramid that replaced it in 1920 carried a lens 1.7 m across, which turned on its own, driven by the gas that fed its flame. Since the keepers left in 1961, the island has been a bird-ringing station. ([svWP](https://sv.wikipedia.org/wiki/L%C3%A5gsk%C3%A4r), [fyr.org](https://fyr.org/wiki/index.php/))
+
+**Flötjan lighthouse** · 59.80842, 19.78211 · `-14392, 37864` · found from Järsö at `-2982, 22200`
+> In 1811 this tiny skerry was written into the treaty map as one of the corner points of Finland's new border with Sweden. A concrete cairn with a gas light came in 1901–08, and the tower in 1953. It was cast in one continuous pour and has no stairs inside, only a ladder. ([svWP](https://sv.wikipedia.org/wiki/Fl%C3%B6tjan))
+
+**Nyhamn lighthouse, Lilla Båtskär** · 59.95933, 19.95500 · `-2940, 22166` · by the road at Järsö
+> Sweden's king had a stone lighthouse built on Lilla Båtskär in 1751, because rocks under the sea made ships' compasses lie. Russian forces destroyed it in 1808–09. In 1958 a company sank a 360 m iron-ore mine shaft here; the mine failed within two years, but the light lived on at the top of the shaft tower until 2007. ([fiWP](https://fi.wikipedia.org/wiki/Nyhamnin_majakka), [fyr.org](https://fyr.org/wiki/index.php/))
+
+**Kobba Klintar** · 60.02947, 19.88211, the pilot house · `-6154, 13949` · found from Mariehamn's west shore at `-2563, 11938`
+> From 1861 Mariehamn's pilots rowed out from this rock to guide sailing ships into harbour, under a white pyramid seamark. The 1910 house hid a diesel-driven foghorn in its attic, which blew through doors in the gable. The station closed in 1972; the pyramid is a 2012 copy of the one pulled down in 1954. ([svWP](https://sv.wikipedia.org/wiki/Kobba_Klintar), [Kobba Klintar](https://www.eckerolinjen.se/en/see-and-do/kobba-klintar))
+
+**Marhällan lighthouse** · 60.03092, 19.87175 · `-6711, 13726` · found from Mariehamn's west shore at `-2563, 11938`
+> After the barques Virgo, Plus and Fred were wrecked at the harbour mouth in 1928 and 1933, this striped concrete light went up in 1938 with an automatic fog bell. The fog signal kept by this pair of stations was the last working in Finland when it fell silent in 1985. ([svWP](https://sv.wikipedia.org/wiki/Kobba_Klintar), [fyr.org](https://fyr.org/wiki/index.php/); fyr.org says the last fog signal was Marhällan's own, svWP that its siren replaced Kobba Klintar's in 1972, so the note credits the pair)
+
+**Ledskär båk** · 59.96356, 20.16997 · `9070, 22956` · found from Herröskatan at `9908, 22152`
+> This striped stone beacon was finished in 1748 to mark the narrow Ledsund passage, which the Swedish fleet sailed through in 1720 to attack the Russian galleys. A year earlier the Russian galley fleet had anchored here, and Tsar Peter the Great is said to have had his monogram cut into the rock. The red and white stripes were added in 1899. ([svWP](https://sv.wikipedia.org/wiki/Ledsk%C3%A4r))
+
+**Högsten båk** · 60.3531, 19.4522, the island's middle, not the tower · `-25887, -24595` · found from Eckerö at `-19148, -22782`
+> A sea mark has stood on this Eckerö island since 1740. The first was destroyed in the war between Russia and Sweden in 1808–09; the red wooden pyramid of 1845 was restored in 1981. ([Lighthouse Directory](https://www.ibiblio.org/lighthouse/ala.htm))
+
+**Sjökvarteret's harbour light** · 60.10478, 19.94483 · `-1776, 5969` · in Mariehamn's Maritime Quarter
+> This little lantern guided ships at Stegskär from 1898 before it was moved to Mariehamn's Maritime Quarter, where it still serves as a harbour light. ([Lighthouse Directory](https://www.ibiblio.org/lighthouse/ala.htm))
+
 ### Past the water
 
 These are out of the car's reach while ferries aren't in the game (phase 7), so they are seen from shore or told in a note.
@@ -207,7 +241,6 @@ These are out of the car's reach while ferries aren't in the game (phase 7), so 
 | Place | Position | Why it matters |
 |---|---|---|
 | Vårdö church, S:t Mattias | 60.24215, 20.37238 · `23448, -6815` | Late 1400s, just south of the old post road. Lost a bell to the crown in 1544. Lövö, where the Åland Congress met, is on the same island. Also Vargata jetty at 60.24221, 20.32867. |
-| Kobba Klintar | 60.06157, 19.91150 · `-4138, 10564` | Mariehamn's pilot station on a skerry, 1862 to 1972, now a museum. Seen from Lervik. |
 | Rödhamn | 59.98554, 20.10260 · `5577, 20127` | Old pilot station and sheltered harbour in the south. |
 | Lotsmuseum, Degerby, Föglö | 60.02982, 20.38542 · `21797, 16825` | The pilots of Föglö. |
 
