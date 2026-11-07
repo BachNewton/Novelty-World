@@ -19,8 +19,13 @@ export const WORLD_CODE = "island";
 export const WORLD_PARAM = "drive-world";
 const WORLD_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+/**
+ * A car's state, and when its client stepped it, in ms on that client's own clock, so it's shown by when it happened
+ * rather than when it arrived (`sim/remote-timeline.ts`). A version of the game from before that sends no time.
+ */
 export interface CarMessage {
   state: CarState;
+  at?: number;
 }
 
 /**
@@ -43,13 +48,15 @@ export type ChallengeType = ChallengeMessage["type"];
 /**
  * A computer-driven car (`computer-cars.ts`), sent by the player who runs it:
  * its state, the player running it now, how many times it has changed hands,
- * and its driver's record, whose shape is its driver's own.
+ * when it was stepped, and its driver's record, whose shape is its driver's own.
  */
 export interface ComputerCarMessage {
   id: string;
   runner: string;
   handovers: number;
   state: CarState;
+  /** As a player's car's: when the runner stepped it, on the runner's clock. */
+  at?: number;
   driver: Record<string, unknown>;
 }
 
@@ -84,6 +91,9 @@ export function worldCodeFromSearch(search: string): string {
 /** Centimetres and ten-thousandths: what a drawn car can show, in a third of the characters. */
 const metres = (value: number) => Math.round(value * 100) / 100;
 const fine = (value: number) => Math.round(value * 10000) / 10000;
+/** A tenth of a millisecond: a car at top speed moves 7 mm in it. */
+export const wireTime = (ms: number) => Math.round(ms * 10) / 10;
+const isTime = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 export function wireState(state: CarState): CarState {
   return {
@@ -149,7 +159,8 @@ function parseLamps(value: unknown): CarLamps {
 
 function parseCar(value: Record<string, unknown>): CarMessage | null {
   const state = parseState(value.state);
-  return state && { state };
+  if (!state) return null;
+  return isTime(value.at) ? { state, at: value.at } : { state };
 }
 
 const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;
@@ -162,7 +173,8 @@ export function parseComputerCar(value: unknown): ComputerCarMessage | null {
   if (!isName(id) || !isName(runner) || !isRecord(driver) || Array.isArray(driver)) return null;
   if (typeof handovers !== "number" || !Number.isInteger(handovers) || handovers < 0 || handovers > MOST_ATTEMPTS) return null;
   const state = parseState(value.state);
-  return state && { id, runner, handovers, state, driver };
+  if (!state) return null;
+  return isTime(value.at) ? { id, runner, handovers, state, at: value.at, driver } : { id, runner, handovers, state, driver };
 }
 const PLAIN_TYPES = new Set<unknown>(["invite", "accept", "decline", "retry", "ready", "leave"]);
 const isResult = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;

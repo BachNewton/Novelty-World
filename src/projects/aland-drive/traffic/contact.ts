@@ -107,7 +107,7 @@ export class TrafficContact {
       if (car.kind !== "car") continue;
       if (!simulated.some(([x, , z]) => Math.hypot(car.pose.x - x, car.pose.z - z) < NEAR_M)) continue;
       near.add(car.id);
-      this.drive.traffic.hear(car.id, this.stateOf(car.id, car.model, steps), this.shapes[car.model]);
+      this.drive.traffic.hear(car.id, this.stateOf(car.id, car.model, steps), undefined, this.shapes[car.model]);
     }
     for (const id of this.drive.traffic.ids()) if (!near.has(id)) this.drive.traffic.forget(id);
     // The brake reverses a car that has stopped, so it brakes only while it still rolls forward, and holds on the handbrake.
