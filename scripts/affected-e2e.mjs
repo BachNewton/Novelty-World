@@ -20,7 +20,9 @@ const args = process.argv.slice(2);
 const listOnly = args.includes("--list");
 const forceAll = args.includes("--all");
 const passed = args.filter((arg) => arg !== "--list" && arg !== "--all");
-const named = passed.some((arg) => !arg.startsWith("-") && /\.spec\.ts|^e2e[\\/]/.test(arg));
+// Any argument that isn't a flag or a flag's value is a Playwright file filter: those files, as Playwright takes them.
+const TAKES_VALUE = new Set(["-g", "--grep", "--grep-invert", "-j", "--workers", "--project", "--reporter", "-c", "--config", "--timeout", "--retries", "--repeat-each", "--shard", "--max-failures", "-x"]);
+const named = passed.some((arg, i) => !arg.startsWith("-") && !TAKES_VALUE.has(passed[i - 1]));
 
 const root = git(process.cwd(), ["rev-parse", "--show-toplevel"]).trim();
 // Only the run itself waits its turn in the machine's budget, not the choosing, which may find nothing to run.
