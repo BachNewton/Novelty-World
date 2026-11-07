@@ -20,7 +20,7 @@ from scipy import ndimage, sparse
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
-from path_surfaces import HARD_SURFACES, NONE, SLAB, way_class
+from path_surfaces import NONE, SLAB, WAY_SURFACES, way_class
 from roads import (
     APRON_ACROSS,
     APRON_CORNER_M,
@@ -276,7 +276,7 @@ def _sidewalk_sides(road: dict) -> dict[str, tuple[float, int]]:
     for side in sides:
         keys = (f"sidewalk:{side}:", "sidewalk:both:", "sidewalk:")
         width = next((metres for metres in (_metres(road.get(key + "width")) for key in keys) if metres is not None), TAGGED_SIDEWALK_M)
-        surface = next((HARD_SURFACES[road[key + "surface"]] for key in keys if road.get(key + "surface") in HARD_SURFACES), SLAB)
+        surface = next((WAY_SURFACES[road[key + "surface"]] for key in keys if road.get(key + "surface") in WAY_SURFACES), SLAB)
         found[side] = (min(width, TAGGED_SIDEWALK_MOST_M), surface)
     return found
 

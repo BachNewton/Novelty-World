@@ -13,13 +13,15 @@ HARD_SURFACES = {
     "gravel": GRAVEL, "fine_gravel": GRAVEL, "compacted": GRAVEL, "unpaved": GRAVEL, "ground": GRAVEL, "dirt": GRAVEL, "sand": GRAVEL,
     "grass": LAWN, "grass_paver": LAWN,
 }
+# A way is trodden or driven: one OSM calls grass is a worn track, drawn as gravel, never a lawn.
+WAY_SURFACES = {**HARD_SURFACES, "grass": GRAVEL, "grass_paver": GRAVEL}
 # A path OSM says nothing of: a park's walk or a trail is gravel, a footway or cycleway pale tarmac, never a road's.
 UNTAGGED_PATHS = {"path": GRAVEL, "bridleway": GRAVEL, "pedestrian": SLAB, "corridor": SLAB}
 
 
 def way_class(way: dict, motor: bool) -> int:
     """A way ({"kind", "surface"?, "footway"?}) as it's drawn: a motor road keeps its own look save setts, and a path wears its own."""
-    surface = HARD_SURFACES.get(way.get("surface", ""))
+    surface = WAY_SURFACES.get(way.get("surface", ""))
     if motor:
         return surface if surface == COBBLE else NONE
     if way["kind"] == "steps":

@@ -77,6 +77,16 @@ class OneSurface(unittest.TestCase):
         np.testing.assert_allclose(paved.points[on_sidewalk, 8:10], [[1, 0]] * on_sidewalk.sum(), atol=1e-6)
         np.testing.assert_allclose(paved.points[on_footway, 8:10], [[0, 1]] * on_footway.sum(), atol=1e-6)
 
+    def test_no_way_is_drawn_as_grass(self):
+        """A path OSM tags grass is a worn track: drawn as a lawn, it read as more grass where the owner wants a path."""
+        for surface in ("grass", "grass_paver"):
+            self.assertEqual(path_surfaces.way_class({"kind": "footway", "surface": surface}, False), path_surfaces.GRAVEL)
+            self.assertEqual(path_surfaces.way_class({"kind": "track", "surface": surface}, True), path_surfaces.NONE)
+        street = road([(100, 600), (1100, 600)], **{"sidewalk": "left", "sidewalk:left:surface": "grass"})
+        paved = paving.lay([street], land())
+        self.assertNotIn(path_surfaces.LAWN, set(paved.points[:, 7].astype(int)))
+        self.assertIn(path_surfaces.GRAVEL, set(paved.points[:, 7].astype(int)))
+
     def test_a_path_has_no_shoulder_to_draw_at_its_edge(self):
         """A path's outline is kept within a couple of centimetres of its edge, and a point a hair past it was drawn as a
         shoulder's far side: every triangle from its middle to that point faded to the photo's colour, a pale lens."""
