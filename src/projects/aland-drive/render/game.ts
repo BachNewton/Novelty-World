@@ -1019,7 +1019,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   compiledBridge.frustumCulled = false;
   scene.add(compiledBridge);
 
-  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night, season });
+  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night, season, addOnReachM: BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2 });
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun }, season);
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2, season);
@@ -1086,7 +1086,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return eyeOf(camera.position, viewProjection.elements);
   };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
-  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
+  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`);
   const challengeBoard = new ChallengeBoard([...CHALLENGES, ...RACES], { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);

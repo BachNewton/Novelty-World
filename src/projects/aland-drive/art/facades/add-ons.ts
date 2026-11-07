@@ -1,4 +1,4 @@
-import { BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial } from "three/webgpu";
+import { BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, type BufferGeometry, type MeshBasicNodeMaterial, type Node } from "three/webgpu";
 import { attribute, cameraPosition, dot, float, positionLocal, select, smoothstep, vec3 } from "three/tsl";
 import { createBuilder, type LandmarkMesh } from "../landmarks/kit";
 import type { AddOn, AddOnKind } from "./add-on-places";
@@ -163,14 +163,13 @@ function geometryOf(mesh: LandmarkMesh): InstancedBufferGeometry {
 }
 
 /**
- * The wall material, with the place and the fold: each instance stands at its anchor, its +z turned along `outward` and
- * its width stretched by `across`, slides into the plane of its wall as the camera leaves, and past `reachM`, where its
- * building is no longer drawn, folds to a point.
+ * Where the wall material draws a vertex: as built, or, for an add-on, at its anchor, its +z turned along `outward` and
+ * its width stretched by `across`, sliding into the plane of its wall as the camera leaves, and past `reachM`, where its
+ * building is no longer drawn, folded to a point. The walls and the add-ons are one pipeline, the biggest the game
+ * has, so everything the material draws carries the add-on's three attributes, per instance: a mesh that isn't an add-on
+ * has one instance of them, with `across` below zero (`standAsBuilt`).
  */
-export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial();
-  material.colorNode = wallMaterial.colorNode;
-  material.side = wallMaterial.side;
+export function addOnPosition(reachM = 1e6): Node<"vec3"> {
   const anchor = attribute<"vec3">("anchor", "vec3");
   const outward = attribute<"vec3">("outward", "vec3");
   const across = attribute<"float">("across", "float");
@@ -179,8 +178,15 @@ export function addOnMaterial(wallMaterial: MeshBasicNodeMaterial, reachM = 1e6)
   const placed = anchor.add(vec3(along.mul(outward.z).add(positionLocal.z.mul(outward.x)), positionLocal.y, positionLocal.z.mul(outward.z).sub(along.mul(outward.x))));
   const distance = cameraPosition.sub(anchor).length();
   const folded = smoothstep(float(FOLD_M[0]), float(FOLD_M[1]), distance);
-  material.positionNode = select(distance.lessThan(reachM).and(across.greaterThan(0)), placed.sub(outward.mul(dot(placed.sub(anchor), outward).mul(folded))), anchor);
-  return material;
+  const addOn = select(distance.lessThan(reachM).and(across.greaterThan(0)), placed.sub(outward.mul(dot(placed.sub(anchor), outward).mul(folded))), anchor);
+  return select(across.lessThan(0), positionLocal, addOn);
+}
+
+/** Gives a mesh drawn by the wall material that isn't an add-on the add-on's attributes, saying it stands as built. */
+export function standAsBuilt(geometry: BufferGeometry) {
+  geometry.setAttribute("anchor", new InstancedBufferAttribute(new Float32Array(3), 3));
+  geometry.setAttribute("outward", new InstancedBufferAttribute(new Float32Array([0, 0, 1]), 3));
+  geometry.setAttribute("across", new InstancedBufferAttribute(new Float32Array([-1]), 1));
 }
 
 /** Room in each kind's list: more than the whole island holds, whose most are Mariehamn's L2334E's 37 porches. */

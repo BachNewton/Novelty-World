@@ -1,6 +1,6 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import type { AddOn } from "../art/facades/add-on-places";
-import { addOnLists, addOnMaterial } from "../art/facades/add-ons";
+import { addOnLists } from "../art/facades/add-ons";
 import IDS from "../art/facades/facade-ids.json";
 import { painter, type Inks } from "../art/facades/paint";
 import { fuelStation, supermarketEntrance } from "../art/facades/roadside-shops";
@@ -57,12 +57,11 @@ function shopCells(cells: SolidsCell[], shops: { mesh: LandmarkMesh; x: number; 
   });
 }
 
-export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMaterial, town: TownMaterials, inks: Inks, reachM: number) {
+export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMaterial, town: TownMaterials, inks: Inks) {
   const paint = painter(inks);
-  const villaMaterial = addOnMaterial(wallMaterial, reachM);
   const terminal = buildTerminal();
   const tiles = new Map<string, TileAddOns>();
-  const villas = addOnLists(paint, villaMaterial);
+  const villas = addOnLists(paint, wallMaterial);
   scene.add(...villas.meshes);
   let terminalMeshes: Mesh[] = [];
   let compiling = false;
@@ -131,7 +130,6 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
         mesh.geometry.dispose();
       }
       swap(terminalMeshes, [], false);
-      villaMaterial.dispose();
     },
   };
 }

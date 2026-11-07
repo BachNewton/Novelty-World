@@ -3,6 +3,7 @@ import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mi
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
+import { addOnPosition, standAsBuilt } from "../art/facades/add-ons";
 import { facadeArt, WallLight, wallParts } from "../art/facades/facade";
 import { farWindowLight, windowLight, type Night } from "../art/night";
 import { PAINT_STYLE } from "../art/landmarks/kit";
@@ -144,7 +145,7 @@ function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, 
   return WallLight(mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall)), glow);
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night; season?: SeasonLook }): MeshBasicNodeMaterial {
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night; season?: SeasonLook; addOnReachM?: number }): MeshBasicNodeMaterial {
   const { night } = art;
   const season = seasonNodes(art.season);
   const toSun = towardsSun(sun);
@@ -171,8 +172,10 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
 
   // Every shape on a wall is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
   // average rather than fading out: only lines too fine to draw fade, and they fade to their own average. A wall pays
-  // only for its own style, so the derivatives that measure the pixel are read before the styles branch.
-  const walls = Fn(() => {
+  // only for its own style, so the derivatives that measure the pixel are read before the styles branch. The wall's
+  // colour and its glow are both read in here, once: TSL inlines a function's whole body at each place its result is
+  // read, so reading them apart wrote the biggest shader the game has into it twice.
+  const shaded = Fn(() => {
     const wide = fwidth(along).toVar();
     const tall = fwidth(up).toVar();
     const reads = select(dFdx(along).lessThan(0), float(-1), float(1)).toVar();
@@ -193,14 +196,14 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
       drawn.assign(plain.colour);
       glow.assign(plain.glow);
     });
-    return WallLight(drawn, glow);
+    const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
+    const painted = style.greaterThan(PAINT_STYLE - 0.5);
+    return hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, drawn.mul(nearGround))).mul(lit)).add(glow);
   })();
-  const wall = wallParts(walls);
 
-  const nearGround = mix(float(0.78), float(1), smoothstep(float(0), float(1.8), up));
   const material = new MeshBasicNodeMaterial();
-  const painted = style.greaterThan(PAINT_STYLE - 0.5);
-  material.colorNode = hazed(select(style.lessThan(0.5), roof, select(painted, photoRoof, wall.colour.mul(nearGround))).mul(lit)).add(wall.glow);
+  material.colorNode = shaded;
+  material.positionNode = addOnPosition(art.addOnReachM);
   material.side = 2;
   return material;
 }
@@ -214,6 +217,7 @@ export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMater
     geometry.setAttribute("facade", new BufferAttribute(facades, 4));
     geometry.setAttribute("tint", new BufferAttribute(tints, 4, true));
     geometry.setIndex(new BufferAttribute(indices, 1));
+    standAsBuilt(geometry);
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
     mesh.visible = false;

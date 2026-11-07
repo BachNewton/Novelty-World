@@ -125,7 +125,10 @@ export function createLampLight(night: Night, capacity: number) {
   const place = attribute<"vec4">("poolPlace", "vec4");
   const tint = attribute<"vec4">("poolTint", "vec4");
   const hour = smoothstep(tint.w.mul(0.6), tint.w.mul(0.6).add(0.4), night.lampsOn);
-  const material = new MeshBasicNodeMaterial({ transparent: true, depthTest: false, depthWrite: false, blending: AdditiveBlending, side: 2 });
+  // In one pass: three draws a see-through double-sided material's back faces and then its front, a pipeline each, and
+  // its `compileAsync` builds neither, only one for both sides at once. Light adds up in any order, so one pass draws
+  // the same.
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthTest: false, depthWrite: false, blending: AdditiveBlending, side: 2, forceSinglePass: true });
   material.positionNode = vec3(place.x.add(positionGeometry.x.mul(place.w)), 0, place.z.sub(positionGeometry.y.mul(place.w)));
   const fromCentre = varying(positionGeometry.xy).length();
   const pool = float(1).sub(fromCentre.mul(fromCentre)).max(0);
@@ -170,7 +173,12 @@ export function createLampLight(night: Night, capacity: number) {
       renderer.setRenderTarget(null);
       renderer.setClearColor(cleared, alpha);
     },
-    compile: (renderer: WebGPURenderer) => renderer.compileAsync(lightScene, above),
+    // Built for the image it draws into, whose pipelines aren't the screen's.
+    compile: async (renderer: WebGPURenderer) => {
+      renderer.setRenderTarget(target);
+      await renderer.compileAsync(lightScene, above);
+      renderer.setRenderTarget(null);
+    },
     dispose() {
       geometry.dispose();
       material.dispose();

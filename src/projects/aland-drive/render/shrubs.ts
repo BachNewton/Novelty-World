@@ -326,6 +326,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
 
   const planting = createPlanting(scene, renderer, {
     lattices: LATTICES,
+    byLattice: true,
     widestM: WIDEST_M,
     shapes: [...fars, ...kinds.map(({ model }) => model.near), bareShape, hazeBlob()],
     capacities: [...kinds.map(({ lattice }) => capacityOf(lattice)), ...kinds.map(nearOf), bareCapacity, hazeCapacity],

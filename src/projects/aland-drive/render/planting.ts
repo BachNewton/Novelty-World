@@ -1,5 +1,5 @@
 import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, If, instanceIndex, mix, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, If, instanceIndex, mix, select, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
 import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M } from "./tree-place";
 import { viewSides } from "./view-sides";
@@ -7,7 +7,7 @@ import { viewSides } from "./view-sides";
 /*
  * Plants with no list anywhere, as the forest has no list of trees: a plant is a place
  * on a lattice of the world, and what stands there comes from images a tile already
- * has. Each frame a compute pass per lattice goes through the places within its reach
+ * has. Each frame a compute pass goes through every lattice's places within its reach
  * and in view, and a planting's own rule writes the survivors into a list per shape,
  * which an indirect draw draws whatever its length. So nothing is stored or streamed,
  * no tile changes, and the cost follows what's in view.
@@ -88,7 +88,8 @@ export interface PlaceAt {
   seed: Node<"vec2">;
   place: Node<"vec2">;
   distance: Node<"float">;
-  lattice: Lattice;
+  /** The lattice this place is on, for a planting culled `byLattice`. */
+  lattice?: Lattice;
   /** Whether something standing on this ground, out to the planting's widest, is inside the view. */
   seenOn: (ground: Node<"float">) => Node<"bool">;
   /** How much of the plant is left at this distance: 1 until its own end, then dissolving to 0. */
@@ -99,6 +100,11 @@ export interface PlaceAt {
 
 export interface PlantingSpec {
   lattices: Lattice[];
+  /**
+   * Whether `visit` writes other code for each lattice, telling them apart by `lattice`: each is then culled by a kernel
+   * of its own. Otherwise one kernel culls every lattice, so the planting compiles one pipeline.
+   */
+  byLattice?: boolean;
   /** The most a plant stands out from its place. */
   widestM: number;
   shapes: BufferGeometry[];
@@ -128,7 +134,7 @@ export interface Planting {
   dispose: () => void;
 }
 
-export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattices, widestM, shapes, capacities, rows, visit, familyOf = () => 0, materialOf }: PlantingSpec): Planting {
+export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattices, byLattice = false, widestM, shapes, capacities, rows, visit, familyOf = () => 0, materialOf }: PlantingSpec): Planting {
   const camera2d = uniform(new Vector2());
   const view = viewSides(WORLD_HEIGHTS_M, widestM);
 
@@ -148,21 +154,28 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
     });
   })().compute(1);
 
-  const passes = lattices.map((lattice) => {
-    const { stepM, ends, salt } = lattice;
-    const reachM = reachOf(lattice);
-    const anchor = uniform(new Vector2());
-    const placesAcross = uniform(1, "uint");
-
+  // One kernel goes through the places of every lattice it's given, each lattice's places after the last's, with that
+  // lattice's numbers picked per place: a kernel is a pipeline, and two lattices' kernels with only their numbers apart
+  // would compile the planting's whole rule twice.
+  const pass = (given: Lattice[], lattice?: Lattice) => {
+    const anchors = given.map(() => uniform(new Vector2()));
+    const acrosses = given.map(() => uniform(1, "uint"));
+    const starts = given.map(() => uniform(0, "uint"));
     const cull = Fn(() => {
-      const cell = vec2(instanceIndex.mod(placesAcross), instanceIndex.div(placesAcross)).add(anchor).toVar();
-      const seed = cell.add(salt).toVar();
-      const jitter = vec2(roll(seed, 1), roll(seed, 2)).sub(0.5).mul(JITTER * stepM);
+      const which = starts.slice(1).reduce<Node<"uint">>((sum, start) => sum.add(select(instanceIndex.greaterThanEqual(start), uint(1), uint(0))), uint(0)).toVar();
+      const pick = <Type extends "float" | "uint" | "vec2">(nodes: Node<Type>[]) => nodes.slice(1).reduce((chosen, node, at) => select(which.equal(at + 1), node, chosen), nodes[0]);
+      const number = (of: (lattice: Lattice) => number) => pick(given.map((each) => float(of(each))));
+      const stepM = number((each) => each.stepM).toVar();
+      const index = instanceIndex.sub(pick(starts)).toVar();
+      const across = pick(acrosses).toVar();
+      const cell = vec2(index.mod(across), index.div(across)).add(pick(anchors)).toVar();
+      const seed = cell.add(number((each) => each.salt)).toVar();
+      const jitter = vec2(roll(seed, 1), roll(seed, 2)).sub(0.5).mul(stepM.mul(JITTER));
       const place = cell.mul(stepM).add(jitter).toVar();
       const distance = place.sub(camera2d).length().toVar();
       const perhapsSeen = view.sides.map(({ plane, rough }) => dot(plane.xz, place).add(rough).greaterThanEqual(0)).reduce((all, side) => all.and(side));
 
-      If(distance.lessThan(reachM).and(perhapsSeen), () => {
+      If(distance.lessThan(number(reachOf)).and(perhapsSeen), () => {
         visit({
           seed,
           place,
@@ -170,8 +183,8 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
           lattice,
           seenOn: (ground) => view.sides.map(({ plane }) => dot(plane.xyz, vec3(place.x, ground, place.y)).add(plane.w).add(widestM).greaterThanEqual(0)).reduce((all, side) => all.and(side)),
           left: () => {
-            const dissolves = mix(float(ends[0]), float(ends[1]), roll(seed, 3)).toVar();
-            return float(1).sub(smoothstep(dissolves, dissolves.add(ends[2]), distance));
+            const dissolves = mix(number(({ ends }) => ends[0]), number(({ ends }) => ends[1]), roll(seed, 3)).toVar();
+            return float(1).sub(smoothstep(dissolves, dissolves.add(number(({ ends }) => ends[2])), distance));
           },
           write: (shape, carried) => {
             const index = atomicAdd(counters.element(countOf(shape)), uint(1)).toVar();
@@ -185,13 +198,19 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
     })().computeKernel([PLACES_A_GROUP]);
 
     const aim = (spot: Vector3) => {
-      const across = Math.ceil((2 * reachM) / stepM) + 2;
-      placesAcross.value = across;
-      anchor.value.set(Math.floor(spot.x / stepM) - across / 2, Math.floor(spot.z / stepM) - across / 2);
-      cull.dispatchSize = [Math.ceil((across * across) / PLACES_A_GROUP), 1, 1];
+      let places = 0;
+      given.forEach((each, at) => {
+        const across = Math.ceil((2 * reachOf(each)) / each.stepM) + 2;
+        acrosses[at].value = across;
+        anchors[at].value.set(Math.floor(spot.x / each.stepM) - across / 2, Math.floor(spot.z / each.stepM) - across / 2);
+        starts[at].value = places;
+        places += across * across;
+      });
+      cull.dispatchSize = [Math.ceil(places / PLACES_A_GROUP), 1, 1];
     };
     return { cull, aim };
-  });
+  };
+  const passes = byLattice ? lattices.map((lattice) => pass([lattice], lattice)) : [pass(lattices)];
   const cap = Fn(() => {
     capacities.forEach((items, shape) => {
       atomicMin(counters.element(countOf(shape)), uint(items));

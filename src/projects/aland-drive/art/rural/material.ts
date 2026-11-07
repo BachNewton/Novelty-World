@@ -290,6 +290,9 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
   material.maskNode = (isNear ? dither.greaterThanEqual(blend) : dither.lessThan(blend)).and(outsideCar());
 
   const palette = uniformArray(ruralColours(linear));
+  // Made out here: TSL runs a function's body again for each mesh it builds the material for, and an array made in it
+  // would be a new one each time, so the same material would compile a shader apart for each.
+  const records = uniformArray(paintRecords());
   const paintOf = (part: Node<"int">) => palette.element(part) as unknown as Node<"vec3">;
   const kind = round(tint.b.mul(255));
   // Mixed in roots of light, so the coats run evenly to the eye from light grey to black rather than bunching pale.
@@ -335,7 +338,6 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
       })()
     : Fn(() => {
         const painted = select(kind.equal(pattern("boards")).or(kind.greaterThanEqual(PAINTED_FROM)), base.mul(BOARDS_MEAN), base).toVar();
-        const records = uniformArray(paintRecords());
         If(kind.greaterThanEqual(PAINTED_FROM), () => {
           const record = int(kind.sub(PAINTED_FROM)).mul(RECORD_VEC4S);
           const read = (index: number) => records.element(record.add(index)) as unknown as Node<"vec4">;
