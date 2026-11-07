@@ -21,7 +21,7 @@ Players see it as **Åland Drive Unlimited**, a nod to that series; the code kee
 | Start a challenge or open a race's card in its ring, or answer a co-op invite | E | X |
 | Sound on or off | N, or the game menu | The game menu |
 
-The game menu (`components/game-menu.tsx`) opens on Resume, which B, Menu and Esc press too, and holds the car's tyres (each press fits the next: summer, winter, studded), the sound on or off, and in a challenge Retry and Leave (see Challenges). The same dialog is a challenge's small choices on its own button: Solo or Co-op, and Join or Decline, each with Cancel. N toggles the sound too, with no prompt on the HUD. Esc opens it only when nothing else is open for it to close. It is driven by the shared pad navigation, and the game decides what it holds and whether it pauses (`render/game-menu.ts`): each time it opens, the game works out its items, which the page draws by id, and whether the drive stops. It pauses as the map does unless the game says otherwise, and a menu that doesn't pause lets go of the car's controls while the cars and the clock run on.
+The game menu (`components/game-menu.tsx`) opens on Resume, which B, Menu and Esc press too, and holds the car's tyres (each press fits the next: summer, winter, studded), the sound on or off, Graphics, and in a challenge Retry and Leave (see Challenges). The same dialog is a challenge's small choices on its own button: Solo or Co-op, and Join or Decline, each with Cancel. N toggles the sound too, with no prompt on the HUD. Esc opens it only when nothing else is open for it to close. It is driven by the shared pad navigation, and the game decides what it holds and whether it pauses (`render/game-menu.ts`): each time it opens, the game works out its items, which the page draws by id, and whether the drive stops. It pauses as the map does unless the game says otherwise, and a menu that doesn't pause lets go of the car's controls while the cars and the clock run on. Graphics opens a page of its own (`graphicsMenu`), the home of every graphics setting as they're added: it opens on its first setting, and Back, B or Esc returns to the game menu. It holds the render scale (see Floor) for now; the page keeps the settings (`render/graphics-settings.ts`) and the game follows them live.
 
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
 
@@ -103,9 +103,11 @@ Computer-driven cars go the same way (`net/computer-cars.ts`, piece 6 of `ideas/
 
 The owner's laptop is the hardware floor: a Framework 13 with a Ryzen 7 7840U and its integrated Radeon 780M, driving a 3440×1440 100 Hz screen.
 
-**Mobile is not supported.** This project is an exception to the repo's phone-floor and 360px responsive principles. Input is keyboard and controller, with no touch.
+**Mobile is not supported.** This project is an exception to the repo's phone-floor and 360px responsive principles. Input is keyboard and controller, with no touch. So no layout is built or checked at phone sizes, and no change needs a mobile screenshot.
 
-The target is a steady 60 fps, drawing the 3D world at 100% of the screen's real pixels (`RENDER_SCALE` in `render/game.ts`, which may become a graphics setting). The frame meter is the shared stats.js one; a timestamp query gives the GPU time.
+The target is a steady 60 fps, drawing the 3D world at 100% of the screen's physical pixels: one rendered pixel per device pixel, the full `devicePixelRatio`. The frame meter is the shared stats.js one; a timestamp query gives the GPU time.
+
+**Render scale is never a way to cheat performance.** The game menu's Graphics page has a render scale (`render/graphics-settings.ts`), 50–100% of the physical pixels each way in steps of 10, kept in this browser and applied live. It is the player's choice and the only thing that ever draws fewer pixels: the default is 100%, and nothing in the game lowers it, caps the pixel ratio, or scales resolution by device or on the fly. A frame that costs too much is made cheaper (fewer draws, triangles, pixels shaded per pixel), never drawn at a lower resolution, and a measurement or a target is always taken at 100%.
 
 A chase view at 3440×1440 is 60–90 draw calls and 0.5–1.1 M triangles, of which about 0.4 M is the terrain, fixed wherever the car is. The forest follows what's in view: 0.05–0.15 M on open and coastal showcase views, 0.4 M in mixed forest and 0.63 M in Deep Forest.
 
@@ -148,7 +150,7 @@ A chase view at 3440×1440 is 60–90 draw calls and 0.5–1.1 M triangles, of w
 
 Start simple, and add a feature only when it fixes something visibly wrong and its cost is known.
 
-- **Build a system that scales, not one sized to a machine.** A graphics system is efficient by design and scales to the hardware: better hardware scales up, worse scales down, through levels of detail, reach and render scale. A system is never built to a fixed budget, and the one thing to avoid is a system that can't scale. The floor laptop decides the default settings, not the design.
+- **Build a system that scales, not one sized to a machine.** A graphics system is efficient by design and scales to the hardware: better hardware scales up, worse scales down, through levels of detail and reach, with the render scale left to the player (see Floor). A system is never built to a fixed budget, and the one thing to avoid is a system that can't scale. The floor laptop decides the default settings, not the design.
 - **Bake ahead of time what can be baked**: terrain shading and soft shadows from the 2 m data.
 - **Spend detail near the car.**
 - **Keep distance cheap**: simplified terrain, simple crowns for far trees, haze.

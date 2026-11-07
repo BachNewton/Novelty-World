@@ -71,6 +71,31 @@ test("the game menu's Tyres changes the car's tyres in turn, and the car keeps t
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
 });
 
+test("the world draws every physical pixel unless the player lowers the render scale, which applies live and is kept", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  const drawn = () => page.evaluate(() => window.__alandDrive?.counts().width);
+  const full = await page.evaluate(() => Math.floor(window.innerWidth * window.devicePixelRatio));
+  expect(await drawn()).toBe(full);
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Graphics" }).click();
+  const graphics = page.getByRole("dialog", { name: "Graphics" });
+  await expect(graphics.getByRole("button", { name: "Lower render scale" })).toBeFocused();
+  await expect(graphics.getByRole("status", { name: "Render scale" })).toHaveText("100%");
+  await graphics.getByRole("button", { name: "Lower render scale" }).click();
+  await graphics.getByRole("button", { name: "Lower render scale" }).click();
+  await expect(graphics.getByRole("status", { name: "Render scale" })).toHaveText("80%");
+  expect(await drawn()).toBe(Math.floor(full * 0.8));
+  // Esc steps back to the game menu, not out of it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Game menu" })).toBeVisible();
+
+  await page.reload();
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  expect(await drawn()).toBe(Math.floor(full * 0.8));
+});
+
 test("Esc opens the game menu, which pauses the drive, and Resume or Esc closes it", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });

@@ -79,7 +79,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { drivingMenu, graphicsMenu, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
@@ -109,6 +109,7 @@ import { CARS as TUNINGS, carAsked, DEFAULT_CAR, type CarId } from "../sim/cars"
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { groundCondition } from "../climate/feed";
 import { fitTyres, tyresOn } from "../garage/tyres";
+import { pixelRatio, useDriveGraphics } from "./graphics-settings";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 import { tiledGround } from "../art/surfaces/tiled";
@@ -492,8 +493,6 @@ const SEA_BELOW_LAND_M = -5;
 /** Land this little above the water is wet, and darker for it. */
 const WET_BAND_M = 0.2;
 const WET_SHADE = 0.75;
-/** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
-export const RENDER_SCALE = 1;
 /** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
 export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
@@ -649,7 +648,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     renderer.dispose();
     throw new NoWebGpuError();
   }
-  renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
+  // Every physical pixel by default; only the player's own render scale ever draws fewer (`render/graphics-settings.ts`).
+  // Never lower it to buy frames: performance comes from making rendering cheaper.
+  renderer.setPixelRatio(pixelRatio());
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
@@ -1558,6 +1559,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "sound":
         useDriveSoundSettings.getState().toggleMuted();
         break;
+      case "graphics":
+        showMenu(graphicsMenu);
+        break;
+      case "back":
+        showMenu(menuNow());
+        break;
       case "start-solo": {
         const chosen = offered;
         if (!chosen) throw new Error("Solo picked with no challenge offered");
@@ -1659,6 +1666,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const observer = new ResizeObserver(resize);
   observer.observe(container);
   resize();
+  const unsubscribeGraphics = useDriveGraphics.subscribe(() => {
+    renderer.setPixelRatio(pixelRatio());
+    resize();
+  });
 
   let held = false;
   const seaNow = seaClock(window.location.search);
@@ -2349,6 +2360,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       document.removeEventListener("visibilitychange", hushWhenHidden);
       audio.dispose();
       observer.disconnect();
+      unsubscribeGraphics();
       freeCamera.dispose();
       controls.dispose();
       worldMap?.dispose();

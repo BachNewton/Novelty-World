@@ -15,7 +15,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | "tyres" | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | "tyres" | "sound" | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -53,8 +53,8 @@ export interface MenuResult {
   race?: RaceResult;
 }
 
-/** What the dialog is: the game menu, or one of a challenge's choices. */
-export type MenuKind = "menu" | "start" | "invite" | "race";
+/** What the dialog is: the game menu, its Graphics page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "graphics" | "start" | "invite" | "race";
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -81,4 +81,7 @@ export interface GameMenu {
  * The menu outside a challenge, on the car's tyres. Changing tyres is here until homes and car shops exist, and
  * never in a challenge, whose car is the challenge's.
  */
-export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres", "sound"], back: "resume", pauses: true, tyres });
+export const drivingMenu = (tyres: Tyre): GameMenu => ({ items: ["resume", "tyres", "sound", "graphics"], back: "resume", pauses: true, tyres });
+
+/** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
+export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };

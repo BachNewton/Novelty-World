@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, type ComponentType } from "react";
-import { Car, Check, CircleDot, Flag, LogOut, Medal as MedalIcon, Play, Repeat, Route, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { useEffect, useRef, useState, type ComponentType, type RefObject } from "react";
+import { ArrowLeft, Car, Check, CircleDot, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, Play, Plus, Repeat, Route, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
+import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
@@ -57,6 +58,10 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
         return TYRE_LOOKS[menu.tyres ?? "summer"];
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
+      case "graphics":
+        return { icon: MonitorCog, label: "Graphics" };
+      case "back":
+        return { icon: ArrowLeft, label: "Back" };
       case "start-solo":
         return menu.kind === "race" ? { icon: Flag, label: menu.partner === undefined ? "Start" : "Solo" } : { icon: User, label: "Solo" };
       case "start-coop":
@@ -184,7 +189,59 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
   );
 }
 
-const DIALOG_NAMES = { menu: "Game menu", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
+/** The size of an element in CSS pixels, kept as it changes. */
+function useSize(element: RefObject<HTMLElement | null>): { width: number; height: number } {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const target = element.current;
+    if (!target) return;
+    const observer = new ResizeObserver(() => {
+      setSize({ width: target.clientWidth, height: target.clientHeight });
+    });
+    observer.observe(target);
+    return () => {
+      observer.disconnect();
+    };
+  }, [element]);
+  return size;
+}
+
+/** The Graphics page's settings, which the page keeps and the game follows live. The menu covers the game, so its size is the game's. */
+function GraphicsSettings({ view, first }: { view: { width: number; height: number }; first: RefObject<HTMLButtonElement | null> }) {
+  const scale = useDriveGraphics((state) => state.settings.renderScale);
+  const step = useDriveGraphics((state) => state.stepRenderScale);
+  // As three sizes the canvas: CSS pixels times the pixel ratio, rounded down.
+  const ratio = window.devicePixelRatio * scale;
+  const resolution = `${Math.floor(view.width * ratio)}×${Math.floor(view.height * ratio)}`;
+  const lowest = scale === RENDER_SCALES[0];
+  const highest = scale === RENDER_SCALES[RENDER_SCALES.length - 1];
+  const stepper = "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded border-2 aria-disabled:cursor-default aria-disabled:opacity-40";
+  return (
+    <div className="mb-1 flex flex-col gap-3">
+      <div className="flex items-center gap-2 text-lg font-semibold">
+        <MonitorCog aria-hidden className="size-5 shrink-0" />
+        <span>Graphics</span>
+      </div>
+      <div role="group" aria-label="Render scale" className="flex items-center gap-2">
+        <Fullscreen aria-hidden className="size-5 shrink-0" />
+        <div className="flex grow flex-col leading-tight" title="Share of the screen's physical pixels the world is drawn at">
+          <span className="text-lg font-semibold">Render scale</span>
+          <span className="text-xs tabular-nums opacity-75" aria-label="Resolution">{resolution}</span>
+        </div>
+        {/* aria-disabled rather than disabled, so a pad's focus stays on a button pressed to its end. */}
+        <button ref={first} type="button" data-pad-start aria-label="Lower render scale" aria-disabled={lowest} className={stepper} style={{ borderColor: INK }} onClick={() => { step(-1); }}>
+          <Minus aria-hidden className="size-4" />
+        </button>
+        <span className="w-12 text-center text-lg font-semibold tabular-nums" role="status" aria-label="Render scale">{Math.round(scale * 100)}%</span>
+        <button type="button" aria-label="Raise render scale" aria-disabled={highest} className={stepper} style={{ borderColor: INK }} onClick={() => { step(1); }}>
+          <Plus aria-hidden className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const DIALOG_NAMES = { menu: "Game menu", graphics: "Graphics", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
 function ChoiceHeader({ title, from }: { title: string; from?: string }) {
@@ -205,31 +262,36 @@ function ChoiceHeader({ title, from }: { title: string; from?: string }) {
 }
 
 export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState; revealPadFocus: boolean; onPick: (id: MenuItemId) => void }) {
+  const backdrop = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
   const look = useItemLook(menu);
+  const view = useSize(backdrop);
   usePadNavigation(root, { reveal: revealPadFocus });
   useEffect(() => {
     first.current?.focus({ preventScroll: true });
   }, []);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
+    <div ref={backdrop} className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
       <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className="flex w-80 max-w-[90vw] flex-col gap-2 rounded-lg p-4" style={{ background: SHADE, color: INK }}>
         {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
         {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} partner={menu.partner} />}
+        {menu.kind === "graphics" && <GraphicsSettings view={view} first={first} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}
         {menu.items.map((id, index) => {
           const { icon: Icon, label, on } = look(id);
           const back = id === menu.back;
+          // A page of settings opens on its first setting rather than its first item.
+          const opensHere = index === 0 && menu.kind !== "graphics";
           return (
             <button
               key={id}
-              ref={index === 0 ? first : undefined}
+              ref={opensHere ? first : undefined}
               type="button"
               aria-pressed={on}
-              data-pad-start={index === 0 || undefined}
+              data-pad-start={opensHere || undefined}
               data-pad-back={back || undefined}
               data-pad-menu={back || undefined}
               className="flex cursor-pointer items-center gap-3 rounded border-2 px-3 py-2 text-left text-lg font-semibold"
