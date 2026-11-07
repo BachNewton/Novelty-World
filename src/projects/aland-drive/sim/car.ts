@@ -320,6 +320,8 @@ export class Car {
 
   private driveForce(input: DriveInput, forward: number): number {
     const { power } = this.tuning;
+    // The handbrake holds the clutch in, as the driving games do: it always beats the engine.
+    if (input.handbrake) return 0;
     if (this.reversingNow) return forward > -power.reverseSpeedMS ? -input.brake * power.reverseN : 0;
     return pullAt(this.tuning, this.engineNow, input.throttle);
   }
