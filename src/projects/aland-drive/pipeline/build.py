@@ -49,7 +49,7 @@ import walls
 import seated
 import waterfront
 from give_way import give_way
-from progress import Progress, stage
+from progress import Progress, begin, stage
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
 from island import ISLAND_FILE
 from sources import buildings3d_path, dem_path, osm_path
@@ -418,11 +418,11 @@ def write_world(output: Path = OUTPUT) -> dict:
     manifests = [json.loads((folder / "tile.json").read_text(encoding="utf-8")) for folder in sorted(output.iterdir()) if (folder / "tile.json").exists()]
     digest = hashlib.sha256()
     first = manifests[0]
-    stage("world: the overview")
+    stage("overview", "world: the overview")
     overview_manifest = overview.build(output, manifests, TILE_SIZE_M, HEIGHT_UNIT_M)
-    stage("world: the road map")
+    stage("road map", "world: the road map")
     map_manifest = road_map.build(output, [manifest["tile"] for manifest in manifests])
-    stage(f"world: the version, from every file of {len(manifests)} tiles")
+    stage("version", f"world: the version, from every file of {len(manifests)} tiles")
     for path in sorted(path for path in output.rglob("*") if path.is_file() and path.name not in NOT_IN_VERSION):
         digest.update(path.relative_to(output).as_posix().encode())
         digest.update(path.read_bytes())
@@ -509,6 +509,11 @@ def main() -> None:
     if arguments.new_building_sheets:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
+    world_tiles = len({folder.name for folder in OUTPUT.glob("*") if (folder / "tile.json").exists()} | set(names))
+    build = begin({
+        **dict.fromkeys(["tiles", "roadside", "lanes", "waterfront", "seated", "parking", "farm", "clearing"], len(names)),
+        **dict.fromkeys(["overview", "road map", "version"], world_tiles),
+    })
     build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town, arguments.paving)
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     # Beside the roadside, whose sign rule its right of way reads. It needs only each tile's own surface and OSM's signs.
@@ -523,6 +528,8 @@ def main() -> None:
     clearing.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
+    if arguments.island:
+        build.finish(arguments.jobs)
 
 
 if __name__ == "__main__":
