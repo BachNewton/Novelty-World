@@ -107,7 +107,7 @@ describe("the mix", () => {
     expect(flying.gravelLevel + flying.rumbleLevel + flying.asphaltLevel).toBe(0);
     const paused = mixed({ speedMS: 40, paused: true, place: { forest: 1, shore: 0, town: 0 } });
     expect(paused.windLowLevel + paused.asphaltLevel + paused.engineLevel).toBe(0);
-    expect(paused.leavesLevel).toBeGreaterThan(0);
+    expect(paused.birdsLevel).toBeGreaterThan(0);
   });
 
   it("lets wind and road rise with speed", () => {
@@ -211,7 +211,6 @@ describe("the place by the season and the hour", () => {
     expect(winterDay.birdsLevel).toBe(0);
     expect(winterNight.birdsLevel + winterNight.winterCallsLevel).toBe(0);
     expect(winterDay.winterCallsLevel).toBeGreaterThan(0);
-    expect(winterDay.winterLevel).toBeGreaterThan(winterDay.leavesLevel);
   });
 
   it("sings loudest at a spring dawn, less at noon and in rain, and hardly on a light midsummer night", () => {

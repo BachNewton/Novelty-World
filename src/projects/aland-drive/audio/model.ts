@@ -242,13 +242,9 @@ export interface Mix {
   galeLevel: number;
   galeHz: number;
 
-  /** Leaves in the wind, in a forest in leaf. */
-  leavesLevel: number;
   /** Spring and summer's birds, loudest at a spring dawn. */
   birdsLevel: number;
-  /** Winter's wind in bare branches. */
-  winterLevel: number;
-  /** A frozen sea or lake: dry wind over the ice, its creaks and cracks. */
+  /** A frozen sea or lake: the ice's creaks and cracks. */
   iceLevel: number;
   /** A lake's wavelets lapping at the bank. */
   lakeLevel: number;
@@ -257,7 +253,6 @@ export interface Mix {
   shoreLevel: number;
   /** Gulls calling over the water, a second: played as placed sounds, where the sea is. */
   gullsPerS: number;
-  townLevel: number;
 }
 
 /** Wind and tyres are full at the speed that's flat out for the vehicle: a bicycle hears them much sooner. */
@@ -311,7 +306,7 @@ const WIND_LOW = 0.7;
 const WIND_HIGH = 0.2;
 /** A car's engine and wind cover the world, so the place sinks as the speed rises. */
 const PLACE_SINKS_AT_SPEED = 0.6;
-const PLACE = { leaves: 0.44, birds: 0.36, winter: 0.36, winterCalls: 0.3, ice: 0.36, shore: 0.42, lake: 0.6, town: 0.42 };
+const PLACE = { birds: 0.36, winterCalls: 0.3, ice: 0.5, shore: 0.42, lake: 0.6 };
 /** Gull calls a second over a shore in their season, by day. */
 const GULLS_PER_S = 0.22;
 
@@ -343,22 +338,18 @@ const frozenLake = (iceReach: number) => smooth(iceReach / 0.08);
 export function placeMix(place: Place, season: SeasonHeard = SUMMER_DAY, weather?: WeatherHeard) {
   const light = daylight(season.sunDeg);
   const rain = weather?.rain ?? 0;
-  const wind = clamp((weather?.windMS ?? 6) / 14);
   const frozen = frozenShore(season.iceReach);
   const lakeIce = frozenLake(season.iceReach);
   const lake = place.lake ?? 0;
   const bare = 1 - season.leafed;
   const singing = songSeason(season.yearDay) * light * (1 + 1.4 * dawn(season.sunDeg, season.hour)) * (1 - 0.85 * rain);
   return {
-    leavesLevel: PLACE.leaves * place.forest * (0.15 + 0.85 * season.leafed),
     birdsLevel: PLACE.birds * place.forest * Math.min(singing, 1.8),
-    winterLevel: PLACE.winter * place.forest * bare * (0.5 + 0.5 * wind),
-    iceLevel: PLACE.ice * (place.shore * frozen + lake * lakeIce) * (0.6 + 0.4 * wind),
+    iceLevel: PLACE.ice * (place.shore * frozen + lake * lakeIce),
     lakeLevel: PLACE.lake * lake * (1 - lakeIce),
     winterCallsLevel: PLACE.winterCalls * place.forest * bare * light * (1 - songSeason(season.yearDay)) * (1 - 0.7 * rain),
     shoreLevel: PLACE.shore * place.shore * (1 - frozen),
     gullsPerS: GULLS_PER_S * Math.min(1, 2 * place.shore) * gullSeason(season.yearDay) * light * (1 - 0.8 * frozen) * (1 - 0.5 * rain),
-    townLevel: PLACE.town * place.town * (0.45 + 0.55 * light),
   };
 }
 /** Rain on the roof at its hardest, each loop at its full, and wet snow's soft patter, which is a share of it. */

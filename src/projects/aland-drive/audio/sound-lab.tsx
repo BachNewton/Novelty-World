@@ -238,7 +238,6 @@ function Bench() {
         <Slider label="Revs, when held" value={knobs.rpm} min={engine?.idleRpm ?? 0} max={engine?.redlineRpm ?? 1} step={50} disabled={engine === null || !knobs.holdRpm} onChange={(rpm) => set({ rpm })} />
         <Slider label="Forest" value={knobs.place.forest} min={0} max={1} step={0.05} onChange={(forest) => set({ place: { ...latest.current.place, forest } })} />
         <Slider label="Shore" value={knobs.place.shore} min={0} max={1} step={0.05} onChange={(shore) => set({ place: { ...latest.current.place, shore } })} />
-        <Slider label="Town" value={knobs.place.town} min={0} max={1} step={0.05} onChange={(town) => set({ place: { ...latest.current.place, town } })} />
         <Slider label="Lake" value={knobs.place.lake ?? 0} min={0} max={1} step={0.05} onChange={(lake) => set({ place: { ...latest.current.place, lake } })} />
         <Slider label={`Hour (sun ${seasonHeard(knobs.season, knobs.hour).sunDeg.toFixed(0)}°)`} value={knobs.hour} min={0} max={23.75} step={0.25} onChange={(hour) => set({ hour })} />
         <Slider label="Rain" value={knobs.weather.rain} min={0} max={1} step={0.05} onChange={(rain) => set({ weather: { ...latest.current.weather, rain } })} />
