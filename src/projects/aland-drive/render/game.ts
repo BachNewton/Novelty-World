@@ -4,8 +4,8 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
-import { TrafficContact } from "../traffic/contact";
-import { LaneTraffic, type LaneCar } from "../traffic/lane-driver";
+import { hitCarView, TrafficContact, type HitCarView } from "../traffic/contact";
+import { LaneTraffic, type DrivenCar, type LaneCar } from "../traffic/lane-driver";
 import { eyeOf, sees, type Eye } from "../traffic/sight";
 import { createLaneTrafficView, sightOf, TRAFFIC_KINDS } from "./lane-traffic";
 import { createCyclistsView } from "./cyclists";
@@ -66,6 +66,7 @@ import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
 import { createComputerCars } from "../net/computer-cars";
+import { createSharedTraffic, parseHitDriver, type HitDriver } from "../net/shared-traffic";
 import { parseScriptedDriver, scriptedState, scriptedStep, type ScriptedDriver } from "../net/scripted-car";
 import { GAME } from "../net/protocol";
 import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
@@ -248,6 +249,12 @@ export interface GameProbe {
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
   /** A computer-driven car this player runs, along one of the start tile's chains at a steady speed; its id. */
   addScriptedCar: (chain: number, along: number, speedMS: number) => string;
+  /** Every car, cyclist and walker on the lanes here: where it is, whether this player runs it, and how many times it has changed hands. */
+  sharedTraffic: () => { id: string; kind: LaneCar["kind"]; x: number; z: number; speedMS: number; runsHere: boolean; handovers: number }[];
+  /** Sends every vehicle this player runs to everyone at once, for a test to compare pages; how many it sent. */
+  flushTraffic: () => number;
+  /** How many traffic messages this page has heard from other players. */
+  trafficHeard: () => number;
   /** Every computer-driven car: who runs it, how many times it has changed hands, where it is here and its driver's record, and the furthest it has moved here in one step. */
   computerCars: () => { id: string; runner: string; handovers: number; runsHere: boolean; position: number[]; driver: Record<string, unknown>; furthestStepM: number }[];
   /** How many other players each map drew last. */
@@ -452,7 +459,7 @@ export interface Game {
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
-  /** Whether cars and cyclists ride the lanes round the car, or null in the shared world, which has none until traffic is shared. */
+  /** Whether cars, cyclists and walkers ride the lanes round the car, or null in the shared world, where traffic is everyone's and always on. */
   trafficOn: () => boolean | null;
   setTraffic: (on: boolean) => void;
   /** What the weather has made of every surface, until there is weather. */
@@ -925,10 +932,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
   const cyclistsView = createCyclistsView(scene, sun, hazed, CYCLISTS_MOST);
   const walkersView = createWalkersView(scene, { colour: colorOf, linear, hazed, sun }, WALKERS_MOST);
-  // Offline only, at Åland's own density, until traffic is shared (piece 14 of `ideas/traffic-and-racers.md`): a page in the shared world draws none.
+  // At Åland's own density, offline and in the shared world, where every player sees the same (`net/shared-traffic.ts`); only offline can it be turned off.
   const trafficOffered = online === undefined;
-  const startDensity = trafficOffered ? 1 : 0;
-  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: startDensity }, bike: { reachM: BIKE_REACH_M, density: startDensity }, walker: { reachM: PEOPLE_REACH_M, density: startDensity } });
+  // Online, a vehicle's id says who made it too: another player may have one from the same slot far off.
+  const trafficTag = Math.random().toString(36).slice(2, 6);
+  let trafficMade = 0;
+  const nameVehicle = online ? (slot: string) => `${slot}~${onlineWorld?.state().selfId ?? trafficTag}${(trafficMade++).toString(36)}` : undefined;
+  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 1 }, bike: { reachM: BIKE_REACH_M, density: 1 }, walker: { reachM: PEOPLE_REACH_M, density: 1 } }, nameVehicle);
   let trafficSeesPlayer = true;
   let trafficSteps = 0;
   let bubbleSteps = 0;
@@ -1238,17 +1248,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  /** After a jump, traffic starts again round the car as it does when a page opens: nobody saw it arrive, so it may fill anywhere. */
+  /**
+   * After a jump, traffic starts again round the car as it does when a page opens: nobody saw it arrive, so it may fill
+   * anywhere. What was left behind goes as it would on a drive away, or online passes to whoever is nearer it now.
+   */
   const refillTraffic = () => {
     const { position } = drive.stateAt(1);
     trafficFocus.x = position[0];
     trafficFocus.z = position[2];
-    for (const kind of ["car", "bike"] as const) {
-      const density = bubble.density(kind);
-      if (density === 0) continue;
-      bubble.setDensity(kind, 0);
-      bubble.setDensity(kind, density);
-    }
+    bubble.refill();
   };
   /** Loads round a place, with the first load's bar, and puts the car there once it has landed. */
   const loadRound = async (x: number, z: number, place: () => void) => {
@@ -1671,6 +1679,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let seaHeldAt: number | null = null;
   let autopilot: Autopilot | null = null;
   let owedSeconds = 0;
+  let owedTrafficSeconds = 0;
   let lastFrame: number | null = null;
   let frames = 0;
   let gpuMs: number | null = null;
@@ -1711,18 +1720,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     driveComputerCars();
     drive.step(lastInput);
     trafficContact.afterStep();
+    if (sharedTraffic) updateHitCars();
     measureComputerCars();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
-    if ((bubble.density("car") > 0 || bubble.density("bike") > 0 || bubble.density("walker") > 0) && trafficSteps === 0) {
-      const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
-      laneTraffic.setDriven(trafficContact.driven(trafficSeesPlayer ? [wide, long] : null));
-      if (bubbleSteps === 0) {
-        const eye = eyeNow();
-        bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)));
-      }
-      bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
-      laneTraffic.step(STEP_S * TRAFFIC_EVERY);
-    }
+    if (trafficSteps === 0) stepTraffic();
     tyres.step(drive.player.treads(), drive.player.surfaces(), drive.condition, drive.tyres, drive.stateAt(1));
     // A car put somewhere since the last step, by a reset or a retry, crosses no line on its way.
     const placed = drive.placements !== sampledPlacements;
@@ -1730,6 +1731,47 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!session) return;
     const state = drive.stateAt(1);
     session.step(STEP_S, { x: state.position[0], z: state.position[2], speedMS: speedOf(state), placed });
+  };
+
+  /** Every simulated car traffic sees: this player's and the hit cars it runs, and every other player's and hit car, as their stand-ins have them here. */
+  const trafficDriven = (): DrivenCar[] => {
+    const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
+    const seen = (id: string, state: CarState, half: readonly [number, number]): DrivenCar => ({ id, x: state.position[0], z: state.position[2], heading: headingOf(state.rotation), vx: state.velocity[0], vz: state.velocity[2], half });
+    const driven = trafficContact.driven(trafficSeesPlayer ? [wide, long] : null);
+    for (const [peerId, { heard }] of others) {
+      if (!heard) continue;
+      const state = drive.remotes.stateAt(peerId, 1);
+      const [otherWide, , otherLong] = TUNINGS[state.car].car.halfSize;
+      driven.push(seen(peerId, state, [otherWide, otherLong]));
+    }
+    for (const { id } of hitCarsElsewhere()) {
+      const state = drive.remotes.stateAt(standInOf(id), 1);
+      const [hitWide, , hitLong] = TUNINGS[state.car].car.halfSize;
+      driven.push(seen(id, state, [hitWide, hitLong]));
+    }
+    return driven;
+  };
+  /** Where every other player's car is, as heard here. */
+  const otherPlaces = (): { x: number; z: number }[] => [...others].flatMap(([peerId, { heard }]) => (heard ? [drive.remotes.stateAt(peerId, 1).position] : [])).map(([x, , z]) => ({ x, z }));
+  /** Whether this page is in the world and has heard where every other player in it is. */
+  const worldHeard = () => onlineWorld?.state().status === "connected" && [...others.values()].every(({ heard }) => heard);
+  /** Every player's car, this one's included, by their id. */
+  const playerPlaces = () => {
+    const places = new Map<string, CarVector>([[onlineWorld?.state().selfId ?? "", drive.player.position]]);
+    for (const [peerId, { heard }] of others) if (heard) places.set(peerId, drive.remotes.stateAt(peerId, 1).position);
+    return places;
+  };
+  /** One traffic step: its bubble round the camera, every vehicle on the lanes, and online what this player runs of them sent. */
+  const stepTraffic = () => {
+    if (bubble.density("car") === 0 && bubble.density("bike") === 0 && bubble.density("walker") === 0) return;
+    laneTraffic.setDriven(trafficDriven());
+    if (bubbleSteps === 0) {
+      const eye = eyeNow();
+      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() } : undefined);
+    }
+    bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
+    laneTraffic.step(STEP_S * TRAFFIC_EVERY);
+    sharedTraffic?.step();
   };
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
@@ -1741,22 +1783,61 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const computerCars = createComputerCars({
     selfId: () => onlineWorld?.state().selfId ?? null,
     hosts: () => onlineWorld?.state().role === "host",
-    places: () => {
-      const places = new Map<string, CarVector>([[onlineWorld?.state().selfId ?? "", drive.player.position]]);
-      for (const [peerId, { heard }] of others) if (heard) places.set(peerId, drive.remotes.stateAt(peerId, 1).position);
-      return places;
-    },
+    places: playerPlaces,
     send: (car) => onlineWorld?.sendComputerCar(car) ?? false,
     onHeard: (car) => {
+      // A hit car this page ran, handed on, or taken by another who hit it at the same moment.
+      if (trafficContact.running().some((hit) => hit.id === car.id)) trafficContact.release(car.id);
       drive.remotes.hear(standInOf(car.id), car.state);
     },
+    onGone: (id) => {
+      drive.remotes.forget(standInOf(id));
+      remoteViews.forget(standInOf(id));
+    },
   });
+  // Lane traffic online (`net/shared-traffic.ts`): each vehicle run by the player nearest it, and driven here between their messages.
+  let trafficHeard = 0;
+  const sharedTraffic = online
+    ? createSharedTraffic(laneTraffic, { selfId: () => onlineWorld?.state().selfId ?? null, places: playerPlaces, edgeM: (kind) => bubble.edgeM(kind), send: (traffic) => onlineWorld?.sendTraffic(traffic) ?? false }, TRAFFIC_EVERY)
+    : null;
+  const isHit = (driver: Record<string, unknown>) => driver.kind === "hit";
+  /** The hit cars another player runs, each drawn here as the world car it was. */
+  const hitCarsElsewhere = () => {
+    const running = new Set(computerCars.running().map(({ id }) => id));
+    return computerCars.all().filter(({ id, driver }) => isHit(driver) && !running.has(id));
+  };
+  const hitDriverOf = (hit: { model: number; seed: number; stoppedS: number }, hitAt: number): HitDriver => ({ kind: "hit", model: hit.model, seed: hit.seed, stoppedS: hit.stoppedS, hitAt });
+  /** The handovers each hit car run here was hit at, which it carries back into the traffic. */
+  const hitAts = new Map<string, number>();
+  if (sharedTraffic) {
+    trafficContact.others = otherPlaces;
+    // This page's car hit it, so this page runs it, as a computer-driven car everyone else sees.
+    trafficContact.onHit = (hit) => {
+      const hitAt = sharedTraffic.hit(hit.id);
+      hitAts.set(hit.id, hitAt);
+      computerCars.add(hit.id, hit.car.stateAt(1), { ...hitDriverOf(hit, hitAt) });
+    };
+    trafficContact.onDone = (hit, rejoined) => {
+      computerCars.remove(hit.id);
+      if (rejoined) sharedTraffic.rejoined(rejoined, hitAts.get(hit.id) ?? 0);
+      hitAts.delete(hit.id);
+    };
+  }
   const scriptedDrivers = new Map<string, ScriptedDriver>();
   /** Before the world steps: each car this player runs drives on from its driver's record, the one it was handed when it has just come here. */
   const driveComputerCars = () => {
     const running = computerCars.running();
     for (const id of scriptedDrivers.keys()) if (!running.some((car) => car.id === id)) scriptedDrivers.delete(id);
     for (const car of running) {
+      if (isHit(car.driver)) {
+        // Handed here: built as a simulated car where the state it was handed has it.
+        if (trafficContact.running().some((hit) => hit.id === car.id)) continue;
+        const driver = parseHitDriver(car.driver);
+        drive.remotes.forget(standInOf(car.id));
+        trafficContact.take(car.id, car.state, driver.model, driver.seed, driver.stoppedS);
+        hitAts.set(car.id, driver.hitAt);
+        continue;
+      }
       const was = scriptedDrivers.get(car.id) ?? parseScriptedDriver(car.driver);
       const line = startLine(was.chain);
       const driver = scriptedStep(was, STEP_S, line);
@@ -1766,10 +1847,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       drive.remotes.hear(standInOf(car.id), state);
     }
   };
+  /** After the world steps: each hit car this page runs is sent as it now stands. */
+  const updateHitCars = () => {
+    for (const hit of trafficContact.running()) {
+      if (computerCars.running().some((car) => car.id === hit.id)) computerCars.update(hit.id, hit.car.stateAt(1), { ...hitDriverOf(hit, hitAts.get(hit.id) ?? 0) });
+    }
+  };
+  /** Where a computer-driven car is here: a hit car this page runs is a simulated car, and every other a stand-in. */
+  const computerCarAt = (id: string, share: number): CarState => trafficContact.running().find((hit) => hit.id === id)?.car.stateAt(share) ?? drive.remotes.stateAt(standInOf(id), share);
   const furthestSteps = new Map<string, { at: CarVector; furthestM: number }>();
   const measureComputerCars = () => {
     for (const { id } of computerCars.all()) {
-      const at = drive.remotes.stateAt(standInOf(id), 1).position;
+      const at = computerCarAt(id, 1).position;
       const was = furthestSteps.get(id);
       furthestSteps.set(id, { at, furthestM: was ? Math.max(was.furthestM, Math.hypot(at[0] - was.at[0], at[1] - was.at[1], at[2] - was.at[2])) : 0 });
     }
@@ -1786,6 +1875,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         onComputerCar: (peerId, car) => {
           computerCars.hear(peerId, car);
         },
+        onTraffic: (peerId, traffic) => {
+          trafficHeard++;
+          sharedTraffic?.hear(peerId, traffic);
+        },
         onGone: (peerId) => {
           drive.remotes.forget(peerId);
           remoteViews.forget(peerId);
@@ -1797,7 +1890,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           const before = new Map(others);
           others.clear();
           for (const { peerId, name } of players) others.set(peerId, { name, heard: before.get(peerId)?.heard ?? false });
-          computerCars.players(new Set([...others.keys(), onlineWorld?.state().selfId ?? ""]));
+          const present = new Set([...others.keys(), onlineWorld?.state().selfId ?? ""]);
+          computerCars.players(present);
+          sharedTraffic?.players(present);
           events.onPlayers?.(players.map(({ name }) => name));
         },
         onChallenge: hearChallenge,
@@ -1823,7 +1918,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     lit.sort((a, b) => a.away - b.away);
     headlights.updateOthers(lit.slice(0, OTHERS_LIT).map(({ state }, index) => beamOf(state, othersBeams[index])));
-    for (const { id } of computerCars.all()) {
+    for (const { id, driver } of computerCars.all()) {
+      // A hit traffic car is drawn as the world car it was, with the rest of the traffic.
+      if (isHit(driver)) continue;
       const state = drive.remotes.stateAt(standInOf(id), share);
       remoteViews.draw(standInOf(id), state, world.tileAt(state.position[0], state.position[2])?.detail != null);
     }
@@ -1941,6 +2038,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       for (let step = 0; step < stepped; step++) simStep(nextInput());
       owedSeconds = Math.min(owedSeconds - stepped * STEP_S, STEP_S);
       share = owedSeconds / STEP_S;
+    } else if (sharedTraffic && !held) {
+      // Paused, this page still runs its share of the shared traffic, which everyone else sees go on.
+      owedTrafficSeconds = Math.min(owedTrafficSeconds + seconds, MOST_STEPS_A_FRAME * STEP_S);
+      for (; owedTrafficSeconds >= STEP_S * TRAFFIC_EVERY; owedTrafficSeconds -= STEP_S * TRAFFIC_EVERY) stepTraffic();
     }
     const car = drive.stateAt(share);
     carView.draw(car);
@@ -2033,9 +2134,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.condition = ground.at(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
-    trafficFocus.x = camera.position.x;
-    trafficFocus.z = camera.position.z;
-    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, trafficContact.hitCars(share));
+    // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
+    // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
+    const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;
+    trafficFocus.x = trafficAt.x;
+    trafficFocus.z = trafficAt.z;
+    laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, [...trafficContact.hitCars(share), ...hitCarsElsewhere().map(({ id, driver }): HitCarView => {
+      const { model, seed } = parseHitDriver(driver);
+      return hitCarView(id, model, seed, drive.remotes.stateAt(standInOf(id), share));
+    })]);
     cyclistsView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
     walkersView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, camera.position, stepped * STEP_S);
     roadside.update(camera.position);
@@ -2219,13 +2326,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         drive.remotes.hear(standInOf(id), state);
         return id;
       },
+      sharedTraffic: () => {
+        const runners = sharedTraffic?.runners();
+        return [...laneTraffic.all()].map(({ id, kind, pose, speedMS }) => ({ id, kind, x: pose.x, z: pose.z, speedMS, runsHere: !laneTraffic.elsewhere.has(id), handovers: runners?.get(id)?.handovers ?? 0 }));
+      },
+      flushTraffic: () => sharedTraffic?.flush() ?? 0,
+      trafficHeard: () => trafficHeard,
       computerCars: () =>
         computerCars.all().map(({ id, runner, handovers, driver }) => ({
           id,
           runner,
           handovers,
           runsHere: computerCars.running().some((car) => car.id === id),
-          position: drive.remotes.stateAt(standInOf(id), 1).position,
+          position: computerCarAt(id, 1).position,
           driver,
           furthestStepM: furthestSteps.get(id)?.furthestM ?? 0,
         })),
@@ -2315,7 +2428,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     setCar,
     trafficOn: () => (trafficOffered ? bubble.density("car") > 0 : null),
     setTraffic: (on) => {
-      if (!trafficOffered) throw new Error("traffic is offline only");
+      if (!trafficOffered) throw new Error("the shared world's traffic is everyone's, and can't be turned off on one page");
       bubble.setDensity("car", on ? 1 : 0);
       bubble.setDensity("bike", on ? 1 : 0);
       bubble.setDensity("walker", on ? 1 : 0);

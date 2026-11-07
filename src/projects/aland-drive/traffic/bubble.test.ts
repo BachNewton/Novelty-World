@@ -55,6 +55,18 @@ describe("the bubble", () => {
     expect(traffic.count()).toBe(filled);
   });
 
+  it("online, fills nothing until it knows where every player is, then only what no other player keeps", () => {
+    const { traffic, bubble } = setUp(10);
+    const runsHere = () => true;
+    bubble.update({ x: 1500, z: 0 }, () => false, { others: [], runsHere, ready: false });
+    expect(traffic.count()).toBe(0);
+    // Another player stands 600 m east: nothing fills within their reach, nor nearer them.
+    bubble.update({ x: 1500, z: 0 }, () => false, { others: [{ x: 2100, z: 0 }], runsHere, ready: true });
+    const xs = [...traffic.all()].map((vehicle) => vehicle.pose.x);
+    expect(xs.length).toBeGreaterThan(5);
+    expect(xs.every((x) => x < 1700)).toBe(true);
+  });
+
   it("fills a road with the same vehicles each time, each slot its own seed", () => {
     const { traffic, bubble } = setUp(10);
     const who = () => new Map([...traffic.all()].map((vehicle) => [vehicle.id, `${vehicle.kind} ${vehicle.seed} ${vehicle.model}`]));
