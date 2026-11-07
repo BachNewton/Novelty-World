@@ -26,7 +26,6 @@ const ACCENT = "var(--color-aland-drive-ui-accent)";
 const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
 const PASS = "var(--color-aland-drive-ui-pass)";
 const FAIL = "var(--color-aland-drive-ui-redline)";
-const PLAYER = "var(--color-aland-drive-ui-player)";
 
 /** A race's colour, by what's under its wheels. */
 export const raceColour = (ground: RaceGround) => `var(--color-aland-drive-ui-race-${ground})`;
@@ -58,9 +57,9 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
       case "start-solo":
-        return menu.kind === "race" ? { icon: Flag, label: menu.partner === undefined ? "Start" : "Solo" } : { icon: User, label: "Solo" };
+        return menu.kind === "race" ? { icon: Flag, label: menu.players === undefined ? "Start" : "Solo" } : { icon: User, label: "Solo" };
       case "start-coop":
-        return { icon: Users, label: `Co-op with ${menu.partner ?? ""}` };
+        return { icon: Users, label: `Co-op · ask ${menu.players ?? 0}` };
       case "join-coop":
         return { icon: UserPlus, label: `Join ${menu.partner ?? ""}` };
       case "decline-coop":
@@ -81,7 +80,7 @@ function MedalMark({ medal, className }: { medal: Medal | null; className: strin
 }
 
 /** A race before it starts: its number, ground and shape, laps and length, the car, what each medal takes, and what's been won solo and in co-op. */
-function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCard; partner?: string }) {
+function RaceCardHeader({ title, card }: { title: string; card: RaceCard }) {
   const colour = raceColour(card.ground);
   return (
     <div className="mb-1 flex flex-col gap-2" aria-label="Race card">
@@ -115,12 +114,6 @@ function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCar
           );
         })}
       </div>
-      {partner !== undefined && (
-        <div className="flex items-center gap-2 text-sm font-semibold" aria-label="In the ring" title="In the ring">
-          <Users aria-hidden className="size-4 shrink-0" style={{ color: PLAYER }} />
-          <span>{partner}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -187,7 +180,7 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
 const DIALOG_NAMES = { menu: "Game menu", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
-function ChoiceHeader({ title, from }: { title: string; from?: string }) {
+function ChoiceHeader({ title, from, ground }: { title: string; from?: string; ground?: RaceGround }) {
   return (
     <div className="mb-1 flex flex-col gap-1">
       {from !== undefined && (
@@ -196,8 +189,8 @@ function ChoiceHeader({ title, from }: { title: string; from?: string }) {
           <span>{from}</span>
         </div>
       )}
-      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: CHALLENGE }}>
-        <Flag aria-hidden className="size-4 shrink-0" />
+      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: ground ? raceColour(ground) : CHALLENGE }} aria-label={ground ? "Race" : "Challenge"}>
+        {ground ? <Trophy aria-hidden className="size-4 shrink-0" /> : <Flag aria-hidden className="size-4 shrink-0" />}
         <span>{title}</span>
       </div>
     </div>
@@ -217,9 +210,9 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
     <div className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
       <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className="flex w-80 max-w-[90vw] flex-col gap-2 rounded-lg p-4" style={{ background: SHADE, color: INK }}>
         {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
-        {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} partner={menu.partner} />}
+        {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
-        {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}
+        {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} ground={menu.ground} />}
         {menu.items.map((id, index) => {
           const { icon: Icon, label, on } = look(id);
           const back = id === menu.back;

@@ -6,7 +6,6 @@ import { parseChallengeMessage, parseGuestMessage, parseHostMessage, type Challe
 const valid: ChallengeMessage[] = [
   { type: "invite", challenge: "ytterby-sprint", attempt: 1 },
   { type: "accept", challenge: "ytterby-sprint", attempt: 1 },
-  { type: "decline", challenge: "ytterby-sprint", attempt: 1 },
   { type: "start", challenge: "ytterby-sprint", attempt: 1, partner: "Ab3_x-9q" },
   { type: "retry", challenge: "ytterby-sprint", attempt: 7 },
   { type: "ready", challenge: "ytterby-sprint", attempt: 7 },

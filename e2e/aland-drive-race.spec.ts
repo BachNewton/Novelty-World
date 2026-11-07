@@ -111,21 +111,21 @@ async function joinWorld(browser: Browser, world: string): Promise<Page> {
   return page;
 }
 
-test("a co-op race for two: asked from the card, the front row, over once both have finished, first and gold on both", async ({ browser }) => {
+test("a co-op race for two: asked from the card, joined from down the road, the front row, over once both have finished, first and gold on both", async ({ browser }) => {
   const world = `race-${crypto.randomUUID()}`;
   const first = await joinWorld(browser, world);
   const second = await joinWorld(browser, world);
   const { race, line } = await layRace(first, { id: "fixture-team-race", title: TITLE });
   for (const page of [first, second]) await page.evaluate((added: RaceChallenge) => window.__alandDrive?.addChallenge(added), race);
   await first.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), race.starts[0]);
-  await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), along(line, 7));
+  await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), along(line, 200));
   await expect(first.getByLabel("Co-op with")).toBeVisible({ timeout: 30_000 });
   for (const page of [first, second]) await page.evaluate(() => window.__alandDrive?.hold(true));
 
-  // The card offers Co-op with the other player in the ring, who joins with the same button.
+  // The card offers Co-op, which asks everyone in the world; the other player, far from the ring, joins with the same button.
   await first.keyboard.press("KeyE");
   const card = first.getByRole("dialog", { name: "Race" });
-  await card.getByRole("button", { name: /^Co-op with / }).click();
+  await card.getByRole("button", { name: /^Co-op/ }).click();
   await expect(second.getByLabel("Co-op invite")).toContainText(TITLE);
   await second.keyboard.press("KeyE");
   await second.getByRole("dialog", { name: "Co-op invite" }).getByRole("button", { name: /^Join / }).click();

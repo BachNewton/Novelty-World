@@ -39,6 +39,8 @@ interface Client {
   overs: number;
   /** Lets a placing that waits for a load land. */
   land: () => void;
+  /** Makes this player unable to start one, as the map or a jump does. */
+  block: (blocked: boolean) => void;
 }
 
 function createWorld() {
@@ -56,12 +58,13 @@ function createWorld() {
     const landing: (() => void)[] = [];
     const notices: CoopNotice[] = [];
     let overs = 0;
+    let blocked = false;
     const link: CoopLink = new CoopLink({
       send: (to, message) => {
         for (const other of clients.keys()) if (other !== id && (to === null || to === other)) deliver(id, other, message);
       },
       selfId: () => id,
-      free: () => session === null,
+      free: () => session === null && !blocked,
       challengeById: (wanted) => (wanted === ROUTE.id ? ROUTE : null),
       begin: (challenge, seat) => {
         session = new ChallengeSession(
@@ -111,9 +114,18 @@ function createWorld() {
         return overs;
       },
       land: () => landing.shift()?.(),
+      block: (next) => {
+        blocked = next;
+      },
     };
     clients.set(id, client);
+    tellPlayers();
     return client;
+  }
+
+  /** Everyone hears the world's list of players, as the online world says it whenever it changes. */
+  function tellPlayers(): void {
+    for (const client of clients.values()) client.link.players(new Set([...clients.keys()].filter((other) => other !== client.id)));
   }
 
   return {
@@ -124,7 +136,7 @@ function createWorld() {
     /** A player drops out of the world: everyone else's list no longer has them. */
     drop: (id: string) => {
       clients.delete(id);
-      for (const client of clients.values()) client.link.players(new Set([...clients.keys()].filter((other) => other !== client.id)));
+      tellPlayers();
     },
   };
 }
@@ -134,9 +146,9 @@ function paired({ aLoads = false, bLoads = false } = {}) {
   const world = createWorld();
   const a = world.add("a", { loads: aLoads });
   const b = world.add("b", { loads: bLoads });
-  a.link.invite("b", ROUTE);
+  a.link.inviteAll(ROUTE);
   world.flush();
-  b.link.accept();
+  b.link.accept("a");
   world.flush();
   return { world, a, b };
 }
@@ -153,42 +165,125 @@ describe("pairing", () => {
     expect([a.car(), b.car()]).toEqual(["sten", "sten"]);
   });
 
-  it("offers neither player to a third while they're paired, and turns down an invite to one of them", () => {
+  it("asks everyone in the world, and whoever arrives while the invite is open", () => {
     const world = createWorld();
     const a = world.add("a");
     const b = world.add("b");
     const c = world.add("c");
-    a.link.invite("b", ROUTE);
+    a.link.inviteAll(ROUTE);
     world.flush();
-    b.link.accept();
-    world.flush();
-    expect(c.link.busy("a")).toBe(true);
-    expect(c.link.busy("b")).toBe(true);
-    // An invite that reaches a paired player anyway is declined.
+    for (const client of [b, c]) expect(client.link.invite).toEqual({ peer: "a", challenge: ROUTE });
     const d = world.add("d");
-    d.link.invite("a", ROUTE);
     world.flush();
-    expect(d.notices).toEqual([{ kind: "declined", peer: "a" }]);
-    expect(d.link.now.kind).toBe("free");
-    // Once they leave, they're free again for everyone.
+    expect(d.link.invite).toEqual({ peer: "a", challenge: ROUTE });
+  });
+
+  it("gives the seat to the first accept heard, withdraws every other invite at once, and tells a second joiner it was taken", () => {
+    const world = createWorld();
+    const a = world.add("a");
+    const b = world.add("b");
+    const c = world.add("c");
+    const d = world.add("d");
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    // b and c both join before either hears of the other; d lets it pass.
+    b.link.accept("a");
+    c.link.accept("a");
+    world.flush();
+    expect(sessionOf(a).seat).toBe(0);
+    expect(sessionOf(b).seat).toBe(1);
+    expect(c.session()).toBeNull();
+    expect(c.link.now.kind).toBe("free");
+    expect(c.notices).toEqual([{ kind: "taken", peer: "a", partner: "b" }]);
+    for (const client of [c, d]) {
+      expect(client.link.invite).toBeNull();
+      expect(client.link.busy("a")).toBe(true);
+      expect(client.link.busy("b")).toBe(true);
+    }
+    // d never answered: its invite goes without anything to tell.
+    expect(d.notices).toEqual([{ kind: "expired", peer: "a" }]);
+  });
+
+  it("holds an invite unseen while paired, to answer once that challenge is over", () => {
+    const { world, a, b } = paired();
+    const c = world.add("c");
+    c.link.inviteAll(ROUTE);
+    world.flush();
+    expect(a.link.now.kind).toBe("paired");
+    expect(a.link.invite).toEqual({ peer: "c", challenge: ROUTE });
     a.link.leave();
     world.flush();
+    for (const client of [a, b]) expect(client.link.invite).toEqual({ peer: "c", challenge: ROUTE });
     expect(c.link.busy("a")).toBe(false);
-    expect(c.link.busy("b")).toBe(false);
+    b.link.accept("c");
+    world.flush();
+    expect(sessionOf(c).seat).toBe(0);
+    expect(sessionOf(b).seat).toBe(1);
+  });
+
+  it("drops an invite everywhere once its inviter takes it back or leaves the world", () => {
+    const world = createWorld();
+    const a = world.add("a");
+    const b = world.add("b");
+    const c = world.add("c");
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    a.link.withdraw();
+    world.flush();
+    for (const client of [b, c]) expect(client.link.invite).toBeNull();
+    c.link.inviteAll(ROUTE);
+    world.flush();
+    expect(b.link.invite).toEqual({ peer: "c", challenge: ROUTE });
+    world.drop("c");
+    expect(b.link.invite).toBeNull();
+  });
+
+  it("answers the newest of several invites, and an older one stays until it's let pass", () => {
+    const world = createWorld();
+    const a = world.add("a");
+    const b = world.add("b");
+    const c = world.add("c");
+    a.link.inviteAll(ROUTE);
+    c.link.inviteAll(ROUTE);
+    world.flush();
+    expect(b.link.invite?.peer).toBe("c");
+    b.link.decline("c");
+    expect(b.link.invite?.peer).toBe("a");
+    // The inviter isn't told of a decline: it asks on.
+    expect(c.link.now.kind).toBe("inviting");
   });
 
   it("starts nothing for an invite taken back while its accept was on the way", () => {
     const world = createWorld();
     const a = world.add("a");
     const b = world.add("b");
-    a.link.invite("b", ROUTE);
+    a.link.inviteAll(ROUTE);
     world.flush();
-    b.link.accept();
+    b.link.accept("a");
     a.link.withdraw();
     world.flush();
     expect(a.session()).toBeNull();
     expect(b.session()).toBeNull();
     expect(b.link.now.kind).toBe("free");
+    expect(b.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
+  });
+
+  it("withdraws the invite from everyone when an accept comes while the inviter can't start", () => {
+    const world = createWorld();
+    const a = world.add("a");
+    const b = world.add("b");
+    const c = world.add("c");
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    // a has opened the map by the time b's accept lands.
+    b.link.accept("a");
+    a.block(true);
+    world.flush();
+    expect(a.link.now.kind).toBe("free");
+    expect(a.notices).toEqual([{ kind: "withdrawn", peer: "b" }]);
+    expect(b.link.now.kind).toBe("free");
+    expect(b.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
+    expect(c.link.invite).toBeNull();
   });
 });
 

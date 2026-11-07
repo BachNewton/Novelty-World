@@ -278,11 +278,11 @@ export interface GameProbe {
   driveChallenge: (cruiseMS: number) => void;
   /** The best kept for a challenge in a mode, solo unless asked, or null if it hasn't been passed so. */
   challengeBest: (id: string, mode?: PlayMode) => number | null;
-  /** Where this client stands in co-op, naming the other player, and how many of each challenge message it has heard. */
+  /** Where this client stands in co-op ("invited" while it's free and holds an invite), naming the other player, and how many of each challenge message it has heard. */
   coop: () => { kind: string; peer: string | null; name: string | null; heard: Partial<Record<ChallengeType, number>> };
-  /** Invites the player of this name to the challenge whose start ring the car is in, as choosing Co-op does. */
-  coopInvite: (name: string) => void;
-  /** Accepts the invite this client has, as choosing Join does. */
+  /** Invites everyone to the challenge whose start ring the car is in, as choosing Co-op does. */
+  coopInvite: () => void;
+  /** Accepts the newest invite this client holds, as choosing Join does. */
   coopAccept: () => void;
   /** This player's Retry, as the menu's: false if refused while the car is still on its way to the line. */
   retryChallenge: () => boolean;
@@ -330,25 +330,30 @@ export interface ChallengeReading {
   partner: string | null;
 }
 
-/** A challenge's start ring the car is in: its button starts it, or offers co-op with the other player there. */
+/** A challenge's start ring the car is in: its button starts it, or offers co-op with everyone else in the world. */
 export interface ChallengeOffer {
   title: string;
-  partner: string | null;
+  /** How many other players a co-op invite would ask. */
+  players: number;
   /** A race's ground, which colours its prompt; null for a challenge. */
   ground: RaceChallenge["ground"] | null;
 }
 
-/** A co-op challenge on its way: this player has asked someone, or been asked, or is joining. */
+/** A co-op challenge on its way: this player has asked everyone, or been asked, or is joining. */
 export interface CoopReading {
   kind: "inviting" | "invited" | "joining";
-  name: string;
+  /** Who asked, or who is being joined; null while this player asks everyone. */
+  name: string | null;
   title: string;
+  /** A race's ground; null for a challenge. */
+  ground: RaceChallenge["ground"] | null;
 }
 
-/** Something about co-op the player is told once. */
+/** Something about co-op the player is told once: who, and for a taken invite, who took it. */
 export interface CoopNoticeReading {
   kind: CoopNotice["kind"];
   name: string;
+  partner?: string;
 }
 
 export interface HudReading {
@@ -1331,8 +1336,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // The challenge being played, if any (`challenge/session.ts`): the run, the car from before, and the way back to the line.
   let session: ChallengeSession | null = null;
-  // What the open choice is about: the challenge whose ring the car was in, and the other player there.
-  let offered: { challenge: Challenge; partner: string | null } | null = null;
+  // What the open choice is about: the challenge whose ring the car was in, and how many others a co-op invite would ask.
+  let offered: { challenge: Challenge; players: number } | null = null;
+  // The player whose invite the open Join or Decline is about.
+  let answering: string | null = null;
   const routes = new Map<string, ReturnType<typeof challengeRoute>>();
   const routeOf = (challenge: Challenge) => {
     if (!roadGraph) return null;
@@ -1349,21 +1356,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { position } = drive.stateAt(1);
     return challengeBoard.ringAt(position[0], position[2]);
   };
-  /** Another player in the same start ring, the nearest, who isn't in a co-op challenge already: exactly two take one. */
-  const partnerInRing = (challenge: Challenge): string | null => {
-    const centre = ringCentre(challenge);
-    let best: string | null = null;
-    let nearest = Infinity;
-    for (const [peerId, { heard }] of others) {
-      if (!heard || coop.busy(peerId)) continue;
-      const [x, , z] = drive.remotes.stateAt(peerId, 1).position;
-      if (challengeBoard.ringAt(x, z) !== challenge) continue;
-      const distance = Math.hypot(x - centre.x, z - centre.z);
-      if (distance < nearest) [nearest, best] = [distance, peerId];
-    }
-    return best;
-  };
+  /** How many other players in the world a co-op invite would ask: everyone not in a co-op challenge already. */
+  const askable = () => [...others.keys()].filter((peerId) => !coop.busy(peerId)).length;
+  /** The invite this player can answer now: the newest held, while free of any challenge and of co-op. */
+  const inviteNow = () => (session || coop.now.kind !== "free" ? null : coop.invite);
   const nameOf = (peerId: string) => names.get(peerId) ?? peerId;
+  const groundOf = (challenge: Challenge) => (challenge.kind === "race" ? challenge.ground : null);
 
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
   const menuNow = (): GameMenu => {
@@ -1384,49 +1382,50 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   /**
-   * A challenge's own button: in a start ring, start it solo, or with another
-   * player there, choose Solo or Co-op; asked to join, choose Join or Decline;
-   * having asked, take it back.
+   * A challenge's own button: asked to join, choose Join or Decline, wherever
+   * the car is; having asked, take it back; in a start ring, start it solo, or
+   * with anyone else in the world, choose Solo or Co-op.
    */
   const challengeButton = () => {
     if (gameMenu !== null || !canOpenMenu() || cameraMode === "free") return;
-    const standing = coop.now;
-    if (standing.kind === "inviting") {
+    if (coop.now.kind === "inviting") {
       coop.withdraw();
       return;
     }
-    if (standing.kind === "invited") {
-      showMenu({ kind: "invite", items: ["join-coop", "decline-coop", "cancel"], back: "cancel", pauses: true, challenge: standing.challenge.title, partner: nameOf(standing.peer) });
+    const invite = inviteNow();
+    if (invite) {
+      answering = invite.peer;
+      const { challenge } = invite;
+      showMenu({ kind: "invite", items: ["join-coop", "decline-coop", "cancel"], back: "cancel", pauses: true, challenge: challenge.title, partner: nameOf(invite.peer), ground: groundOf(challenge) ?? undefined });
       return;
     }
     const challenge = ringNow();
     if (!challenge) return;
-    const partner = partnerInRing(challenge);
+    const players = askable();
+    offered = { challenge, players };
     if (challenge.kind === "race") {
-      offered = { challenge, partner };
-      showMenu(raceCardMenu(challenge, partner));
+      showMenu(raceCardMenu(challenge, players));
       return;
     }
-    if (partner === null) {
+    if (players === 0) {
       startChallenge(challenge);
       return;
     }
-    offered = { challenge, partner };
-    showMenu({ kind: "start", items: ["start-solo", "start-coop", "cancel"], back: "cancel", pauses: true, challenge: challenge.title, partner: nameOf(partner) });
+    showMenu({ kind: "start", items: ["start-solo", "start-coop", "cancel"], back: "cancel", pauses: true, challenge: challenge.title, players });
   };
-  /** A race's card: the track, its car, what each medal takes and what's been won, then Start, and Co-op with another player in the ring. */
-  const raceCardMenu = (race: RaceChallenge, partner: string | null): GameMenu => {
+  /** A race's card: the track, its car, what each medal takes and what's been won, then Start, and Co-op with anyone else in the world. */
+  const raceCardMenu = (race: RaceChallenge, players: number): GameMenu => {
     const record = (mode: PlayMode) => {
       const kept = challengeBoard.passOf(race, mode);
       return kept && { medal: kept.medal ?? null, place: kept.best };
     };
     return {
       kind: "race",
-      items: partner === null ? ["start-solo", "cancel"] : ["start-solo", "start-coop", "cancel"],
+      items: players === 0 ? ["start-solo", "cancel"] : ["start-solo", "start-coop", "cancel"],
       back: "cancel",
       pauses: true,
       challenge: race.title,
-      partner: partner === null ? undefined : nameOf(partner),
+      players: players === 0 ? undefined : players,
       race: { number: race.number, ground: race.ground, shape: race.shape, laps: race.laps, lengthM: race.lengthM, car: TUNINGS[race.car].name, records: { solo: record("solo"), coop: record("coop") } },
     };
   };
@@ -1438,7 +1437,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       setCar(id);
     },
     placeAt: ({ x, z, heading }: StartPlace, done) => {
+      const asked = sessionsLeft;
       const put = () => {
+        // A load for a session left while it landed puts nothing down: the car may be going back where the player was.
+        if (asked !== sessionsLeft) return;
         const road = world.roads.nearest(x, z);
         if (!road) throw new Error(`no road at a challenge's start, ${x}, ${z}`);
         drive.placeAt({ ...road, x, z, heading });
@@ -1496,11 +1498,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     medal: medalForPlace(FINISHING_PLACE),
     bestMedal: challengeBoard.medal(race, mode),
   });
+  // Counts sessions left, so a start's load that lands after its session has gone knows it.
+  let sessionsLeft = 0;
+  // Where a player who joined a co-op invite was when it took them to its start, which leaving takes them back to.
+  let cameFrom: { x: number; z: number; heading: number } | null = null;
   const startChallenge = (challenge: Challenge, seat: 0 | 1 = 0, players: 1 | 2 = 1): ChallengeSession => {
     if (session) throw new Error(`${challenge.id} started during ${session.challenge.id}`);
     if (jumping || mapFrom) throw new Error(`${challenge.id} started while the car was being moved`);
     // The choice that started it, or a menu about the drive before, is over.
     if (gameMenu) showMenu(null);
+    if (seat === 1) {
+      const car = drive.stateAt(1);
+      cameFrom = { x: car.position[0], z: car.position[2], heading: headingOf(car.rotation) };
+    }
     const started = new ChallengeSession(challenge, sessionHost, seat, players);
     session = started;
     challengeMarks.showStarts(false);
@@ -1510,10 +1520,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!session) throw new Error("Leave with no challenge being played");
     session.leave();
     session = null;
+    sessionsLeft++;
     autopilot = null;
     if (gameMenu) showMenu(null);
     challengeMarks.setLine(null, "gate");
     challengeMarks.showStarts(true);
+    if (!cameFrom) return;
+    const { x, z, heading } = cameFrom;
+    cameFrom = null;
+    const put = () => {
+      const road = world.roads.nearest(x, z);
+      if (!road) throw new Error(`no road to go back to at ${x}, ${z}`);
+      drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
+      chaseCamera.snap();
+    };
+    // Back where the invite took the player from, at once where that ground is still loaded, and otherwise the way a jump goes.
+    if (stream.wanted(x, z) === 0) put();
+    else void loadRound(x, z, put).catch(fail);
   };
 
   // Co-op with one other player in the online world (`challenge/coop.ts`): pairing, and both sessions on one attempt.
@@ -1528,14 +1551,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     begin: (challenge, seat) => startChallenge(challenge, seat, 2),
     end: (notice) => {
       leaveChallenge();
-      events.onCoopNotice?.({ kind: notice.kind, name: nameOf(notice.peer) });
+      tellCoop(notice);
     },
     notice: (notice) => {
-      // A choice about an invite that's gone is gone with it.
-      if (gameMenu?.kind === "invite") showMenu(null);
-      events.onCoopNotice?.({ kind: notice.kind, name: nameOf(notice.peer) });
+      // A choice about an invite that's gone is gone with it, and an invite left unanswered goes without a word.
+      const answered = gameMenu?.kind === "invite" && answering === notice.peer;
+      if (answered) showMenu(null);
+      if (notice.kind !== "expired" || answered) tellCoop(notice);
     },
   });
+  const tellCoop = (notice: CoopNotice) => {
+    events.onCoopNotice?.({ kind: notice.kind, name: nameOf(notice.peer), partner: notice.kind === "taken" ? nameOf(notice.partner) : undefined });
+  };
   // Test only: challenge messages held as they arrive, to be heard in order when let go.
   let heldMessages: { from: string; message: ChallengeMessage }[] | null = null;
   const hearChallenge = (from: string, message: ChallengeMessage) => {
@@ -1567,20 +1594,25 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       case "start-coop": {
         const chosen = offered;
-        if (!chosen?.partner) throw new Error("Co-op picked with no one to ask");
+        if (!chosen) throw new Error("Co-op picked with no challenge offered");
         setGameMenuOpen(false);
-        // The other player may have gone, or been paired, while the choice was open.
-        if (others.has(chosen.partner) && !coop.busy(chosen.partner)) coop.invite(chosen.partner, chosen.challenge);
+        coop.inviteAll(chosen.challenge);
         break;
       }
-      case "join-coop":
+      case "join-coop": {
+        const inviter = answering;
+        if (inviter === null) throw new Error("Join picked with no invite open");
         setGameMenuOpen(false);
-        coop.accept();
+        coop.accept(inviter);
         break;
-      case "decline-coop":
+      }
+      case "decline-coop": {
+        const inviter = answering;
+        if (inviter === null) throw new Error("Decline picked with no invite open");
         setGameMenuOpen(false);
-        coop.withdraw();
+        coop.decline(inviter);
         break;
+      }
       case "retry":
         if (!session) throw new Error("Retry picked with no challenge being played");
         setGameMenuOpen(false);
@@ -1841,14 +1873,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   const readCoop = (): CoopReading | null => {
     const standing = coop.now;
-    if (standing.kind === "free" || standing.kind === "paired") return null;
-    return { kind: standing.kind, name: nameOf(standing.peer), title: standing.challenge.title };
+    if (standing.kind === "inviting") return { kind: "inviting", name: null, title: standing.challenge.title, ground: groundOf(standing.challenge) };
+    if (standing.kind === "joining") return { kind: "joining", name: nameOf(standing.peer), title: standing.challenge.title, ground: groundOf(standing.challenge) };
+    const invite = inviteNow();
+    return invite && { kind: "invited", name: nameOf(invite.peer), title: invite.challenge.title, ground: groundOf(invite.challenge) };
   };
   const readOffer = (): ChallengeOffer | null => {
     const challenge = ringNow();
     if (!challenge) return null;
-    const partner = partnerInRing(challenge);
-    return { title: challenge.title, partner: partner === null ? null : nameOf(partner), ground: challenge.kind === "race" ? challenge.ground : null };
+    return { title: challenge.title, players: askable(), ground: groundOf(challenge) };
+  };
+  /** An invite stands only while its inviter's car is in the ring: driving off takes it back from everyone. */
+  const keepInviteInRing = () => {
+    const standing = coop.now;
+    if (standing.kind !== "inviting" || jumping || mapFrom) return;
+    const { position } = drive.stateAt(1);
+    if (challengeBoard.ringAt(position[0], position[2]) !== standing.challenge) coop.withdraw();
   };
   /** The line the car is to cross next, standing in the world: a gate, the finish, or the camera. */
   const showNextLine = () => {
@@ -1981,6 +2021,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (reached.length > 0) showProgress();
     }
     const engine = drive.engine();
+    keepInviteInRing();
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
     const clock = { date: dateText(shown.date), hour: shown.hour, sunUp: shown.sun.elevationDeg > 0 };
@@ -2277,18 +2318,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       challengeBest: (id, mode = "solo") => challengeBoard.passOf(challengeBoard.byId(id), mode)?.best ?? null,
       coop: () => {
         const standing = coop.now;
-        const peer = standing.kind === "free" ? null : standing.peer;
-        return { kind: standing.kind, peer, name: peer === null ? null : nameOf(peer), heard: { ...coop.heard } };
+        const invite = inviteNow();
+        const peer = invite ? invite.peer : standing.kind === "joining" || standing.kind === "paired" ? standing.peer : null;
+        return { kind: invite ? "invited" : standing.kind, peer, name: peer === null ? null : nameOf(peer), heard: { ...coop.heard } };
       },
-      coopInvite: (name) => {
+      coopInvite: () => {
         const challenge = ringNow();
         if (!challenge) throw new Error("no challenge's start ring here to invite anyone to");
-        const peer = [...others].find(([, other]) => other.name === name)?.[0];
-        if (peer === undefined) throw new Error(`no player named ${name}`);
-        coop.invite(peer, challenge);
+        coop.inviteAll(challenge);
       },
       coopAccept: () => {
-        coop.accept();
+        const invite = inviteNow();
+        if (!invite) throw new Error("no invite to accept");
+        coop.accept(invite.peer);
       },
       retryChallenge: () => {
         if (!session) throw new Error("no challenge to retry");

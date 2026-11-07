@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserPlus, UserX, Users, X } from "lucide-react";
+import { CalendarDays, Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, RefreshCcw, Hand, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -67,8 +67,9 @@ const PLACE_CARD_S = 12;
 const NOTICE_S = 5;
 const NOTICE_LOOKS = {
   left: { icon: LogOut, label: "Left the challenge" },
-  declined: { icon: X, label: "Declined" },
   withdrawn: { icon: UserX, label: "Invite off" },
+  expired: { icon: UserX, label: "Invite off" },
+  taken: { icon: UserCheck, label: "Someone joined first" },
 } as const;
 
 /** A date as `?date=` takes it, as a driver reads one: "Mon 21 Dec". */
@@ -88,7 +89,7 @@ function distanceText(metres: number): string {
   return `${Math.round(metres / 10) * 10} m`;
 }
 
-/** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
+/** A co-op partner left, an invite was taken back, or someone else joined it first: who, and an icon for what. */
 function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
   const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
   return (
@@ -96,6 +97,7 @@ function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () 
       <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
       <span>{notice.name}</span>
       <Icon className="size-5 shrink-0" aria-label={label} />
+      {notice.partner !== undefined && <span aria-label="Joined by">{notice.partner}</span>}
     </div>
   );
 }
@@ -162,12 +164,12 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
     let shownCoop = "";
     let shownDate = "";
     const showChallenge = ({ challenge, offer: offered, coop: pairing }: HudReading) => {
-      const offerKey = offered ? `${offered.title}|${offered.partner ?? ""}` : "";
+      const offerKey = offered ? `${offered.title}|${offered.players}` : "";
       if (offerKey !== shownOffer) {
         shownOffer = offerKey;
         setOffer(offered);
       }
-      const coopKey = pairing ? `${pairing.kind}|${pairing.name}|${pairing.title}` : "";
+      const coopKey = pairing ? `${pairing.kind}|${pairing.name ?? ""}|${pairing.title}` : "";
       if (coopKey !== shownCoop) {
         shownCoop = coopKey;
         setCoop(pairing);
@@ -407,14 +409,14 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             </div>
           )}
           {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.partner === null ? "Start" : "Solo or co-op"}>
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.players === 0 ? "Start" : "Solo or co-op"}>
               <Prompt binding={BINDINGS.challenge} input={input} />
               {offer.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(offer.ground) }} aria-hidden /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />}
               <span>{offer.title}</span>
-              {offer.partner !== null && (
-                <span className="flex items-center gap-1" aria-label="Co-op with" title={`Co-op with ${offer.partner}`}>
+              {offer.players > 0 && (
+                <span className="flex items-center gap-1 tabular-nums" aria-label="Co-op with" title={`Co-op: ask everyone online (${offer.players})`}>
                   <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
-                  <span>{offer.partner}</span>
+                  <span>{offer.players}</span>
                 </span>
               )}
             </div>
@@ -423,8 +425,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}` }} aria-label={coop.kind === "invited" ? "Co-op invite" : "Co-op waiting"} title={coop.kind === "invited" ? "Join or decline" : coop.kind === "inviting" ? "Take the invite back" : "Joining"}>
               {coop.kind !== "joining" && <Prompt binding={BINDINGS.challenge} input={input} />}
               {coop.kind === "invited" ? <UserPlus className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden /> : <Hourglass className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />}
-              <span>{coop.name}</span>
-              <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />
+              {coop.name === null ? <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-label="Everyone" /> : <span>{coop.name}</span>}
+              {coop.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(coop.ground) }} aria-label="Race" /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-label="Challenge" />}
               <span>{coop.title}</span>
             </div>
           )}
