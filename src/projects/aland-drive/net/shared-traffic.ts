@@ -19,7 +19,10 @@ import type { TrafficMessage, TrafficVehicle } from "./protocol";
  * clearly nearer it for a moment, and never while a player's car is in a fight
  * with it. A player who goes leaves their vehicles to whichever player still
  * here is nearest each and holds it; two that claim one at once settle on the
- * lower id. A vehicle hit out of the traffic becomes a computer-driven car run
+ * lower id. Every message names the players its sender knows the place of,
+ * and a sender sends one as it comes to know another player, with whatever it
+ * has near them, if anything: a page joining the world fills no slot until each
+ * player there has named it, so it holds all they had round it first. A vehicle hit out of the traffic becomes a computer-driven car run
  * by whoever hit it, and its record is kept, so a message about it sent before
  * the hit was heard is known for stale.
  *
@@ -64,8 +67,13 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
   const hits = new Map<string, number>();
   let gone: TrafficMessage["gone"] = [];
   let steps = 0;
+  /** The other players this page knew the place of at its last step. */
+  let knownPlayers = new Set<string>();
+  /** The players who have sent this page a message naming it. */
+  const named = new Set<string>();
 
   const self = () => link.selfId() ?? ALONE;
+  const send = (traffic: Omit<TrafficMessage, "knows">) => link.send({ ...traffic, knows: [...knownPlayers] });
 
   function knownOf(car: LaneCar): Known {
     let each = known.get(car.id);
@@ -94,7 +102,7 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
     each.nearer = peer === null ? null : { peer, steps: each.nearer?.peer === peer ? each.nearer.steps + stepsPerTrafficStep : stepsPerTrafficStep };
     if (each.nearer === null || each.nearer.steps < NEARER_FOR_STEPS) return false;
     const handed = { ...each, runner: each.nearer.peer, handovers: each.handovers + 1, nearer: null };
-    if (!link.send({ vehicles: [vehicleOf(car, handed, handed.runner)], gone: [] })) return false;
+    if (!send({ vehicles: [vehicleOf(car, handed, handed.runner)], gone: [] })) return false;
     known.set(car.id, handed);
     traffic.elsewhere.add(car.id);
     return true;
@@ -114,6 +122,9 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
       steps++;
       const me = self();
       const places = link.places();
+      const before = knownPlayers;
+      knownPlayers = new Set([...places.keys()].filter((peer) => peer !== me));
+      const met = [...knownPlayers].some((peer) => !before.has(peer));
       for (const [id, each] of known) {
         if (each.runner === ALONE) each.runner = me;
         if (traffic.get(id)) continue;
@@ -132,8 +143,8 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
         each.sentTo = near;
         if (near && due) vehicles.push(vehicleOf(car, each, null));
       }
-      if (vehicles.length === 0 && gone.length === 0) return;
-      link.send({ vehicles, gone });
+      if (vehicles.length === 0 && gone.length === 0 && !met) return;
+      send({ vehicles, gone });
       // With no one to send it to, no one holds a copy to take away.
       gone = [];
     },
@@ -141,6 +152,7 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
     /** Traffic another player sent. */
     hear(from: string, message: TrafficMessage): void {
       const me = self();
+      if (message.knows.includes(me)) named.add(from);
       const here = link.places().get(me);
       for (const { record, handovers, runner: named } of message.vehicles) {
         const runner = named ?? from;
@@ -173,6 +185,7 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
      */
     players(present: ReadonlySet<string>): void {
       const me = self();
+      for (const peer of named) if (!present.has(peer)) named.delete(peer);
       const places = link.places();
       const claimed: TrafficVehicle[] = [];
       for (const [id, each] of known) {
@@ -191,7 +204,7 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
         traffic.elsewhere.delete(id);
         claimed.push(vehicleOf(car, each, null));
       }
-      if (claimed.length > 0) link.send({ vehicles: claimed, gone: [] });
+      if (claimed.length > 0) send({ vehicles: claimed, gone: [] });
     },
 
     /**
@@ -202,7 +215,7 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
       const handovers = (known.get(id)?.handovers ?? 0) + 1;
       known.delete(id);
       hits.set(id, handovers);
-      link.send({ vehicles: [], gone: [{ id, handovers, hit: true }] });
+      send({ vehicles: [], gone: [{ id, handovers, hit: true }] });
       return handovers;
     },
 
@@ -211,15 +224,20 @@ export function createSharedTraffic(traffic: LaneTraffic, link: SharedTrafficLin
       const each: Known = { runner: self(), handovers: Math.max(hitAt, hits.get(car.id) ?? 0) + 1, nearer: null, sentTo: false };
       hits.delete(car.id);
       known.set(car.id, each);
-      link.send({ vehicles: [vehicleOf(car, each, null)], gone: [] });
+      send({ vehicles: [vehicleOf(car, each, null)], gone: [] });
     },
 
     /** Sends every vehicle this player runs at once, for a test to compare pages by; how many. */
     flush(): number {
       const me = self();
       const vehicles = [...traffic.all()].filter((car) => knownOf(car).runner === me).map((car) => vehicleOf(car, knownOf(car), null));
-      link.send({ vehicles, gone: [] });
+      send({ vehicles, gone: [] });
       return vehicles.length;
+    },
+
+    /** Whether each of these players has sent this page a message naming it: it holds all they had near it. */
+    namedBy(players: Iterable<string>): boolean {
+      return [...players].every((peer) => named.has(peer));
     },
 
     /** Who runs each vehicle, for the probe. */

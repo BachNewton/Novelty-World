@@ -75,6 +75,8 @@ describe("shared traffic", () => {
   it("fills the road round two players together once: one vehicle a slot, the same on both pages", () => {
     const world = createTrafficPages(tiles(), kinds, HALVES);
     const a = world.add("a", { x: 2000, z: 0 });
+    // The second arrives once the first has filled the road round them both.
+    run(world, 1);
     const b = world.add("b", { x: 2060, z: 0 });
     const { jumps, vanished } = run(world, 12);
     const slots = new Map<string, Set<string>>();

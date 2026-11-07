@@ -66,10 +66,14 @@ export interface TrafficVehicle {
   runner: string | null;
 }
 
-/** The traffic one player sends at once: the vehicles it runs that someone is near, and those it has taken away, or out of the traffic as hit. */
+/**
+ * The traffic one player sends at once: the vehicles it runs that someone is near, those it has taken away, or out of
+ * the traffic as hit, and every other player it knows the place of, whose vehicles near it it has sent from then on.
+ */
 export interface TrafficMessage {
   vehicles: TrafficVehicle[];
   gone: { id: string; handovers: number; hit: boolean }[];
+  knows: string[];
 }
 
 /** A challenge message for one player, or for everyone when `to` is left out. */
@@ -217,6 +221,7 @@ type WireGone = [string, number, number];
 export interface WireTraffic {
   v: WireVehicle[];
   g: WireGone[];
+  k: string[];
 }
 
 const KINDS: readonly VehicleKind[] = ["car", "bike", "walker"];
@@ -229,7 +234,7 @@ const lineOfCode = (code: number) => ({ connector: code === 1, ...(code === 2 ? 
 const USUAL_TAIL = [-1, -1, -1, 0, 0, 0];
 const TAIL_FROM = 19;
 
-export function wireTraffic({ vehicles, gone }: TrafficMessage): WireTraffic {
+export function wireTraffic({ vehicles, gone, knows }: TrafficMessage): WireTraffic {
   const v = vehicles.map(({ record, handovers, runner }): WireVehicle => {
     const { place, body, next, exit } = record;
     if (next && next.tile !== place.tile) throw new Error(`${record.id}'s next line is on ${next.tile}, not its own ${place.tile}`);
@@ -265,7 +270,7 @@ export function wireTraffic({ vehicles, gone }: TrafficMessage): WireTraffic {
     while (wire.length > TAIL_FROM && wire[wire.length - 1] === USUAL_TAIL[wire.length - 1 - TAIL_FROM]) wire.pop();
     return wire;
   });
-  return { v, g: gone.map(({ id, handovers, hit }): WireGone => [id, handovers, hit ? 1 : 0]) };
+  return { v, g: gone.map(({ id, handovers, hit }): WireGone => [id, handovers, hit ? 1 : 0]), k: knows };
 }
 
 const isCount = (value: unknown, most = MOST_ATTEMPTS): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= most;
@@ -313,7 +318,7 @@ function parseGone(value: unknown): TrafficMessage["gone"][number] | null {
 
 /** Traffic off the wire; one vehicle that isn't one makes the whole message none, as for any malformed message. */
 export function parseTraffic(value: unknown): TrafficMessage | null {
-  if (!isRecord(value) || !Array.isArray(value.v) || !Array.isArray(value.g)) return null;
+  if (!isRecord(value) || !Array.isArray(value.v) || !Array.isArray(value.g) || !Array.isArray(value.k) || !(value.k as unknown[]).every(isName)) return null;
   const vehicles: TrafficVehicle[] = [];
   for (const each of value.v as unknown[]) {
     const vehicle = parseVehicle(each);
@@ -326,7 +331,7 @@ export function parseTraffic(value: unknown): TrafficMessage | null {
     if (!one) return null;
     gone.push(one);
   }
-  return { vehicles, gone };
+  return { vehicles, gone, knows: value.k as string[] };
 }
 
 export function parseGuestMessage(value: unknown): GuestMessage | null {
