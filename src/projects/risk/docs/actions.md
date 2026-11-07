@@ -114,7 +114,7 @@ gh workflow run risk-measure.yml --ref main -f tool=native-play -f seeds=imit-5m
 gh run download <run id> --name risk-records --dir src/projects/risk/gpu/runs/records/<teacher>
 ```
 
-A lost machine loses its own games and nothing else, since no game depends on another; the recording is simply smaller. A recorder writes its file when its games are done, so a machine's share is sized to finish well inside the six-hour limit. The records are data, never committed: `gpu/runs/` is ignored.
+A lost machine loses its own games and nothing else, since no game depends on another: the collecting job gathers what the other machines kept, and the recording is simply smaller. A recorder writes its file only when its games are done, so a machine's share is sized to finish well inside the six-hour limit, and a runner is slower than it looks: its four vCPUs are two cores with two threads each, so four recorders run at about half a core each, and a search bot's 5-player mirror game that takes a minute on the laptop takes two or more there. The records are data, never committed: `gpu/runs/` is ignored.
 
 ## The run's record
 
