@@ -17,7 +17,6 @@ Run alone, it adds `parked.json` to tiles already built, after `roadside.py`.
 """
 
 import argparse
-import gzip
 import json
 import math
 from collections import defaultdict
@@ -29,13 +28,13 @@ from shapely.geometry import LineString, Point, Polygon
 
 from furniture import FOOTPRINTS, footprint
 from grid import Tile, tile_from_name
+from paving_file import read_paving
 from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
 from sources import osm_path
 from vectors import tagged_paved_areas
 from progress import Progress
 
 FILE = "parked.json"
-APRON_FLOATS = 5
 
 # A bay, and the room a car takes in one: the biggest world car is 5.0 m by 1.84 m.
 BAY_WIDE_M = 2.5
@@ -80,14 +79,8 @@ class Aprons:
     """How high the aprons stand as drawn, car parks among them."""
 
     def __init__(self, folder: Path, manifest: dict):
-        surface = manifest["roadSurface"]
-        sections = sum(chain["sections"] for chain in surface["chains"])
-        data = gzip.decompress((folder / surface["file"]).read_bytes())
-        start = sections * RINGS * 12 + sections
-        aprons = surface["aprons"]
-        points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * APRON_FLOATS, offset=start).reshape(-1, APRON_FLOATS).astype(np.float64)
-        indices = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.size * 4).reshape(-1, 3)
-        self.triangles = points[indices][:, :, :3]
+        laid = read_paving(folder, manifest)
+        self.triangles = laid.points[laid.triangles][:, :, :3]
         self.tree = shapely.STRtree(shapely.polygons(np.concatenate((self.triangles[:, :, :2], self.triangles[:, :1, :2]), axis=1)))
 
     def height(self, point: np.ndarray) -> float | None:

@@ -42,8 +42,9 @@ from shapely.geometry import LineString, Point
 
 import roadside
 from grid import WORLD_ORIGIN, neighbour, tile_from_name
+from paving_file import read_paving
 from progress import Progress
-from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, RINGS, Chain, Roadside, other_than_seam, replace_text, roll
+from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, Chain, Roadside, other_than_seam, replace_text, roll
 from roads import APRON_CORNER_M, CLASSES
 from traffic_volume import TrafficVolume
 
@@ -1057,14 +1058,11 @@ def signal_phases(side: Roadside) -> list[tuple[np.ndarray, tuple[np.ndarray, fl
 
 
 def apron_triangles(folder: Path, manifest: dict) -> list[np.ndarray]:
-    surface = manifest["roadSurface"]
-    sections = sum(chain["sections"] for chain in surface["chains"])
-    data = gzip.decompress((folder / surface["file"]).read_bytes())
-    aprons = surface["aprons"]
-    start = sections * RINGS * 12 + sections
-    points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * roadside.APRON_FLOATS, offset=start).reshape(-1, roadside.APRON_FLOATS).astype(np.float64)
-    triangles = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.size * 4).reshape(-1, 3)
-    return list(points[triangles][:, :, :3])
+    """The paving a turn may use past the rings' carriageways, as the roadside keeps things off it: a ribbon tile's
+    aprons, or a paved tile's carriageways, junction and gap pieces and car parks."""
+    laid = read_paving(folder, manifest)
+    triangles, _ = roadside.kept_off(manifest["roadSurface"], laid)
+    return list(laid.points[triangles][:, :, :3])
 
 
 def lane_map(name: str, tiles: Path, volume: TrafficVolume) -> LaneMap:
