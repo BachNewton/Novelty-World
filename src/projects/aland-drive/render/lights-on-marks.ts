@@ -26,7 +26,10 @@ function kindOf(model: string): SeaLight["kind"] {
   return "beacon";
 }
 
-export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[]): SeaLight[] {
+/** A sea light with the register's mark it stands on. */
+export type MarkedLight = SeaLight & { mark: Mark };
+
+export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[]): MarkedLight[] {
   return lights.flatMap((light) => {
     let nearest: Mark | null = null;
     let nearestM = Infinity;
@@ -35,9 +38,10 @@ export function lightsOnMarks(lights: readonly SeaLight[], marks: readonly Mark[
       if (apart < nearestM && apart < (mark[0] === "lighthouse" ? LIGHTHOUSE_SAME_PLACE_M : SAME_PLACE_M)) [nearest, nearestM] = [mark, apart];
     }
     if (nearest === null) return [];
-    return [{ ...light, x: nearest[1], z: nearest[2], kind: kindOf(nearest[0]) }];
+    return [{ ...light, x: nearest[1], z: nearest[2], kind: kindOf(nearest[0]), mark: nearest }];
   });
 }
 
 /** Every sea light, on the register's marks. */
 export const LIGHTS_ON_MARKS = lightsOnMarks(SEA_LIGHTS, REGISTER_MARKS);
+
