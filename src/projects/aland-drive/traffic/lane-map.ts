@@ -38,6 +38,8 @@ export interface LanesFile {
     width: number;
     /** Each limit in km/h from where it starts, in metres along the lane. */
     speeds: [number, number][];
+    /** A road's vehicles a day both ways, from Åland's traffic counts (`pipeline/traffic_volume.py`); a path has none. */
+    daily?: number;
     from?: number;
     to?: number;
     seamStart?: true;
@@ -65,6 +67,8 @@ export interface Lane extends LaneLine {
   path: boolean;
   width: number;
   speeds: [number, number][];
+  /** Its road's vehicles a day both ways, or 0 on a path. */
+  daily: number;
   /** The connectors leaving its end. */
   next: number[];
   seamStart: boolean;
@@ -120,7 +124,12 @@ export function decodeLanes(file: LanesFile): TileLanes {
     at += values.length;
     return line;
   };
-  const lanes: Lane[] = file.lanes.map((lane) => ({ ...place(lane.points), kind: lane.kind, chain: lane.chain, forward: lane.forward, path: PATH_KINDS.has(lane.kind), width: lane.width, speeds: lane.speeds, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true }));
+  const lanes: Lane[] = file.lanes.map((lane, index) => {
+    const path = PATH_KINDS.has(lane.kind);
+    const daily = path ? 0 : lane.daily;
+    if (daily === undefined) throw new Error(`lane ${index}, a ${lane.kind}, has no traffic volume: its lane map was built before them, so run pipeline/lanes.py on its tile again`);
+    return { ...place(lane.points), kind: lane.kind, chain: lane.chain, forward: lane.forward, path, width: lane.width, speeds: lane.speeds, daily, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true };
+  });
   const connectors: Connector[] = file.connectors.map((connector, index) => {
     if (connector.from >= lanes.length || connector.to >= lanes.length) throw new Error(`connector ${index} joins lanes the file doesn't have`);
     lanes[connector.from].next.push(index);

@@ -452,6 +452,9 @@ export interface Game {
   /** What a dev menu needs, so the page imports no car art. */
   cars: readonly CarChoice[];
   setCar: (id: CarId) => void;
+  /** Whether cars and cyclists ride the lanes round the car, or null in the shared world, which has none until traffic is shared. */
+  trafficOn: () => boolean | null;
+  setTraffic: (on: boolean) => void;
   /** What the weather has made of every surface, until there is weather. */
   condition: () => Condition;
   day: () => DayShown;
@@ -500,7 +503,7 @@ const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
-/** The lane lab's traffic: room for this many cars, cyclists and walkers drawn, and the bubble round the camera judged every this many traffic steps. */
+/** Traffic: room for this many cars, cyclists and walkers drawn, and the bubble round the camera judged every this many traffic steps. */
 const TRAFFIC_MOST = 200;
 const CYCLISTS_MOST = 120;
 const WALKERS_MOST = 160;
@@ -916,7 +919,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const laneTrafficView = createLaneTrafficView(scene, sun, hazed, TRAFFIC_MOST);
   const cyclistsView = createCyclistsView(scene, sun, hazed, CYCLISTS_MOST);
   const walkersView = createWalkersView(scene, { colour: colorOf, linear, hazed, sun }, WALKERS_MOST);
-  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 0 }, bike: { reachM: BIKE_REACH_M, density: 0 }, walker: { reachM: PEOPLE_REACH_M, density: 0 } });
+  // Offline only, at Åland's own density, until traffic is shared (piece 14 of `ideas/traffic-and-racers.md`): a page in the shared world draws none.
+  const trafficOffered = online === undefined;
+  const startDensity = trafficOffered ? 1 : 0;
+  const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: startDensity }, bike: { reachM: BIKE_REACH_M, density: startDensity }, walker: { reachM: PEOPLE_REACH_M, density: startDensity } });
   let trafficSeesPlayer = true;
   let trafficSteps = 0;
   let bubbleSteps = 0;
@@ -1226,6 +1232,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
+  /** After a jump, traffic starts again round the car as it does when a page opens: nobody saw it arrive, so it may fill anywhere. */
+  const refillTraffic = () => {
+    const { position } = drive.stateAt(1);
+    trafficFocus.x = position[0];
+    trafficFocus.z = position[2];
+    for (const kind of ["car", "bike"] as const) {
+      const density = bubble.density(kind);
+      if (density === 0) continue;
+      bubble.setDensity(kind, 0);
+      bubble.setDensity(kind, density);
+    }
+  };
   /** Loads round a place, with the first load's bar, and puts the car there once it has landed. */
   const loadRound = async (x: number, z: number, place: () => void) => {
     jumping = true;
@@ -1240,6 +1258,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     await stream.settled();
     place();
     chaseCamera.snap();
+    refillTraffic();
     loadingAround = null;
     stream.onLanded = () => undefined;
     jumping = false;
@@ -2287,6 +2306,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
     setCar,
+    trafficOn: () => (trafficOffered ? bubble.density("car") > 0 : null),
+    setTraffic: (on) => {
+      if (!trafficOffered) throw new Error("traffic is offline only");
+      bubble.setDensity("car", on ? 1 : 0);
+      bubble.setDensity("bike", on ? 1 : 0);
+      bubble.setDensity("walker", on ? 1 : 0);
+    },
     condition: () => drive.condition,
     setCondition: (condition) => {
       ground.hold(condition);
