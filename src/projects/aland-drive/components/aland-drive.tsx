@@ -70,6 +70,8 @@ const NOTICE_LOOKS = {
   left: { icon: LogOut, label: "Left the challenge" },
   declined: { icon: X, label: "Declined" },
   withdrawn: { icon: UserX, label: "Invite off" },
+  destination: { icon: MapPin, label: "Set the destination" },
+  cleared: { icon: MapPinOff, label: "Cleared the destination" },
 } as const;
 
 const TIME_COVER = "@keyframes aland-time-cover { from { opacity: 0 } to { opacity: 1 } }";
@@ -113,7 +115,7 @@ function distanceText(metres: number): string {
   return `${Math.round(metres / 10) * 10} m`;
 }
 
-/** A co-op partner left, or an invite was turned down or taken back: who, and an icon for what. */
+/** A co-op partner left, an invite was turned down or taken back, or another player set or cleared the destination: who, and an icon for what. */
 function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
   const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
   return (

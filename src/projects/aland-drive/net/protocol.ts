@@ -7,7 +7,8 @@ import type { LaneRecord, VehicleKind } from "../traffic/lane-driver";
 /*
  * What players send each other in the online world: each car's state, as its
  * own client has it, which names the car it is, each computer-driven car's
- * from the player running it, the lane traffic each player runs, and the messages of a co-op challenge. A guest sends its own up; the host hands each one on to every
+ * from the player running it, the lane traffic each player runs, the messages of a co-op challenge, and the
+ * room's one shared GPS destination. A guest sends its own up; the host hands each one on to every
  * other guest, or to the one player a challenge message is for, naming whose
  * it is, and sends its own down. Every payload off the wire is untrusted and
  * parsed here.
@@ -76,6 +77,23 @@ export interface TrafficMessage {
   knows: string[];
 }
 
+/** A place on the ground, in metres. */
+export interface MapPoint {
+  x: number;
+  z: number;
+}
+
+/**
+ * The room's GPS destination as the host last set it: the point everyone's GPS
+ * routes to from where they are, or null once cleared, and the player who set
+ * or cleared it, by peer id and by name, so it still names them after they go.
+ */
+export interface SharedDestination {
+  point: MapPoint | null;
+  setter: string;
+  name: string;
+}
+
 /**
  * A challenge message for one player, or for everyone when `to` is left out. A guest asks the host for the world's
  * time once it's in (`ask-time`), and the host answers with where the game's calendar stands (`time`, game days).
@@ -85,13 +103,15 @@ export type GuestMessage =
   | { kind: "challenge"; to?: string; message: ChallengeMessage }
   | { kind: "computer"; car: ComputerCarMessage }
   | { kind: "traffic"; traffic: WireTraffic }
-  | { kind: "ask-time" };
+  | { kind: "ask-time" }
+  | { kind: "destination"; point: MapPoint | null };
 export type HostMessage =
   | ({ kind: "car"; from: string } & CarMessage)
   | { kind: "challenge"; from: string; message: ChallengeMessage }
   | { kind: "computer"; from: string; car: ComputerCarMessage }
   | { kind: "traffic"; from: string; traffic: WireTraffic }
-  | { kind: "time"; gameDays: number };
+  | { kind: "time"; gameDays: number }
+  | { kind: "destination"; from: string; destination: SharedDestination };
 
 /**
  * The relay to join the online world on, or null to drive alone. A page on
@@ -340,12 +360,33 @@ export function parseTraffic(value: unknown): TrafficMessage | null {
   return { vehicles, gone, knows: value.k as string[] };
 }
 
+/** Further than any road on Åland is from the world's origin. */
+const FARTHEST_M = 1_000_000;
+
+function parsePoint(value: unknown): MapPoint | null | undefined {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { x, z } = value;
+  const within = (part: unknown): part is number => typeof part === "number" && Number.isFinite(part) && Math.abs(part) <= FARTHEST_M;
+  return within(x) && within(z) ? { x, z } : undefined;
+}
+
+export function parseDestination(value: unknown): SharedDestination | null {
+  if (!isRecord(value) || !isName(value.setter) || !isName(value.name)) return null;
+  const point = parsePoint(value.point);
+  return point === undefined ? null : { point, setter: value.setter, name: value.name };
+}
+
 export function parseGuestMessage(value: unknown): GuestMessage | null {
   if (!isRecord(value)) return null;
   if (value.kind === "ask-time") return { kind: "ask-time" };
   if (value.kind === "traffic") {
     // Kept as it came, to be handed on: what it says is read where it's heard.
     return parseTraffic(value.traffic) && { kind: "traffic", traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "destination") {
+    const point = parsePoint(value.point);
+    return point === undefined ? null : { kind: "destination", point };
   }
   if (value.kind === "computer") {
     const car = parseComputerCar(value.car);
@@ -368,6 +409,10 @@ export function parseHostMessage(value: unknown): HostMessage | null {
   if (!isName(value.from)) return null;
   if (value.kind === "traffic") {
     return parseTraffic(value.traffic) && { kind: "traffic", from: value.from, traffic: value.traffic as WireTraffic };
+  }
+  if (value.kind === "destination") {
+    const destination = parseDestination(value.destination);
+    return destination && { kind: "destination", from: value.from, destination };
   }
   if (value.kind === "computer") {
     const car = parseComputerCar(value.car);

@@ -1,6 +1,6 @@
 import type { Player, Room, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
-import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTraffic, type ChallengeMessage, type ComputerCarMessage, type GuestMessage, type HostMessage, type TrafficMessage, type WireTraffic } from "./protocol";
+import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTraffic, type ChallengeMessage, type ComputerCarMessage, type GuestMessage, type HostMessage, type MapPoint, type SharedDestination, type TrafficMessage, type WireTraffic } from "./protocol";
 
 /*
  * The online world: one room on the relay that every player claims, so the
@@ -27,6 +27,13 @@ import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTraff
  * So does each computer-driven car's state, from the player running it, to
  * everyone: who runs which is `computer-cars.ts`'s. And so does the lane
  * traffic each player runs, a batch at a time: `shared-traffic.ts`'s.
+ *
+ * The room has one GPS destination, which anyone may set or clear. A guest
+ * sends its pick up, and the host, which puts picks in order, stamps it with
+ * who made it and sends it down to every guest, the picker too: two picks at
+ * once then end on the same one everywhere, the one the host heard last.
+ * Every client keeps the last one, so a new host has it to hand to whoever
+ * arrives next.
  */
 
 /** 20 a second at the simulation's 120 Hz. */
@@ -49,6 +56,8 @@ export interface OnlineEvents {
   onComputerCar: (peerId: string, car: ComputerCarMessage) => void;
   /** Lane traffic, from the player who ran it when they sent it. */
   onTraffic: (peerId: string, traffic: TrafficMessage) => void;
+  /** The room's destination, as the host has settled it: on arriving, and whenever anyone sets or clears it. */
+  onDestination: (destination: SharedDestination) => void;
 }
 
 export type OnlineRoom = Pick<Room<HostMessage, GuestMessage>, "start" | "stop" | "sendToHost" | "sendTo" | "broadcast">;
@@ -64,6 +73,8 @@ export interface OnlineWorld {
   sendComputerCar: (car: ComputerCarMessage) => boolean;
   /** Lane traffic this player runs, to everyone; false when there's no one to send it to. */
   sendTraffic: (traffic: TrafficMessage) => boolean;
+  /** This player's pick of the room's destination, or null to clear it; sent once connected. */
+  sendDestination: (point: MapPoint | null) => void;
   state: () => RoomState;
 }
 
@@ -80,6 +91,9 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   const owedChallenges: { to: string | null; message: ChallengeMessage }[] = [];
   /** Asked once: a guest who stays one when a new host claims the world already shares its time. */
   let askedTime = false;
+  /** The room's destination as last settled, and a pick of this player's still to go up: only the latest counts. */
+  let destination: SharedDestination | null = null;
+  let owedPick: { point: MapPoint | null } | null = null;
 
   function forget(keep: ReadonlySet<string>): void {
     for (const peerId of known) {
@@ -113,9 +127,17 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     events.onTraffic(peerId, traffic);
   }
 
+  /** As the host: the pick settles here, and goes to everyone else. */
+  function settle(selfId: string, next: SharedDestination): void {
+    destination = next;
+    events.onDestination(next);
+    room.broadcast({ kind: "destination", from: selfId, destination: next });
+  }
+
   const room = createRoom({
     onState(next) {
       const before = state.players.map((player) => player.peerId).join();
+      const was = new Set(state.players.map((player) => player.peerId));
       state = next;
       // Reconnecting keeps everyone: a host that went is claimed again on the same sockets, and the new list says who's left.
       if (next.status === "reconnecting") return;
@@ -127,7 +149,11 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         askedTime = true;
         room.sendToHost({ kind: "ask-time" });
       }
+      if (next.role === "host" && destination?.point && next.selfId !== null) {
+        for (const { peerId } of others) if (!was.has(peerId)) room.sendTo(peerId, { kind: "destination", from: next.selfId, destination });
+      }
       flushChallenges();
+      flushPick();
     },
     onGuestMessage(from, data) {
       const message = parseGuestMessage(data);
@@ -142,6 +168,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       if (message.kind === "car") {
         hear(from.peerId, message.state);
         room.broadcast({ kind: "car", from: from.peerId, state: message.state }, from.peerId);
+        return;
+      }
+      if (message.kind === "destination") {
+        if (state.selfId !== null) settle(state.selfId, { point: message.point, setter: from.peerId, name: from.name });
         return;
       }
       if (message.kind === "computer") {
@@ -172,7 +202,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       else if (message.kind === "car") hear(message.from, message.state);
       else if (message.kind === "computer") hearComputerCar(message.from, message.car);
       else if (message.kind === "traffic") hearTraffic(message.from, message.traffic);
-      else hearChallenge(message.from, message.message);
+      else if (message.kind === "destination") {
+        destination = message.destination;
+        events.onDestination(message.destination);
+      } else hearChallenge(message.from, message.message);
     },
   });
 
@@ -183,6 +216,19 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       if (state.role === "guest") room.sendToHost(to === null ? { kind: "challenge", message } : { kind: "challenge", to, message });
       else if (to === null) room.broadcast({ kind: "challenge", from: selfId, message });
       else room.sendTo(to, { kind: "challenge", from: selfId, message });
+    }
+  }
+
+  function flushPick(): void {
+    const { selfId } = state;
+    if (state.status !== "connected" || selfId === null || owedPick === null) return;
+    const { point } = owedPick;
+    owedPick = null;
+    if (state.role === "guest") room.sendToHost({ kind: "destination", point });
+    else {
+      const self = state.players.find((player) => player.peerId === selfId);
+      if (!self) throw new Error(`the host ${selfId} isn't among its own players`);
+      settle(selfId, { point, setter: selfId, name: self.name });
     }
   }
 
@@ -230,6 +276,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     sendChallenge(to, message) {
       owedChallenges.push({ to, message });
       flushChallenges();
+    },
+    sendDestination(point) {
+      owedPick = { point };
+      flushPick();
     },
     state: () => state,
   };

@@ -95,7 +95,7 @@ import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type
 import { FINISHING_PLACE, medalForPlace } from "../challenge/standings";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
-import type { ChallengeMessage, ChallengeType } from "../net/protocol";
+import type { ChallengeMessage, ChallengeType, SharedDestination } from "../net/protocol";
 import type { Challenge, ChallengeKind, RaceChallenge, StartPlace } from "../challenge/types";
 import { landImage, mapInk, SharpLand, type MapPlayer, type MapView } from "../map/draw";
 import { Discovery } from "../map/discovery";
@@ -231,6 +231,8 @@ export interface GameProbe {
   setDestination: (x: number, z: number) => boolean;
   /** The GPS route as the driver takes it: (x, y, z) points. */
   routePoints: () => number[] | null;
+  /** The name of the other player who set the GPS's destination, or null for this player's own or none. */
+  routeSetter: () => string | null;
   /** The GPS's own route through places in order, each (x, z), for a drive that must pass them. */
   routeThrough: (places: [number, number][]) => number[];
   openMap: (open: boolean) => void;
@@ -381,9 +383,9 @@ export interface CoopReading {
   title: string;
 }
 
-/** Something about co-op the player is told once. */
+/** Something about co-op the player is told once: a partner's, or another player setting or clearing the room's destination. */
 export interface CoopNoticeReading {
-  kind: CoopNotice["kind"];
+  kind: CoopNotice["kind"] | "destination" | "cleared";
   name: string;
 }
 
@@ -429,7 +431,7 @@ export interface GameEvents {
   onRoad?: (name: string) => void;
   /** Everyone else in the online world, by name, whenever that changes. */
   onPlayers?: (names: string[]) => void;
-  /** A co-op partner left, or an invite was turned down or taken back. */
+  /** A co-op partner left, an invite was turned down or taken back, or another player set or cleared the destination. */
   onCoopNotice?: (notice: CoopNoticeReading) => void;
   /** The car has reached a place it hadn't found before. */
   onPlaceFound?: (place: FindablePlace) => void;
@@ -1331,12 +1333,44 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       races: challengeBoard.races,
     });
   };
+  /*
+   * The destination the GPS follows: this player's pick, or online the room's
+   * one (`net/online-world.ts`), named for the other player who set it. Each
+   * player routes to it from where they are. A challenge's route shows instead
+   * while it lasts, and the GPS goes back to this after; it's forgotten here
+   * once reached.
+   */
+  let goal: { x: number; z: number; setter: string | null } | null = null;
+  const followGoal = () => {
+    if (!navigator) return;
+    const car = drive.stateAt(1);
+    if (goal) navigator.setDestination(car.position[0], car.position[2], headingClockwise(car), goal.x, goal.z, goal.setter);
+    else navigator.clearRoute();
+    worldMap?.setRoute(navigator.route, navigator.setter);
+  };
   const pickDestination = (x: number, z: number) => {
     const car = drive.stateAt(1);
     if (!navigator) throw new Error("a destination before the road network arrived");
     const found = navigator.setDestination(car.position[0], car.position[2], headingClockwise(car), x, z);
     worldMap?.setRoute(navigator.route);
+    const end = navigator.route?.end;
+    goal = end ? { x: end.x, z: end.z, setter: null } : null;
+    if (end) onlineWorld?.sendDestination({ x: end.x, z: end.z });
     return found;
+  };
+  const clearDestination = () => {
+    goal = null;
+    navigator?.clearRoute();
+    worldMap?.setRoute(null);
+    onlineWorld?.sendDestination(null);
+  };
+  const hearDestination = ({ point, setter, name }: SharedDestination) => {
+    const own = setter === onlineWorld?.state().selfId;
+    // This player's own pick come back from the host, and still the one followed: nothing new.
+    if (own && (point === null ? goal === null : goal?.x === point.x && goal.z === point.z)) return;
+    goal = point && { ...point, setter: own ? null : name };
+    if (!own) events.onCoopNotice?.({ kind: point ? "destination" : "cleared", name });
+    if (!navigator?.holding) followGoal();
   };
   // Arrives after the drive starts, so a long download never holds up the start.
   void (canvases ? fetcher.roads() : new Promise<never>(() => undefined)).then(
@@ -1379,6 +1413,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           return routeOf(challenge)?.line.points ?? null;
         },
       );
+      // The room's destination may have come before the roads did.
+      if (goal) followGoal();
       stream.addBytes(data.bytes);
       events.onMapReady?.();
       showProgress();
@@ -1470,8 +1506,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const map = worldMap;
       const route = navigator.route;
       const along = navigator.alongRoute;
+      const setter = navigator.setter;
       requestAnimationFrame(() => {
-        map.startAt(car.position[0], car.position[2], headingClockwise(car), route, along);
+        map.startAt(car.position[0], car.position[2], headingClockwise(car), route, along, setter);
       });
     }
     worldMap.wanted = open;
@@ -1616,9 +1653,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         // A race's route ends at its finish; a challenge's runs on past it.
         const finish = challenge.kind === "race" ? null : challenge.kind === "route" ? challenge.gates[challenge.gates.length - 1] : challenge.camera;
         navigator?.holdRoute(route, finish ? route.line.nearest(finish.x, finish.z).along : route.line.length);
-      }
-      else navigator?.clearRoute();
-      worldMap?.setRoute(route);
+        worldMap?.setRoute(route);
+      } else followGoal();
     },
     onOver: (challenge, outcome) => {
       const mode = session?.coop ? "coop" : "solo";
@@ -1808,10 +1844,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const onMapAction = (action: MapAction) => {
     if (action === "close") setMapOpen(false);
     if (action === "pick") worldMap?.pick();
-    if (action === "clear") {
-      navigator?.clearRoute();
-      worldMap?.setRoute(null);
-    }
+    if (action === "clear") clearDestination();
   };
   // Closing the menu from the keyboard presses its way back: Resume, or Leave on a result card.
   const controls = startControls({ onAction, onMapAction, onDevMenu: setDevMenuOpen, onGameMenu: (open) => (open ? setGameMenuOpen(true) : pickMenuItem(gameMenu?.back ?? "resume")), onInputKind: events.onInputKind });
@@ -2055,6 +2088,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           adoptTime(gameDays);
         },
         timeNow: () => day.time().gameDays,
+        onDestination: hearDestination,
       })
     : null;
   onlineWorld?.start();
@@ -2276,6 +2310,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.showWide(lifted);
     const speed = speedOf(car);
     const toGoM = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed, players) ?? null;
+    if (goal && navigator?.route === null) goal = null;
     // A jump or a look round the map isn't a visit.
     if (discovery && !lifted && !jumping) {
       const reached = discovery.update(car.position[0], car.position[2]);
@@ -2471,6 +2506,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       mapReady: () => navigator !== null,
       setDestination: pickDestination,
       routePoints: () => (navigator?.route ? [...navigator.route.line.points] : null),
+      routeSetter: () => navigator?.setter ?? null,
       routeThrough: (places) => {
         if (!roadGraph) throw new Error("no road network yet");
         const points: number[] = [];
