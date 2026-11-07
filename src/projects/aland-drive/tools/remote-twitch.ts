@@ -16,6 +16,7 @@ import { wireState } from "../net/protocol";
 import { initPhysics } from "../sim/drive";
 import { headingOf, LAMPS_OFF, type CarState } from "../sim/car-state";
 import { DEFAULT_CAR } from "../sim/cars";
+import { PhysicsCentre } from "../sim/physics-centre";
 import { RemoteCars } from "../sim/remote-cars";
 import { STEP_S } from "../sim/tuning";
 
@@ -188,7 +189,7 @@ function measureTwitch(rapier: RAPIER.World, network: Network, timed: boolean, s
   const random = seeded(seed);
   const path = drivePath();
   const messages = send(path, network, random);
-  const remotes = new RemoteCars(rapier);
+  const remotes = new RemoteCars(rapier, new PhysicsCentre());
   const drawn: { ms: number; x: number; z: number; heading: number }[] = [];
   let next = 0;
   let owedMs = 0;

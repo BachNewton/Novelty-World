@@ -107,7 +107,7 @@ Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this ga
 
 **Every placed thing says which seasons it belongs to.** Café terraces and parasols, sunbathers, cows out to graze, midsummer poles, moored boats and the regatta are summer's, and the game leaves out what is out of season as it draws, rather than baking tiles per season, which would build and download the island four times over. A layer placed now carries its seasons from the start, since tagging it later means reopening every layer. Winter itself needs every kit's winter: bare deciduous trees and bushes, snow on spruce, snow over the summer aerial photos with roads cleared and banked, and ice on the sea with boats laid up.
 
-**The outer islands need a floating origin.** Positions are 32-bit floats from one fixed origin, and the outer islands lie up to 65 km from it, where the car would be drawn and simulated about 2 mm off, a faint jitter. Ferries that take the world there bring the fix with them: the drawing and the physics relative to the car (`ideas/floating-origin.md`).
+**The outer islands need the drawing's floating origin.** The physics already runs round a centre that follows the car; the shaders still read positions as 32-bit floats from one fixed origin, and the outer islands lie up to 65 km from it. Ferries that take the world there bring the drawing's half with them (`ideas/floating-origin.md`).
 
 **Riding a ferry will be faster than watching one.** Seen from the shore, a ferry keeps its real speed: a wire ferry takes four or five minutes over a few hundred metres, as the real ones do. When ferries to other islands become a way to travel, a crossing the player rides is shortened for play, since sitting through it at real speed would bore them.
 
