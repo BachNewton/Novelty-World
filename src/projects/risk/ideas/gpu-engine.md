@@ -1,6 +1,6 @@
 # Risk on the GPU: a batched engine held exact to the reference engine, and the bots that follow it there
 
-The design of the GPU engine. Phases 0 to 2 (foundations, the engine, the simple bots) are built and verified ("What was found" at the end holds the results); self-play on top of it (phase 3) is proposed, not decided. It supersedes the earlier architect's design note where the two differ, and says why at each point. The native Rust port (`native-port.md`) shares this design's canonical layout and game records, so the two engines' fixtures interchange.
+The design of the GPU engine. Phases 0 to 2 (foundations, the engine, the simple bots) are built and verified ("What was found" at the end holds the results); phase 3, self-play, was run ("Phase 3 so far" holds its measurements, `self-play-league.md` its plateau), and the learned bot's plan from here is `learned-bot.md`. It supersedes the earlier architect's design note where the two differ, and says why at each point. The native Rust port (`native-port.md`) shares this design's canonical layout and game records, so the two engines' fixtures interchange.
 
 ## What it is for
 
@@ -137,7 +137,7 @@ Sizes: training starts at width 128, 4 layers (0.84M weights), which clears M1 f
 
 A seat finishing p-th of n scores 1 − 2(p − 1)/(n − 1); the survivors of a capped game all score as k-th of n (k survivors) less 0.5, never below −1, so a stall is never a result (`stalled-games.md`, v8's hoarding). The cap is drawn per game, 150 to 600 player-turns, so no policy can count on a clock. The league: each new game's seats are the learner (at least one seat, at random), greedy, GD's four personas (their graphable port, `gd_bot_graphable`: the eager port's move on every recorded GD decision, its odds approximate only past the table, its jitter from a device stream), or past checkpoints (four slots refreshed from every snapshot so far); table sizes 3 to 6 mixed (0.35, 0.2, 0.3, 0.15). PPO with GAE (γ = 1, λ = 0.95) over each learner seat's own decisions, clip 0.2, entropy 0.01.
 
-**From scratch first**, as the owner asked; the imitation warm start (arm 2) waits on a move-log recorder and is the fallback if M1 or M2 fails for want of exploration.
+**From scratch first** was the owner's ask, and the runs went that way. The imitation warm start (arm 2) is now the line's next step, on the game records `risk:gpu-fixtures` keeps of any bot's games: `learned-bot.md` re-presents the fork with what standard practice says.
 
 ### Milestones, fixed before training
 
@@ -147,7 +147,7 @@ Training time is GPU wall-clock of the trainer. A milestone is checked on the GP
 |---|---|---|
 | **M1** | beats greedy at 3 players: GPU win rate among decisive games ≥ 0.40 (par 0.33) on 2,048 fixed deals, cap rate under 10%; then `risk:gauntlet` better than greedy at 3 players one-in | 48 hours of training |
 | **M2** | above par against the GD personas at 5 players with cap rate under 10%: `risk:gauntlet` better than each of gd-defensive and gd-stacker at 5 players one-in, and not worse one-out | two weeks of training |
-| **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | no clock: it fails only once every cause is ruled out (`roadmap.md`, Self-play) |
+| **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | no clock: it fails only once every cause is ruled out (`learned-bot.md`) |
 | **M4** | the same against rule-v7 | |
 
 **M3 passed** with `net-v1~{"weights":"sw128b-450"}` (`bot-log.md`, "net-v1 sw128b-450 beats v6 one-in"): better than rule-v6 one-in and one-out on train seeds, its holdout read dropped by the owner's choice.

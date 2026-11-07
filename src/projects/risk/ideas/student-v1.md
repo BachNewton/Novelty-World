@@ -1,6 +1,6 @@
 # Risk bot student-v1: v7's placement choice, learned, at v6's cost
 
-student-v1 (`bots/student-v1/`) is built and registered, measured and not seated: the e6-256-64 weights beat v6 at 5 players on train seeds (`bot-log.md`), and a student is seated only when it comes close to the seated champion at a fraction of its cost (`roadmap.md`). It is the bot `distilled-v7.md` plans: v7's search replaced by a small network trained on what the search chose. The harness seats it as `student-v1`; no table can.
+student-v1 (`bots/student-v1/`) is built and registered, measured and not seated: the e6-256-64 weights are better than v6 at 3 to 5 players on holdout seeds and even at 6 (`bot-log.md`), and a student is seated only when it comes close to the seated champion at a fraction of its cost (`roadmap.md`). It stays a research bot; the learned bot's plan (`learned-bot.md`) carries the distillation line on, over every decision at ten times the labels. It is the bot `distilled-v7.md` plans: v7's search replaced by a small network trained on what the search chose. The harness seats it as `student-v1`; no table can.
 
 ## What it is
 
