@@ -256,7 +256,7 @@ describe("the online world", () => {
       waiting: true,
       picks: 3,
     };
-    const traffic: TrafficMessage = { vehicles: [{ record, handovers: 2, runner: null }, { record: { ...record, id: "walker:T:9:0~a2", kind: "walker", next: { tile: "T", index: 40, connector: false }, crossing: 3, meeting: null, waitedS: 0, waiting: false }, handovers: 0, runner: "b" }], gone: [{ id: "bike:T:1:1~h0", handovers: 4, hit: true }] };
+    const traffic: TrafficMessage = { vehicles: [{ record, handovers: 2, runner: null }, { record: { ...record, id: "walker:T:9:0~a2", kind: "walker", next: { tile: "T", index: 40, connector: false }, crossing: 3, meeting: null, waitedS: 0, waiting: false }, handovers: 0, runner: "b" }], gone: [{ id: "bike:T:1:1~h0", handovers: 4, hit: true }], knows: ["b", "h"] };
     expect(a.world.sendTraffic(traffic)).toBe(true);
     star.flush();
     for (const client of [host, b]) expect(client.traffic).toEqual([{ from: "a", traffic }]);

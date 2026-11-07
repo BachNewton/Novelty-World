@@ -1747,7 +1747,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   /** Where every other player's car is, as heard here. */
   const otherPlaces = (): { x: number; z: number }[] => [...others].flatMap(([peerId, { heard }]) => (heard ? [drive.remotes.stateAt(peerId, 1).position] : [])).map(([x, , z]) => ({ x, z }));
-  /** Whether this page is in the world and has heard where every other player in it is. */
+  /** Whether this page is in the world and has heard where every other player in it is: until then, and until each has sent it what they have near it, it fills no slot. */
   const worldHeard = () => onlineWorld?.state().status === "connected" && [...others.values()].every(({ heard }) => heard);
   /** Every player's car, this one's included, by their id. */
   const playerPlaces = () => {
@@ -1761,7 +1761,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
       const eye = eyeNow();
-      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() } : undefined);
+      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() && sharedTraffic.namedBy(others.keys()) } : undefined);
     }
     bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
     laneTraffic.step(STEP_S * TRAFFIC_EVERY);
