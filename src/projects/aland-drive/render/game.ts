@@ -25,7 +25,7 @@ import { seaClock, seaSeconds } from "../sea/clock";
 import { createDayAndNight } from "./day-and-night";
 import { createNightLights } from "./night-lights";
 import { dateText, type CalendarDate } from "../time/day";
-import { bakedLightAtHour, createHeadlights, forestAtHour, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
+import { bakedLightAtHour, createHeadlights, forestAtHour, OTHERS_LIT, type Beam, type CarAtNight, landAtHour, seaAtHour, seaInLand, type Night } from "../art/night";
 import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
 import { createPeople } from "./people";
@@ -260,7 +260,7 @@ export interface GameProbe {
   day: () => DayShown;
   /** Moves this page's day: another date (null for today's), an hour that runs on from there, or holds it. */
   setDay: (change: DayChange) => void;
-  /** Shows the night's lamps, sea lights, glows and headlights or leaves them out, to see what they cost. */
+  /** Shows the night's lamps, sea lights and glows or leaves them out, to see what they cost. */
   showNightLights: (shown: boolean) => void;
   /** Every boat under way, where it was last drawn. */
   boatsUnderWay: () => UnderWay[];
@@ -501,6 +501,13 @@ const POOLS_ON_GROUND_M = 280;
 /** Where the headlamps sit off the car's origin, which rides at its axles' height. */
 const HEADLAMPS_UP_M = 0.1;
 const HEADLAMPS_AHEAD_M = 2;
+
+/** Where a car's headlamps shine from and the way they point, written into `beam`. */
+function beamOf({ position, rotation: [x, y, z, w] }: CarState, beam: Beam): Beam {
+  beam.forward.set(-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))).normalize();
+  beam.lamps.set(position[0], position[1] + HEADLAMPS_UP_M, position[2]).addScaledVector(beam.forward, HEADLAMPS_AHEAD_M);
+  return beam;
+}
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
 /** Traffic: room for this many cars, cyclists and walkers drawn, and the bubble round the camera judged every this many traffic steps. */
@@ -766,8 +773,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const groundColor = townGround({ place: positionWorld.xz, tiled, toCamera, mask: townMask, angle: townAngle, ground: surfaceGround, photoSoft, colour: colorOf, detail });
   const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
   const headlights = createHeadlights(night);
-  scene.add(headlights.cones);
-  // Every colour drawn goes through here: the hour's light on it, the player's headlights on it, then the haze.
+  // Every colour drawn goes through here: the hour's light on it, the headlights on it, the player's and the nearest others', then the haze.
   const hazedAtHour = (atHour: (hour: Night, color: Node<"vec3">) => Node<"vec3">) => (color: Node<"vec3">) => mix(atHour(night, color).add(headlights.poolOn(color)), hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
   const hazed = hazedAtHour(landAtHour);
   const seaHazed = hazedAtHour(seaAtHour);
@@ -1728,6 +1734,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
   const remoteViews = createRemoteCarViews(scene, sun, hazed);
+  const othersBeams: Beam[] = Array.from({ length: OTHERS_LIT }, () => ({ lamps: new Vector3(), forward: new Vector3() }));
   const others = new Map<string, { name: string; heard: boolean }>();
   // Computer-driven cars, each run by the player nearest it (`net/computer-cars.ts`), and a stand-in here like another player's; so far only a test's scripted cars.
   const standInOf = (id: string) => `computer:${id}`;
@@ -1802,15 +1809,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const drawRemotes = (share: number): MapPlayer[] => {
     const shown: MapPlayer[] = [];
     const lamps: CarAtNight[] = [];
+    const lit: { state: CarState; away: number }[] = [];
     for (const [peerId, { name, heard }] of others) {
       if (!heard) continue;
       const state = drive.remotes.stateAt(peerId, share);
-      const [x, y, z] = state.position;
+      const [x, , z] = state.position;
       remoteViews.draw(peerId, state, world.tileAt(x, z)?.detail != null);
       shown.push({ x, z, headingClockwise: headingClockwise(state), name });
-      const heading = headingOf(state.rotation);
-      if (state.lamps.head) lamps.push({ x, y, z, forwardX: -Math.sin(heading), forwardZ: -Math.cos(heading), braking: state.lamps.brake });
+      if (!state.lamps.head) continue;
+      lamps.push(remoteViews.atNight(state));
+      // A car that isn't drawn here would light the ground round nothing.
+      if (remoteViews.drawn(peerId)) lit.push({ state, away: Math.hypot(x - camera.position.x, z - camera.position.z) });
     }
+    lit.sort((a, b) => a.away - b.away);
+    headlights.updateOthers(lit.slice(0, OTHERS_LIT).map(({ state }, index) => beamOf(state, othersBeams[index])));
     for (const { id } of computerCars.all()) {
       const state = drive.remotes.stateAt(standInOf(id), share);
       remoteViews.draw(standInOf(id), state, world.tileAt(state.position[0], state.position[2])?.detail != null);
@@ -1908,12 +1920,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     day.update(now, 0);
   };
 
-  const lampsAt = new Vector3();
-  const lampsFacing = new Vector3();
-  const aimHeadlights = ({ position, rotation: [x, y, z, w], lamps }: CarState) => {
-    lampsFacing.set(-2 * (x * z + w * y), -2 * (y * z - w * x), -(1 - 2 * (x * x + y * y))).normalize();
-    lampsAt.set(position[0], position[1] + HEADLAMPS_UP_M, position[2]).addScaledVector(lampsFacing, HEADLAMPS_AHEAD_M);
-    headlights.update(lampsAt, lampsFacing, lamps.head);
+  const ownBeam: Beam = { lamps: new Vector3(), forward: new Vector3() };
+  const aimHeadlights = (car: CarState) => {
+    beamOf(car, ownBeam);
+    headlights.update(ownBeam.lamps, ownBeam.forward, car.lamps.head);
   };
 
   const frame = (now: number) => {
@@ -2223,10 +2233,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),
       day: dayShown,
       setDay,
-      showNightLights: (shown) => {
-        nightLights.show(shown);
-        headlights.cones.visible = shown;
-      },
+      showNightLights: nightLights.show,
       holdSea: (seconds) => {
         seaHeldAt = seconds;
       },
