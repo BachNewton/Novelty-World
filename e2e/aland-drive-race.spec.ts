@@ -6,6 +6,7 @@ import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { along, challengeOf, COUNTDOWN_STEPS, layRace, offStart, STEPS_A_SECOND } from "./aland-drive-route";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * A race of the test's own on the fixture's one tile (`aland-drive-route.ts`),
@@ -38,7 +39,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(240_000);
 
 /** Steps a held page by hand, with the scripted driver along the race's route at this speed, until its own finish is in. */
