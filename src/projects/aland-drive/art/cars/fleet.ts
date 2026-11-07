@@ -5,7 +5,8 @@ import { buildDistant } from "./body";
 import { axleY, buildCarParts, groundY, type CarSpec } from "./build";
 import { distantLamps, lampOptions, lampSpots, worldLamps } from "./indicators";
 import { SURFACES, type Soup } from "./mesh";
-import { geometryOf, worldCarMaterial } from "./material";
+import { geometryOf, worldCarMaterial, type WorldTierOptions } from "./material";
+import { measuredSwapM } from "../lod-swaps";
 import { type Sun } from "../sun";
 
 /*
@@ -16,7 +17,7 @@ import { type Sun } from "../sun";
  * four numbers, and its indicators one more (`signal`, see `worldCarMaterial`).
  */
 
-/** Past this a car is its stand-in, and past `REACH_M` it's gone. */
+/** Past its swap a car is its stand-in, and past `REACH_M` it's gone. A model's swap is the one the LOD check measured (`modelSwapM`); this is for one it hasn't. */
 export const SWAP_M = 120;
 export const REACH_M = 900;
 
@@ -119,14 +120,24 @@ export function worldGeometry(spec: CarSpec): BufferGeometry {
   return packed(joined);
 }
 
-/** One car's stand-in, about thirty triangles of its outline, and its indicators' lenses. */
+/** One car's stand-in, its world model simplified (`buildDistant`), and its indicators' lenses. */
 export function distantGeometry(spec: CarSpec): BufferGeometry {
   const road = groundY(spec);
-  const stand = buildDistant(spec.body, road);
-  const spots = lampSpots(buildCarParts(spec, "far", true).body);
-  const geometry = mergeGeometries([withOptions(stand), withLamps(distantLamps(stand, spots))]);
+  const near = buildCarParts(spec, "far", true).body;
+  const stand = buildDistant(spec.body, road, near);
+  const spots = lampSpots(near);
+  const geometry = mergeGeometries([withOptions(stand), withLamps(distantLamps(spots))]);
   geometry.translate(0, -road, 0);
   return packed(geometry);
+}
+
+/** Where a model swaps to its stand-in: as the LOD check measured its two versions, `worldGeometry` and `distantGeometry`. */
+export const modelSwapM = (world: BufferGeometry, distant: BufferGeometry) => measuredSwapM(world, distant, SWAP_M);
+
+/** A model's world and stand-in materials, swapping where the LOD check measured it. */
+export function tierMaterials(swapM: number, sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">, snow: Pick<WorldTierOptions, "season" | "snowKept"> = {}) {
+  const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM, reachM: REACH_M, ...snow });
+  return { world: tier("world"), distant: tier("distant") };
 }
 
 export const triangleCounts = (spec: CarSpec) => ({
@@ -190,12 +201,11 @@ interface Batch {
 
 /** Every car given, on a few draw calls: two per model. `meshes` go in the scene; `move` shifts one car and `signal` sets its indicators. */
 export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (color: Node<"vec3">) => Node<"vec3">) {
-  const tier = (name: "world" | "distant") => worldCarMaterial({ sun, hazed, tier: name, swapM: SWAP_M, reachM: REACH_M });
-  const materials = { world: tier("world"), distant: tier("distant") };
   const bySpec = new Map<CarSpec, FleetCar[]>();
   for (const car of cars) bySpec.set(car.spec, [...(bySpec.get(car.spec) ?? []), car]);
 
   const geometries: BufferGeometry[] = [];
+  const materials: ReturnType<typeof tierMaterials>[] = [];
   const batches = new Map<FleetCar, { batch: Batch; index: number }>();
   const meshes: Mesh[] = [];
   for (const [spec, own] of bySpec) {
@@ -214,9 +224,12 @@ export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (col
       looks.setXYZ(index, look.height, look.rack ? 1 : 0, look.plateBand ? 1 : 0);
       batches.set(car, { batch, index });
     });
+    const shapes = { world: worldGeometry(spec), distant: distantGeometry(spec) };
+    const modelMaterials = tierMaterials(modelSwapM(shapes.world, shapes.distant), sun, hazed);
+    materials.push(modelMaterials);
     const parts = [
-      [worldGeometry(spec), materials.world],
-      [distantGeometry(spec), materials.distant],
+      [shapes.world, modelMaterials.world],
+      [shapes.distant, modelMaterials.distant],
     ] as const;
     for (const [shape, material] of parts) {
       const geometry = new InstancedBufferGeometry();
@@ -256,8 +269,10 @@ export function createCarFleet(cars: readonly FleetCar[], sun: Sun, hazed?: (col
       geometries.forEach((geometry) => {
         geometry.dispose();
       });
-      materials.world.dispose();
-      materials.distant.dispose();
+      materials.forEach(({ world, distant }) => {
+        world.dispose();
+        distant.dispose();
+      });
     },
   };
 }

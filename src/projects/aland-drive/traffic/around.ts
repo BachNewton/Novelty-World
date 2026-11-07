@@ -1,5 +1,5 @@
 import type { LaneNet } from "./lane-net";
-import { lineLength, type Connector, type LaneLine } from "./lane-map";
+import { lineLength, lineOf, type Connector, type LaneLine, type TileLanes } from "./lane-map";
 
 /*
  * Knowing what's around: every vehicle near the player, whatever drives it, each
@@ -11,14 +11,18 @@ import { lineLength, type Connector, type LaneLine } from "./lane-map";
  * connectors a turn gives way to.
  */
 
-/** A vehicle's place: on a lane, or on a connector through a junction, metres along it. */
+/** A vehicle's place: on a lane, on a connector through a junction, or on a link between a path and a road, metres along it. */
 export interface OnLane {
   tile: string;
-  /** A lane's index, or a connector's with `connector` true. */
+  /** A lane's index, a connector's with `connector` true, or a link's with `link` true. */
   index: number;
   connector: boolean;
+  link?: boolean;
   along: number;
 }
+
+/** A lane, connector or link, with no place along it. */
+export type LineRef = Pick<OnLane, "tile" | "index" | "connector" | "link">;
 
 export interface Seen {
   id: string;
@@ -31,7 +35,7 @@ export interface Seen {
 const ON_LANE_M = 6;
 const SAME_WAY = Math.cos(Math.PI / 3);
 
-const keyOf = ({ tile, index, connector }: Pick<OnLane, "tile" | "index" | "connector">) => `${tile}:${connector ? "c" : "l"}${index}`;
+export const keyOf = ({ tile, index, connector, link }: LineRef) => `${tile}:${link ? "k" : connector ? "c" : "l"}${index}`;
 
 /** The nearest point of a line to a place: metres off it, metres along it, and whether the line runs within a turn of `heading`. */
 function nearestOn(points: Float32Array, line: LaneLine, x: number, z: number, heading: { x: number; z: number } | null) {
@@ -56,6 +60,8 @@ export class Around {
   private readonly places = new Map<string, OnLane>();
   private readonly onLines = new Map<string, Set<string>>();
   private readonly lengths = new Map<string, number>();
+  /** Each tile's connectors by the lane they lead into. */
+  private readonly into = new WeakMap<TileLanes, Map<number, number[]>>();
 
   constructor(private readonly net: LaneNet) {
     net.subscribe(() => {
@@ -112,25 +118,33 @@ export class Around {
   }
 
   /** A lane's or connector's length in metres. */
-  length(place: Pick<OnLane, "tile" | "index" | "connector">): number {
+  length(place: LineRef): number {
     const key = keyOf(place);
     const known = this.lengths.get(key);
     if (known !== undefined) return known;
     const tile = this.net.tile(place.tile);
     if (!tile) throw new Error(`${place.tile} has no lanes loaded`);
-    const length = lineLength(tile.points, place.connector ? tile.connectors[place.index] : tile.lanes[place.index]);
+    const length = lineLength(tile.points, lineOf(tile, place));
     this.lengths.set(key, length);
     return length;
   }
 
-  private on(place: Pick<OnLane, "tile" | "index" | "connector">, except: string): { id: string; along: number }[] {
+  /** The vehicles on a line, but one, and how far along it each is. */
+  on(place: LineRef, except = ""): { id: string; along: number }[] {
     return [...(this.onLines.get(keyOf(place)) ?? [])].filter((id) => id !== except).map((id) => ({ id, along: this.places.get(id)?.along ?? 0 }));
   }
 
-  /** The lines that follow a lane or connector: a lane's connectors, a connector's lane, a seam's other half. */
-  private following(place: Pick<OnLane, "tile" | "index" | "connector">): Pick<OnLane, "tile" | "index" | "connector">[] {
+  /**
+   * The lines that follow a lane or connector: a lane's connectors, a connector's lane, a seam's other half. A link off a
+   * road leads to its path's start; one on to a road joins its lane partway, which a walk from a line's start can't follow.
+   */
+  private following(place: LineRef): LineRef[] {
     const tile = this.net.tile(place.tile);
     if (!tile) return [];
+    if (place.link) {
+      const link = tile.links[place.index];
+      return link.onToRoad ? [] : [{ tile: place.tile, index: link.path, connector: false }];
+    }
     if (place.connector) return [{ tile: place.tile, index: tile.connectors[place.index].to, connector: false }];
     const across = this.net.acrossSeam({ tile: place.tile, lane: place.index });
     if (across) return [{ tile: across.tile, index: across.lane, connector: false }];
@@ -150,7 +164,7 @@ export class Around {
       if (gap <= reach && (!before || gap < before.gap)) seen.set(other, { id: other, gap, place });
     };
     const visited = new Set<string>();
-    const walk = (place: Pick<OnLane, "tile" | "index" | "connector">, from: number, gapAtStart: number) => {
+    const walk = (place: LineRef, from: number, gapAtStart: number) => {
       const key = keyOf(place);
       if (gapAtStart > reach || visited.has(key)) return;
       visited.add(key);
@@ -165,17 +179,31 @@ export class Around {
     return [...seen.values()].sort((a, b) => a.gap - b.gap);
   }
 
+  /** The connectors of a tile that lead into one of its lanes. */
+  connectorsInto(tile: TileLanes, lane: number): readonly number[] {
+    let into = this.into.get(tile);
+    if (!into) {
+      into = new Map();
+      for (const [index, { to }] of tile.connectors.entries()) {
+        const list = into.get(to);
+        if (list) list.push(index);
+        else into.set(to, [index]);
+      }
+      this.into.set(tile, into);
+    }
+    return into.get(lane) ?? [];
+  }
+
   /** Vehicles on the other connectors into the lane a connector leads to, counted as far off as they are from its end. */
-  private merging(place: Pick<OnLane, "tile" | "index" | "connector">, gapAtStart: number, except: string, note: (id: string, gap: number, at: OnLane) => void): void {
+  private merging(place: LineRef, gapAtStart: number, except: string, note: (id: string, gap: number, at: OnLane) => void): void {
     const tile = this.net.tile(place.tile);
     if (!tile) return;
-    const target = tile.connectors[place.index].to;
     const ownLength = this.length(place);
-    tile.connectors.forEach((other, index) => {
-      if (index === place.index || other.to !== target) return;
+    for (const index of this.connectorsInto(tile, tile.connectors[place.index].to)) {
+      if (index === place.index) continue;
       const otherLength = this.length({ tile: place.tile, index, connector: true });
       for (const vehicle of this.on({ tile: place.tile, index, connector: true }, except)) note(vehicle.id, gapAtStart + Math.max(0, ownLength - (otherLength - vehicle.along)), { tile: place.tile, index, connector: true, along: vehicle.along });
-    });
+    }
   }
 
   /** The nearest vehicles behind within a reach, back along the line and the lanes leading into it. */

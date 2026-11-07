@@ -54,6 +54,16 @@
   }
 }
 
+/* AI Compass: the four corners' colours. Every cell blends between them by
+   its place on the map, so no corner reads as the better one. Read only by
+   inline styles, so declared outside @theme. */
+:root {
+  --color-compass-ask-steered: var(--color-brand-orange);
+  --color-compass-delegate-steered: var(--color-brand-pink);
+  --color-compass-ask-accepted: var(--color-brand-green);
+  --color-compass-delegate-accepted: var(--color-brand-blue);
+}
+
 /* Pokemon type colors, sampled directly from the SVG type icons in
    /public/pokemon-types so the selection border matches the icon fill.
    Declared outside @theme so they're reliably available as raw CSS
@@ -519,6 +529,13 @@
   --color-aland-drive-barn-tar: #40352c;
   --color-aland-drive-barn-stone: #7f7a72;
   --color-aland-drive-barn-stone-dark: #5f5a54;
+  --color-aland-drive-deer-summer: #a2532b;
+  --color-aland-drive-deer-winter: #6c6153;
+  --color-aland-drive-deer-pale-summer: #d8c4a2;
+  --color-aland-drive-deer-pale-winter: #ece9e1;
+  --color-aland-drive-deer-black: #1d1a18;
+  --color-aland-drive-deer-antler: #6f5a40;
+  --color-aland-drive-deer-velvet: #5e5043;
   --color-aland-drive-front-green: #1f5a44;
   --color-aland-drive-front-red: #a42b2b;
   --color-aland-drive-front-blue: #1f4a78;
@@ -545,6 +562,9 @@
   --color-aland-drive-challenge-passed: #3fbf76;
   --color-aland-drive-challenge-light: #f2f1ea;
   --color-aland-drive-challenge-dark: #1e2024;
+  --color-aland-drive-race-road: #f2c21a;
+  --color-aland-drive-race-cross-country: #2a9ff0;
+  --color-aland-drive-race-off-road: #d9702a;
   --color-aland-drive-car-body: #c8372d;
   --color-aland-drive-car-glass: #1d2a33;
   --color-aland-drive-car-tyre: #17191b;
@@ -595,6 +615,12 @@
   --color-aland-drive-ui-place: #f0739a;
   --color-aland-drive-ui-challenge: #b07cff;
   --color-aland-drive-ui-pass: #5ad68f;
+  --color-aland-drive-ui-race-road: #ffd43b;
+  --color-aland-drive-ui-race-cross-country: #3fb8ff;
+  --color-aland-drive-ui-race-off-road: #e8843c;
+  --color-aland-drive-ui-gold: #f5c518;
+  --color-aland-drive-ui-silver: #c9d1d9;
+  --color-aland-drive-ui-bronze: #c47a3d;
   --color-aland-drive-lab-turned: #3ddc6e;
   --color-aland-drive-lab-outline: #ffc53d;
   --color-aland-drive-lab-cone: #4aa8ff;

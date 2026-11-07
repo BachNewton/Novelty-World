@@ -12,6 +12,8 @@ export interface RibbonCell {
   /** Where its middle is in the scene. */
   x: number;
   z: number;
+  /** A sphere round its own triangles, centre and radius: its mesh shares the whole tile's vertices, so three would measure them all. */
+  bounds: [number, number, number, number];
 }
 
 export interface RibbonMesh {
@@ -22,6 +24,8 @@ export interface RibbonMesh {
   along: Float32Array;
   /** Each vertex's tier, as an index into `ROAD_TIERS`. */
   tiers: Float32Array;
+  /** Two floats a vertex: the way its way runs, as `RoadAprons`' `runs`. Zero on a ribbon, which takes the town image's way instead. */
+  runs: Float32Array;
   indices: Uint32Array;
   cells: RibbonCell[];
 }
@@ -61,11 +65,13 @@ export function paintAlong(length: number, startsOnEdge: boolean, endsOnEdge: bo
 
 export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"]): RibbonMesh {
   const vertices = surface.rings.length / 3;
-  const quads = surface.chains.reduce((sum, chain) => sum + (chain.sections - 1) * (RING_POINTS - 1), 0);
+  // Paved, the rings only say where each way runs: the paving is the whole surface.
+  const quads = surface.paved ? 0 : surface.chains.reduce((sum, chain) => sum + (chain.sections - 1) * (RING_POINTS - 1), 0);
   const { aprons } = surface;
   const across = new Float32Array(vertices);
   const along = new Float32Array(vertices);
   const tiers = new Float32Array(vertices);
+  const runs = new Float32Array(vertices * 2);
   const indices = new Uint32Array(quads * 6 + aprons.indices.length);
   const onEdge = (ring: number) => {
     const centre = (ring + CENTRE) * 3;
@@ -88,7 +94,7 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
         along[ring + point] = distances[section] * scale + offset;
         tiers[ring + point] = surface.tiers[chain.first + section];
       }
-      if (section === chain.sections - 1) continue;
+      if (section === chain.sections - 1 || surface.paved) continue;
       for (let lane = 0; lane < RING_POINTS - 1; lane++) {
         const here = ring + lane;
         const ahead = here + RING_POINTS;
@@ -103,15 +109,19 @@ export function ribbonMesh(surface: RoadSurface, bounds: TileManifest["bounds"])
   }
   across.set(aprons.across, aprons.firstPoint);
   tiers.set(aprons.tiers, aprons.firstPoint);
+  along.set(aprons.along, aprons.firstPoint);
+  runs.set(aprons.runs, aprons.firstPoint * 2);
   for (let at = 0; at < aprons.indices.length; at += 3) {
     const [a, b, c] = [aprons.indices[at] + aprons.firstPoint, aprons.indices[at + 1] + aprons.firstPoint, aprons.indices[at + 2] + aprons.firstPoint];
-    if (hasArea(surface.rings, a, b, c)) {
+    // The paving is one surface on each level, built without folds or cliffs: a steep path's thin triangle is its own, and
+    // leaving it out would leave a hole.
+    if (surface.paved || hasArea(surface.rings, a, b, c)) {
       indices.set([a, b, c], next);
       next += 3;
     }
   }
   const kept = indices.slice(0, next);
-  return { positions: surface.rings, across, along, tiers, indices: kept, cells: ribbonCells(surface.rings, kept) };
+  return { positions: surface.rings, across, along, tiers, runs, indices: kept, cells: ribbonCells(surface.rings, kept) };
 }
 
 function ribbonCells(positions: Float32Array, indices: Uint32Array): RibbonCell[] {
@@ -130,6 +140,15 @@ function ribbonCells(positions: Float32Array, indices: Uint32Array): RibbonCell[
     triangles.forEach((triangle, at) => {
       cellIndices.set(indices.subarray(triangle, triangle + 3), at * 3);
     });
-    return { indices: cellIndices, x: (column + 0.5) * RIBBON_CELL_M, z: (row + 0.5) * RIBBON_CELL_M };
+    const low = [Infinity, Infinity, Infinity];
+    const high = [-Infinity, -Infinity, -Infinity];
+    for (const vertex of cellIndices) {
+      for (let axis = 0; axis < 3; axis++) {
+        low[axis] = Math.min(low[axis], positions[vertex * 3 + axis]);
+        high[axis] = Math.max(high[axis], positions[vertex * 3 + axis]);
+      }
+    }
+    const bounds: RibbonCell["bounds"] = [(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, (low[2] + high[2]) / 2, Math.hypot(high[0] - low[0], high[1] - low[1], high[2] - low[2]) / 2];
+    return { indices: cellIndices, x: (column + 0.5) * RIBBON_CELL_M, z: (row + 0.5) * RIBBON_CELL_M, bounds };
   });
 }

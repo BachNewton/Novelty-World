@@ -1,5 +1,6 @@
 import { Model } from "./mesh";
 import type { RoadsideModel } from "./models";
+import { measuredSwap } from "../lod-swaps";
 
 /*
  * The things sized to fit: road bridges, harbour piers and pontoons. Each runs along
@@ -76,7 +77,7 @@ export function buildBridge({ spanM, widthM, dropM }: BridgeSize): RoadsideModel
       for (const side of [-halfWide, halfWide]) into.face([[end + way * ABUTMENT_WING_M, -0.02, side], [foot, -0.02, side], [foot, pierBottom, side]], "concrete-dark", 0.8);
     }
   }
-  return { near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M };
+  return measuredSwap({ near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M });
 }
 
 export interface HarbourSize {
@@ -121,7 +122,7 @@ export function buildPier({ lengthM, widthM }: HarbourSize): RoadsideModel {
     const x = pileAt(pile);
     far.face([[x, 0, -widthM / 2], [x, 0, widthM / 2], [x, PIER_DECK_M, widthM / 2], [x, PIER_DECK_M, -widthM / 2]], "pile-wood", 0.6);
   }
-  return { near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M };
+  return measuredSwap({ near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M });
 }
 
 const PONTOON_DECK_M = 0.42;
@@ -139,7 +140,7 @@ export function buildPontoon({ lengthM, widthM }: HarbourSize): RoadsideModel {
   }
   for (const x of [lengthM * 0.15, lengthM * 0.85]) near.tube([x, -PILE_DEPTH_M, widthM / 2 + 0.2], [x, GUIDE_PILE_TALL_M, widthM / 2 + 0.2], 0.12, 5, { cap: true, shadeFrom: 0.5, shadeTo: 1.05 }, "pile-wood");
   const far = hull(new Model()).face([[0, PONTOON_DECK_M, widthM / 2], [lengthM, PONTOON_DECK_M, widthM / 2], [lengthM, PONTOON_DECK_M, -widthM / 2], [0, PONTOON_DECK_M, -widthM / 2]], "pier-wood-pale");
-  return { near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M };
+  return measuredSwap({ near: near.build(), far: far.build(), swapM: STRUCTURE_SWAP_M, reachM: STRUCTURE_REACH_M });
 }
 
 /** A short boarded ramp with a rail, from a shore or pier down to a pontoon. Shear it to the drop. */

@@ -89,7 +89,7 @@ function twoTiles(withEastDetail = true, walls?: Float32Array, seasonal?: Season
   world.addFar("WEST", gridAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16), dryAt(-1, -1, FAR_NODES, 16));
   world.addFar("EAST", gridAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16), dryAt(0, -1, FAR_NODES, 16));
   const west = roadBytes(-TILE_M, 0);
-  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls, null, seasonal));
+  world.addDetail(tileDetail(tileManifest("WEST", -TILE_M, west.sections), gridAt(-1, -1, NODES, STEP_M), west.bytes, dryAt(-1, -1, NODES, STEP_M), dryAt(-1, -1, NODES, STEP_M), TILE_M, walls, undefined, null, seasonal));
   if (withEastDetail) {
     // Its chain runs the other way, towards the seam, as a neighbour's may.
     const east = roadBytes(TILE_M, 0);

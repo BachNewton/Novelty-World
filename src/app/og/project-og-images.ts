@@ -8,6 +8,7 @@ export const PROJECT_OG_IMAGES: Partial<Record<string, () => Promise<ProjectOgIm
   "for-the-stats-2": () => import("@/projects/for-the-stats-2/og-image").then((m) => m.ogImage),
   audiobook: () => import("@/projects/audiobook/og-image").then((m) => m.ogImage),
   "aland-drive": () => import("@/projects/aland-drive/og-image").then((m) => m.ogImage),
+  "ai-compass": () => import("@/projects/ai-compass/og-image").then((m) => m.ogImage),
 };
 
 /** The share image a project's pages show: its own, or the site's. */

@@ -65,6 +65,8 @@ const STAGED: Record<TreeKind, [young: Rings, grown: Rings, old: Rings]> = {
     [[0, 0.016], [0.1, 0.014], [0.11, 0.21], [0.34, 0.12], [0.36, 0.17], [0.58, 0.08], [0.6, 0.12], [0.8, 0.04], [1, 0]],
     [[0, 0.016], [0.2, 0.013], [0.21, 0.16], [0.42, 0.09], [0.44, 0.13], [0.63, 0.06], [0.65, 0.095], [0.84, 0.03], [1, 0]],
   ],
+  // A known gap: this closed oval reads as a leafy broadleaf's crown, not a pine's see-through tufts. Four attempts
+  // to change it were rejected and kept for the record in `ideas/pine-crowns.md`.
   pine: [
     [[0, 0.02], [0.05, 0.018], [0.06, 0.17], [0.22, 0.2], [0.3, 0.14], [0.48, 0.16], [0.56, 0.1], [0.8, 0.05], [1, 0]],
     [[0, 0.016], [0.36, 0.012], [0.38, 0.11], [0.5, 0.17], [0.63, 0.16], [0.75, 0.16], [0.86, 0.13], [0.95, 0.06], [1, 0]],

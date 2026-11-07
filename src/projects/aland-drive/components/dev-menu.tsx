@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CalendarDays, Check, RotateCcw, Cloud, CloudFog, CloudRain, CloudSnow, CloudSun, FlaskConical, Globe, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
+import { Bike, CalendarDays, Car, Check, RotateCcw, Cloud, CloudFog, CloudRain, CloudSnow, CloudSun, FlaskConical, Globe, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
 import type { CarChoice, DayChange, DayShown, Game } from "../render/game";
 import { HELD_WEATHER, type HeldWeather } from "../climate/held";
 import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
@@ -159,6 +159,33 @@ function WeatherChoice({ weather, onWeather }: { weather: Game["weather"]; onWea
   );
 }
 
+/** Cars, cyclists and walkers on the lanes round the car, on or off. Offline only: in the shared world, null, it's always on, since everyone sees the same. */
+function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraffic: (on: boolean) => void }) {
+  const [on, setOn] = useState(traffic);
+  const offline = on !== null;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on !== false}
+      aria-label="Traffic"
+      disabled={!offline}
+      title={offline ? undefined : "Always on in the shared world, where everyone sees the same traffic"}
+      className="flex cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-sm disabled:cursor-default disabled:opacity-50"
+      style={{ borderColor: on !== false ? ACCENT : INK }}
+      onClick={() => {
+        if (on === null) return;
+        setOn(!on);
+        onTraffic(!on);
+      }}
+    >
+      <Car aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <Bike aria-hidden className="size-4" style={on !== false ? { color: ACCENT } : undefined} />
+      <span className="grow text-left">{on !== false ? "On" : "Off"}</span>
+    </button>
+  );
+}
+
 const clockText = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
 
 /** The time this page shows: a month and one of its four game days, an hour, or the time held still. Now is the real date and time. */
@@ -255,7 +282,7 @@ function SpotList({ spots, onJump, onJumpToDestination }: { spots: readonly { id
   );
 }
 
-export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, weather, onWeather, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; weather: Game["weather"]; onWeather: Game["setWeather"]; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
+export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCondition, day, onDay, weather, onWeather, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; traffic: boolean | null; onTraffic: (on: boolean) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; weather: Game["weather"]; onWeather: Game["setWeather"]; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
@@ -286,6 +313,9 @@ export function DevMenu({ cars, car, onCar, condition, onCondition, day, onDay, 
           </Section>
           <Section title="Ground">
             <ConditionChoice condition={condition} onCondition={onCondition} />
+          </Section>
+          <Section title="Traffic">
+            <TrafficSwitch traffic={traffic} onTraffic={onTraffic} />
           </Section>
         </div>
         <Section title="Jump to">

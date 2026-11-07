@@ -9,7 +9,14 @@ export function timeText(seconds: number): string {
   return `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
 }
 
-/** A Route's time or a Speed trap's speed (kept in km/h), in the player's units. */
+/** A Route's or a race's time, or a Speed trap's speed (kept in km/h) in the player's units. */
 export function resultText(kind: ChallengeKind, value: number, units: Units): string {
-  return kind === "route" ? timeText(value) : speedText(value, units);
+  return kind === "speed-trap" ? speedText(value, units) : timeText(value);
+}
+
+/** A finishing place as a racer says it: 1st, 2nd, 3rd, 4th. */
+export function placeText(place: number): string {
+  const [last, teen] = [place % 10, place % 100 >= 11 && place % 100 <= 13];
+  const suffix = teen || last === 0 || last > 3 ? "th" : last === 1 ? "st" : last === 2 ? "nd" : "rd";
+  return `${place}${suffix}`;
 }

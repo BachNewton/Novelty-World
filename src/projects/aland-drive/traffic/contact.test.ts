@@ -26,12 +26,14 @@ const FROM_M = 150;
 
 beforeAll(initPhysics);
 
-function setUp() {
+/** The traffic lane runs the player's way along the road, or towards the player. */
+function setUp(oncoming = false) {
   const points: [number, number, number][] = [];
   for (let along = FROM_M; along <= Math.min(road.length, FROM_M + 600); along += 4) {
     const { x, y, z } = road.at(along);
     points.push([x, y, z]);
   }
+  if (oncoming) points.reverse();
   const net = new LaneNet();
   net.add("T", decodeLanes({ lanes: [lane(points, { width: 4 })], connectors: [], junctions: [], issues: [] }));
   const traffic = new LaneTraffic(net, KINDS);
@@ -78,6 +80,40 @@ describe("traffic and the player's car", () => {
     expect(overlapped).toBe(false);
     expect(contact.count()).toBe(0);
     expect(traffic.get(car.id)?.speedMS).toBeGreaterThan(1);
+  });
+
+  it("a traffic car hit head-on at speed is shoved back on its wheels, neither rearing up nor floating", () => {
+    const { traffic, drive, contact, step } = setUp(true);
+    traffic.spawn({ tile: "T", index: 0, connector: false, along: 150 }, 18);
+    const pilot = new Autopilot(road, 35, FROM_M + 2);
+    let hitAt: number | null = null;
+    let hitSpeed = 0;
+    let handedHeight = 0;
+    let highestRise = 0;
+    let leastUp = 1;
+    let lastOffWheels = 0;
+    for (let at = 0; at < 20 / drive.rapier.timestep; at++) {
+      const player = drive.stateAt(1);
+      step(hitAt === null ? pilot.input(player) : speedOf(player) > 1 ? { ...NO_INPUT, brake: 1 } : { ...NO_INPUT, handbrake: true });
+      if (hitAt === null && contact.count() > 0) {
+        hitAt = at;
+        hitSpeed = speedOf(player);
+        handedHeight = drive.cars()[0].stateAt(1).position[1];
+      }
+      // The first two seconds after the hit, while it's shoved and skids.
+      if (hitAt === null || at - hitAt > 2 / drive.rapier.timestep || drive.cars().length === 0) continue;
+      const hit = drive.cars()[0].stateAt(1);
+      const [x, , z] = hit.rotation;
+      highestRise = Math.max(highestRise, hit.position[1] - handedHeight);
+      leastUp = Math.min(leastUp, 1 - 2 * (x * x + z * z));
+      if (hit.suspension.some((compressed) => compressed === 0)) lastOffWheels = at - hitAt;
+    }
+    expect(hitAt).not.toBeNull();
+    expect(hitSpeed).toBeGreaterThan(30);
+    // A stand-in has no ground, so a hit pitches it freely: handed on, that spin reared the car on its back wheels, 0.6 m up and 25° nose high, and it sank back over a second.
+    expect(highestRise).toBeLessThan(0.15);
+    expect(leastUp).toBeGreaterThan(0.97);
+    expect(lastOffWheels * drive.rapier.timestep).toBeLessThan(0.25);
   });
 
 });

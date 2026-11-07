@@ -18,6 +18,11 @@ import type { Challenge, Gate } from "./types";
  * whose client takes it as it stands (`adoptLoss`): two clients never settle
  * one attempt two ways. A Speed trap has no clock: it ends once everyone has
  * crossed the camera, and passes on the average speed there.
+ *
+ * A race's lines are a Route's gates lap after lap: one lap's are crossed in
+ * order, then the same again, and the last line of the last lap is the finish.
+ * It has no target to lose against: it ends once everyone has finished, in the
+ * place that earns its medal (`standings.ts`).
  */
 
 export const COUNTDOWN_S = 3;
@@ -34,7 +39,7 @@ export interface CarSample {
 export interface PlayerRun {
   /** The car at the end of the last step, or null before its first. */
   last: CarSample | null;
-  /** A Route's next gate to pass. */
+  /** The next line to cross, counted over every lap of a race. */
   nextGate: number;
   /** Seconds from the green light to the finish, or the speed in km/h at the camera, once there. */
   result: number | null;
@@ -91,6 +96,18 @@ export function countdownLeftS(run: ChallengeRun): number {
   return Math.max(0, -run.clockS);
 }
 
+/** How many lines a run has to cross in order: a Route's gates, a race's every lap, a Speed trap's camera. */
+export function linesOf(challenge: Challenge): number {
+  if (challenge.kind === "speed-trap") return 1;
+  return challenge.kind === "race" ? challenge.gates.length * challenge.laps : challenge.gates.length;
+}
+
+/** The line to cross after `crossed` others, the camera for a Speed trap. */
+export function lineAt(challenge: Challenge, crossed: number): Gate {
+  if (challenge.kind === "speed-trap") return challenge.camera;
+  return challenge.gates[crossed % challenge.gates.length];
+}
+
 const forwardOf = (heading: number) => ({ x: -Math.sin(heading), z: -Math.cos(heading) });
 const cross = (ax: number, az: number, bx: number, bz: number) => ax * bz - az * bx;
 
@@ -130,7 +147,9 @@ function settle(run: ChallengeRun, events: RunEvent[], timedHere: (player: numbe
   const average = averageOf(results);
   const { challenge } = run;
   let outcome: Outcome | null = null;
-  if (challenge.kind === "route") {
+  if (challenge.kind === "race") {
+    if (average !== null) outcome = { passed: true, results, average };
+  } else if (challenge.kind === "route") {
     if (average !== null) outcome = { passed: average <= challenge.targetS, results, average };
     else if (run.players.some(({ result }, index) => result === null && timedHere(index)) && routeLost(run, challenge.targetS)) outcome = { passed: false, results, average: null };
   } else if (average !== null) {
@@ -157,10 +176,11 @@ function stepPlayer(run: ChallengeRun, index: number, sample: CarSample, stepS: 
   }
   // One step can pass more than one gate, at a speed and spacing no car reaches, so each is looked for in turn.
   let { nextGate } = player;
+  const lines = linesOf(challenge);
   for (;;) {
-    const share = crossingShare(last, sample, challenge.gates[nextGate]);
+    const share = crossingShare(last, sample, lineAt(challenge, nextGate));
     if (share === null || at(share) < 0) return { ...kept, nextGate };
-    if (nextGate === challenge.gates.length - 1) {
+    if (nextGate === lines - 1) {
       const result = at(share);
       events.push({ kind: "result", player: index, result });
       return { ...kept, nextGate: nextGate + 1, result };
@@ -207,7 +227,7 @@ export function adoptLoss(run: ChallengeRun, attempt: number, results: readonly 
  * reach at the camera. Null otherwise.
  */
 export function partnerNeeds(run: ChallengeRun): { player: number; result: number } | null {
-  if (run.outcome || run.players.length !== 2) return null;
+  if (run.outcome || run.players.length !== 2 || run.challenge.kind === "race") return null;
   const waiting = run.players.findIndex(({ result }) => result === null);
   const done = run.players.find(({ result }) => result !== null);
   if (waiting < 0 || !done || done.result === null) return null;
@@ -215,8 +235,18 @@ export function partnerNeeds(run: ChallengeRun): { player: number; result: numbe
   return { player: waiting, result: 2 * target - done.result };
 }
 
-/** How many of a Route's gates a player has passed, the finish included, and how many there are. */
+/** How many of a Route's gates a player has passed, the finish included, and how many there are: on a race, of this lap's. */
 export function gatesPassed(run: ChallengeRun, player: number): { passed: number; of: number } {
   const { challenge } = run;
-  return challenge.kind === "route" ? { passed: run.players[player].nextGate, of: challenge.gates.length } : { passed: 0, of: 0 };
+  const { nextGate } = run.players[player];
+  if (challenge.kind === "route") return { passed: nextGate, of: challenge.gates.length };
+  if (challenge.kind === "race") return { passed: nextGate - (lapOf(run, player).lap - 1) * challenge.gates.length, of: challenge.gates.length };
+  return { passed: 0, of: 0 };
+}
+
+/** The lap a player is on in a race, from 1, and how many there are; the last once they've finished. */
+export function lapOf(run: ChallengeRun, player: number): { lap: number; of: number } {
+  const { challenge } = run;
+  if (challenge.kind !== "race") return { lap: 1, of: 1 };
+  return { lap: Math.min(challenge.laps, Math.floor(run.players[player].nextGate / challenge.gates.length) + 1), of: challenge.laps };
 }

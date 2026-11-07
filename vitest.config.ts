@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
+import { VitestLoadReporter } from "./scripts/load-reporters.mjs";
+import { requireSlot } from "./scripts/machine-budget.mjs";
+
+requireSlot("A vitest run", { interactiveOk: true });
 
 // Other checkouts nested inside this one: agent worktrees under
 // `.claude/worktrees/` and `.opencode/worktrees/`. To this checkout they don't
@@ -13,6 +17,8 @@ export default defineConfig({
     },
   },
   test: {
+    // The second prints the machine's load with any failure (scripts/load-reporters.mjs).
+    reporters: ["default", new VitestLoadReporter()],
     // *.slow.test.ts files are excluded from the default suite — they take
     // tens of seconds and are run explicitly via `npm run test:slow`.
     exclude: ["e2e/**", "node_modules/**", "**/*.slow.test.ts", ...NESTED_CHECKOUTS],

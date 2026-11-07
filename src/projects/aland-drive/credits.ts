@@ -58,6 +58,13 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "Contains data from the Finnish Transport Infrastructure Agency's fairway register, licensed under CC BY 4.0",
   },
   {
+    work: "Traffic counts on Åland's roads (how busy each road's traffic is)",
+    author: "Ålands landskapsregering",
+    license: LICENSES["cc-by-4.0"],
+    source: "https://www.kartor.ax/",
+    attribution: "Contains traffic counts from Ålands landskapsregering, licensed under CC BY 4.0",
+  },
+  {
     work: "Depth areas of the nautical chart round Åland (keeping keeled boats out of water too shallow for them)",
     author: "Finnish Transport and Communications Agency (Traficom)",
     license: LICENSES["traficom-hydrographic"],

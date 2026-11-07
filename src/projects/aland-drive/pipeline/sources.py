@@ -46,6 +46,8 @@ MSNFI_RIM_PIXELS = 60
 # 32766 couldn't be computed, 32767 isn't forest land.
 MSNFI_NODATA_FROM = 32766
 MSNFI_OUTSIDE = 32767
+# Ålands landskapsregering's traffic counts (CC BY 4.0, kartor.ax): each site counted for a week, about twice a year.
+TRAFFIC_COUNTS = "https://kartor.regeringen.ax/arcgis/rest/services/Infrastruktur/Trafikmatningar/MapServer/0/query"
 
 
 def _download(request: urllib.request.Request, path: Path) -> None:
@@ -438,4 +440,14 @@ def osm_sea_lights_path() -> Path:
     box = {"west": min(c[0] for c in corners), "south": min(c[1] for c in corners), "east": max(c[0] for c in corners), "north": max(c[1] for c in corners)}
     query = SEA_LIGHTS_QUERY.format(**{name: f"{value:.6f}" for name, value in box.items()})
     _download(urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(), headers={"User-Agent": USER_AGENT}), path)
+    return path
+
+
+def traffic_counts_path() -> Path:
+    """Every regular traffic count on Åland's roads, in ETRS-TM35FIN: a site, its road number and the vehicles a day
+    both ways over the week it was counted."""
+    path = RAW / "kartor-traffic" / "counts.json"
+    if not path.exists():
+        query = urllib.parse.urlencode({"where": "1=1", "outFields": "ROADNR,POSITIONID,TRAFFVOLUME,STARTDATE", "outSR": "3067", "f": "json", "resultRecordCount": "5000"})
+        _download(urllib.request.Request(f"{TRAFFIC_COUNTS}?{query}", headers={"User-Agent": USER_AGENT}), path)
     return path

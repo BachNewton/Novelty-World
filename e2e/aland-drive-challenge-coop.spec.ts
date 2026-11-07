@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/aland-drive/challenge/** src/projects/aland-drive/net/**
 import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import type { Challenge } from "../src/projects/aland-drive/challenge/types";

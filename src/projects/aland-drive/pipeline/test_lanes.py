@@ -1,11 +1,14 @@
 """The lane map's rules that are easy to get backwards: which side a lane runs, who gives way, and what the audit finds."""
 
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 
-from lanes import TURN_RADIUS_M, LaneMap, Rules, tightest_radius
+from lanes import TURN_RADIUS_M, LaneMap, Rules, apron_triangles, tightest_radius
 from roadside import RINGS, Chain
+from test_roadside import paved_tile
 
 BOX = (-1000.0, -1000.0, 1000.0, 1000.0)
 
@@ -28,7 +31,7 @@ def rules(sign=None, oneway: dict | None = None, limits: dict | None = None) -> 
         tags = (oneway or {}).get("tags", {})
         return tags, (oneway or {}).get("runs", 1)
 
-    return Rules(sign=sign or (lambda chain, along, host: None), signals=[], way=way, limits=lambda chain: (limits or {}).get(chain.index, []), built_up=lambda point: False)
+    return Rules(sign=sign or (lambda chain, along, host: None), signals=[], way=way, limits=lambda chain: (limits or {}).get(chain.index, []), built_up=lambda point: False, daily=lambda chain: 0.0)
 
 
 def flat(east: float, north: float) -> float:
@@ -169,6 +172,19 @@ class Lanes(unittest.TestCase):
         for surface, turn in turns(3.5):
             self.assertGreaterEqual(tightest_radius(turn.points[:, :2]), TURN_RADIUS_M, f"the {turn.turn} turn is tighter than a car can turn")
             self.assertLessEqual(float(surface.off_paving(turn.points).max()), 0.1, f"the {turn.turn} turn leaves the paving")
+
+
+class PavedTiles(unittest.TestCase):
+    def test_a_turn_may_use_a_paved_tiles_carriageways_and_junctions_but_not_a_shoulder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest = paved_tile(Path(folder), [
+                ([(50, -3), (60, -3), (55, -5)], (1, 1, 2), 0),
+                ([(50, -10), (60, -10), (55, -14)], (0.4, 1.02, 1.02), 0),
+                ([(150, 3), (154, 3), (152, 5)], (2, 2, 2), 0),
+            ], junctions=1)
+            paving = apron_triangles(Path(folder), manifest)
+        self.assertEqual(sorted(tuple(np.round(triangle[:, :2].mean(axis=0), 1)) for triangle in paving), [(55.0, -11.3), (152.0, 3.7)])
+
 
 if __name__ == "__main__":
     unittest.main()

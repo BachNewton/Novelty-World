@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, type ComponentType } from "react";
-import { Check, CircleDot, Ruler, Flag, LogOut, Play, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { Car, Check, CircleDot, Flag, LogOut, Medal as MedalIcon, Play, Repeat, Route, Ruler, RotateCcw, Snowflake, Sun, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
-import { resultText } from "../challenge/format";
-import { tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult } from "../render/game-menu";
+import { placeText, resultText } from "../challenge/format";
+import type { Medal } from "../challenge/standings";
+import type { RaceGround } from "../challenge/types";
+import { tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
 import { useUnits, type Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
 
@@ -15,7 +17,8 @@ import type { Tyre } from "../sim/surfaces";
  * choices on its own button. The game says what it holds
  * (`render/game-menu.ts`); this draws each item by its id. It opens on its
  * first item, and B, Menu and Esc press the one the game names as its way
- * back: Resume, Cancel, or Leave on a challenge's result card.
+ * back: Resume, Cancel, or Leave on a challenge's result card. A race has its
+ * own card before it starts and its own result card, with the places.
  */
 
 const INK = "var(--color-aland-drive-ui-ink)";
@@ -24,6 +27,13 @@ const ACCENT = "var(--color-aland-drive-ui-accent)";
 const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
 const PASS = "var(--color-aland-drive-ui-pass)";
 const FAIL = "var(--color-aland-drive-ui-redline)";
+const PLAYER = "var(--color-aland-drive-ui-player)";
+
+/** A race's colour, by what's under its wheels. */
+export const raceColour = (ground: RaceGround) => `var(--color-aland-drive-ui-race-${ground})`;
+const medalColour = (medal: Medal) => `var(--color-aland-drive-ui-${medal})`;
+const MEDAL_NAMES: Record<Medal, string> = { gold: "Gold", silver: "Silver", bronze: "Bronze" };
+const GROUND_NAMES: Record<RaceGround, string> = { road: "Road", "cross-country": "Cross country", "off-road": "Off-road" };
 
 const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
   summer: { icon: Sun, name: "Summer" },
@@ -69,7 +79,7 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "sound":
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
       case "start-solo":
-        return { icon: User, label: "Solo" };
+        return menu.kind === "race" ? { icon: Flag, label: menu.partner === undefined ? "Start" : "Solo" } : { icon: User, label: "Solo" };
       case "start-coop":
         return { icon: Users, label: `Co-op with ${menu.partner ?? ""}` };
       case "join-coop":
@@ -81,9 +91,79 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "retry":
         return { icon: RotateCcw, label: "Retry" };
       case "leave":
-        return { icon: LogOut, label: "Leave challenge" };
+        return { icon: LogOut, label: menu.ground ? "Leave race" : "Leave challenge" };
     }
   };
+}
+
+/** A medal as a coloured disc, or an empty ring for none. */
+function MedalMark({ medal, className }: { medal: Medal | null; className: string }) {
+  return <MedalIcon aria-label={medal ? MEDAL_NAMES[medal] : "No medal"} className={className} style={{ color: medal ? medalColour(medal) : INK, opacity: medal ? 1 : 0.4 }} />;
+}
+
+/** A race before it starts: its number, ground and shape, laps and length, the car, what each medal takes, and what's been won solo and in co-op. */
+function RaceCardHeader({ title, card, partner }: { title: string; card: RaceCard; partner?: string }) {
+  const colour = raceColour(card.ground);
+  return (
+    <div className="mb-1 flex flex-col gap-2" aria-label="Race card">
+      <div className="flex items-center gap-2 text-lg font-semibold" style={{ color: colour }}>
+        <Trophy aria-hidden className="size-5 shrink-0" />
+        <span>{card.number}</span>
+        <span>{title}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm tabular-nums">
+        <span className="font-semibold" style={{ color: colour }} aria-label="Ground">{GROUND_NAMES[card.ground]}</span>
+        <span className="flex items-center gap-1" aria-label={card.shape === "circuit" ? "Laps" : "Sprint"} title={card.shape === "circuit" ? "Laps" : "Sprint"}>
+          {card.shape === "circuit" ? <Repeat aria-hidden className="size-4" /> : <Route aria-hidden className="size-4" />}
+          {card.shape === "circuit" ? card.laps : "A to B"}
+        </span>
+        <span aria-label="Length">{(card.lengthM / 1000).toFixed(1)} km</span>
+        <span className="flex items-center gap-1" aria-label="Car" title="Car">
+          <Car aria-hidden className="size-4" />
+          {card.car}
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Won">
+        {(["solo", "coop"] as const).map((mode) => {
+          const record = card.records[mode];
+          const Icon = mode === "solo" ? User : Users;
+          return (
+            <div key={mode} className="flex items-center gap-2" aria-label={mode === "solo" ? "Solo" : "Co-op"} title={mode === "solo" ? "Solo" : "Co-op"}>
+              <Icon aria-hidden className="size-4 shrink-0" />
+              <MedalMark medal={record?.medal ?? null} className="size-4 shrink-0" />
+              <span aria-label="Best place">{record ? placeText(record.place) : "–"}</span>
+            </div>
+          );
+        })}
+      </div>
+      {partner !== undefined && (
+        <div className="flex items-center gap-2 text-sm font-semibold" aria-label="In the ring" title="In the ring">
+          <Users aria-hidden className="size-4 shrink-0" style={{ color: PLAYER }} />
+          <span>{partner}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** How a race finished: the medal and place, and the best medal kept. */
+function RaceResultHeader({ title, race }: { title: string; race: RaceResult }) {
+  return (
+    <div className="mb-1 flex flex-col gap-1" aria-label="Result">
+      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: raceColour(race.ground) }}>
+        <Trophy aria-hidden className="size-4 shrink-0" />
+        <span>{title}</span>
+      </div>
+      <div className="flex items-center gap-3 text-3xl font-bold">
+        <MedalMark medal={race.medal} className="size-9 shrink-0" />
+        <span aria-label="Place">{placeText(race.place)}</span>
+      </div>
+      <div className="flex items-center gap-2 text-sm" aria-label="Best medal" title="Best medal">
+        <Trophy aria-hidden className="size-4 shrink-0" style={{ color: ACCENT }} />
+        <MedalMark medal={race.bestMedal} className="size-4 shrink-0" />
+      </div>
+    </div>
+  );
 }
 
 /** How an attempt went: passed or not, against the target, and the best kept. */
@@ -102,7 +182,7 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
       </div>
       <div className="flex items-baseline gap-2 text-lg tabular-nums">
         <span className="text-2xl font-bold" aria-label={kind === "route" ? "Time" : "Speed"}>{result === null ? "–" : resultText(kind, result, units)}</span>
-        <span className="opacity-75" aria-label="Target">/ {resultText(kind, target, units)}</span>
+        {target !== null && <span className="opacity-75" aria-label="Target">/ {resultText(kind, target, units)}</span>}
       </div>
       {team && (
         <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Team">
@@ -154,7 +234,7 @@ function SideBySide({ name, choices, onPick }: { name: string; choices: { id: Me
   );
 }
 
-const DIALOG_NAMES = { menu: "Game menu", start: "Start challenge", invite: "Co-op invite" } as const;
+const DIALOG_NAMES = { menu: "Game menu", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
 function ChoiceHeader({ title, from }: { title: string; from?: string }) {
@@ -186,8 +266,9 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
 
   return (
     <div className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
-      <div ref={root} role="dialog" aria-modal aria-label={menu.result ? "Challenge result" : DIALOG_NAMES[menu.kind ?? "menu"]} className="flex w-80 max-w-[90vw] flex-col gap-2 rounded-lg p-4" style={{ background: SHADE, color: INK }}>
-        {menu.result && <ResultHeader title={menu.challenge ?? ""} result={menu.result} />}
+      <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className="flex w-80 max-w-[90vw] flex-col gap-2 rounded-lg p-4" style={{ background: SHADE, color: INK }}>
+        {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
+        {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} partner={menu.partner} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} />}
         {menu.items.map((id, index) => {

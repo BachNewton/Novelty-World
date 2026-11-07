@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 import { resultsDir } from "./e2e/run-dir";
+import { requireSlot } from "./scripts/machine-budget.mjs";
+
+requireSlot("An e2e run");
 
 /**
  * Every run is self-contained, so any number can go at once: it builds and
@@ -25,9 +28,11 @@ export default defineConfig({
   outputDir: resultsDir(RUN_ID),
   timeout: 30_000,
   retries: 0,
+  // The second prints the machine's load with any failure (scripts/load-reporters.mjs).
+  reporter: [["list"], ["./e2e/load-reporter.ts"]],
   fullyParallel: true,
-  // Half the logical cores, so a few runs side by side still share the machine. `--workers` overrides.
-  workers: "50%",
+  // What the machine's budget gave this run (scripts/machine-budget.mjs); `--workers` overrides.
+  workers: process.env.SLOT_WORKERS === undefined ? "50%" : Number(process.env.SLOT_WORKERS),
   globalTeardown: "./e2e/global-teardown.ts",
   use: {
     // Set in the runner by the Next server's startup line (below), before any worker starts; or by hand.

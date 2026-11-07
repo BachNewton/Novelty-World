@@ -6,6 +6,7 @@
 // to WebGL2 here.
 
 import { chromium } from "playwright";
+import { requireSlot } from "../../../../scripts/machine-budget.mjs";
 
 // For a stall that says nothing; a far jump with its tiles lands well inside it.
 const STEP_DEADLINE_S = 300;
@@ -20,6 +21,7 @@ export const UNCAPPED_ARGS = ["--disable-gpu-vsync", "--disable-frame-rate-limit
  * page before any of the page's own scripts, for a tool that watches the page from its start.
  */
 export async function openGame(url, { width, height, args = [], ready = () => window.__alandDrive !== undefined, cleanup = () => {}, init }) {
+  requireSlot("A tool that opens the game");
   const browser = await chromium.launch({ channel: "chromium", headless: true, args: [...LAUNCH_ARGS, ...args] });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   if (init) await page.addInitScript(init);

@@ -1,6 +1,6 @@
-import type { InstancedMesh, Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
+import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
 import type { AddOn } from "../art/facades/add-on-places";
-import { addOnMaterial, addOnMeshes } from "../art/facades/add-ons";
+import { addOnLists, addOnMaterial } from "../art/facades/add-ons";
 import IDS from "../art/facades/facade-ids.json";
 import { painter, type Inks } from "../art/facades/paint";
 import { fuelStation, supermarketEntrance } from "../art/facades/roadside-shops";
@@ -16,7 +16,8 @@ import type { TileAddOns } from "./tile-add-ons";
  * the worker):
  *
  * - The villas' porches, verandas, bays and frontons: one instanced list per kind across every loaded tile, so four
- *   draws however many tiles are near, each folding flat on its wall with distance and gone with its building.
+ *   draws however many tiles are near, each folding flat on its wall with distance and gone with its building. The lists
+ *   are made once and rewritten as tiles come and go, since a list made anew compiles its pipeline in that frame.
  * - The supermarkets' entrances and the fuel stations: wall-format meshes, so they join the tile's building cells as
  *   cells of their own beside the cell they stand in, shown and hidden with it.
  * - The Västerhamn terminal: the town kit's model, at its place, while its tile has detail.
@@ -61,7 +62,8 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
   const villaMaterial = addOnMaterial(wallMaterial, reachM);
   const terminal = buildTerminal();
   const tiles = new Map<string, TileAddOns>();
-  let villaMeshes: InstancedMesh[] = [];
+  const villas = addOnLists(paint, villaMaterial);
+  scene.add(...villas.meshes);
   let terminalMeshes: Mesh[] = [];
   let compiling = false;
 
@@ -79,8 +81,12 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
   };
 
   const rebuild = () => {
-    const villas: AddOn[] = [...tiles.values()].flatMap((tile) => tile.villas);
-    villaMeshes = swap(villaMeshes, addOnMeshes(villas, paint, villaMaterial), villas.length > 0);
+    const placed: AddOn[] = [...tiles.values()].flatMap((tile) => tile.villas);
+    villas.place(placed);
+    for (const mesh of villas.meshes) {
+      mesh.visible = compiling || placed.length > 0;
+      mesh.userData.placed = placed.length > 0;
+    }
     const terminals = [...tiles.values()].flatMap((tile) => tile.nearSites.filter(({ model }) => model === TERMINAL_SITE));
     terminalMeshes = swap(terminalMeshes, placeModel(terminal, terminals.length > 0 ? terminals : [NOWHERE], town), terminals.length > 0);
   };
@@ -113,14 +119,17 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
     /** Every mesh shown, for compiling before the drive; `false` puts back what has places. */
     showAll(all: boolean) {
       compiling = all;
-      for (const mesh of [...villaMeshes, ...terminalMeshes]) mesh.visible = all || (mesh.userData.placed as boolean);
+      for (const mesh of [...villas.meshes, ...terminalMeshes]) mesh.visible = all || (mesh.userData.placed as boolean);
     },
     counts() {
       const loaded = [...tiles.values()];
       return { villas: loaded.reduce((sum, tile) => sum + tile.villas.length, 0), entrances: loaded.reduce((sum, tile) => sum + tile.entrances.length, 0), nearSites: loaded.reduce((sum, tile) => sum + tile.nearSites.length, 0) };
     },
     dispose() {
-      swap(villaMeshes, [], false);
+      for (const mesh of villas.meshes) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
       swap(terminalMeshes, [], false);
       villaMaterial.dispose();
     },

@@ -38,6 +38,8 @@ export interface LanesFile {
     width: number;
     /** Each limit in km/h from where it starts, in metres along the lane. */
     speeds: [number, number][];
+    /** A road's vehicles a day both ways, from Åland's traffic counts (`pipeline/traffic_volume.py`); a path has none. */
+    daily?: number;
     from?: number;
     to?: number;
     seamStart?: true;
@@ -58,10 +60,15 @@ export interface LaneLine {
 
 export interface Lane extends LaneLine {
   kind: string;
+  /** The road or path it's one way of: a two-way one's other way has the same chain, running the other way. */
+  chain: number;
+  forward: boolean;
   /** A footway or cycleway's, for cyclists and walkers. */
   path: boolean;
   width: number;
   speeds: [number, number][];
+  /** Its road's vehicles a day both ways, or 0 on a path. */
+  daily: number;
   /** The connectors leaving its end. */
   next: number[];
   seamStart: boolean;
@@ -117,7 +124,12 @@ export function decodeLanes(file: LanesFile): TileLanes {
     at += values.length;
     return line;
   };
-  const lanes: Lane[] = file.lanes.map((lane) => ({ ...place(lane.points), kind: lane.kind, path: PATH_KINDS.has(lane.kind), width: lane.width, speeds: lane.speeds, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true }));
+  const lanes: Lane[] = file.lanes.map((lane, index) => {
+    const path = PATH_KINDS.has(lane.kind);
+    const daily = path ? 0 : lane.daily;
+    if (daily === undefined) throw new Error(`lane ${index}, a ${lane.kind}, has no traffic volume: its lane map was built before them, so run pipeline/lanes.py on its tile again`);
+    return { ...place(lane.points), kind: lane.kind, chain: lane.chain, forward: lane.forward, path, width: lane.width, speeds: lane.speeds, daily, next: [], seamStart: lane.seamStart === true, seamEnd: lane.seamEnd === true };
+  });
   const connectors: Connector[] = file.connectors.map((connector, index) => {
     if (connector.from >= lanes.length || connector.to >= lanes.length) throw new Error(`connector ${index} joins lanes the file doesn't have`);
     lanes[connector.from].next.push(index);
@@ -125,6 +137,13 @@ export function decodeLanes(file: LanesFile): TileLanes {
   });
   const pathLinks = links.map((link) => ({ ...place(link.points), path: link.path, road: link.road, along: link.along, onToRoad: link.onToRoad }));
   return { points, lanes, connectors, links: pathLinks, junctions: file.junctions, issues: file.issues };
+}
+
+/** The points of a lane, a connector or a link, by its index in its own list. */
+export function lineOf(tile: TileLanes, line: { index: number; connector: boolean; link?: boolean }): LaneLine {
+  const found = line.link ? tile.links[line.index] : line.connector ? tile.connectors[line.index] : tile.lanes[line.index];
+  if (!(found as LaneLine | undefined)) throw new Error(`no ${line.link ? "link" : line.connector ? "connector" : "lane"} ${line.index}`);
+  return found;
 }
 
 export const laneTransfers = (lanes: TileLanes): ArrayBuffer[] => [lanes.points.buffer as ArrayBuffer];
@@ -160,7 +179,9 @@ export function pointAlong(points: Float32Array, line: LaneLine, along: number):
 export function alongNearest(points: Float32Array, line: LaneLine, x: number, z: number, from: number, to: number): number {
   let best = { off: Infinity, along: from };
   let travelled = 0;
-  const last = line.first + line.count - 2;
+  // The last step with any length: a line may end on a point written twice, and a place past its end runs on along this.
+  let last = line.first + line.count - 2;
+  while (last > line.first && points[last * 3] === points[last * 3 + 3] && points[last * 3 + 2] === points[last * 3 + 5]) last--;
   for (let at = line.first; at <= last; at++) {
     const [x0, , z0, x1, , z1] = points.subarray(at * 3, at * 3 + 6);
     const length = Math.hypot(x1 - x0, z1 - z0);

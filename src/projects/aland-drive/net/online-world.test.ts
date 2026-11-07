@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
 import { createOnlineWorld, SEND_EVERY_STEPS, type OnlineWorld } from "./online-world";
-import type { ChallengeMessage, GuestMessage, HostMessage } from "./protocol";
+import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, TrafficMessage } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
@@ -18,6 +18,10 @@ interface Client {
   challenges: { from: string; message: ChallengeMessage }[];
   /** The page's time in game days: its own until it takes the world's. */
   time: number;
+  /** Computer-driven cars heard, each with who sent it. */
+  computerCars: { from: string; car: ComputerCarMessage }[];
+  /** Traffic heard, each with who sent it. */
+  traffic: { from: string; traffic: TrafficMessage }[];
 }
 
 /** An in-memory star: sends queue up and are delivered in order by `flush`, as over the relay. */
@@ -34,8 +38,8 @@ function createStar() {
     for (const id of [host, ...guests]) nodes.get(id)?.onState?.(state(id));
   };
 
-  function add(id: string, time: number): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time };
+  function add(id: string, time = 0): Client {
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), others: [], challenges: [], time, computerCars: [], traffic: [] };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -72,6 +76,8 @@ function createStar() {
           client.time = gameDays;
         },
         timeNow: () => client.time,
+        onComputerCar: (from, car) => client.computerCars.push({ from, car }),
+        onTraffic: (from, traffic) => client.traffic.push({ from, traffic }),
       },
     );
     clients.set(id, client);
@@ -216,6 +222,52 @@ describe("the online world", () => {
     star.flush();
     for (const client of [host, b]) expect(client.challenges).toEqual([{ from: "a", message: start }]);
     expect(a.challenges).toEqual([]);
+  });
+
+  it("hands a computer-driven car's state from the player running it to everyone else, naming who sent it", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    const car = { id: "car", runner: "a", handovers: 2, state: STATE, driver: { along: 4 } };
+    expect(a.world.sendComputerCar(car)).toBe(true);
+    star.flush();
+    for (const client of [host, b]) expect(client.computerCars).toEqual([{ from: "a", car }]);
+    expect(a.computerCars).toEqual([]);
+  });
+
+  it("hands a player's traffic to everyone else, each vehicle's record as it was sent, to the centimetre", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    const record = {
+      id: "car:T:3:4~a1",
+      kind: "car" as const,
+      seed: 4_000_000_000,
+      model: 7,
+      place: { tile: "T", index: 12, connector: true, along: 3.21 },
+      speedMS: 13.5,
+      next: null,
+      crossing: null,
+      onRoad: false,
+      exit: null,
+      finished: false,
+      body: { x: -1996.04, z: 6503.74, heading: 1.2345, wheels: -0.0123 },
+      shiftM: 0.35,
+      wantShiftM: 0.4,
+      meeting: "yields" as const,
+      waitedS: 2.5,
+      goingRound: false,
+      blockedS: 0,
+      waiting: true,
+      picks: 3,
+    };
+    const traffic: TrafficMessage = { vehicles: [{ record, handovers: 2, runner: null }, { record: { ...record, id: "walker:T:9:0~a2", kind: "walker", next: { tile: "T", index: 40, connector: false }, crossing: 3, meeting: null, waitedS: 0, waiting: false }, handovers: 0, runner: "b" }], gone: [{ id: "bike:T:1:1~h0", handovers: 4, hit: true }], knows: ["b", "h"] };
+    expect(a.world.sendTraffic(traffic)).toBe(true);
+    star.flush();
+    for (const client of [host, b]) expect(client.traffic).toEqual([{ from: "a", traffic }]);
+    expect(a.traffic).toEqual([]);
   });
 
   it("keeps a challenge message sent while the world reconnects, and sends it once it's back", () => {

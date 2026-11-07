@@ -1,7 +1,7 @@
 "use client";
 
-import { Car } from "lucide-react";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { Bike, Car, PersonStanding } from "lucide-react";
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { GameProbe, Place } from "../render/game";
 import { JUNCTION_SPOTS, fromAbove, placeOf } from "../render/junction-spots";
 import type { LaneIssueKind } from "../traffic/lane-map";
@@ -13,14 +13,32 @@ import { AlandDrive } from "./aland-drive";
  * judge each junction's lanes, connectors and right of way. The list is the
  * audit's, for the loaded tiles: every place a lane or connector can't sit
  * cleanly on the drawn road, a click away from above. The junction lab's hardest
- * junctions are here too, and cars driving the lanes round the camera, to see
- * the lanes and their right of way at work. `?at=` opens it at a place, as the
+ * junctions are here too, and cars, cyclists and walkers on the lanes round the camera,
+ * coming and going out of sight, to see the lanes and their right of way at work. `?at=` opens it at a place, as the
  * audit's links do.
  */
 
 const ABOVE_M = 60;
-/** How many cars drive round the camera, the first the one it opens with. */
-const TRAFFIC = [60, 150, 0];
+/** How busy the lanes round the camera are: Åland's own density, four times it to see more meet, or none. */
+const DENSITIES = [
+  { density: 0, label: "Off" },
+  { density: 1, label: "Åland" },
+  { density: 4, label: "×4" },
+];
+const OPENS_WITH = 1;
+
+function DensityPicker({ name, icon, value, onPick }: { name: string; icon: ReactNode; value: number; onPick: (density: number) => void }) {
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label={name}>
+      {icon}
+      {DENSITIES.map(({ density, label }) => (
+        <button key={density} type="button" aria-pressed={value === density} className={`rounded px-2 py-0.5 text-xs ${value === density ? "bg-surface-tertiary font-bold" : "hover:bg-surface-tertiary"}`} onClick={() => { onPick(density); }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const LEGEND = [
   { token: "lane-road", label: "Lane, arrows the way it runs" },
@@ -57,14 +75,18 @@ export function LaneLab() {
   const [probe, setProbe] = useState<GameProbe | null>(null);
   const [shown, setShown] = useState(true);
   const [paths, setPaths] = useState(false);
-  const [traffic, setTraffic] = useState(TRAFFIC[0]);
+  const [cars, setCars] = useState(OPENS_WITH);
+  const [bikes, setBikes] = useState(OPENS_WITH);
+  const [walkers, setWalkers] = useState(OPENS_WITH);
   const net = probe?.lanes() ?? null;
   useLanes(net);
 
   // Stable, or the drive would start again on every render.
   const start = useCallback((started: GameProbe) => {
     started.showLanes(true);
-    started.traffic(TRAFFIC[0]);
+    started.traffic(OPENS_WITH);
+    started.cyclists(OPENS_WITH);
+    started.walkers(OPENS_WITH);
     setProbe(started);
   }, []);
   const look = (at: Place) => {
@@ -93,14 +115,9 @@ export function LaneLab() {
           <input type="checkbox" checked={shown} onChange={(event) => { setShown(event.target.checked); probe?.showLanes(event.target.checked); }} />
           Lanes
         </label>
-        <div className="flex items-center gap-1" role="group" aria-label="Cars driving the lanes">
-          <Car className="size-4" aria-hidden />
-          {[...TRAFFIC].sort((a, b) => a - b).map((count) => (
-            <button key={count} type="button" aria-pressed={traffic === count} className={`rounded px-2 py-0.5 text-xs ${traffic === count ? "bg-surface-tertiary font-bold" : "hover:bg-surface-tertiary"}`} onClick={() => { setTraffic(count); probe?.traffic(count); }}>
-              {count === 0 ? "Off" : count}
-            </button>
-          ))}
-        </div>
+        <DensityPicker name="Cars on the lanes" icon={<Car className="size-4" aria-hidden />} value={cars} onPick={(density) => { setCars(density); probe?.traffic(density); }} />
+        <DensityPicker name="Cyclists on the lanes" icon={<Bike className="size-4" aria-hidden />} value={bikes} onPick={(density) => { setBikes(density); probe?.cyclists(density); }} />
+        <DensityPicker name="Walkers on the paths" icon={<PersonStanding className="size-4" aria-hidden />} value={walkers} onPick={(density) => { setWalkers(density); probe?.walkers(density); }} />
         <ul className="flex flex-col gap-0.5 text-xs">
           {LEGEND.map(({ token, label }) => (
             <li key={token} className="flex items-center gap-2">
