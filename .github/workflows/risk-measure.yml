@@ -474,8 +474,11 @@ jobs:
           path: records/
           retention-days: 7
 
+  # Gathers what every machine recorded, even when one failed or ran past the job limit: a
+  # recording is data, and what the other machines kept is still worth having.
   native-play-collect:
     needs: native-play
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
