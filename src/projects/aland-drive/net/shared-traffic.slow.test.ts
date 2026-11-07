@@ -9,8 +9,13 @@ import { createTrafficPages, TRAFFIC_HZ, type TrafficPage } from "./traffic-page
  * Shared traffic on several pages at once, over a wire a step late: players
  * near each other see one traffic, the same vehicles in the same places,
  * through handovers and a player leaving, and nothing jumps, doubles or
- * vanishes on the way.
+ * vanishes on the way. Slow, at a few seconds of simulation for each page a
+ * test: a double, a jump or a vehicle lost only shows over a drive's worth of
+ * steps with a road full of vehicles, which no faster test reaches.
  */
+
+/** Each test runs a road full of traffic on two pages for tens of seconds of game time. */
+const SIMULATION_TIMEOUT_MS = 60_000;
 
 const LENGTH_M = 4000;
 
@@ -88,7 +93,7 @@ describe("shared traffic", () => {
     expect(apart(a, b)).toBeLessThan(MOST_STEP_M.car);
     expect(jumps).toEqual([]);
     expect(vanished).toEqual([]);
-  });
+  }, SIMULATION_TIMEOUT_MS);
 
   it("hands vehicles to a player driving past, and they carry on where they were", () => {
     const world = createTrafficPages(tiles(), kinds, HALVES);
@@ -105,7 +110,7 @@ describe("shared traffic", () => {
     expect(jumps).toEqual([]);
     expect(vanished).toEqual([]);
     expect(apart(a, b)).toBeLessThan(MOST_STEP_M.car);
-  });
+  }, SIMULATION_TIMEOUT_MS);
 
   it("when a player leaves, the one left takes their vehicles where they are, and none vanishes", () => {
     const world = createTrafficPages(tiles(), kinds, HALVES);
@@ -122,5 +127,5 @@ describe("shared traffic", () => {
     const still = theirs.filter((id) => b.traffic.get(id));
     expect(still.length).toBeGreaterThan(5);
     for (const id of still) expect(b.traffic.elsewhere.has(id), id).toBe(false);
-  });
+  }, SIMULATION_TIMEOUT_MS);
 });

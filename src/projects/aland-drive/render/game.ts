@@ -1747,6 +1747,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   /** Where every other player's car is, as heard here. */
   const otherPlaces = (): { x: number; z: number }[] => [...others].flatMap(([peerId, { heard }]) => (heard ? [drive.remotes.stateAt(peerId, 1).position] : [])).map(([x, , z]) => ({ x, z }));
+  /** Whether this page is in the world and has heard where every other player in it is. */
+  const worldHeard = () => onlineWorld?.state().status === "connected" && [...others.values()].every(({ heard }) => heard);
   /** Every player's car, this one's included, by their id. */
   const playerPlaces = () => {
     const places = new Map<string, CarVector>([[onlineWorld?.state().selfId ?? "", drive.player.position]]);
@@ -1759,7 +1761,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
       const eye = eyeNow();
-      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere } : undefined);
+      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() } : undefined);
     }
     bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
     laneTraffic.step(STEP_S * TRAFFIC_EVERY);
@@ -2122,8 +2124,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.condition = ground.at(seaHeldAt ?? seaNow());
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
-    // Over the map the car stays where traffic is wanted.
-    const trafficAt = mapFrom ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;
+    // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
+    // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
+    const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;
     trafficFocus.x = trafficAt.x;
     trafficFocus.z = trafficAt.z;
     laneTrafficView.draw(laneTraffic, (trafficSteps + share) / TRAFFIC_EVERY, [...trafficContact.hitCars(share), ...hitCarsElsewhere().map(({ id, driver }): HitCarView => {

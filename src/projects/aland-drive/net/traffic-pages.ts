@@ -91,7 +91,7 @@ export function createTrafficPages(tiles: ReadonlyMap<string, TileLanes>, kinds:
     for (const page of pages.values()) {
       const others = [...pages.values()].filter((other) => other !== page).map((other) => other.at);
       const seen = (vehicle: Pick<LaneCar, "kind" | "pose">) => Math.hypot(vehicle.pose.x - page.at.x, vehicle.pose.z - page.at.z) < kinds()[vehicle.kind].reachM;
-      page.bubble.update(page.at, seen, { others, runsHere: (vehicle) => page.shared.runsHere(vehicle) });
+      page.bubble.update(page.at, seen, { others, runsHere: (vehicle) => page.shared.runsHere(vehicle), ready: true });
       page.traffic.step(1 / TRAFFIC_HZ);
       page.shared.step();
     }

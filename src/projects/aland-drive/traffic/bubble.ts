@@ -120,13 +120,18 @@ export interface BubbleKind {
 /** Whether the player could see a vehicle standing where it would. */
 export type Seen = (vehicle: Pick<LaneCar, "kind" | "pose" | "half">) => boolean;
 
-/** Where the other players are, and whether this player runs a vehicle; alone, there are none and it runs them all. */
+/**
+ * Where the other players are, whether this player runs a vehicle, and whether it knows where everyone is yet: until it
+ * does, it fills nothing, or a page joining a world would fill what the others already have. Alone, there are none, it
+ * runs them all and it knows.
+ */
 export interface Sharing {
   others: readonly { x: number; z: number }[];
   runsHere: (vehicle: LaneCar) => boolean;
+  ready: boolean;
 }
 
-const ALONE: Sharing = { others: [], runsHere: () => true };
+const ALONE: Sharing = { others: [], runsHere: () => true, ready: true };
 
 export class Bubble {
   private seen: Seen = () => true;
@@ -191,6 +196,7 @@ export class Bubble {
         this.made.gone++;
       }
     }
+    if (!sharing.ready) return;
     for (const kind of Object.keys(this.kinds) as VehicleKind[]) {
       if (this.kinds[kind].density > 0) this.fill(kind, focus, sharing.others);
     }

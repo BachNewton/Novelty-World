@@ -118,6 +118,10 @@ test("two players see the same cars, cyclists and walkers in the same places, th
   await bothHeld([host, guest], true);
   expect(await sameOnBoth(host, guest)).toBeGreaterThan(0);
   expect(await sameOnBoth(guest, host)).toBeGreaterThan(0);
+  // One traffic, not two: no slot holds a vehicle from each player.
+  const ids = new Set([...(await vehicles(host)), ...(await vehicles(guest))].map(({ id }) => id));
+  const slots = [...ids].map((id) => id.split("~")[0]);
+  expect(slots.filter((slot, at) => slots.indexOf(slot) !== at)).toEqual([]);
   const hostRan = (await nearBoth(host, [await carAt(host), await carAt(guest)])).filter((vehicle) => vehicle.runsHere).map(({ id }) => id);
 
   // The guest moves on ahead: vehicles the host ran change hands to it as they come nearer it.
