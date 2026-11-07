@@ -4,7 +4,7 @@ The design doc for the one line of Risk bots that learn. It is written to the `m
 
 ## The brief
 
-1. **The goal, as a measurement.** A learned bot that passes M4 (`gpu-engine.md`, "Milestones"): better than rule-v7.1, the seated best, on the harness's SPRT at ±30 Elo a seat, at 3, 4, 5 and 6 players, one-in and one-out, on train seeds and then holdout; at most 1 capped game in 100 on the 5- and 6-player mirror tables; nine turns in ten under 5 seconds on one laptop core in the runtime that plays it. Beyond M4, the person who beats every bot: the bot's win share alone among vulture-v1s is reported beside the bar, and becomes a bar only once vulture-v1 is shown to play like him (`vulture-v1.md`).
+1. **The goal.** The owner's ruling: a bot that masters the game, whose skill keeps rising as it is trained, until with enough training it beats any person. Not a bot better than rule-v7.1: v7.1 is the strongest hand-written bot, and the one expert who plays here beats it every time. As a measurement that goal is two curves and a judge. The first curve is strength against a fixed panel as a function of training compute, and the claim it has to keep making is that no ceiling is in sight: each doubling of samples gains on the panel by more than the interval. The second is the budget curve at play time, the same bot at several search budgets, because a bot that has mastered a game gets stronger when it thinks longer, and one that doesn't has stopped learning the game and started learning its opponents. The judge is people, the expert first, in logged games; a person reads a win share to about ±20 points in twenty games, so the panel carries the daily reading and must span up to and past the strongest things that exist here (rule-v7.1, native-v2, vulture-v1 as the model of the expert's play) and be shown to order bots as the expert's results do. The milestones (`gpu-engine.md`, and "Beyond M4" below) are rungs on that ladder; M4, better than v7.1 at every table in both mixtures, is one of them and not the goal.
 2. **Who judges.** The harness (`risk:gauntlet`, on GitHub Actions for anything at v7.1's cost) is the judge; nothing read on the GPU decides anything about a seat. Every reading on the GPU is a proxy, and which proxy orders checkpoints as the harness does is itself measured before it is trusted (stage 0). The real judge after that is people, who have beaten every version: bot-only play is blind to what they do (`rule-bot-v9.md`, `vulture-v1.md`).
 3. **What exists.** More than any learner here has used:
    - **Engines.** The reference engine (TypeScript, the one real games play on; 300, 210 and 150 greedy games a second at 3, 4 and 6 players on the pool). The native engine (Rust, exact against the reference, about a hundred times the games per game; `native-port.md`). The GPU engine (PyTorch, bit-exact against the reference on every fixture, 45,000 to 127,000 decisions a second on the RTX 4070 with the training step captured as one CUDA graph; `gpu-engine.md`).
@@ -13,7 +13,7 @@ The design doc for the one line of Risk bots that learn. It is written to the `m
    - **The ruler.** The harness: a game a pure function of seed and seating, both mixtures at every table, the Luce par, an SPRT as a pair of one-sided tests, a ladder played to a precision, a cache, and Actions' runners sharding a run into the same report a local run prints (`docs/actions.md`).
 4. **The structure.** Three to six players; stochastic (dice, the deal); mild hidden information (other hands' cards, counts public); about 1,200 decisions in a 5-player game; a factored action (1,978 main choices and an amount bucket; `gpu/riskgpu/selfplay/actions.py`); a terminal reward, the win; no negotiation. The class is the skill's "three or more players, stochastic, long horizon": no equilibrium a single policy converges to, strength relative to the population it is read in, and a stalling equilibrium a real attractor.
 5. **The budget.** Nights of 6 to 12 hours, a few at a time; the RTX 4070 for training; the laptop's 14 workers for recording and cheap screens; Actions for every gauntlet at v7.1's cost. The owner wants a number every morning.
-6. **Done, and not done.** Done is M4 passed and the bot seated, which needs the runtime ruling below. Each stage names its own kill reading; the line stops when a confirmed cause's fix is outside the budget the owner will give, never on "it didn't improve".
+6. **Done, and not done.** There is no done: a line whose strength keeps rising with the compute it is given keeps earning nights, and is seated at each milestone it passes (which needs the runtime ruling below), so players feel every step. What ends it as a finding is a ceiling that holds: a curve that no change to the improvement operator, the league or the representation lifts, read on the panel over several nights. Each stage names its own kill reading; the line stops when a confirmed cause's fix is outside the budget the owner will give, never on "it didn't improve".
 
 ## What the record settles for this line
 
@@ -28,16 +28,24 @@ The measurements are in `self-play-league.md`, `gpu-engine.md`, `distilled-v7.md
 - **An evaluation fit on one population carries it in.** rule-v8's net beat v6's hand evaluation on held-out log loss and played worse in numbers: among copies of the recording's bots, holding back wins.
 - **Search is the improvement operator here.** v7's reply search is the largest gain the project has measured (+115 to +130 Elo over its planner), native-v2's is larger again, and both are capped by their candidates: v6.1's best four placements are near-copies, so more replies sharpen a choice between alike moves and can't add a better one.
 
+## Mastery, and what stands between it and the method
+
+Said once, as the skill asks of any ruling that reaches past what standard practice can promise, and then built to. No Risk program has shown expert play against good people at any compute (`risk-bot-ai.md`); the systems whose strength rose with compute until it passed every human were two-player and perfect-information (AlphaZero's line), and in the multiplayer alliance game closest to Risk, pure self-play converged to play that people beat (DORA), while what reached the top of human ladders was search anchored to a model of human play learned from tens of thousands of human games (Diplodocus, Cicero). So three things decide whether this goal is reachable here, and the plan is shaped by them:
+
+- **The improvement operator is search.** Strength as a function of compute comes from a loop in which search makes better decisions than the net and the net learns them (expert iteration); it does not come from policy gradient alone, which here reached the planner's class and wandered. The size of the net and the budget of the search are then the knobs that compute buys, and both are re-measured at every order of magnitude of data.
+- **Strength is relative to the table.** A bot that masters play among bots can lose to a person who plays differently, as every version has. So the league and the panel carry human-style play (vulture-v1 and its successors, imitated into the GPU league once the bot is at the rule bots' class), the bot is checked against best responses trained against its frozen self (the multiplayer stand-in for exploitability), and every logged human game is data: the expert's games are the test set, and a learned model of human play is the anchor once there are enough of them (six exist; the systems above used tens of thousands).
+- **The judge is slow.** People read a win share to ±20 points in twenty games, so mastery is claimed on the proxies and confirmed in logged games over months, never the other way round.
+
 ## The direction
 
-By the skill's decision procedure (`references/assessment.md`, "Choosing the approach"): a baseline exists, the engines exist and are fast enough, and **a strong teacher exists**, so the learner starts from an imitation of it, measures the student's ceiling against the teacher's own consistency, and improves from there. The improvement operator this game has rewarded is search, and the search's ceiling is its candidates, which is what a learned policy exists to lift. So the line is **expert iteration anchored on the strongest bot**: imitate it, improve on it, put the improvement inside the search, repeat. From-scratch policy gradient stops being the main line; the same trainer is stage 2's improvement step from the warm start, judged on the ruler like any other.
+By the skill's decision procedure (`references/assessment.md`, "Choosing the approach"): a baseline exists, the engines exist and are fast enough, and **a strong teacher exists**, so the learner starts from an imitation of it, measures the student's ceiling against the teacher's own consistency, and improves from there. The improvement operator this game has rewarded is search, and the search's ceiling is its candidates, which is what a learned policy exists to lift. So the line is **expert iteration anchored on the strongest bot**: imitate it, improve on it, put the improvement inside the search, repeat, each iteration spending more compute for more strength. The imitation is a floor and not a ceiling: the systems that passed every human started from an imitation of humans and left it behind by search and self-play. From-scratch policy gradient stops being the main line; the same trainer is stage 2's improvement step from the warm start, judged on the ruler like any other.
 
 ### Stage 0: the ruler
 
 Before any training is read, the reading is fixed:
 
 - **A fixed panel on the GPU**, read on every checkpoint with the same deals, sampling as the bot plays, 1,024 games each (about ±3 points), both mixtures: GD Defensive at 5 players (the floor), net-v1 sw128b-450 (the planner's class), and the imitation net from stage 1 (the target's class), through the trainer's `--pair` checks. Progress is read on this panel only; ladders among a run's own checkpoints are read within one ladder and decide nothing.
-- **The harness, on a schedule.** The exported best checkpoint against rule-v6.1 and rule-v7.1 at 5 players, both mixtures, on Actions, every few hundred iterations rather than every checkpoint: hours each, so they are planned, not skipped. Once three checkpoints have both readings, the panel is kept only if it orders them as the harness does.
+- **The harness, on a schedule.** The exported best checkpoint against rule-v6.1 and rule-v7.1 at 5 players, both mixtures, on Actions, every few hundred iterations rather than every checkpoint: hours each, so they are planned, not skipped; and once the bot is at v7.1's class, against vulture-v1 (a native bot, seated through the native seam) and native-v2, the strongest things here. Once three checkpoints have both readings, the panel is kept only if it orders them as the harness does; as the bot climbs past a panel member, a stronger one is added and the old reading kept going, so the curve stays comparable.
 - **The spread between seeds.** The first run of any new recipe is a pair of seeds; a one-change run is judged against their difference, not against one run.
 - **Health, every iteration**: the value head's explained variance (added to the trainer's log), KL, clip fraction, entropy, capped and stalled rates, mean turns, per-opponent in-training win share, samples per second. The recipe's health table is in the skill's `references/recipes.md`.
 
@@ -49,14 +57,28 @@ The first night. It answers the cheapest open question with the biggest conseque
 
 PPO from the imitation net, with the imitation net pinned in the league beside sw128b-450 and GD's personas, the stage-0 panel, the win reward alone, and the cold recipe pf4 settled on (minibatch 32,768 in chunks, 2 epochs, learning rate 1e-4 falling). Two seeds first, read at matched samples. Its predictions are written when it starts; its kill reading is the pair against the imitation net falling below the start by more than the interval twice, which says the update is destroying what imitation gave (the learning rate, or the league), and sends the run to the diagnosis before another night. Each night's best checkpoint is exported and read in the harness against rule-v7.1 on Actions.
 
-### Stage 3: the net inside the search
+### Stage 3: the net inside the search, the engine of the goal
 
-The real goal. Two routes, decided after stage 2's first harness read, with a fork briefing then:
+The stage the goal lives in: the loop whose every iteration turns compute into strength, and whose two curves (strength against training compute, strength against search budget) are the goal's measurement. Two routes, decided after stage 2's first harness read, with a fork briefing then:
 
 - **The net as the search's candidate proposer and leaf.** native-v2's search with its candidates drawn from the policy head's most likely placements instead of v6.1's top four, and its leaf valued by the value head. This lifts the one ceiling every search here has hit, runs where the native search runs, and needs a forward pass in Rust (a small transformer, straightforward) plus a seat for a Rust bot.
 - **A batched reply search on the GPU engine.** Every candidate played out over sampled replies with the net in every seat, thousands of games at once, the candidate of the best mean value chosen; the search's choices then distilled back into the policy (expert iteration on the GPU). The loop the assets were built for, and the larger build.
 
-Whichever route, the improvement operator is measured before it is trusted: search-with-net must beat net-alone and the search-alone on the panel, or more iterations teach nothing (the skill's cause 7).
+Whichever route, the improvement operator is measured before it is trusted: search-with-net must beat net-alone and the search-alone on the panel, or more iterations teach nothing (the skill's cause 7). From here the net's size is re-swept at each order of magnitude of data, since the sweep that chose 128×4 was read at a data scale the loop will leave behind, and the search budget curve is read at every iteration, since a bot that stops gaining from more search has stopped learning the game.
+
+### Stage 4: people
+
+The anchor and the judge. The expert's logged games are the test set from the first stage on (`risk:export`, `risk:agreement`: how often the bot makes his moves, by decision kind, beside every bot's). vulture-v1 is the model of his play until a learned one exists; it joins the league as an imitation net once the bot is at the rule bots' class, so training meets his style, and the harness reads the bot alone among vulture-v1s and vulture-v1 alone among the bot. A best response trained against the frozen bot (one night of the trainer with the bot pinned in every other seat) reads how exploitable it is, which win share against fixed bots never certifies. Beating the expert is read in his games, many of them: at a true win share near par-plus-twenty, twenty games can't tell it from par, and the site's logged games accrue at the pace people play.
+
+### Beyond M4
+
+The rungs past `gpu-engine.md`'s milestones, each fixed before the run that reads it:
+
+| | Pass |
+|---|---|
+| **M5** | the curve has no ceiling in sight: over three doublings of training compute on one recipe, each gains on the fixed panel by more than its interval; and the budget curve rises: the bot at four times its search budget is better than itself by the gauntlet's margin |
+| **M6** | better than native-v2 at its chosen switches at every table, both mixtures, once native-v2 closes its games; better than vulture-v1 alone among four of it and in numbers against one; a best response trained against the frozen bot for a night gains under 50 Elo a seat |
+| **M7** | better than the expert in his logged games: a win share above par at a size the interval excludes par from, counted as the games accrue |
 
 ### Seating
 
@@ -120,7 +142,7 @@ Briefed in the skill's form: the question, the options with their cost and what 
 - **The evidence that would change the recommendation:** the imitation ceiling failing for a representation reason, in which case the fix comes before either.
 - **Needed from the owner:** the go-ahead, and a night of the laptop.
 
-A ruling the record holds: "from scratch first" was the owner's ask, made without the information above, and is re-presented here once. If the owner rules for it again, the line continues from scratch with the stage-0 ruler and a seed pair, and this doc records the ruling.
+A ruling the record holds: "from scratch first" was the owner's ask, made without the information above, and is re-presented here once. If the owner rules for it again, the line continues from scratch with the stage-0 ruler and a seed pair, and this doc records the ruling. The goal itself is the owner's ruling, recorded in the brief with what the record says about it ("Mastery, and what stands between it and the method"), and the plan is built to it; the imitation start serves it as a floor, as it did for every system that went past people.
 
 ### Later: where the net is improved, and where it plays
 
@@ -133,4 +155,4 @@ Two forks that wait on stage 2's first harness read: the route for stage 3 (the 
 - `distilled-v7.md` and `student-v1.md`: the distillation pipeline and its findings, which stand. Its next doubling of data is not pursued as a line of its own: stage 1 asks the same question (does the raw board carry the teacher's judgement, given data) of every decision at ten times the labels, and stage 3 is where distilling a search's choices returns. student-v1 stays registered as a research bot.
 - `rule-bot-v8.md`: closed; its population lesson is in stage 0's panel and stage 2's league.
 - `roadmap.md`: the map across every bot line; its self-play and distillation sections point here.
-- `risk-bot-ai.md`: the research survey, still the evidence for search as the core and for imitation over from-scratch self-play.
+- `risk-bot-ai.md`: the research survey, still the evidence for search as the core, for imitation over from-scratch self-play, and for what mastery against people needs that nothing here has yet: human games as data.
