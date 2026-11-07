@@ -17,7 +17,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -55,8 +55,8 @@ export interface MenuResult {
   race?: RaceResult;
 }
 
-/** What the dialog is: the game menu, or one of a challenge's choices. */
-export type MenuKind = "menu" | "start" | "invite" | "race";
+/** What the dialog is: the game menu, its Graphics page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "graphics" | "start" | "invite" | "race";
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -96,4 +96,7 @@ const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric",
 /** The units a units choice sets. */
 export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
 
-export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound"], back: "resume", pauses: true, tyres, assists });
+export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+
+/** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
+export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };
