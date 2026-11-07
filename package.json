@@ -54,7 +54,7 @@
     "relay:deploy": "bash relay/deploy.sh",
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
-    "test:e2e": "node scripts/slot.mjs e2e -- playwright test",
+    "test:e2e": "node scripts/affected-e2e.mjs",
     "test:all": "node scripts/slot.mjs all -- \"vitest run && vitest run --config vitest.slow.config.ts && playwright test\"",
     "load": "node scripts/load.mjs",
     "test-history": "node scripts/test-history.mjs",

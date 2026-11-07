@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/aland-drive/net/** src/projects/aland-drive/sim/{remote-cars,autopilot}.ts
 import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";

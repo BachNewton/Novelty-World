@@ -40,20 +40,23 @@ SEAM_LONGEST_REACH = 3.0
 
 # How a lesser road meets the one it ends on.
 JUNCTION_APPROACH_M = 16.0
-JUNCTION_FLARE_M = 12.0
 UNDER_ANOTHER_ROAD_M = 0.3
 SHOULDER_LONGEST_DROP_M = 1.0
 BENEATH_GREATER_ROAD_M = 0.05
 
 # A roundabout's ring keeps its real shape: a road's rounding would pull a ring this small out of true.
 RING_CORNER_M = 2.0
-# A road of this rank or greater that lands on another stops where it first touches it, and an apron joins the two.
+# A way that closes on itself, not a roundabout, runs on through where it closes only if its ends turn less than this
+# there: the island's smooth loops turn up to about 40 degrees across their closing station, a loop closing at a
+# corner 60 or more.
+CLOSING_MOST_TURN = np.radians(45)
+# Past this rank a road is a track or path, which passes just under any apron it crosses without landing there.
 LEAST_APRON_RANK = 4
 # How far clear of the greater road's carriageway a lesser road's first full section stands.
 APRON_CLEAR_M = 0.05
 # The curve of a corner where a road meets another square on, by the lesser road's tier. It shrinks with the sine of
 # the angle squared, so a shallow merge keeps its sharp nose and doesn't pave the wedge of land beside it.
-APRON_CORNER_M = {"main": 7.0, "minor": 4.5}
+APRON_CORNER_M = {"main": 7.0, "minor": 4.5, "track": 2.0}
 APRON_LEAST_CORNER_M = 0.3
 # Sections of the lesser road's kept end the corner may run along.
 APRON_REACH_STATIONS = 12
@@ -136,16 +139,15 @@ class RoadClass:
     bank_limit: float
     shoulder_m: float
     blend_m: float
-    flare_m: float
 
 
-_PRIMARY = RoadClass(0, "main", 7.5, 14, 280, 0.025, 0.05, 2.5, 16, 2.5)
-_SECONDARY = RoadClass(1, "main", 7, 12, 240, 0.025, 0.05, 2.5, 14, 2.5)
-_TERTIARY = RoadClass(2, "main", 6, 10, 180, 0.025, 0.04, 2, 12, 2.5)
-_MINOR = RoadClass(3, "minor", 4.5, 8, 120, 0.02, 0.03, 1.5, 8, 2)
-_SERVICE = RoadClass(4, "minor", 3.5, 5, 70, 0.02, 0, 1.2, 6, 1.5)
-_TRACK = RoadClass(5, "track", 2.5, 4, 50, 0.015, 0, 1, 5, 1)
-_PATH = RoadClass(6, "track", 2, 3, 30, 0.01, 0, 0.8, 4, 0)
+_PRIMARY = RoadClass(0, "main", 7.5, 14, 280, 0.025, 0.05, 2.5, 16)
+_SECONDARY = RoadClass(1, "main", 7, 12, 240, 0.025, 0.05, 2.5, 14)
+_TERTIARY = RoadClass(2, "main", 6, 10, 180, 0.025, 0.04, 2, 12)
+_MINOR = RoadClass(3, "minor", 4.5, 8, 120, 0.02, 0.03, 1.5, 8)
+_SERVICE = RoadClass(4, "minor", 3.5, 5, 70, 0.02, 0, 1.2, 6)
+_TRACK = RoadClass(5, "track", 2.5, 4, 50, 0.015, 0, 1, 5)
+_PATH = RoadClass(6, "track", 2, 3, 30, 0.01, 0, 0.8, 4)
 CLASSES = {
     "motorway": _PRIMARY,
     "trunk": _PRIMARY,
@@ -246,6 +248,7 @@ class Chain:
     right: np.ndarray = field(default=None)
     centre: np.ndarray = field(default=None)
     span: np.ndarray = field(default=None)  # True on stations held up over a gap.
+    edge_at: np.ndarray = field(default=None)  # Which of its edges each station lies on.
     kept: np.ndarray = field(default=None)  # Stations left once the ends are cut to the roads they land on.
     full_left: np.ndarray = field(default=None)  # (x, y) of the left edge at every station, the cut ones included.
     full_right: np.ndarray = field(default=None)
@@ -529,8 +532,9 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     tangent /= np.maximum(np.hypot(tangent[:, 0], tangent[:, 1])[:, None], 1e-9)
     for station, _, direction in seam_ends:
         tangent[station] = direction
-    # A closed ring's two ends are one section, or a notch shows where it closes.
-    if np.array_equal(xy[0], xy[-1]) and len(xy) > 2:
+    # A closed ring's two ends are one section, or a notch shows where it closes. A loop street closing at a corner isn't
+    # one: the bisector of its ends skewed across there, and each end keeps the way it runs.
+    if np.array_equal(xy[0], xy[-1]) and len(xy) > 2 and (chain.edges[0].is_ring or tangent[0] @ tangent[-1] >= np.cos(CLOSING_MOST_TURN)):
         closing = xy[1] - xy[-2]
         tangent[0] = tangent[-1] = closing / np.hypot(*closing)
     normal = np.column_stack((-tangent[:, 1], tangent[:, 0]))
@@ -579,6 +583,7 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     chain.xy, chain.tangent, chain.normal, chain.half = xy, tangent, normal, half
     chain.crown, chain.bank = crown, bank
     chain.span = span
+    chain.edge_at = which
     chain.shoulder = shoulder
     chain.blend = blend
     chain.tier = np.array([TIERS.index(kind.tier) for kind in kinds], dtype=np.uint8)
@@ -601,16 +606,10 @@ def _smoothstep(x: np.ndarray) -> np.ndarray:
 def _cut_sections(chain: Chain, along: np.ndarray, starts_on: Chain | None, ends_on: Chain | None) -> None:
     """Each station's left, centre and right points, with the ends joined to the roads they land on."""
     length = along[-1]
-    flare = chain.kind.flare_m
-    half = chain.half.copy()
-    if starts_on is not None and not _takes_apron(chain, starts_on):
-        half += flare * (1 - np.clip(along / JUNCTION_FLARE_M, 0, 1)) ** 2
-    if ends_on is not None and not _takes_apron(chain, ends_on):
-        half += flare * (1 - np.clip((length - along) / JUNCTION_FLARE_M, 0, 1)) ** 2
     falls = chain.crown * chain.half
     rises = chain.bank * chain.half
-    left_xy = chain.xy + chain.normal * half[:, None]
-    right_xy = chain.xy - chain.normal * half[:, None]
+    left_xy = chain.xy + chain.normal * chain.half[:, None]
+    right_xy = chain.xy - chain.normal * chain.half[:, None]
     left_z = chain.height - falls + rises
     right_z = chain.height - falls - rises
     centre_z = chain.height.copy()
@@ -621,38 +620,22 @@ def _cut_sections(chain: Chain, along: np.ndarray, starts_on: Chain | None, ends
     for parent, distance, keeps_first in ((starts_on, along, True), (ends_on, length - along, False)):
         if parent is None:
             continue
-        if _takes_apron(chain, parent):
-            clear = _clear_of(parent, left_xy) & _clear_of(parent, right_xy) & _clear_of(parent, chain.xy)
-            # Walking in from the end: the first section wholly clear of the road it lands on.
-            order = np.arange(len(along)) if keeps_first else np.arange(len(along))[::-1]
-            found = np.flatnonzero(clear[order])
-            cut = int(order[found[0]]) if len(found) else int(order[-1])
-            if keeps_first:
-                first = max(first, cut if len(found) else len(along))
-            else:
-                last = min(last, cut if len(found) else -1)
-            from_cut = distance - distance[cut]
-            near = (from_cut >= 0) & (from_cut < JUNCTION_APPROACH_M)
-            share = _smoothstep(1 - from_cut[near] / JUNCTION_APPROACH_M)
-            left_z[near] += share * (parent.plane(left_xy[near]) - left_z[near])
-            right_z[near] += share * (parent.plane(right_xy[near]) - right_z[near])
-            centre_z[near] += share * (parent.plane(chain.xy[near]) - centre_z[near])
-            chain.landings.append((parent, cut, keeps_first))
-            continue
-        near = distance < JUNCTION_APPROACH_M
-        share = _smoothstep(1 - distance[near] / JUNCTION_APPROACH_M)
+        clear = _clear_of(parent, left_xy) & _clear_of(parent, right_xy) & _clear_of(parent, chain.xy)
+        # Walking in from the end: the first section wholly clear of the road it lands on.
+        order = np.arange(len(along)) if keeps_first else np.arange(len(along))[::-1]
+        found = np.flatnonzero(clear[order])
+        cut = int(order[found[0]]) if len(found) else int(order[-1])
+        if keeps_first:
+            first = max(first, cut if len(found) else len(along))
+        else:
+            last = min(last, cut if len(found) else -1)
+        from_cut = distance - distance[cut]
+        near = (from_cut >= 0) & (from_cut < JUNCTION_APPROACH_M)
+        share = _smoothstep(1 - from_cut[near] / JUNCTION_APPROACH_M)
         left_z[near] += share * (parent.plane(left_xy[near]) - left_z[near])
         right_z[near] += share * (parent.plane(right_xy[near]) - right_z[near])
         centre_z[near] += share * (parent.plane(chain.xy[near]) - centre_z[near])
-        left_inside = _slide_to_edge(parent, left_xy, left_z, near)
-        right_inside = _slide_to_edge(parent, right_xy, right_z, near)
-        inside = left_inside & right_inside
-        if keeps_first:
-            outside = np.nonzero(~inside)[0]
-            first = max(first, int(outside[0]) - 1) if len(outside) else first
-        else:
-            outside = np.nonzero(~inside)[0]
-            last = min(last, int(outside[-1]) + 1) if len(outside) else last
+        chain.landings.append((parent, cut, keeps_first))
 
     chain.eased = centre_z - chain.height
     # An end on a tile's edge stays, however close a junction: the neighbour's road ends on it.
@@ -677,38 +660,11 @@ def _cut_sections(chain: Chain, along: np.ndarray, starts_on: Chain | None, ends
     chain.right = np.column_stack((right_xy, right_z))[keep]
     chain.centre = np.column_stack((chain.xy, centre_z))[keep]
     chain.kept = keep
-    # An end that stops at a greater road has both edges on that road's edge. Its centre would still stand out on the
-    # road itself, and a surface laid over a surface never quite agrees: a car feels the lip at speed.
-    for parent, end in ((starts_on, 0), (ends_on, -1)):
-        if parent is not None and not _takes_apron(chain, parent) and len(keep) >= 2 and keep[end] in (first, last):
-            chain.centre[end] = (chain.left[end] + chain.right[end]) / 2
-
-
-def _takes_apron(chain: Chain, parent: Chain) -> bool:
-    return chain.motor and parent.motor and chain.kind.rank <= LEAST_APRON_RANK
 
 
 def _clear_of(parent: Chain, points: np.ndarray) -> np.ndarray:
     distance, nearest = parent.tree.query(points)
     return distance >= parent.half[nearest] + APRON_CLEAR_M
-
-
-def _slide_to_edge(parent: Chain, xy: np.ndarray, z: np.ndarray, near: np.ndarray) -> np.ndarray:
-    """Moves points on the greater road's carriageway out to its edge. True where a point was on it."""
-    inside = np.zeros(len(xy), dtype=bool)
-    indices = np.nonzero(near)[0]
-    if len(indices) == 0:
-        return inside
-    _, nearest = parent.tree.query(xy[indices])
-    offset = xy[indices] - parent.xy[nearest]
-    across = (offset * parent.normal[nearest]).sum(-1)
-    ahead = (offset * parent.tangent[nearest]).sum(-1)
-    on_it = (np.abs(across) < parent.half[nearest]) & (np.abs(ahead) <= STATION_M)
-    moved = parent.xy[nearest] + parent.normal[nearest] * (np.sign(across) * parent.half[nearest])[:, None]
-    xy[indices[on_it]] = moved[on_it]
-    z[indices[on_it]] = parent.plane(moved[on_it])
-    inside[indices[on_it]] = True
-    return inside
 
 
 @dataclass
@@ -783,25 +739,30 @@ def _flat(shape: shapely.Geometry) -> list[shapely.Polygon]:
     return [part for part in shapely.get_parts(shape) if isinstance(part, shapely.Polygon) and part.area >= APRON_LEAST_AREA_M2]
 
 
-def _shoulders(points: np.ndarray, height: np.ndarray, indices: np.ndarray, free: np.ndarray, tile: shapely.Polygon) -> tuple[np.ndarray, np.ndarray]:
+def _shoulders(points: np.ndarray, height: np.ndarray, indices: np.ndarray, joined: shapely.Geometry, cover: "ApronCover | None", tile: shapely.Polygon) -> tuple[np.ndarray, np.ndarray]:
     """A strip outward from each free stretch of the triangles' outline: four points and two triangles an edge, numbered after `points`.
 
     The outline is the edges only one triangle has, so a shoulder meets the surface vertex for vertex however finely it's cut.
+    An edge lying along what it meets, the ribbons `joined` or the aprons under `cover`, needs none.
     """
     edges = np.sort(np.concatenate((indices[:, [0, 1]], indices[:, [1, 2]], indices[:, [2, 0]])), axis=1)
     third = np.concatenate((indices[:, 2], indices[:, 0], indices[:, 1]))
     _, first_seen, counts = np.unique(edges, axis=0, return_index=True, return_counts=True)
     outline = first_seen[counts == 1]
     on_tile_edge = shapely.distance(shapely.points(points), tile.exterior) < 1e-3
+    middles = points[edges[outline]].mean(axis=1)
+    along_joined = shapely.distance(shapely.points(middles), joined) < APRON_PIN_M if not joined.is_empty else np.zeros(len(outline), dtype=bool)
+    if cover is not None:
+        along_joined |= ~np.isnan(cover.height(middles))
     laid: list[tuple[float, float, float]] = []
     triangles: list[tuple[int, int, int]] = []
-    for (at_a, at_b), inside in zip(edges[outline], third[outline]):
+    for (at_a, at_b), inside, joins in zip(edges[outline], third[outline], along_joined):
         a, b = points[at_a], points[at_b]
         step = b - a
         length = float(np.hypot(*step))
-        # Where the outline leaves a ribbon counts too: its shoulder ends at its last section, and the land shows in the notch.
+        # An edge between two points on ribbons can still cross open land, where without a shoulder it stands as a wall.
         # Along the tile's edge the neighbour carries on, so no shoulder.
-        if length < 1e-6 or not (free[at_a] or free[at_b]) or on_tile_edge[at_a] and on_tile_edge[at_b]:
+        if length < 1e-6 or joins or on_tile_edge[at_a] and on_tile_edge[at_b]:
             continue
         out = np.array((step[1], -step[0])) / length * APRON_SHOULDER_M
         if out @ (points[inside] - a) > 0:
@@ -864,7 +825,8 @@ def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int, tile: sha
         floating = APRON_FLOATING_WEIGHT * sparse.identity(int(free.sum()))
         height[free] = spsolve((system[free][:, free] + floating).tocsc(), (links @ known)[free] + APRON_FLOATING_WEIGHT * guess)
 
-    shoulder, shoulder_triangles = _shoulders(points, height, indices, free, tile)
+    joined = shapely.union_all([_kept_strip(chain) for chain in laid])
+    shoulder, shoulder_triangles = _shoulders(points, height, indices, joined, cover, tile)
     surface = np.concatenate((np.column_stack((points, height)), shoulder))
     indices = np.concatenate((indices, shoulder_triangles))
     across = np.full(len(surface), APRON_ACROSS)
@@ -1284,6 +1246,11 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
         # A shoulder running on under an apron stands nearly level with it, and a surface that close flickers through.
         return np.column_stack((xy, np.where(np.isnan(apron), laid, np.minimum(laid, apron - UNDER_ANOTHER_ROAD_M))))
 
+    # A road's own apron is no greater road to it: their heights are pinned to each other.
+    own_apron = np.zeros(len(keep), dtype=bool)
+    for _, cut, _ in chain.landings:
+        own_apron |= np.abs(keep - cut) <= APRON_REACH_STATIONS + 1
+
     def beneath_greater_roads(points: np.ndarray) -> np.ndarray:
         """Where a lesser road runs across a greater one with no junction, such as a path, it passes just under: the greater road's surface is the one a car meets."""
         columns = np.clip(np.round((points[:, 0] - west) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
@@ -1293,7 +1260,7 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
         # An apron is the greater road to any track or path crossing it. The roads it joins stop at its edge by themselves.
         if not chain.motor or chain.kind.rank > LEAST_APRON_RANK:
             apron = cover.height(points[:, :2].astype(float))
-            lowered = np.where(np.isnan(apron), lowered, np.minimum(lowered, apron - BENEATH_GREATER_ROAD_M))
+            lowered = np.where(np.isnan(apron) | own_apron, lowered, np.minimum(lowered, apron - BENEATH_GREATER_ROAD_M))
         return np.column_stack((points[:, :2], lowered))
 
     left, centre, right = (beneath_greater_roads(points) for points in (chain.left, chain.centre, chain.right))

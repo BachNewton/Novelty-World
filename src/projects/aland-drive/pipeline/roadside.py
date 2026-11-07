@@ -48,7 +48,9 @@ import furniture
 from shapely.geometry import LineString, Point, Polygon
 
 from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_at, tile_from_name, to_local
-from roads import CLASSES
+from roads import CLASSES, class_of
+from paving import ACROSS, CARRIAGEWAY_EDGE_ACROSS, WAY, is_crossing
+from paving_file import Paving, read_paving
 from progress import Progress
 from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
@@ -57,7 +59,6 @@ from vectors import FOOT_OR_BIKE, NOT_A_ROAD
 FILE = "roadside.json"
 RINGS = 5
 OUTER_LEFT, EDGE_LEFT, CENTRE, EDGE_RIGHT, OUTER_RIGHT = range(RINGS)
-APRON_FLOATS = 5
 # Placed from OSM's objects as well as its roads, so the list is ODbL, as the roads are.
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 
@@ -240,7 +241,17 @@ class Heights:
         return float(grid[r, c] * (1 - fc) * (1 - fr) + grid[r, c + 1] * fc * (1 - fr) + grid[r + 1, c] * (1 - fc) * fr + grid[r + 1, c + 1] * fc * fr)
 
 
-def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygon]]:
+def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygon], list[int]]:
+    """The tile's chains, and the paving beyond their carriageways that keeps things off it, each piece with its owner.
+
+    A ribbon tile's aprons are all junctions, gaps and car parks, owned by no chain. A paved tile's paving is the whole
+    surface, shoulders and sidewalks included, so only what a ribbon tile kept off is kept off there: a junction's or a
+    gap's piece, a car park and a way's piece with no rings, owned by none, and every way's carriageway, owned by that way.
+    A path has no shoulder, so all of its paving is its carriageway, up to the street it meets where its rings stop short,
+    and a piece wearing a path's surface beside its street is that path's. A motor road's shoulder stays clear ground for
+    a sign or a post, but not where a crossing runs over it: off the road it crosses, a crossing's paving is the street's
+    kerb and walk band, so its own stretch, its way's width along its line, is kept off as a piece no chain owns.
+    """
     surface = manifest["roadSurface"]
     sections = sum(chain["sections"] for chain in surface["chains"])
     data = gzip.decompress((folder / surface["file"]).read_bytes())
@@ -252,17 +263,40 @@ def read_surface(folder: Path, manifest: dict) -> tuple[list[Chain], list[Polygo
         rank = CLASSES[kind].rank if kind in CLASSES else 6
         chains.append(Chain(index, kind, rank, chain["motor"], rings[first : first + chain["sections"]], [tuple(span) for span in chain.get("spans", [])], chain.get("name") or ""))
         first += chain["sections"]
+    laid = read_paving(folder, manifest)
+    triangles, owners = kept_off(surface, laid)
+    pieces = [Polygon(laid.points[triangle, :2]) for triangle in triangles]
+    owners = [int(owner) for owner in owners]
+    if surface.get("paved"):
+        roads = json.loads((folder / "roads.json").read_text(encoding="utf-8"))["roads"]
+        crossings = [LineString(road["line"]).buffer(class_of(road["kind"]).width_m / 2, cap_style="flat") for road in roads if is_crossing(road)]
+        pieces += crossings
+        owners += [-1] * len(crossings)
+    return [chain for chain in chains if len(chain.rings) > 1], pieces, owners
+
+
+def kept_off(surface: dict, laid: Paving) -> tuple[np.ndarray, np.ndarray]:
+    """The triangles of a tile's paving that keep things off it, and the chain owning each, -1 for none: a ribbon tile's
+    aprons, all owned by none, or a paved tile's carriageways, junction and gap pieces and car parks (`read_surface`)."""
+    triangles = laid.triangles
+    if not surface.get("paved"):
+        return triangles, np.full(len(triangles), -1)
     aprons = surface["aprons"]
-    start = sections * RINGS * 12 + sections
-    points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * APRON_FLOATS, offset=start).reshape(-1, APRON_FLOATS)
-    triangles = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + points.nbytes).reshape(-1, 3)
-    return [chain for chain in chains if len(chain.rings) > 1], [Polygon(points[triangle, :2]) for triangle in triangles]
+    corners = laid.points[triangles]
+    # The paving ends with the points of pieces no way owns, drawn as shoulders, then the car parks'.
+    owned = (triangles < len(laid.points) - aprons["junctionPoints"] - aprons["areaPoints"]).all(axis=1)
+    way = corners[:, 0, WAY].astype(int)
+    motor = np.array([chain["motor"] for chain in surface["chains"]], dtype=bool)
+    owned &= way >= 0
+    carriageway = owned & ((np.abs(corners[:, :, ACROSS]) <= CARRIAGEWAY_EDGE_ACROSS).all(axis=1) | ~motor[np.where(owned, way, 0)])
+    kept = carriageway | ~owned
+    return triangles[kept], np.where(carriageway, way, -1)[kept]
 
 
 class Paved:
-    """Every carriageway and apron as small polygons, each knowing its chain (-1 for an apron)."""
+    """Every carriageway and apron as small polygons, each knowing its chain (-1 for an apron no chain owns)."""
 
-    def __init__(self, chains: list[Chain], aprons: list[Polygon]):
+    def __init__(self, chains: list[Chain], aprons: list[Polygon], apron_owners: list[int] | None = None):
         shapes, owners = [], []
         for chain in chains:
             left, right = chain.rings[:, EDGE_LEFT, :2], chain.rings[:, EDGE_RIGHT, :2]
@@ -271,10 +305,10 @@ class Paved:
                 if quad.is_valid and quad.area > 0:
                     shapes.append(quad)
                     owners.append(chain.index)
-        for apron in aprons:
+        for apron, owner in zip(aprons, apron_owners if apron_owners is not None else [-1] * len(aprons)):
             if apron.is_valid and apron.area > 0:
                 shapes.append(apron)
-                owners.append(-1)
+                owners.append(owner)
         self.shapes = shapes
         self.owners = np.array(owners)
         self.tree = shapely.STRtree(shapes)
@@ -347,8 +381,8 @@ class Roadside:
         bounds = self.manifest["bounds"]
         self.box = (bounds["west"], bounds["south"], bounds["east"], bounds["north"])
         self.heights = Heights(tiles)
-        self.chains, aprons = read_surface(folder, self.manifest) if "roadSurface" in self.manifest else ([], [])
-        self.paved = Paved(self.chains, aprons)
+        self.chains, aprons, apron_owners = read_surface(folder, self.manifest) if "roadSurface" in self.manifest else ([], [], [])
+        self.paved = Paved(self.chains, aprons, apron_owners)
         self.ways = Ways(osm_path(tile))
         # A tile built with no vectors, as the edge checks build, has no buildings and no roads.
         buildings = json.loads((folder / "buildings.json").read_text(encoding="utf-8"))["buildings"] if (folder / "buildings.json").exists() else []

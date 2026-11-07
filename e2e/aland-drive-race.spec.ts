@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/aland-drive/challenge/** src/projects/aland-drive/render/challenge-marks.ts
 import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import type { RaceChallenge } from "../src/projects/aland-drive/challenge/types";

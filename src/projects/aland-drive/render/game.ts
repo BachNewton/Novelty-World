@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
@@ -199,6 +199,8 @@ export interface GameProbe {
   /** Shows the bushes, junipers and young birches or leaves them out, to see what they do. */
   showShrubs: (shown: boolean) => void;
   showGranite: (shown: boolean) => void;
+  /** Shows the ground the paving cuts through or leaves it out, to see what it does. */
+  showCutGround: (shown: boolean) => void;
   stoneWallsDrawn: () => StoneWallsDrawn;
   car: () => CarState;
   log: () => DriveLog;
@@ -665,7 +667,8 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
   const tier = new BufferAttribute(ribbon.tiers, 1);
   const roadInfo = new BufferAttribute(dress.surface, 4);
   const roadMark = new BufferAttribute(dress.mark, 2);
-  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3), 3);
+  const townBits = new BufferAttribute(townRibbonBits(townRibbons, RING_POINTS, ribbon.positions.length / 3, detail.surface.aprons), 3);
+  const townRun = new BufferAttribute(ribbon.runs, 2);
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z }) => {
     const geometry = new BufferGeometry();
@@ -676,6 +679,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
     geometry.setAttribute("roadInfo", roadInfo);
     geometry.setAttribute("roadMark", roadMark);
     geometry.setAttribute("townBits", townBits);
+    geometry.setAttribute("townRun", townRun);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -896,6 +900,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => seaHazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  // The ground the paving cuts through, coloured and lit as the terrain is, drawn where the innermost ring leaves its cells out.
+  const cutPlace = positionGeometry.xz;
+  const cutMaterial = new MeshBasicNodeMaterial();
+  cutMaterial.colorNode = terrainColour(varying(clipmap.waterLevelAt(0, cutPlace).sub(positionGeometry.y)), varying(clipmap.shoreAt(0, cutPlace)), varying(clipmap.upAt(0, cutPlace)).normalize());
+  cutMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
+  cutMaterial.alphaTest = 0.5;
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt,
@@ -956,7 +966,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const dressed = dressRoad({ tiled, toCamera, across, signedAcross, along, paved: roadInfo.x, town: roadInfo.y, halfWidth: roadInfo.z, shoulderM: roadMark.x, ground: groundColor, colour: colorOf, detail });
   const marks = junctionMarks({ across: signedAcross, halfWidth: roadInfo.z, toMark: roadInfo.w, mark: roadMark.y }).mul(roadInfo.x);
   // A path or a setted street wears its own surface, and a path's edge meets the ground beside it with no shoulder of its own.
-  const townRoad = townRibbon({ place: positionWorld.xz, tiled, toCamera, along, angle: townAngle, bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, colour: colorOf, detail });
+  const townRoad = townRibbon({ place: positionWorld.xz, tiled, toCamera, along, angle: townAngle, run: attribute<"vec2">("townRun", "vec2"), bits: attribute<"vec3">("townBits", "vec3"), carriageway: dressed.carriageway, roadGravel: dressed.gravel, town: roadInfo.y, colour: colorOf, detail });
   const painted = mix(townRoad.carriageway, colorOf("road-paint"), edgeLine.add(centreLine).min(1).mul(isMain).add(marks).min(1).mul(dressed.paintLeft).mul(float(1).sub(townRoad.claimed)));
   // Beside the town's hard ground, a street's or path's shoulder is that ground, save a paved town street's kerb; beside soft ground it keeps its worn shoulder.
   const kerbKept = mix(float(1), smoothstep(float(0.2), float(0.24), across.sub(1).max(0).mul(roadMark.x)), roadInfo.x.mul(roadInfo.y).mul(smoothstep(float(2), float(2.6), roadInfo.z)));
@@ -971,6 +981,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const concrete = colorOf("wall-pale");
   bridgeMaterial.colorNode = hazed(mix(mix(concrete, colorOf("wall-plinth"), smoothstep(float(0.5), float(0.6), part)), concrete.mul(0.45), smoothstep(float(1.5), float(1.6), part)));
   bridgeMaterial.side = 2;
+  // An underpass's walls are the bridge's concrete, drawn where the cut ground is.
+  const underpassMaterial = new MeshBasicNodeMaterial();
+  underpassMaterial.colorNode = hazed(concrete);
+  underpassMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
+  underpassMaterial.alphaTest = 0.5;
+  underpassMaterial.side = 2;
   // Bridges come with tiles, mid-drive, so one stands in to have its pipeline built with the rest.
   const bridgeStandIn = new BufferGeometry();
   bridgeStandIn.setAttribute("position", new BufferAttribute(new Float32Array(9), 3));
@@ -1048,10 +1064,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
+  const cutGrounds = new Map<string, Mesh>();
+  let cutShown = true;
   const bridges = new Map<string, Mesh>();
   let meshBytes = 0;
   const meshBytesOf = (detail: TileDetail, dress: RoadAttributes, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
-    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
+    detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.runs.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
   const meshBytesByTile = new Map<string, number>();
   let failed = false;
   const fail = (error: Error) => {
@@ -1068,6 +1086,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const meshes = ribbonMeshes(detail, detail.dress, townRibbons, roadMaterial);
         scene.add(meshes.group);
         ribbons.set(detail.name, meshes);
+        if (detail.cut.indices.length > 0) {
+          const geometry = new BufferGeometry();
+          geometry.setAttribute("position", new BufferAttribute(detail.cut.positions, 3));
+          geometry.setIndex(new BufferAttribute(detail.cut.indices, 1));
+          const ground = detail.cut.indices.length - detail.cut.walls * 3;
+          geometry.addGroup(0, ground, 0);
+          geometry.addGroup(ground, detail.cut.walls * 3, 1);
+          const mesh = new Mesh(geometry, [cutMaterial, underpassMaterial]);
+          mesh.frustumCulled = false;
+          mesh.visible = cutShown;
+          scene.add(mesh);
+          cutGrounds.set(detail.name, mesh);
+        }
         const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial);
         scene.add(solids.group);
         buildings.set(detail.name, solids);
@@ -1109,6 +1140,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         scene.remove(meshes.group);
         for (const { mesh } of meshes.cells) mesh.geometry.dispose();
         ribbons.delete(detail.name);
+        const cut = cutGrounds.get(detail.name);
+        if (cut) {
+          scene.remove(cut);
+          cut.geometry.dispose();
+          cutGrounds.delete(detail.name);
+        }
         const solids = buildings.get(detail.name);
         if (!solids) throw new Error(`${detail.name} has no buildings to release`);
         scene.remove(solids.group);
@@ -1853,7 +1890,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   /** Where every other player's car is, as heard here. */
   const otherPlaces = (): { x: number; z: number }[] => [...others].flatMap(([peerId, { heard }]) => (heard ? [drive.remotes.stateAt(peerId, 1).position] : [])).map(([x, , z]) => ({ x, z }));
-  /** Whether this page is in the world and has heard where every other player in it is. */
+  /** Whether this page is in the world and has heard where every other player in it is: until then, and until each has sent it what they have near it, it fills no slot. */
   const worldHeard = () => onlineWorld?.state().status === "connected" && [...others.values()].every(({ heard }) => heard);
   /** Every player's car, this one's included, by their id. */
   const playerPlaces = () => {
@@ -1867,7 +1904,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
       const eye = eyeNow();
-      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() } : undefined);
+      bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() && sharedTraffic.namedBy(others.keys()) } : undefined);
     }
     bubbleSteps = (bubbleSteps + 1) % BUBBLE_EVERY;
     laneTraffic.step(STEP_S * TRAFFIC_EVERY);
@@ -2374,6 +2411,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       graniteDrawn: granite.drawn,
       showShrubs: shrubs.show,
       showGranite: granite.show,
+      showCutGround: (shown) => {
+        cutShown = shown;
+        for (const mesh of cutGrounds.values()) mesh.visible = shown;
+      },
       stoneWallsDrawn: stoneWalls.drawn,
       car: () => drive.stateAt(1),
       log: () => drive.log,

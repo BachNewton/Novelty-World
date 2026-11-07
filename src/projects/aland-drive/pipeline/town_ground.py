@@ -10,7 +10,7 @@ between two classes. Alpha is the way the paving runs, read unfiltered.
 
 A strip narrower than about 3 m can't live in a 2 m distance field, and needn't: footways, sidewalks and paths are ribbons in
 the road surface already, so each ribbon section gets a class of its own (`ribbon_classes`), and only areas go in the image.
-A ribbon's class has one more, `STEPS`, which only a ribbon can be: a flight of steps is drawn as treads along its line.
+The classes, and how a way's own tags class it, are `path_surfaces.py`'s, which the paving reads too.
 """
 
 from dataclasses import dataclass, field
@@ -23,22 +23,17 @@ from shapely import STRtree
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import polygonize, unary_union
 
+from path_surfaces import BED, COBBLE, GRAVEL, HARD_SURFACES, LAWN, NONE, SLAB, STEPS, TARMAC, way_class
+
 PIXEL_M = 2.0
 FINE_M = 1.0
 RIM_M = 32.0
 
-# Three bits, each a channel. Blue is set only on tarmac and cobbles, so on a car park it is the distance to the lot's edge,
-# which is what lays out its bays. Change these with `CLASS` in `art/town-ground/town-ground.ts`.
-NONE, STEPS, BED, LAWN, GRAVEL, SLAB, TARMAC, COBBLE = 0b000, 0b001, 0b011, 0b010, 0b100, 0b110, 0b101, 0b111
+# A class's three bits are each a channel. Blue is set only on tarmac and cobbles, so on a car park it is the distance to
+# the lot's edge, which is what lays out its bays.
 # How far each channel measures, in metres, either side of its edge. Red and green draw thin edging; blue reaches a lot's middle.
 RANGE_M = (4.0, 4.0, 16.0)
 
-HARD_SURFACES = {
-    "asphalt": TARMAC, "paved": SLAB, "concrete": SLAB, "concrete:plates": SLAB, "paving_stones": SLAB,
-    "sett": COBBLE, "cobblestone": COBBLE, "unhewn_cobblestone": COBBLE, "pebblestone": COBBLE,
-    "gravel": GRAVEL, "fine_gravel": GRAVEL, "compacted": GRAVEL, "unpaved": GRAVEL, "ground": GRAVEL, "dirt": GRAVEL, "sand": GRAVEL,
-    "grass": LAWN, "grass_paver": LAWN,
-}
 GREEN_LANDUSE = {"grass", "village_green", "recreation_ground", "cemetery", "flowerbed", "greenfield"}
 GREEN_LEISURE = {"park", "garden", "dog_park", "golf_course", "miniature_golf"}
 BUILT_LANDUSE = {"residential": GRAVEL, "commercial": SLAB, "retail": TARMAC, "industrial": GRAVEL, "religious": LAWN, "farmyard": GRAVEL, "brownfield": GRAVEL, "construction": GRAVEL}
@@ -74,8 +69,6 @@ SHADE_BRIGHTNESS = 0.16
 PHOTO_BLUR_M = 2.5
 PATH_REACH_M = 4.0
 RIBBON_KINDS = {"footway", "pedestrian", "path", "cycleway", "living_street", "residential", "service", "unclassified", "steps", "bridleway", "corridor"}
-# A path OSM says nothing of: a park's walk or a trail is gravel, a footway or cycleway pale tarmac, never a road's.
-UNTAGGED_PATHS = {"path": GRAVEL, "bridleway": GRAVEL, "pedestrian": SLAB, "corridor": SLAB}
 
 
 @dataclass
@@ -371,20 +364,7 @@ def apply_way_surfaces(ribbons: list[Ribbon], bake: Bake, ways: list[dict]) -> N
             for section, middle in enumerate(ribbon.rings[:, 2]):
                 found = tree.query_nearest(Point(middle), max_distance=PATH_REACH_M)
                 way = same[found[0]] if len(found) else {"kind": ribbon.kind}
-                bake.ribbon_classes[chain][section] = _ribbon_class(way, motor)
-
-
-def _ribbon_class(way: dict, motor: bool) -> int:
-    surface = HARD_SURFACES.get(way.get("surface", ""))
-    if motor:
-        return surface if surface == COBBLE else NONE
-    if way["kind"] == "steps":
-        return STEPS
-    if surface is not None:
-        return surface
-    if way.get("footway") == "sidewalk":
-        return SLAB
-    return UNTAGGED_PATHS.get(way["kind"], TARMAC)
+                bake.ribbon_classes[chain][section] = way_class(way, motor)
 
 
 def polygons_from_outers(outers: list[list[tuple[float, float]]], inners: list[list[tuple[float, float]]]) -> list[Polygon]:
