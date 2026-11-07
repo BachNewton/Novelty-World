@@ -1,17 +1,30 @@
 """Which of a road and a building gives way, and how a roof's own metres are laid: the rules that are easy to get backwards."""
 
+import json
 import math
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
+from pyproj import Transformer
 from shapely.geometry import LineString, Point, box
 
+import vectors
 from buildings import Face, RoofFrame
 from give_way import CLEAR_M, drawn_half_width, give_way, open_walls
+from grid import neighbour, tile_at
 from roads import CLASSES
 from vectors import Bounds, clip_line, seam_direction
 
 SHED = box(0, 0, 10, 6)
+# A corner of the island to draw OSM's ways on, in ETRS-TM35FIN metres.
+EAST, NORTH = 128000.0, 6683000.0
+TO_LONLAT = Transformer.from_crs("EPSG:3067", "EPSG:4326", always_xy=True)
+
+
+def geometry(points: list[tuple[float, float]]) -> list[dict]:
+    return [dict(zip(("lon", "lat"), TO_LONLAT.transform(east, north))) for east, north in points]
 
 
 def road(kind: str, line: list[list[float]], **tags) -> dict:
@@ -80,17 +93,42 @@ class GiveWay(unittest.TestCase):
         self.assertIn([5, -0.5], give_way([drive, branch], [SHED]).roads[0]["line"])
 
     def test_both_tiles_at_an_edge_move_a_road_alike_and_its_halves_still_meet(self):
-        # The tiles meet at x = 0, a house stands just east of it on the road, and each tile also sees a building far off on
-        # its own side that the other doesn't. The road is moved whole on each, then cut at the edge.
+        # The tiles meet at x = 0, a house stands just east of it on the road, and each tile also sees a shed far off on its
+        # own side, beside the road, that the other doesn't, so each tile moves the road somewhere the other doesn't. The
+        # road is moved whole on each, then cut at the edge.
         street = road("unclassified", [[-400, 2], [400, 2]])
         house = box(8, 0, 18, 10)
-        west = give_way([street], [house, box(-390, 20, -380, 30)]).roads[0]["line"]
-        east = give_way([street], [house, box(380, 20, 390, 30)]).roads[0]["line"]
+        west = give_way([street], [house, box(-390, 6, -380, 16)]).roads[0]["line"]
+        east = give_way([street], [house, box(380, 6, 390, 16)]).roads[0]["line"]
         halves = [clip_line(np.array(line), bounds)[0] for line, bounds in ((west, Bounds(-6000, -3000, 0, 3000)), (east, Bounds(0, -3000, 6000, 3000)))]
         self.assertEqual(halves[0][-1].tolist(), halves[1][0].tolist())
         np.testing.assert_array_equal(seam_direction(np.array(west), halves[0][-1]), seam_direction(np.array(east), halves[1][0]))
         # And the move reaches over the edge: the crossing itself moved off the house's line.
         self.assertGreater(abs(halves[0][-1][1] - 2), 1)
+
+    def test_a_road_moved_far_from_an_edge_in_one_tile_only_still_crosses_it_where_the_other_does(self):
+        # Only the east tile sees the shed, 380 m past the edge; the west tile leaves the road as OSM drew it. The move
+        # mustn't reach the crossing, even by the millimetre a centimetre's rounding of the moved road would take it.
+        street = road("unclassified", [[-400, 2.003], [400, 37.71]])
+        west = give_way([street], []).roads[0]["line"]
+        east = give_way([street], [box(380, 42, 390, 52)]).roads[0]["line"]
+        self.assertNotEqual(west, east)
+        crossings = [clip_line(np.array(line), Bounds(-6000, -3000, 0, 3000))[0][-1] for line in (west, east)]
+        self.assertEqual(crossings[0].tolist(), crossings[1].tolist())
+
+
+class Edges(unittest.TestCase):
+    def test_a_way_ending_a_hair_past_a_tiles_edge_crosses_into_neither(self):
+        # It ends under a millimetre over the edge, which a centimetre's rounding would put on it: one tile would then have
+        # a road meeting the edge with nothing in the other to meet it.
+        west = tile_at(EAST, NORTH)
+        east = neighbour(west, 1, 0)
+        ends = [(west.east - 60, west.south + 3000), (west.east + 0.0009, west.south + 3000)]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "osm.json"
+            path.write_text(json.dumps({"elements": [{"type": "way", "id": 1, "tags": {"highway": "residential"}, "geometry": geometry(ends)}]}), encoding="utf-8")
+            pieces = [vectors.build(path, tile)[0] for tile in (west, east)]
+        self.assertEqual([[piece.get("seams") for piece in tile] for tile in pieces], [[None], []])
 
 
 class Roofs(unittest.TestCase):

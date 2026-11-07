@@ -154,7 +154,7 @@ def _cut(road: dict, blocking: list[Polygon]) -> list[dict]:
     left = LineString(road["line"]).difference(shapely.union_all([outline.buffer(CLEAR_M) for outline in blocking]))
     for part in shapely.get_parts(left):
         if isinstance(part, LineString) and part.length >= SHORTEST_LEFT_M:
-            pieces.append({**road, "line": [[round(x, 2), round(y, 2)] for x, y in part.coords]})
+            pieces.append({**road, "line": [list(point) for point in part.coords]})
     return pieces
 
 
@@ -188,7 +188,7 @@ def _junctions_out_of_buildings(roads: list[dict], outlines: list[Polygon], tree
         moved = np.array(key)
         for _ in range(PUSH_ROUNDS):
             moved = moved + _push(moved, beside, reach[key])
-        moves[key] = [round(float(moved[0]), 2), round(float(moved[1]), 2)]
+        moves[key] = [float(moved[0]), float(moved[1])]
     if not moves:
         return roads
     return [{**road, "line": [moves.get(tuple(point), point) for point in road["line"]]} for road in roads]
@@ -253,7 +253,7 @@ def _clear_of(road: dict, outlines: list[Polygon], tree: shapely.STRtree, throug
         moved = True
     if not moved:
         return None
-    return [[round(float(x), 2), round(float(y), 2)] for x, y in points]
+    return points.tolist()
 
 
 def _place(offsets: np.ndarray, room: np.ndarray, wants: float, fits: float) -> float:

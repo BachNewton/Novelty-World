@@ -128,7 +128,7 @@ def build(osm_file: Path, tile: Tile, arrange: Callable[[list[dict]], list[dict]
         tags = element.get("tags", {})
         if element["type"] == "way" and "highway" in tags and tags["highway"] not in NOT_A_ROAD:
             kind = tags["highway"]
-            road = {"id": element["id"], "kind": kind, "motor": kind not in FOOT_OR_BIKE, "line": _rounded(np.column_stack(to_local(*line_to_grid(element["geometry"]).T)))}
+            road = {"id": element["id"], "kind": kind, "motor": kind not in FOOT_OR_BIKE, "line": np.column_stack(to_local(*line_to_grid(element["geometry"]).T)).tolist()}
             road.update({key: value for key, value in tags.items() if key in KEPT_TAGS or key.startswith(KEPT_PREFIXES)})
             whole_roads.append(road)
         if "building" in tags:
