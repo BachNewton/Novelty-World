@@ -337,11 +337,11 @@
   },
   "efaab0c8": {
     "name": "lighthouses: flotjan",
-    "swapM": 354
+    "swapM": 539
   },
   "81dcee5d": {
     "name": "lighthouses: hogsten",
-    "swapM": 43
+    "swapM": 75
   },
   "e65e9776": {
     "name": "lighthouses: kobba-klintar",
@@ -357,19 +357,19 @@
   },
   "a20d8bef": {
     "name": "lighthouses: marhallan",
-    "swapM": 69
+    "swapM": 105
   },
   "ce68889d": {
     "name": "lighthouses: market",
-    "swapM": 907
+    "swapM": 1200
   },
   "e09c7b7c": {
     "name": "lighthouses: nyhamn",
-    "swapM": 124
+    "swapM": 217
   },
   "c1ac86e5": {
     "name": "lighthouses: salskar",
-    "swapM": 87
+    "swapM": 174
   },
   "8d3b5d78": {
     "name": "lighthouses: sjokvarteret",
@@ -1001,7 +1001,7 @@
   },
   "635e5890": {
     "name": "town-kit: christmas tree",
-    "swapM": 46
+    "swapM": 70
   },
   "aef2e052": {
     "name": "town-kit: road ferry",
