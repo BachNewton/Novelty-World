@@ -4,10 +4,10 @@ import math
 import unittest
 
 import numpy as np
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, Point, box
 
 from buildings import Face, RoofFrame
-from give_way import CAR_ROOM_M, CLEARANCE_M, give_way, open_walls
+from give_way import CLEAR_M, CLEARANCE_M, give_way, open_walls
 from roads import CLASSES
 
 SHED = box(0, 0, 10, 6)
@@ -24,14 +24,30 @@ class GiveWay(unittest.TestCase):
         self.assertEqual(len(meetings.roads), 2)
         self.assertTrue(all(LineString(part["line"]).distance(SHED) > 0 for part in meetings.roads))
 
-    def test_a_street_through_a_building_opens_its_walls_only_as_wide_as_the_road(self):
+    def test_a_street_clipping_a_building_is_pushed_clear_and_the_building_keeps_every_wall(self):
+        # OSM's line runs along the shed a metre inside its side: the line is off, not the shed.
+        meetings = give_way([road("unclassified", [[-20, 5], [30, 5]])], [SHED])
+        self.assertEqual(meetings.openings, [])
+        self.assertEqual(len(meetings.roads), 1)
+        self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), CLASSES["unclassified"].width_m / 2)
+        self.assertEqual(sum(wall.length for wall in open_walls(SHED, meetings.openings)), SHED.length)
+
+    def test_a_junction_inside_a_building_moves_out_with_every_road_meeting_there(self):
+        street = road("residential", [[-30, 1], [5, 1], [40, -10]])
+        drive = road("service", [[5, 1], [5, -30]], id=2)
+        roads = give_way([street, drive], [SHED]).roads
+        shared = [point for point in roads[0]["line"] if point in roads[1]["line"]]
+        self.assertEqual(len(shared), 1)
+        self.assertFalse(SHED.contains(Point(shared[0])))
+        self.assertTrue(all(LineString(part["line"]).intersection(SHED).length < CLEAR_M for part in roads))
+
+    def test_a_street_no_push_can_get_out_of_a_building_stops_at_its_walls(self):
+        # Squarely through the middle of a hall OSM doesn't tag as a passage: the hall keeps its walls.
         hall = box(0, 0, 10, 30)
         meetings = give_way([road("residential", [[-20, 15], [30, 15]])], [hall])
-        self.assertEqual(meetings.roads[0]["line"], [[-20, 15], [30, 15]])
-        walls = open_walls(hall, meetings.openings)
-        # The long sides stand; each end opens round the road and no further.
-        opened = hall.length - sum(wall.length for wall in walls)
-        self.assertAlmostEqual(opened, 2 * 2 * (CLASSES["residential"].width_m / 2 + CAR_ROOM_M), delta=0.5)
+        self.assertEqual(meetings.openings, [])
+        self.assertEqual(len(meetings.roads), 2)
+        self.assertTrue(all(LineString(part["line"]).distance(hall) > 0 for part in meetings.roads))
 
     def test_a_street_that_ends_inside_a_building_stops_at_its_wall(self):
         meetings = give_way([road("residential", [[-20, 3], [5, 3]])], [SHED])
