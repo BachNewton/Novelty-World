@@ -183,6 +183,54 @@
     "name": "cars: world Verk",
     "swapM": 57
   },
+  "6d7fbae1": {
+    "name": "deer: buck bound",
+    "swapM": 8
+  },
+  "e5d62ceb": {
+    "name": "deer: buck stand",
+    "swapM": 7
+  },
+  "77fa0d51": {
+    "name": "deer: buck trot",
+    "swapM": 7
+  },
+  "b023f57d": {
+    "name": "deer: buck walk",
+    "swapM": 7
+  },
+  "2e646b03": {
+    "name": "deer: doe bound",
+    "swapM": 9
+  },
+  "4132e8cd": {
+    "name": "deer: doe stand",
+    "swapM": 7
+  },
+  "5f145613": {
+    "name": "deer: doe trot",
+    "swapM": 7
+  },
+  "0492a66f": {
+    "name": "deer: doe walk",
+    "swapM": 7
+  },
+  "10406c28": {
+    "name": "deer: kid bound",
+    "swapM": 7
+  },
+  "40ccfe72": {
+    "name": "deer: kid stand",
+    "swapM": 5
+  },
+  "a6ba2e80": {
+    "name": "deer: kid trot",
+    "swapM": 6
+  },
+  "194aaa30": {
+    "name": "deer: kid walk",
+    "swapM": 6
+  },
   "f02a9cdc": {
     "name": "identity: apple crates",
     "swapM": 43
