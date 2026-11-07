@@ -412,7 +412,7 @@ export interface HudReading {
   /** The challenge whose start ring the car is in, which its button starts. */
   offer: ChallengeOffer | null;
   coop: CoopReading | null;
-  /** The time this page shows: the month (1 to 12), which of its four game days, the hour, whether the sun is up, and the air's temperature (none without weather). */
+  /** The time this page shows: the month (1 to 12), which of its three game days, the hour, whether the sun is up, and the air's temperature (none without weather). */
   clock: { month: number; hour: number; sunUp: boolean; temperatureC: number | null };
 }
 
@@ -484,7 +484,7 @@ export interface DayShown {
   /** The world's time, game days since the first of 2000's. */
   gameDays: number;
   month: number;
-  /** Which of the month's four game days, 1 to 4. */
+  /** Which of the month's three game days, 1 to 3. */
   day: number;
   date: string;
   hour: number;
@@ -611,7 +611,7 @@ const MAP_FIELD_OF_VIEW = 45;
 const storage = getProjectStorage("aland-drive");
 const FOUND_KEY = "found-places";
 /** Where the world's calendar and clock stood, in game days (`time/calendar.ts`). */
-const TIME_KEY = "world-time";
+const TIME_KEY = "world-game-days";
 /** A jump in the world's time smaller than a quarter of a game hour isn't covered. */
 const UNSEEN_JUMP_DAYS = 1 / 96;
 /** Below these heights the map looks at its own place: a sharper image only shows once a screen pixel is about as small as twice the image's. */
