@@ -65,6 +65,8 @@ import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
 import { createOnlineWorld } from "../net/online-world";
+import { createComputerCars } from "../net/computer-cars";
+import { parseScriptedDriver, scriptedState, scriptedStep, type ScriptedDriver } from "../net/scripted-car";
 import { GAME } from "../net/protocol";
 import { createRoom, stopOnPageHide, type RoomState } from "@/shared/lib/peer";
 import type { PlayerProfile } from "@/shared/lib/profile";
@@ -98,12 +100,12 @@ import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
 import { Autopilot } from "../sim/autopilot";
 import { NO_INPUT, type DriveInput } from "../sim/car";
-import { headingOf, speedOf, type CarState } from "../sim/car-state";
+import { headingOf, speedOf, type CarState, type Vector3 as CarVector } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
 import { placeAround } from "../sim/surroundings";
 import { STEP_S } from "../sim/tuning";
-import { CARS as TUNINGS, carAsked, type CarId } from "../sim/cars";
+import { CARS as TUNINGS, carAsked, DEFAULT_CAR, type CarId } from "../sim/cars";
 import { TYRES, tyresAsked, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { groundCondition } from "../climate/feed";
 import { fitTyres, tyresOn } from "../garage/tyres";
@@ -244,6 +246,10 @@ export interface GameProbe {
   online: () => Pick<RoomState, "status" | "role">;
   /** Everyone else online: where their car is here, whether it's drawn, and whether it touches nothing yet. */
   players: () => { peerId: string; name: string; position: number[] | null; drawn: boolean; ghost: boolean }[];
+  /** A computer-driven car this player runs, along one of the start tile's chains at a steady speed; its id. */
+  addScriptedCar: (chain: number, along: number, speedMS: number) => string;
+  /** Every computer-driven car: who runs it, how many times it has changed hands, where it is here and its driver's record, and the furthest it has moved here in one step. */
+  computerCars: () => { id: string; runner: string; handovers: number; runsHere: boolean; position: number[]; driver: Record<string, unknown>; furthestStepM: number }[];
   /** How many other players each map drew last. */
   mapPlayers: () => { mini: number; world: number };
   /** The ids of the places found, once the road network has arrived. */
@@ -1677,8 +1683,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const simStep = (input: DriveInput) => {
     lastInput = session?.holdsCar() ? HELD : input;
     trafficContact.beforeStep(trafficSteps);
+    driveComputerCars();
     drive.step(lastInput);
     trafficContact.afterStep();
+    measureComputerCars();
     trafficSteps = (trafficSteps + 1) % TRAFFIC_EVERY;
     if ((bubble.density("car") > 0 || bubble.density("bike") > 0 || bubble.density("walker") > 0) && trafficSteps === 0) {
       const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
@@ -1702,6 +1710,45 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Everyone else online: each is the authority over their own car, and here a stand-in of it can be hit (`sim/remote-cars.ts`).
   const remoteViews = createRemoteCarViews(scene, sun, hazed);
   const others = new Map<string, { name: string; heard: boolean }>();
+  // Computer-driven cars, each run by the player nearest it (`net/computer-cars.ts`), and a stand-in here like another player's; so far only a test's scripted cars.
+  const standInOf = (id: string) => `computer:${id}`;
+  const computerCars = createComputerCars({
+    selfId: () => onlineWorld?.state().selfId ?? null,
+    hosts: () => onlineWorld?.state().role === "host",
+    places: () => {
+      const places = new Map<string, CarVector>([[onlineWorld?.state().selfId ?? "", drive.player.position]]);
+      for (const [peerId, { heard }] of others) if (heard) places.set(peerId, drive.remotes.stateAt(peerId, 1).position);
+      return places;
+    },
+    send: (car) => onlineWorld?.sendComputerCar(car) ?? false,
+    onHeard: (car) => {
+      drive.remotes.hear(standInOf(car.id), car.state);
+    },
+  });
+  const scriptedDrivers = new Map<string, ScriptedDriver>();
+  /** Before the world steps: each car this player runs drives on from its driver's record, the one it was handed when it has just come here. */
+  const driveComputerCars = () => {
+    const running = computerCars.running();
+    for (const id of scriptedDrivers.keys()) if (!running.some((car) => car.id === id)) scriptedDrivers.delete(id);
+    for (const car of running) {
+      const was = scriptedDrivers.get(car.id) ?? parseScriptedDriver(car.driver);
+      const line = startLine(was.chain);
+      const driver = scriptedStep(was, STEP_S, line);
+      scriptedDrivers.set(car.id, driver);
+      const state = scriptedState(driver, line, car.state.car);
+      computerCars.update(car.id, state, { ...driver });
+      drive.remotes.hear(standInOf(car.id), state);
+    }
+  };
+  const furthestSteps = new Map<string, { at: CarVector; furthestM: number }>();
+  const measureComputerCars = () => {
+    for (const { id } of computerCars.all()) {
+      const at = drive.remotes.stateAt(standInOf(id), 1).position;
+      const was = furthestSteps.get(id);
+      furthestSteps.set(id, { at, furthestM: was ? Math.max(was.furthestM, Math.hypot(at[0] - was.at[0], at[1] - was.at[1], at[2] - was.at[2])) : 0 });
+    }
+  };
+  let scriptedCarsAdded = 0;
   const onlineWorld = online
     ? createOnlineWorld((roomEvents) => createRoom({ game: GAME, target: { mode: "claim", code: online.code }, profile: online.profile, events: roomEvents, relayUrl: online.relayUrl }), {
         onCar: (peerId, state) => {
@@ -1709,6 +1756,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           if (!other) throw new Error(`a car from ${peerId}, who isn't in the world`);
           other.heard = true;
           drive.remotes.hear(peerId, state);
+        },
+        onComputerCar: (peerId, car) => {
+          computerCars.hear(peerId, car);
         },
         onGone: (peerId) => {
           drive.remotes.forget(peerId);
@@ -1721,6 +1771,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           const before = new Map(others);
           others.clear();
           for (const { peerId, name } of players) others.set(peerId, { name, heard: before.get(peerId)?.heard ?? false });
+          computerCars.players(new Set([...others.keys(), onlineWorld?.state().selfId ?? ""]));
           events.onPlayers?.(players.map(({ name }) => name));
         },
         onChallenge: hearChallenge,
@@ -1740,6 +1791,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       shown.push({ x, z, headingClockwise: headingClockwise(state), name });
       const heading = headingOf(state.rotation);
       if (state.lamps.head) lamps.push({ x, y, z, forwardX: -Math.sin(heading), forwardZ: -Math.cos(heading), braking: state.lamps.brake });
+    }
+    for (const { id } of computerCars.all()) {
+      const state = drive.remotes.stateAt(standInOf(id), share);
+      remoteViews.draw(standInOf(id), state, world.tileAt(state.position[0], state.position[2])?.detail != null);
     }
     nightLights.setCars(lamps);
     return shown;
@@ -1864,6 +1919,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     placeCarVolume(car);
     tyres.draw(share);
     onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements);
+    computerCars.step(stepped);
     sentPlacements = drive.placements;
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
@@ -2125,6 +2181,24 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           position: !heard ? null : drive.remotes.stateAt(peerId, 1).position,
           drawn: remoteViews.drawn(peerId),
           ghost: drive.remotes.ghost(peerId),
+        })),
+      addScriptedCar: (chain, along, speedMS) => {
+        const id = `${onlineWorld?.state().selfId ?? "alone"}-scripted-${++scriptedCarsAdded}`;
+        const driver: ScriptedDriver = { kind: "scripted", chain, along, speedMS };
+        const state = scriptedState(driver, startLine(chain), DEFAULT_CAR);
+        computerCars.add(id, state, { ...driver });
+        drive.remotes.hear(standInOf(id), state);
+        return id;
+      },
+      computerCars: () =>
+        computerCars.all().map(({ id, runner, handovers, driver }) => ({
+          id,
+          runner,
+          handovers,
+          runsHere: computerCars.running().some((car) => car.id === id),
+          position: drive.remotes.stateAt(standInOf(id), 1).position,
+          driver,
+          furthestStepM: furthestSteps.get(id)?.furthestM ?? 0,
         })),
       mapPlayers: () => ({ mini: navigator?.playersDrawn ?? 0, world: worldMap?.playersDrawn ?? 0 }),
       foundPlaces: () => (discovery ? discovery.places.filter((place) => discovery?.isFound(place)).map(({ id }) => id) : null),

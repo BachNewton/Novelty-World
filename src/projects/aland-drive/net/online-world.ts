@@ -1,6 +1,6 @@
 import type { Player, Room, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
-import { parseGuestMessage, parseHostMessage, wireState, type ChallengeMessage, type GuestMessage, type HostMessage } from "./protocol";
+import { parseGuestMessage, parseHostMessage, wireState, type ChallengeMessage, type ComputerCarMessage, type GuestMessage, type HostMessage } from "./protocol";
 
 /*
  * The online world: one room on the relay that every player claims, so the
@@ -19,6 +19,9 @@ import { parseGuestMessage, parseHostMessage, wireState, type ChallengeMessage, 
  * a guest sends each up, and the host hands it on to the one it's for, or to
  * every other guest, naming who it's from. The host only relays: what a
  * message means is `challenge/coop.ts`'s.
+ *
+ * So does each computer-driven car's state, from the player running it, to
+ * everyone: who runs which is `computer-cars.ts`'s.
  */
 
 /** 20 a second at the simulation's 120 Hz. */
@@ -33,6 +36,8 @@ export interface OnlineEvents {
   onPlayers: (others: readonly Player[]) => void;
   /** A co-op challenge's message from another player, for this one or for everyone. */
   onChallenge: (peerId: string, message: ChallengeMessage) => void;
+  /** A computer-driven car, from the player who ran it when they sent it. */
+  onComputerCar: (peerId: string, car: ComputerCarMessage) => void;
 }
 
 export type OnlineRoom = Pick<Room<HostMessage, GuestMessage>, "start" | "stop" | "sendToHost" | "sendTo" | "broadcast">;
@@ -44,6 +49,8 @@ export interface OnlineWorld {
   send: (steps: number, state: CarState, placed?: boolean) => void;
   /** A co-op challenge's message, to one player, or to everyone with `to` null. */
   sendChallenge: (to: string | null, message: ChallengeMessage) => void;
+  /** A computer-driven car this player runs, to everyone; false when there's no one to send it to. */
+  sendComputerCar: (car: ComputerCarMessage) => boolean;
   state: () => RoomState;
 }
 
@@ -80,6 +87,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     if (present(peerId)) events.onChallenge(peerId, message);
   }
 
+  function hearComputerCar(peerId: string, car: ComputerCarMessage): void {
+    if (present(peerId)) events.onComputerCar(peerId, car);
+  }
+
   const room = createRoom({
     onState(next) {
       const before = state.players.map((player) => player.peerId).join();
@@ -103,6 +114,11 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         room.broadcast({ kind: "car", from: from.peerId, state: message.state }, from.peerId);
         return;
       }
+      if (message.kind === "computer") {
+        hearComputerCar(from.peerId, message.car);
+        room.broadcast({ kind: "computer", from: from.peerId, car: message.car }, from.peerId);
+        return;
+      }
       const relayed: HostMessage = { kind: "challenge", from: from.peerId, message: message.message };
       if (message.to === undefined) {
         hearChallenge(from.peerId, message.message);
@@ -118,6 +134,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         return;
       }
       if (message.kind === "car") hear(message.from, message.state);
+      else if (message.kind === "computer") hearComputerCar(message.from, message.car);
       else hearChallenge(message.from, message.message);
     },
   });
@@ -158,6 +175,13 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       owedSteps = 0;
       owed = false;
       transmit(carState);
+    },
+    sendComputerCar(car) {
+      if (state.status !== "connected" || state.selfId === null) return false;
+      const wire = { ...car, state: wireState(car.state) };
+      if (state.role === "host") room.broadcast({ kind: "computer", from: state.selfId, car: wire });
+      else room.sendToHost({ kind: "computer", car: wire });
+      return true;
     },
     sendChallenge(to, message) {
       owedChallenges.push({ to, message });
