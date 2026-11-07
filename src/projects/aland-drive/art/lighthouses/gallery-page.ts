@@ -3,9 +3,12 @@ import { cameraPosition, exp, float, mix, positionWorld, uniform, vec3 } from "t
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { placeModel, type RoadsideModel } from "../roadside/index";
 import { identityMaterials } from "../identity/index";
-import { LIGHTHOUSES } from "./index";
+import { buildTurbineRotor, buildTurbineTower, HUB_M, LIGHTHOUSES, rotorAt } from "./index";
 
-/* Renders on import, as the identity gallery does: each lighthouse on a rock of its own by the sea, from all round, close to its lantern, and far off past its swap. */
+/*
+ * Renders on import, as the identity gallery does: each lighthouse on a rock of its own by the sea, from all round, close
+ * to its lantern, and far off past its swap; then Båtskär's turbines, two as they stand in a row, facing the south-westerly.
+ */
 
 const SUN = { azimuthDeg: 215, elevationDeg: 30 };
 const [WIDTH, HEIGHT] = [1600, 900];
@@ -84,6 +87,24 @@ Object.entries(LIGHTHOUSES).forEach(([id, art], slot) => {
   look(`${id}-far`, `${art.name} from 3 km, past its swap at ${model.swapM} m`, [x + 1800, 3, 2400], [x, tall * 0.5, 0], 2.2);
   look(`${id}-skyline`, `${art.name} from 10 km`, [x + 6000, 3, 8000], [x, tall * 0.5, 0], 0.9);
 });
+
+{
+  const [tower, rotor] = [buildTurbineTower(), buildTurbineRotor()];
+  const x = Object.keys(LIGHTHOUSES).length * SPACING_M;
+  const yaw = -Math.PI / 4;
+  const towers = [{ x, y: 0, z: 0, yaw }, { x: x + 240, y: 0, z: -60, yaw }];
+  plane(colorOf("ground"), x + 120, 0, -30, 420, 220);
+  scene.add(...placeModel(tower, towers, materials), ...placeModel(rotor, towers.map(rotorAt), materials));
+  counts.push({ name: "turbine", near: count(tower.near), far: count(tower.far), swapM: tower.swapM, reachM: tower.reachM });
+  counts.push({ name: "turbine rotor", near: count(rotor.near), far: count(rotor.far), swapM: rotor.swapM, reachM: rotor.reachM });
+  const tip = HUB_M + 35.5;
+  look("turbine", `Båtskär's turbines · ${tip.toFixed(0)} m to a tip`, [x - 150, 1.7, 170], [x + 60, 50, -20], 50);
+  look("turbine-back", "Båtskär's turbines from their lee", [x + 160, 1.7, -190], [x + 60, 50, -20], 50);
+  look("turbine-nacelle", "A turbine's nacelle and hub", [x - 18, HUB_M + 6, 24], [x, HUB_M, 0], 40);
+  look("turbine-foot", "A turbine's foot and door", [x + 4, 2, -14], [x, 3, 0], 50);
+  look("turbine-far", `The turbines from 3 km, past their swap at ${tower.swapM} m`, [x - 1500, 3, 2600], [x + 120, 50, -30], 2.6);
+  look("turbine-skyline", "The turbines from 10 km", [x - 5000, 3, 8700], [x + 120, 50, -30], 1.2);
+}
 
 async function frame(shot: Shot) {
   camera.fov = shot.fieldOfView;

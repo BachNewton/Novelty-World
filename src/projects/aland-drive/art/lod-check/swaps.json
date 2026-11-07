@@ -311,6 +311,14 @@
     "name": "lighthouses: sjokvarteret",
     "swapM": 763
   },
+  "77061c8f": {
+    "name": "lighthouses: turbine",
+    "swapM": 264
+  },
+  "41919c64": {
+    "name": "lighthouses: turbine rotor",
+    "swapM": 177
+  },
   "d676d42d": {
     "name": "marina: admiralty anchor",
     "swapM": 275
