@@ -2,6 +2,7 @@
 import type { Server } from "node:http";
 import type { Browser, Page } from "@playwright/test";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
+import { GAME_DAY_S } from "../src/projects/aland-drive/time/day";
 import { LOCAL_RELAY } from "./relay";
 import { expect, test } from "./test";
 
@@ -138,15 +139,15 @@ test("everyone in the world shares the host's time, and it carries on when the h
     { timeout: 30_000 },
   );
 
+  // The one left hosts on from the shared time, not from a clock of its own. A newcomer to it adopts its time as the
+  // guest above adopted the first host's, so a third page would only start the game a third time.
+  const [before, left] = [await timeOf(guest), Date.now()];
   await host.context().close();
   await guest.waitForFunction(() => window.__alandDrive?.online().role === "host", null, { timeout: 30_000 });
-  const newcomer = await joinWorld(browser, world);
-  await newcomer.waitForFunction(
-    ([guestTime, near]) => Math.abs((window.__alandDrive?.day().gameDays ?? 0) - guestTime) < near,
-    [await timeOf(guest), SAME_TIME_DAYS] as const,
-    { timeout: 30_000 },
-  );
+  const after = await timeOf(guest);
+  const passed = (Date.now() - left) / 1000 / GAME_DAY_S;
+  expect(after - before).toBeGreaterThanOrEqual(0);
+  expect(after - before).toBeLessThan(passed + SAME_TIME_DAYS);
 
   await guest.context().close();
-  await newcomer.context().close();
 });
