@@ -1,0 +1,57 @@
+# The machine and the budget
+
+Everything a learner can do here is bounded by one laptop, one external GPU, and the nights the owner gives it. The numbers below are measured on this machine, each with the load it was measured under, and they are the input to every method decision (`methods.md`): a method's sample needs divided by these rates is its cost in nights, and that cost is told to the owner before anything is built.
+
+## Hardware
+
+- **CPU: AMD Ryzen 7 7840U**, 8 cores, 16 threads, a 15 to 28 W laptop part. It throttles under sustained load (every core busy runs at a lower clock, and the clock falls as it heats), so wall time is not a measure of work (the root `CLAUDE.md`: count work, never time). Worker pools default to 14 workers; 8 keep about 88% of the throughput.
+- **RAM: 62 GB.** WSL2 is capped by `.wslconfig` (12 GB and 8 processors as of this writing, a figure from when the machine had half its memory); the owner is willing to raise it when a project needs it. A new cap only takes effect after a WSL restart, which is never done while anything is running inside it, so a raise is planned for a quiet moment, not a night.
+- **Integrated GPU: Radeon 780M.** Not a training device on this setup; ignore it.
+- **External GPU: NVIDIA RTX 4070, 12 GB**, on a Thunderbolt link. The link is a PCIe x4-class connection, a fraction of a desktop slot's bandwidth: fine for training and vectorized environments, where the data lives on the device, and poor for anything that moves small tensors back and forth every step (single-sample inference across it is slower than the CPU). The driver reports 12,282 MiB; Windows' own adapter listing says 4 GB, a 32-bit overflow in the listing, not the card. The card is removable, and it has dropped out: when the laptop came off its charger the driver lost the device in the middle of a backward pass and the run died. A run checks its device at start, writes checkpoints often enough to lose little, and resumes from the last one.
+- **Python for the GPU:** the Windows-native Python, the one `python` on the PATH resolves to, with PyTorch's CUDA build and the usual scientific packages in its user site-packages; a run records the versions it ran on. There is no virtual environment for the GPU package; `npm run risk:gpu-test` runs its tests. WSL sees the card too, and other projects' fine-tunes have run there in their own virtual environments; its system Python has no torch, and its memory is whatever the cap allows. This repo's GPU work runs on Windows Python because that is where its packages and tests are; a Linux-only tool runs in WSL in its own virtual environment, with the cap checked against what it needs. The repo's root `.venv` belongs to the family tree's solver.
+- **Node 24** is the repo's runtime. The Monopoly learner's tfjs-node stack needs Node 22 (`mise exec node@22`) and native-binding workarounds on Windows; it is a dead end (`history.md`), not a stack to extend. Anything learned is PyTorch.
+- **GitHub Actions**: the repo is public, so its runners are free: up to 20 machines of 4 vCPUs each, 6 hours a job. Risk's harness splits gauntlets, ladders, recordings and native-engine games across them in rounds and merges the result into the same report a local run prints (`src/projects/risk/docs/actions.md`). It is for measurement and recording, not for training (no GPU, and a round's start-up costs more than a tuner's games).
+
+## Throughput, as measured
+
+| What | Rate | Measured under |
+|---|---|---|
+| Risk reference engine (TypeScript), greedy bots, 14 workers | 300 / 210 / 150 games/s at 3 / 4 / 6 players; 54 / 31 / 22 on one core | a free machine |
+| Risk rule bots in TypeScript, 14 workers | 1 to 13 games/s, 1,000 to 7,000 decisions/s; v6 about 2 ms a decision, 20 ms a turn | gauntlets in the run log |
+| Risk search bot v7 at 8 replies (TypeScript) | 262 ms a decision, 2.5 s a turn on one core; its gauntlets ran on GitHub Actions at 0.03 to 0.2 games/s across the runners | the run log |
+| Risk net-v1 (the exported transformer, 128×4) in TypeScript | 119 ms a decision on one loaded core; gauntlets at 0.07 to 0.27 games/s on the pool | the run log; why the real ruler ran rarely |
+| Risk native engine (Rust), a v6-class planner | about 10 games/s on 15 threads; a search bot's turn 0.27 to 0.35 s against v7.1's 2.5 s; a style bot 3 µs a decision | a loaded machine; the formal figure on a quiet machine was never taken |
+| Risk GPU engine (PyTorch, RTX 4070), batch 16,384, step captured as one CUDA graph | 127,000 decisions/s with greedy only; 60,000 with GD's personas in the league; 45,000 to 47,000 with anchor nets as well; 36,000 to 40,000 with a 256×6 net | the CPU saturated by gauntlets meanwhile |
+| Monopoly reference engine (TypeScript), rule bots | tens of games a second on the pool (an overnight parameter search played about a million games in seven hours); a capped game runs its full 2,000 turns and costs the most | the run records in the evolution log |
+| Monopoly rollout-search bot | about 600 games in 48 minutes on 14 workers | the evolution log |
+| Monopoly learner (tfjs-node, CPU) | never measured with the net in the loop; evaluation ran serially at about 95 s for six games | the design doc |
+| Local language models on the eGPU (llama.cpp) | 30 to 130 tokens/s depending on the model; a decision is seconds | the AI-seat log |
+
+### Other workloads, as orders of magnitude
+
+Not measured here yet; the first run of each kind measures it and replaces this paragraph's guess with a row above.
+
+- **A small net fitted to tabular or board features** (10⁵ to 10⁷ rows, a few hundred thousand weights): the GPU sees tens of millions of examples a minute; the dataset, not the card, is the limit, and such a fit is minutes.
+- **A transformer of a million weights on batches of thousands** (the Risk net): the card is busy and the environment's step, not the net, sets the rate.
+- **Fine-tuning a pretrained model under 12 GB:** a speech or vision model of a few hundred million weights trains whole at a few steps a second; a language model of several billion weights under 4-bit quantization with LoRA adapters trains at about a step a second on short sequences. A night is thousands of steps, which is many passes over a corpus of a few thousand examples.
+- **Local language-model inference** (llama.cpp on the card): tens to a hundred-odd tokens a second; a decision with thinking is seconds to a minute; a scenario suite of a hundred calls is an hour.
+
+## The arithmetic
+
+Nights × hours × rate = samples. A night is 6 to 12 hours; plan on 8. Compare with what the method needs (`methods.md`), and demand a margin of ten, because every run so far has spent its first night finding what it got wrong. The cases below are this repo's; a new project does the same sum with its own measured rate.
+
+- **PPO on the GPU engine:** 8 hours at 45,000 decisions/s is 1.3 billion decisions, about half of them the learner's. The from-scratch run reached three times par against GD's personas by about 235 million decisions and its best checkpoint by about 470 million, about half of them the learner's: the whole climb a from-scratch net has made fits in a night or two, and so does its plateau. A second night of the same recipe has never climbed. The budget is not the constraint on this line; the method's levers are (`diagnosis.md`, causes 2, 3, 5 and 6).
+- **Distillation labels:** a label is one teacher decision at its budget. With the TypeScript v7 at 2.5 s a turn, 10⁵ labelled decisions is a night on the laptop or a few hours on Actions; with the native search at a tenth of the time, it is an evening, and 10⁶ is a weekend. The student was still gaining about five points of the teacher's edge per doubling at 10⁵, so the next readings cost 2×, 4× and 8× that.
+- **A gauntlet of a learned bot in the TypeScript harness:** at 0.1 to 0.3 games/s, 2,000 games is 2 to 6 hours. That is why the in-training ruler must be a proven proxy on the fast side (the GPU or the native engine), and the harness the judge of a few checkpoints, not every one.
+- **Parameter search:** a candidate needs hundreds of games for its score to mean anything (Risk's tuner cells of 240 games were "too few to trust"; standard errors near 60 Elo at 70 games). A population of 16 over 20 generations at 400 games is 128,000 games: a night of cheap bots, a week of searching ones.
+- **Monopoly:** at tens of games a second, the engine affords parameter search and the hand-written loop, and nothing that learns from self-play. A million games is a night; a learner's first million is its first hour of noise.
+
+## Running a night
+
+- **Launch from PowerShell, in the background**, from one queue script that sets the working directory, runs the night's jobs in order, each with its arguments spelled out and its stdout and stderr redirected into its own run folder. Stopping a PowerShell task kills the whole process tree; a Git Bash task leaves the run playing with nobody reading (root `CLAUDE.md`, Bot measurement).
+- **Ask before taking the CPU** for more than about ten minutes; permission given at a task's start ("overnight", "use the whole machine") covers every run the task needs, and is written into any delegated agent's brief in so many words. A GPU run also loads the host (the trainer's update, the rollout's bookkeeping), so it counts, and where the root `CLAUDE.md` describes a machine budget queue for heavy commands, a training run's host-side work goes through it like any other.
+- **Keeping the machine awake is the owner's**, never requested.
+- **Check the device first.** A job that expects the eGPU asserts `torch.cuda.is_available()` and the device's name before it starts, and fails loudly otherwise; a silent fall-back to the CPU wastes the night and reports nothing. Keep the laptop on its charger while the eGPU is in use.
+- **Memory on the card.** 12 GB bounds the batch: the 128×4 net at a batch of 16,384 games fits; 384×8 did not and ran at half the batch, which changed its recipe and spoiled the comparison. An update that doesn't fit beside the environment is taken in chunks, the gradient summed over them before the step, so the minibatch is a choice and not a memory limit. CUDA graphs hold their own pools; an out-of-memory error names what held what.
+- **Checkpoints stay in the main checkout**, under the project's ignored runs folder, never in a worktree that may be removed.
+- **The morning report** reads the run folder, not the console: every checkpoint's panel reading with its interval, the kept best, the health metrics, throughput, and the verdict against the plan's predictions (`ruler.md`, the daily contract; `recipes.md`, the plan).
