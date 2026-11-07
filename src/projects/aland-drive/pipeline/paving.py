@@ -969,6 +969,21 @@ class Cover:
         height[at[found]] = planes[found]
         return height
 
+    def nearest(self, xy: np.ndarray, heights: np.ndarray) -> np.ndarray:
+        """The height at points where triangles lie over each other, on a bridge or an underpass, on the one nearest each
+        point's own height; one within its outline's tolerance counts, as a deck's edge stands over the floor running on under it."""
+        found = np.full(len(xy), np.nan)
+        if self.tree is None or not len(xy):
+            return found
+        at, which = self.tree.query(shapely.points(xy), predicate="dwithin", distance=OUTLINE_WITHIN_M)
+        planes = _on_planes(self.triangles[which], xy[at])
+        solid = ~np.isnan(planes)
+        at, planes = at[solid], planes[solid]
+        order = np.lexsort((np.abs(planes - heights[at]), at))
+        first = order[np.concatenate(([True], at[order][1:] != at[order][:-1]))] if len(order) else order
+        found[at[first]] = planes[first]
+        return found
+
     def beside(self, xy: np.ndarray, toward: np.ndarray) -> np.ndarray:
         """The height at points on the paving's edge as the paving on one side has it: the triangle nearest a step towards `toward`.
 
@@ -1524,7 +1539,8 @@ def rings_of(paved: Paved, nodes: np.ndarray, step: float) -> list[tuple[Chain, 
             continue
         keep = chain.kept
         edges = [chain.left, chain.centre, chain.right]
-        on_paving = [cover.at(edge[:, :2]) for edge in edges]
+        # The paving on the way's own level: a bridge's rings read its deck, not the road under it.
+        on_paving = [cover.nearest(edge[:, :2], chain.plane(edge[:, :2])) for edge in edges]
         left, centre, right = (np.column_stack((edge[:, :2], np.where(np.isnan(height), edge[:, 2], height))) for edge, height in zip(edges, on_paving))
         shoulder = chain.shoulder[keep][:, None] * chain.normal[keep]
         outer_left, outer_right = left[:, :2] + shoulder, right[:, :2] - shoulder

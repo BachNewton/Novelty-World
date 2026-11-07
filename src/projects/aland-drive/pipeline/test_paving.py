@@ -580,5 +580,17 @@ class Underpasses(unittest.TestCase):
             across = paving._on_planes(floor[held][:, :, [0, 1, 3]], np.repeat(at, len(held), axis=0))
             np.testing.assert_allclose(np.abs(across), 1, atol=0.02)
 
+    def test_each_way_s_rings_stand_on_its_own_level(self):
+        """What places things beside a way reads its rings. Under a deck they took whichever paving the point found first,
+        the floor's or the deck's, so a way over an underpass could read the floor and one under it the deck."""
+        ways = [road([(100, 600), (1100, 600)], "primary"), road([(600, 400), (600, 800)], "cycleway", motor=False, tunnel="yes")]
+        paved = paving.lay(ways, land())
+        nodes = paved.conformed[:: paving.NODE_STRIDE, :: paving.NODE_STRIDE]
+        rings = {chain.kind_name: ring for chain, ring, _, _ in paving.rings_of(paved, nodes, paved.ground.spacing * paving.NODE_STRIDE)}
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        for kind in ("primary", "cycleway"):
+            edges = rings[kind][:, 1:4]
+            np.testing.assert_allclose(edges[:, :, 2].ravel(), chains[kind].plane(edges[:, :, :2].reshape(-1, 2)), atol=0.3)
+
 if __name__ == "__main__":
     unittest.main()
