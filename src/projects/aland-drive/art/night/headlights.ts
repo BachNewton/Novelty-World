@@ -24,7 +24,8 @@ const REACH_M = 110;
 const UP = new Vector3(0, 1, 0);
 
 /**
- * How many other cars' headlights light the ground, the nearest to the camera with their lamps on. A fixed number, so
+ * How many other cars' headlights light the ground besides the player's own, the nearest to the camera with their lamps
+ * on: three, so four cars light the road, enough for four players together. A fixed number, so
  * every shader is built once and none is rebuilt as players come and go; the rest show their lamps as glows alone.
  */
 export const OTHERS_LIT = 3;
