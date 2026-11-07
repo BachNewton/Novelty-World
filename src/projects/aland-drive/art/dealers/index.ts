@@ -40,7 +40,7 @@ export function restingCar(spec: CarSpec, at: CarSlot["at"], yaw: number): CarSt
     steer: 0,
     car: spec.id ?? "skerry-gt",
     suspension: [spec.ride.sagM, spec.ride.sagM, spec.ride.sagM, spec.ride.sagM],
-    roll: 0,
+    roll: [0, 0, 0, 0],
     lamps: LAMPS_OFF,
   };
 }

@@ -64,6 +64,8 @@ const manifest = {
 
 const ROAD_Z = -3000;
 const ROAD_HEIGHT_ABOVE_M = 0.2;
+/** Half a car's length: a car still this near the road's line after a hit is in line with what it hit. */
+const ALONG_THE_LINE_M = 2.5;
 
 /** A straight road along z = ROAD_Z from one tile's edge to the other's, with a section every 10 m. */
 function roadBytes(fromX: number, toX: number): { bytes: ArrayBuffer; sections: number } {
@@ -108,7 +110,11 @@ const downOn = (drive: Drive, x: number, z: number) => {
   return 300 - hit.timeOfImpact;
 };
 
-/** Drives flat out east along the road from x = -2400, and says how fast the car got and how far east it came. */
+/**
+ * Drives flat out east along the road from x = -2400, and says how fast the car got and how far east it came along
+ * the road's line: a car thrown off a small prop at top speed may drive round it after, and only passing through it
+ * along the line is a failure.
+ */
 function flatOut(world: World): { fastest: number; furthest: number } {
   const onRoad = (x: number) => landHeight(x, ROAD_Z) + ROAD_HEIGHT_ABOVE_M;
   const drive = new Drive(world, new RoadLine(Float32Array.of(-2400, onRoad(-2400), ROAD_Z, -2300, onRoad(-2300), ROAD_Z)).at(0));
@@ -118,7 +124,7 @@ function flatOut(world: World): { fastest: number; furthest: number } {
     drive.step({ ...NO_INPUT, throttle: 1 });
     const { position, velocity } = drive.stateAt(1);
     fastest = Math.max(fastest, velocity[0]);
-    furthest = Math.max(furthest, position[0]);
+    if (Math.abs(position[2] - ROAD_Z) < ALONG_THE_LINE_M) furthest = Math.max(furthest, position[0]);
   }
   drive.dispose();
   return { fastest, furthest };

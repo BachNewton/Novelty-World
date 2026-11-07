@@ -94,7 +94,7 @@ export function wireState(state: CarState): CarState {
     car: state.car,
     steer: fine(state.steer),
     suspension: [fine(state.suspension[0]), fine(state.suspension[1]), fine(state.suspension[2]), fine(state.suspension[3])],
-    roll: metres(state.roll),
+    roll: state.roll.map(metres) as CarState["roll"],
     lamps: state.lamps,
   };
 }
@@ -122,9 +122,10 @@ function parseState(value: unknown): CarState | null {
   const velocity = numbers(value.velocity, 3);
   const spin = numbers(value.spin, 3);
   const suspension = numbers(value.suspension, 4);
-  const [steer, roll, car] = [value.steer, value.roll, value.car];
+  const roll = numbers(value.roll, 4);
+  const [steer, car] = [value.steer, value.car];
   if (typeof car !== "string" || car.length === 0 || car.length > 64) return null;
-  if (!position || !rotation || !velocity || !spin || !suspension || typeof steer !== "number" || !Number.isFinite(steer) || typeof roll !== "number" || !Number.isFinite(roll)) return null;
+  if (!position || !rotation || !velocity || !spin || !suspension || typeof steer !== "number" || !Number.isFinite(steer) || !roll) return null;
   const length = Math.hypot(...rotation);
   if (length < 0.5) return null;
   return {
@@ -135,7 +136,7 @@ function parseState(value: unknown): CarState | null {
     car: knownCar(car),
     steer,
     suspension: suspension as CarState["suspension"],
-    roll,
+    roll: roll as CarState["roll"],
     lamps: parseLamps(value.lamps),
   };
 }

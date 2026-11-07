@@ -106,7 +106,7 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
       wheels.forEach(({ steering, rolling, isFront }, index) => {
         steering.position.y = -ride.droopM + state.suspension[index];
         steering.rotation.y = isFront ? -state.steer : 0;
-        rolling.rotation.x = -state.roll;
+        rolling.rotation.x = -state.roll[index];
       });
     },
     dispose() {

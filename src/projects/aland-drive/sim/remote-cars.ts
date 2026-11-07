@@ -100,7 +100,7 @@ export function carriedOn(state: CarState, steps: number): CarState {
     ...state,
     position: add(state.position, state.velocity, seconds),
     rotation: turned(state.rotation, state.spin, seconds),
-    roll: state.roll + (forward / CARS[state.car].car.wheelRadiusM) * seconds,
+    roll: state.roll.map((turned) => turned + (forward / CARS[state.car].car.wheelRadiusM) * seconds) as CarState["roll"],
   };
 }
 

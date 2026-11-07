@@ -44,7 +44,7 @@ export function scriptedState({ along, speedMS }: ScriptedDriver, line: RoadLine
     spin: [0, 0, 0],
     steer: 0,
     suspension: [0, 0, 0, 0],
-    roll: along / tuning.car.wheelRadiusM,
+    roll: [along / tuning.car.wheelRadiusM, along / tuning.car.wheelRadiusM, along / tuning.car.wheelRadiusM, along / tuning.car.wheelRadiusM],
     lamps: { head: true, brake: false, reverse: false },
   };
 }

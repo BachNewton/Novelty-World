@@ -26,23 +26,29 @@ export interface TyreRead {
   slideMS: number;
   /** Asked over what it could grip: past 1 the tyre spins or locks. */
   demand: number;
+  /** How much faster the tread turns than the ground passes under it: a spinning tyre's above 0, a locked one's below. */
+  spinMS: number;
 }
 
 /** The slip angle a tyre still grips at, with room over the cars' peaks: up to here a corner is cornering, not a slide. */
 const GRIPPING_SLIP = 0.18;
 /** The speed the simulation's slip angle stops shrinking under. */
 const LOW_SPEED_MS = 3;
+/** How much faster or slower than the road a tread still grips at, with room over the cars' peak. */
+const GRIPPING_SLIP_RATIO = 0.15;
 /** Asked this far over its grip, a tyre is spinning or locked rather than at its limit. */
 const SPINNING_DEMAND = 1.15;
 /** How fast a spinning or locked tyre's tread rubs the ground at a standstill. */
 const SPIN_FLOOR_MS = 8;
 
 /** How fast the tread rubs the ground past what it grips, metres a second: sliding sideways, spinning or locked. */
-export function rubMS({ rollMS, slideMS, demand }: Pick<TyreRead, "rollMS" | "slideMS" | "demand">): number {
+export function rubMS({ rollMS, slideMS, demand, spinMS }: Pick<TyreRead, "rollMS" | "slideMS" | "demand" | "spinMS">): number {
   const rolling = Math.max(Math.abs(rollMS), LOW_SPEED_MS);
   const sliding = Math.max(0, Math.abs(slideMS) - rolling * Math.tan(GRIPPING_SLIP));
+  // A tyre held at its grip by the driver's aids scrubs; one let go spins or locks, and rubs as fast as it does.
   const scrub = demand > SPINNING_DEMAND ? (1 - SPINNING_DEMAND / demand) * Math.max(Math.abs(rollMS), SPIN_FLOOR_MS) : 0;
-  return Math.hypot(sliding, scrub);
+  const spinning = Math.max(0, Math.abs(spinMS) - rolling * GRIPPING_SLIP_RATIO);
+  return Math.hypot(sliding, Math.max(scrub, spinning));
 }
 
 /** Particles a second: some for rolling, more for rubbing, and never more than the most. */

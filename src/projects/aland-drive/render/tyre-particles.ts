@@ -294,7 +294,7 @@ export function createTyreParticles(scene: Scene, colour: (token: string) => Lin
       treads.forEach((tread, wheel) => {
         const debts = owed[wheel];
         const surface = surfaces[wheel];
-        const { rates, rub } = kicksOf({ surface, condition, tyres, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand });
+        const { rates, rub } = kicksOf({ surface, condition, tyres, rollMS: tread.rollMS, slideMS: tread.slideMS, demand: tread.demand, spinMS: tread.spinMS });
         for (const kick of debts.keys()) if (!rates.some(([thrown]) => thrown === kick)) debts.delete(kick);
         for (const [kick, perS] of rates) {
           let debt = (debts.get(kick) ?? random()) + perS * STEP_S;
