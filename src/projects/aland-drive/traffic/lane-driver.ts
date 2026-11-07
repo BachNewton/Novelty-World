@@ -162,6 +162,8 @@ const GO_ROUND_MS = 7;
 const QUEUE_M = 12;
 /** Going round, a car stops only for what is this close: it's in the other lane by choice, and gets out of it. */
 const TOUCH_M = 8;
+/** A vehicle's choices are its seed's shares from this salt on: the lower ones are its pace's and its model's. */
+const PICK_SALT = 16;
 
 export interface Pose {
   x: number;
@@ -221,9 +223,20 @@ export interface LaneCar {
   blockedS: number;
   model: number;
   seed: number;
+  /** How many choices it has made, each one a pure function of its seed and this count, so every page driving it chooses alike. */
+  picks: number;
   pose: Pose;
   last: Pose;
 }
+
+/**
+ * Everything a vehicle's driver carries on from: whoever drives it next, on this page or another, takes it up from
+ * exactly here. What's left out (its pace, size, signal and pose) follows from what's in it.
+ */
+export type LaneRecord = Pick<
+  LaneCar,
+  "id" | "kind" | "seed" | "model" | "place" | "speedMS" | "next" | "crossing" | "onRoad" | "exit" | "finished" | "body" | "shiftM" | "wantShiftM" | "meeting" | "waitedS" | "goingRound" | "blockedS" | "waiting" | "picks"
+>;
 
 type Line = LineRef;
 /** A line as part of a vehicle's way: from where it joins the line to where it leaves it, in metres along the line. */
@@ -359,6 +372,11 @@ export class LaneTraffic {
   readonly around: Around;
   /** Whether a vehicle whose trip has ended may go now: unseen, as the bubble judges it. Anywhere, alone. */
   mayGo: (car: LaneCar) => boolean = () => true;
+  /**
+   * Vehicles another player's page runs (`net/shared-traffic.ts`): this page drives them between that page's messages,
+   * as it drives its own, but never takes one away, which is the page running it to do.
+   */
+  readonly elsewhere = new Set<string>();
   private readonly cars = new Map<string, LaneCar>();
   private readonly junctions = new WeakMap<TileLanes, Map<number, number[]>>();
   private readonly links = new WeakMap<TileLanes, { onTo: Map<number, number[]>; offOf: Map<number, number[]> }>();
@@ -458,6 +476,7 @@ export class LaneTraffic {
       blockedS: 0,
       model,
       seed,
+      picks: 0,
       body,
       signal: SIGNAL.off,
       offLaneM: 0,
@@ -473,6 +492,37 @@ export class LaneTraffic {
   remove(id: string): void {
     this.cars.delete(id);
     this.around.forget(id);
+    this.elsewhere.delete(id);
+  }
+
+  /** A vehicle's record, to carry on from. */
+  record(car: LaneCar): LaneRecord {
+    const { id, kind, seed, model, place, speedMS, next, crossing, onRoad, exit, finished, body, shiftM, wantShiftM, meeting, waitedS, goingRound, blockedS, waiting, picks } = car;
+    return { id, kind, seed, model, place: { ...place }, speedMS, next, crossing, onRoad, exit, finished, body: { ...body }, shiftM, wantShiftM, meeting, waitedS, goingRound, blockedS, waiting, picks };
+  }
+
+  /**
+   * Puts a vehicle exactly where its record has it, as a new one or over the one of its id; none where its line's tile
+   * isn't loaded here. It is drawn sliding from where it stood to there over the next step.
+   */
+  restore(record: LaneRecord): LaneCar | null {
+    if (!this.net.tile(record.place.tile) || (record.next && !this.net.tile(record.next.tile))) return null;
+    const was = this.cars.get(record.id);
+    this.cars.delete(record.id);
+    const car = this.put(record.id, { ...record.place }, { x: 0, y: 0, z: 0, yaw: 0 }, record.speedMS, record.kind, record.model, record.seed);
+    Object.assign(car, { ...record, place: { ...record.place }, body: { ...record.body } });
+    const middle = this.middleOf(car);
+    const ground = this.onWay(car, 0);
+    car.pose = { ...middle, y: ground.y, yaw: car.body.heading };
+    car.last = was ? was.pose : car.pose;
+    car.offLaneM = Math.hypot(middle.x - (ground.x - ground.dz * car.shiftM), middle.z - (ground.z + ground.dx * car.shiftM));
+    car.signal = this.signalOf(car);
+    return car;
+  }
+
+  /** A vehicle's next choice, between 0 and 1. */
+  private pick(car: LaneCar): number {
+    return seedShare(car.seed, PICK_SALT + car.picks++);
   }
 
   /** The people a tile's people files place, where each stands, as (x, z) pairs: walkers and cyclists go round them. */
@@ -546,7 +596,7 @@ export class LaneTraffic {
       car.shiftM += Math.max(-across, Math.min(across, car.wantShiftM - car.shiftM));
       const route = this.route(car);
       if (this.endsHere(car, route) && car.speedMS < BUILDS[car.kind].slowestMS && route[0].to - car.place.along < BUILDS[car.kind].standstillM + 2 * car.half[1]) car.finished = true;
-      if (car.finished && this.mayGo(car)) {
+      if (car.finished && !this.elsewhere.has(car.id) && this.mayGo(car)) {
         this.remove(car.id);
         continue;
       }
@@ -585,9 +635,12 @@ export class LaneTraffic {
         end = this.route(car)[0].to;
       }
       if (nowhere && along > end) {
-        // The lane leads off the loaded tiles, or nowhere.
-        this.remove(car.id);
-        continue;
+        // The lane leads off the loaded tiles, or nowhere: its runner takes it away, and here it waits for that.
+        if (!this.elsewhere.has(car.id)) {
+          this.remove(car.id);
+          continue;
+        }
+        along = end;
       }
       car.place = { ...car.place, along };
       this.around.put(car.id, car.place);
@@ -763,7 +816,7 @@ export class LaneTraffic {
     if (tile.lanes[place.index].path) return null;
     for (const index of this.linksOf(tile).offOf.get(place.index) ?? []) {
       const along = tile.links[index].along;
-      if (along > place.along + 3 && this.random() < TURN_OFF) return { link: index, along };
+      if (along > place.along + 3 && this.pick(car) < TURN_OFF) return { link: index, along };
     }
     return null;
   }
@@ -798,7 +851,7 @@ export class LaneTraffic {
     }
     const back = car.kind === "walker" && ways.length === 0 ? this.otherWay(tile, car.place.index) : null;
     if (back !== null) ways.push({ way: { tile: car.place.tile, index: back, connector: false }, crossing: null });
-    const chosen = ways.length > 0 ? ways[Math.floor(this.random() * ways.length)] : null;
+    const chosen = ways.length > 0 ? ways[Math.floor(this.pick(car) * ways.length)] : null;
     car.next = chosen?.way ?? null;
     car.crossing = chosen?.crossing ?? null;
     return car.next;

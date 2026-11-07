@@ -32,6 +32,7 @@ from shapely.geometry import Point, Polygon, box
 from shapely.affinity import rotate, translate
 
 from grid import lonlat_to_grid, to_local
+from paving_file import read_paving
 from sources import osm_furniture_path
 
 # The art's own measures (`art/street/furniture.ts`, `art/people/poses.ts`); `furniture.test.ts` holds them equal.
@@ -138,11 +139,8 @@ class Surface:
                 for a, b in zip(part, part[1:]):
                     for left, right in ((1, 2), (2, 3)):
                         triangles += [np.array([a[left], b[left], b[right]]), np.array([a[left], b[right], a[right]])]
-            aprons = surface["aprons"]
-            start = sections * 15 * 4 + sections
-            points = np.frombuffer(data, dtype="<f4", count=aprons["points"] * 5, offset=start).reshape(-1, 5)[:, :3].astype(np.float64)
-            corners = np.frombuffer(data, dtype="<u4", count=aprons["triangles"] * 3, offset=start + aprons["points"] * 20).reshape(-1, 3)
-            triangles += list(points[corners])
+            laid = read_paving(folder, manifest)
+            triangles += list(laid.points[laid.triangles][:, :, :3])
         self.triangles = triangles
         self.tree = shapely.STRtree([Polygon(triangle[:, :2]) for triangle in triangles]) if triangles else None
 

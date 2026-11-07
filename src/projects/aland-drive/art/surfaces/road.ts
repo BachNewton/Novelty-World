@@ -50,6 +50,8 @@ export interface RoadInput {
 export interface RoadDress {
   /** What the carriageway is, paint aside. */
   carriageway: Node<"vec3">;
+  /** The carriageway as gravel, whatever the road is sealed with: a country path's own gravel wears it. */
+  gravel: Node<"vec3">;
   /** Where the shoulder takes over, 0 to 1, a broken edge rather than a ruled one. */
   shoulderShare: Node<"float">;
   shoulder: Node<"vec3">;
@@ -126,5 +128,5 @@ export function dressRoad({ tiled, toCamera, across, signedAcross, along, paved,
 
   const paintLeft = min(float(1), smoothstep(float(0.28), float(0.5), fine.g.mul(0.5).add(coarse.a.mul(0.5))).mul(0.45).add(0.6));
 
-  return { carriageway, shoulderShare, shoulder, paintLeft };
+  return { carriageway, gravel, shoulderShare, shoulder, paintLeft };
 }

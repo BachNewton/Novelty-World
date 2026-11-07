@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/aland-drive/challenge/** src/projects/aland-drive/render/challenge-marks.ts
 import type { Server } from "node:http";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";

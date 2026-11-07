@@ -46,6 +46,7 @@ from shapely.geometry import LineString, MultiLineString, Point, Polygon
 from shapely.ops import linemerge, substring, unary_union
 
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, tile_from_name
+from paving_file import read_paving
 from sources import osm_xml, topographic_path
 
 FILE = "walls.json"
@@ -270,12 +271,9 @@ def road_surface(folder: Path, manifest: dict) -> tuple[list[Polygon], np.ndarra
         centres += [*chain_rings[:, 2], (np.nan, np.nan)]
         centre_tiers += [*tiers[first : first + chain["sections"]], 0]
         first += chain["sections"]
-    at = sections * 15 * 4 + sections
-    aprons = surface.get("aprons", {})
-    count = aprons.get("points", 0)
-    points = np.frombuffer(data, "<f4", count=count * 5, offset=at).reshape(-1, 5)[:, :2].astype(np.float64) + WORLD_ORIGIN
-    triangles = np.frombuffer(data, "<u4", count=aprons.get("triangles", 0) * 3, offset=at + count * 5 * 4).reshape(-1, 3)
-    shapes += [Polygon(points[triangle]) for triangle in triangles]
+    laid = read_paving(folder, manifest)
+    points = laid.points[:, :2] + WORLD_ORIGIN
+    shapes += [Polygon(points[triangle]) for triangle in laid.triangles]
     return shapes, np.array(centres), np.array(centre_tiers, np.uint8)
 
 

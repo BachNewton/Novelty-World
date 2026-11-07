@@ -25,7 +25,7 @@ const WALL_TALL_M = 6;
 
 const blockKey = (row: number, column: number) => row * 65536 + column;
 
-/** A loaded block's triangles in the order its mesh has them: the ground's, then each road triangle's surface, then the walls'. */
+/** A loaded block's triangles in the order its mesh has them: the ground's, then each road triangle's surface, then the cut ground's and the walls', which are the ground's. */
 interface BlockSurfaces {
   triangles: number;
   groundTriangles: number;
@@ -115,6 +115,11 @@ export class GroundBlocks {
       road.push({ positions: ribbon.positions, indices: ribbon.indices, triangle });
       roadSurfaces.push(surface);
     });
+    // Where the paving cuts the ground, the cut ground's triangles stand in for the grid's. They come after the roads,
+    // with no surface of their own listed: past the roads is the ground's.
+    world.forCutInBlock(column, row, (cut, triangle) => {
+      road.push({ positions: cut.positions, indices: cut.indices, triangle });
+    });
     const walls: { from: Float32Array; at: number }[] = [];
     world.forWallsInBlock(column, row, (from, at) => {
       walls.push({ from, at });
@@ -131,9 +136,14 @@ export class GroundBlocks {
         vertices[at + 2] = (top + r) * stepM;
       }
     }
-    indices.set(this.patch);
+    let next = 0;
+    for (let cell = 0; cell < BLOCK_CELLS * BLOCK_CELLS; cell++) {
+      if (world.isCut(left + (cell % BLOCK_CELLS), top + Math.floor(cell / BLOCK_CELLS))) continue;
+      indices.set(this.patch.subarray(cell * 6, cell * 6 + 6), next);
+      next += 6;
+    }
+    const groundTriangles = next / 3;
     let vertex = across * across;
-    let next = this.patch.length;
     for (const { positions, indices: ribbonIndices, triangle } of road) {
       for (let corner = 0; corner < 3; corner++) {
         const from = ribbonIndices[triangle + corner] * 3;
@@ -151,8 +161,8 @@ export class GroundBlocks {
       next += 6;
     }
     this.built++;
-    const collider = this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
-    this.surfaces.set(collider.handle, { triangles: indices.length / 3, groundTriangles: this.patch.length / 3, roads: Uint8Array.from(roadSurfaces) });
+    const collider = this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices.subarray(0, next)).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
+    this.surfaces.set(collider.handle, { triangles: next / 3, groundTriangles, roads: Uint8Array.from(roadSurfaces) });
     return collider;
   }
 }

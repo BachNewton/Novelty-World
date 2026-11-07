@@ -432,9 +432,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             <CoopNotice key={notice.seen} notice={notice} onDone={() => { setNotice(null); }} />
           )}
           {others.length > 0 && playing === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Other players online" title={others.join(", ")}>
+            <div className="pointer-events-none absolute top-16 right-6 flex items-center gap-1 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} aria-label="Players online, you included" title={["You", ...others].join(", ")}>
               <Users className="size-5" style={{ color: PLAYER }} aria-hidden />
-              <span>{others.length}</span>
+              <span>{others.length + 1}</span>
             </div>
           )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>
