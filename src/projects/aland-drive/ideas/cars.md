@@ -18,7 +18,7 @@ Test Drive Unlimited 2's scheme, with each tier's performance moved to today's c
 
 ## How many
 
-**About 38 cars: two to three per tier**, so about 18 in A, 12 in B and 8 in C. The count follows from the events: a tier with about four events needs enough cars that entering one is a choice between driving styles. Most of the cars to add are in A1–A3 and B1–B2, where today there are none.
+**About 38 cars: two to three per tier**, so about 18 in A, 12 in B and 8 in C. The count follows from the events: a tier with about four events needs enough cars that entering one is a choice between driving styles. Most of the cars to add are in A1–A4, where today there is only Sund, then across B and C.
 
 ## How the list is built
 
@@ -29,6 +29,90 @@ From the tiers down, not from today's cars up:
 3. **Each slot's cost written beside it**, so the cheap choices show next to the dear ones. The challenges, the races, the player's start (Grus) and the tools and tests (the Skerry GT) name cars by id, so a removed car means repointing them; a retuned car's limits are measured again and the challenges' targets set again from them; reusing a car's art is cheap, a new body isn't.
 
 Each slot also says how its car reaches the island and who makes it.
+
+## The car list (draft)
+
+A draft for the owner's review: 38 slots, 13 of them today's cars and 25 new. The tiers' bands, from the fastest: A1 0–100 km/h in 2.7 s or less, A2 2.8–3.1 s, A3 3.2–3.6 s, A4 3.7–4.2 s, A5 4.3–4.9 s, A6 5.0–5.6 s, A7 5.7–7.0 s, measured on dry asphalt in the limits table. B and C tiers are set by how the cars rank on gravel and by age, with figures to suit. Makers are named by role for now (see "Makers by role" below); the cars' own names come with their art.
+
+**Where cars come from:** H the harbour (ordered, shipped in), D a dealer or the used lot, M the motor club, F found in a barn.
+
+### A: Asphalt
+
+| Tier | Slot | Car | 0–100, top | Drive | Maker | From | Cost |
+|---|---|---|---|---|---|---|---|
+| A1 | Hybrid hypercar: a mid-mounted engine and electric motors | New | 2.5 s, 380 km/h | AWD | Nordic sports | H | New car |
+| A1 | Electric hypercar: four motors, the hardest launch in the game | New | 2.0 s, 360 km/h | AWD | Electric | H | New car |
+| A2 | Mid-engined V8 supercar | New | 2.9 s, 330 km/h | RWD | Nordic sports | H | New car |
+| A2 | Twin-turbo grand-sport coupé, all grip and technology | New | 2.9 s, 320 km/h | AWD | Grand sport | H | New car |
+| A2 | Front-engined big-engine muscle supercar, wild at the back | New | 3.1 s, 330 km/h | RWD | Muscle | H | New car |
+| A3 | Front-engined V12 grand tourer | New | 3.4 s, 330 km/h | RWD | Grand touring | H | New car |
+| A3 | Mid-engined sports car, the supercar's smaller sibling | New | 3.3 s, 310 km/h | RWD | Nordic sports | H | New car |
+| A3 | Lightweight track car, barely a body | New | 3.2 s, 260 km/h | RWD | Track | H | New car |
+| A4 | Flat-plane V8 two-seater | **Sund** | 3.9 s, 313 km/h | RWD | Nordic sports | H | As it is |
+| A4 | Front-engined V8 sports coupé | New | 3.8 s, 310 km/h | RWD | Grand touring | H | New car |
+| A4 | Super-estate: a family car with a supercar's engine | New | 3.8 s, 290 km/h | AWD | Grand sport | H | New car |
+| A5 | Sports fastback, straight six | **Skerry GT** | 4.7 s, 258 km/h | RWD | Nordic sports | D | As it is |
+| A5 | Electric saloon | **Ström** | 4.3 s, 231 km/h | AWD | Nordic family | D | As it is |
+| A5 | V12 luxury saloon | **Ankar** | 4.6 s, 292 km/h | RWD | Grand touring | D | Retune from 5.0 s; 1 challenge, 1 race |
+| A6 | Open four-seat V6 cruiser | **Bris** | 5.4 s, 242 km/h | RWD | Grand touring | D | As it is |
+| A6 | Hot hatch that revs to 8,200 | **Sten** | 5.4 s, 238 km/h | FWD | Rally | D | As it is |
+| A7 | The classic hot hatch, turbo four | New | 6.0 s, 245 km/h | FWD | Nordic family | D | New car |
+| A7 | Pocket rocket, turbo triple | **Ljus** | 6.6 s, 205 km/h | FWD | Nordic family | D | Retune from 7.8 s, a small car made hot; 1 race |
+
+### B: Gravel
+
+| Tier | Slot | Car | On tarmac | Drive | Maker | From | Cost |
+|---|---|---|---|---|---|---|---|
+| B1 | Rally special, turbo flat four, a wing | **Grus** | 3.9 s, 252 km/h | AWD | Rally | M | As it is |
+| B1 | Today's top-class rally car, hybrid boost | New | 3.2 s, 210 km/h, geared short | AWD | Rally | M | New car |
+| B1 | Electric rallycross car, instant shove on loose ground | New | 2.6 s, 200 km/h | AWD | Electric | M | New car |
+| B2 | Rally-bred road hatch, a homologation special | New | 5.3 s, 230 km/h | AWD | Rally | D | New car |
+| B2 | Fast Nordic estate, turbo five, gravel-wise | **Fjärd** | 5.6 s, 244 km/h | AWD | Nordic family | D | Re-classed to gravel grip; 5 races |
+| B2 | Desert pickup, long travel, a big V6 | New | 5.8 s, 180 km/h | AWD | Muscle | H | New car |
+| B3 | V8 pickup, soft and heavy | **Holm** | 6.7 s, 203 km/h | AWD | Workhorse | D | As it is |
+| B3 | Fast luxury four-by-four, boxy and loud | New | 4.5 s, 240 km/h | AWD | Grand sport | H | New car |
+| B3 | Electric pickup | New | 4.5 s, 200 km/h | AWD | Electric | D | New car |
+| B4 | Old four-by-four, slow straight six, mud tyres | **Berg** | 12.1 s, 154 km/h | AWD | Workhorse | D | As it is |
+| B4 | Modern utility four-by-four, diesel | New | 9.0 s, 175 km/h | AWD | Workhorse | D | New car |
+| B4 | Tiny four-by-four, narrow and light, for the forest tracks | New | 12 s, 145 km/h | AWD | Workhorse | D | New car |
+
+### C: Classic
+
+| Tier | Slot | Car | 0–100, top | Drive | Maker | From | Cost |
+|---|---|---|---|---|---|---|---|
+| C1 | 1990s supercar, three seats, a naturally aspirated V12 | New | 3.4 s, 370 km/h | RWD | Classic exotic | F | New car |
+| C1 | 1980s Group B rally monster | New | 3.5 s, 220 km/h | AWD | Rally | F | New car |
+| C2 | 1960s V12 grand tourer, a racer for the road | New | 6.0 s, 280 km/h | RWD | Classic exotic | F | New car |
+| C2 | 1990s rally-bred saloon, turbo four | New | 5.7 s, 220 km/h | AWD | Rally | F | New car |
+| C3 | Tiny open roadster, twin carbs, skinny tyres | **Vik** | 7.5 s, 181 km/h | RWD | Nordic sports | F | As it is |
+| C3 | 1970s American-style V8 muscle car | New | 6.5 s, 210 km/h | RWD | Muscle | F | New car |
+| C4 | Old estate, tired four, four-speed box | **Sälta** | 13.3 s, 149 km/h | RWD | Nordic family | F | As it is |
+| C4 | The people's car, air-cooled, round | New | 25 s, 115 km/h | RWD | People's car | F | New car |
+
+### Outside the tiers
+
+- **Kobb**, the turbo-diesel van, stays as a working car, not in any event: it carries its challenge, and a van has jobs ahead (deliveries, the bucket list). Nothing to repoint.
+- **No car leaves.** Every car of today has a slot or a job, so no challenge, race, tool or test needs repointing. The cost of the list is the 25 new cars and three retunes: Ankar and Ljus re-measured and their challenge and race set again, and Fjärd moved to gravel grip, which suits its five races, most of them on loose ground.
+
+### Makers by role
+
+Eleven makers, a few big and a long tail, as TDU2's were, several spanning eras so a classic and a new car share a badge:
+
+| Maker | Cars | Of today's | Kind |
+|---|---|---|---|
+| Nordic sports | 6: A1, A2, A3, Sund, Skerry GT, Vik | Tärna | The island's own dream brand, from a 1960s roadster to a hypercar, as a small Nordic maker can be |
+| Rally | 6: Grus, the top rally car, the rally hatch, Sten, Group B, the 1990s saloon | | A rally maker's whole history, from Group B to today |
+| Nordic family | 5: Ström, Ljus, the hot hatch, Fjärd, Sälta | Västan | The everyday maker, from the old estate to the electric saloon |
+| Grand touring | 4: the V12 GT, the V8 coupé, Ankar, Bris | | Front engines, long bonnets, comfort at speed |
+| Workhorse | 5: Holm, Berg, the utility, the tiny four-by-four, Kobb | Klippa | Tools and load, from the village garage |
+| Grand sport | 3: the AWD coupé, the super-estate, the luxury four-by-four | | Technology and grip |
+| Muscle | 3: the A2 supercar, the desert pickup, the 1970s muscle car | | Big engines, from the 1970s to today |
+| Electric | 3: the hypercar, the rallycross car, the pickup | | A young maker, electric only |
+| Classic exotic | 2: the 1990s supercar, the 1960s GT | | A great name of the past, found in barns |
+| Track | 1: the lightweight | | The long tail |
+| People's car | 1 | | The long tail |
+
+Room is left for a twelfth if a slot wants a maker of its own when it's drawn.
 
 ## How cars reach the island
 
