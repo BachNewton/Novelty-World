@@ -6,7 +6,7 @@ A plan for later, not started: the owner wants the game's sound taken as one who
 
 - **Places blurred into one wash.** The forest, the shore, the town and the frozen sea each sounded like the same broadband rush, and wind was mistaken for waves. The fix so far: each place got its own signature (birds and a woodpecker in the forest, waves and gulls at the sea, lapping at a lake, creaks on the ice, a church bell on the hour), and the forest's wind, the town's ambient bed and the ice's wind were removed. Wind is now the car's own at speed.
 - **The town is its traffic and its people.** Passing cars, bicycles and footsteps are to come from the real traffic, cyclists and walkers, through the placed-sound mechanism (`audio/placed.ts`), which the traffic side builds its sounds on.
-- **Gravel** was rebuilt as a crunch rather than rain-like pings; the noise under the crunches still doesn't sound right (see `CLAUDE.md`, Sound).
+- **Gravel** was rebuilt as a crunch rather than rain-like pings; the noise under the crunches still doesn't sound right (see `audio/CLAUDE.md`).
 - **The weather's own gusting wind** still plays by the wind's speed, even with the car standing still. Whether it stays, under "wind is the car's own", is for this pass.
 - **The rain** was remade once and not judged since.
 

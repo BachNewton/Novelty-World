@@ -1,6 +1,6 @@
 # Junctions: what's left
 
-The junction work still to do, after the surface described in `CLAUDE.md` ("The road surface"). All of it needs a tile rebuild and a new `TILES_VERSION`, and it was left out of the rebuild shared with the forest stands so that the forest wouldn't wait. A rebuild, a publish and landing on main are each the owner's call. Junction work is judged by the owner in `?junction-lab`, and seams must pass.
+The junction work still to do, after the surface described in `pipeline/CLAUDE.md` ("The road surface"). All of it needs a tile rebuild and a new `TILES_VERSION`, and it was left out of the rebuild shared with the forest stands so that the forest wouldn't wait. A rebuild, a publish and landing on main are each the owner's call. Junction work is judged by the owner in `?junction-lab`, and seams must pass.
 
 ## Paint
 

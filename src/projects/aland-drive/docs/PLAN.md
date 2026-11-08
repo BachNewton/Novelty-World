@@ -1,6 +1,6 @@
 # Åland Drive: the plan
 
-The phased route from an empty scene to a Test Drive Unlimited-style game on the main island of Åland. The project's `CLAUDE.md` holds the standing decisions (platform, floor, graphics approach, data, hosting); this doc holds the order of the work, why it runs in that order, and what finishes each phase. A phase is done when its exit test passes, not when its list is ticked.
+The phased route from an empty scene to a Test Drive Unlimited-style game on the main island of Åland. The project's `CLAUDE.md` holds the standing decisions (platform, floor, graphics approach, hosting; the data is `docs/DATA.md`); this doc holds the order of the work, why it runs in that order, and what finishes each phase. A phase is done when its exit test passes, not when its list is ticked.
 
 ## The game
 
@@ -91,7 +91,7 @@ Everything, end to end.
 - Road discovery percentage and odometer.
 - Races and time trials on real roads.
 - Earning money, buying cars and a house.
-- **Online free roam is in:** one shared world on the relay with no code, every player's car on the road, colliding for real, and on both maps (`CLAUDE.md`, Multiplayer). Still to come on it: challenges on the spot.
+- **Online free roam is in:** one shared world on the relay with no code, every player's car on the road, colliding for real, and on both maps (`net/CLAUDE.md`). Still to come on it: challenges on the spot.
 
 **Exit test:** a reason to keep driving, and two players meeting on a road.
 
@@ -99,7 +99,7 @@ Everything, end to end.
 
 Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
 
-**Traffic is on the water too, and comes first.** Boats under way don't share the cars' logic: nothing on the water has to react to the player, so a boat's place is a pure function of its lane and the world's clock (`sea/`), which runs at real speed whatever a day and night cycle does, the same for every player with nothing sent, while car traffic will react to the players, and is shared by passing each car to the player nearest it (`ideas/traffic-and-racers.md`). So ferries on their timetables and small boats on their trips are in the game ahead of the cars (see `CLAUDE.md`, "Boats under way"), and cars don't wait on them or they on cars.
+**Traffic is on the water too, and comes first.** Boats under way don't share the cars' logic: nothing on the water has to react to the player, so a boat's place is a pure function of its lane and the world's clock (`sea/`), which runs at real speed whatever a day and night cycle does, the same for every player with nothing sent, while car traffic will react to the players, and is shared by passing each car to the player nearest it (`ideas/traffic-and-racers.md`). So ferries on their timetables and small boats on their trips are in the game ahead of the cars (see `sea/CLAUDE.md`), and cars don't wait on them or they on cars.
 
 **Time of day and the seasons run on the world's clock**, the same for every player in the world, worked out from it with nothing sent. Things in the world move in real time, but the day runs faster than real time, as racing games' days do. The sun stands where it would over Åland's real latitude and longitude on that date, so summer has long days and winter long nights. The date is the real one, so the seasons are the real calendar's, and they change gradually rather than on a date (`docs/TIME-AND-WEATHER.md`).
 

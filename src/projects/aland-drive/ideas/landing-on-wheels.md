@@ -6,7 +6,7 @@ How Åland Drive could make a car that flies off a crest more likely to land on 
 
 Hitting a bump or a hill and rolling through the air is fun. Landing on the roof and having to reset is not. The game should cheat the physics enough that most big jumps end on four wheels, but not so much that a crash feels taken away from the player.
 
-The rule in `CLAUDE.md` stays: nothing puts the car back by itself, and a reset is always the player's, with R or Y. Everything here is about the car's own motion, never a teleport.
+The rule in `sim/CLAUDE.md` stays: nothing puts the car back by itself, and a reset is always the player's, with R or Y. Everything here is about the car's own motion, never a teleport.
 
 ## What the car already does against rolling
 

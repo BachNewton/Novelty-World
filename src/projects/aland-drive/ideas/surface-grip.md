@@ -1,6 +1,6 @@
 # Grip by surface and by condition
 
-How Åland Drive's cars grip on each surface in each condition, why the model is shaped as it is, and what is still open. The model is built (see `CLAUDE.md`, The car); its numbers are a first pass, to be tuned by the owner's feel in the game. Weather and seasons don't exist yet: the condition is an input, dry unless a dev switch says otherwise.
+How Åland Drive's cars grip on each surface in each condition, why the model is shaped as it is, and what is still open. The model is built (see `sim/CLAUDE.md`); its numbers are a first pass, to be tuned by the owner's feel in the game. Weather and seasons don't exist yet: the condition is an input, dry unless a dev switch says otherwise.
 
 ## What the reference games do
 

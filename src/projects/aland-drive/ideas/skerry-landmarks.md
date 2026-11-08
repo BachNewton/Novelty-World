@@ -1,6 +1,6 @@
 # Landmarks out on the skerries
 
-An idea, not a plan: nothing is decided or scheduled. It waits on the world reaching past Fasta Åland's roads, such as riding the ferries (see "Boats under way" in the project's `CLAUDE.md`, and `ideas/floating-origin.md`).
+An idea, not a plan: nothing is decided or scheduled. It waits on the world reaching past Fasta Åland's roads, such as riding the ferries (see `sea/CLAUDE.md`, and `ideas/floating-origin.md`).
 
 ## The gap
 

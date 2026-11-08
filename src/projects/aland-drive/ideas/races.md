@@ -1,6 +1,6 @@
 # Races
 
-The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Step 1 of the build order, races on the map, is built (the project's `CLAUDE.md`, "Challenges"): with no racers yet, a finish is first. The rest isn't. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-laps.json` hold each race as laid on the road.
+The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Step 1 of the build order, races on the map, is built (`challenge/CLAUDE.md`): with no racers yet, a finish is first. The rest isn't. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-laps.json` hold each race as laid on the road.
 
 The order of work is the owner's: plan, then races on the map, then the AI drivers.
 

@@ -4,7 +4,7 @@ An idea, not a plan: take it up only if the towns look pruned, with trees round 
 
 ## What the rule does now
 
-Every tree reads the clearing round buildings (`pipeline/clearing.py`) and is no taller than lets its crown clear the nearest building, as the forest's part of `CLAUDE.md` describes. The rule is conservative in three ways:
+Every tree reads the clearing round buildings (`pipeline/clearing.py`) and is no taller than lets its crown clear the nearest building, as the forest's part of `render/CLAUDE.md` describes. The rule is conservative in three ways:
 
 - **One crown for every tree.** The reach (`CROWN_REACH`, `render/tree-shapes.ts`) is the widest any tree has: a broadleaf's far crown, drawn wider so it reads at a distance, with the most any tree spreads and leans. A spruce's crown is much narrower, so a 15 m spruce stands about 7.4 m from a wall when about 4 m would do.
 - **No overhang.** In real towns a trunk often stands clear of a wall with its crown above the roof. The rule treats the whole crown as if it hung at ground level.
