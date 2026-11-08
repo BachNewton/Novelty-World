@@ -124,7 +124,7 @@ async function start(width: number, height: number) {
         camera.fov = shot.camera === "eye" ? 52 : 60;
         if (shot.camera === "eye") {
           camera.position.copy(eye);
-          camera.lookAt(eye.x, eye.y - 0.24, eye.z - 2);
+          camera.lookAt(eye.x, eye.y - 0.34, eye.z - 2);
         } else if (shot.camera === "side") {
           camera.position.copy(eye);
           camera.lookAt(eye.x + 2, eye.y - 0.3, eye.z - 0.3);

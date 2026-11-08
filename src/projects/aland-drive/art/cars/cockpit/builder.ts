@@ -169,8 +169,9 @@ export class CockpitBuilder {
 
   finish(creaseDeg: number): CockpitSoup {
     const cosine = Math.cos((creaseDeg * Math.PI) / 180);
-    const key = ([x, y, z]: Point, group: number) => `${group}:${Math.round(x * WELD_PER_M)},${Math.round(y * WELD_PER_M)},${Math.round(z * WELD_PER_M)}`;
-    const atCorner = new Map<string, Face[]>();
+    // Faces of every group share a place's list, and only those of the face's own group are read from it.
+    const key = ([x, y, z]: Point, _group: number) => weldKey(x, y, z);
+    const atCorner = new Map<number, Face[]>();
     for (const face of this.faces) {
       for (const corner of face.corners) {
         const known = atCorner.get(key(corner, face.group));
@@ -194,7 +195,7 @@ export class CockpitBuilder {
         const sum: Point = [0, 0, 0];
         // Group 0 is faceted: each flat face keeps its own normal.
         for (const other of face.group === 0 ? [face] : (atCorner.get(key(corner, face.group)) ?? [])) {
-          if (dot(other.normal, face.normal) < cosine) continue;
+          if (other.group !== face.group || dot(other.normal, face.normal) < cosine) continue;
           sum[0] += other.normal[0] * other.area;
           sum[1] += other.normal[1] * other.area;
           sum[2] += other.normal[2] * other.area;
@@ -211,6 +212,12 @@ export class CockpitBuilder {
     });
     return soup;
   }
+}
+
+/** A corner's place welded to a fifth of a millimetre, as one whole number: each axis within ±6.5 m of the car's middle. */
+export function weldKey(x: number, y: number, z: number): number {
+  const [i, j, k] = [Math.round(x * WELD_PER_M) + 32768, Math.round(y * WELD_PER_M) + 32768, Math.round(z * WELD_PER_M) + 32768];
+  return (i * 65536 + j) * 65536 + k;
 }
 
 function centroid(points: readonly Point[]): Point {

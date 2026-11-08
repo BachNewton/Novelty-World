@@ -13,7 +13,7 @@ describe.each(CARS.map((spec) => [spec.name, spec] as const))("%s's cockpit", (_
   const halfWidth = curve(spec.body.halfWidth);
   const lowestSill = Math.min(...spec.body.sill.map(([, h]) => h));
 
-  // The shell's own inner skin is inside it by how it's made, and an open car's seats stand above its door line.
+  // The shell's own inner skin is inside it by how it's made, and in an open car's opening the seats stand above its body.
   it("stays inside the body", () => {
     const out: string[] = [];
     const { positions, paintOf, paints } = parts.soup;
@@ -21,7 +21,8 @@ describe.each(CARS.map((spec) => [spec.name, spec] as const))("%s's cockpit", (_
       const [x, y, z] = [positions[at], positions[at + 1], positions[at + 2]];
       const h = y - frame.ground;
       const skin = paints[paintOf[at / 3]].token === frame.style.colours.headliner;
-      const tooHigh = !frame.open && !skin && h > frame.roofAt(x, z) + 0.005;
+      const inOpening = frame.opening !== null && z > frame.opening[0] && z < frame.opening[1];
+      const tooHigh = !skin && !inOpening && z > frame.header.z && h > frame.roofAt(x, z) + 0.005;
       if (Math.abs(x) > halfWidth(z) + spec.body.flareM + 0.005 || tooHigh || h < lowestSill) out.push(`${x.toFixed(3)}, ${h.toFixed(3)}, ${z.toFixed(3)}`);
     }
     expect(out.slice(0, 5)).toEqual([]);

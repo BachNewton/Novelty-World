@@ -46,6 +46,8 @@ export interface CockpitFrame {
   top: (z: number) => number;
   /** The roof's outside at x across and z along, falling off from the middle by its crown. */
   roofAt: (x: number, z: number) => number;
+  /** An open car's cockpit opening, from the front of it to the back. */
+  opening: readonly [from: number, to: number] | null;
   /** Where the roof covers the cabin, if it has one. */
   roofZ: readonly [from: number, to: number] | null;
 }
@@ -95,7 +97,10 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const header = { z: body.silhouette[screenAt + 1].z, h: body.silhouette[screenAt + 1].h };
   const open = body.silhouette.some((point) => point.bed === true && point.z > header.z && point.z < cabin.seatZ + 0.6);
   // An open car's body closes over the front of the cockpit as far as its opening, where the dash's lip has to be.
-  const opening = open ? (body.silhouette.find((point) => point.bed === true && point.z > header.z)?.z ?? null) : null;
+  const firstOpen = open ? body.silhouette.findIndex((point) => point.bed === true && point.z > header.z) : -1;
+  const opening = firstOpen < 0 ? null : body.silhouette[firstOpen].z;
+  const lastOpen = firstOpen < 0 ? -1 : body.silhouette.findIndex((point, at) => at > firstOpen && point.bed !== true);
+  const openingEnd = lastOpen < 0 ? null : body.silhouette[lastOpen].z;
 
   const beltX = (z: number) => halfWidth(z) - 0.018 + flareOf(body, z) * 0.35;
   const glassX = (z: number) => beltX(z) - 0.014;
@@ -137,6 +142,18 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const facing = [-faceH / faceLength, faceZ / faceLength] as const;
   const proud = 0.03;
   const clusterCentre: Spot = { x: eye.x, h: lip.h + faceH * share + facing[1] * proud, z: lip.z + faceZ * share + facing[0] * proud };
+  // Under an open car's scuttle, which falls away towards the sides, the dials sit flush in the dash's face with no hood,
+  // and the wheel drops to keep the eye's line to them through its top.
+  if (opening !== null) {
+    const outer = (Math.abs(eye.x) + width / 2 + 0.03) / railWidth(opening);
+    clusterCentre.h = Math.min(clusterCentre.h, top(opening - 0.03) - crown(opening) * Math.min(1, outer * outer) - height / 2 - 0.02);
+    const lineAt = eyeH + ((wheelCentre.z - eyeZ) * (clusterCentre.h - eyeH)) / (clusterCentre.z - eyeZ);
+    wheelCentre.h = Math.min(wheelCentre.h, lineAt - radius * 0.45 * Math.cos(tilt));
+  }
+
+  // Rear seats moved back with the front ones stay only if they still sit in the opening.
+  const movedRear = cabin.rearSeatZ === undefined ? undefined : cabin.rearSeatZ + moved;
+  const rearSeatZ = movedRear !== undefined && openingEnd !== null && movedRear + 0.35 > openingEnd ? undefined : movedRear;
 
   const roofEnd = (() => {
     const highest = Math.max(...body.silhouette.map((point) => point.h));
@@ -155,8 +172,9 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
     floorH: cabin.floorH,
     cushionH,
     seatZ,
-    rearSeatZ: cabin.rearSeatZ === undefined ? undefined : cabin.rearSeatZ + moved,
-    endZ: Math.max(cabin.endZ, cabin.rearSeatZ === undefined ? seatZ + 0.4 : cabin.rearSeatZ + moved + 0.4),
+    rearSeatZ,
+    endZ: Math.max(cabin.endZ, rearSeatZ === undefined ? seatZ + 0.4 : rearSeatZ + 0.4),
+    opening: opening === null || openingEnd === null ? null : [opening, openingEnd],
     eye,
     dash: { frontZ, topH, rearZ, lowZ, lowH },
     wheel: { centre: wheelCentre, tilt, radius, kind: style.wheel },

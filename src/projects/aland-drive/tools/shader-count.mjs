@@ -5,8 +5,9 @@
 // module that reads a node variable where the branch that set it may not have run (`unset-reads.mjs`).
 //
 // Prereq: a dev server. Usage:
-//   node src/projects/aland-drive/tools/shader-count.mjs [--dump=<folder>]
+//   node src/projects/aland-drive/tools/shader-count.mjs [--dump=<folder>] [--cockpit]
 // ALAND_DRIVE_URL overrides the page's address; --dump writes every module's WGSL there, named by its number.
+// --cockpit then takes the driver's seat and back, and prints any pipeline that compiled, which should be none.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -18,6 +19,7 @@ import { describeUnsetReads } from "./unset-reads.mjs";
 
 const option = (name) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
 const DUMP = option("dump");
+const COCKPIT = process.argv.includes("--cockpit");
 const BASE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const SETTLE_FRAMES = 30;
 
@@ -35,6 +37,23 @@ const record = await step("settling", () =>
     return window.__shaderCount;
   }, SETTLE_FRAMES),
 );
+
+if (COCKPIT) {
+  const before = record.pipelines.length;
+  const after = await step("the driver's seat", () =>
+    page.evaluate(async (settle) => {
+      const probe = window.__alandDrive;
+      for (const view of ["cockpit", "chase"]) {
+        probe.setCamera(view);
+        const target = probe.frames() + settle;
+        while (probe.frames() < target) await new Promise(requestAnimationFrame);
+      }
+      return window.__shaderCount.pipelines.map((pipeline) => pipeline.label);
+    }, SETTLE_FRAMES),
+  );
+  console.log(`pipelines compiled taking the driver's seat and back: ${after.length - before}${after.length > before ? ` (${after.slice(before).join(", ")})` : ""}
+`);
+}
 
 const { modules, pipelines } = record;
 const uses = modules.map(() => 0);

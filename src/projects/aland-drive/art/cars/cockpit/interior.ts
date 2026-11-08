@@ -1,6 +1,6 @@
 import { buildBareShell, type CarSpec } from "../build";
 import { SURFACES, type Point, type Soup } from "../mesh";
-import { CockpitBuilder, KIND, axes, normalize, pillow, type CockpitSoup, type FaceLook, type Paint, type Uv } from "./builder";
+import { CockpitBuilder, KIND, axes, normalize, pillow, weldKey, type CockpitSoup, type FaceLook, type Paint, type Uv } from "./builder";
 import { cabinShade, cockpitFrame, opennessAt, SKIN_M, type CabinShade, type CockpitFrame } from "./frame";
 import { GLYPH_ASPECT, SLOT, SOURCE, cellUv, readoutParam, type Source } from "./atlas";
 import type { InteriorStyle } from "./style";
@@ -146,8 +146,8 @@ function addInnerSkin(b: CockpitBuilder, f: CockpitFrame, shell: Soup, paints: P
     faces.push({ corners, normal: raw });
   }
   // Each corner moves in along the mean of every face meeting it, so the skin stays closed where the shell creases.
-  const key = ([x, y, z]: Point) => `${Math.round(x * 5000)},${Math.round(y * 5000)},${Math.round(z * 5000)}`;
-  const normals = new Map<string, Point>();
+  const key = ([x, y, z]: Point) => weldKey(x, y, z);
+  const normals = new Map<number, Point>();
   for (const { corners, normal } of faces) {
     for (const point of corners) {
       const sum = normals.get(key(point)) ?? [0, 0, 0];
@@ -184,7 +184,9 @@ function addDash(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
     const x = -half + (2 * half * at) / (stations - 1);
     const across = x / half;
     const crown = 0.014 * (1 - across * across) - 0.02 * across ** 8;
-    return profile.map(([z, h], index): Point => [x, h + g + (index < 4 ? crown : 0), z]);
+    // Under an open car's scuttle, which falls away towards the sides, the dash keeps below it.
+    const under = (z: number, h: number) => (f.opening === null ? h : Math.min(h, f.roofAt(Math.abs(x), z) - 0.018));
+    return profile.map(([z, h], index): Point => [x, under(z, h + (index < 4 ? crown : 0)) + g, z]);
   });
   const face = style.paintedDash ? paints.paint : paints.dash;
   b.sheet(rows, smooth(paints.dash), true, (at) => ({ paint: at < 3 ? paints.dashTop : at < 6 ? face : paints.under }));
@@ -230,7 +232,8 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const inner = (depth: number, inset: number) => at(x - out[0] * inset, y - out[1] * inset, depth);
     return [inner(-0.06, 0), inner(0.055, 0), inner(0.05, 0.011), inner(-0.06, 0.011)];
   });
-  b.sheet(rows, smooth(style.paintedDash ? paints.dash : paints.dashTop), true);
+  // An open car's scuttle hoods its dials, so they sit flush in the dash with none of their own.
+  if (f.opening === null) b.sheet(rows, smooth(style.paintedDash ? paints.dash : paints.dashTop), true);
 
   const dials: DialSpec[] = [];
   const dialLook = (slot: number) => flat(paints.dial, KIND.dial, slot);
@@ -338,7 +341,7 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 
 /** The stack in the middle of the dash, with its screen or small dials, vents and knobs, and the console back between the seats. */
 function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec[] {
-  const { dash, ground: g, style, cushionH, floorH, cabin } = f;
+  const { dash, ground: g, style, cushionH, floorH } = f;
   const dials: DialSpec[] = [];
   const faceDown = normalize([0, dash.lowH - (dash.topH - 0.03), dash.lowZ - dash.rearZ]);
   const up: Point = [0, -faceDown[1], -faceDown[2]];
@@ -475,7 +478,7 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
 
 /** The door cards along each side, below the glass: a kick panel, an armrest, an insert and a cap where the glass starts. */
 function addDoors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
-  const { ground: g, cabin, floorH, cushionH, style, dash } = f;
+  const { ground: g, floorH, cushionH, style, dash } = f;
   const [fromZ, toZ] = [dash.rearZ - 0.06, f.endZ - 0.02];
   const armH = cushionH + 0.2;
   const stations = Math.max(2, Math.ceil((toZ - fromZ) / 0.08) + 1);
@@ -521,7 +524,7 @@ function addDoors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 
 /** The floor, the bulkhead under the dash with the pedals, and the back of the cabin. */
 function addFloor(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
-  const { ground: g, cabin, floorH, dash, eye, cushionH } = f;
+  const { ground: g, floorH, dash, eye, cushionH } = f;
   const y = floorH + 0.015 + g;
   const [fromZ, toZ] = [dash.frontZ + 0.1, f.endZ];
   const halfAt = (z: number) => f.cardX(z) + 0.01;
@@ -577,7 +580,7 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
 
 /** A rally car's cage: hoops behind the seats and up the pillars, bars along the roof and an X in each door. */
 function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
-  const { ground: g, cabin, floorH, header, dash } = f;
+  const { ground: g, floorH, header, dash } = f;
   const look = smooth(paints.cage);
   const radius = 0.019;
   const main = f.seatZ + 0.33;
@@ -630,11 +633,14 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   const shade = cabinShade(frame);
   // A corner is shared by the faces round it, so each place and facing is baked once.
   const openness = new Float32Array(soup.triangles * 3);
-  const baked = new Map<string, number>();
+  const baked = new Map<number, number>();
   for (let vertex = 0; vertex < openness.length; vertex++) {
     const point = [soup.positions[vertex * 3], soup.positions[vertex * 3 + 1], soup.positions[vertex * 3 + 2]] as const;
     const normal = [soup.normals[vertex * 3], soup.normals[vertex * 3 + 1], soup.normals[vertex * 3 + 2]] as const;
-    const key = `${Math.round(point[0] * 200)},${Math.round(point[1] * 200)},${Math.round(point[2] * 200)},${Math.round(normal[0] * 8)},${Math.round(normal[1] * 8)},${Math.round(normal[2] * 8)}`;
+    const facing = (Math.round(normal[0] * 8) + 8) * 289 + (Math.round(normal[1] * 8) + 8) * 17 + (Math.round(normal[2] * 8) + 8);
+    // To 5 mm and a sixteenth of a turn, as one whole number well inside a double's exact range.
+    const place = ((Math.round(point[0] * 200) + 2048) * 4096 + Math.round(point[1] * 200) + 2048) * 4096 + Math.round(point[2] * 200) + 2048;
+    const key = place * 4913 + facing;
     const known = baked.get(key);
     const open = known ?? opennessAt(shade, [point[0] + normal[0] * 0.01, point[1] + normal[1] * 0.01, point[2] + normal[2] * 0.01], normal);
     baked.set(key, open);

@@ -35,7 +35,7 @@ const COCKPIT = {
   intoTurnMost: 0.09,
   lookPerS: 9,
   /** The eye rests a little below level, as a driver's does, so the instruments and the road just ahead are in view. */
-  restPitch: -0.12,
+  restPitch: -0.17,
   /** Looking round past this, the head leans towards the middle of the car: across, forward and up. */
   leanFromYaw: 1.5,
   leanToYaw: 2.6,
