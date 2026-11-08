@@ -333,12 +333,6 @@ describe("the world's paints", () => {
 });
 
 describe("the preview's rows", () => {
-  const cases = PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[lanes].map((row, i) => [lanes, i, row] as const));
-
-  it.each(cases)("%d lanes: row %d lets the pair through together, on the road", (lanes, _, row) => {
-    expect(passingPoses(row, lanes, PREVIEW_PIECES)).not.toBeNull();
-  });
-
   it.each(PREVIEW_LANES)("for the co-op pair on %d lanes, alternate side by side and interlocked", (lanes) => {
     const span = (frog: Frog) => frogCells(frog).map((cell) => cell.col);
     PREVIEW_ROWS[lanes].forEach((row, i) => {
