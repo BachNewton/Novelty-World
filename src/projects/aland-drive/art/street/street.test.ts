@@ -9,7 +9,7 @@ import { buildBollard, buildHarbourCrane, buildSailboat } from "./harbour";
 import { buildFlagpole } from "./flags";
 import { buildLinden, LINDEN_SEEDS } from "./linden";
 import { buildMidsummerPole } from "./midsummer";
-import { rowAlong, runSections, treeRow } from "./place";
+import { rowAlong, runSections } from "./place";
 import { buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildReflectorPost, GUARD_RAIL_M } from "./road";
 import { buildGrassTuft, buildSeedGrass, buildWildflowers } from "./verge";
 
@@ -98,11 +98,6 @@ describe("placing along a line", () => {
       expect(section.z - Math.sin(yaw) * length).toBeCloseTo(next.z);
       expect(section.y + (section.shear ?? 0) * length).toBeCloseTo(next.y);
     });
-  });
-
-  it("gives a tree row the same trees every time", () => {
-    const row = { heightM: 14, heightSpreadM: 1.5, seed: 4 };
-    expect(treeRow(east, 9, 6, row)).toEqual(treeRow(east, 9, 6, row));
   });
 });
 

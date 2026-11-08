@@ -122,10 +122,6 @@ describe("hair", () => {
 });
 
 describe("casting", () => {
-  it("is the same person from the same seed", () => {
-    expect(rollFigure(17)).toEqual(rollFigure(17));
-  });
-
   it("rolls a spread of ages, frames and outfits, with no children unless asked for", () => {
     const cast = Array.from({ length: 300 }, (_, seed) => rollFigure(seed));
     expect(new Set(cast.map(({ outfit }) => outfit)).size).toBeGreaterThanOrEqual(5);

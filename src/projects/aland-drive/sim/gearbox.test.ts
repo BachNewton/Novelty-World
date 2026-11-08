@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CAR_IDS, CARS } from "./cars";
-import { radiansPerMetre, resistanceAt, restingEngine, stepEngine, topSpeedMS, torqueAt } from "./gearbox";
+import { radiansPerMetre, resistanceAt, restingEngine, stepEngine, topSpeedMS, torqueAt, type EngineRead } from "./gearbox";
 import { STEP_S, WORLD } from "./tuning";
+
+/** The automatic's tests ramp the speed by a fixed amount a step, at a frame's pace. */
+const SHIFT_STEP_S = 1 / 60;
 
 describe.each(CAR_IDS)("%s", (id) => {
   const tuning = CARS[id];
@@ -39,5 +42,42 @@ describe.each(CAR_IDS)("%s", (id) => {
   it("makes no torque past the redline", () => {
     expect(torqueAt(tuning, gearbox.redlineRpm)).toBe(0);
     expect(torqueAt(tuning, gearbox.redlineRpm * 0.99)).toBeGreaterThan(0);
+  });
+
+  it("climbs every gear flat out, keeps under its redline and doesn't hunt", () => {
+    let read: EngineRead = restingEngine(gearbox);
+    let shifts = 0;
+    let highest = 0;
+    for (let speed = 0; speed < 55; speed += 0.08) {
+      const stepped = stepEngine(gearbox, read, speed, 1, SHIFT_STEP_S);
+      read = stepped.read;
+      highest = Math.max(highest, read.rpm);
+      if (stepped.shifted) shifts++;
+    }
+    expect(highest).toBeLessThanOrEqual(gearbox.redlineRpm * 1.01);
+    expect(shifts).toBeLessThanOrEqual(topGear);
+    for (let speed = 55; speed > 0; speed -= 0.15) {
+      const stepped = stepEngine(gearbox, read, speed, 0, SHIFT_STEP_S);
+      read = stepped.read;
+      if (stepped.shifted) shifts++;
+    }
+    expect(read.gear).toBe(0);
+    expect(shifts).toBeLessThanOrEqual(2 * topGear);
+  });
+
+  it("holds one gear at a steady cruise", () => {
+    for (const speed of [8, 14, 20, 27, 33, 42, 50]) {
+      for (const throttle of [0.2, 0.5, 0.8]) {
+        let read = restingEngine(gearbox);
+        for (let i = 0; i < 300; i++) read = stepEngine(gearbox, read, speed, throttle, SHIFT_STEP_S).read;
+        let shifts = 0;
+        for (let i = 0; i < 300; i++) {
+          const stepped = stepEngine(gearbox, read, speed, throttle, SHIFT_STEP_S);
+          read = stepped.read;
+          if (stepped.shifted) shifts++;
+        }
+        expect(shifts).toBe(0);
+      }
+    }
   });
 });

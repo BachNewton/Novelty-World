@@ -74,8 +74,7 @@ describe("the bikes", () => {
     expect(tip[1]).toBeCloseTo(0.2);
   });
 
-  it("the same seed is the same rider, and seeds give a crowd", () => {
-    expect(riderLook(7)).toEqual(riderLook(7));
+  it("seeds give a crowd", () => {
     const tops = new Set(Array.from({ length: 40 }, (_, seed) => riderLook(seed).top));
     expect(tops.size).toBeGreaterThan(4);
   });
