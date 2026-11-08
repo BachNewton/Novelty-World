@@ -239,6 +239,15 @@ export const aska: CarSpec = {
     paint("car-paint-graphite", "matte"),
   ],
   body: bodyOf(shape),
+  /** A hypercar's cockpit: one digital cluster, a flat-bottomed wheel, buckets, carbon with Tärna blue on the doors and round the vents. */
+  interior: {
+    gauges: "digital",
+    wheel: "flat",
+    shifter: "selector",
+    seats: "bucket",
+    screen: true,
+    colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-tarna", headliner: "car-cabin-headliner-dark", accent: "car-cabin-tarna", glow: "car-cabin-glow-ice" },
+  },
   wheel: { radiusM: ASKA.wheelRadiusM, widthM: 0.3, rimShare: 0.76, spokes: 10, twinSpokes: false, style: "turbine" },
   shadowHalf: [1.03, 2.31],
 };
