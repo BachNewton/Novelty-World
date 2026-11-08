@@ -15,28 +15,10 @@ describe("frogminoView", () => {
     expect(() => frogminoView("?play=solo")).toThrow(/the only one is \?play=local/);
   });
 
-  it("shows the garage with ?garage", () => {
-    expect(frogminoView("?garage")).toBe("garage");
-  });
-
-  it("shows the world preview with ?world and the sound lab with ?sounds", () => {
-    expect(frogminoView("?world")).toBe("world");
-    expect(frogminoView("?sounds")).toBe("sounds");
-  });
-
-  it("shows the music ideas with ?music and the frog preview with ?frog", () => {
-    expect(frogminoView("?music")).toBe("music");
-    expect(frogminoView("?frog")).toBe("frog");
-  });
-
   it("shows the helicopter preview with ?heli", () => {
     expect(frogminoView("?heli")).toBe("heli");
     expect(frogminoView("?replay=perch&heli")).toBe("heli");
     expect(frogminoView("?heli&frog")).toBe("frog");
-  });
-
-  it("plays a replay with ?replay", () => {
-    expect(frogminoView("?replay=perch")).toBe("replay");
   });
 
   it("gives the garage precedence, then the world, the sounds, the music, the frog and a replay", () => {
@@ -45,6 +27,7 @@ describe("frogminoView", () => {
     expect(frogminoView("?frog&music&sounds&world")).toBe("world");
     expect(frogminoView("?frog&music&sounds")).toBe("sounds");
     expect(frogminoView("?frog&music")).toBe("music");
+    expect(frogminoView("?replay=perch")).toBe("replay");
   });
 
   it("lets a dev view win over ?play=local", () => {

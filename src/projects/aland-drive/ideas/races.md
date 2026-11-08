@@ -10,7 +10,7 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 - **A race shows no time.** Only the place counts: no stopwatch, best time or time to beat, which are the bucket list's.
 - **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
 - **32 tracks**: 15 road, 12 cross country and 5 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
-- **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later.
+- **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later: then a race asks for a class and tier (`ideas/cars.md`), and the list grows to 56 events, each on a route of its own (section 9).
 - **First, second and third are gold, silver and bronze**, and a solo result is kept apart from a co-op one. A co-op team is scored as Forza Horizon scores a team: on points for the racers its players beat.
 - **Races are run in the world as it is**: its traffic, as TDU's are, and its hour, season and weather, so the AI racers must race every track in every condition and through traffic. Challenges set their own conditions instead, as Forza's bucket lists do.
 - **Races reuse the challenges' machinery** (start ring, countdown, lines across the road, the panel, the result card, retry) and add laps, a grid and places.
@@ -277,6 +277,110 @@ Two lists on the same machinery. A challenge is one car the game hands you, one 
 
 After those: the gaps the coverage map shows; more rally cars and four-by-fours for the loose kinds' grids; choosing a car once cars are bought; money by medal once the economy exists; and Åland's own events and duels between players.
 
+## 9. Events, classes and tiers, once cars are bought
+
+The long-term shape of the race list, for when a player brings a car rather than being handed one. An **event** is anything that asks the player to bring a car that meets a requirement: a class and tier, as TDU2's championships did. The classes (A asphalt, B gravel, C classic) and their tiers, the cars in them and where they come from are `ideas/cars.md`. The bucket-list challenges aren't events: they hand the player the car, and stay that way.
+
+### How many
+
+| Class | Events by tier | Events |
+|---|---|---|
+| A | A1 2, A2 3, A3 4, A4 4, A5 5, A6 4, A7 4 | 26 |
+| B | 5 each in B1–B4 | 20 |
+| C | C1 2, C2 2, C3 3, C4 3 | 10 |
+| | | **56** |
+
+- **The event count comes from the tiers, not the map.** A tier needs enough events for a short run of progress and a reason to own more than one of its cars: about four, as TDU2's two championships per class of several races each gave. Fourteen tiers at about four is 56.
+- **Weighted to Åland's roads, not spread evenly.** Few hypercar events, since only the main roads give one room; the most in the middle A tiers and in B, where the island's tarmac lanes and gravel are, gravel being 53–63% of the road a race can use (`ideas/cars.md`); classics on both surfaces. Tarmac takes slightly more than its share of road, since the main roads make the fastest races.
+- **A route of its own for every event**, 56 in all, 33 circuits and 23 sprints: the roads allow it, as the draft route list below shows. The 32 tracks above were candidates like any other route, kept, changed or dropped by how well they fit a tier.
+- **About 38 cars** to enter them in, two to three per tier (`ideas/cars.md`).
+
+Against the games the plan follows, 56 events is about 8 per 100 km² of land and one per 34 km of road: denser than TDU2's 25 championships and cups on about 2,100 km² and 3,000 km of road, far sparser than Forza Horizon's hundreds of championships on maps of under 100 km². Åland has more road per km² than any of them, 2.8 km against TDU2's 1.4 and The Crew's 2.0, being real countryside at full scale.
+
+### Roads for the fastest tiers
+
+Whether the main roads can carry five A1–A2 events was measured on the game's OpenStreetMap data, the 334 km of primary and secondary road joined road by road: a stretch counts as fast where no bend is tighter than a radius of 400 m, which a car holding 1.3 g takes at about 255 km/h.
+
+- **109 km of fast road in 26 stretches of 1.5 km or more, 12 of them over 3 km**, on roads 1, 2, 3 and 4 above all: road 1's longest is 14.6 km, road 2 and 4's shared stretch 11.8 km, road 3's 11.0 km.
+- **Flat out at a hypercar's top speed is rare**: with no bend under 800 m (about 360 km/h), 28 km in 11 stretches of 2 km or more, two of them over 3 km. A hypercar on Åland is a fast-sweeper car, never a top-speed car, as on TDU2's islands.
+- **So five events on five roads of their own is enough**: west on road 1 towards Eckerö, north on roads 2 and 4 to Geta (R6), east on road 3 to Långnäs (R14), the old and new road 2 (R13), and road 1's circuits in Hammarland (R2, R8). The A1–A2 tiers don't need to share routes.
+
+### The route list (draft)
+
+A draft for the owner's review: a route for each of the 56 events, chosen from the road data. 24 are tracks above, kept as they are, and 32 are new.
+
+**How it was chosen.** The road network the game lays (OSM's main roads, tertiary, unclassified and residential, and forest tracks for B4), each road paved or loose by the game's rule, gave the candidates: the shortest loop through each road under six weightings that favour main roads, tarmac, narrow tarmac, gravel, any road or tracks, 2.5–25 km long; every named or numbered road end to end as a sprint, with 8, 14 and 20 km stretches of the long ones; and the 32 tracks, routed through their waypoints. That is 272 candidates after near-copies were merged, each measured for length, share of asphalt, main and two-lane road and track, bends a kilometre by tightest radius, the share of the route a car takes at 255 km/h or more (no bend under 400 m) and its longest such stretch. Each tier has a test of those (A1–A2 at least 90% asphalt, mostly main road and a fast stretch over 2.5 km; A7 narrow twisty tarmac; B1 gravel that flows; B2 a mix; B3 tight gravel; B4 mostly track; C1–C2 open tarmac; C3–C4 slower roads, gravel allowed), and the tiers took turns picking, each the route that fits it best and shows the most new road, a track above counting half as much again for its story, and none sharing more than 30% of its road with a route already picked (50% for A1–A2).
+
+**What it shows.**
+
+- **Every event can have a road of its own**: 56 routes, not the 45–50 the plan expected, with the fast tiers on five different stretches of roads 1 to 4.
+- **The island is seen**: the challenges and the places show 34% of the 1 km squares with road in them, the 32 tracks take that to 78%, and the 56 routes to **90%**.
+- **24 of the 32 tracks keep a place.** The other eight lose theirs to a route that suits a tier better or to overlap: R2 Hammarbo, R3 the Painters' Loop, R6 Godby to Soltuna, R8 North Hammarland, R9 Jomala West, R15 the Sund Ring, X2 Kvarnbo to the Old Shore and X4 Out to Bergö. R6 and R9 are all but kept: the A1 sprint on Getavägen is R6 without its gravel climb, and the C2 circuit on Södersundavägen is R9 on the tarmac.
+- **Narrow, twisty tarmac is scarce.** Åland's narrow lanes are mostly gravel, so A7 has the fewest good candidates of any asphalt tier (14), and its picks are country circuits of 4–6 bends a kilometre rather than the hot-hatch lanes the tier wants.
+- **Forest tracks make poor routes.** Only four candidates suit B4 well, since tracks seldom join into loops; two of its five picks are half gravel lane. B4 may want fewer events, or its own kind of route (a track out and back).
+- **Mariehamn takes six of the A5–A6 events**, short circuits of its streets and the roads round it, where the island's tarmac crossroads are.
+
+| Tier | Route | Shape | Length | Asphalt | Bends a km | Start (x, z) |
+|---|---|---|---|---|---|---|
+| A1 | New: Getavägen, road 4 to Geta (R6 without the climb) | Sprint | 21.3 km | 100% | 1.0 | (−4068, −24554) |
+| A1 | New: road 2, Sundsvägen | Sprint | 8.4 km | 100% | 0.6 | (9442, −5809) |
+| A2 | R14 The Night Ferry, Mariehamn to Långnäs | Sprint | 28.0 km | 99% | 1.3 | (−1852, 4876) |
+| A2 | New: road 1, Hammarlandsvägen and Eckerövägen | Sprint | 21.0 km | 100% | 0.4 | (−17995, −8024) |
+| A2 | New: Torpvägen, Eckerö | Sprint | 5.5 km | 100% | 1.3 | (−21339, −9520) |
+| A3 | New: road 50, Saltviksvägen and Kvarnbovägen | Sprint | 15.3 km | 100% | 1.8 | (1008, −16183) |
+| A3 | New: Bergövägen | Sprint | 10.0 km | 100% | 3.3 | (−5553, −16818) |
+| A3 | New: Jomalaby väg, Nya Godbyvägen and Godbyvägen | Circuit | 7.2 km | 100% | 4.4 | (360, −2835) |
+| A3 | New: road 640, Mångstektavägen | Sprint | 5.7 km | 100% | 4.4 | (12055, −5895) |
+| A4 | New: Skarpnåtövägen | Sprint | 15.7 km | 100% | 2.9 | (−9624, −19771) |
+| A4 | R10 Hamnsund | Sprint | 5.6 km | 97% | 4.3 | (8590, −18449) |
+| A4 | R12 Kastelholm, Sund | Circuit | 3.7 km | 100% | 5.2 | (7799, −7154) |
+| A4 | New: road 340, Mönbackavägen | Sprint | 5.7 km | 100% | 4.9 | (9733, 16020) |
+| A5 | R1 Harbour to Harbour, Mariehamn | Circuit | 4.4 km | 100% | 3.2 | (−1903, 6780) |
+| A5 | New: Norra Svibyvägen, Flygfältsvägen and Svibyvägen | Circuit | 5.3 km | 100% | 3.2 | (−3103, 3018) |
+| A5 | New: Östernäsvägen, Västra Ytternäsvägen and Skrakvägen | Circuit | 4.8 km | 100% | 5.0 | (−1662, 7431) |
+| A5 | New: Västra Utfarten, Strandgatan and Grindmattesvägen | Circuit | 3.4 km | 100% | 3.5 | (−2073, 4882) |
+| A5 | New: Vesterkalmarevägen, Godbyvägen and Önningebyvägen | Circuit | 9.6 km | 100% | 3.5 | (−736, 4831) |
+| A6 | New: Drygsbölevägen, Hammarlandsvägen and Djeknevägen | Circuit | 4.7 km | 100% | 3.6 | (−9128, −3863) |
+| A6 | R13 The Old Road and the New, Jomala | Circuit | 7.3 km | 100% | 2.9 | (1418, −6093) |
+| A6 | New: Godbyvägen, Dalkarbyvägen and Klockargatan | Circuit | 3.2 km | 100% | 3.4 | (−1653, 2353) |
+| A6 | New: Sundblomsvägen, Godbyvägen and Önningebyvägen | Circuit | 3.0 km | 100% | 3.3 | (−1025, 431) |
+| A7 | R4 Tengsöda, Saltvik | Circuit | 5.2 km | 100% | 5.6 | (11370, −14668) |
+| A7 | New: Mörbyvägen, Bovikvägen and Hammarlandsvägen | Circuit | 5.6 km | 100% | 4.2 | (−12493, −9507) |
+| A7 | New: Hagavägen and Hjortövägen | Circuit | 6.0 km | 100% | 4.1 | (3817, −14336) |
+| A7 | New: Boda Tingsvägen, Emkarbyvägen and Djeknevägen | Circuit | 4.4 km | 100% | 3.7 | (−8814, −4905) |
+| B1 | X11 Lavö, Finström | Sprint | 4.3 km | 14% | 5.8 | (2856, −14333) |
+| B1 | O3 Småkärr, Hammarland | Sprint | 4.1 km | 0% | 7.1 | (−14451, −9480) |
+| B1 | O2 Båtvik, Sund | Circuit | 11.1 km | 0% | 6.1 | (7663, −4361) |
+| B1 | New: Gröndalsvägen | Sprint | 5.6 km | 0% | 4.8 | (−154, −27946) |
+| B1 | O5 Djurvik, Hammarland | Circuit | 9.3 km | 0% | 7.2 | (−11672, 3710) |
+| B2 | X3 Emkarby and Svartsmara, Finström | Circuit | 14.2 km | 64% | 4.8 | (−2956, −6141) |
+| B2 | X1 Degersand, Eckerö | Circuit | 7.8 km | 35% | 6.4 | (−21122, −5216) |
+| B2 | X6 Toböle, Saltvik | Sprint | 4.7 km | 38% | 6.4 | (5636, −19941) |
+| B2 | X7 Bovik, Hammarland | Circuit | 5.7 km | 75% | 4.6 | (−13037, −12438) |
+| B2 | New: Ramsvik, Glovägen and Kuggviksvägen | Circuit | 4.1 km | 57% | 6.7 | (13773, −16606) |
+| B3 | X9 Tellholm, Hammarland | Circuit | 4.5 km | 17% | 6.9 | (−13673, −112) |
+| B3 | O1 Vessingsboda Lanes, Lemland | Circuit | 6.3 km | 0% | 9.5 | (11905, 12711) |
+| B3 | O4 Kullskär, Hammarland | Circuit | 6.2 km | 0% | 8.4 | (−14136, −1801) |
+| B3 | New: Björkhemsvägen, Skepphusslätt and Fridhemsrundan | Circuit | 3.5 km | 6% | 8.6 | (14431, 6184) |
+| B3 | X12 Nötviken, Sund | Circuit | 7.1 km | 6% | 7.1 | (12749, −10801) |
+| B4 | New: Norrviksvägen, Fallvägen and Önningebyvägen | Circuit | 5.2 km | 5% | 8.4 | (2566, 5304) |
+| B4 | New: Norrvägen | Circuit | 2.6 km | 0% | 8.0 | (−18291, −11895) |
+| B4 | New: Flakabacka | Sprint | 3.6 km | 0% | 3.9 | (8582, 13776) |
+| B4 | New: Norra Norrbyvägen, Bistorpvägen and Österskogsvägen (weak fit) | Circuit | 3.5 km | 29% | 6.0 | (6502, 8595) |
+| B4 | New: Torpvägen, Östergårds and Ridstigen (weak fit) | Circuit | 8.2 km | 29% | 5.8 | (−11590, −2221) |
+| C1 | R7 Lemland to the Sea | Sprint | 14.2 km | 98% | 4.3 | (5551, 10040) |
+| C1 | New: Dånövägen | Sprint | 4.8 km | 100% | 3.6 | (−5754, −24674) |
+| C2 | R5 Round Geta | Circuit | 14.2 km | 100% | 3.9 | (−3817, −24611) |
+| C2 | New: Södersundavägen, Norra Torpvägen and Norra Svibyvägen (R9 on the tarmac) | Circuit | 12.3 km | 100% | 3.2 | (−2984, −131) |
+| C3 | R11 The Kungsö Road | Circuit | 6.9 km | 100% | 3.2 | (−7551, 2787) |
+| C3 | X10 Out to Järsö | Sprint | 8.3 km | 92% | 2.3 | (−1647, 9513) |
+| C3 | New: Bastövägen | Sprint | 8.6 km | 100% | 3.9 | (−3645, −18473) |
+| C4 | X5 Geta's Islands | Sprint | 8.0 km | 53% | 4.7 | (−5754, −24674) |
+| C4 | X8 Storby to Käringsund, Eckerö | Sprint | 8.5 km | 64% | 6.5 | (−21894, −9596) |
+| C4 | New: Berghamnsvägen | Sprint | 7.8 km | 76% | 5.5 | (−15943, −17513) |
+
+**What the draft doesn't know yet.** Height: no route was scored for its climbs and crests, which the tracks above were. Surface as laid: a road with no surface tag is judged by its class as the game does, but the game decides a whole chain by most of its length, so a route can read a little more gravel here than it drives (the Sund Ring measured 89% asphalt, though the game lays it all asphalt, and dropped out of A3–A4 on it). Stories: the new routes have none yet. And no route has been driven: the vetting run (section 7) drives each in its tier's cars once they exist.
+
 ## The owner's decisions
 
 - **Race types: circuits and sprints**, each of three kinds by ground: road (asphalt only), off-road (gravel, ground, ice) and cross country (a mix of both).
@@ -289,6 +393,8 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
 - **A race shows no time**, only places: the time is the bucket list's. Until the racers exist, a finish is first, rather than timed stand-in rivals.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
+- **Once cars are bought, events ask for a class and tier** (`ideas/cars.md`).
+- **56 events**, weighted to Åland's roads as section 9 sets out. Any of the 32 tracks may be kept, changed or dropped to fit.
 
 ## Sources
 
@@ -297,4 +403,5 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - The bucket list's roads: `challenge/specs.ts`.
 - TDU's race types and car classes: [Wikipedia, Test Drive Unlimited](https://en.wikipedia.org/wiki/Test_Drive_Unlimited), [Test Drive Unlimited 2](https://en.wikipedia.org/wiki/Test_Drive_Unlimited_2), [Worthplaying's single-player preview](http://worthplaying.com/article/2006/6/28/news/34252-test-drive-unlimited-all-singleplayer-mode-detailed/), [gamepressure's TDU guide](https://gamepressure.com/testdriveunlimited/basic-information/z6a05) and its [race lists](https://www.gamepressure.com/testdriveunlimited/races/z19f2).
 - Forza Horizon's events and team scoring: [Wikipedia, Forza Horizon 4](https://en.wikipedia.org/wiki/Forza_Horizon_4) and [Forza Horizon 5](https://en.wikipedia.org/wiki/Forza_Horizon_5), [gamepressure's FH4 guide](https://www.gamepressure.com/forza-horizon-4/types-of-races-and-activities/z4b6f6), [a design analysis of FH4's team score](https://evanbg42.github.io/2024/11/11/design-spotlight-forza-team-score.html), and Forza support's ranked scoring page (a search excerpt only).
+- Section 9's comparisons: TDU2's championships and cups from [PSNProfiles' trophy guide](https://psnprofiles.com/guide/1985-test-drive-unlimited-2-trophy-guide), its road and surfaces from Wikipedia above; Forza Horizon 2's championships from [FutureFive](https://futurefive.co.nz/story/on-the-road-again-forza-horizon-2), Forza Horizon 3's from [GameFAQs](https://gamefaqs.gamespot.com/boards/191490-forza-horizon-3/74731793), and both maps' sizes from community estimates ([forzahorizon6.net](https://forzahorizon6.net/fh6/size-km/), [VideoGamer](https://www.videogamer.com/news/forza-horizon-2s-playable-area-3x-bigger-than-the-originals)); The Crew's map and road from [Softpedia](https://games.softpedia.com/blog/The-Crew-s-Open-World-Is-as-Big-as-GTA-5-Skyrim-Far-Cry-3-and-More-Combined-437560.shtml) and [MP1st](https://mp1st.com/?p=43947), its missions from [Nonfiction Gaming](https://www.nonfictiongaming.com/2014/12/09/crew-review/); the main island's area from [Wikipedia, Fasta Åland](https://en.wikipedia.org/wiki/Fasta_%C3%85land).
 - The Crew's: [Wikipedia, The Crew](https://en.wikipedia.org/wiki/The_Crew_(video_game)), [The Crew 2](https://en.wikipedia.org/wiki/The_Crew_2) and [The Crew Motorfest](https://en.wikipedia.org/wiki/The_Crew_Motorfest).

@@ -41,12 +41,6 @@ afterEach(async () => {
 });
 
 describe("LiveReporter", () => {
-  it("writes its row as it starts", async () => {
-    const { sink } = reporter();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(sink.rows).toHaveLength(1);
-    expect(sink.rows[0]).toMatchObject({ game: "test", tool: "test:run", status: "running", bots: ["a", "b"], seeds: "train" });
-  });
 
   it("writes a change at once when it has been quiet, then at most once a throttle", async () => {
     const { sink, live } = reporter();

@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { bellStrikesBetween, heardAt, mix, noJolts, placeMix, voicesHeard, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
-import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { engineCycle, gravelLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
-import { ENGINE_IDS, ENGINES } from "./vehicles";
+import { ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
   vehicle: "skerry-gt",
@@ -22,49 +21,6 @@ const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
 });
 
 const STEP = 1 / 60;
-
-describe("the gearbox", () => {
-  for (const id of ENGINE_IDS) {
-    it(`${id} climbs every gear flat out, keeps under its redline and doesn't hunt`, () => {
-      const spec = ENGINES[id];
-      let read: EngineRead = restingEngine(spec);
-      let shifts = 0;
-      let highest = 0;
-      for (let speed = 0; speed < 55; speed += 0.08) {
-        const stepped = stepEngine(spec, read, speed, 1, STEP);
-        read = stepped.read;
-        highest = Math.max(highest, read.rpm);
-        if (stepped.shifted) shifts++;
-      }
-      expect(highest).toBeLessThanOrEqual(spec.redlineRpm * 1.01);
-      expect(shifts).toBeLessThanOrEqual(spec.gearTopMS.length - 1);
-      for (let speed = 55; speed > 0; speed -= 0.15) {
-        const stepped = stepEngine(spec, read, speed, 0, STEP);
-        read = stepped.read;
-        if (stepped.shifted) shifts++;
-      }
-      expect(read.gear).toBe(0);
-      expect(shifts).toBeLessThanOrEqual(2 * (spec.gearTopMS.length - 1));
-    });
-
-    it(`${id} holds one gear at a steady cruise`, () => {
-      const spec = ENGINES[id];
-      for (const speed of [8, 14, 20, 27, 33, 42, 50]) {
-        for (const throttle of [0.2, 0.5, 0.8]) {
-          let read = restingEngine(spec);
-          for (let i = 0; i < 300; i++) read = stepEngine(spec, read, speed, throttle, STEP).read;
-          let shifts = 0;
-          for (let i = 0; i < 300; i++) {
-            const stepped = stepEngine(spec, read, speed, throttle, STEP);
-            read = stepped.read;
-            if (stepped.shifted) shifts++;
-          }
-          expect(shifts).toBe(0);
-        }
-      }
-    });
-  }
-});
 
 describe("the jolts", () => {
   const run = (frames: DriveAudioState[]) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { panOnFloor, stepFloor } from "./controls";
+import { hoverAction, panOnFloor, stepFloor } from "./controls";
 
 describe("panOnFloor", () => {
   const close = (got: { x: number; z: number }, x: number, z: number) => {
@@ -42,5 +42,24 @@ describe("stepFloor", () => {
 
   it("goes from every floor at once to the home floor", () => {
     expect(stepFloor(floors, "all", 1, "basement")).toBe("basement");
+  });
+});
+
+describe("hoverAction", () => {
+  it("focuses the target the mouse comes over, and leaves a focus it is already on", () => {
+    expect(hoverAction(null, "a", null)).toEqual({ focus: "a" });
+    expect(hoverAction("a", "b", "a")).toEqual({ focus: "b" });
+    expect(hoverAction("a", "a", "a")).toBeNull();
+  });
+
+  it("clears the focus it gave when the mouse leaves every target", () => {
+    expect(hoverAction("a", null, "a")).toBe("blur");
+    expect(hoverAction(null, null, null)).toBeNull();
+  });
+
+  // The regression: a room tile's own cell, tapped after the mouse had pointed elsewhere, showed the ghost's name, since
+  // the mouse's boundary event as the finger took over cleared the tap's focus.
+  it("leaves a focus another input gave since, when the mouse leaves", () => {
+    expect(hoverAction("explore:ground:2:-1", null, "stay")).toBeNull();
   });
 });

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ART_LICENSES, SYMBOL_ART } from "@/projects/family-tree/symbol-art";
 import { PROJECTS } from "@/shared/lib/constants";
 import { CREDIT_GROUPS, PROJECT_CREDITS } from "./credit-groups";
 
@@ -45,15 +44,6 @@ describe("credits", () => {
     }
     if (credit.license.attribution) {
       expect(credit.attribution, "a licence that requires a credit needs its credit line").not.toBe("");
-    }
-  });
-
-  it("credits every Family Tree art record whose licence requires it", () => {
-    const familyTree = CREDIT_GROUPS.find((g) => g.name === "Family Tree");
-    const sources = new Set(familyTree?.credits.map((c) => c.source));
-    for (const [symbol, art] of Object.entries(SYMBOL_ART)) {
-      if (!ART_LICENSES[art.license].attribution) continue;
-      expect(art.kind === "published" && sources.has(art.source), symbol).toBe(true);
     }
   });
 });

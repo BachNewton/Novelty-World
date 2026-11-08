@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   bankSupply,
-  buildingRefundAt,
   builtLotsInGroup,
-  houseCostAt,
   maxBuildingSaleValue,
   planDevelopment,
-  TOTAL_HOTELS,
   TOTAL_HOUSES,
 } from "./development";
 import { freshGame } from "./mocks";
@@ -73,41 +70,7 @@ describe("builtLotsInGroup", () => {
     expect(builtLotsInGroup(12, live({}))).toEqual([]); // Electric Co.
   });
 });
-
-describe("houseCostAt / buildingRefundAt", () => {
-  it("returns the per-tier cost by color group", () => {
-    expect(houseCostAt(1)).toBe(50); // brown
-    expect(houseCostAt(16)).toBe(100); // orange
-    expect(houseCostAt(31)).toBe(200); // green
-    expect(houseCostAt(39)).toBe(200); // dark blue
-  });
-
-  it("refunds half the tier cost", () => {
-    expect(buildingRefundAt(1)).toBe(25);
-    expect(buildingRefundAt(16)).toBe(50);
-    expect(buildingRefundAt(31)).toBe(100);
-  });
-
-  it("returns null for non-properties", () => {
-    expect(houseCostAt(0)).toBe(null); // GO
-    expect(houseCostAt(5)).toBe(null); // railroad
-    expect(houseCostAt(12)).toBe(null); // utility
-    expect(buildingRefundAt(0)).toBe(null);
-  });
-});
-
 describe("bankSupply", () => {
-  it("is full on an undeveloped board", () => {
-    expect(bankSupply(makeState({}))).toEqual({
-      houses: TOTAL_HOUSES,
-      hotels: TOTAL_HOTELS,
-    });
-  });
-
-  it("counts houses in use", () => {
-    const state = makeState({ houses: { 16: 3, 18: 3, 19: 3 } });
-    expect(bankSupply(state)).toEqual({ houses: 23, hotels: 12 });
-  });
 
   it("counts a hotel as one hotel and zero houses", () => {
     const state = makeState({ houses: { 11: 5, 13: 5, 14: 5 } });

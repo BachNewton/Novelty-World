@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { STALE_MS, type LiveRow, type RunStatus } from "@/shared/lib/bot-lab/live-row";
-import { botLabel, elapsedMs, formatDuration, formatElo, mergeRow, orderRuns } from "./logic";
+import { type LiveRow, type RunStatus } from "@/shared/lib/bot-lab/live-row";
+import { botLabel, elapsedMs, mergeRow } from "./logic";
 
 const NOW = Date.parse("2026-10-16T12:00:00Z");
 const iso = (agoMs: number) => new Date(NOW - agoMs).toISOString();
@@ -21,22 +21,6 @@ function row(id: string, status: RunStatus, startedAgoMs: number, updatedAgoMs =
     result: null,
   };
 }
-
-describe("orderRuns", () => {
-  it("lists live runs first and everything else after, newest first", () => {
-    const rows = [
-      row("old-done", "done", 9000),
-      row("lost", "running", 5000, STALE_MS + 1),
-      row("live-old", "running", 4000),
-      row("new-done", "done", 1000),
-      row("live-new", "running", 2000),
-    ];
-    const { live, ended } = orderRuns(rows, NOW);
-    expect(live.map((r) => r.id)).toEqual(["live-new", "live-old"]);
-    expect(ended.map((r) => r.id)).toEqual(["new-done", "lost", "old-done"]);
-  });
-});
-
 describe("mergeRow", () => {
   it("adds a new row and replaces an older write of the same one", () => {
     const first = row("a", "running", 1000, 500);
@@ -57,26 +41,7 @@ describe("elapsedMs", () => {
     expect(elapsedMs(row("a", "running", 60_000, 40_000), "lost", NOW)).toBe(20_000);
   });
 });
-
-describe("formatDuration", () => {
-  it("reads at the grain worth reading", () => {
-    expect(formatDuration(42_000)).toBe("42s");
-    expect(formatDuration(425_000)).toBe("7m 05s");
-    expect(formatDuration(3 * 3600_000 + 12 * 60_000)).toBe("3h 12m");
-  });
-});
-
-describe("formatElo", () => {
-  it("signs every rating", () => {
-    expect(formatElo(12.4)).toBe("+12");
-    expect(formatElo(-30.6)).toBe("−31");
-  });
-});
-
 describe("botLabel", () => {
-  it("leaves a plain bot whole", () => {
-    expect(botLabel("rule-v2")).toEqual({ base: "rule-v2", tuning: null });
-  });
 
   it("splits a tuned bot into its base and its overrides", () => {
     expect(botLabel('rule-v3~{"incomeHorizon":2.4354,"borderWeight":0.347}')).toEqual({

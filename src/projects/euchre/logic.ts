@@ -11,6 +11,9 @@ import type {
   CompletedTrick,
   HandResult,
   ActionResult,
+  TeamAssignment,
+  SeatAssignment,
+  HostMessage,
 } from "./types";
 
 // ============================================================
@@ -603,4 +606,39 @@ export function isGameOver(scores: [number, number]): Team | null {
   if (scores[0] >= WINNING_SCORE) return "A";
   if (scores[1] >= WINNING_SCORE) return "B";
   return null;
+}
+
+// ============================================================
+// Lobby: seats and rejoining
+// ============================================================
+
+/**
+ * Seat two full teams round the table so each sits with its partner across
+ * it, as `getTeam` reads seats; null until each team has exactly two.
+ */
+export function seatTeams(
+  teams: readonly TeamAssignment[],
+  nameOf: (playerId: string) => string,
+): SeatAssignment[] | null {
+  const teamA = teams.filter((t) => t.team === "A");
+  const teamB = teams.filter((t) => t.team === "B");
+  if (teamA.length !== 2 || teamB.length !== 2) return null;
+  const order = [teamA[0], teamB[0], teamA[1], teamB[1]];
+  return order.map((t, i) => ({ playerId: t.playerId, name: nameOf(t.playerId), seatIndex: i as PlayerIndex }));
+}
+
+/**
+ * What the host sends a guest who joins: the teams while they are still
+ * being picked; once the game has started, the game itself to a player who
+ * holds a seat in it (coming back after dropping out), and nothing to anyone
+ * else.
+ */
+export function welcomeFor(
+  lobby: { teams: TeamAssignment[]; seats: SeatAssignment[] | null; game: GameState | null },
+  playerId: string,
+): HostMessage | null {
+  const { teams, seats, game } = lobby;
+  if (seats === null || game === null) return { kind: "teams", teams };
+  if (!seats.some((s) => s.playerId === playerId)) return null;
+  return { kind: "start", seats, gameState: game };
 }

@@ -134,8 +134,9 @@ describe("autoStep", () => {
     expect(newEvents).toHaveLength(0);
   });
 
-  it("flags passedGo when the move wraps the board", () => {
-    const state = freshGame("test-wrap");
+  it("wraps the board and credits $200 to the active player when they pass GO", () => {
+    const state = freshGame("test-passgo-cash");
+    const before = state.players[0].cash;
     const nearGo = {
       ...state,
       players: state.players.map((p, i) =>
@@ -149,34 +150,7 @@ describe("autoStep", () => {
     expect(event.toPosition).toBe((38 + event.dice[0] + event.dice[1]) % 40);
     const moved = next.players.find((p) => p.id === next.turn.playerId);
     expect(moved?.position).toBe(event.toPosition);
-  });
-
-  it("credits $200 to the active player when they pass GO", () => {
-    const state = freshGame("test-passgo-cash");
-    const before = state.players[0].cash;
-    const nearGo = {
-      ...state,
-      players: state.players.map((p, i) =>
-        i === 0 ? { ...p, position: 38 } : p,
-      ),
-    };
-    const { state: next, newEvents } = autoStep(nearGo);
-    const event = newEvents[0];
-    if (event.kind !== "roll") throw new Error("expected a roll event");
-    expect(event.passedGo).toBe(true);
-    const moved = next.players.find((p) => p.id === next.turn.playerId);
     expect(moved?.cash).toBe(before + 200);
-  });
-
-  it("leaves cash unchanged when the move does not pass GO", () => {
-    const state = freshGame("test-no-passgo");
-    const before = state.players[0].cash;
-    const { state: next, newEvents } = autoStep(state);
-    const event = newEvents[0];
-    if (event.kind !== "roll") throw new Error("expected a roll event");
-    expect(event.passedGo).toBe(false);
-    const moved = next.players.find((p) => p.id === next.turn.playerId);
-    expect(moved?.cash).toBe(before);
   });
 
   it("is replayable from a JSON-round-tripped state", () => {

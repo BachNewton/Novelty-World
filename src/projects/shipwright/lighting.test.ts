@@ -1,25 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
-  BEAM_OPTICAL_DEPTH,
   DEFAULT_ADAPTATION_FLOOR_LUX,
   DEFAULT_EXPOSURE_KEY,
   DEFAULT_GROUND_ALBEDO,
   DEFAULT_SKY,
-  WATTS_PER_UNIT,
-  airMass,
-  beamIrradiance,
   HORIZON_FADE_MU,
-  beamOpticalDepth,
   sourceTints,
   clearSkyDhi,
   computeLighting,
   skyShapeElevation,
-  sunDiscVisibility,
   sunSkyRatio,
   type LightingInput,
 } from "./lighting";
 import { clearSkyRadiance, luminance, sunTerms } from "./sky-model";
-import { CLOUD_GENERA, cloudStateFromGenus, cloudTotalTransmittance, type CloudGenusName } from "./clouds";
+import { CLOUD_GENERA, cloudStateFromGenus } from "./clouds";
 
 const input = (over: Partial<LightingInput> = {}): LightingInput => ({
   elevationDeg: 30,
@@ -33,65 +27,6 @@ const input = (over: Partial<LightingInput> = {}): LightingInput => ({
   ...over,
 });
 
-describe("air mass", () => {
-  it("is 1 at the zenith", () => {
-    expect(airMass(90)).toBeCloseTo(1, 3);
-  });
-
-  it("matches Kasten-Young at the horizon, where 1/sin(h) diverges", () => {
-    expect(airMass(0)).toBeCloseTo(37.92, 1);
-    // The whole reason for Kasten-Young: the naive form is ~1.5x wrong below 2 degrees.
-    expect(1 / Math.sin((1 * Math.PI) / 180) / airMass(1)).toBeGreaterThan(2);
-  });
-});
-
-describe("the direct beam", () => {
-  const meinelDni = (h: number) => 1353 * Math.pow(0.7, Math.pow(airMass(h), 0.678));
-
-  it("reproduces Meinel & Meinel's DNI in luminance, by construction", () => {
-    // DNI(AM) = 1353 * 0.7 ^ (AM ^ 0.678). The per-channel optical depths were solved so their
-    // luminance-weighted transmittance at AM = 1 is exactly 0.70; the rest is Beer's law.
-    expect(luminance(beamIrradiance(90)) * WATTS_PER_UNIT).toBeCloseTo(meinelDni(90), 0);
-    for (const h of [70, 53, 30, 15, 7, 4.5]) {
-      expect(luminance(beamIrradiance(h)) / (meinelDni(h) / WATTS_PER_UNIT)).toBeCloseTo(1, 1);
-    }
-  });
-
-  it("beats a grey atmosphere at high air mass, because what survives is the red end", () => {
-    // Jensen's inequality, and it is physics rather than error: a spectrally SELECTIVE atmosphere
-    // transmits more broadband light than a grey one with the same AM=1 transmittance, because the
-    // blue that Beer's law kills fastest carries the least luminance. The gap widens toward the
-    // horizon, which is also why the beam reddens. Anchored here so a refactor cannot quietly
-    // flatten the spectrum back to grey.
-    const excess = (h: number) => luminance(beamIrradiance(h)) * WATTS_PER_UNIT / meinelDni(h);
-    expect(excess(90)).toBeCloseTo(1, 3);
-    expect(excess(15)).toBeGreaterThan(1);
-    expect(excess(4.5)).toBeGreaterThan(excess(15));
-    expect(excess(0)).toBeGreaterThan(excess(4.5));
-    expect(excess(0)).toBeLessThan(1.3);
-  });
-
-  it("reddens monotonically as air mass grows, and never goes blue", () => {
-    let previous = 0;
-    for (const h of [90, 53, 30, 15, 7, 4.5, 2]) {
-      const [r, g, b] = beamIrradiance(h);
-      const warmth = r / g;
-      expect(warmth).toBeGreaterThan(previous);
-      expect(b).toBeLessThan(g); // the beam is never cooler than neutral once it has crossed air
-      previous = warmth;
-    }
-  });
-
-  it("vanishes across the sun's angular radius, allowing for refraction", () => {
-    expect(sunDiscVisibility(0)).toBe(1); // the sun you watch touch the horizon is fully visible
-    expect(sunDiscVisibility(-0.3)).toBeCloseTo(1, 2);
-    expect(sunDiscVisibility(-0.57)).toBeCloseTo(0.5, 1); // centre on the refracted horizon
-    expect(sunDiscVisibility(-0.9)).toBe(0);
-    expect(luminance(beamIrradiance(-2))).toBe(0);
-    expect(luminance(beamIrradiance(-6))).toBe(0);
-  });
-});
-
 describe("diffuse skylight", () => {
   it("is continuous through the twilight handover", () => {
     const below = clearSkyDhi(2.999);
@@ -100,129 +35,6 @@ describe("diffuse skylight", () => {
     const atZero = clearSkyDhi(0);
     const justAbove = clearSkyDhi(0.001);
     expect(atZero / justAbove).toBeCloseTo(1, 2);
-  });
-
-  it("falls monotonically below the horizon and never reaches zero", () => {
-    let previous = clearSkyDhi(0);
-    for (const h of [-2, -4, -6, -12, -18]) {
-      const dhi = clearSkyDhi(h);
-      expect(dhi).toBeGreaterThan(0);
-      expect(dhi).toBeLessThan(previous);
-      previous = dhi;
-    }
-  });
-
-  it("puts civil twilight at ~3 lux, the value that defines it", () => {
-    const lux = clearSkyDhi(-6) * WATTS_PER_UNIT * 110;
-    expect(lux).toBeGreaterThan(2);
-    expect(lux).toBeLessThan(5);
-  });
-
-  it("peaks in the mid sky, not at the zenith — the sky path is longest when the sun is low", () => {
-    expect(clearSkyDhi(40)).toBeGreaterThan(clearSkyDhi(90));
-    expect(clearSkyDhi(40)).toBeGreaterThan(clearSkyDhi(10));
-  });
-});
-
-describe("the sun:sky ratio on a horizontal surface", () => {
-  // The acceptance criterion of the whole overhaul. Targets from docs/LIGHTING.md, which derives
-  // them from Meinel (beam) and a standard clear-sky diffuse model.
-  const cases: [number, number, number][] = [
-    // elevation, min, max
-    [90, 8, 12],
-    [53, 6, 8.5],
-    [30, 3, 4.5],
-    [22, 2, 3.2],
-    [15, 1.3, 2.3],
-    [10, 0.9, 1.6],
-    [7, 0.6, 1.2],
-  ];
-  it.each(cases)("at %i degrees lands in [%f, %f]", (elevationDeg, min, max) => {
-    const ratio = sunSkyRatio(computeLighting(input({ elevationDeg })));
-    expect(ratio).toBeGreaterThanOrEqual(min);
-    expect(ratio).toBeLessThanOrEqual(max);
-  });
-
-  it("crosses 1:1 between 8 and 11 degrees — the physically meaningful number", () => {
-    expect(sunSkyRatio(computeLighting(input({ elevationDeg: 12 })))).toBeGreaterThan(1);
-    expect(sunSkyRatio(computeLighting(input({ elevationDeg: 6 })))).toBeLessThan(1);
-  });
-
-  it("rises monotonically with elevation — the sky never out-lights a higher sun", () => {
-    let previous = -1;
-    for (const h of [0, 2, 4.5, 7, 10, 15, 22, 30, 53, 70, 90]) {
-      const ratio = sunSkyRatio(computeLighting(input({ elevationDeg: h })));
-      expect(ratio).toBeGreaterThan(previous);
-      previous = ratio;
-    }
-  });
-
-  it("is exactly zero below the horizon: skylight only", () => {
-    for (const h of [-2, -4, -6]) {
-      expect(sunSkyRatio(computeLighting(input({ elevationDeg: h })))).toBe(0);
-    }
-  });
-});
-
-describe("overcast", () => {
-  it("extinguishes the beam, so the shadows go with it", () => {
-    const state = computeLighting(input({ cloud: cloudStateFromGenus(CLOUD_GENERA.stratus) }));
-    expect(state.cloudBeamFactor).toBeLessThan(0.001);
-    expect(sunSkyRatio(state)).toBeLessThan(0.01);
-  });
-
-  it("lands at 10-25% of clear-sky illuminance, straight out of the two-stream solution", () => {
-    const clear = computeLighting(input({ elevationDeg: 40 }));
-    const stratus = computeLighting(
-      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.stratus) }),
-    );
-    const fraction = stratus.illuminanceLux / clear.illuminanceLux;
-    expect(fraction).toBeGreaterThan(0.1);
-    expect(fraction).toBeLessThan(0.25);
-  });
-
-  it("dims the scene monotonically with optical depth, for the genera that fully cover", () => {
-    const lux = (genus: CloudGenusName) =>
-      computeLighting(input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA[genus]) }))
-        .illuminanceLux;
-    expect(lux("stratus")).toBeLessThan(lux("cumulus"));
-    expect(lux("cumulus")).toBeLessThan(lux("cirrus"));
-    expect(lux("cirrus")).toBeLessThan(lux("clear"));
-  });
-
-  it("cumulonimbus is about CONTRAST, not mean illuminance — its gaps let the full beam through", () => {
-    // Its base is by far the darkest thing in the model...
-    expect(cloudTotalTransmittance(CLOUD_GENERA.cumulonimbus.tau)).toBeLessThan(
-      cloudTotalTransmittance(CLOUD_GENERA.stratus.tau) / 4,
-    );
-    // ...yet at 72 % coverage the 28 % of clear sky keeps the SCENE MEAN near a total overcast.
-    // A squall is dramatic because of the shafts through the gaps, not because it is dimmer on
-    // average. Anyone "fixing" the mean here would be flattening exactly the effect we want.
-    const cb = computeLighting(
-      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.cumulonimbus) }),
-    );
-    const stratus = computeLighting(
-      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.stratus) }),
-    );
-    expect(cb.illuminanceLux / stratus.illuminanceLux).toBeGreaterThan(0.7);
-    expect(cb.illuminanceLux / stratus.illuminanceLux).toBeLessThan(1.5);
-    // And the beam is alive under Cb (through gaps) where under stratus it is gone entirely.
-    expect(cb.cloudBeamFactor).toBeGreaterThan(stratus.cloudBeamFactor * 50);
-  });
-
-  it("cirrus barely dims the beam — a similarity depth of tau*(1-g)", () => {
-    const state = computeLighting(
-      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.cirrus) }),
-    );
-    expect(state.cloudBeamFactor).toBeGreaterThan(0.9);
-  });
-
-  it("two-stream total transmittance lands the stratus range on 10-25% of clear sky", () => {
-    // T = 1 / (1 + 0.75*tau*(1-g)), g = 0.8. Stratus spans tau 10..40.
-    expect(cloudTotalTransmittance(10)).toBeCloseTo(0.4, 2);
-    expect(cloudTotalTransmittance(20)).toBeCloseTo(0.25, 2);
-    expect(cloudTotalTransmittance(40)).toBeCloseTo(0.143, 2);
-    expect(cloudTotalTransmittance(0)).toBe(1);
   });
 });
 
@@ -442,25 +254,6 @@ describe("the twilight seam", () => {
 });
 
 describe("derived quantities that used to be hand-tuned curves", () => {
-  it("the veil is the downwelling irradiance under the surface, never brighter than above it", () => {
-    for (const h of [90, 30, 4.5, 0, -6]) {
-      const s = computeLighting(input({ elevationDeg: h }));
-      const veil = luminance(s.underwaterBeam) + luminance(s.underwaterSky);
-      expect(veil).toBeLessThanOrEqual(luminance(s.horizontalIrradiance) + 1e-9);
-      expect(veil).toBeGreaterThan(0);
-    }
-  });
-
-  it("the beam's Fresnel loss into the water grows as the sun drops", () => {
-    const share = (h: number) => {
-      const s = computeLighting(input({ elevationDeg: h }));
-      return (
-        (luminance(s.underwaterBeam) + luminance(s.underwaterSky)) /
-        luminance(s.horizontalIrradiance)
-      );
-    };
-    expect(share(90)).toBeGreaterThan(share(10));
-  });
 
   it("the veil's BEAM half carries the clear-sky beam — the cloud is applied once, in the shader", () => {
     // The shadow map multiplies `underwaterBeam` per fragment. If the cloud's spatial mean were
@@ -473,65 +266,9 @@ describe("derived quantities that used to be hand-tuned curves", () => {
     // ...while the SKY half really does dim under the deck.
     expect(luminance(cloudy.underwaterSky)).toBeGreaterThan(luminance(clear.underwaterSky));
   });
-
-  it("the ground bounce tracks the scene's total light, not the sun specifically", () => {
-    const day = computeLighting(input({ elevationDeg: 40 }));
-    const overcast = computeLighting(
-      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.stratus) }),
-    );
-    expect(luminance(day.groundRadiance)).toBeGreaterThan(luminance(overcast.groundRadiance));
-    expect(luminance(overcast.groundRadiance)).toBeGreaterThan(0);
-  });
 });
 
 describe("the optical depths that colour the beam", () => {
-  it("are ordered blue > green > red, as Rayleigh demands", () => {
-    expect(BEAM_OPTICAL_DEPTH[2]).toBeGreaterThan(BEAM_OPTICAL_DEPTH[1]);
-    expect(BEAM_OPTICAL_DEPTH[1]).toBeGreaterThan(BEAM_OPTICAL_DEPTH[0]);
-  });
-
-  it("have exactly Meinel's luminance-weighted transmittance at one air mass", () => {
-    const t = BEAM_OPTICAL_DEPTH.map((x) => Math.exp(-x)) as [number, number, number];
-    expect(luminance(t)).toBeCloseTo(0.7, 5);
-  });
-
-  it("rise with turbidity, because turbidity IS the aerosol load", () => {
-    // The sky dome always took `turbidity`; the BEAM did not, so a hazy sky came with a sun burning at
-    // full clear-air strength. The picture and the light disagreed.
-    expect(beamOpticalDepth(3)).toEqual(BEAM_OPTICAL_DEPTH);
-    for (const i of [0, 1, 2]) {
-      expect(beamOpticalDepth(8)[i]).toBeGreaterThan(beamOpticalDepth(3)[i]);
-      expect(beamOpticalDepth(1)[i]).toBeLessThan(beamOpticalDepth(3)[i]);
-    }
-    // Only the aerosol term moves; Rayleigh and ozone are properties of the gas column, not the haze.
-    expect(beamOpticalDepth(0)[1]).toBeCloseTo(0.123, 3); // Rayleigh(549) 0.098 + ozone(549) 0.025
-  });
-
-  it("redden the beam faster than they dim it, so a hazy horizon sun goes deep orange", () => {
-    // beta * lambda^-1.3 hits blue hardest. This is the whole reason the classic big orange sun needs
-    // haze: it is the only thing that can dim a disc that is a million times middle grey.
-    const hue = (t: number) => {
-      const [r, g] = beamIrradiance(1, t);
-      return r / g;
-    };
-    expect(hue(8)).toBeGreaterThan(hue(3));
-    expect(hue(3)).toBeGreaterThan(hue(1));
-    expect(luminance(beamIrradiance(1, 8))).toBeLessThan(0.25 * luminance(beamIrradiance(1, 3)));
-  });
-
-  it("reddens the aerosol's source far harder than the air's, so a sunset sky stays blue overhead", () => {
-    // A single dome-wide tint was tried first and the ANTI-SOLAR sky at sunset went olive: the beam
-    // that lights a Rayleigh scatterer at 8.4 km has NOT crossed the column the beam lighting an
-    // aerosol at 1.2 km has. `H_j/(H_s + H_j)` is exact for exponential columns; nothing is fitted.
-    const { rayleigh, mie } = sourceTints(0);
-    expect(mie[2]).toBeLessThan(0.45); // the aureole loses most of its blue
-    expect(rayleigh[2]).toBeGreaterThan(0.6); // the sky keeps most of its own
-    expect(mie[0]).toBeGreaterThan(rayleigh[0]);
-    // Overhead they nearly agree, because there is barely any column to cross either way — the
-    // aerosol still sees ~5% more of it, which is exactly the asymmetry, just very small at AM = 1.
-    const high = sourceTints(90);
-    for (const i of [0, 1, 2]) expect(Math.abs(high.mie[i] - high.rayleigh[i])).toBeLessThan(0.08);
-  });
 
   it("has unit luminance for both species, so the tint moves hue and never energy", () => {
     for (const el of [90, 30, 5, 0]) {

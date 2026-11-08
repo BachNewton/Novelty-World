@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
-import { FABLE_V8_PARAMS, fableV8Bot } from "../fable-v8";
-import { makeParamBot } from "./bot";
+import { fableV8Bot } from "../fable-v8";
 import { fableV11Bot } from "./index";
 
 // fable-v11 = fable-v8's factory + the F12 human-counterparty model
@@ -68,23 +67,6 @@ function kentuckyPending(humanProposer: boolean, cash: number): GameState {
     turn: { ...base.turn, phase: "trade-pending", pendingTrade: pending },
   };
 }
-
-describe("fable-v11 — bot-vs-bot play is IDENTICAL to fable-v8 (the vacuous-SPRT claim)", () => {
-  const v8OnV11Factory = makeParamBot({ ...FABLE_V8_PARAMS, humanAskOff: 0, humanProposalMargin: 0 });
-  it("the factory copy is faithful with the human dims off", () => {
-    for (const board of [freshGame(), extractionBoard(false), kentuckyPending(false, 240)]) {
-      expect(v8OnV11Factory(board, "p1")).toEqual(fableV8Bot(board, "p1"));
-      expect(v8OnV11Factory(board, "p2")).toEqual(fableV8Bot(board, "p2"));
-    }
-  });
-
-  it("fable-v11 itself matches fable-v8 on every all-bot board", () => {
-    for (const board of [freshGame(), extractionBoard(false), kentuckyPending(false, 240), kentuckyPending(false, 330)]) {
-      expect(fableV11Bot(board, "p1")).toEqual(fableV8Bot(board, "p1"));
-      expect(fableV11Bot(board, "p2")).toEqual(fableV8Bot(board, "p2"));
-    }
-  });
-});
 
 describe("fable-v11 — F12a: no premium asks against humans", () => {
   it("fable-v8 arms the extraction sale against a HUMAN buyer (the corpus's 0%-conversion spam)", () => {

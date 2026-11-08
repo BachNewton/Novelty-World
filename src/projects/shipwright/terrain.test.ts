@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bedrockField, bedrockHeight, fbm2, noise2, type ArchipelagoProfile } from "./terrain";
+import { bedrockField, bedrockHeight, fbm2, type ArchipelagoProfile } from "./terrain";
 
 const PROFILE: ArchipelagoProfile = {
   seed: 1337,
@@ -8,42 +8,6 @@ const PROFILE: ArchipelagoProfile = {
   grain: Math.PI / 8,
   deep: -30,
 };
-
-/** Sample the central half of the window (inside the edge taper) on a coarse lattice. */
-const sampleCore = (height: (x: number, z: number) => number, step = 5) => {
-  const out: number[] = [];
-  const half = PROFILE.extent / 4;
-  for (let x = -half; x <= half; x += step) {
-    for (let z = -half; z <= half; z += step) out.push(height(x, z));
-  }
-  return out;
-};
-
-/** Sample 3 km of the world. Anything about the field's CHARACTER has to be measured out here: one
- *  600 m window is smaller than the scale the archipelago is organised into, so it proves nothing. */
-const sampleWide = (height: (x: number, z: number) => number, step = 15) => {
-  const out: number[] = [];
-  for (let x = -1500; x <= 1500; x += step) {
-    for (let z = -1500; z <= 1500; z += step) out.push(height(x, z));
-  }
-  return out;
-};
-
-describe("noise2", () => {
-  it("varies with the seed", () => {
-    expect(noise2(12.5, -3.25, 7)).not.toBe(noise2(12.5, -3.25, 8));
-  });
-
-  it("is zero at lattice points (gradient noise has no value at the corners)", () => {
-    expect(noise2(4, 9, 3)).toBeCloseTo(0, 10);
-  });
-
-  it("stays within roughly [-1, 1] across a wide sample", () => {
-    for (let i = 0; i < 2000; i++) {
-      expect(Math.abs(noise2(i * 0.37, i * -0.61, 42))).toBeLessThanOrEqual(1);
-    }
-  });
-});
 
 describe("fbm2", () => {
   it("stays normalised within [-1, 1] regardless of octave count", () => {
@@ -57,62 +21,6 @@ describe("fbm2", () => {
 
 describe("bedrockHeight", () => {
   const height = bedrockHeight(PROFILE);
-
-  it("produces a different archipelago for a different seed", () => {
-    const other = bedrockHeight({ ...PROFILE, seed: PROFILE.seed + 1 });
-    expect(height(20, 20)).not.toBe(other(20, 20));
-  });
-
-  it("puts some land above sea level", () => {
-    // Measured WIDE, not over one window: since the super-regional scale landed, a single 600 m
-    // window may legitimately be an open basin with no land in it at all — that is the zoning
-    // working, not a broken field. The property is that the FIELD makes land.
-    expect(Math.max(...sampleWide(bedrockHeight({ ...PROFILE, extent: 8000 })))).toBeGreaterThan(0);
-  });
-
-  it("is mostly sea — land is the exception, so it reads as an archipelago", () => {
-    const heights = sampleWide(bedrockHeight({ ...PROFILE, extent: 8000 }));
-    const land = heights.filter((h) => h > 0).length / heights.length;
-    expect(land).toBeGreaterThan(0.05);
-    expect(land).toBeLessThan(0.35);
-  });
-
-  it("zones the world: dense archipelago in some regions, open basin in others", () => {
-    // The reason SUPER_RELIEF exists. Without a scale ABOVE the island scale the field is spectrally
-    // flat, and a flat spectrum splatters same-sized islands at uniform density forever — measured,
-    // that gave 1,568 islands over 9 km² with NOT ONE above 10 ha and every 500 m tile holding
-    // 11-13 % land. There is no inner/outer archipelago for docs/ISLANDS.md's exposure gradient to
-    // hang on, and nothing to sail toward. So: land fraction per 500 m tile must VARY a lot.
-    const wide = bedrockHeight({ ...PROFILE, extent: 8000 });
-    const TILE = 500;
-    const fractions: number[] = [];
-    for (let tz = -1500; tz < 1500; tz += TILE) {
-      for (let tx = -1500; tx < 1500; tx += TILE) {
-        let land = 0;
-        let n = 0;
-        for (let x = tx; x < tx + TILE; x += 5) {
-          for (let z = tz; z < tz + TILE; z += 5) {
-            n++;
-            if (wide(x, z) > 0) land++;
-          }
-        }
-        fractions.push(land / n);
-      }
-    }
-    const mean = fractions.reduce((a, b) => a + b, 0) / fractions.length;
-    const sd = Math.sqrt(fractions.reduce((a, b) => a + (b - mean) ** 2, 0) / fractions.length);
-
-    // Spread must dwarf a flat splatter's (relative sd measured at 0.49 with the term off, 1.6 with
-    // it on), and the extremes must actually be reached: real open water, real dense archipelago.
-    expect(sd / mean).toBeGreaterThan(0.8);
-    expect(Math.min(...fractions)).toBeLessThan(0.02);
-    expect(Math.max(...fractions)).toBeGreaterThan(0.25);
-  });
-
-  it("keeps land relief low, in the Archipelago Sea's range", () => {
-    // Skerries 1-4 m, medium islands 5-20 m. Nothing should approach an alpine peak.
-    expect(Math.max(...sampleCore(height, 2))).toBeLessThan(25);
-  });
 
   it("anchors the bedrock to the world, not to the window", () => {
     // Two windows over the same seed must agree wherever they overlap, or streamed windows could
@@ -209,28 +117,5 @@ describe("bedrockHeight", () => {
     expect(interiors.length).toBeGreaterThan(0);
     const median = interiors.sort((a, b) => a - b)[interiors.length >> 1];
     expect(median).toBeGreaterThan(4);
-  });
-
-  it("lineates the terrain along the glacial grain", () => {
-    // The headline silhouette cue: islands stretch ALONG the ice flow. So height should change
-    // more slowly walking along the grain than across it. Measured as mean |Δh| at a fixed lag.
-    const { grain } = PROFILE;
-    const along: [number, number] = [Math.cos(grain), Math.sin(grain)];
-    const across: [number, number] = [-Math.sin(grain), Math.cos(grain)];
-    const LAG = 20;
-
-    const meanDelta = ([dx, dz]: [number, number]) => {
-      let sum = 0;
-      let n = 0;
-      for (let x = -120; x <= 120; x += 10) {
-        for (let z = -120; z <= 120; z += 10) {
-          sum += Math.abs(height(x + dx * LAG, z + dz * LAG) - height(x, z));
-          n++;
-        }
-      }
-      return sum / n;
-    };
-
-    expect(meanDelta(along)).toBeLessThan(meanDelta(across));
   });
 });

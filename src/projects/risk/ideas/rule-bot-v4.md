@@ -26,7 +26,7 @@ Each is one parameter of the opponent model (`Beliefs` in `params.ts`), fixed by
 
 ## What G4FR showed
 
-In G4FR, a 5-player game, a person beat v3, another person, gd-stacker and gd-continental. He fed one stack every reinforcement and trade, blitzed into the thinnest enemy and chained captures (19 in one turn), brought what was left back to a home base, held a continent with one way in all game, and broke the bots' continents by taking a single one-army territory. v3 lost in turns 89 to 91: it spread from 10 territories to 17, its biggest stack on 4, and two turns later one stack of his took 13 of them, leaving v3 one territory. The game's seed and move log are a fixture (`bots/rule-v4/g4fr.json`, replayed by `g4fr.test.ts` on the engine real games play on), and reading v3's decisions there found these faults.
+In G4FR, a 5-player game, a person beat v3, another person, gd-stacker and gd-continental. He fed one stack every reinforcement and trade, blitzed into the thinnest enemy and chained captures (19 in one turn), brought what was left back to a home base, held a continent with one way in all game, and broke the bots' continents by taking a single one-army territory. v3 lost in turns 89 to 91: it spread from 10 territories to 17, its biggest stack on 4, and two turns later one stack of his took 13 of them, leaving v3 one territory. The game's seed and move log are a fixture (`bots/rule-v4/g4fr.json`, replayed on the engine real games play on by a test while v4 was built), and reading v3's decisions there found these faults.
 
 ### The sweep stopped short
 

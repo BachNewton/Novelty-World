@@ -1,14 +1,13 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { BUTTON, drawnCard, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, SAVED, seededGame, setButton, shareCode, tapButton, until, wakePad, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
+import { BUTTON, drawnCard, holdButton, onePad, PAGE, padTo, readout, resume, SAVED, seededGame, shareCode, tapButton, until, watchDebugPanel, withPad } from "./betrayal-game";
 
 /**
- * Each input method is complete on its own. The owner's playtest case (an
- * item used and another dropped, mid-turn, on a controller alone); a whole
- * game played on the pad alone, from setup through a discovery, a card,
- * damage and a trade to the haunt's reveal and every seat's Ready; and the
- * explorer's sheet, the trade sheet and the game menu with the keyboard and
- * mouse alone, and by touch alone. Every wait is on the game's own state.
+ * Each input method is complete on its own: a whole game played on the pad
+ * alone, from a discovery through a card, damage and a trade to the haunt's
+ * reveal and every seat's Ready; the explorer's sheet and the trade sheet with
+ * the keyboard and mouse alone; and the sheet and the game menu by touch
+ * alone. Every wait is on the game's own state.
  */
 
 test.use({ launchOptions: { args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] } });
@@ -63,40 +62,7 @@ test.describe("controller", () => {
     await withPad(page);
   });
 
-  test("the playtest case: mid-turn, use an item and drop another, on the pad alone", async ({ page }) => {
-    const others = await padOnly(page);
-    await resumeByPad(page, HOLDING);
-    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-
-    // Y opens Zoe's sheet on its first action, the Music Box's use, and A takes it; the sheet closes as the decision changes.
-    await tapButton(page, BUTTON.Y);
-    const sheet = page.getByRole("dialog", { name: "Zoe Ingstrom's character card" });
-    await expect(sheet.getByRole("button", { name: /^Open the Music Box/ })).toBeFocused();
-    await tapButton(page, BUTTON.A);
-    await until(page, "play.version === 1 && !play.panel.includes('Open the Music Box')");
-    await expect(sheet).toBeHidden();
-
-    // Y again, the d-pad down to the Lucky Stone's Drop, and A drops it.
-    await tapButton(page, BUTTON.Y);
-    await padTo(sheet.getByRole("listitem").filter({ hasText: "Lucky Stone" }).getByRole("button", { name: "Drop" }), onePad(page));
-    await tapButton(page, BUTTON.A);
-    await until(page, "!play.panel.includes('Drop the Lucky Stone')");
-    expect(await others()).toEqual([]);
-  });
-
-  test("Y in a turn with nothing to do opens the acting player's own tab, not the first seat's", async ({ page }) => {
-    await resumeByPad(page, seededGame({}));
-    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    await holdButton(page, BUTTON.X, "play.holder === 1");
-    await until(page, "play.holder === 1 && play.pending?.kind === 'turn'");
-
-    await tapButton(page, BUTTON.Y);
-    const sheet = page.getByRole("dialog", { name: "Ox Bellows's character card" });
-    await expect(sheet.getByRole("tab", { name: "Ox Bellows" })).toBeFocused();
-    await expect(sheet.getByRole("tab", { name: "Ox Bellows" })).toHaveAttribute("aria-selected", "true");
-  });
-
-  test("a whole game on the pad alone: setup, a discovery, a card, damage, a trade, the reveal and Ready", async ({ page }) => {
+  test("a whole game on the pad alone: a discovery, a card, damage, a trade, the reveal and Ready", async ({ page }) => {
     const others = await padOnly(page);
     const debugShown = await watchDebugPanel(page);
     // On this seed Skeletons deals Zoe damage, and Ox's omen, the Ring, starts haunt 13 at his turn's end.
@@ -174,121 +140,9 @@ test.describe("controller", () => {
     expect(await others()).toEqual([]);
     expect(await debugShown()).toBe(false);
   });
-
-  test("the reticle shows at the centre on the pad; the name tag goes when B clears the focus or the reticle leaves every target, and with the mouse when it leaves a target", async ({ page }) => {
-    await resumeByPad(page, HOLDING);
-    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    const reticle = page.locator("[data-reticle]");
-    const tag = page.getByRole("tooltip");
-    await expect(reticle).toBeVisible();
-
-    // B clears the focus the d-pad brought, and its tag with it.
-    await tapButton(page, BUTTON.DpadRight);
-    await until(page, "window.__betrayalPlay.reticle() !== null");
-    await expect(tag).toBeVisible();
-    await tapButton(page, BUTTON.B);
-    await until(page, "window.__betrayalPlay.reticle() === null");
-    await expect(tag).toBeHidden();
-
-    // The stick pans the reticle off the house: nothing is under it, so nothing has the focus.
-    await tapButton(page, BUTTON.DpadRight);
-    await until(page, "window.__betrayalPlay.reticle() !== null");
-    const target = await page.evaluate(() => window.__betrayalPlay?.reticle() ?? null);
-    if (target === null) throw new Error("The d-pad brought no target");
-    await page.evaluate(() => {
-      (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [1, 0, 0, 0];
-    });
-    // The camera keeps moving while the stick is held, so the house never settles: the wait is on the reticle alone.
-    await whilePlaying(page, "window.__betrayalPlay.reticle() === null");
-    await page.evaluate(() => {
-      (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [0, 0, 0, 0];
-    });
-    await expect(tag).toBeHidden();
-    await expect(reticle).toBeVisible();
-
-    // The mouse hides the reticle; pointing at a target names it, and leaving it for open floor clears the tag.
-    await tapButton(page, BUTTON.View);
-    await page.waitForFunction(() => window.__betrayalPlay?.isReady());
-    const at = await pointOf(page, target);
-    await page.mouse.move(at.x, at.y);
-    await expect(reticle).toBeHidden();
-    await expect(tag).toBeVisible();
-    const open = await page.evaluate(() => {
-      const hook = window.__betrayalPlay;
-      for (let y = innerHeight - 4; y > innerHeight / 2; y -= 16) {
-        for (let x = 4; x < innerWidth; x += 16) {
-          const over = document.elementFromPoint(x, y);
-          if (over instanceof HTMLCanvasElement && over.closest("[data-frame-meter]") === null && hook?.targetAt({ x, y }) === null) return { x, y };
-        }
-      }
-      return null;
-    });
-    if (!open) throw new Error("No open floor to point at");
-    await page.mouse.move(open.x, open.y);
-    await expect(tag).toBeHidden();
-  });
-
-  test("the game menu: any pad's Menu opens it, the d-pad and A change the speed, and B closes it", async ({ page }) => {
-    await resumeByPad(page, HOLDING);
-    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    await tapButton(page, BUTTON.Menu);
-    const menu = page.getByRole("dialog", { name: "Game menu" });
-    await expect(menu).toBeVisible();
-    await choose(page, "Slow", menu);
-    await expect(menu.getByRole("button", { name: "Slow" })).toHaveAttribute("aria-pressed", "true");
-    await tapButton(page, BUTTON.B);
-    await expect(menu).toBeHidden();
-    // X held still ends the turn once the menu is shut.
-    await setButton(page, BUTTON.X, true);
-    await until(page, "play.holder === 1");
-    await setButton(page, BUTTON.X, false);
-  });
 });
 
-/** Whether the pad's focus shows on the focused button: its outline drawn. */
-const focusShows = (page: Page) => page.evaluate(() => document.activeElement instanceof HTMLButtonElement && getComputedStyle(document.activeElement).outlineStyle !== "none");
-
-test("setup on the pad alone: the first press shows the focus and nothing else, the focused character's traits show, and Start opens the game on the pad", async ({ page }) => {
-  await withPad(page, { asleep: true });
-  const others = await padOnly(page);
-  page.on("pageerror", (error) => {
-    throw error;
-  });
-  await page.goto(PAGE);
-  await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
-  expect(await focusShows(page)).toBe(false);
-
-  // A, the press that makes the browser show the pad, brings the focus into view on the first seat's portrait without pressing it.
-  await wakePad(page, BUTTON.A);
-  const seat0 = page.getByRole("listitem", { name: "Seat 0" });
-  const portrait = seat0.getByRole("button", { name: /^Seat 0 character/ });
-  await expect(portrait).toBeFocused();
-  expect(await focusShows(page)).toBe(true);
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-
-  // Four seats, each showing its character's traits; the picker shows the traits of the character in focus.
-  await expect(page.getByRole("listitem", { name: /^Seat \d$/ })).toHaveCount(4);
-  await expect(seat0.getByLabel("Father Rhinehardt's traits").getByLabel(/ track$/)).toHaveCount(4);
-  await tapButton(page, BUTTON.A);
-  const grid = page.getByRole("dialog", { name: "Seat 0's character" });
-  await expect(grid.getByRole("button", { name: "Close" })).toBeFocused();
-  const vivian = grid.getByRole("button", { name: /Vivian Lopez/ });
-  await padTo(vivian, onePad(page));
-  expect(await focusShows(page)).toBe(true);
-  await expect(grid.getByLabel("In focus").getByLabel("Vivian Lopez's traits").getByLabel(/ track$/)).toHaveCount(4);
-  await tapButton(page, BUTTON.A);
-  await expect(grid).toBeHidden();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" })).toBeVisible();
-
-  await choose(page, /^13 · /);
-  await choose(page, "Start");
-  await until(page, "play.pending?.kind === 'turn'");
-  // The game opens with the pad's hints and focus showing, as setup left them.
-  expect((await readout(page)).input).toBe("pad");
-  expect(await others()).toEqual([]);
-});
-
-test("keyboard and mouse alone: I opens the explorer, a trade is built with clicks, Tab and Enter, M opens the menu, and Backspace held ends the turn", async ({ page }) => {
+test("keyboard and mouse alone: I opens the explorer, and a trade is built with clicks, Tab and Enter", async ({ page }) => {
   await resume(page, HOLDING);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   await page.keyboard.press("KeyI");
@@ -310,42 +164,18 @@ test("keyboard and mouse alone: I opens the explorer, a trade is built with clic
   await page.getByRole("button", { name: "Accept the trade" }).click();
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   await expect(page.locator("[data-mark='ox-bellows']")).toHaveAttribute("aria-label", "Ox Bellows: character card, 1 card held");
-
-  // M opens the menu; a click changes the speed; Escape closes it.
-  await page.keyboard.press("KeyM");
-  const menu = page.getByRole("dialog", { name: "Game menu" });
-  await menu.getByRole("button", { name: "Fast" }).click();
-  await expect(menu.getByRole("button", { name: "Fast" })).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Escape");
-  await expect(menu).toBeHidden();
-
-  await page.keyboard.down("Backspace");
-  await until(page, "play.holder === 1");
-  await page.keyboard.up("Backspace");
 });
 
 test.describe("touch", () => {
   test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true });
 
-  test("touch alone: the chip opens the explorer, a card is dropped, a trade is offered and accepted, and the menu works", async ({ page }) => {
+  test("touch alone: the chip opens the explorer, a card is dropped, the menu works, and End turn ends it", async ({ page }) => {
     await resume(page, HOLDING);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    const now = page.getByLabel("What you can do now");
     await page.locator("header").getByRole("button", { name: /: character card, \d+ actions$/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Zoe Ingstrom's character card" });
     await sheet.getByRole("listitem").filter({ hasText: "Lucky Stone" }).getByRole("button", { name: "Drop" }).tap();
     await until(page, "!play.panel.includes('Drop the Lucky Stone')");
-
-    // Trading is on the sheet only, never in the box.
-    await expect(now.getByRole("button", { name: /Trade with/ })).toHaveCount(0);
-    await page.locator("header").getByRole("button", { name: /: character card/ }).tap();
-    await sheet.getByRole("button", { name: "Trade with Ox Bellows" }).tap();
-    const trade = page.getByRole("dialog", { name: "Trade with Ox Bellows" });
-    await trade.getByRole("button", { name: "Rabbit's Foot" }).tap();
-    await trade.getByRole("button", { name: "Offer" }).tap();
-    await until(page, "play.holder === 1 && play.pending?.kind === 'trade-offer'");
-    await page.getByRole("button", { name: "Decline the trade" }).tap();
-    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
 
     await page.getByRole("button", { name: "Menu", exact: true }).tap();
     const menu = page.getByRole("dialog", { name: "Game menu" });

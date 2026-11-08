@@ -29,7 +29,7 @@ Both offers earn their place. Of the sweeps v5 committed to while placing, in ga
 
 ## Played on G4FR's positions
 
-From the position v3 had at the start of each of its turns, v5 plays the whole turn on the dice the game's random source gives (`bots/rule-v5/g4fr.test.ts` holds turns 62 and 89). The winner's sweep is v4's belief of it, at the worse of the two people, before v3's next turn:
+From the position v3 had at the start of each of its turns, v5 plays the whole turn on the dice the game's random source gives (a test held turns 62 and 89 while v5 was built). The winner's sweep is v4's belief of it, at the worse of the two people, before v3's next turn:
 
 | Turn | v3, as played | v5 |
 |---|---|---|

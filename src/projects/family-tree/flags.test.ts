@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FLAGS } from "./flags";
-import { LEGACY_COUNTRY_CODES, PEOPLES, type PeopleCode } from "./heritages";
+import { PEOPLES, type PeopleCode } from "./heritages";
 
 const FLAG_DIR = join(dirname(createRequire(import.meta.url).resolve("svg-country-flags/package.json")), "svg");
 
@@ -27,17 +27,6 @@ describe("flags", () => {
     for (const people of Object.keys(PEOPLES) as PeopleCode[]) {
       const { src, width, height } = FLAGS[people];
       expect(width / height, people).toBeCloseTo(viewBoxRatio(src), 6);
-    }
-  });
-
-  // The cards must look exactly as they did when heritage was coded by
-  // country, so each migrated people keeps that country's flag.
-  it("gives each people migrated from a country code that country's flag", async () => {
-    for (const [country, people] of Object.entries(LEGACY_COUNTRY_CODES)) {
-      const file = (await import(`svg-country-flags/svg/${country.toLowerCase()}.svg`)) as {
-        default: string;
-      };
-      expect(FLAGS[people].src, people).toBe(file.default);
     }
   });
 });

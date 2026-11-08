@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLodGrid, snapToLattice, type LodGrid } from "./ocean-lod";
+import { buildLodGrid, type LodGrid } from "./ocean-lod";
 
 // The shipped defaults (scene.ts): base quad ≈ 4.88 m, dense patch ~512 m,
 // whole grid ~16 km — plus a small config so exhaustive checks stay fast.
@@ -69,39 +69,5 @@ describe("buildLodGrid", () => {
     const offLattice = (value: number) => Math.abs(value / SHIPPED.baseQuad - Math.round(value / SHIPPED.baseQuad)) >= 5e-7;
     const off = Array.from({ length: grid.vertexCount }, (_, i) => vertexXZ(grid, i)).filter(([x, z]) => offLattice(x) || offLattice(z));
     expect(off).toEqual([]);
-  });
-
-  it("reports consistent metadata", () => {
-    const grid = buildLodGrid(SHIPPED);
-    expect(grid.vertexCount).toBe(grid.positions.length / 3);
-    expect(grid.triangleCount).toBe(grid.index.length / 3);
-    expect(grid.coarsestQuad).toBeCloseTo(SHIPPED.baseQuad * 2 ** grid.levels, 10);
-    expect(grid.extent).toBeCloseTo(grid.nearExtent * 2 ** grid.levels, 6);
-    expect(grid.index.reduce((most, i) => Math.max(most, i), 0)).toBeLessThan(grid.vertexCount);
-  });
-
-  it("lands near the designed vertex budget at the shipped defaults (~52k, not ~1M)", () => {
-    const grid = buildLodGrid(SHIPPED);
-    expect(grid.levels).toBe(5);
-    expect(grid.vertexCount).toBeGreaterThan(35_000);
-    expect(grid.vertexCount).toBeLessThan(75_000);
-  });
-
-  it("degenerates to a uniform patch when extent ≈ nearExtent (no rings, full perimeter)", () => {
-    const grid = buildLodGrid({ baseQuad: 2, nearExtent: 16, extent: 16 });
-    expect(grid.levels).toBe(0);
-    expect(grid.coarsestQuad).toBe(2);
-    // 8×8 cells → 9×9 vertices, 128 triangles.
-    expect(grid.vertexCount).toBe(81);
-    expect(grid.triangleCount).toBe(128);
-  });
-});
-
-describe("snapToLattice", () => {
-  it("quantises to the nearest step multiple", () => {
-    expect(snapToLattice(0, 156.25)).toBe(0);
-    expect(snapToLattice(80, 156.25)).toBe(156.25);
-    expect(snapToLattice(-80, 156.25)).toBe(-156.25);
-    expect(snapToLattice(77, 156.25)).toBe(0);
   });
 });

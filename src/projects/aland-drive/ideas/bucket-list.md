@@ -73,6 +73,54 @@ The second list, replacing a first pass of twelve that was too short and too eas
 
 Left out on the way, each for a reason worth keeping: the 201 m drags and Storagatan, over in seconds; the Soltuna climb, 1.2 km; Orrdalsklint's forest track and Bodkaröjvägen, whose tightest turns the scripted driver can't follow, so neither gets a par. The roads and places are the point, so their names stay real. Only clubs, sponsors and brands are invented.
 
+## The next list: about 25, a car each
+
+Decided, for when cars are bought (`ideas/cars.md`): **about 25 challenges**, each built round one car, and the eleven above are candidates like any other, kept, changed or dropped.
+
+- **The size follows Forza's.** Forza Horizon 3 had 30 challenges beside 63 championships, about one to every two, and Forza Horizon 2 30 beside about 168. At FH3's rate the 56 events of `ideas/races.md` carry about 28.
+- **A challenge is a test drive.** Forza's handed you cars you didn't own, dream cars above all. So the list is built round the car list: about 25 of its 38 cars get a challenge, first the ones hardest to own (the harbour's A1–A4 cars, the motor club's rally cars, a few of the barn-find classics), so every car worth dreaming of can be driven before it's bought.
+- **A challenge chooses its car, its road, its hour, its date and its weather.** The date gives the season: a midsummer night that never gets dark, autumn rain, January ice, a snowfall. The conditions can be the challenge's idea, as Forza's "Outrun the Sun in a Ferrari F40" was, not only its setting.
+- **Roads beyond the eleven.** The list above took the island's best-known roads, so the rest find their stories elsewhere: the coast, the bridges and causeways, the islands, the ferry harbours by night.
+
+### The draft list
+
+A draft for the owner's review. 25 challenges on 25 of the car list's 38 cars: all eleven harbour cars (A1–A4), the motor club's three B1 cars, six barn-find classics and five others. Ten of today's eleven keep their road with a new car or new conditions; the V12's run to Långnäs folds into the night ferry (2). 21 Routes and 4 Speed traps, near FH3's mix of 13 to 6. The times and dates are the real ones where Åland's events give them (`docs/DRIVING-CULTURE.md`).
+
+| # | Title | Kind | Car | Road | When | Weather |
+|---|---|---|---|---|---|---|
+| 1 | Do 200 in 201 metres where the Streetrace was rained off | Speed trap, 201 m from a standstill | A1 electric hypercar | Hammarlandsvägen at Hammarbo, the Streetrace's 2025–26 site | 29 August, 19:00 | Rain |
+| 2 | Catch the ship that calls at three | Route | A1 hybrid hypercar | Mariehamn to Långnäs harbour, road 3 | 22 June, 02:30, the midsummer night that never darkens | Clear |
+| 3 | Godby to Geta in the September fog | Route | A2 mid-engined V8 supercar | Getavägen, the 2024 Streetrace's road, past Stallhagen and Finström church | 20 September, 06:30 | Fog |
+| 4 | Make the Eckerö boat in the rain | Route | A2 AWD twin-turbo coupé | Road 1 west from Hammarland to Eckerö harbour | 14 October, 17:30, dusk | Rain |
+| 5 | Light up road 2 at midnight | Speed trap | A2 front-engined muscle supercar | Nya Godbyvägen's longest straight, Jomala (today: the Skerry GT by day) | 18 July, 23:30 | Clear |
+| 6 | Castle to fortress at sunset | Route | A3 V12 grand tourer | Kastelholm to Bomarsund (today: Bris) | 10 August, 20:45 | Clear |
+| 7 | Take the Backrace road on Backrace weekend | Route | A3 mid-engined sports car | Norra Sundsvägen (today: Sund, dry) | 10 October, 14:00 | Overcast, wet |
+| 8 | Barely a body down Hultvägen | Route | A3 lightweight track car | Hultvägen, Sund (today: Sten) | 2 July, 05:00 | Clear |
+| 9 | Chase the painters' light round Önningeby | Route | A4 Sund | Önningebyvägen and Lemlandsvägen through the artists' colony | 24 June, 22:00, golden hour | Clear |
+| 10 | Island to island to Järsö at sunrise | Route | A4 front-engined V8 coupé | Järsövägen over the bridges and causeways south of Mariehamn | 15 May, 04:45 | Clear |
+| 11 | Get the family to Geta in a snowstorm | Route | A4 super-estate | Finström church to Geta church, on winter tyres | 12 January, 15:00, after dark | Snowfall |
+| 12 | Run the Ytterby stage on rallysprint day | Route | B1 Grus | The Rallysprint's gravel stage, Jomala (today's, as it is) | 25 July, 10:00 | Clear |
+| 13 | Rally Nötviken's forest by night in the rain | Route | B1 top-class hybrid rally car | Nötviken's gravel, Sund (today: Grus, by day) | 24 October, 21:00 | Rain |
+| 14 | Open the folkrace season at Vessingsboda | Route | B1 electric rallycross car | The gravel lanes beside Motorstadion, Lemland | 25 April, 10:00 | Overcast, wet |
+| 15 | Plough to Djurvik in the first snow | Route | B2 desert pickup | Djurvikvägen's gravel, Hammarland (today: Berg) | 18 November, 13:00 | Snowfall |
+| 16 | Out to Kullskär through the morning fog | Route | B3 fast luxury four-by-four | Kullskärsvägen's gravel, Hammarland's west coast | 8 May, 06:00 | Fog |
+| 17 | Climb to the old shore at Orrdalsklint | Route | B4 tiny four-by-four | The forest track up Orrdalsklint, Åland's highest point | 1 June, 07:00 | Clear |
+| 18 | Bring a legend to the Möckelö straight | Speed trap | C1 1990s V12 supercar | Hammarlandsvägen at Möckelö, the Streetrace's 2023 site | 10 June, 20:00 | Clear |
+| 19 | Let Group B loose at Degersand | Route | C1 1980s Group B rally car | Degersand's gravel and tarmac, Eckerö | 3 October, 16:00, the Potato Race weekend | Overcast, wet |
+| 20 | Carry the post the old way | Route | C2 1960s V12 grand tourer | The post road from Eckerö's Post and Customs House over the Marsund bridge (today: Kobb) | 20 May, 10:00 | Clear |
+| 21 | Cruise harbour to harbour, the Saturday-night way | Route | C3 1970s V8 muscle car | Österhamn to Västerhamn by Storagatan, at cruising pace | 18 July, 18:30, after the car show | Clear |
+| 22 | Get the people's car up Getabergen | Route | C4 air-cooled people's car | The road up to Soltuna, where the Backrace began | 15 August, 12:00 | Cloud |
+| 23 | Beat the 145 through Lemland | Speed trap | C4 Sälta | Lemlandsvägen; 145 km/h was a real news story's speed (today's, as it is) | 4 June, 13:00 | Clear |
+| 24 | Keep the electric saloon on the road in January ice | Route | A5 Ström | Jomala's roads round the church | 20 January, 09:30, the sun barely up | Ice |
+| 25 | Wring the hot hatch along Skagvägen at sunrise | Route | A6 Sten | Skagvägen, Eckerö (today: Bris) | 21 June, 03:30 | Clear |
+
+**What the draft leans on, to check:**
+
+- **Two roads were left out of the first list for reasons that may not hold for these cars.** Orrdalsklint's track (17) was dropped because the scripted driver couldn't follow its tightest turns, so it has no par; a tiny four-by-four may follow them, or it needs a new par driver. The Soltuna climb (22) was dropped as too short at 1.2 km; at the people's car's pace it's a long minute.
+- **Conditions set the par.** Each challenge's par is measured in its car on its ground in its conditions, which the limits table already has rows for (wet, snow, ice, on each set of tyres). Fog and darkness change what a driver sees but not the car's grip, so par can't see them: those challenges' targets may want easing by hand.
+- **The cruise (21) is a Route with a gentle target**: the real cruise is about being seen, not speed. Whether a bucket list should hold one slow challenge is the owner's call.
+- **Thirteen cars have no challenge**: the Skerry GT, Ankar, Bris, Fjärd, Ljus, Holm, Berg, Vik, the A7 hot hatch, the rally-bred hatch, the electric pickup, the modern utility four-by-four and the 1990s rally saloon. Most are easy to own or are dealer cars a player can try there.
+
 ## The car suits the road
 
 Grip by surface (`ideas/surface-grip.md`) gives every car a class (sports, road, rally, off-road), and the order of the cars changes with the ground: on gravel the rally car and the four-by-fours lead, and the sports cars and the V12 saloon fall to the bottom.
@@ -102,7 +150,7 @@ Forza's designers tuned their targets. Here they start from the simulation:
 ## Still open
 
 - **Whether the second list is right**: whether its targets take several tries and its roads are worth retrying, once it's been played.
-- **Which conditions each challenge names**, once the world has its day, seasons and weather (decided above: a challenge sets its own), as Forza's "Drift an Enzo Ferrari in the Rain" did, and how a co-op pair is put in them together.
+- **The next list itself**: its 25 cars, roads, hours, dates and weather, and how a co-op pair is put in a challenge's conditions together.
 - **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.
@@ -116,3 +164,4 @@ Forza's designers tuned their targets. Here they start from the simulation:
 - [Co-Optimus, Forza Horizon 3 co-op review](https://www.co-optimus.com/review/1963/page/3/forza-horizon-3-co-op-review.html) (a search excerpt): two players only.
 - The co-op restart, and the average carrying a partner: the owner, from playing FH2 and FH3 co-op.
 - Åland's events, roads and places: `docs/DRIVING-CULTURE.md`, which carries its own sources.
+- [GamerFuzion, Forza Horizon 2 bucket list challenges](https://www.gamerfuzion.com/forza-horizon-2-bucket-list-challenges-guide/): FH2's 30, and the update that took them to 45.

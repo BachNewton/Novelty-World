@@ -4,7 +4,7 @@ What was tried on Risk's bots and what each measured, negative results included,
 
 ## v1, the rule-based bot (`bots/rule-v1/`)
 
-v1 is the design in `rule-bot-v1.md`: a turn planner over expert-shaped plans, priced with the exact odds of Balanced Blitz, scored by one evaluation with a one-round threat model. Each correction below came from a scenario (`bots/rule-v1/scenarios.test.ts`) or a measurement, with the reasoning that fixed it.
+v1 is the design in `rule-bot-v1.md`: a turn planner over expert-shaped plans, priced with the exact odds of Balanced Blitz, scored by one evaluation with a one-round threat model. Each correction below came from a scenario (`rule-bot-v1.md`'s expert scenarios, tests while v1 was built) or a measurement, with the reasoning that fixed it.
 
 ### Built differently from the design's first sketch, and why
 
@@ -407,7 +407,7 @@ At 6 players, where v4 plays v3's preferences, the two match. **Which part costs
 
 The name rule-v4 now belongs to a new build (`rule-bot-v4.md`); the version above, with its small-table preferences tuned against v3 alone, is in git history and never seated. The new v4 is v3's planner, evaluation and preferences at both table sizes, on the measured beliefs above, with four faults fixed that the human game G4FR showed (a person beat v3, another person, gd-stacker and gd-continental). Its seed and move log are a committed fixture, `bots/rule-v4/g4fr.json`; replayed on `ENGINE`, it reaches the game's recorded end state, and v3 makes every one of its 255 recorded moves.
 
-Read on G4FR's own positions (`bots/rule-v4/g4fr.test.ts`):
+Read on G4FR's own positions (a test while v4 was built):
 
 | Position | v3 | v4 |
 |---|---|---|
@@ -422,7 +422,7 @@ Speed: a v4 decision costs about 1.2 times a v3 decision (60 games at 3, 4 and 6
 
 Smoke run, not a measurement (60 games, seeds `smoke-*`): v4 alone among v3s won 4 of 12 at 3 players, 2 of 12 at 4 and 2 of 6 at 6; alone among gd-defensive, 11 of 12 at 3 and 8 of 12 at 4. No errors, nothing capped.
 
-`risk:tune` now takes a field of opponents and a baseline (`--opponent a,b,c --baseline rule-v3`): each table, an opponent at a size, is read as the candidate's edge over what the baseline scores there on the same seeds, and the fitness is the worst. Without the baseline the worst table would always be the strongest opponent's, and a tune against v3 plus weak bots would still be a tune against v3. `risk:opponents` scores v3's model as v3's evaluation holds it (`eval/v3-opponent-model.ts`, held to v3's breakdown by a test) beside v4's.
+`risk:tune` now takes a field of opponents and a baseline (`--opponent a,b,c --baseline rule-v3`): each table, an opponent at a size, is read as the candidate's edge over what the baseline scores there on the same seeds, and the fitness is the worst. Without the baseline the worst table would always be the strongest opponent's, and a tune against v3 plus weak bots would still be a tune against v3. `risk:opponents` scores v3's model as v3's evaluation holds it (`eval/v3-opponent-model.ts`, a copy of v3's breakdown, held to it by a test while it was built) beside v4's.
 
 Queued, in order: `risk:opponents` (v3's model against v4's, on the three fields), the small table retuned against rule-v3, gd-defensive, gd-stacker and greedy with v3 as baseline, the gauntlet against v3 on train and holdout seeds with the weak bots in the field, and the ladder.
 
@@ -594,7 +594,7 @@ Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.t
 
 v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (a parity test, deleted once v5 and v6 were both frozen). Registered with every fix on; not seated.
 
-On 9VFL's positions (`9vfl.test.ts`): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
+On 9VFL's positions (a test while v6 was built): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
 
 Cost: a v6 decision with every fix costs 1.33, 1.35 and 1.41 times a v5 decision at 3, 4 and 6 players on the same decisions; `movein` is most of it.
 

@@ -205,7 +205,7 @@ so it costs **~0 win share** — invisible to the win-share fitness, but a ~65% 
 of self-play trade volume (3839→1324 trades / 200 mirror games) and a game-stalling
 defect in front of a human (caught live, `game:review 2b6y55`). **claude-v45** = v44's
 vector with `holderDenialFrac` pinned back to 1.0 (every other dim verbatim): ring
-provably dead (`claude-v45/policy.test.ts`), BETTER than v44 vs every panel member on
+provably dead (shown by a test while v45 was built), BETTER than v44 vs every panel member on
 both streams, EVEN vs v44 itself (a net-zero exchange) → promoted on the
 equal-strength + defect-removal call, not a confident crown. **Lesson: a win-share
 optimizer is blind to net-zero degenerate behavior; constrain the levers that govern it
@@ -223,7 +223,7 @@ this — it only blocks denials of sets the rival *can't* get; a **strong** set 
 genuinely threatens passes the gate, yet rotating the completer between two non-rival
 deniers still has zero marginal denial value. **claude-v39** = the opt-v4 champion
 factory + `denialPositionCost` ported back in (same vector, one logical change). The
-ring collapses (one lot's hops 15–99 → 1–6, reproduced in `claude-v39/policy.test.ts`)
+ring collapses (one lot's hops 15–99 → 1–6, reproduced by a test while v39 was built)
 at **no cost**: gauntlet `--base opt-v4 --panel` = **EVEN vs opt-v4, BETTER vs all 8
 other panel members, zero regressions**. It's a non-regression, not a crown (EVEN, not
 better), and a clean substrate for the seller-side trade work below (the now-crowned
@@ -306,7 +306,7 @@ Two hard-won constraints shaped the fix: the shared evaluator must NOT change
 REJECTED on holdout: the "degenerate" churn is load-bearing in self-play),
 and validation cannot be SPRT (a human-gated change is provably identical to
 its base in every all-bot game — the pinned-identity + 40-seeded-games check
-in each version's tests is what makes the gauntlet vacuous, and the honest
+made while each version was built is what makes the gauntlet vacuous, and the honest
 gate is a LIVE probe game with a human-marked seat, `played-cli --human`).
 
 The model, three dims, all gated on the modeled seat's `botStrategy === null`:
@@ -581,10 +581,16 @@ Mechanics:
 
 ## Testing
 
-`claude` decision logic is unit-tested per version in
-`versions/<label>/policy.test.ts` (pure, seeded) — each snapshot owns its own
-tests, so promotion never churns a test. The pacer's drive paths live in
-`pacing.test.ts`. The browser-only playback pump is
-**not** unit-tested — verify end-to-end proactive behavior (off-turn trades,
-raise-to-buy, and any new redeploy logic) by running the app. When you fix a
-strategic bug, add a failing `policy.test.ts` case first and run it red.
+A version is frozen, and two archive-wide tests hold every registered label to it:
+`versions/conformance.test.ts` (determinism and legality at every decision phase) and
+`versions/frozen.test.ts`, which pins each version's play over two seeded tables against a
+fixed field by a fingerprint, so a change to shared engine code that alters a frozen bot's
+common play fails there (the ratings cache assumes it never does). A version's own design checks
+("vN no longer makes vN−1's blunder", "identical to its base on all-bot boards") are
+build-time tools: write them while building it, read them red then green, and don't
+keep them once the version is registered and fingerprinted; its EVOLUTION.md entry keeps
+the reasoning. The exception is behaviour no all-bot table reaches: the human-counterparty
+model (gated on a human seat) keeps its tests in `fable-v11/` and `fable-v12/`, since the
+default seat a person plays carries it. The pacer's drive paths live in `pacing.test.ts`.
+The browser-only playback pump is **not** unit-tested — verify end-to-end proactive
+behavior (off-turn trades, raise-to-buy, and any new redeploy logic) by running the app.

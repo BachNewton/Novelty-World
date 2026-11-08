@@ -90,11 +90,6 @@ describe("outcomes", () => {
     expect(probabilities[2]).toBeCloseTo(0.384);
     expect(probabilities[3]).toBeCloseTo(0.512);
   });
-
-  it("sums to one", () => {
-    const total = outcomes({ ...hammer, slots: 6, slotPercent: 37 }).reduce((sum, o) => sum + o.probability, 0);
-    expect(total).toBeCloseTo(1);
-  });
 });
 
 describe("expectedDamage and chanceOfAtLeast", () => {

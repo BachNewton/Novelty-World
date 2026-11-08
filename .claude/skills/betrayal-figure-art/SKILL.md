@@ -92,7 +92,7 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `explorers/fighting-faces.ts` and `explorers/overlap.slow.test.ts`: the figures'
   overlap check; `explorers/gait.slow.test.ts`: the gait check (no jump through
   a walk or a run, the base planted); `explorers/clipping.ts`, with `explorers/clipping.slow.test.ts`
-  and `monsters/clipping.test.ts`: the clipping check (see "Build it").
+  and `monsters/clipping.slow.test.ts`: the clipping check (see "Build it").
 - `animate.ts`: `animated`, which marks the piece the stage poses each frame.
 - `house.ts` and `house-walk.ts`: how the house stands, walks, runs, marks
   and lights a figure. Read them to know the contract; figure work changes
@@ -532,13 +532,18 @@ character is, from the data, and how they read at a glance. Then, in order:
    `figure-mesh.worker.ts`, and register the figure in `BENCH_EXPLORERS`
    and in `art/explorers/by-character.ts` (so the game shows it instead of
    a pawn); add it to the line-ups and the overlap, clipping and gait
-   tests.
+   checks.
 
 **The art checks are opt-in.** The overlap, gait, clipping and cloth checks
 (`overlap`, `gait`, `clipping`, `cloth`, `cloth-fight`, `cloth-strobe` and
-`cloth-trial`, each a `.slow.test.ts` in `art/explorers/`) are tools for art
-work, so an ordinary test run skips them: they run only with
-`BETRAYAL_ART_CHECKS=1` set. Building or reworking a figure runs them all
+`cloth-trial`, each a `.slow.test.ts` in `art/explorers/`, and
+`monsters/clipping.slow.test.ts`) are tools for art work, so an ordinary
+test run skips them: they run only with `BETRAYAL_ART_CHECKS=1` set
+(`art/art-checks.ts`). A figure's looks are judged while it is built, so a
+check that only says "does this figure look right yet" is one of these tools,
+never a test in the suite; the suite keeps what a later change to shared code
+could break (a burst leaving the part batch, the draw budget, a pose that is
+a pure function of the clock). Building or reworking a figure runs them all
 before it is done:
 `BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers`
 (in PowerShell, `$env:BETRAYAL_ART_CHECKS=1` first). One check alone takes
@@ -546,7 +551,7 @@ the same variable with its own file.
 
 **Run the clipping check** after every change: `BETRAYAL_ART_CHECKS=1 npx vitest run
 --config vitest.slow.config.ts src/projects/betrayal/art/explorers/clipping.slow.test.ts` (and
-`monsters/clipping.test.ts`, which always runs). It asks each part's surface points how deep
+`monsters/clipping.slow.test.ts` for a monster). It asks each part's surface points how deep
 they lie inside every other part's solid, in that part's frame, and reports
 two parts whose surfaces cross (each partly inside the other) by more than
 2 mm, away from every declared joint; a part tucked wholly inside another
@@ -663,9 +668,7 @@ fails:
 5. **Detail**: the face, cracks at joints, fighting faces, parts too thin to
    mesh.
 
-Then `npm run lint`, `npm run typecheck`, `npx vitest run
-src/projects/betrayal/art` and `npx playwright test
-e2e/betrayal-house.spec.ts`, all clean.
+Then `npm run lint`, `npm run typecheck` and `npm run test`, all clean.
 
 ## Lessons learned
 
@@ -708,7 +711,7 @@ e2e/betrayal-house.spec.ts`, all clean.
 
 The figure reads at a glance in the house and on the phone, distinct in the
 line-ups; its idle, walk and run play without a broken frame; the
-art checks pass (the opt-in run in "Build it": clipping, gait, overlap and cloth); lint, typecheck, the art tests and the house e2e are clean;
+art checks pass (the opt-in run in "Build it": clipping, gait, overlap and cloth); lint, typecheck and the scoped tests are clean;
 it is registered and in the line-ups; its portrait is re-shot; and any
 temporary cast change is reverted. The builder reports back:
 

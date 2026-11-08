@@ -6,7 +6,7 @@ v6 is v5 (`rule-bot-v5.md`) whole: v4's beliefs, fixes and preferences, and v5's
 
 ## What 9VFL showed
 
-In 9VFL, a 5-player game (`bots/rule-v6/9vfl.json`, its seed and 821 moves from the database), the person who won G4FR ("Bot Killer") beat Kyle, v3, v4 and v5 with the same playbook: Australia held with one guard on Siam, everything on one stack, about 4.4 captures a turn against the bots' 2, the stack pulled back to a hub after each sweep, and a card every turn. A replay of the game, each bot's decisions read again on the board it had (`9vfl.test.ts` checks the replay: v4 and v5 make their recorded moves), found five kinds of mistake. In order of what they cost:
+In 9VFL, a 5-player game (`bots/rule-v6/9vfl.json`, its seed and 821 moves from the database), the person who won G4FR ("Bot Killer") beat Kyle, v3, v4 and v5 with the same playbook: Australia held with one guard on Siam, everything on one stack, about 4.4 captures a turn against the bots' 2, the stack pulled back to a hub after each sweep, and a card every turn. A replay of the game, each bot's decisions read again on the board it had (a test checked the replay while v6 was built: v4 and v5 make their recorded moves), found five kinds of mistake. In order of what they cost:
 
 1. **A kill lost at a fork.** At turn 57 v4 planned to kill Kyle (5 cards) at 97%, took Venezuela and moved 42 in. Kyle's land was now two groups, Peru and Argentina, and North America with Iceland and Kamchatka, both reachable only from that one stack. v3's capture planner, which v4 uses, costs a victim's groups in the order its territories are listed, and a stack leading one group has only what that group's run leaves it for the next: it spent the stack on North America first, so Peru and Argentina had nothing, and the kill read 0. v4 held with 42 on Venezuela.
 2. **Declined cards.** v4 turned down a sure capture of a 1-army neighbour six times (turns 41, 45, 69, 72, 75 and 78). At turn 72 holding scored 0.2148 against 0.2067 for taking Brazil.
@@ -66,7 +66,7 @@ At turn 68 the 37% kill of v4 that kept v5 on Egypt is weighed against v4's next
 
 ## Played on G4FR's positions
 
-v5's G4FR test plays whole turns of v3's seat from the position v3 had (`rule-v5/g4fr.test.ts`). The same turns played by v6, each fix alone and all together (territories at the turn's end, biggest stack, and the most of them a person's sweep is believed to take):
+v5's G4FR test played whole turns of v3's seat from the position v3 had. The same turns played by v6, each fix alone and all together (territories at the turn's end, biggest stack, and the most of them a person's sweep is believed to take):
 
 | Turn | v5 | `fork` | `movein` | `alive` | `gather` | `homeward` | `thirdParty` | `reinforced` | all |
 |---|---|---|---|---|---|---|---|---|---|
