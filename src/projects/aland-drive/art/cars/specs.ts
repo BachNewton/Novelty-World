@@ -6,6 +6,7 @@ import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { fjard } from "./models/fjard";
 import { grus } from "./models/grus";
+import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { ljus } from "./models/ljus";
@@ -43,6 +44,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   ljus,
   // B1
   grus,
+  hagel,
   // B2
   fjard,
   // B3
