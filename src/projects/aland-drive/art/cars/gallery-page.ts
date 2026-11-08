@@ -1,5 +1,6 @@
-import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer } from "three/webgpu";
+import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer, type Node } from "three/webgpu";
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
@@ -39,7 +40,12 @@ export interface Shot {
   steer?: number;
   roll?: number;
   lean?: [pitch: number, roll: number];
+  /** The world dimmed as a night does it, so the lamps are judged against dark. */
+  night?: boolean;
 }
+
+/** How much of the day's light a night leaves the world and the car, before their lamps. */
+const NIGHT_SHARE = 0.08;
 
 async function start(width: number, height: number) {
   const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true, trackTimestamp: true });
@@ -58,7 +64,9 @@ async function start(width: number, height: number) {
   const paintLine = vec3(...token("road-paint").toArray());
   const onRoad = smoothstep(float(4.2), float(3.9), abs(positionWorld.x));
   const edge = smoothstep(float(0.09), float(0.07), abs(abs(positionWorld.x).sub(3.6)));
-  asphalt.colorNode = mix(mix(grass, road, onRoad), paintLine, edge);
+  const light = sharedUniform(1);
+  asphalt.colorNode = mix(mix(grass, road, onRoad), paintLine, edge).mul(light);
+  const night = { hazed: (colour: Node<"vec3">) => colour.mul(NIGHT_SHARE) };
   const ground = new Mesh(new PlaneGeometry(2000, 2000), asphalt);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = groundY(PLAYER_CAR);
@@ -78,8 +86,10 @@ async function start(width: number, height: number) {
     cars: () => CARS.map((car, index) => ({ index, name: car.name, near: artOf(index, "hero").triangles, far: artOf(index, "far").triangles })),
     async shoot(shot: Shot) {
       const art = artOf(shot.car, shot.detail);
-      const model = createCarModel(art, SUN);
+      const model = createCarModel(art, SUN, shot.night ? night : {});
       scene.add(model.root);
+      light.value = shot.night ? NIGHT_SHARE : 1;
+      renderer.setClearColor(new Color(token("sky")).multiplyScalar(shot.night ? NIGHT_SHARE : 1));
       ground.position.y = groundY(art.spec);
       model.setLights({ brake: false, reversing: false, headlights: false, ...shot.lights });
       model.draw(restState(art.spec, shot.steer ?? 0, shot.roll ?? 0));
@@ -116,6 +126,8 @@ async function start(width: number, height: number) {
      * 75 m up, as the map's flight and a high chase see traffic.
      */
     async fleet(view: "ranks" | "line" | "above", clock = 0) {
+      light.value = 1;
+      renderer.setClearColor(new Color(token("sky")));
       const specs = [...CARS, ...WORLD_CARS];
       const ranks = view !== "line";
       const cars: FleetCar[] = ranks

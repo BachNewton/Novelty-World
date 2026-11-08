@@ -19,6 +19,8 @@ export interface CarArt {
   wheel: BufferGeometry;
   /** A hero's see-through glass. */
   glass: BufferGeometry | null;
+  /** A hero's brake calipers, right then left. */
+  calipers: readonly [BufferGeometry, BufferGeometry] | null;
   /** Where its lamps are, in the car's own frame. */
   lamps: LampCentres;
   triangles: { body: number; glass: number; wheel: number; total: number };
@@ -30,18 +32,22 @@ export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
   const body = geometryOf(parts.body, detail === "hero");
   const wheel = geometryOf(parts.wheel);
   const glass = parts.glass && geometryOf(parts.glass);
+  const calipers = parts.calipers && ([geometryOf(parts.calipers[0]), geometryOf(parts.calipers[1])] as const);
   const glassTriangles = parts.glass?.triangles ?? 0;
+  const caliperTriangles = parts.calipers ? parts.calipers[0].triangles * 4 : 0;
   return {
     spec,
     body,
     wheel,
     glass,
+    calipers,
     lamps: lampCentres(parts.body),
-    triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 },
+    triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 + caliperTriangles },
     dispose() {
       body.dispose();
       wheel.dispose();
       glass?.dispose();
+      calipers?.forEach((caliper) => caliper.dispose());
     },
   };
 }
@@ -97,6 +103,11 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     mesh.updateMatrix();
     rolling.add(mesh);
     steering.add(rolling);
+    if (art.calipers) {
+      const caliper = new Mesh(art.calipers[side < 0 ? 1 : 0], material);
+      caliper.updateMatrix();
+      steering.add(caliper);
+    }
     root.add(steering);
     return { steering, rolling, isFront };
   });

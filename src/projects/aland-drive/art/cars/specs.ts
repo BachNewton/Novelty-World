@@ -1,6 +1,7 @@
 import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
 import { ankar } from "./models/ankar";
+import { aska } from "./models/aska";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { fjard } from "./models/fjard";
@@ -26,6 +27,7 @@ import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 /** Every drivable car's art, under its tier: a new car's line goes under its tier's header. */
 const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
+  aska,
   // A2
   // A3
   // A4
