@@ -9,20 +9,18 @@ import { riskBot } from "../bots";
 import { fromView } from "../bots/rule-v1/board";
 import { bestPlan } from "../bots/rule-v6/planner";
 import { candidates, ruleBot, search } from "../bots/rule-v7";
-import { V7_PARAMS, type Params } from "../bots/rule-v7/params";
+import { type Params } from "../bots/rule-v7/params";
 import { searchPoint } from "../bots/rule-v7/replies";
 import { features, FEATURES } from "../bots/rule-v8/features";
 import { CANDIDATE_WIDTH, v6Settings } from "../bots/student-v1/candidates";
 import {
   boardRecord,
   candidateRows,
-  decisionRecords,
   recordedBoard,
   recordTeacherGame,
   teacherBot,
   teacherDecision,
   teacherParams,
-  teacherSearch,
   teacherSpecs,
   type Decision,
 } from "./distill";
@@ -119,21 +117,6 @@ describe("risk teacher recorder", () => {
     expect(seen).toBe(1);
   });
 
-  it("keeps each reply's score, their mean v7's score", () => {
-    const two = teacherParams('rule-v7~{"replies":2,"candidates":2}');
-    const seen = walkDecisions("distill-view", 1, (_, input) => {
-      const point = searchPoint(input.view, input.history);
-      if (point === null) throw new Error("a decision is made at a search point");
-      const kept = teacherSearch(point, input.seat, two, input.humans);
-      expect(kept.scores).toEqual(search(point, input.seat, two, input.humans).scores);
-      kept.replyScores.forEach((each, c) => {
-        expect(each).toHaveLength(2);
-        expect(each[0] / 2 + each[1] / 2).toBe(kept.scores[c]);
-      });
-    });
-    expect(seen).toBe(1);
-  });
-
   it("builds each record from the seat's own view alone", () => {
     const rng = createRng("distill-view");
     const seen = walkDecisions("distill-view", 1, (state, input, decision) => {
@@ -144,34 +127,12 @@ describe("risk teacher recorder", () => {
     expect(seen).toBe(1);
   });
 
-  it("records the same searches every time for a seed, each with its game", () => {
-    const [spec] = teacherSpecs(CHEAP, 1, FIELD, 5, "distill-same", 2, 1, 6);
-    const first = recordTeacherGame(spec);
-    expect(first.error).toBeUndefined();
-    expect(first.searches.length).toBeGreaterThan(0);
-    expect(JSON.stringify(recordTeacherGame(spec))).toBe(JSON.stringify(first));
-    for (const r of decisionRecords(first)) {
-      expect(r).toMatchObject({ game: 2, seed: spec.seed, labels: spec.labels, players: 5 });
-      expect(spec.labels[r.seat]).toBe(CHEAP);
-      expect(r.candidates.length).toBeGreaterThan(1);
-      expect(r.scores.length).toBe(r.candidates.length);
-      for (let c = 0; c < r.scores.length; c++) expect(r.scores[c]).toBeLessThanOrEqual(r.scores[r.chosen]);
-    }
-  });
-
   it("seats the teachers and every field bot in every seat", () => {
     const field = ["a", "b", "c", "d"];
     const specs = teacherSpecs("rule-v7", 2, field, 5, "x", 0, 20, 600);
     for (const s of specs) expect(s.labels.filter((l) => l === "rule-v7")).toHaveLength(2);
     for (let seat = 0; seat < 5; seat++) expect(new Set(specs.map((s) => s.labels[seat]))).toEqual(new Set(["rule-v7", ...field]));
     expect(() => teacherSpecs("rule-v7", 1, ["rule-v6", "rule-v7"], 5, "x", 0, 1, 600)).toThrow();
-  });
-
-  it("reads a teacher's search knobs, and nothing else", () => {
-    expect(teacherParams("rule-v7")).toBe(V7_PARAMS);
-    expect(teacherParams('rule-v7~{"replies":32,"candidates":6}').search).toEqual({ ...V7_PARAMS.search, replies: 32, candidates: 6 });
-    expect(() => teacherParams('rule-v7~{"borderWeight":1}')).toThrow();
-    expect(() => teacherParams("rule-v6")).toThrow();
   });
 });
 

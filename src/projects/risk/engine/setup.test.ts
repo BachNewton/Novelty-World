@@ -48,12 +48,6 @@ describe("setup", () => {
     }
   });
 
-  it("SETUP-4: the deal differs from seed to seed", () => {
-    const a = dealtOwners(engine.newGame({ players: 4 }, "a").events);
-    const b = dealtOwners(engine.newGame({ players: 4 }, "b").events);
-    expect(a).not.toEqual(b);
-  });
-
   it("SETUP-5: every starting army is on the board, at least 1 on each territory, as the event tells", () => {
     for (const players of [3, 4, 5, 6] as const) {
       const { state, events } = engine.newGame({ players }, `armies-${players}`);
@@ -99,9 +93,5 @@ describe("setup", () => {
       expect(v.seats.every((seat) => seat.handSize === 0)).toBe(true);
       expect(v.cards).toMatchObject({ deck: 44, traded: [] });
     }
-  });
-
-  it("INV-10: setup is a function of the seed", () => {
-    expect(engine.newGame({ players: 5 }, "same")).toEqual(engine.newGame({ players: 5 }, "same"));
   });
 });

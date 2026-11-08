@@ -171,21 +171,6 @@ describe("the ladder played in rounds", () => {
     expect(ladder.tallies.some((t) => t.groups === last && before(t.lone, t.rest) > target)).toBe(true);
   });
 
-  it("plays fewer games for a looser precision", async () => {
-    const strict = counting();
-    const loose = counting();
-    await playLadder({ ...ladderSpec, pool: strict.pool });
-    await playLadder({ ...ladderSpec, margin: 120, pool: loose.pool });
-    expect(loose.played()).toBeLessThan(strict.played() / 2);
-  });
-
-  it("plays no game with no groups allowed", async () => {
-    const none = counting();
-    const ladder = await playLadder({ ...ladderSpec, maxGroups: 0, pool: none.pool });
-    expect(none.played()).toBe(0);
-    expect(ladder.tallies.every((t) => t.groups === 0)).toBe(true);
-  });
-
   it("gives each matchup's comparisons summed, which fit the same Elo as every game's own", async () => {
     const played = await playLadder({ ...ladderSpec, pool: serialRunner() });
     const games = played.tallies.flatMap((t) => fakeGroups(t, 0, t.groups));

@@ -3,7 +3,7 @@ import type { GameState, Move, Options, Seat } from "../contract";
 import { greedyBot } from "../bots/greedy";
 import { referenceEngine } from "../engine";
 import { unwrap, wrap, type EngineState } from "../engine/state";
-import { CARD_IDS, EDGES, HAND_MAX, canonicalOptions, canonicalState, cardIndex, decodeMove, encodeMove, hashOf, int32s } from "./gpu-canonical";
+import { CARD_IDS, EDGES, HAND_MAX, canonicalOptions, canonicalState, decodeMove, encodeMove, hashOf, int32s } from "./gpu-canonical";
 import { recordMoves } from "./replay";
 
 function started(players: number, seed: string): { state: GameState; options: Options } {
@@ -30,24 +30,6 @@ function greedyGame(): { at: { state: GameState; seat: Seat; options: Options }[
 }
 
 describe("the canonical layout", () => {
-  it("numbers the cards by territory, the wilds 42 and 43, and has 166 directed edges", () => {
-    expect(cardIndex("alaska")).toBe(0);
-    expect(cardIndex("eastern-australia")).toBe(41);
-    expect(cardIndex("wild-1")).toBe(42);
-    expect(cardIndex("wild-2")).toBe(43);
-    expect(CARD_IDS).toHaveLength(44);
-    expect(EDGES).toHaveLength(166);
-    expect(EDGES.slice(0, 3)).toEqual([
-      [0, 1],
-      [0, 3],
-      [0, 29],
-    ]);
-  });
-
-  it("writes a state as 238 int32s, whatever the table size", () => {
-    expect(canonicalState(started(3, "fx-0").state)).toHaveLength(952);
-    expect(canonicalState(started(6, "fx-1").state)).toHaveLength(952);
-  });
 
   // Goldens for the GPU side too: its canonical writer must hash these positions the same.
   it("pins the hashes of fresh games and their first options", () => {

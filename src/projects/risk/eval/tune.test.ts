@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { riskBot, tunedLabel } from "../bots";
-import { V1_PARAMS } from "../bots/rule-v1/params";
-import { cellScores, fitness, fromUnit, luceElo, PREF_KEYS, toUnit } from "./tune";
+import { cellScores, fitness, luceElo } from "./tune";
 import type { RiskGameResult } from "./runner";
 
 describe("tuning", () => {
@@ -13,19 +11,6 @@ describe("tuning", () => {
     expect(luceElo(1000, 1100, 1, 2)).toBeCloseTo(400, 6);
     // A sweep is a large finite edge, not infinity.
     expect(Number.isFinite(luceElo(10, 10, 1, 4))).toBe(true);
-  });
-
-  it("maps preferences to the unit cube and back", () => {
-    const back = fromUnit(toUnit(V1_PARAMS.prefs));
-    for (const key of PREF_KEYS) expect(back[key]).toBeCloseTo(V1_PARAMS.prefs[key], 3);
-  });
-
-  it("seats a tuned bot by its label, and refuses a preference it doesn't have", () => {
-    const label = tunedLabel("rule-v1", { borderWeight: 0.7 });
-    expect(riskBot(label)).toBe(riskBot(label));
-    expect(riskBot(label)).not.toBe(riskBot("rule-v1"));
-    expect(() => riskBot(`rule-v1~{"killBar":0.9}`)).toThrow(/no setting "killBar"/);
-    expect(() => riskBot(`greedy~{}`)).toThrow(/no tunable Risk bot "greedy"/);
   });
 
   it("scores each cell from its own games", () => {

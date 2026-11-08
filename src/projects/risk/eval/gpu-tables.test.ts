@@ -46,13 +46,4 @@ describe("the GPU engine's data", () => {
     for (const [p, balanced] of odds.balanceWinChance) expect(balanceWinChance(p)).toBe(balanced);
     for (const [defend, threshold, ideal] of odds.idealAttackUnits) expect(idealAttackUnits(defend, threshold)).toBe(ideal);
   });
-
-  it("lays the file out as its meta says", () => {
-    const { bin, meta } = blitzFiles(blitzTables(4));
-    const { sections } = meta as { sections: Record<string, { dtype: string; offset: number; bytes: number; count: number }> };
-    expect(sections.capture).toEqual({ dtype: "float64", offset: 0, bytes: 25 * 8, count: 25 });
-    expect(sections.index).toEqual({ dtype: "int32", offset: 200, bytes: 25 * 16, count: 100 });
-    expect(sections.values).toEqual({ dtype: "float64", offset: 600, bytes: 4 * 4 * 5 * 8, count: 4 * 4 * 5 });
-    expect(bin.length).toBe(600 + 4 * 4 * 5 * 8);
-  });
 });

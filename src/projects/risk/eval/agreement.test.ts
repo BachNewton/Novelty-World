@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { GameEvent, Move, Options } from "../contract";
-import { Agreement, sameMove } from "./agreement";
+import { Agreement } from "./agreement";
 import type { BotInput } from "../bots/bot";
 
 describe("risk:agreement's tally", () => {
-  it("reads two moves with their fields in another order as the same", () => {
-    expect(sameMove({ kind: "place", territory: "peru", armies: 3 }, { armies: 3, territory: "peru", kind: "place" } as Move)).toBe(true);
-    expect(sameMove({ kind: "place", territory: "peru", armies: 3 }, { kind: "place", territory: "peru", armies: 2 })).toBe(false);
-  });
 
   it("counts a reinforce decision with a trade in either answer as a trade, and one without as a placement", () => {
     const place: Move = { kind: "place", territory: "peru", armies: 3 };

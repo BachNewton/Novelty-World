@@ -22,7 +22,7 @@ At the turn's first placement:
    - stopping at the start of my next turn, or where the game ends (1 if I won, 0 if not) or I am eliminated (0).
 3. **Score.** Each end is scored (below), each candidate's score is its mean over the replies, and the best is played. A tie goes to the earlier candidate, so v6's own choice wins ties.
 
-The phase's later placements play out the same placement, its biggest allocation first, as v6 places. A bot keeps no state, so each later placement rebuilds the search point from its own view and history (the board less what this phase has placed, and the history up to the first placement). The search's seed is read from that search point, so the rebuilt search gives the same answer; a memo only saves rebuilding it. With **0 replies v7 plays v6's moves exactly** (`parity.test.ts`). The registered `rule-v7` plays 8 replies over 4 candidates, a provisional default until the curve picks the budget.
+The phase's later placements play out the same placement, its biggest allocation first, as v6 places. A bot keeps no state, so each later placement rebuilds the search point from its own view and history (the board less what this phase has placed, and the history up to the first placement). The search's seed is read from that search point, so the rebuilt search gives the same answer; a memo only saves rebuilding it. With **0 replies v7 plays v6's moves exactly** (a parity test held it to that while v7 was built). The registered `rule-v7` plays 8 replies over 4 candidates, a provisional default until the curve picks the budget.
 
 ## The design choices, and why
 

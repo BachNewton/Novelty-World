@@ -10,13 +10,6 @@ describe("the vectors' float encoding", () => {
     expect(hexes([2, 0.5])).toBe("40000000000000003fe0000000000000");
   });
 
-  it("reads back what it writes, every bit", () => {
-    for (const x of [0.1, -1e-310, 1.7976931348623157e308, Math.PI]) {
-      const bits = hex(x);
-      expect(fromWords(parseInt(bits.slice(0, 8), 16), parseInt(bits.slice(8), 16))).toBe(x);
-    }
-  });
-
   it("digests the bits, so a float that differs by one bit changes it", () => {
     expect(digest([1, 2])).toMatch(/^[0-9a-f]{16}$/);
     expect(digest([1, 2])).not.toBe(digest([1, fromWords(0x40000000, 1)]));

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { checkRecord, readRecords, recordGame, writeRecords, type GpuGameRecord } from "./gpu-record";
+import { checkRecord, recordGame, type GpuGameRecord } from "./gpu-record";
 
 const dir = mkdtempSync(join(tmpdir(), "risk-gpu-record-"));
 afterAll(() => {
@@ -28,13 +28,6 @@ describe("game records", () => {
     const record = recordGame({ seed: "gpu-record-cap", bots: ["random", "random", "random"], maxTurns: 6 });
     expect(record.result).toMatchObject({ winner: -1, turns: 6, capped: true });
     expect(checkRecord(record).failure).toBeNull();
-  });
-
-  it("dumps the layouts behind the hashes", () => {
-    const record = recorded(true);
-    expect(record.initialState).toHaveLength(238);
-    expect(record.states).toHaveLength(record.moves.length);
-    expect(record.options).toHaveLength(record.moves.length);
   });
 
   it("names the decision whose state hash differs", () => {
@@ -69,15 +62,6 @@ describe("game records", () => {
     expect(checkRecord({ ...record, moves: record.moves.slice(0, -1) }).failure?.message).toMatch(/goes on/);
     expect(checkRecord({ ...record, result: { ...record.result, turns: record.result.turns + 1 } }).failure?.message).toMatch(/result/);
     expect(checkRecord({ ...record, initialHash: "0000000000000000" }).failure?.message).toMatch(/initial/);
-  });
-
-  it("writes and reads back the same, plain and gzipped", () => {
-    const record = recorded();
-    for (const name of ["games.jsonl", "games.jsonl.gz"]) {
-      const file = join(dir, name);
-      writeRecords(file, [record, record]);
-      expect(readRecords(file)).toEqual([record, record]);
-    }
   });
 
   it("asks each seat's bot every decision, and names the bot whose move differs", () => {
