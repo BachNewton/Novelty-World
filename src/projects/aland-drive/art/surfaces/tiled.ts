@@ -1,5 +1,5 @@
 import { Vector2 } from "three";
-import { positionWorld, varying } from "three/tsl";
+import { positionWorld, uniform, varying } from "three/tsl";
 import { sharedUniform } from "../shared-uniform";
 import type { Node } from "three/webgpu";
 
@@ -23,7 +23,10 @@ export function tiledGround(): { tiled: Tiled; follow: (x: number, z: number) =>
   const local = varying(positionWorld.xz.sub(anchor));
   const patterns: { periodM: number; offset: Vector2 }[] = [];
   const tiled: Tiled = (periodM) => {
-    const offset = sharedUniform(new Vector2(repeats(anchor.value.x, periodM), repeats(anchor.value.y, periodM)));
+    // Per object, not shared: shared, these offsets shift some materials' patterns by their edge pixels (frame-diff at
+    // view 2, the roof ridges and wall boards), while the anchor shares fine. three keys its shared bind groups by the
+    // uniforms' node ids run together, so two materials' sets of many small offsets can read one buffer: the suspected cause.
+    const offset = uniform(new Vector2(repeats(anchor.value.x, periodM), repeats(anchor.value.y, periodM)));
     patterns.push({ periodM, offset: offset.value });
     return local.div(periodM).add(offset);
   };
