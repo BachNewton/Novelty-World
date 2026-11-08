@@ -52,7 +52,7 @@ const grilleFrame = (): Decal[] => {
 /** The flank's line: a gill behind each front wheel and a fine bright line drawn back from it over the door to the haunch. */
 const flank = (): Decal[] => [
   { on: "side", at: [-0.92, 0.6], size: [0.31, 0.12], surface: "rim", mirror: true, cells: [4, 1], liftM: 0.008, fine: true },
-  ...[0.632, 0.6, 0.568].map((h, at): Decal => ({ on: "side", at: [-0.92 - at * 0.012, h], size: [0.27 - at * 0.025, 0.018], surface: "grille", mirror: true, cells: [4, 1], liftM: 0.014 })),
+  ...[0.632, 0.6, 0.568].map((h, at): Decal => ({ on: "side", at: [-0.92 - at * 0.012, h], size: [0.27 - at * 0.025, 0.018], surface: "grille", mirror: true, liftM: 0.014 })),
   { on: "side", at: [0.12, 0.645], size: [1.75, 0.01], surface: "rim", mirror: true, cells: [12, 1], liftM: 0.012, fine: true },
 ];
 
@@ -73,8 +73,8 @@ const shape: Shape = {
   hoodLipH: 0.6,
   hoodH: 0.77,
   cowl: [-0.22, 0.87],
-  header: [0.4, 1.2],
-  roof: [0.75, 1.265],
+  header: [0.4, 1.225],
+  roof: [0.75, 1.27],
   roofEnd: [1.05, 1.235],
   shoulder: [
     [-2.42, 0.48],
@@ -100,9 +100,9 @@ const shape: Shape = {
   ],
   windowTop: [
     [-0.19, 0.83],
-    [0.1, 1.0],
-    [0.45, 1.13],
-    [0.8, 1.17],
+    [0.1, 1.01],
+    [0.45, 1.15],
+    [0.8, 1.175],
     [1.15, 1.12],
     [1.45, 1.02],
     [1.65, 0.93],
@@ -126,7 +126,7 @@ const shape: Shape = {
   cabinEndZ: 1.45,
   seat: "seatTan",
   decals: [...plates(0.64, 0.36), ...handles([0.82], 0.79), ...grilleFrame(), ...flank()],
-  blocks: [...diffuser({ z: 1.98, tailZ: 2.34, h: 0.24, x: [0.3] })],
+  blocks: diffuser({ z: 1.98, tailZ: 2.34, h: 0.24, x: [0.3] }).map((fin) => ({ ...fin, fine: true })),
   extra: {
     bands: BANDS,
     silhouette: [
@@ -157,10 +157,10 @@ const shape: Shape = {
       ...faired(
         [
           [-0.22, 0.87],
-          [0.1, 1.05],
-          [0.45, 1.2],
-          [0.78, 1.265],
-          [1.1, 1.235],
+          [0.1, 1.07],
+          [0.4, 1.225],
+          [0.75, 1.27],
+          [1.1, 1.24],
           [1.5, 1.13],
           [1.9, 1.01],
           [2.22, 0.965],
@@ -243,14 +243,17 @@ export const dyning: CarSpec = {
     paint("car-paint-black"),
   ],
   body: bodyOf(shape),
-  /** A grand tourer's cabin: analogue dials, a round wheel, comfortable seats in tan, wood across the dash and bright metal round it. */
+  /** A grand tourer's cabin: analogue dials, a round wheel, comfortable seats in quilted tan leather, wood on the doors and bright metal round the dials. */
   interior: {
     gauges: "analogue",
     wheel: "round",
     shifter: "lever",
     seats: "comfort",
+    quilted: true,
     screen: true,
-    colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-wood", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
+    // A little below where the roof would seat the eye, so the headliner is a band over the road and not a slab.
+    eye: [0, -0.035, 0],
+    colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-wood", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
   },
   wheel: { radiusM: DYNING.wheelRadiusM, widthM: 0.275, rimShare: 0.74, spokes: 10, twinSpokes: false, style: "mesh" },
   shadowHalf: [0.99, 2.36],
