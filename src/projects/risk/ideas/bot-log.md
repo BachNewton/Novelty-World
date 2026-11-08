@@ -1432,3 +1432,18 @@ Run 40921799068, the gauntlet whose first run played no games: `risk:gauntlet --
 | 6 | 23.1% [18.9, 27.9] (16.7%) | 89.2% [85.6, 92.0] (83.3%) | 1.7% / 6.6% |
 
 Win Elo +42 a seat over rule-v7.1, finishing-order Elo +24. The gauntlet's verdict is accept: this is bar 1's train half passed. The capped share climbs with the tables that seat several `execute`s (6.9% at 4 players, 6.6% at 6), the same failure to close games the mirror stall check found, so bar 5 still stands between it and a seat.
+
+## imit-1: the first imitation of native-v2, better than rule-v6.1 when it plays its most likely move (2026-11-08)
+
+Stage 1 of `learned-bot.md` (its report has every reading and interval). net-v1's network (128×4) trained to copy native-v2 at its baseline (v7.1's search on the native planner) by `riskgpu.selfplay.imitate`, one night of the RTX 4070. The data is 19,600 games recorded on Actions (5-player mirrors and mixed tables, 3- and 6-player mirrors, two teachers among GD at 4), 15.53 million teacher decisions, every game replayed exactly on the GPU engine. 3,920 games are held out by shard. imit-1 trained on the other 15,680, capped at 100 million samples (7.8 epochs, about an hour at 27,000 decisions a second).
+
+- **Held-out agreement**: the teacher's main choice on 64.8% [64.6, 65.0] of decisions, its whole move on 49.4%. On turn-start placements (the search's own decision), 41.5% by territory and 28.0% by whole move. Across 980, 3,920, 7,840 and 15,680 training games: 56.5%, 61.5%, 63.1%, 64.8%. The full recipe on a second seed read 62.7% [62.5, 62.9]: the trainer's plateau rule cut its rate early on a noisy read, so the spread between seeds (2.1 points) is larger than the curve's top gap, and the curve's top isn't read until the trainer runs on a fixed schedule.
+- **The teacher's own consistency**, on 40 held-out mirrors (7,211 turn-start placements): native-v2 at 32 replies makes its 8-reply placement 65.0% [63.8, 66.2] of the time, native v6.1 33.4%, imit-1 25.7% [24.3, 27.0]. Every other decision is the planner's and repeats exactly.
+- **The action space** can't express 22% of the teacher's moves, almost all of them blitz keeps (57% of mirror blitzes keep a count that is neither one nor half).
+- **The GPU panel**, 5 players, sampling then argmax: alone among GD Defensive 81.5% then 94.0% (par 20%); alone among sw128b-450 13.7% then 29.3%; four against one sw128b-450 75.6% then 91.1% (par 80%).
+- **The harness**, `risk:gauntlet -- <label> --base rule-v6.1 --field rule-v6.1 --players 5 --formats one-in`, train seeds:
+  - `net-v1~{"weights":"imit-1"}` (sampling): **worse**, 10.2% [6.8, 15.2] of 205 decisive games against par 20%, win Elo −136.
+  - `net-v1~{"weights":"imit-1","pick":"argmax"}`: **better**, 32.0% [25.5, 39.2] of 175 decisive games, win Elo +110, finishing-order Elo +111, mean place 2.38, none capped. That is the strongest net measured here: sw128b-450 read +46 at this table.
+- **The stall**: five argmax copies (`risk:trace --survey --mirror`, 10 games) capped 4, the decided games averaging 279 player-turns. The teacher's own 5-player mirrors capped 0 of 160.
+
+Predictions 1 (60% or more) and 5 (40% or more against GD Defensive) held. 3 (turn-start placements at half the teacher's consistency), 4 (the buckets expressing under 70% of placements and 40% of attacks) and 6 (the sampling bot not worse than v6.1) failed. 2 (still climbing) isn't read, for the seed spread above. Next: stage 2, PPO from imit-1, read both sampling and argmax with the mirror cap rate beside it. Before it, on Actions, the argmax copy one-out among v6.1 and against rule-v7.1.

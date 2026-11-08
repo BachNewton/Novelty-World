@@ -273,8 +273,10 @@ fn agree(args: &[String]) -> Result<(), String> {
     let (mut a, mut n) = (0, 0);
     let mut parts = Vec::new();
     for (k, (x, y)) in &total {
-        a += x;
-        n += y;
+        if *k != risk_native::decide::TURN_START {
+            a += x;
+            n += y;
+        }
         parts.push(format!(
             "{k} {x}/{y} ({:.1}%)",
             100.0 * *x as f64 / *y as f64
