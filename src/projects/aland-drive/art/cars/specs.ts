@@ -12,6 +12,7 @@ import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { sten } from "./models/sten";
+import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
 import { vik } from "./models/vik";
@@ -30,6 +31,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   // A2
   // A3
+  strimma,
   // A4
   sund,
   // A5

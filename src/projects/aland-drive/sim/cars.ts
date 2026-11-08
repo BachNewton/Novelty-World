@@ -13,6 +13,7 @@ import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
+import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
 import { sund } from "./cars/sund";
 import { vik } from "./cars/vik";
@@ -37,6 +38,7 @@ const ENTRIES = {
   aska,
   // A2
   // A3
+  strimma,
   // A4
   sund,
   // A5

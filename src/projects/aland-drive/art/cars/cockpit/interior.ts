@@ -254,6 +254,13 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     big(SLOT.speed, SOURCE.speed, -apart, radius);
     big(SLOT.revs, SOURCE.revs, apart, radius);
     if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+  } else if (style.gauges === "tacho") {
+    big(SLOT.revs, SOURCE.revs, 0, 0.066);
+    readout(SOURCE.gear, 1, 0, -0.032, 0.026);
+    big(SLOT.speed, SOURCE.speed, -0.118, 0.044);
+    disc(b, at, [0.118, -0.006], 0.036, 0.004, dialLook(SLOT.water), SLOT.water);
+    bezel(b, at, [0.118, -0.006], 0.039, 0.0025, 0.005, ringLook);
+    dials.push({ slot: SLOT.water, source: SOURCE.water, startDeg: 135, sweepDeg: -90 });
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
