@@ -2,6 +2,7 @@ import type { Tier } from "./tiers";
 import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
 import { aska } from "./cars/aska";
+import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
@@ -36,6 +37,7 @@ const ENTRIES = {
   // A1
   aska,
   // A2
+  orkan,
   // A3
   // A4
   sund,

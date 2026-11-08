@@ -9,6 +9,7 @@ import fjard from "./limits/fjard.json";
 import grus from "./limits/grus.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
+import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
@@ -76,6 +77,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A1
   aska,
   // A2
+  orkan,
   // A3
   // A4
   sund,

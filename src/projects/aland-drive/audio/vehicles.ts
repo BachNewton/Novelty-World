@@ -8,6 +8,7 @@ import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
+import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
@@ -84,6 +85,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
   aska,
   // A2
+  orkan,
   // A3
   // A4
   sund,
