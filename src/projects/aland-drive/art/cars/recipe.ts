@@ -133,6 +133,28 @@ const NOSES: Readonly<Record<NoseStyle, Readonly<Record<string, readonly Band[]>
 
 export const thirdBrake = (z: number, wide = 0.5): Decal => ({ on: "top", at: [0, z], size: [wide, 0.028], surface: "lensTail", cells: [4, 1], fine: true });
 
+/**
+ * A stretch of silhouette sampled from one fair curve through `keys`, every `stepM`, the first key included and the
+ * last left for the next point: a hood, a screen, a roof and a deck as one smooth line, so no kink between hand-placed
+ * points shows as a dent in the reflection. `bands` says which band runs from each z on (`undefined` for paint), and a
+ * band's start is always a point. A point every `FAIRED_FIRM_M` is firm, so the far model keeps the outline in its budget.
+ */
+/** How far apart a faired stretch's firm points are, the ones the far model keeps. */
+const FAIRED_FIRM_M = 0.45;
+
+export function faired(keys: readonly Key[], bands: readonly (readonly [z: number, band: string | undefined])[], stepM = 0.08): SilhouettePoint[] {
+  const top = curve(keys);
+  const [start, end] = [keys[0][0], keys[keys.length - 1][0]];
+  const count = Math.max(1, Math.round((end - start) / stepM));
+  const at = new Set<number>(Array.from({ length: count }, (_, step) => start + ((end - start) * step) / count));
+  for (const [z] of bands) if (z >= start && z < end) at.add(z);
+  const bandAt = (z: number) => bands.filter(([from]) => from <= z + 1e-9).at(-1)?.[1];
+  const starts = new Set(bands.map(([z]) => z));
+  return [...at]
+    .sort((a, b) => a - b)
+    .map((z, index) => ({ z, h: top(z), band: bandAt(z), fine: index % Math.max(1, Math.round(FAIRED_FIRM_M / stepM)) !== 0 && !starts.has(z) }));
+}
+
 /** The hood between its front edge and the screen, as one fair curve: a kink here shows as a dent in the reflection. */
 function hoodOf({ noseZ, hoodLipH, axleZ, hoodH, cowl }: Shape): SilhouettePoint[] {
   const hood = curve([
@@ -258,9 +280,14 @@ export function bodyOf(shape: Shape): BodySpec {
   };
 }
 
-export const plates = (rearH: number, frontH: number): Decal[] => [
+/**
+ * The plates, rear and front. The front one is a little smaller than the rear, as a short European plate is, so it
+ * doesn't read as a slab across a nose; `recessed` sets it in a dark recess, for a nose with no bumper to carry it.
+ */
+export const plates = (rearH: number, frontH: number, { recessed = false } = {}): Decal[] => [
   { on: "rear", at: [0, rearH], size: [0.46, 0.11], surface: "plate", cells: [4, 1], fine: true },
-  { on: "front", at: [0, frontH], size: [0.46, 0.1], surface: "plate", cells: [8, 2], liftM: 0.016, fine: true },
+  ...(recessed ? [{ on: "front", at: [0, frontH], size: [0.42, 0.11], surface: "grille", cells: [8, 2], liftM: 0.008, fine: true } satisfies Decal] : []),
+  { on: "front", at: [0, frontH], size: [0.36, 0.085], surface: "plate", cells: [8, 2], liftM: 0.018, fine: true },
 ];
 
 export const handles = (zs: readonly number[], h: number): Decal[] => zs.map((z) => ({ on: "side", at: [z, h], size: [0.13, 0.022], surface: "trim", mirror: true, fine: true }));

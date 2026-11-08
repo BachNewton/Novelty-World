@@ -17,7 +17,7 @@ Be hard on it: put it beside the best car already built (Åska) and say what it 
 
 ## The files
 
-A car is six files and four lines:
+A car is six files and four lines, plus its paints and cockpit in its model file:
 
 | | File | Registered in |
 |---|---|---|
@@ -59,12 +59,12 @@ Two ways to write one (`art/cars/recipe.ts`):
 
 The order of work, each step checked in the gallery before the next:
 
-1. **Proportions from the side.** Axles and wheels from the simulation, then the silhouette: nose height, hood, where the screen starts (the cowl), the roof, where it ends, the tail. A cab-forward car's cowl sits near its front axle and its roof ends over its rear one; a front-engined car's cowl sits a metre and more behind its front axle.
+1. **Proportions from the side.** Axles and wheels from the simulation, then the silhouette, written with `faired` wherever it should be one smooth line (a hood; a screen, roof, rear glass and deck): it samples the stretch from one curve through a few keys, so no kink between hand-placed points shows as a dent in the reflection. The silhouette: nose height, hood, where the screen starts (the cowl), the roof, where it ends, the tail. A cab-forward car's cowl sits near its front axle and its roof ends over its rear one; a front-engined car's cowl sits a metre and more behind its front axle.
 2. **The plan from above.** `halfWidth` (hips over the rear wheels for a sports car), `railWidth` (the roof's edge: a narrow canopy on a wide body is a mid-engined car's), and `shelf`, a band of paint between the flank's top and the side glass, which is what lets a narrow cabin sit inboard of wide hips.
 3. **The section.** `shoulder` and `belt` heights along the car (the flank's top and the crease below it), `crown` (how far the roof's edge sits below the centre; below zero over the hood, the fenders stand above a hood that dips between them, and over the rear wheels, hips above an engine cover), and `scoop` (how far the lower flank is sculpted in along the car, leading into an intake).
 4. **Glass.** `windowZ`, `windowTop`, `pillars`, and the screen and rear glass as bands. A teardrop canopy is a `windowTop` that rises from the cowl, peaks over the seats and tapers behind them.
 5. **Face and tail.** The silhouette's points at each end, each with a band: the mouth, the lamp, the housing, the gap, the tail bar, the mesh, the diffuser. The maker's signature goes here (Tärna's is a bracket of light, a full-width line turned down at its ends).
-6. **Parts** (`art/cars/parts.ts`): `splitter`, `diffuser`, `sideIntake`, `lightLine`, `projectors`, `tailLine`, `louvres`; the recipe's own `plates`, `handles`, `reversing`, `reflector`, `thirdBrake`, `lampUnits`, `roundLamps`, `stripe`; the body's `wing` (with `endplates`), `exhausts`, `roofBars` and `blocks`.
+6. **Parts** (`art/cars/parts.ts`): `splitter` (tuck it under the nose's foot, its top at the foot's height, so it doesn't float), `diffuser`, `sideIntake` (a dark duct; give it depth with a lip over it, walls at its ends and a blade across, as Åska's blocks do), `lightLine`, `projectors`, `tailLine`, `louvres`; the recipe's own `plates` (the front plate is a short plate; `recessed` sets it in a dark recess for a nose with no bumper), `handles`, `reversing`, `reflector`, `thirdBrake`, `lampUnits`, `roundLamps`, `stripe`; the body's `wing` (with `endplates`), `exhausts`, `roofBars` and `blocks`.
 7. **Wheels** (`art/cars/wheel.ts`, or `style` on a sketch): a rim `style` (`blade`, `split`, `turbine`, `mesh`, `aero`) and spoke count, `rimShare` (how big the rim is in the tyre: 0.6 a utility car, 0.76 a hypercar's low profile), tyre width. Every hero wheel has a brake disc and a caliper (`car-caliper`).
 8. **Paint and finish.** The paint is a token; trim, cladding and grille are shared tokens; the material is `art/cars/material.ts`.
 
@@ -102,6 +102,8 @@ Look at each, in this order, and write down what is wrong before changing anythi
 5. `wheel`, `steer`: rim, disc, caliper, sidewall.
 6. `far`: same outline and colours as near? Every lamp where it was?
 
+Check the surfaces with `--zebra` on the sketch: it mirrors bands of light and dark, and the `door` and `hood` views show whether they run in smooth lines (fair) or wobble and kink (a lump). Fix a wobble at its cause: a section key that dips (`shoulder`, `belt`, `scoop`), a silhouette that isn't faired, a crown that changes sign too fast.
+
 Then in the game, by day and by night, with local tiles: `node src/projects/aland-drive/tools/serve-tiles.mjs --port=<p>`, a dev server of the worktree's own on a spare port (`npx next dev --port <q>`, never 3001), and `ALAND_DRIVE_URL="http://localhost:<q>/games/3d-games/aland-drive?car=<id>&tiles=local:<p>&hour=<h>" npm run slot -- browser -- node src/projects/aland-drive/tools/look.mjs --shots=<folder> <name>:<east>,<north>,<height>,<yaw>,<pitch>`. Film it (`tools/film.mjs`) when a still hides something: a sparkle, a pop at the swap.
 
 Redraw until it clears the bar. Several rounds is normal.
@@ -120,11 +122,27 @@ Lint of the changed files (`npx eslint <files>`), `npm run typecheck`, `npm run 
 
 ## Cockpit
 
-*Placeholder: the cockpit view (the first-person camera and the shared parametric interior) is being built on its own branch. What a car sets for its cabin goes here.*
+A car's cockpit is built from its cabin and a style (`art/cars/cockpit/`, and `art/CLAUDE.md` for how it's made). The frame works the eye, dash, wheel and instruments out of the shell and the cabin's numbers, so a car gets a cockpit with nothing written; a car's `interior` in its model file changes only what it names (`cockpit/style.ts`, `InteriorChoice`):
+
+- `gauges`: `analogue` (two dials), `digital` (one screen of figures and an arc), `classic` (chrome-ringed dials and a row of small ones), `race` (one big rev counter with shift lights).
+- `wheel`: `round`, `flat` (flat-bottomed), `rally` (dished, top marker), `classic` (big, thin rim), `yoke`.
+- `shifter`, `seats` (`comfort`, `sport`, `bucket`), `screen`, `cage`, `paintedDash` (a band in whatever paint the player chose), `turnsToLock`, `eye` (a nudge to where the driver sits).
+- `colours`: the dash, trim, inserts, headliner, accent (rings round dials, vents' edges) and the glow after dark, each a token in `cockpit/tokens.css`. A new cabin colour is a token there.
+
+Choose it the way the exterior is chosen: what the car is and when it was made. Åska is the example: `digital`, `flat`, `selector`, `bucket`, a carbon dash and trim with Tärna-blue inserts and accents, an ice-blue glow. An old car takes `classic` dials and wheel, no screen, perhaps a painted dash or wood.
+
+Check it from the driver's seat: `npm run slot -- browser -- node src/projects/aland-drive/art/cars/gallery.mjs <out> --cockpit --car=<index>` (the driver's eye, the dash from behind the seats, across to the passenger's door, by day and night), and in the game with `tools/look.mjs --cockpit` on a chase look. The chase view keeps the shell's own simple cabin, so the cockpit has no far version and costs nothing outside the first-person view.
 
 ## Paints
 
-*Placeholder: the paint system (a car's list of paints with their finishes) is being built on its own branch. How a car chooses its paints goes here.*
+A car comes in four to eight paints, the player's choice, listed in its model file as `paints`, the first its default and the same colour as its `paint` (`art/cars/paints.ts`; `art/CLAUDE.md` for how they're drawn). Each line is `paint(<token>, <finish>)`:
+
+- The colour is a `--color-aland-drive-car-paint-*` token in `src/app/globals.css`, the one place a paint's colour comes from; a new colour is one token. Reuse the shared ones where they fit.
+- The finish: `solid` (a deep gloss carrying the horizon), `metallic` (a tighter highlight and flakes at a glancing angle), `matte` (a soft sheen, no horizon), `pearl` (turns to a `flip` colour at a glancing angle; only a pearl names a flip).
+- A car with stripes in its body can name their colour per paint (`stripe`); one without names none.
+- The list only ever grows at its end: a paint travels to other players as its index.
+
+Choose a set that suits the car and its maker: a hero colour first (Åska's Tärna blue, metallic), then a spread a buyer of that car would want (a pale metallic, a pearl, a bold solid, a dark matte). `art/cars/paints.test.ts` holds the count, the first as default, every token real and the names distinct. Judge the set on its sheet: `npm run slot -- browser -- node src/projects/aland-drive/art/cars/gallery.mjs <out> --paints --car=<index>`, every paint by day and night, near and far.
 
 ## Voice
 
