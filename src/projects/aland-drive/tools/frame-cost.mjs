@@ -47,7 +47,7 @@ const LOOKS = process.argv.slice(2).filter((arg) => !arg.startsWith("--")).map((
 });
 
 const tiles = await serveTiles(FOLDER);
-const { page, step, reported, close } = await openGame(`${PAGE}?tiles=local:${tiles.port}&hour=${HOUR}`, {
+const { page, step, reported, close } = await openGame(`${PAGE}${PAGE.includes("?") ? "&" : "?"}tiles=local:${tiles.port}&hour=${HOUR}`, {
   width: WIDTH,
   height: HEIGHT,
   ready: () => window.__alandDrive?.mapReady() === true,

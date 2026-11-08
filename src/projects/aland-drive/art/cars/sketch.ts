@@ -4,7 +4,10 @@
 // reflected, so it shows proportions, sections, bands, parts and wheels; the game's material, paint and lamps are the
 // gallery's to judge (`gallery.mjs`), which is still the review a car is signed off on.
 //
-//   npx tsx src/projects/aland-drive/art/cars/sketch.ts --car=<id> <out-folder>
+//   npx tsx src/projects/aland-drive/art/cars/sketch.ts --car=<id> <out-folder> [--zebra]
+//
+// --zebra mirrors bands of light and dark in the paint, the standard check of a fair surface: the bands bend in smooth
+// lines over a fair panel and kink or wobble over a lump. The door and hood views are for it.
 
 import sharp from "sharp";
 import { CAR_IDS, isCarId } from "../../sim/cars";
@@ -217,10 +220,9 @@ async function draw(
           toEye,
         );
         const glossy = name === "paint" || name === "glass" || name === "rim";
-        const sky = refl[1] > 0.02 ? 0.85 : 0.25;
-        const fres = glossy
-          ? 0.06 + 0.5 * Math.pow(1 - Math.abs(facing), 4)
-          : 0;
+        // With --zebra, paint mirrors bands of light and dark: a fair surface bends them in smooth lines, a lump kinks them.
+        const sky = ZEBRA ? (Math.floor(Math.atan2(refl[1], Math.hypot(refl[0], refl[2])) * 14) % 2 === 0 ? 0.95 : 0.05) : refl[1] > 0.02 ? 0.85 : 0.25;
+        const fres = ZEBRA && name === "paint" ? 0.85 : glossy ? 0.06 + 0.5 * Math.pow(1 - Math.abs(facing), 4) : 0;
         const i = k * 3;
         for (let ch = 0; ch < 3; ch++)
           img[i + ch] = Math.min(
@@ -234,6 +236,7 @@ async function draw(
     .toFile(out);
 }
 
+const ZEBRA = process.argv.includes("--zebra");
 const asked =
   process.argv.find((arg) => arg.startsWith("--car="))?.slice(6) ?? "";
 if (!isCarId(asked)) throw new Error(`--car= takes ${CAR_IDS.join(", ")}`);
@@ -257,6 +260,7 @@ views.push([
   [track, axleY(CARS[index]), front],
   22,
 ]);
+views.push(["door", [3.4, 1.0, -2.2], [0.9, 0.45, 0.2], 40], ["hood", [2.6, 1.9, -3.6], [0, 0.6, -1.2], 40]);
 for (const [name, eye, at, fov] of views)
   await draw(index, "hero", eye, at, fov, `${outDir}/${name}.png`);
 await draw(index, "far", [5, 1.3, -6.5], [0, 0.45, 0], 34, `${outDir}/far.png`);
