@@ -561,7 +561,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   });
   const railAt = rows.indexOf(ROWS.rail);
   // The lowest of a rib's top rows: a hood that dips between raised fenders is lower in the middle than at its rail.
-  const topOf = (index: number) => Math.min(...grid[index].slice(railAt).map(([, y]) => y));
+  const topOf = (index: number) => (stations[index].bed ? grid[index][railAt][1] : Math.min(...grid[index].slice(railAt).map(([, y]) => y)));
   // The floor follows the arches up, but never through a hood lower than them: there it runs under the hood.
   const floorAt = (index: number, [x, y, z]: Point): Point => [x, Math.min(y, Math.max(curves.sill(stations[index].z) + ground, topOf(index) - 0.04)), z];
 

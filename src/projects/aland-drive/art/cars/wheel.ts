@@ -137,27 +137,41 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   turned(builder, [[half * 0.86, rim + 0.002], ...shoulders, [-half * 0.86, rim]], sides, "tyre");
   const faceX = half * 0.9;
   const rimSides = Math.max(8, Math.round(sides * 0.8));
-  // The lip, polished, then the barrel inside it, dark.
-  turned(
-    builder,
-    [
-      [faceX - 0.06, rim - 0.034],
-      [faceX - 0.004, rim - 0.026],
-      [faceX + 0.004, rim - 0.012],
-      [faceX + 0.002, rim + 0.004],
-    ],
-    rimSides,
-    "rim",
-  );
-  turned(
-    builder,
-    [
-      [-half * 0.3, rim - 0.036],
-      [faceX - 0.06, rim - 0.036],
-    ],
-    rimSides,
-    "rimDark",
-  );
+  if (detail.fine) {
+    // The lip, polished, then the barrel inside it, dark.
+    turned(
+      builder,
+      [
+        [faceX - 0.06, rim - 0.034],
+        [faceX - 0.004, rim - 0.026],
+        [faceX + 0.004, rim - 0.012],
+        [faceX + 0.002, rim + 0.004],
+      ],
+      rimSides,
+      "rim",
+    );
+    turned(
+      builder,
+      [
+        [-half * 0.3, rim - 0.036],
+        [faceX - 0.06, rim - 0.036],
+      ],
+      rimSides,
+      "rimDark",
+    );
+  } else {
+    turned(
+      builder,
+      [
+        [-half * 0.3, rim - 0.034],
+        [faceX - 0.06, rim - 0.034],
+        [faceX, rim - 0.018],
+        [faceX, rim + 0.004],
+      ],
+      rimSides,
+      "rim",
+    );
+  }
   // The dark behind the spokes, so they read against it from the road.
   builder.rings([ring(-half * 0.3, rim - 0.03, rimSides)], "rimDark");
   if (detail.spokes) {
