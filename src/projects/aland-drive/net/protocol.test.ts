@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseChallengeMessage, parseGuestMessage, parseHostMessage, type ChallengeMessage } from "./protocol";
+import type { CarState } from "../sim/car-state";
+import { parseChallengeMessage, parseGuestMessage, parseHostMessage, wireState, type ChallengeMessage } from "./protocol";
 
 /* Every challenge message off the wire is someone else's, so anything not exactly a message is dropped. */
 
@@ -69,6 +70,22 @@ describe("a car's state", () => {
 
   it("shows a car from a version that sent no lamps with them off, rather than dropping it", () => {
     expect(parseGuestMessage({ kind: "car", state })).toEqual({ kind: "car", state: { ...state, lamps: { head: false, brake: false, reverse: false } } });
+  });
+
+  const lamps = { head: true, brake: false, reverse: false };
+
+  it("carries its driver's paint through JSON and the wire as a small index", () => {
+    const painted: CarState = { ...(state as Omit<CarState, "lamps">), car: "grus", lamps, paint: 3 };
+    const wire = JSON.parse(JSON.stringify(wireState(painted))) as unknown;
+    expect(parseGuestMessage({ kind: "car", state: wire })).toEqual({ kind: "car", state: { ...painted, paint: 3 } });
+  });
+
+  it("drops a paint that isn't a small whole number, keeping the car, which then draws in its default", () => {
+    for (const paint of [-1, 1.5, "2", null, 1e9, Number.NaN]) {
+      const parsed = parseGuestMessage({ kind: "car", state: { ...state, lamps, paint } });
+      expect(parsed).toEqual({ kind: "car", state: { ...state, lamps } });
+      expect(parsed?.kind === "car" && "paint" in parsed.state).toBe(false);
+    }
   });
 });
 

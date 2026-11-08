@@ -3,6 +3,7 @@ import { ROWS, type Band, type Block, type BodySpec, type Cabin, type Decal, typ
 import { rideOf, WORLD_RIDE, type CarSpec } from "./build";
 import { curve, type Key } from "./curve";
 import type { Surface } from "./mesh";
+import { paint, type CarPaint } from "./paints";
 
 /*
  * The cars, each a set of numbers on one shared recipe: where the axles, the
@@ -357,7 +358,15 @@ export const PLAYER_CAR: CarSpec = {
   id: SKERRY.id,
   name: SKERRY.name,
   ride: SKERRY.ride,
-  paint: "car-body",
+  paint: "car-paint-signal-red",
+  paints: [
+    paint("car-paint-signal-red"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-racing-green", "metallic"),
+    paint("car-paint-midnight", "metallic"),
+    paint("car-paint-pearl", "pearl", { flip: "car-paint-pearl-flip" }),
+    paint("car-paint-graphite", "matte"),
+  ],
   body: bodyOf(playerShape),
   wheel: { radiusM: SKERRY.wheelRadiusM, widthM: 0.235, rimShare: 0.74, spokes: 5, twinSpokes: true },
   shadowHalf: [0.92, 2.2],
@@ -370,6 +379,14 @@ const HATCH: CarSpec = {
   name: hatch.name,
   ride: hatch.ride,
   paint: "car-paint-teal",
+  paints: [
+    paint("car-paint-teal"),
+    paint("car-paint-white"),
+    paint("car-paint-coral"),
+    paint("car-paint-lemon"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-graphite", "metallic"),
+  ],
   wheel: { radiusM: hatch.wheelRadiusM, widthM: 0.195, rimShare: 0.68, spokes: 7, twinSpokes: false },
   shadowHalf: [0.86, 1.98],
   body: bodyOf({
@@ -443,6 +460,14 @@ const ESTATE: CarSpec = {
   name: estate.name,
   ride: estate.ride,
   paint: "car-paint-navy",
+  paints: [
+    paint("car-paint-navy"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-glacier", "metallic"),
+    paint("car-paint-bronze", "metallic"),
+    paint("car-paint-white"),
+  ],
   wheel: { radiusM: estate.wheelRadiusM, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
   shadowHalf: [0.92, 2.38],
   body: bodyOf({
@@ -521,6 +546,14 @@ const COUPE: CarSpec = {
   name: coupe.name,
   ride: coupe.ride,
   paint: "car-paint-mustard",
+  paints: [
+    paint("car-paint-mustard"),
+    paint("car-paint-signal-red"),
+    paint("car-paint-ultramarine", "metallic"),
+    paint("car-paint-lime"),
+    paint("car-paint-pearl", "pearl", { flip: "car-paint-pearl-flip" }),
+    paint("car-paint-black", "matte"),
+  ],
   wheel: { radiusM: coupe.wheelRadiusM, widthM: 0.265, rimShare: 0.76, spokes: 6, twinSpokes: true },
   shadowHalf: [0.96, 2.2],
   body: bodyOf({
@@ -608,6 +641,14 @@ const PICKUP: CarSpec = {
   name: pickup.name,
   ride: pickup.ride,
   paint: "car-paint-forest",
+  paints: [
+    paint("car-paint-forest"),
+    paint("car-paint-white"),
+    paint("car-paint-sand"),
+    paint("car-paint-oxblood"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-black"),
+  ],
   wheel: { radiusM: pickup.wheelRadiusM, widthM: 0.25, rimShare: 0.62, spokes: 6, twinSpokes: false },
   shadowHalf: [1.0, 2.62],
   body: bodyOf({
@@ -694,6 +735,14 @@ const VAN: CarSpec = {
   name: van.name,
   ride: van.ride,
   paint: "car-paint-white",
+  paints: [
+    paint("car-paint-white"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-sky"),
+    paint("car-paint-orange"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-forest"),
+  ],
   wheel: { radiusM: van.wheelRadiusM, widthM: 0.215, rimShare: 0.62, spokes: 5, twinSpokes: false },
   shadowHalf: [0.96, 2.48],
   body: bodyOf({
@@ -772,6 +821,8 @@ type Sketch = SketchShape & ({ driven: ReturnType<typeof driven> } | { name: str
 
 interface SketchShape {
   paint: string;
+  /** A drivable car's paints, the first `paint` itself. */
+  paints?: readonly CarPaint[];
   livery?: boolean;
   /** Length, width, height. */
   size: readonly [number, number, number];
@@ -948,6 +999,7 @@ function sketched(car: Sketch): CarSpec {
     name,
     ride: sim?.ride ?? WORLD_RIDE,
     paint: car.paint,
+    paints: car.paints,
     livery: car.livery,
     body: bodyOf(shape),
     wheel: { radiusM: radius, widthM: tyre, rimShare: car.rim ?? 0.66, spokes: car.spokes ?? 5, twinSpokes: car.twin ?? false },
@@ -963,14 +1015,14 @@ const stripe = (wide: number, along: number, h: number, long: number): Decal => 
 const hoodStripe = (x: number, wide: number, z: number, long: number): Decal => ({ on: "top", at: [x, z], size: [wide, long], surface: "stripe", cells: [1, 8], mirror: true });
 
 /** The eight other cars a player can own. */
-const SALTA = sketched({ driven: driven("salta"), paint: "car-paint-sky", size: [4.75, 1.72, 1.44], tyre: 0.185, sill: 0.2, hood: 0.88, screen: [-0.95, -0.25, 2.0], tail: "upright", nose: "grille", rake: 0.3, roofBars: true, spokes: 8, rim: 0.6, belt: 0.04, seat: "seatTan" });
-const VIK = sketched({ driven: driven("vik"), paint: "car-paint-oxblood", size: [3.95, 1.55, 1.12], tyre: 0.165, sill: 0.17, hood: 0.72, screen: [-0.28, -0.12, 0.2], tail: "open", nose: "round", rake: 2, spokes: 14, rim: 0.7, seat: "seatTan", flare: 0.05, decals: round(0.46, 0.57, 0.15) });
-const STEN = sketched({ driven: driven("sten"), paint: "car-paint-orange", size: [3.95, 1.78, 1.42], tyre: 0.215, sill: 0.2, hood: 0.86, screen: [-0.92, -0.2, 1.42], tail: "upright", nose: "grille", rake: 0.6, flare: 0.045, spokes: 6, decals: [stripe(0.09, 0, 0.56, 3)], blocks: [{ at: [0, 1.44, -0.05], size: [0.34, 0.04, 0.24], surface: "trim", fine: true }, { at: [0.3, 0.62, -1.99], size: [0.17, 0.17, 0.08], surface: "lensHead", mirror: true }] });
-const BERG = sketched({ driven: driven("berg"), paint: "car-paint-cream", size: [4.4, 1.84, 1.92], tyre: 0.26, sill: 0.42, hood: 1.24, screen: [-1.0, -0.62, 1.98], tail: "box", nose: "round", rake: 0.2, spokes: 5, rim: 0.56, belt: 0.02, decals: round(0.56, 0.98, 0.2), roofBars: true, blocks: [{ at: [0, 1.15, 2.3], size: [0.72, 0.72, 0.2], surface: "tyre" }] });
-const STROM = sketched({ driven: driven("strom"), paint: "car-paint-mint", size: [4.5, 1.9, 1.62], tyre: 0.235, sill: 0.26, hood: 0.98, screen: [-1.2, -0.3, 1.5], tail: "fast", nose: "smooth", rake: 1.4, rim: 0.74, spokes: 3, twin: true, belt: 0.14 });
-const ANKAR = sketched({ driven: driven("ankar"), paint: "car-paint-black", size: [5.1, 1.92, 1.46], tyre: 0.245, sill: 0.19, hood: 0.92, screen: [-0.95, -0.2, 1.0], tail: "notch", nose: "grille", rake: 0.4, spokes: 10, rim: 0.74, seat: "seatTan", decals: [stripe(0.012, 0, 0.8, 4.2)] });
-const BRIS = sketched({ driven: driven("bris"), paint: "car-paint-white", size: [4.3, 1.8, 1.3], tyre: 0.225, sill: 0.18, hood: 0.84, screen: [-0.6, -0.1, 0.3], tail: "open", nose: "paint", rake: 1.3, rim: 0.74, seat: "seatTan", rearSeats: true });
-const GRUS = sketched({ driven: driven("grus"), paint: "car-paint-white", size: [4.2, 1.88, 1.34], tyre: 0.245, sill: 0.2, hood: 0.8, screen: [-0.78, -0.08, 0.8], tail: "fast", nose: "paint", rake: 1.6, flare: 0.06, rim: 0.7, spokes: 6, rearSeats: false, decals: [hoodStripe(0.14, 0.18, -1.45, 1.35), stripe(0.14, 0, 0.5, 3)], wing: { z: 1.85, h: 1.2, halfWidth: 0.78, chord: 0.14, rise: 0.045 } });
+const SALTA = sketched({ driven: driven("salta"), paint: "car-paint-sky", paints: [paint("car-paint-sky"), paint("car-paint-cream"), paint("car-paint-saddle"), paint("car-paint-avocado"), paint("car-paint-mint"), paint("car-paint-oxblood")], size: [4.75, 1.72, 1.44], tyre: 0.185, sill: 0.2, hood: 0.88, screen: [-0.95, -0.25, 2.0], tail: "upright", nose: "grille", rake: 0.3, roofBars: true, spokes: 8, rim: 0.6, belt: 0.04, seat: "seatTan" });
+const VIK = sketched({ driven: driven("vik"), paint: "car-paint-oxblood", paints: [paint("car-paint-oxblood"), paint("car-paint-racing-green"), paint("car-paint-cream"), paint("car-paint-powder-blue"), paint("car-paint-signal-red"), paint("car-paint-black")], size: [3.95, 1.55, 1.12], tyre: 0.165, sill: 0.17, hood: 0.72, screen: [-0.28, -0.12, 0.2], tail: "open", nose: "round", rake: 2, spokes: 14, rim: 0.7, seat: "seatTan", flare: 0.05, decals: round(0.46, 0.57, 0.15) });
+const STEN = sketched({ driven: driven("sten"), paint: "car-paint-orange", paints: [paint("car-paint-orange"), paint("car-paint-white", "solid", { stripe: "car-paint-signal-red" }), paint("car-paint-lime", "solid", { stripe: "car-paint-black" }), paint("car-paint-black", "solid", { stripe: "car-paint-orange" }), paint("car-paint-ultramarine", "metallic", { stripe: "car-paint-white" }), paint("car-paint-silver", "metallic", { stripe: "car-paint-black" })], size: [3.95, 1.78, 1.42], tyre: 0.215, sill: 0.2, hood: 0.86, screen: [-0.92, -0.2, 1.42], tail: "upright", nose: "grille", rake: 0.6, flare: 0.045, spokes: 6, decals: [stripe(0.09, 0, 0.56, 3)], blocks: [{ at: [0, 1.44, -0.05], size: [0.34, 0.04, 0.24], surface: "trim", fine: true }, { at: [0.3, 0.62, -1.99], size: [0.17, 0.17, 0.08], surface: "lensHead", mirror: true }] });
+const BERG = sketched({ driven: driven("berg"), paint: "car-paint-cream", paints: [paint("car-paint-cream"), paint("car-paint-olive"), paint("car-paint-sand"), paint("car-paint-brick"), paint("car-paint-sky"), paint("car-paint-grey")], size: [4.4, 1.84, 1.92], tyre: 0.26, sill: 0.42, hood: 1.24, screen: [-1.0, -0.62, 1.98], tail: "box", nose: "round", rake: 0.2, spokes: 5, rim: 0.56, belt: 0.02, decals: round(0.56, 0.98, 0.2), roofBars: true, blocks: [{ at: [0, 1.15, 2.3], size: [0.72, 0.72, 0.2], surface: "tyre" }] });
+const STROM = sketched({ driven: driven("strom"), paint: "car-paint-mint", paints: [paint("car-paint-mint"), paint("car-paint-pearl", "pearl", { flip: "car-paint-pearl-flip" }), paint("car-paint-glacier", "metallic"), paint("car-paint-copper", "metallic"), paint("car-paint-ultramarine", "metallic"), paint("car-paint-graphite", "matte")], size: [4.5, 1.9, 1.62], tyre: 0.235, sill: 0.26, hood: 0.98, screen: [-1.2, -0.3, 1.5], tail: "fast", nose: "smooth", rake: 1.4, rim: 0.74, spokes: 3, twin: true, belt: 0.14 });
+const ANKAR = sketched({ driven: driven("ankar"), paint: "car-paint-black", paints: [paint("car-paint-black"), paint("car-paint-midnight", "metallic"), paint("car-paint-aubergine", "metallic"), paint("car-paint-racing-green", "metallic"), paint("car-paint-graphite", "metallic"), paint("car-paint-champagne", "metallic")], size: [5.1, 1.92, 1.46], tyre: 0.245, sill: 0.19, hood: 0.92, screen: [-0.95, -0.2, 1.0], tail: "notch", nose: "grille", rake: 0.4, spokes: 10, rim: 0.74, seat: "seatTan", decals: [stripe(0.012, 0, 0.8, 4.2)] });
+const BRIS = sketched({ driven: driven("bris"), paint: "car-paint-white", paints: [paint("car-paint-white"), paint("car-paint-sky"), paint("car-paint-mint"), paint("car-paint-coral"), paint("car-paint-navy", "metallic"), paint("car-paint-champagne", "metallic")], size: [4.3, 1.8, 1.3], tyre: 0.225, sill: 0.18, hood: 0.84, screen: [-0.6, -0.1, 0.3], tail: "open", nose: "paint", rake: 1.3, rim: 0.74, seat: "seatTan", rearSeats: true });
+const GRUS = sketched({ driven: driven("grus"), paint: "car-paint-white", paints: [paint("car-paint-white"), paint("car-paint-white", "solid", { stripe: "car-paint-signal-red" }), paint("car-paint-ultramarine", "metallic", { stripe: "car-paint-white" }), paint("car-paint-black", "solid", { stripe: "car-paint-orange" }), paint("car-paint-lemon", "solid", { stripe: "car-paint-black" }), paint("car-paint-silver", "metallic", { stripe: "car-paint-signal-red" })], size: [4.2, 1.88, 1.34], tyre: 0.245, sill: 0.2, hood: 0.8, screen: [-0.78, -0.08, 0.8], tail: "fast", nose: "paint", rake: 1.6, flare: 0.06, rim: 0.7, spokes: 6, rearSeats: false, decals: [hoodStripe(0.14, 0.18, -1.45, 1.35), stripe(0.14, 0, 0.5, 3)], wing: { z: 1.85, h: 1.2, halfWidth: 0.78, chord: 0.14, rise: 0.045 } });
 
 /** Cars of the world, which nobody drives. */
 const WORLD: readonly Sketch[] = [

@@ -58,7 +58,7 @@ const artOf = (name: string, detail: CarDetail): CarArt => {
 };
 const placeCar = (parent: Group | Scene, name: string, at: readonly [number, number, number], yaw: number, paint: string | undefined, detail: CarDetail) => {
   const art = artOf(name, detail);
-  const model = createCarModel(art, CAR_SUN, { paint });
+  const model = createCarModel(art, CAR_SUN, paint === undefined ? {} : { paint: { colour: paint, finish: "solid" } });
   model.draw(restingCar(art.spec, at, yaw));
   parent.add(model.root);
   return model;

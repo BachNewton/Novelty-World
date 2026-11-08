@@ -173,6 +173,21 @@ describe("the online world", () => {
     expect(star.sent()).toBe(before + 3);
   });
 
+  it("sends a new paint at once, even from a player paused in the menu, and the others see it", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    drive(a, 0);
+    drive(a, 0);
+    const before = star.sent();
+    drive(a, 0, { ...STATE, paint: 2 });
+    expect(star.sent()).toBe(before + 1);
+    drive(a, 0, { ...STATE, paint: 2 });
+    expect(star.sent()).toBe(before + 1);
+    star.flush();
+    expect(host.cars.get("a")?.paint).toBe(2);
+  });
+
   it("a player who arrives while someone is paused still sees their car", () => {
     const star = createStar();
     const host = star.join("h");

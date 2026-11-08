@@ -34,6 +34,11 @@ export interface CarState {
   /** How far each wheel has turned, in radians: a spinning or locked wheel turns apart from the road. */
   roll: PerWheel;
   lamps: CarLamps;
+  /**
+   * The paint its driver chose, by its index in the car's list of paints (`art/cars/paints.ts`); the car's default when
+   * left out, as a version of the game from before paints sends it.
+   */
+  paint?: number;
 }
 
 const lerp = (a: number, b: number, share: number) => a + (b - a) * share;
@@ -58,6 +63,7 @@ export function blendCarStates(from: CarState, to: CarState, share: number): Car
     ],
     roll: [lerp(from.roll[0], to.roll[0], share), lerp(from.roll[1], to.roll[1], share), lerp(from.roll[2], to.roll[2], share), lerp(from.roll[3], to.roll[3], share)],
     lamps: to.lamps,
+    paint: to.paint,
   };
 }
 

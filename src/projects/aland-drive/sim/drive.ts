@@ -56,6 +56,8 @@ export class SimulatedCar {
   /** What the car is driven by on the coming steps, held until it's changed, as a pad's sticks are. */
   input: DriveInput = NO_INPUT;
   log = emptyLog();
+  /** Its paint, by its index in its car's list: the driver's choice, which the simulation only carries in its state. */
+  paint = 0;
   /** Out of the world for one step after it's put down: a collider made since the last step isn't found by a ray until the world steps, so its ground isn't there to it yet. */
   private landing = false;
   private before!: CarState;
@@ -204,9 +206,9 @@ export class SimulatedCar {
     if (!this.world.tileAt(position[0], position[2])?.detail) log.farGroundSteps++;
   }
 
-  /** The car a share of the way from the last step to this one. */
+  /** The car a share of the way from the last step to this one, in its paint as it is now, paused or not. */
   stateAt(share: number): CarState {
-    return blendCarStates(this.before, this.after, share);
+    return { ...blendCarStates(this.before, this.after, share), paint: this.paint };
   }
 }
 
@@ -336,6 +338,15 @@ export class Drive {
   /** Swaps the car for another, on its own tyres, mid-drive: the new one carries on from where the old one was, as it was moving. */
   setCar(id: CarId, tyres: Tyre = "summer"): void {
     this.player.swap(this.rapier, this.centre, this.ground, id, tyres);
+  }
+
+  /** The paint of the car being driven, by its index in the car's list. */
+  get paint(): number {
+    return this.player.paint;
+  }
+
+  set paint(paint: number) {
+    this.player.paint = paint;
   }
 
   /** The tyres on the car being driven. */

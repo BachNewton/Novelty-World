@@ -3,6 +3,7 @@ import { sagOf, type CarTuning } from "../../sim/tuning";
 import { buildBody, ROWS, type BodySpec, type BodyDetail } from "./body";
 import { pick, SURFACES, type Point, type Soup, type Surface } from "./mesh";
 import { buildWheel, type WheelSpec } from "./wheel";
+import type { CarPaint } from "./paints";
 
 /*
  * A car's parts at a detail: pure numbers, so triangle counts and shapes can be
@@ -27,8 +28,10 @@ export interface CarSpec {
   /** A car a player can drive: its wheels and ride are its simulation's. */
   id?: CarId;
   name: string;
-  /** A paint token, without the `--color-aland-drive-` prefix. */
+  /** A paint token, without the `--color-aland-drive-` prefix: a world car's paint, and a drivable car's default. */
   paint: string;
+  /** A drivable car's paints, the player's choice, the first its default (`paints.ts`). */
+  paints?: readonly CarPaint[];
   body: BodySpec;
   wheel: WheelSpec;
   /** Its paint is its livery, so a seeded world car keeps it and stays plain. */
