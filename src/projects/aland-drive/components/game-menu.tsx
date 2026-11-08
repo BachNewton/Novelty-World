@@ -317,9 +317,9 @@ function swatchBackground({ colour, finish, stripe, flip }: CarPaint): string {
   const layers: Record<PaintFinish, string[]> = {
     solid: [`linear-gradient(180deg, ${clear(SHINE, 28)} 0 46%, ${clear(DARK, 18)} 46% 52%, transparent 52%)`, `linear-gradient(180deg, ${lit(base, SHINE, 12)}, ${lit(base, DARK, 18)})`],
     metallic: [
-      `radial-gradient(circle at 30% 26%, ${clear(SHINE, 90)} 0 6%, ${clear(SHINE, 30)} 14%, transparent 32%)`,
-      ...[[62, 30], [44, 58], [76, 70], [22, 74], [58, 86], [84, 44], [34, 40]].map(([x, y]) => `radial-gradient(circle at ${x}% ${y}%, ${clear(SHINE, 85)} 0 1.5px, transparent 2px)`),
-      `linear-gradient(160deg, ${lit(base, SHINE, 28)}, ${base} 45%, ${lit(base, DARK, 38)})`,
+      `radial-gradient(circle at 30% 26%, ${clear(SHINE, 80)} 0 4%, transparent 14%)`,
+      ...[[38, 22], [24, 38], [44, 40]].map(([x, y]) => `radial-gradient(circle at ${x}% ${y}%, ${clear(SHINE, 55)} 0 1px, transparent 1.5px)`),
+      `radial-gradient(ellipse at 30% 26%, ${lit(base, SHINE, 45)}, ${base} 55%, ${lit(base, DARK, 35)})`,
     ],
     matte: [`linear-gradient(180deg, ${lit(base, SHINE, 6)}, ${lit(base, DARK, 8)})`],
     pearl: [`radial-gradient(circle at 30% 26%, ${clear(SHINE, 55)} 0 8%, transparent 30%)`, `linear-gradient(150deg, ${base} 30%, ${carColour(flip ?? colour)} 70%, ${lit(carColour(flip ?? colour), DARK, 12)})`],

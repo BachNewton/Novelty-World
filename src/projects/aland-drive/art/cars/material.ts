@@ -101,15 +101,16 @@ interface CoatLook {
 export const COAT_LOOKS: Record<PaintFinish, CoatLook> = {
   solid: { mirror: 0.07, gloss: 0.8, metal: 0, power: SPECULAR_POWER, share: SPECULAR_SHARE, flake: 0, flip: 0 },
   metallic: { mirror: 0.06, gloss: 0.85, metal: 0.24, power: 1100, share: 1.7, flake: 1, flip: 0 },
-  matte: { mirror: 0, gloss: 0.06, metal: 0, power: 10, share: 1.3, flake: 0, flip: 0 },
+  matte: { mirror: 0, gloss: 0.06, metal: 0, power: 3, share: 0.8, flake: 0, flip: 0 },
   pearl: { mirror: 0.07, gloss: 0.85, metal: 0.05, power: 520, share: 1.1, flake: 0.25, flip: 0.6 },
 };
 
-/** A metallic's flakes: cells this size in the car's own metres, seen only while a cell is a couple of pixels or more. */
+/** A metallic's flakes: cells this size in the car's own metres, a glint seen only while its cell is a few pixels across. */
 const FLAKE_M = 0.012;
-/** The roll past which a cell glints, and how bright a glint is against the sun's own highlight. */
-const FLAKE_GLINTING = 0.9;
-const FLAKE_BRIGHT = 0.55;
+/** The roll past which a cell glints, how bright a glint is, and how bright the flakes' glow in the paint's colour. */
+const FLAKE_GLINTING = 0.93;
+const FLAKE_BRIGHT = 0.35;
+const FLAKE_GLOW = 0.55;
 const FLAKE_SALT = 7;
 
 const carToken = (name: string): Color => themeColor(`--color-aland-drive-${name}`);
@@ -228,25 +229,27 @@ function carSurface(sky: Sky, paint: Node<"vec3">, normal: Node<"vec3">, heightS
   const towardsSun = ray.dot(sky.toSun).max(0);
   const specular = sky.sunColour.mul(towardsSun.pow(power)).mul(gloss.mul(share));
   if (!coat) return { colour: surface.add(specular), lamp: finish.w };
-  const sparkle = flakes(sky, coat, base, reflected, towardsSun, grazing).mul(select(isCoated, float(1), float(0)));
+  const sparkle = flakes(sky, coat, base, towardsSun).mul(select(isCoated, float(1), float(0)));
   return { colour: surface.add(specular).add(sparkle), lamp: finish.w };
 }
 
 /**
- * A metallic's flakes: a faint lift of the paint's own colour towards a glancing angle, and cells in the car's own
- * metres that glint round the sun's highlight. A cell's roll is the integer hash of whole cells, never a world place,
- * and the glints fade out before a cell is smaller than a couple of pixels, so far off they settle into the lift.
+ * A metallic's flakes: a broad glow in the paint's own colour round the sun's highlight, where the flakes all catch
+ * the sun, and inside it a few cells in the car's own metres that glint. A cell's roll is the integer hash of whole
+ * cells, never a world place, and the glints fade out before a cell is smaller than a few pixels, so far off and at
+ * night only the glow is left, and it goes with the sun.
  */
-function flakes(sky: Sky, coat: Coat, base: Node<"vec3">, reflected: Node<"vec3">, towardsSun: Node<"float">, grazing: Node<"float">): Node<"vec3"> {
+function flakes(sky: Sky, coat: Coat, base: Node<"vec3">, towardsSun: Node<"float">): Node<"vec3"> {
   const cell = floor(positionGeometry.div(FLAKE_M));
   const roll = unitOf(seedOf(cell.x, cell.y, cell.z), FLAKE_SALT);
   // A cell's size on screen from its distance, for the game's view of about 60 degrees over 1440 rows.
   const away = cameraPosition.sub(positionWorld).length();
   const cellPixels = float(FLAKE_M * 1250).div(away);
-  const seen = smoothstep(float(1.5), float(3.5), cellPixels);
-  const glint = smoothstep(float(FLAKE_GLINTING), float(1), roll).mul(towardsSun.pow(24).add(grazing.pow(3).mul(0.25))).mul(seen);
-  const lift = base.mul(reflected).mul(grazing.pow(2).mul(0.35));
-  return lift.add(sky.sunColour.mul(glint.mul(FLAKE_BRIGHT))).mul(coat.finish.w);
+  const seen = smoothstep(float(2.5), float(5), cellPixels);
+  const near = towardsSun.pow(6);
+  const glow = base.mul(sky.sunColour).mul(near.mul(FLAKE_GLOW));
+  const glint = smoothstep(float(FLAKE_GLINTING), float(1), roll).mul(near.mul(near)).mul(seen);
+  return glow.add(mix(base, sky.sunColour, float(0.6)).mul(glint.mul(FLAKE_BRIGHT))).mul(coat.finish.w);
 }
 
 /** A coat's uniforms, set from a paint. */
