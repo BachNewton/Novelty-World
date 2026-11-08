@@ -426,7 +426,7 @@ export interface LoadingProgress {
 
 export interface GameEvents {
   onHud: (reading: HudReading) => void;
-  /** A tile couldn't be fetched. */
+  /** The drive can't go on: a tile couldn't be fetched, or the GPU was lost (a `GpuLostError`). */
   onFailure: (error: Error) => void;
   onInputKind: (kind: InputKind) => void;
   onCamera: (mode: CameraMode) => void;
@@ -545,6 +545,8 @@ export interface Game {
 
 /** Three drops to WebGL2 by itself when it can't make a WebGPU device; this game doesn't run there. */
 export class NoWebGpuError extends Error {}
+/** The GPU stopped answering: a driver reset, the GPU unplugged or out of memory. The drive can't go on without it. */
+export class GpuLostError extends Error {}
 
 export const CAMERA_FIELD_OF_VIEW = 60;
 export const CAMERA_NEAR = 0.25;
@@ -727,7 +729,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     initPhysics(),
   ]);
 
+  let failed = false;
+  const fail = (error: Error) => {
+    if (failed) return;
+    failed = true;
+    console.error(error);
+    events.onFailure(error);
+  };
   const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true, trackTimestamp: true });
+  // three's own handler only logs and stops drawing: the drive would carry on counting frames on a dead device.
+  const threeDeviceLost = renderer.onDeviceLost.bind(renderer);
+  let gpuLost = false;
+  renderer.onDeviceLost = (info) => {
+    threeDeviceLost(info);
+    gpuLost = true;
+    fail(new GpuLostError(info.message));
+  };
   await renderer.init();
   if (!("isWebGPUBackend" in renderer.backend)) {
     renderer.dispose();
@@ -1148,13 +1165,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const meshBytesOf = (detail: TileDetail, dress: RoadAttributes, cells: { positions: Float32Array; facades: Float32Array; tints: Uint8Array; indices: Uint16Array }[]) =>
     detail.ribbon.positions.byteLength + detail.ribbon.across.byteLength + detail.ribbon.along.byteLength + detail.ribbon.tiers.byteLength + detail.ribbon.runs.byteLength + detail.ribbon.indices.byteLength + dress.surface.byteLength + dress.mark.byteLength + detail.bridges.positions.byteLength * (4 / 3) + cells.reduce((sum, cell) => sum + cell.positions.byteLength + cell.facades.byteLength + cell.tints.byteLength + cell.indices.byteLength, 0);
   const meshBytesByTile = new Map<string, number>();
-  let failed = false;
-  const fail = (error: Error) => {
-    if (failed) return;
-    failed = true;
-    console.error(error);
-    events.onFailure(error);
-  };
   const stream = new TileStream(
     world,
     fetcher,
@@ -2388,6 +2398,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const frame = (now: number) => {
+    if (gpuLost) return;
     // A page with no room for the canvas (a hidden tab or pane) has nothing to draw into.
     if (container.clientWidth === 0 || container.clientHeight === 0) return;
     const seconds = Math.min(lastFrame === null ? 0 : (now - lastFrame) / 1000, LONGEST_FRAME_S);

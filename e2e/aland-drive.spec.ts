@@ -154,3 +154,21 @@ test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ p
   await expect(page.getByText("needs a browser with WebGPU")).toBeVisible({ timeout: 60_000 });
   expect(await page.evaluate(() => window.__alandDrive)).toBeUndefined();
 });
+
+// e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/components/aland-drive.tsx
+test("a GPU lost under the drive stops it and says so", async ({ page }) => {
+  // A driver reset as the browser reports it: the device stops working and its `lost` gives no reason of ours.
+  await page.addInitScript(() => {
+    const requestDevice = GPUAdapter.prototype.requestDevice;
+    GPUAdapter.prototype.requestDevice = async function (this: GPUAdapter, descriptor?: GPUDeviceDescriptor) {
+      const device = await requestDevice.call(this, descriptor);
+      device.destroy();
+      const lost = Promise.resolve({ reason: "unknown", message: "the driver reset" } as GPUDeviceLostInfo);
+      Object.defineProperty(device, "lost", { get: () => lost });
+      return device;
+    };
+  });
+  await page.goto(onFixture);
+  await expect(page.getByText("lost the graphics card")).toBeVisible({ timeout: 60_000 });
+  expect(await page.evaluate(() => window.__alandDrive?.frames() ?? 0)).toBe(0);
+});

@@ -112,6 +112,9 @@ function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () 
   );
 }
 
+const GPU_LOST = "Åland Drive Unlimited lost the graphics card, so the drive has stopped. Reloading the page starts it again.";
+const mapLost = (reason: string) => `Åland Drive Unlimited lost part of the map: ${reason}`;
+
 /** The drive, in the online world unless `solo` or the page is a tool's (`onlineRelay`). A lab hears of the game once it's started. */
 export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStarted?: (probe: GameProbe) => void }) {
   const container = useRef<HTMLDivElement>(null);
@@ -235,7 +238,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         setNoWebGpu(true);
         return;
       }
-      const { NoWebGpuError, startGame } = await import("../render/game");
+      const { GpuLostError, NoWebGpuError, startGame } = await import("../render/game");
       const search = window.location.search;
       const relayUrl = solo ? null : onlineRelay(search, navigator.webdriver);
       const { id, name } = useProfile.getState();
@@ -244,7 +247,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onHud: showSpeed,
           onInputKind: setInput,
           onCamera: setCamera,
-          onFailure: (lost) => { setFailure(lost.message); },
+          onFailure: (error) => { setFailure(error instanceof GpuLostError ? GPU_LOST : mapLost(error.message)); },
           onLoading: setLoading,
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
@@ -273,7 +276,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         };
       } catch (error) {
         if (!(error instanceof NoWebGpuError)) {
-          setFailure(error instanceof Error ? error.message : String(error));
+          setFailure(mapLost(error instanceof Error ? error.message : String(error)));
           throw error;
         }
         setNoWebGpu(true);
@@ -475,7 +478,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
-          <p className="max-w-md text-lg">Åland Drive Unlimited lost part of the map: {failure}</p>
+          <p className="max-w-md text-lg">{failure}</p>
         </div>
       )}
       {noWebGpu && (
