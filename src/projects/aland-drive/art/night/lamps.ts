@@ -144,6 +144,8 @@ export function createLampLight(night: Night, capacity: number) {
   const target = new RenderTarget(LIGHT_PIXELS, LIGHT_PIXELS, { type: HalfFloatType });
   // Looking straight down with north up the image, so its rows run with the scene's z.
   const above = new OrthographicCamera(-half, half, half, -half, 1, LIGHT_HEIGHT_M * 2);
+  // It follows the camera; in the game an object stands still unless it says so (`render/game.ts`).
+  above.matrixAutoUpdate = true;
   above.up.set(0, 0, -1);
   const centre = sharedUniform(new Vector2());
   const cleared = new Color();

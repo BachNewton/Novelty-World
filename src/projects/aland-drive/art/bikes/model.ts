@@ -84,12 +84,15 @@ export function createBikeModel(art: BikeArt, sun: Sun, options: BikeViewOptions
   };
   setLook(options.seed ?? 0);
 
+  // The bike moves every frame and its shadow leans with it; in the game an object stands still unless it says so (`render/game.ts`).
   const root = new Group();
+  root.matrixAutoUpdate = true;
   root.add(new Mesh(art.geometry, material));
 
   const shadowGeometry = shadowQuad();
   const shadowMaterial = bikeShadowMaterial();
   const shadow = new Mesh(shadowGeometry, shadowMaterial);
+  shadow.matrixAutoUpdate = true;
   shadow.scale.set(SHADOW.wideM, 1, shadowLengthM(spec));
   shadow.position.y = SHADOW.liftM;
   root.add(shadow);

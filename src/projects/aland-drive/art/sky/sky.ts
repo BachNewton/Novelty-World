@@ -323,6 +323,8 @@ export function createSky({ reach, look }: SkyOptions): Sky {
   material.fog = false;
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
+  // Round the eye every frame; in the game an object stands still unless it says so (`render/game.ts`).
+  mesh.matrixAutoUpdate = true;
 
   const advance = (shift: { value: Vector2 }, by: number) => {
     shift.value.addScaledVector(wind, -by);

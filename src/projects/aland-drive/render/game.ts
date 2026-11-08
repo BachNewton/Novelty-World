@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, Object3D, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, Fn, fwidth, greaterThanEqual, If, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, varying, vec2, vec3 } from "three/tsl";
 import { sharedUniform } from "../art/shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
@@ -744,12 +744,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // whenever one joins: three's own sort is off, since under a reversed depth buffer it turns `renderOrder` upside down.
   renderer.sortObjects = false;
 
+  // Nearly everything in the scene stands still, and three composed every object's matrix every frame regardless, so an
+  // object is still by default: what moves says so (`matrixAutoUpdate = true`), and what's placed once calls
+  // `updateMatrix()` then. The default is three's for the whole page, so it goes back when the game does.
+  const matrixAutoUpdateBefore = Object3D.DEFAULT_MATRIX_AUTO_UPDATE;
+  Object3D.DEFAULT_MATRIX_AUTO_UPDATE = false;
   const scene = new Scene();
   let sceneOrdered = false;
   scene.addEventListener("childadded", () => {
     sceneOrdered = false;
   });
   const camera = new PerspectiveCamera(CAMERA_FIELD_OF_VIEW, 1, CAMERA_NEAR, CAMERA_FAR);
+  camera.matrixAutoUpdate = true;
 
   const world = new World(manifest);
   const layers = new TileLayers(renderer, world);
@@ -1011,6 +1017,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   seaMaterial.colorNode = seaHazed(openSea);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
+  sea.updateMatrix();
   scene.add(sea);
 
   const tier = attribute<"float">("tier", "float");
@@ -2884,6 +2891,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       window.location.reload();
     },
     dispose() {
+      Object3D.DEFAULT_MATRIX_AUTO_UPDATE = matrixAutoUpdateBefore;
       void renderer.setAnimationLoop(null);
       document.removeEventListener("visibilitychange", hushWhenHidden);
       audio.dispose();

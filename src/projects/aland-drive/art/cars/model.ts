@@ -59,15 +59,21 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
   const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed, hero: art.glass !== null });
   const glassLook = art.glass && glassMaterial({ sun, hazed: options.hazed });
 
+  // In the game an object stands still unless it says so (`render/game.ts`): the car and its hinge move every frame, its
+  // wheels steer, droop and roll, and the rest of its parts are placed once.
   const root = new Group();
+  root.matrixAutoUpdate = true;
   const pivot = new Group();
+  pivot.matrixAutoUpdate = true;
   pivot.position.y = ride.massUpM;
   const shell = new Mesh(art.body, material);
   shell.position.y = -ride.massUpM;
+  shell.updateMatrix();
   pivot.add(shell);
   if (art.glass && glassLook) {
     const glass = new Mesh(art.glass, glassLook);
     glass.position.y = -ride.massUpM;
+    glass.updateMatrix();
     pivot.add(glass);
   }
   root.add(pivot);
@@ -82,10 +88,13 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     ] as const
   ).map(([side, z, isFront]) => {
     const steering = new Group();
+    steering.matrixAutoUpdate = true;
     steering.position.set((side * spec.body.trackM) / 2, axleY(spec), z);
     const rolling = new Group();
+    rolling.matrixAutoUpdate = true;
     const mesh = new Mesh(art.wheel, material);
     mesh.rotation.y = side < 0 ? Math.PI : 0;
+    mesh.updateMatrix();
     rolling.add(mesh);
     steering.add(rolling);
     root.add(steering);
