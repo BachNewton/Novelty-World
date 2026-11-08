@@ -3,7 +3,7 @@
 // the challenge's own rules (`challenge/run.ts`). One core, no browser, no network.
 //
 // The driver goes flat out wherever the bends allow and brakes for each bend as late as a share of the car's own grip
-// on the ground under it allows (`sim/car-limits.json`, dry), the boldest share it gets round at.
+// on the ground under it allows (`sim/limits/`, dry), the boldest share it gets round at.
 
 import { runOn } from "../challenge/line";
 import { advanceRun, lineAt, linesOf, startRun, type ChallengeRun } from "../challenge/run";

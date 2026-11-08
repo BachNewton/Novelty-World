@@ -5,7 +5,7 @@ import { landing, mix, noJolts, PLACED_VOICES, readJolts, type DriveAudioState, 
 import { createPlacedVoices, type PlacedLoop, type PlacedSoundId } from "./placed";
 import { SOUNDS, type SoundId } from "./sounds";
 import { CYCLE_RPM, engineCycle, birdsBed, freewheelLoop, grassLoop, gravelLoop, iceBed, lakeBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, winterCallsBed, type Loop } from "./synthesis";
-import { ENGINE_IDS, ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
+import { ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
  * The sound's Web Audio: one small graph on the page's own context, whose
@@ -379,7 +379,7 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     engine = restingEngine(spec);
     let cycle = built.cycles.get(vehicle);
     if (cycle === undefined) {
-      cycle = toBuffer(engineCycle(spec, ENGINE_IDS.indexOf(vehicle) * 97 + 1));
+      cycle = toBuffer(engineCycle(spec));
       built.cycles.set(vehicle, cycle);
     }
     voice = engineVoice(audio, spec, cycle, built.noise, built.master);

@@ -82,8 +82,8 @@ export function noiseLoop(): Loop {
  * pulse. Each cylinder has its own strength and each cycle strays a little, so
  * the note has a lope below its firing rate rather than a buzz.
  */
-export function engineCycle(spec: EngineSpec, seed: number): Loop {
-  const next = random(seed);
+export function engineCycle(spec: EngineSpec): Loop {
+  const next = random(spec.seed);
   const cylinders = Math.max(1, Math.round(spec.firesPerRev * 2));
   const cycleS = (2 * 60) / CYCLE_RPM;
   const cycles = 8;
