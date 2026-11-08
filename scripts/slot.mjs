@@ -21,7 +21,7 @@ if (kind === "status") {
   if (runs.length === 0) console.log("Nothing running or waiting.");
   for (const run of runs) {
     const since = run.state === "running" ? run.startedAt : run.queuedAt;
-    console.log(`${run.state.padEnd(8)} ${run.kind.padEnd(8)} ${String(run.cores).padStart(4)} cores${run.gpu ? " +GPU" : "     "}  since ${since}  ${run.who}  ${run.command}`);
+    console.log(`${run.state.padEnd(8)} ${run.kind.padEnd(8)} ${String(run.cores).padStart(4)} cores${run.gpu ? ` +${run.gpu} pages`.padEnd(11) : "".padEnd(11)}  since ${since}  ${run.who}  ${run.command}`);
   }
   process.exit(0);
 }
@@ -66,7 +66,7 @@ process.on("SIGTERM", () => process.exit(143));
 // A run killed outright leaves its file behind with no change to see, so the folder is
 // also read every 30 seconds: that read is the liveness check that drops the dead.
 if (!tryStart(dir, id)) {
-  console.error(`[slot] waiting for ${wants.cores} cores${wants.gpu ? " and a GPU slot" : ""} (npm run slot -- status shows the queue)`);
+  console.error(`[slot] waiting for ${wants.cores} cores${wants.gpu ? ` and ${wants.gpu} GPU pages` : ""} (npm run slot -- status shows the queue)`);
   await new Promise((resolve) => {
     const check = () => {
       if (!tryStart(dir, id)) return;
@@ -81,7 +81,7 @@ if (!tryStart(dir, id)) {
     const liveness = setInterval(check, 30_000);
   });
 }
-console.error(`[slot] running as ${kind}: ${wants.cores} cores${wants.gpu ? " and a GPU slot" : ""}`);
+console.error(`[slot] running as ${kind}: ${wants.cores} cores${wants.gpu ? ` and ${wants.gpu} GPU pages` : ""}`);
 
 const env = { MACHINE_SLOT: kind };
 if (wants.workers !== undefined) {

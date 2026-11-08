@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { patchIndices } from "../render/tile";
 import { WORLD_GROUPS } from "./groups";
+import type { PhysicsCentre } from "./physics-centre";
 import { SURFACES, type Condition } from "./surfaces";
 import { BLOCK_M, WALL_FLOATS, type Ground, type World } from "./world";
 
@@ -17,6 +18,11 @@ import { BLOCK_M, WALL_FLOATS, type Ground, type World } from "./world";
  * world's. The condition is every surface's at once, as weather would set it,
  * except on sea ice that bears a car, which is ice whatever the weather. There the
  * ground is the frozen water's surface, so the car drives on it rather than sinking.
+ *
+ * A block's triangles are laid from its own north-west corner, and its collider
+ * is put at that corner as Rapier has it (`physics-centre.ts`), so its corners
+ * are as precise anywhere in the world as at its origin, and moving the physics
+ * centre moves a block rather than building it again.
  */
 
 const BLOCK_CELLS = 30;
@@ -48,6 +54,7 @@ export class GroundBlocks {
   constructor(
     private readonly rapier: RAPIER.World,
     private readonly world: World,
+    private readonly centre: PhysicsCentre,
   ) {
     this.stepM = BLOCK_M / BLOCK_CELLS;
   }
@@ -130,12 +137,14 @@ export class GroundBlocks {
     const indices = new Uint32Array(this.patch.length + road.length * 3 + walls.length * 6);
     const top = row * BLOCK_CELLS;
     const left = column * BLOCK_CELLS;
+    const westM = column * BLOCK_M;
+    const northM = row * BLOCK_M;
     for (let r = 0; r < across; r++) {
       for (let c = 0; c < across; c++) {
         const at = (r * across + c) * 3;
-        vertices[at] = (left + c) * stepM;
+        vertices[at] = c * stepM;
         vertices[at + 1] = world.drivenNode(left + c, top + r);
-        vertices[at + 2] = (top + r) * stepM;
+        vertices[at + 2] = r * stepM;
       }
     }
     let next = 0;
@@ -149,7 +158,7 @@ export class GroundBlocks {
     for (const { positions, indices: ribbonIndices, triangle } of road) {
       for (let corner = 0; corner < 3; corner++) {
         const from = ribbonIndices[triangle + corner] * 3;
-        vertices.set(positions.subarray(from, from + 3), vertex * 3);
+        vertices.set([positions[from] - westM, positions[from + 1], positions[from + 2] - northM], vertex * 3);
         indices[next++] = vertex++;
       }
     }
@@ -157,13 +166,17 @@ export class GroundBlocks {
       const [x1, z1, x2, z2, stands1, stands2] = from.subarray(at, at + WALL_FLOATS);
       const foot1 = Number.isNaN(stands1) ? world.height(x1, z1) - WALL_BELOW_M : stands1;
       const foot2 = Number.isNaN(stands2) ? world.height(x2, z2) - WALL_BELOW_M : stands2;
-      vertices.set([x1, foot1, z1, x2, foot2, z2, x2, foot2 + WALL_TALL_M, z2, x1, foot1 + WALL_TALL_M, z1], vertex * 3);
+      const [e1, s1, e2, s2] = [x1 - westM, z1 - northM, x2 - westM, z2 - northM];
+      vertices.set([e1, foot1, s1, e2, foot2, s2, e2, foot2 + WALL_TALL_M, s2, e1, foot1 + WALL_TALL_M, s1], vertex * 3);
       indices.set([vertex, vertex + 1, vertex + 2, vertex, vertex + 2, vertex + 3], next);
       vertex += 4;
       next += 6;
     }
     this.built++;
-    const collider = this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices.subarray(0, next)).setFriction(0.3).setCollisionGroups(WORLD_GROUPS));
+    const { x, y, z } = this.centre.toPhysics([westM, 0, northM]);
+    const collider = this.rapier.createCollider(
+      RAPIER.ColliderDesc.trimesh(vertices, indices.subarray(0, next)).setTranslation(x, y, z).setFriction(0.3).setCollisionGroups(WORLD_GROUPS),
+    );
     this.surfaces.set(collider.handle, { triangles: next / 3, groundTriangles, roads: Uint8Array.from(roadSurfaces) });
     return collider;
   }

@@ -12,7 +12,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { join } from "node:path";
-import RAPIER from "@dimforge/rapier3d-compat";
 import { decodeRoadGraph, type RoadMapFile } from "../map/road-graph";
 import { Autopilot } from "../sim/autopilot";
 import { speedOf } from "../sim/car-state";
@@ -167,9 +166,7 @@ const results: Result[] = [];
 
 function placeOnSurface(line: RoadLine): void {
   const point = line.at(0);
-  drive.ground.around([point]);
-  drive.rapier.step();
-  const hit = drive.rapier.castRay(new RAPIER.Ray({ x: point.x, y: TOP_OF_THE_WORLD, z: point.z }, { x: 0, y: -1, z: 0 }), 2 * TOP_OF_THE_WORLD, true);
+  const hit = drive.castDown(point.x, point.z, TOP_OF_THE_WORLD);
   if (!hit) throw new Error(`no ground at ${point.x}, ${point.z}`);
   drive.placeAt({ ...point, y: TOP_OF_THE_WORLD - hit.timeOfImpact });
 }

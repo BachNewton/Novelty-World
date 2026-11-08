@@ -1,14 +1,14 @@
 import type { CalendarDate } from "./day";
 
 /*
- * The game's own calendar: Åland's year in 48 game days, four to a month, so a year passes in 24 hours of play. The
+ * The game's own calendar: Åland's year in 36 game days, three to a month, so a year passes in 15 hours of play. The
  * world's time is one number, game days since the first of 2000's, and the rest is read from it: the year, the month,
- * which of its four days, and the hour. Each game day stands for about a week of its month, and the real date it
- * shows runs on through it, a month's days spread evenly over its four, so the sun's path and the season move a
+ * which of its three days, and the hour. Each game day stands for about ten days of its month, and the real date it
+ * shows runs on through it, a month's days spread evenly over its three, so the sun's path and the season move a
  * little each hour and nothing jumps from one game day to the next.
  */
 
-export const DAYS_A_MONTH = 4;
+export const DAYS_A_MONTH = 3;
 export const GAME_DAYS_A_YEAR = 12 * DAYS_A_MONTH;
 const FIRST_YEAR = 2000;
 
@@ -17,7 +17,7 @@ export interface GameCalendar {
   year: number;
   /** 1 to 12. */
   month: number;
-  /** Which of the month's four game days, 1 to 4. */
+  /** Which of the month's three game days, 1 to 3. */
   day: number;
   /** 0 to 24. */
   hour: number;
@@ -42,7 +42,7 @@ export function dateAt(gameDays: number): { date: CalendarDate; through: number 
   return { date: { year, month, day: whole + 1 }, through: intoMonth - whole };
 }
 
-/** Which of its month's game days a real date falls on, 1 to 4. */
+/** Which of its month's game days a real date falls on, 1 to 3. */
 export const gameDayOfDate = ({ year, month, day }: CalendarDate) => Math.floor(((day - 0.5) / daysIn(year, month)) * DAYS_A_MONTH) + 1;
 
 export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;

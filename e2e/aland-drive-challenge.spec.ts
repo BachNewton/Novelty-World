@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * A solo challenge played on the fixture's one tile, a Route of the test's own
@@ -30,7 +31,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(120_000);
 
 test("a solo Route: started from its ring by its button, held through the countdown, driven to a pass, retried mid-run and left", async ({ page }) => {

@@ -6,7 +6,7 @@ import { gameTimeAt } from "../time/day";
 import { leavesAt, seasonAt, type Season } from "./season";
 import { weatherAt, type Weather } from "./weather";
 
-/** Where the game's calendar shows a real date starting: its month's start, and that date's share of the month's four game days. */
+/** Where the game's calendar shows a real date starting: its month's start, and that date's share of the month's three game days. */
 const dateStarts = ({ year, month, day }: CalendarDate) => gameDaysOf({ year, month, day: 1, hour: 0 }) + ((day - 1) * DAYS_A_MONTH) / new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 const weatherNumbers = ({ condition: _condition, state: _state, ...numbers }: Weather) => numbers;
@@ -25,7 +25,7 @@ describe("the climate over time", () => {
       ...[{ year: 2027, month: 1, day: 1 }, { year: 2027, month: 2, day: 1 }, { year: 2026, month: 7, day: 1 }, { year: 2026, month: 9, day: 1 }, { year: 2027, month: 1, day: 14 }].map(dateStarts),
       // The town's lights go up through the day a week and a day before the first Advent.
       dateStarts(dateOfDayNumber(firstAdvent(2026) - 8)),
-      ...[1, 2, 3].map((day) => gameDaysOf({ year: 2027, month: 1, day: day + 1, hour: 0 })),
+      ...[1, 2].map((day) => gameDaysOf({ year: 2027, month: 1, day: day + 1, hour: 0 })),
       ...[0, 1, 2].map((game) => gameDaysOf({ year: 2026, month: 11, day: 3, hour: 17 + game })),
       ...[0, 1, 2].map((game) => gameDaysOf({ year: 2027, month: 3, day: 2, hour: 7 + game })),
     ];

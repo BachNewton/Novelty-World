@@ -104,7 +104,7 @@ describe("the game's day", () => {
     clock.setHour(12.6, seconds);
     const time = clock.at(seconds);
     expect(time.date).toEqual({ year: 2026, month: 12, day: 21 });
-    expect(time.calendar).toMatchObject({ month: 12, day: 3 });
+    expect(time.calendar).toMatchObject({ month: 12, day: 2 });
     expect(time.sun.elevationDeg).toBeCloseTo(sunPlace(at("2026-12-21", "10:36:00")).elevationDeg, 6);
   });
 
@@ -140,15 +140,15 @@ describe("the game's day", () => {
 });
 
 describe("the game's calendar", () => {
-  it("spreads a month's real days over its four game days", () => {
+  it("spreads a month's real days over its three game days", () => {
     const shown = (day: number, hour: number) => dateAt(gameDaysOf({ year: 2026, month: 12, day, hour })).date.day;
-    expect([1, 2, 3, 4].map((day) => shown(day, 12))).toEqual([4, 12, 20, 28]);
+    expect([1, 2, 3].map((day) => shown(day, 12))).toEqual([6, 16, 26]);
     expect(shown(1, 0)).toBe(1);
-    expect(shown(4, 23.99)).toBe(31);
+    expect(shown(3, 23.99)).toBe(31);
   });
 
   it("turns from December's last game day to January's first of the next year", () => {
-    const newYear = gameDaysOf({ year: 2026, month: 12, day: 4, hour: 24 });
+    const newYear = gameDaysOf({ year: 2026, month: 12, day: 3, hour: 24 });
     expect(calendarAt(newYear)).toMatchObject({ year: 2027, month: 1, day: 1, hour: 0 });
     expect(calendarAt(newYear + GAME_DAYS_A_YEAR)).toMatchObject({ year: 2028, month: 1, day: 1 });
     expect(dateAt(newYear - 1e-6).date).toEqual({ year: 2026, month: 12, day: 31 });
@@ -168,6 +168,6 @@ describe("the game's calendar", () => {
     const midsummer = calendarAt(gameDaysAtInstant(at("2026-06-21", "10:00:00")));
     expect(midsummer).toMatchObject({ year: 2026, month: 6, day: 3 });
     expect(midsummer.hour).toBeCloseTo(13, 6);
-    expect(calendarAt(gameDaysAtInstant(at("2026-02-28", "21:59:00")))).toMatchObject({ month: 2, day: 4 });
+    expect(calendarAt(gameDaysAtInstant(at("2026-02-28", "21:59:00")))).toMatchObject({ month: 2, day: 3 });
   });
 });

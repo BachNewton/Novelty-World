@@ -4,6 +4,7 @@ import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
 import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
 import { pullAt, radiansPerMetre, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
+import type { PhysicsCentre } from "./physics-centre";
 import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip, type Tyre } from "./surfaces";
 
 /*
@@ -158,6 +159,8 @@ export class Car {
 
   constructor(
     private readonly world: RAPIER.World,
+    /** Where Rapier's origin is in the world: every place the car hands Rapier or reads from it goes through it. */
+    private readonly centre: PhysicsCentre,
     readonly id: CarId,
     private readonly underfoot: Underfoot,
     /** The tyres fitted, which a car keeps until they're changed. */
@@ -199,8 +202,7 @@ export class Car {
 
   /** Carries on from a state: there, moving as it moves, the engine in the gear this speed asks for. */
   resume(state: CarState): void {
-    const [px, py, pz] = state.position;
-    this.body.setTranslation({ x: px, y: py, z: pz }, true);
+    this.body.setTranslation(this.centre.toPhysics(state.position), true);
     const [x, y, z, w] = state.rotation;
     this.body.setRotation({ x, y, z, w }, true);
     this.body.setLinvel({ x: state.velocity[0], y: state.velocity[1], z: state.velocity[2] }, true);
@@ -219,7 +221,7 @@ export class Car {
 
   /** Puts the car still on the ground at a heading: radians anticlockwise from north. */
   place(position: Vector3, heading: number): void {
-    this.body.setTranslation({ x: position[0], y: position[1] + this.rideM, z: position[2] }, true);
+    this.body.setTranslation(this.centre.toPhysics([position[0], position[1] + this.rideM, position[2]]), true);
     this.body.setRotation({ x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -243,7 +245,7 @@ export class Car {
     const { car, suspension, grip, power, steering } = tuning;
     const wheelBase = wheelBaseOf(tuning);
     const rotation = this.rotation();
-    const position = point(this.body.translation());
+    const position = this.centre.fromPhysics(this.body.translation());
     const velocity = point(this.body.linvel());
     const spin = point(this.body.angvel());
     const up = rotate(rotation, [0, 1, 0]);
@@ -273,7 +275,7 @@ export class Car {
     const footing = { grip: 0, peakSlip: 0 };
     WHEELS.forEach((wheel, index) => {
       const mount = along(position, rotate(rotation, [(wheel.side * car.trackM) / 2, 0, car.axleZ[wheel.end === 1 ? 0 : 1]]), 1);
-      ray.origin = { x: mount[0], y: mount[1], z: mount[2] };
+      ray.origin = this.centre.toPhysics(mount);
       const hit = this.world.castRayAndGetNormal(ray, reach, true, undefined, WHEEL_RAY_GROUPS, this.collider);
       hits.push(hit);
       compression.push(hit ? reach - hit.timeOfImpact : 0);
@@ -403,7 +405,7 @@ export class Car {
 
       const applied = along(contact, up, grip.forceLiftM);
       const impulse = along(along(scale(normal, load), sideways, side), rolling, ahead);
-      this.body.applyImpulseAtPoint({ x: impulse[0] * STEP_S, y: impulse[1] * STEP_S, z: impulse[2] * STEP_S }, { x: applied[0], y: applied[1], z: applied[2] }, true);
+      this.body.applyImpulseAtPoint({ x: impulse[0] * STEP_S, y: impulse[1] * STEP_S, z: impulse[2] * STEP_S }, this.centre.toPhysics(applied), true);
     });
 
     const drag = power.dragPerMS2 * speed;
@@ -449,7 +451,7 @@ export class Car {
   state(): CarState {
     const rotation = this.rotation();
     return {
-      position: point(this.body.translation()),
+      position: this.centre.fromPhysics(this.body.translation()),
       rotation,
       velocity: point(this.body.linvel()),
       spin: point(this.body.angvel()),

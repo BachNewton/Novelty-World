@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { admit } from "./machine-budget.mjs";
 
-const budget = { cores: 14, gpu: 2 };
-const running = (id, cores, gpu = false) => ({ id, state: "running", cores, gpu });
-const waiting = (id, cores, gpu = false) => ({ id, state: "waiting", cores, gpu });
+const budget = { cores: 14, gpu: 8 };
+const running = (id, cores, gpu = 0) => ({ id, state: "running", cores, gpu });
+const waiting = (id, cores, gpu = 0) => ({ id, state: "waiting", cores, gpu });
 
 describe("admit", () => {
   it("starts waiting runs in order while they fit beside what's running", () => {
@@ -14,9 +14,9 @@ describe("admit", () => {
     expect(admit([running("a", 10), waiting("big", 6), waiting("small", 2)], budget)).toEqual([]);
   });
 
-  it("holds browser work to the GPU's slots whatever the cores", () => {
-    expect(admit([running("a", 2, true), running("b", 2, true), waiting("c", 2, true)], budget)).toEqual([]);
-    expect(admit([running("a", 2, true), waiting("b", 2, true), waiting("c", 2, true)], budget)).toEqual(["b"]);
+  it("holds browser work to the GPU's pages whatever the cores", () => {
+    expect(admit([running("e2e", 5, 6), waiting("e2e2", 5, 6)], budget)).toEqual([]);
+    expect(admit([running("e2e", 5, 6), waiting("tool", 2, 2), waiting("tool2", 2, 2)], budget)).toEqual(["tool"]);
   });
 
   it("starts a run bigger than the budget only once it would be alone", () => {

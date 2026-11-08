@@ -188,7 +188,7 @@ function TrafficSwitch({ traffic, onTraffic }: { traffic: boolean | null; onTraf
 
 const clockText = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
 
-/** The time this page shows: a month and one of its four game days, an hour, or the time held still. Now is the real date and time. */
+/** The time this page shows: a month and one of its three game days, an hour, or the time held still. Now is the real date and time. */
 function DayChoice({ day, onDay }: { day: () => DayShown; onDay: (change: DayChange) => void }) {
   const [shown, setShown] = useState(day);
   const change = (next: DayChange) => {

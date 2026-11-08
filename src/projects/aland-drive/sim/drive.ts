@@ -5,6 +5,7 @@ import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from 
 import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
+import { PhysicsCentre } from "./physics-centre";
 import { RemoteCars } from "./remote-cars";
 import type { RoadPoint } from "./road-net";
 import type { Condition, Surface, Tyre } from "./surfaces";
@@ -18,6 +19,9 @@ import type { World } from "./world";
  * world, so they all touch each other and the ground is loaded round every one.
  * It holds no clock: given the same inputs it plays out the same, which is what
  * the scripted drive and the tests rely on. Rendering reads `stateAt`.
+ *
+ * Rapier's origin is the physics centre (`physics-centre.ts`), which follows the
+ * player's car: everything here takes and gives places in the world.
  */
 
 /** What a drive has done, counted step by step. */
@@ -113,10 +117,10 @@ export class SimulatedCar {
     this.car.assists = assists;
   }
 
-  swap(rapier: RAPIER.World, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
+  swap(rapier: RAPIER.World, centre: PhysicsCentre, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
     this.car.tyres = tyres;
     if (id === this.car.id) return;
-    const next = new Car(rapier, id, ground, tyres);
+    const next = new Car(rapier, centre, id, ground, tyres);
     next.takeOver(this.car);
     this.car.remove();
     this.car = next;
@@ -209,7 +213,9 @@ export class SimulatedCar {
 const placeOf = ([x, , z]: Vector3) => ({ x, z });
 
 export class Drive {
-  readonly rapier: RAPIER.World;
+  private readonly rapier: RAPIER.World;
+  /** Where Rapier's origin is in the world: near the player's car. */
+  private readonly centre = new PhysicsCentre();
   readonly ground: GroundBlocks;
   /** The player's car. */
   readonly player: SimulatedCar;
@@ -229,11 +235,12 @@ export class Drive {
   ) {
     this.rapier = new RAPIER.World({ x: 0, y: -PHYSICS.gravity, z: 0 });
     this.rapier.timestep = STEP_S;
-    this.ground = new GroundBlocks(this.rapier, world);
+    this.centre.moveTo(this.rapier, start.x, start.z);
+    this.ground = new GroundBlocks(this.rapier, world, this.centre);
     this.addWalls();
-    this.player = new SimulatedCar(new Car(this.rapier, car, this.ground), world);
-    this.remotes = new RemoteCars(this.rapier);
-    this.traffic = new RemoteCars(this.rapier);
+    this.player = new SimulatedCar(new Car(this.rapier, this.centre, car, this.ground), world);
+    this.remotes = new RemoteCars(this.rapier, this.centre);
+    this.traffic = new RemoteCars(this.rapier, this.centre);
     this.placeAt(start);
   }
 
@@ -243,7 +250,8 @@ export class Drive {
     const { wallHeightM: tall, wallThicknessM: thick } = PHYSICS;
     const half = tileM / 2;
     const wall = (x: number, z: number, halfX: number, halfZ: number) => {
-      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(x, 0, z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
+      const at = this.centre.toPhysics([x, 0, z]);
+      this.rapier.createCollider(RAPIER.ColliderDesc.cuboid(halfX, tall, halfZ).setTranslation(at.x, at.y, at.z).setFriction(0.05).setCollisionGroups(WORLD_GROUPS));
     };
     for (const { column, row } of this.world.all()) {
       const west = column * tileM;
@@ -263,6 +271,8 @@ export class Drive {
   }
 
   placeAt(road: RoadPoint): void {
+    // A car put somewhere takes the centre with it; the step below puts what moved where the next step's rays find it.
+    this.centre.moveTo(this.rapier, road.x, road.z);
     this.loadGround(road);
     this.player.place(road);
     this.remotes.placed(this.player.position);
@@ -280,7 +290,7 @@ export class Drive {
    */
   addCar(road: RoadPoint, id: CarId = DEFAULT_CAR, tyres: Tyre = "summer"): SimulatedCar {
     this.loadGround(placeOf(this.player.position), road);
-    const car = new SimulatedCar(new Car(this.rapier, id, this.ground, tyres), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, this.centre, id, this.ground, tyres), this.world);
     car.place(road);
     car.land();
     this.others.push(car);
@@ -290,7 +300,7 @@ export class Drive {
   /** Another simulated car, where a state has it and moving as it moves: a traffic car once it's hit. */
   addMovingCar(state: CarState): SimulatedCar {
     this.loadGround(placeOf(this.player.position), placeOf(state.position));
-    const car = new SimulatedCar(new Car(this.rapier, state.car, this.ground), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, this.centre, state.car, this.ground), this.world);
     car.resume(state);
     car.land();
     this.others.push(car);
@@ -325,7 +335,7 @@ export class Drive {
 
   /** Swaps the car for another, on its own tyres, mid-drive: the new one carries on from where the old one was, as it was moving. */
   setCar(id: CarId, tyres: Tyre = "summer"): void {
-    this.player.swap(this.rapier, this.ground, id, tyres);
+    this.player.swap(this.rapier, this.centre, this.ground, id, tyres);
   }
 
   /** The tyres on the car being driven. */
@@ -375,10 +385,28 @@ export class Drive {
     const at = cars.map(({ position }) => position);
     this.remotes.steer(at);
     this.traffic.steer(at);
+    // After every ray of this step and before the world steps, which is what puts moved colliders where rays find them.
+    if (this.centre.isFar(this.player.position)) this.centre.moveTo(this.rapier, this.player.position[0], this.player.position[2]);
     this.rapier.step();
     this.remotes.settle();
     this.traffic.settle();
     for (const car of cars) car.record();
+  }
+
+  /**
+   * What a ray straight down from a height over a place hits first, as a wheel's would: the ground round the place is
+   * loaded and the world stepped, which is what lets a ray find a collider just made. For tests and tools that check
+   * the ground; it steps the cars too.
+   */
+  castDown(x: number, z: number, fromY: number): RAPIER.RayColliderIntersection | null {
+    this.ground.around([{ x, z }]);
+    this.rapier.step();
+    return this.rapier.castRayAndGetNormal(new RAPIER.Ray(this.centre.toPhysics([x, fromY, z]), { x: 0, y: -1, z: 0 }), 2 * fromY, true);
+  }
+
+  /** Where Rapier's origin is in the world, whole metres east and south. */
+  get physicsCentre(): { x: number; z: number } {
+    return { x: this.centre.x, z: this.centre.z };
   }
 
   /** The player's car a share of the way from the last step to this one. */

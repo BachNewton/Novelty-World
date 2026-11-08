@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { expect, test } from "./test";
+import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
  * The real game on the real renderer. Playwright's default headless shell has
@@ -28,7 +29,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use({ channel: "chromium", launchOptions: { args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu"] } });
+test.use(WEBGPU_BROWSER);
 test.setTimeout(90_000);
 
 // e2e-covers: src/projects/aland-drive/render/game.ts src/projects/aland-drive/render/stream.ts src/projects/aland-drive/components/aland-drive*.tsx src/projects/aland-drive/sim/{drive,car}.ts src/projects/aland-drive/input/**

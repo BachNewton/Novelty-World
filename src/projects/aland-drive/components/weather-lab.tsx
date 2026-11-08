@@ -13,7 +13,7 @@ import { weatherAt } from "../climate/weather";
  * day or a month at a time and judge them. `?date=2027-01-20&hour=7` opens it at the game day showing that date. Nothing is drawn: the art and the sky read these same values later.
  */
 
-/** Steps through the calendar: a month is four game days. */
+/** Steps through the calendar: a month is three game days. */
 const STEPS: { label: string; gameDays: number }[] = [
   { label: "−month", gameDays: -DAYS_A_MONTH },
   { label: "−day", gameDays: -1 },

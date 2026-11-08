@@ -4,7 +4,7 @@
  * through. Many agents and sessions work here at once, and when their runs add up
  * to more than the machine has, every one of them slows, correct tests miss their
  * timeouts, and the reruns add more load. A run here asks for what it takes (cores,
- * and one of the GPU's slots for browser work) and starts once that much is free,
+ * and the GPU's share of pages for browser work) and starts once that much is free,
  * first come first served, so the machine is kept full but never overloaded.
  *
  * The ledger is a folder in the git common directory (one per machine and clone,
@@ -20,27 +20,41 @@ import path from "node:path";
 
 /**
  * What each kind of run takes. `cores` is what the run is held to (its workers),
- * `gpu` whether it drives a headless browser, which share the one GPU, its memory
- * and the chip's power budget in ways the CPU share doesn't show.
+ * `gpu` the game pages it may have open at once on the one GPU. A page holds about
+ * 1.15 GB of video memory while it draws, and running out of it is what fails a
+ * test: busy only slows one. An e2e worker plays a two-player test at most.
  */
 export const KINDS = {
-  unit: { cores: 4, gpu: false, workers: 4 },
-  slow: { cores: 6, gpu: false, workers: 6 },
-  e2e: { cores: 5, gpu: true, workers: 3 },
-  browser: { cores: 2, gpu: true },
-  check: { cores: 2, gpu: false },
-  build: { cores: 4, gpu: false },
+  unit: { cores: 4, gpu: 0, workers: 4 },
+  slow: { cores: 6, gpu: 0, workers: 6 },
+  e2e: { cores: 5, gpu: 6, workers: 3 },
+  browser: { cores: 2, gpu: 2 },
+  check: { cores: 2, gpu: 0 },
+  build: { cores: 4, gpu: 0 },
   // Every unit, slow and e2e test, unscoped: the whole machine, so it waits to be alone.
-  all: { cores: 1000, gpu: true },
+  all: { cores: 1000, gpu: 1000 },
+};
+
+/**
+ * The pages the GPU holds. The RTX 4070 eGPU (12 GB) passed 8 pages of two-player
+ * tests at once and failed at 12 with its memory full. The integrated Radeon shares
+ * the laptop's memory and isn't measured, so it is held to one e2e run's worth.
+ */
+const gpuPages = () => {
+  try {
+    return execFileSync("nvidia-smi", ["-L"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).includes("RTX 4070") ? 8 : 6;
+  } catch {
+    return 6;
+  }
 };
 
 /** Two cores are left for the owner, the editors and the agents themselves. */
-export const BUDGET = { cores: Math.max(2, os.availableParallelism() - 2), gpu: 2 };
+export const BUDGET = { cores: Math.max(2, os.availableParallelism() - 2), gpu: gpuPages() };
 
 /** What a kind asks for: a name from `KINDS`, or `cores:N` for other heavy work. */
 export function demand(kind) {
   const custom = /^cores:(\d+)$/.exec(kind);
-  if (custom) return { cores: Number(custom[1]), gpu: false };
+  if (custom) return { cores: Number(custom[1]), gpu: 0 };
   const known = KINDS[kind];
   if (known === undefined) throw new Error(`unknown kind "${kind}": one of ${Object.keys(KINDS).join(", ")} or cores:N`);
   return known;
@@ -59,17 +73,17 @@ export function admit(runs, budget = BUDGET) {
   for (const run of runs) {
     if (run.state !== "running") continue;
     cores += run.cores;
-    if (run.gpu) gpu++;
+    gpu += run.gpu;
   }
   const started = [];
   for (const run of runs) {
     if (run.state !== "waiting") continue;
     const alone = cores === 0 && gpu === 0;
-    const fits = (cores + run.cores <= budget.cores || alone) && (!run.gpu || gpu < budget.gpu);
+    const fits = alone || (cores + run.cores <= budget.cores && gpu + run.gpu <= budget.gpu);
     if (!fits) break;
     started.push(run.id);
     cores += run.cores;
-    if (run.gpu) gpu++;
+    gpu += run.gpu;
   }
   return started;
 }
