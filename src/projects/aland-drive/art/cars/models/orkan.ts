@@ -114,21 +114,24 @@ const shape: Shape = {
     // A reflector low in each corner.
     reflector(0.7, 0.4),
     thirdBrake(1.14, 0.42),
-    sideIntake({ z: -0.76, h: 0.58, long: 0.34, tall: 0.09 }),
+    // The fender vents, in fewer cells than the shared intake's, which the far model can't afford.
+    { ...sideIntake({ z: -0.76, h: 0.58, long: 0.34, tall: 0.09 }), cells: [3, 1] },
     ...louvres({ x: 0.34, z: -1.2, long: 0.34, wide: 0.15, count: 4 }),
     // A brake-cooling inlet at each outer corner of the nose, under the visor.
-    { on: "front", at: [0.72, 0.31], size: [0.17, 0.11], surface: "grille", mirror: true, cells: [3, 2], liftM: 0.012 },
+    { on: "front", at: [0.72, 0.31], size: [0.17, 0.11], surface: "grille", mirror: true, cells: [2, 1], liftM: 0.012 },
   ],
   blocks: [
     // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
-    { at: [0, 0.375, -2.33], size: [1.0, 0.024, 0.06], surface: "paint", taper: [1, 1] },
-    splitter({ z: -2.36, h: 0.21, halfWidth: 0.56, long: 0.12 }),
+    { at: [0, 0.375, -2.33], size: [1.0, 0.024, 0.06], surface: "paint", taper: [1, 1], fine: true },
+    // Tucked under the nose's foot, it adds nothing to the far model's outline.
+    { ...splitter({ z: -2.36, h: 0.21, halfWidth: 0.56, long: 0.12 }), fine: true },
     // Each fender vent as a duct: a blade of the body's colour along it and a lip over it, tapering back.
     { at: [0.962, 0.58, -0.76], size: [0.04, 0.02, 0.32], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.958, 0.632, -0.76], size: [0.05, 0.014, 0.34], surface: "paint", mirror: true, taper: [0.8, 0.6], fine: true },
     // A blade across each brake-cooling inlet in the nose's corners.
-    { at: [0.72, 0.31, -2.2], size: [0.15, 0.02, 0.1], surface: "paint", mirror: true, fine: true },
-    ...diffuser({ z: 2.02, tailZ: 2.3, h: 0.22, x: [0.2, 0.42] }),
+    { at: [0.72, 0.31, -2.19], size: [0.15, 0.02, 0.06], surface: "paint", mirror: true, fine: true },
+    // The diffuser's strakes, near only: from where the far model takes over they are lost under the tail.
+    ...diffuser({ z: 2.02, tailZ: 2.3, h: 0.22, x: [0.2, 0.42] }).map((strake) => ({ ...strake, fine: true })),
   ],
   extra: {
     bands: BANDS,
@@ -251,6 +254,9 @@ export const orkan: CarSpec = {
     shifter: "lever",
     seats: "sport",
     screen: true,
+    // Sat a little lower than the recipe's sitting height, as a grand tourer's driver is: the fastback's roof stays a
+    // band over the screen rather than a slab, and the eye's line through the wheel meets the cluster above its hub.
+    eye: [0, -0.06, 0],
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
