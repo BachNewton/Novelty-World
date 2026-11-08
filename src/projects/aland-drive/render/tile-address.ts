@@ -8,7 +8,7 @@
 import { PLAYGROUND_FOLDER, playgroundAsked } from "../playground/place";
 
 /** Names the built tiles' folder in the bucket: a rebuild goes up beside the old one, so nothing can be served stale. */
-const TILES_VERSION = "0ad650e8c95e";
+const TILES_VERSION = "53f69fd48f2f";
 const BUCKET = "aland-drive-tiles";
 
 function published(): string {
