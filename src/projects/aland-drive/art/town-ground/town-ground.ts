@@ -234,6 +234,9 @@ export interface RibbonInput {
   roadGravel: Node<"vec3">;
   /** How built up the place is, 0 to 1, as the road's dress reads it. */
   town: Node<"float">;
+  /** 0 on the way's line, 1 at its edge, and the land beside it, which a path's gravel wears into. */
+  across: Node<"float">;
+  ground: Node<"vec3">;
   colour: Colour;
   detail: Texture;
 }
@@ -250,7 +253,7 @@ function treads(along: Node<"float">, tone: Node<"vec4">, colour: Colour, shown:
 }
 
 /** A street or path's own surface, on its ribbon, on the same lattice as the terrain's paving beside it. */
-export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, bits, carriageway, roadGravel, town, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
+export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, bits, carriageway, roadGravel, town, across, ground, colour, detail }: RibbonInput): { carriageway: Node<"vec3">; claimed: Node<"float"> } {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
   const tone = texture(detail, tiled(COARSE_M).add(vec2(0.61, 0.17)));
   const fineTone = texture(detail, tiled(FINE_M).add(vec2(0.13, 0.57)));
@@ -259,7 +262,11 @@ export function townRibbon({ place, tiled, toCamera, along, angle, run: wayRun, 
   const run: Run = { ...runOf(place, select(wayRun.length().greaterThan(0.5), wayAngle, angle)), tone, colour, shown };
   const paved = select(isB, setts(run), slabs(run));
   // A gravel path in the country is worn as a gravel road is, in its tracks and into the land at its sides; in town it's a park's raked gravel.
-  const gravel = mix(roadGravel, gravelled(tone, fineTone, tone.a, colour, shown), town);
+  const laid = mix(roadGravel, gravelled(tone, fineTone, tone.a, colour, shown), town);
+  // A path has no shoulder to fade it into the land, so its gravel thins into the land over its own outer part, by a
+  // broken line, and is the land itself at its edge, where the ground beside it takes over.
+  const wornEdge = smoothstep(float(0.65), float(1), across.add(fineTone.g.sub(0.5).mul(0.25).add(tone.g.sub(0.5).mul(0.35)).mul(shown)));
+  const gravel = mix(laid, ground, wornEdge);
   const soft = select(isG, lawned(tone, fineTone, tone.a, colour, shown), select(isB, tarmac(run, float(0)).mul(WALKED_TARMAC), gravel));
   const isSteps = isB.and(isR.or(isG).not());
   const claimed = select(isR.or(isG).or(isSteps), float(1), float(0));
