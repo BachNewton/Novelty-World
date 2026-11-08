@@ -1,3 +1,4 @@
+// e2e-covers: src/projects/frogmino/audio/music/**
 import { test, expect } from "./test";
 
 /**

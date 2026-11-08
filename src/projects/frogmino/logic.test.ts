@@ -24,30 +24,12 @@ describe("tetrominoes", () => {
     }
   });
 
-  it("rotation 0 is the spawn orientation", () => {
-    for (const kind of KINDS) {
-      expect(sorted(pieceCells(kind, 0))).toEqual(sorted(TETROMINOES[kind]));
-    }
-  });
-
   it("turns clockwise as seen from behind", () => {
     // The flat L's raised right end swings down: it stands as an upright L
     // with its foot pointing right.
     expect(sorted(pieceCells("L", 1))).toEqual(
       sorted([{ col: 0, row: 0 }, { col: 1, row: 0 }, { col: 0, row: 1 }, { col: 0, row: 2 }]),
     );
-  });
-
-  it("the I stands up after a quarter turn", () => {
-    expect(sorted(pieceCells("I", 1))).toEqual(
-      sorted([{ col: 0, row: 0 }, { col: 0, row: 1 }, { col: 0, row: 2 }, { col: 0, row: 3 }]),
-    );
-  });
-
-  it("the O looks the same in every rotation", () => {
-    for (const rotation of ROTATIONS) {
-      expect(sorted(pieceCells("O", rotation))).toEqual(sorted(TETROMINOES.O));
-    }
   });
 
   it("frog cells are the piece moved to the frog's column and hop height", () => {

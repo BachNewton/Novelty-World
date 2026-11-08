@@ -14,4 +14,10 @@ describe("shaders roll the same on every GPU", () => {
   it.each(shaders.map(([path, source]) => [path.slice(3), source]))("%s rolls no sine hash", (_, source) => {
     expect(source).not.toMatch(/fract\(\s*sin\(/);
   });
+
+  // A whole number stored as a float reaches a pixel a hair under on Nvidia, and int() cuts it to the one below: the
+  // walkers' pixels read each other's places by their slot and dissolved into dots. So it's rounded first.
+  it.each(shaders.map(([path, source]) => [path.slice(3), source]))("%s cuts no attribute to an integer unrounded", (_, source) => {
+    expect(source).not.toMatch(/\b(int|uint)\(\s*attribute\b/);
+  });
 });
