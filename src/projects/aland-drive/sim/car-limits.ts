@@ -16,6 +16,7 @@ import sten from "./limits/sten.json";
 import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
 import vik from "./limits/vik.json";
+import virvel from "./limits/virvel.json";
 
 /*
  * What each car can do at the limit, measured in the simulation
@@ -76,6 +77,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A1
   aska,
   // A2
+  virvel,
   // A3
   // A4
   sund,

@@ -16,6 +16,7 @@ import { sten } from "./cars/sten";
 import { strom } from "./cars/strom";
 import { sund } from "./cars/sund";
 import { vik } from "./cars/vik";
+import { virvel } from "./cars/virvel";
 
 /*
  * The cars a player can drive, each its own car: its wheels where its art has
@@ -36,6 +37,7 @@ const ENTRIES = {
   // A1
   aska,
   // A2
+  virvel,
   // A3
   // A4
   sund,

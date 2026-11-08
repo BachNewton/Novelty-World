@@ -15,6 +15,7 @@ import { sten } from "./models/sten";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
 import { vik } from "./models/vik";
+import { virvel } from "./models/virvel";
 import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 
 /*
@@ -29,6 +30,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
   aska,
   // A2
+  virvel,
   // A3
   // A4
   sund,
