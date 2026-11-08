@@ -68,7 +68,7 @@ jobs:
 
   round2:
     needs: round1
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round1.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round1.result != 'skipped' && needs.round1.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -81,7 +81,7 @@ jobs:
 
   round3:
     needs: round2
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round2.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round2.result != 'skipped' && needs.round2.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -94,7 +94,7 @@ jobs:
 
   round4:
     needs: round3
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round3.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round3.result != 'skipped' && needs.round3.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -107,7 +107,7 @@ jobs:
 
   round5:
     needs: round4
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round4.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round4.result != 'skipped' && needs.round4.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -120,7 +120,7 @@ jobs:
 
   round6:
     needs: round5
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round5.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round5.result != 'skipped' && needs.round5.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -133,7 +133,7 @@ jobs:
 
   round7:
     needs: round6
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round6.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round6.result != 'skipped' && needs.round6.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -146,7 +146,7 @@ jobs:
 
   round8:
     needs: round7
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round7.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round7.result != 'skipped' && needs.round7.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -159,7 +159,7 @@ jobs:
 
   round9:
     needs: round8
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round8.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round8.result != 'skipped' && needs.round8.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -172,7 +172,7 @@ jobs:
 
   round10:
     needs: round9
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round9.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round9.result != 'skipped' && needs.round9.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -185,7 +185,7 @@ jobs:
 
   round11:
     needs: round10
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round10.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round10.result != 'skipped' && needs.round10.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -198,7 +198,7 @@ jobs:
 
   round12:
     needs: round11
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round11.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round11.result != 'skipped' && needs.round11.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -211,7 +211,7 @@ jobs:
 
   round13:
     needs: round12
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round12.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round12.result != 'skipped' && needs.round12.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -224,7 +224,7 @@ jobs:
 
   round14:
     needs: round13
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round13.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round13.result != 'skipped' && needs.round13.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -237,7 +237,7 @@ jobs:
 
   round15:
     needs: round14
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round14.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round14.result != 'skipped' && needs.round14.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -250,7 +250,7 @@ jobs:
 
   round16:
     needs: round15
-    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round15.outputs.done != 'true' }}
+    if: ${{ (inputs.tool == 'gauntlet' || inputs.tool == 'ratings') && !cancelled() && needs.round15.result != 'skipped' && needs.round15.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -478,7 +478,7 @@ jobs:
   # recording is data, and what the other machines kept is still worth having.
   native-play-collect:
     needs: native-play
-    if: ${{ !cancelled() }}
+    if: ${{ inputs.tool == 'native-play' && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
