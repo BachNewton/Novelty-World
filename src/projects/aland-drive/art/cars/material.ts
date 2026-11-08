@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Color, type Node } from "three/webgpu";
+import { BackSide, BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Color, type Node } from "three/webgpu";
 import { attribute, cameraPosition, cos, float, floor, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, varying, vec2, vec3 } from "three/tsl";
 import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
@@ -28,6 +28,9 @@ const LOW_SHADE = 0.62;
 /** How much of a straight-on view a hero's glass lets through, and mirrors. */
 const GLASS_CLEAR = 0.62;
 const GLASS_MIRROR = 0.1;
+/** From inside: how much a straight-on view is tinted, and how much more a glancing one mirrors. */
+const GLASS_INSIDE = 0.1;
+const GLASS_INSIDE_MIRROR = 0.35;
 /** How much of the swap distance the two tiers take to dissolve across. */
 const DISSOLVE_SHARE = 0.15;
 
@@ -329,6 +332,27 @@ export function glassMaterial({ sun, hazed }: Pick<CarMaterialOptions, "sun" | "
   material.name = "car-glass";
   material.colorNode = hazed ? hazed(finished) : finished;
   material.opacityNode = fresnel.mul(1 - GLASS_CLEAR).add(GLASS_CLEAR);
+  return material;
+}
+
+/**
+ * The same glass seen from inside, for the cockpit: its back faces, a faint tint with the dark cabin and the sky's
+ * glint in it, much clearer than the glass seen from out. A material of its own, on a mesh only the cockpit shows, so
+ * the chase view draws the glass as it always has.
+ */
+export function insideGlassMaterial({ sun, hazed }: Pick<CarMaterialOptions, "sun" | "hazed">) {
+  const sky = skyOf(sun);
+  const tint = sharedUniform(tokenRgb("car-glass"));
+  const toCamera = cameraPosition.sub(positionWorld).normalize();
+  const normal = normalWorld.normalize().negate();
+  const fresnel = float(1).sub(normal.dot(toCamera).abs()).pow(4);
+  const ray = reflect(toCamera.negate(), normal);
+  const specular = sky.sunColour.mul(ray.dot(sky.toSun).max(0).pow(SPECULAR_POWER)).mul(SPECULAR_SHARE * 0.5);
+  const finished: Node<"vec3"> = vec3(mix(tint.mul(0.5), sky.reflectedBy(ray).mul(0.5), fresnel).add(specular));
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: BackSide });
+  material.name = "car-glass-inside";
+  material.colorNode = hazed ? hazed(finished) : finished;
+  material.opacityNode = fresnel.mul(GLASS_INSIDE_MIRROR).add(GLASS_INSIDE);
   return material;
 }
 

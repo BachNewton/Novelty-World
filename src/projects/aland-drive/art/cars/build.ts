@@ -4,6 +4,7 @@ import { buildBody, ROWS, type BodySpec, type BodyDetail } from "./body";
 import { pick, SURFACES, type Point, type Soup, type Surface } from "./mesh";
 import { buildWheel, type WheelSpec } from "./wheel";
 import type { CarPaint } from "./paints";
+import type { InteriorChoice } from "./cockpit/style";
 
 /*
  * A car's parts at a detail: pure numbers, so triangle counts and shapes can be
@@ -39,6 +40,8 @@ export interface CarSpec {
   /** Half the width and length of the car's footprint on the road. */
   shadowHalf: readonly [wide: number, long: number];
   ride: Ride;
+  /** What its cockpit is like where that differs from what the car is (`cockpit/style.ts`). */
+  interior?: InteriorChoice;
 }
 
 export interface CarParts {
@@ -125,4 +128,9 @@ export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false)
     glass: hero ? pick(shell, (surface) => surface === "glass") : null,
     wheel: buildWheel(spec.wheel, { sides: hero ? 30 : 9, spokes: hero, fine: hero }),
   };
+}
+
+/** A hero's shell with nothing inside it and no glass, for a cockpit to fill: the cabin seen through the windows is the cockpit's own. */
+export function buildBareShell(spec: CarSpec): Soup {
+  return pick(buildBody(spec.body, groundY(spec), { ...HERO, cabin: false }), (surface) => !isOption(surface) && surface !== "glass");
 }

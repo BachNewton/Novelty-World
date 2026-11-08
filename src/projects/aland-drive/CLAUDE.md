@@ -34,8 +34,9 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Accelerate | W | RT |
 | Brake, then reverse | S | LT |
 | Steer | A and D | Left stick |
-| Look left, right or behind, while held | Left, Right, Down | Right stick, any way round |
-| Look down on the car, while held | Up | |
+| Chase view or driver's seat, kept in this browser | C | RB |
+| Look left, right or behind, while held | Left, Right, Down | Right stick, any way round; from the seat, the head turns as far as it's pushed |
+| Look down on the car, while held (chase view) | Up | |
 | Handbrake | Space | A |
 | Back to the nearest road | R | Y |
 | Free camera | F | |
@@ -47,6 +48,8 @@ This file holds what applies everywhere in the project. Each system's own detail
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
 
 `~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`.
+
+From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
 
 The free camera is for inspection: WASD, Q and E, Shift, drag to look, the wheel for its speed. There is no touch. Prompts come from the shared glyphs and follow the last input used.
 

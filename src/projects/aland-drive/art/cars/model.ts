@@ -112,6 +112,8 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     root,
     /** A hinge at the centre of mass. Its rotation.x pitches and rotation.z rolls the shell alone, above the simulation's own lean. */
     pivot,
+    /** The body, whose geometry a cockpit swaps for one with nothing inside. */
+    shell,
     wheels,
     setLights,
     /** Paints the car by hand, until a state names a paint. */
@@ -165,6 +167,8 @@ export function carOnRoad(scene: Scene, sun: Sun, art: CarArt, options: CarViewO
   return {
     draw: model.draw,
     setLights: model.setLights,
+    pivot: model.pivot,
+    shell: model.shell,
     objects: [model.root] as Object3D[],
     dispose() {
       scene.remove(model.root);
