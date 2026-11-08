@@ -375,7 +375,52 @@ function addDecal(builder: SoupBuilder, ground: number, decal: Decal) {
   }
 }
 
+/**
+ * A hero's mirror: a housing that swells out of a slim arm and tapers to its tip, round in front and flat behind, in
+ * the body's colour, with its dark glass on the flat back.
+ */
+function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
+  const { z, h, x } = spec.mirror;
+  const y = h + ground;
+  const back = 0.035;
+  for (const side of [1, -1]) {
+    const ordered = (rings: Point[][]) => (side > 0 ? rings : [...rings].reverse());
+    // A section from the top of its flat back, round the front, to the bottom of its back.
+    const section = (out: number, tall: number, deep: number, lift: number): Point[] =>
+      Array.from({ length: 9 }, (_, step) => {
+        const angle = Math.PI / 2 - (Math.PI * step) / 8;
+        return [side * out, y + lift + tall * Math.sin(angle), z + back - (back + deep) * Math.cos(angle)];
+      });
+    builder.rings(
+      ordered([section(x + 0.02, 0.022, 0.02, -0.004), section(x + 0.05, 0.04, 0.045, 0), section(x + 0.1, 0.048, 0.055, 0.004), section(x + 0.145, 0.044, 0.05, 0.006), section(x + 0.172, 0.03, 0.034, 0.006), section(x + 0.184, 0.012, 0.014, 0.005)]),
+      "paint",
+    );
+    // The arm, from the door's top to the housing, thin and swept back.
+    const arm = (out: number, up: number, along: number): Point[] => [
+      [side * out, y + up - 0.007, z + along - 0.018],
+      [side * out, y + up + 0.007, z + along - 0.018],
+      [side * out, y + up + 0.007, z + along + 0.018],
+      [side * out, y + up - 0.007, z + along + 0.018],
+    ];
+    builder.rings(ordered([arm(x - 0.08, -0.06, 0.02), arm(x - 0.02, -0.035, 0.01), arm(x + 0.035, -0.012, 0)]), "paint");
+    // The glass on its flat back, standing off it.
+    const glassZ = z + back + 0.006;
+    const [a, b, c, d]: Point[] = [
+      [side * (x + 0.055), y - 0.03, glassZ],
+      [side * (x + 0.055), y + 0.036, glassZ],
+      [side * (x + 0.155), y + 0.042, glassZ],
+      [side * (x + 0.155), y - 0.028, glassZ],
+    ];
+    if (side > 0) builder.quad(d, c, b, a, "trim");
+    else builder.quad(a, b, c, d, "trim");
+  }
+}
+
 function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: boolean) {
+  if (fine) {
+    addHeroMirrors(builder, spec, ground);
+    return;
+  }
   const { z, h, x } = spec.mirror;
   const y = h + ground;
   for (const side of [1, -1]) {
@@ -386,9 +431,7 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: 
       [side * out, y + tall, z - wide],
       [side * out, y - tall * 0.7, z - wide],
     ];
-    const stations = fine
-      ? [shell(x, 0.03, 0.03, 0.03), shell(x + 0.02, 0.05, 0.05, 0.033), shell(x + 0.06, 0.06, 0.06, 0.036), shell(x + 0.11, 0.058, 0.06, 0.036), shell(x + 0.145, 0.05, 0.052, 0.034), shell(x + 0.165, 0.03, 0.035, 0.03)]
-      : [shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)];
+    const stations = [shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)];
     builder.rings(ordered(stations), "paint");
     const stalk = (out: number): Point[] => [
       [side * out, y - 0.04, z - 0.03],
@@ -397,17 +440,15 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: 
       [side * out, y - 0.04, z + 0.03],
     ];
     builder.rings(ordered([stalk(x - 0.09), stalk(x + 0.02)]), "trim");
-    // Behind the shell's back by a few millimetres on a hero, whose shell reaches further back than a far model's.
-    const glassZ = z + (fine ? 0.042 : 0.037);
+    const glassZ = z + 0.037;
     const [a, b, c, d]: Point[] = [
       [side * (x + 0.012), y - 0.04, glassZ],
       [side * (x + 0.012), y + 0.046, glassZ],
       [side * (x + 0.155), y + 0.042, glassZ],
       [side * (x + 0.155), y - 0.036, glassZ],
     ];
-    const glass = fine ? "rim" : "trim";
-    if (side > 0) builder.quad(d, c, b, a, glass);
-    else builder.quad(a, b, c, d, glass);
+    if (side > 0) builder.quad(d, c, b, a, "trim");
+    else builder.quad(a, b, c, d, "trim");
   }
 }
 
@@ -426,14 +467,17 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
     // A plate at each tip, standing past the blade's ends so no face of one lies on the other's.
     for (const side of [1, -1]) {
       const x = side * (halfWidth - 0.006);
+      // Swept: low and short at its leading edge, rising to a raked trailing edge above the blade.
       const plate = (at: number): Point[] => [
-        [at, y - 0.1, z - chord - 0.04],
-        [at, y - 0.1, z + chord * 0.5 + 0.05],
-        [at, y + rise + 0.02, z + chord * 0.5 + 0.05],
-        [at, y + rise + 0.02, z - chord - 0.04],
+        [at, y - 0.06, z - chord - 0.03],
+        [at, y - 0.11, z - chord * 0.2],
+        [at, y - 0.09, z + chord * 0.5 + 0.03],
+        [at, y + rise + 0.035, z + chord * 0.5 + 0.06],
+        [at, y + rise + 0.045, z + chord * 0.5 + 0.02],
+        [at, y + 0.03, z - chord - 0.03],
       ];
-      const [inner, outer] = side > 0 ? [x, x + 0.014] : [x - 0.014, x];
-      builder.rings([plate(inner), plate(outer)], "trim");
+      const [inner, outer] = side > 0 ? [x, x + 0.012] : [x - 0.012, x];
+      builder.rings([plate(inner), plate(outer)], "paint");
     }
   }
   for (const side of [1, -1]) {
@@ -543,6 +587,37 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([-seatX, dashH + 0.06, wheelZ - 0.1], [0.07, 0.07, 0.34], "interior");
 }
 
+/** Two segments of a row or a station turning by more than this meet at a crease, which a normal doesn't smooth across. */
+const CREASE_COS = Math.cos((32 * Math.PI) / 180);
+
+/**
+ * The hero's normals, from the loft itself: at each point of the grid, the way the surface runs along its row and
+ * along its station, so a reflection runs smooth along a door however its quads were cut. Where a row or a station
+ * turns sharply (a crease, the edge of a band) each face takes the tangent on its own side. `stationSide` and
+ * `rowSide` say which way the face lies from the point: +1 towards the next station or row, -1 the one before.
+ */
+function loftNormals(grid: readonly Point[][]) {
+  const unit = (v: Point): Point | null => {
+    const length = Math.hypot(...v);
+    return length < 1e-6 ? null : [v[0] / length, v[1] / length, v[2] / length];
+  };
+  const between = (from: Point | undefined, to: Point | undefined) => (from && to ? unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]) : null);
+  const tangent = (before: Point | null, after: Point | null, side: number): Point | null => {
+    if (!before) return after;
+    if (!after) return before;
+    const smooth = before[0] * after[0] + before[1] * after[1] + before[2] * after[2] >= CREASE_COS;
+    if (!smooth) return side > 0 ? after : before;
+    return unit([before[0] + after[0], before[1] + after[1], before[2] + after[2]]);
+  };
+  return (station: number, row: number, stationSide: number, rowSide: number): Point | null => {
+    const here = grid[station][row];
+    const along = tangent(between(grid[station - 1]?.[row], here), between(here, grid[station + 1]?.[row]), stationSide);
+    const up = tangent(between(grid[station][row - 1], here), between(here, grid[station][row + 1]), rowSide);
+    if (!along || !up) return null;
+    return unit([along[1] * up[2] - along[2] * up[1], along[2] * up[0] - along[0] * up[2], along[0] * up[1] - along[1] * up[0]]);
+  };
+}
+
 /** `ground` is the height of the car's own origin above the road, negated: y in the car is height + ground. */
 export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): Soup {
   const curves: Curves = {
@@ -578,6 +653,8 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   // The floor follows the arches up, but never through a hood lower than them: there it runs under the hood.
   const floorAt = (index: number, [x, y, z]: Point): Point => [x, Math.min(y, Math.max(curves.sill(stations[index].z) + ground, topOf(index) - 0.04)), z];
 
+  const normalAt = detail.fine ? loftNormals(grid) : null;
+
   const inPillar = (z: number) => spec.pillars.some(([from, to]) => z >= from && z <= to);
   const windowOpen = (index: number) => ribs[index][ROWS.windowTop][1] - ribs[index][ROWS.windowBase][1] > 0.006;
   const doorZ = [Math.min(...spec.seams), Math.max(...spec.seams)];
@@ -602,7 +679,9 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
         if (station.bed && row >= ROWS.rail) return spec.bedSurface ?? "trim";
         return "paint";
       };
-      builder.mirroredQuad(grid[index][at], grid[index][at + 1], grid[index + 1][at + 1], grid[index + 1][at], surfaceOf());
+      const corners: [Point, Point, Point, Point] = [grid[index][at], grid[index][at + 1], grid[index + 1][at + 1], grid[index + 1][at]];
+      if (normalAt) builder.mirroredSmoothQuad(corners, [normalAt(index, at, 1, 1), normalAt(index, at + 1, 1, -1), normalAt(index + 1, at + 1, -1, -1), normalAt(index + 1, at, -1, 1)], surfaceOf());
+      else builder.mirroredQuad(...corners, surfaceOf());
     }
     const [a, b] = [floorAt(index, grid[index][0]), floorAt(index + 1, grid[index + 1][0])];
     builder.quad(a, b, [-b[0], b[1], b[2]], [-a[0], a[1], a[2]], "under", under);

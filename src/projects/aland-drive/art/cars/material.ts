@@ -26,7 +26,7 @@ const SPECULAR_SHARE = 0.9;
 const LOW_SHADE = 0.62;
 
 /** How much of a straight-on view a hero's glass lets through, and mirrors. */
-const GLASS_CLEAR = 0.62;
+const GLASS_CLEAR = 0.7;
 const GLASS_MIRROR = 0.1;
 /** How much of the swap distance the two tiers take to dissolve across. */
 const DISSOLVE_SHARE = 0.15;
