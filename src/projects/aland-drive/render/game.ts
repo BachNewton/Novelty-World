@@ -1976,14 +1976,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let resolving = false;
   let loadingAround: { x: number; z: number } | null = null;
 
+  // Squared distances: `Math.hypot` is a slow builtin that boxes its result, and these run for every cell every frame.
   const showRibbons = ({ x, z }: Vector3) => {
-    const reach = RIBBON_REACH_M + RIBBON_CELL_M / Math.SQRT2;
+    const reach = (RIBBON_REACH_M + RIBBON_CELL_M / Math.SQRT2) ** 2;
     for (const { cells } of ribbons.values()) {
-      for (const cell of cells) cell.mesh.visible = Math.hypot(cell.x - x, cell.z - z) < reach;
+      for (const cell of cells) cell.mesh.visible = (cell.x - x) ** 2 + (cell.z - z) ** 2 < reach;
     }
-    const buildingReach = BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2;
+    const buildingReach = (BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2) ** 2;
     for (const { cells } of buildings.values()) {
-      for (const cell of cells) cell.mesh.visible = cell.twin.visible = Math.hypot(cell.x - x, cell.z - z) < buildingReach;
+      for (const cell of cells) cell.mesh.visible = cell.twin.visible = (cell.x - x) ** 2 + (cell.z - z) ** 2 < buildingReach;
     }
   };
 
@@ -2461,7 +2462,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showProgress();
     }
     showNextLine();
-    challengeMarks.update();
+    // The ground under a mark moves only when heights land or leave: the overview, a tile's far heights or its detail.
+    challengeMarks.update(world.revision + world.farRevision);
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();

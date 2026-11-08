@@ -14,8 +14,8 @@ import type { Gate, RaceGround, ScenePoint } from "../challenge/types";
  * small mesh rebuilt when it changes: three draw calls in all.
  *
  * Each post and arch stands on the ground as the world has it, which sharpens
- * as tiles land, so the heights are read again each frame and the lists
- * written only when one has moved.
+ * as tiles land, so the heights are read again whenever the world's heights
+ * change and the lists written only when one has moved.
  */
 
 export interface ChallengeMarksInputs {
@@ -185,6 +185,7 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   let postGround = new Float32Array(0);
   let shownLine: { gate: Gate; look: LineLook; grounds: [number, number] } | null = null;
   let compiling = false;
+  let groundShown = -1;
   const matrix = new Matrix4();
 
   const postAt = (ring: number, post: number) => {
@@ -278,8 +279,10 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
       line.visible = true;
       if (shownLine?.gate !== gate || shownLine.look !== look) buildLine(gate, look, groundsOf(gate));
     },
-    /** Each frame: what stands on the ground follows it as it sharpens. */
-    update(): void {
+    /** Each frame, given a number that moves whenever the world's heights do: what stands on the ground follows it as it sharpens. */
+    update(groundRevision: number): void {
+      if (groundRevision === groundShown) return;
+      groundShown = groundRevision;
       if (startsShown) placeStarts(false);
       if (shownLine) {
         const grounds = groundsOf(shownLine.gate);

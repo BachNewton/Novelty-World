@@ -67,6 +67,11 @@ export function instanced(shape: BufferGeometry, cars: readonly Car[], material:
 /** Writes cars into a list from its start; the list draws only those. */
 export function write(mesh: Mesh<InstancedBufferGeometry>, cars: readonly Car[]) {
   const { geometry } = mesh;
+  // An empty list draws nothing whatever its attributes hold, so none is uploaded: the traffic writes every list every frame.
+  if (cars.length === 0) {
+    geometry.instanceCount = 0;
+    return;
+  }
   const [place, paint, look, signal] = (["place", "paint", "look", "signal"] as const).map((name) => geometry.getAttribute(name) as InstancedBufferAttribute);
   cars.forEach((car, index) => {
     place.setXYZW(index, car.x, car.y, car.z, car.yaw);

@@ -84,13 +84,20 @@ function boundsOf(sections: WallSections, picked: number[]): Sphere {
   return new Sphere(centre, centre.distanceTo(high) + OVERLAP_M);
 }
 
-/** The nearest and farthest a cell's square lies from a point on the ground. */
-function reachOf(cell: Cell, x: number, z: number): [number, number] {
+// These run for every cell every frame, so each is a plain number: no pair made, and a square root rather than
+// `Math.hypot`, a slow builtin that boxes its result.
+/** The nearest a cell's square lies from a point on the ground. */
+function nearestOf(cell: Cell, x: number, z: number): number {
   const dx = Math.max(cell.west - x, 0, x - (cell.west + cell.size));
   const dz = Math.max(cell.north - z, 0, z - (cell.north + cell.size));
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+/** The farthest a cell's square lies from a point on the ground. */
+function farthestOf(cell: Cell, x: number, z: number): number {
   const fx = Math.max(Math.abs(x - cell.west), Math.abs(x - (cell.west + cell.size)));
   const fz = Math.max(Math.abs(z - cell.north), Math.abs(z - (cell.north + cell.size)));
-  return [Math.hypot(dx, dz), Math.hypot(fx, fz)];
+  return Math.sqrt(fx * fx + fz * fz);
 }
 
 export interface StoneWallsDrawn {
@@ -147,22 +154,26 @@ export function createStoneWalls(scene: Scene, materials: RoadsideMaterials) {
     },
     /** Shows each cell that could have a section in its version's range from where the camera stands. */
     update(camera: Vector3) {
-      const next: StoneWallsDrawn = { nearCells: 0, farCells: 0, sections: 0 };
+      const { x, z } = camera;
+      const nearWithin = model.swapM * (1 + SWAP_SPREAD) + STONE_WALL_M;
+      const farBeyond = model.swapM * 0.6;
+      let nearCells = 0;
+      let farCells = 0;
+      let sections = 0;
       for (const { near, far } of tiles.values()) {
         for (const cell of near) {
-          cell.mesh.visible = shownAll || reachOf(cell, camera.x, camera.z)[0] < model.swapM * (1 + SWAP_SPREAD) + STONE_WALL_M;
-          if (cell.mesh.visible) next.nearCells++;
+          cell.mesh.visible = shownAll || nearestOf(cell, x, z) < nearWithin;
+          if (cell.mesh.visible) nearCells++;
         }
         for (const cell of far) {
-          const [nearest, farthest] = reachOf(cell, camera.x, camera.z);
-          cell.mesh.visible = shownAll || (nearest < STONE_WALL_REACH_M && farthest > model.swapM * 0.6);
+          cell.mesh.visible = shownAll || (nearestOf(cell, x, z) < STONE_WALL_REACH_M && farthestOf(cell, x, z) > farBeyond);
           if (cell.mesh.visible) {
-            next.farCells++;
-            next.sections += cell.count;
+            farCells++;
+            sections += cell.count;
           }
         }
       }
-      drawn = next;
+      drawn = { nearCells, farCells, sections };
     },
     /** Every mesh shown, for compiling before the drive; `false` leaves the next update to choose. */
     showAll(all: boolean) {

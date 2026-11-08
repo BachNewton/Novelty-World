@@ -115,10 +115,11 @@ export class ChallengeBoard {
   /** The challenge whose start ring holds a place, the nearest if two do. */
   ringAt(x: number, z: number): Challenge | null {
     let best: Challenge | null = null;
-    let nearest = START_RING_M;
+    // Squared, with no centre made: this runs every frame over every challenge.
+    let nearest = START_RING_M * START_RING_M;
     for (const challenge of this.challenges) {
-      const centre = ringCentre(challenge);
-      const distance = Math.hypot(centre.x - x, centre.z - z);
+      const [first, second] = challenge.starts;
+      const distance = ((first.x + second.x) / 2 - x) ** 2 + ((first.z + second.z) / 2 - z) ** 2;
       if (distance <= nearest) {
         nearest = distance;
         best = challenge;
