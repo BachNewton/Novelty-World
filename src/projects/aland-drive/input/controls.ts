@@ -3,6 +3,7 @@ import type { InputKind } from "@/shared/lib/input";
 import type { Binding } from "@/shared/components/prompts";
 import type { DriveInput } from "../sim/car";
 import type { ChaseLook } from "../render/chase-camera";
+import type { HeadLook } from "../render/cockpit-camera";
 
 /*
  * What each key and pad button means. The keyboard and a controller are read
@@ -19,6 +20,8 @@ export const BINDINGS = {
   handbrake: binding("A", "Space"),
   respawn: binding("Y", "R"),
   freeCamera: binding(null, "F"),
+  /** The chase view or the driver's seat, remembered in this browser. */
+  cockpit: binding("RB", "C"),
   map: binding("View", "M"),
   menu: binding("Menu", "Esc"),
   /** A challenge's start ring: start it, or choose solo or co-op; and join a co-op one you're asked to. */
@@ -30,16 +33,19 @@ export const BINDINGS = {
   mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "freeCamera" | "map" | "mute" | "challenge";
+export type GameAction = "respawn" | "freeCamera" | "cockpit" | "map" | "mute" | "challenge";
 export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map", KeyN: "mute", KeyE: "challenge" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "map", X: "challenge" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyC: "cockpit", KeyM: "map", KeyN: "mute", KeyE: "challenge" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "cockpit", View: "map", X: "challenge" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", View: "close" };
 const LOOK_LEFT = Math.PI / 2;
 /** How far the right stick is pushed before it looks round: nearer the middle, its direction is too unsteady to aim by. */
 const PAD_LOOK_PUSH = 0.5;
+/** From the driver's seat the right stick turns the head as far as it's pushed: this far round at full push, and this far up or down. */
+const HEAD_TURN = (140 * Math.PI) / 180;
+const HEAD_TILT = (22 * Math.PI) / 180;
 
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
@@ -161,6 +167,15 @@ export function startControls({ onAction, onMapAction, onDevMenu, onGameMenu, on
       const stick = pad?.controls?.rightStick;
       if (!stick || Math.hypot(stick.x, stick.y) < PAD_LOOK_PUSH) return 0;
       return Math.atan2(-stick.x, -stick.y);
+    },
+    /** Where the head turns in the driver's seat: an arrow key's look while held, or as far as the right stick is pushed; Up is the chase view's alone. */
+    headLook(): HeadLook {
+      if (held.has("ArrowDown")) return { yaw: Math.PI, pitch: 0 };
+      const sideways = axis(["ArrowLeft"], ["ArrowRight"]);
+      if (sideways !== 0) return { yaw: -sideways * LOOK_LEFT, pitch: 0 };
+      const stick = pad?.controls?.rightStick;
+      if (!stick) return { yaw: 0, pitch: 0 };
+      return { yaw: -stick.x * HEAD_TURN, pitch: -stick.y * HEAD_TILT };
     },
     kind: () => kind,
     setMapOpen(open: boolean) {

@@ -1,5 +1,6 @@
 import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer, type Node } from "three/webgpu";
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
+import { createCockpit } from "./cockpit/view";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
@@ -39,14 +40,15 @@ const restState = ({ id, ride }: CarSpec, steer: number, roll: number, paint?: n
 export interface Shot {
   car: number;
   detail: CarDetail;
-  camera: "chase" | "hood" | [x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number, fov: number];
+  /** "eye" is the driver's own view from the cockpit, "dash" a wider look at it from behind the seats, "side" across to the passenger's door. */
+  camera: "chase" | "hood" | "eye" | "dash" | "side" | [x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number, fov: number];
   lights?: Partial<CarLights>;
   steer?: number;
   roll?: number;
   lean?: [pitch: number, roll: number];
   /** A paint by its index in the car's list: its default when left out. */
   paint?: number;
-  /** The deepest midsummer night's light, as the game's land takes it, with the sun gone and the headlamps on. */
+  /** The deepest midsummer night's light, as the game's land takes it, with the sun gone, the headlamps on and the instruments lit. */
   night?: boolean;
 }
 
@@ -69,6 +71,7 @@ async function start(width: number, height: number) {
   document.body.appendChild(renderer.domElement);
 
   const scene = new Scene();
+  const glowing = sharedUniform(0);
   const camera = new PerspectiveCamera(CHASE.fieldOfViewDeg, width / height, 0.1, 2000);
 
   const asphalt = new MeshBasicNodeMaterial();
@@ -84,6 +87,7 @@ async function start(width: number, height: number) {
   scene.add(ground);
 
   const arts = new Map<string, ReturnType<typeof buildCarArt>>();
+  const disposers: (() => void)[] = [];
   const artOf = (car: number, detail: CarDetail) => {
     const key = `${car}:${detail}`;
     const known = arts.get(key);
@@ -99,8 +103,19 @@ async function start(width: number, height: number) {
       const art = artOf(shot.car, shot.detail);
       const model = createCarModel(art, sun, { hazed: atHour });
       scene.add(model.root);
+      const inside = shot.camera === "eye" || shot.camera === "dash" || shot.camera === "side";
+      const cockpit = inside ? createCockpit(art.spec, { sun, hazed: atHour, glowing, units: "metric", glass: art.glass }) : null;
+      if (cockpit) {
+        model.pivot.add(cockpit.interior);
+        model.shell.geometry = cockpit.shell;
+        cockpit.fit();
+        const state = restState(art.spec, shot.steer ?? 0, 0, shot.paint);
+        cockpit.read({ ...state, velocity: [0, 0, -22] }, { engine: { gear: 2, rpm: 3600, load: 0.4, shiftLeftS: 0, reversing: false }, hour: 21.5, outsideC: -4 });
+        disposers.push(() => cockpit.dispose());
+      }
       ground.position.y = groundY(art.spec);
       nightOn.value = shot.night ? 1 : 0;
+      glowing.value = shot.night ? 1 : 0;
       sun.setSun(shot.night ? { ...SUN, elevationDeg: -10 } : SUN);
       renderer.setClearColor(shot.night ? nightSky : daySky);
       model.setLights({ brake: false, reversing: false, headlights: shot.night ?? false, ...shot.lights });
@@ -113,11 +128,25 @@ async function start(width: number, height: number) {
         camera.fov = CHASE.fieldOfViewDeg;
         camera.position.set(0, CHASE.aboveM, CHASE.behindM);
         camera.lookAt(0, CHASE.lookAboveM, -CHASE.lookAheadM);
+      } else if (cockpit) {
+        const eye = cockpit.eye;
+        const { cluster, ground } = cockpit.parts.frame;
+        camera.fov = shot.camera === "eye" ? 52 : 60;
+        if (shot.camera === "eye") {
+          camera.position.copy(eye);
+          camera.lookAt(eye.x, eye.y - 0.34, eye.z - 2);
+        } else if (shot.camera === "side") {
+          camera.position.copy(eye);
+          camera.lookAt(eye.x + 2, eye.y - 0.3, eye.z - 0.3);
+        } else {
+          camera.position.set(0.12, eye.y + 0.06, eye.z + 0.5);
+          camera.lookAt(cluster.centre.x * 0.6, cluster.centre.h + ground - 0.05, cluster.centre.z);
+        }
       } else if (shot.camera === "hood") {
         camera.fov = HOOD.fieldOfViewDeg;
         camera.position.set(0, HOOD.aboveM, -HOOD.forwardM);
         camera.lookAt(0, HOOD.aboveM, -HOOD.lookAheadM);
-      } else {
+      } else if (typeof shot.camera !== "string") {
         const [x, y, z, lookX, lookY, lookZ, fov] = shot.camera;
         camera.fov = fov;
         camera.position.set(x, y, z);
@@ -129,7 +158,7 @@ async function start(width: number, height: number) {
       await new Promise(requestAnimationFrame);
       renderer.render(scene, camera);
       await new Promise(requestAnimationFrame);
-      const size = { triangles: art.triangles, drawCalls: renderer.info.render.drawCalls };
+      const size = { triangles: art.triangles, drawCalls: renderer.info.render.drawCalls, cockpit: cockpit?.parts.soup.triangles ?? 0 };
       return size;
     },
     /**
@@ -198,6 +227,7 @@ async function start(width: number, height: number) {
       return { pairs: withCar.length, withCarMs: middle(withCar), roadMs: middle(without) };
     },
     clear() {
+      for (const dispose of disposers.splice(0)) dispose();
       for (const child of [...scene.children]) if (child !== ground) scene.remove(child);
     },
   };

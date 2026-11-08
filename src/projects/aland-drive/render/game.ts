@@ -19,6 +19,8 @@ import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
 import { BAKED_SKY_SHARE, BAKED_SUN_SHARE, FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
+import { AHEAD, startCockpitCamera, type HeadLook } from "./cockpit-camera";
+import { keepDrivingView, keptDrivingView, type DrivingView } from "./driving-view";
 import { buildingMaterial, buildingMeshes, wallDepthMaterial } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
@@ -68,6 +70,7 @@ import { yearDay } from "../climate/calendar";
 import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
+import { createCockpit } from "../art/cars/cockpit/view";
 import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
@@ -152,7 +155,7 @@ export interface Place {
   pitch: number;
 }
 
-export type CameraMode = "chase" | "free";
+export type CameraMode = DrivingView | "free";
 
 /** A control surface for tests and tools: everything here waits on events, never time. */
 export interface GameProbe {
@@ -222,6 +225,10 @@ export interface GameProbe {
   /** Puts the car at a distance along one of the start tile's chains, facing along it. */
   placeOnRoad: (chain: number, along: number) => void;
   setCamera: (mode: CameraMode) => void;
+  /** The view drawn now: from the map's flight it is still the view the map was opened from. */
+  cameraMode: () => CameraMode;
+  /** Holds the driver's head turned in the cockpit, or lets it follow the controls again with null. */
+  holdHead: (look: HeadLook | null) => void;
   /** Moves the car to a showcase spot by its id, resolving once it's there, on loaded ground. */
   jumpTo: (id: string) => Promise<void>;
   /** Moves the car to a place near a road, in a car's view, resolving once it's there, on loaded ground. */
@@ -1307,6 +1314,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   drive.paint = paintAsked(window.location.search, paintsOf(carSpec)) ?? paintIndex(paintsOf(carSpec), paintOn(startCar));
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
+  // The player's own car carries its cockpit, hidden until the driver's seat is the view.
+  const cockpitOf = (view: typeof carView, spec: typeof carSpec) => {
+    const made = createCockpit(spec, { sun, hazed, glowing: night.lampsOn, units: useUnits.getState().units, glass: view.art.glass });
+    made.interior.visible = false;
+    view.pivot.add(made.interior);
+    // Drawn first among the car's parts: from the seat it covers most of the screen.
+    view.pivot.children.unshift(view.pivot.children.pop() ?? made.interior);
+    return { cockpit: made, chaseShell: view.shell.geometry };
+  };
+  let { cockpit, chaseShell } = cockpitOf(carView, carSpec);
+  const unsubscribeUnits = useUnits.subscribe(({ units }) => cockpit.setUnits(units));
   const tyres = createTyreParticles(scene, token, hazed);
   const precipitation = createPrecipitation(scene, { rain: linear("weather-rain"), snow: linear("snow"), hazed });
   const cullCar = (culled: boolean) => {
@@ -1336,6 +1354,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   tyres.showAll(true);
   precipitation.showAll(true);
   cullCar(false);
+  cockpit.interior.visible = true;
   nightLights.showAll(true);
   winterLights.showAll(true);
   await renderer.compileAsync(scene, camera);
@@ -1346,6 +1365,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   await shrubs.compile();
   await granite.compile();
   cullCar(true);
+  cockpit.interior.visible = false;
   nightLights.showAll(false);
   winterLights.showAll(false);
   clipmap.showWide(false);
@@ -1375,8 +1395,24 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   const freeCamera = startFreeCamera(camera, renderer.domElement);
   const chaseCamera = startChaseCamera(camera, groundAt);
+  const cockpitCamera = startCockpitCamera(camera);
+  let heldHead: HeadLook | null = null;
 
   let cameraMode: CameraMode = "chase";
+  // The view the drive goes back to from the free camera, as the player last chose it.
+  let drivingView: DrivingView = keptDrivingView();
+  /** Shows the cockpit, and the shell with nothing inside it, while the camera sits in it: never from the map's flight. */
+  const showCockpit = (shown: boolean) => {
+    if (cockpit.interior.visible === shown) return;
+    cockpit.interior.visible = shown;
+    carView.shell.geometry = shown ? cockpit.shell : chaseShell;
+    if (shown) cockpit.fit();
+  };
+  const setNear = (near: number) => {
+    if (camera.near === near) return;
+    camera.near = near;
+    camera.updateProjectionMatrix();
+  };
   const setCamera = (mode: CameraMode) => {
     if (mode === cameraMode) return;
     if (mode === "free") {
@@ -1385,13 +1421,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       camera.updateProjectionMatrix();
     } else {
       freeCamera.leave();
+      drivingView = mode;
     }
+    if (mode === "cockpit") cockpitCamera.snap();
+    if (mode === "chase") chaseCamera.snap();
     cameraMode = mode;
     events.onCamera(mode);
   };
   if (asked) {
     setCamera("free");
     freeCamera.set(toView(asked));
+  } else {
+    setCamera(drivingView);
   }
 
   let navigator: Navigator | null = null;
@@ -1535,6 +1576,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     await stream.settled();
     place();
     chaseCamera.snap();
+    cockpitCamera.snap();
     refillTraffic();
     loadingAround = null;
     stream.onLanded = () => undefined;
@@ -1718,6 +1760,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         if (!road) throw new Error(`no road at a challenge's start, ${x}, ${z}`);
         drive.placeAt({ ...road, x, z, heading });
         chaseCamera.snap();
+        cockpitCamera.snap();
         // A scripted drive belongs to the attempt it was started in.
         autopilot = null;
         done();
@@ -1805,6 +1848,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       if (!road) throw new Error(`no road to go back to at ${x}, ${z}`);
       drive.placeAt({ ...road, heading: Math.cos(heading - road.heading) >= 0 ? road.heading : road.heading + Math.PI });
       chaseCamera.snap();
+      cockpitCamera.snap();
     };
     // Back where the invite took the player from, at once where that ground is still loaded, and otherwise the way a jump goes.
     if (stream.wanted(x, z) === 0) put();
@@ -1953,10 +1997,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (spec === carSpec) return;
     drive.setCar(id, tyresOn(id));
     drive.paint = paintIndex(paintsOf(spec), paintOn(id));
+    const wasShown = cockpit.interior.visible;
+    showCockpit(false);
+    cockpit.dispose();
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, sun, spec, "hero", { hazed });
     fitCarVolume(carView.art);
+    ({ cockpit, chaseShell } = cockpitOf(carView, spec));
+    showCockpit(wasShown);
     events.onCarChange?.(id);
   };
 
@@ -1974,7 +2023,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const onAction = (action: GameAction) => {
     if (action === "respawn") drive.respawn();
-    if (action === "freeCamera") setCamera(cameraMode === "free" ? "chase" : "free");
+    if (action === "freeCamera") setCamera(cameraMode === "free" ? drivingView : "free");
+    if (action === "cockpit" && cameraMode !== "free" && !mapFrom && !jumping) {
+      setCamera(cameraMode === "cockpit" ? "chase" : "cockpit");
+      keepDrivingView(drivingView);
+    }
     if (action === "map") setMapOpen(true);
     if (action === "mute") useDriveSoundSettings.getState().toggleMuted();
     if (action === "challenge") challengeButton();
@@ -2469,10 +2522,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap.draw(mapViewOf(height, pose.turn), shown);
     } else if (cameraMode === "free") {
       if (!devMenuOpen && !gameMenu) freeCamera.update(now);
+    } else if (cameraMode === "cockpit") {
+      cockpitCamera.update(car, cockpit.interior, cockpit.eye, held ? STEP_S * 4 : seconds, heldHead ?? (gameMenu || devMenuOpen ? AHEAD : controls.headLook()));
+      paintedShare.value = 1;
     } else {
       chaseCamera.update(car, held ? STEP_S * 4 : seconds, controls.look());
       paintedShare.value = 1;
     }
+    // The driver's seat is drawn, and heard from, only while no map flight has lifted the camera out of it.
+    const inCockpit = cameraMode === "cockpit" && !mapFrom;
+    showCockpit(inCockpit);
+    setNear(inCockpit ? cockpitCamera.nearM : CAMERA_NEAR);
     const lifted = mapFrom !== null;
     const [spotX, spotY, spotZ] = mapLook ? [mapLook.x, groundAt(mapLook.x, mapLook.z), mapLook.z] : mapFrom ? mapFrom.position : camera.position.toArray();
     detailSpotAt.set(spotX, spotY, spotZ);
@@ -2494,6 +2554,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const offer = lifted || jumping ? null : readOffer();
     const shown = day.time();
     const clock = { month: shown.calendar.month, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
+    if (inCockpit) cockpit.read(car, { engine, hour: shown.hour, outsideC: clock.temperatureC ?? 12 });
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
     if (challengeBoard.revision !== marksRevision) {
       marksRevision = challengeBoard.revision;
@@ -2674,6 +2735,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         drive.placeAt(startLine(chain).at(at));
       },
       setCamera,
+      cameraMode: () => cameraMode,
+      holdHead: (look) => {
+        heldHead = look;
+      },
       stream: () => stream.stats(),
       loadAround: (place) => {
         loadingAround = place;
@@ -2931,6 +2996,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       freeCamera.dispose();
       controls.dispose();
       worldMap?.dispose();
+      unsubscribeUnits();
+      cockpit.dispose();
       carView.dispose();
       unbindPageHide();
       onlineWorld?.stop();

@@ -9,7 +9,8 @@
 // --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
 // says when one passes). An hour in the link (`?hour=`) is held for every look. --pair saves each look twice from the
 // one camera, as <out> and <out>-without, the second with the boats under way and the sea marks left out: a before and
-// after of them. --egpu draws on the eGPU, when one is plugged in.
+// after of them. --egpu draws on the eGPU, when one is plugged in. --cockpit takes a chase look (one number or six) from
+// the driver's seat instead, and --head=<yaw>,<pitch> (degrees, left and up) holds the driver's head turned there.
 
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";
 
@@ -22,6 +23,8 @@ const FRAMES_TO_SETTLE = 3;
 const SHOTS = option("shots");
 const SEA = option("sea");
 const PAIR = flags.includes("--pair");
+const VIEW = flags.includes("--cockpit") ? "cockpit" : "chase";
+const HEAD = option("head")?.split(",").map((degrees) => (Number(degrees) * Math.PI) / 180);
 // Chrome's GPU process draws on the integrated GPU unless told otherwise; --egpu moves it to the eGPU when one is
 // plugged in, for what shows on Nvidia alone.
 const EGPU_ARGS = flags.includes("--egpu") ? ["--force-high-performance-gpu"] : [];
@@ -39,6 +42,7 @@ if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.hold
 // A link's hour runs on at the game's pace, a day in half an hour, so on a busy machine a run's last shots were evenings.
 const HOUR = new globalThis.URL(URL).searchParams.get("hour");
 if (HOUR !== null) await page.evaluate((hour) => window.__alandDrive.setDay({ hour, held: true }), Number(HOUR));
+if (HEAD !== undefined) await page.evaluate(([yaw, pitch]) => window.__alandDrive.holdHead({ yaw, pitch: pitch ?? 0 }), HEAD);
 
 const shoot = async (place) => {
   if (place.length === 5) {
@@ -47,27 +51,33 @@ const shoot = async (place) => {
   }
   // One number is a chase view, that far along the start tile's main road.
   if (place.length === 1) {
-    await page.evaluate((along) => {
-      const probe = window.__alandDrive;
-      probe.hold(true);
-      probe.setCamera("chase");
-      probe.startRoute(0, 40, along);
-      probe.advance(600);
-    }, place[0]);
+    await page.evaluate(
+      ([along, view]) => {
+        const probe = window.__alandDrive;
+        probe.hold(true);
+        probe.setCamera(view);
+        probe.startRoute(0, 40, along);
+        probe.advance(600);
+      },
+      [place[0], VIEW],
+    );
   }
   // Six numbers are a chase view along a line of two scene points (x, y, z).
   if (place.length === 6) {
-    await page.evaluate(async (points) => {
-      const probe = window.__alandDrive;
-      probe.hold(true);
-      probe.loadAround({ x: points[0], z: points[2] });
-      await new Promise(requestAnimationFrame);
-      while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
-      probe.setCamera("chase");
-      probe.startLine(points, 12);
-      probe.loadAround(null);
-      probe.advance(240);
-    }, place);
+    await page.evaluate(
+      async ([points, view]) => {
+        const probe = window.__alandDrive;
+        probe.hold(true);
+        probe.loadAround({ x: points[0], z: points[2] });
+        await new Promise(requestAnimationFrame);
+        while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
+        probe.setCamera(view);
+        probe.startLine(points, 12);
+        probe.loadAround(null);
+        probe.advance(240);
+      },
+      [place, VIEW],
+    );
   }
   await page.evaluate(async (settle) => {
     const probe = window.__alandDrive;

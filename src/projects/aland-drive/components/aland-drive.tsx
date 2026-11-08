@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { Crosshair, Eye, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
+import { Crosshair, Eye, Flag, SwitchCamera, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -52,6 +52,7 @@ const REDLINE_FROM = 0.9;
 const HINTS = [
   { binding: BINDINGS.handbrake, icon: Hand, label: "Handbrake" },
   { binding: BINDINGS.respawn, icon: RefreshCcw, label: "Back to the road" },
+  { binding: BINDINGS.cockpit, icon: SwitchCamera, label: "Chase view or driver's seat" },
   { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
   { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
   { binding: BINDINGS.menu, icon: MenuIcon, label: "Game menu" },
@@ -413,7 +414,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
               </div>
             </div>
           )}
-          {camera !== "free" && (
+          {/* In the driver's seat the car's own instruments show the speed and revs. */}
+          {camera === "chase" && (
             <div className="pointer-events-none absolute right-5 bottom-3 size-48" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }}>
               <svg viewBox="0 0 100 100" className="absolute inset-0 rotate-[135deg]" aria-hidden fill="none" strokeWidth={5}>
                 <circle cx={50} cy={50} r={44} pathLength={1} stroke={SHADE} strokeDasharray={`${DIAL_SWEEP} 1`} />
