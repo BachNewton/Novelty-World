@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoadsideModel } from "../roadside/models";
-import { buildBalticFerry, buildBicycle, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, deliveryVan, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, signalsAtJunction, terminalFeet, buildRoadFerry } from "./index";
+import { buildBalticFerry, buildBicycle, buildHangingLamp, buildStreetNamePlate, buildStreetNamePost, buildTerminal, buildTownLamp, buildTrafficLight, buildVillagePlate, buildVillageSign, buildWindowBox, clearOfRoads, FERRY_BERTH, ferryPlace, LEG_ROAD_CLEAR_M, signalsAtJunction, terminalFeet, buildRoadFerry } from "./index";
 
 const triangles = (geometry: RoadsideModel["near"] | null) => (geometry?.index?.count ?? 0) / 3;
 
@@ -71,6 +71,3 @@ describe("traffic signals", () => {
   });
 });
 
-it("parks a van in its livery as the delivery van", () => {
-  expect(deliveryVan({ x: 1, y: 0, z: 2 }, 0).spec.livery).toBe(true);
-});

@@ -16,7 +16,6 @@ Selection (`scripts/affected-tests.mjs`) took most of the pain away: a typical c
 |---|---|---|
 | Risk `bots/frozen.test.ts` | Keep the fingerprints; ask bots again only when their import closure changed, or move that to the slow suite. It must keep catching a shared engine change that alters a frozen bot | 35–40s |
 | Risk `sim.test.ts` | Each "halves" test replays a whole game; play each game once and check every step | 8–10s |
-| Betrayal `art/monsters/clipping.test.ts` | Make it an opt-in art check like the explorers', or sample one idle cycle | 12s |
 | Frogmino `vehicles/vehicles.test.ts` | About 340 side-by-side pairs repeat one path; one pair per vehicle against the widest partner. It is the only test combining inset, rumble and the scan, so keep that | 12s |
 
 ## Fine but small
@@ -32,7 +31,7 @@ Low risk, 1–4s each unless noted:
 
 **Betrayal's e2e flows per input method.** Many flows run once each for keyboard, touch and controller, and Betrayal is the costliest part of e2e. Input wiring is a fair e2e target, though, and the review didn't confirm the unit tests assert the same things. Compare them first; moving feature checks down to unit tests is the likely shape.
 
-**Rule violations to fix rather than cut:** the bounded retry loops in `betrayal-house.spec.ts` and `betrayal-controls.spec.ts`, which press a key until the state matches, and the `setTimeout` used to let promises land in Åland's `stream.test.ts`.
+**Rule violations to fix rather than cut:** the bounded retry loop in `betrayal-controls.spec.ts`, which presses a key until the state matches, and the `setTimeout` used to let promises land in Åland's `stream.test.ts`.
 
 ## Leave for now
 

@@ -1,9 +1,10 @@
 import type * as THREE from "three";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import { animationOf } from "../animate";
 import { clipping } from "../explorers/clipping";
 import type { Gait } from "../explorers/figure";
 import { partsOf } from "../figure-parts";
+import { artChecks } from "../art-checks";
 import { stubCanvas } from "../headless";
 import { banshee, spider } from ".";
 
@@ -11,7 +12,7 @@ import { banshee, spider } from ".";
  * No monster's parts pass through each other: the Spider's legs against its
  * body and each other, the Banshee's arms against her robe and her hair
  * against her head, through a long stretch of the idle, stunned, and moving
- * over several strides.
+ * over several strides. An opt-in art check (`art-checks.ts`).
  */
 
 beforeAll(stubCanvas);
@@ -36,7 +37,7 @@ const moving =
   (seconds) => ({ phase: ((seconds * 1.5) / step) * Math.PI, amount: 1 });
 const LIMIT = { timeout: 15_000 };
 
-describe.each([
+artChecks.each([
   ["the Banshee", banshee, 0.9],
   ["the Spider", spider, 0.54],
 ] as const)("%s", (_, build, step) => {

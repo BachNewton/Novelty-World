@@ -10,7 +10,7 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 - **A race shows no time.** Only the place counts: no stopwatch, best time or time to beat, which are the bucket list's.
 - **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
 - **32 tracks**: 15 road, 12 cross country and 5 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
-- **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later.
+- **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later: then a race asks for a class and tier, and the list grows to 56 events on about 45–50 routes (section 9).
 - **First, second and third are gold, silver and bronze**, and a solo result is kept apart from a co-op one. A co-op team is scored as Forza Horizon scores a team: on points for the racers its players beat.
 - **Races are run in the world as it is**: its traffic, as TDU's are, and its hour, season and weather, so the AI racers must race every track in every condition and through traffic. Challenges set their own conditions instead, as Forza's bucket lists do.
 - **Races reuse the challenges' machinery** (start ring, countdown, lines across the road, the panel, the result card, retry) and add laps, a grid and places.
@@ -277,6 +277,48 @@ Two lists on the same machinery. A challenge is one car the game hands you, one 
 
 After those: the gaps the coverage map shows; more rally cars and four-by-fours for the loose kinds' grids; choosing a car once cars are bought; money by medal once the economy exists; and Åland's own events and duels between players.
 
+## 9. Events, classes and tiers, once cars are bought
+
+The long-term shape of the race list and the garage, for when a player brings a car rather than being handed one. An **event** is anything that asks the player to bring a car that meets a requirement: a class and tier, as TDU2's championships did. The bucket-list challenges aren't events: they hand the player the car, and stay that way.
+
+### Classes and tiers
+
+TDU2's scheme, with each tier's performance moved to today's cars: TDU2's car list is from 2011, and today's Golf GTI is about as quick as an A4 car was then.
+
+| Class | Tiers | What it is | Today's counterparts, fastest tier first |
+|---|---|---|---|
+| **A: Asphalt** | A1–A7 | Road and sports cars, A1 fastest | A1 hypercars (0–100 under 2.8 s, 350+ km/h), A2 supercars (about 2.8–3.2 s), down to A7 hot hatches (about 5.5–7 s) |
+| **B: Gravel** | B1–B4 | Cars built for gravel: rally cars, fast everyday cars on loose roads, four-by-fours | B1 the rally specials |
+| **C: Classic** | C1–C4 | Older cars, today's cut-off taking in the 1990s and early 2000s | |
+
+B is TDU2's off-road class widened to gravel, and gets back the B1 tier TDU2 dropped after its beta, because gravel is most of Åland's road. Of the 2,072 km a race can use in the game's OpenStreetMap data, 716 km is tagged paved, 526 km gravel or dirt and 830 km untagged; laid by the game's rule for untagged roads, that is 37–47% paved, against about two thirds asphalt on TDU2's islands. The main roads are nearly all asphalt and the country lanes, the largest part of the network, mostly gravel.
+
+Measured on today's tiers, the fourteen cars sit in the middle and below: Sund A4; Ankar, the Skerry GT and Ström A5; Fjärd, Sten and Bris A6; Grus B2, Holm B3, Berg B4; Vik C3 and Sälta C4. Ljus and Kobb are slower than any A tier, and stay everyday cars outside the tiers.
+
+### How many
+
+| Class | Events by tier | Events |
+|---|---|---|
+| A | A1 2, A2 3, A3 4, A4 4, A5 5, A6 4, A7 4 | 26 |
+| B | 5 each in B1–B4 | 20 |
+| C | C1 2, C2 2, C3 3, C4 3 | 10 |
+| | | **56** |
+
+- **The event count comes from the tiers, not the map.** A tier needs enough events for a short run of progress and a reason to own more than one of its cars: about four, as TDU2's two championships per class of several races each gave. Fourteen tiers at about four is 56.
+- **Weighted to Åland's roads, not spread evenly.** Few hypercar events, since only the main roads give one room; the most in the middle A tiers and in B, where the island's tarmac lanes and gravel are; classics on both surfaces. Tarmac takes slightly more than its share of road, since the main roads make the fastest races.
+- **About 45–50 routes**, one per event where the roads allow, about half circuits and half sprints. Most events get a road of their own: 56 at about 8 km is around 450 km, half the network's loops before the branch sprints. The 32 tracks above are candidates like any other route, kept, changed or dropped by how well they fit a tier.
+- **About 38 cars**: two to three per tier, so about 18 in A, 12 in B and 8 in C, 24 more than today, most of them in A1–A3 and B1–B2.
+
+Against the games the plan follows, 56 events is about 8 per 100 km² of land and one per 34 km of road: denser than TDU2's 25 championships and cups on about 2,100 km² and 3,000 km of road, far sparser than Forza Horizon's hundreds of championships on maps of under 100 km². Åland has more road per km² than any of them, 2.8 km against TDU2's 1.4 and The Crew's 2.0, being real countryside at full scale.
+
+### Roads for the fastest tiers
+
+Whether the main roads can carry five A1–A2 events was measured on the game's OpenStreetMap data, the 334 km of primary and secondary road joined road by road: a stretch counts as fast where no bend is tighter than a radius of 400 m, which a car holding 1.3 g takes at about 255 km/h.
+
+- **109 km of fast road in 26 stretches of 1.5 km or more, 12 of them over 3 km**, on roads 1, 2, 3 and 4 above all: road 1's longest is 14.6 km, road 2 and 4's shared stretch 11.8 km, road 3's 11.0 km.
+- **Flat out at a hypercar's top speed is rare**: with no bend under 800 m (about 360 km/h), 28 km in 11 stretches of 2 km or more, two of them over 3 km. A hypercar on Åland is a fast-sweeper car, never a top-speed car, as on TDU2's islands.
+- **So five events on five roads of their own is enough**: west on road 1 towards Eckerö, north on roads 2 and 4 to Geta (R6), east on road 3 to Långnäs (R14), the old and new road 2 (R13), and road 1's circuits in Hammarland (R2, R8). The A1–A2 tiers don't need to share routes.
+
 ## The owner's decisions
 
 - **Race types: circuits and sprints**, each of three kinds by ground: road (asphalt only), off-road (gravel, ground, ice) and cross country (a mix of both).
@@ -289,6 +331,8 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
 - **A race shows no time**, only places: the time is the bucket list's. Until the racers exist, a finish is first, rather than timed stand-in rivals.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
+- **Once cars are bought, events ask for a class and tier**, TDU2's scheme with today's cars in each tier: A1–A7 asphalt, B1–B4 gravel (B widened from off-road, with B1 back), C1–C4 classic.
+- **56 events on about 45–50 routes, and about 38 cars**, weighted to Åland's roads as section 9 sets out. Any of the 32 tracks may be kept, changed or dropped to fit.
 
 ## Sources
 
@@ -297,4 +341,5 @@ After those: the gaps the coverage map shows; more rally cars and four-by-fours 
 - The bucket list's roads: `challenge/specs.ts`.
 - TDU's race types and car classes: [Wikipedia, Test Drive Unlimited](https://en.wikipedia.org/wiki/Test_Drive_Unlimited), [Test Drive Unlimited 2](https://en.wikipedia.org/wiki/Test_Drive_Unlimited_2), [Worthplaying's single-player preview](http://worthplaying.com/article/2006/6/28/news/34252-test-drive-unlimited-all-singleplayer-mode-detailed/), [gamepressure's TDU guide](https://gamepressure.com/testdriveunlimited/basic-information/z6a05) and its [race lists](https://www.gamepressure.com/testdriveunlimited/races/z19f2).
 - Forza Horizon's events and team scoring: [Wikipedia, Forza Horizon 4](https://en.wikipedia.org/wiki/Forza_Horizon_4) and [Forza Horizon 5](https://en.wikipedia.org/wiki/Forza_Horizon_5), [gamepressure's FH4 guide](https://www.gamepressure.com/forza-horizon-4/types-of-races-and-activities/z4b6f6), [a design analysis of FH4's team score](https://evanbg42.github.io/2024/11/11/design-spotlight-forza-team-score.html), and Forza support's ranked scoring page (a search excerpt only).
+- Section 9's comparisons: TDU2's classes, tiers and cars from [the Test Drive wiki's vehicle list](https://testdrive.fandom.com/wiki/Test_Drive_Unlimited_2/Vehicles), its championships and cups from [PSNProfiles' trophy guide](https://psnprofiles.com/guide/1985-test-drive-unlimited-2-trophy-guide), its road and surfaces from Wikipedia above; Forza Horizon 2's championships from [FutureFive](https://futurefive.co.nz/story/on-the-road-again-forza-horizon-2), Forza Horizon 3's from [GameFAQs](https://gamefaqs.gamespot.com/boards/191490-forza-horizon-3/74731793), and both maps' sizes from community estimates ([forzahorizon6.net](https://forzahorizon6.net/fh6/size-km/), [VideoGamer](https://www.videogamer.com/news/forza-horizon-2s-playable-area-3x-bigger-than-the-originals)); The Crew's map and road from [Softpedia](https://games.softpedia.com/blog/The-Crew-s-Open-World-Is-as-Big-as-GTA-5-Skyrim-Far-Cry-3-and-More-Combined-437560.shtml) and [MP1st](https://mp1st.com/?p=43947), its missions from [Nonfiction Gaming](https://www.nonfictiongaming.com/2014/12/09/crew-review/); the main island's area from [Wikipedia, Fasta Åland](https://en.wikipedia.org/wiki/Fasta_%C3%85land). Today's cars' figures are factory numbers as commonly quoted, not checked one by one.
 - The Crew's: [Wikipedia, The Crew](https://en.wikipedia.org/wiki/The_Crew_(video_game)), [The Crew 2](https://en.wikipedia.org/wiki/The_Crew_2) and [The Crew Motorfest](https://en.wikipedia.org/wiki/The_Crew_Motorfest).

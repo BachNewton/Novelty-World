@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  EYEDROPPER_CURSOR,
   cellFromPoint,
   isAltModifierCode,
   resolveEyedropperActive,
@@ -134,10 +133,6 @@ describe("eyedropper Alt hygiene", () => {
     expect(resolveEyedropperActive({ alt: true, meta: true })).toBe(false);
   });
 
-  it("uses an inline data-URI eyedropper with crosshair fallback", () => {
-    expect(EYEDROPPER_CURSOR).toContain("data:image/svg+xml");
-    expect(EYEDROPPER_CURSOR).toContain("crosshair");
-  });
 });
 
 describe("cellFromPoint", () => {

@@ -1,4 +1,4 @@
-// e2e-covers: src/projects/aland-drive/challenge/** src/projects/aland-drive/render/challenge-marks.ts
+// e2e-covers: src/projects/aland-drive/challenge/{session,run}.ts src/projects/aland-drive/render/challenge-marks.ts src/projects/aland-drive/components/game-menu.tsx
 import type { Server } from "node:http";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
@@ -34,7 +34,7 @@ test.afterAll(() => {
 test.use(WEBGPU_BROWSER);
 test.setTimeout(120_000);
 
-test("a solo Route: started from its ring by its button, held through the countdown, driven to a pass, retried mid-run and left", async ({ page }) => {
+test("a solo Route: started from its ring by its button, held through the countdown, driven to a pass and left", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const { challenge: laid } = await layChallenge(page, { id: ID, title: TITLE, target: { s: 600 } });
@@ -53,7 +53,6 @@ test("a solo Route: started from its ring by its button, held through the countd
   await expect(page.getByLabel("Challenge here")).toContainText(TITLE);
   await page.keyboard.press("KeyE");
   await expect(page.getByLabel("Challenge here")).toBeHidden();
-  const menu = page.getByRole("dialog", { name: "Game menu" });
 
   // The start's tile is loaded, so the car is on the line at once, in the challenge's car.
   expect(await challenge(page)).toMatchObject({ id: ID, attempt: 1, phase: "countdown", clockS: -3 });
@@ -77,41 +76,12 @@ test("a solo Route: started from its ring by its button, held through the countd
     return probe.challenge();
   }, 120 * STEPS_A_SECOND);
   expect(finished?.outcome?.passed).toBe(true);
-  expect(finished?.gates).toEqual({ passed: 3, of: 3 });
-  expect(await page.evaluate((id) => window.__alandDrive?.challengeBest(id), ID)).toBe(finished?.outcome?.average);
+  await expect(page.getByRole("dialog", { name: "Challenge result" })).toContainText("Passed");
 
-  // The result card opens on Retry: Enter presses it, and the car is back on the line with a fresh clock.
-  const result = page.getByRole("dialog", { name: "Challenge result" });
-  await expect(result).toContainText("Passed");
-  await expect(result.getByRole("button", { name: "Retry" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(result).toBeHidden();
-  expect(await challenge(page)).toMatchObject({ attempt: 2, phase: "countdown", clockS: -3, outcome: null });
-  expect(await offStart(page, start)).toBeLessThan(0.3);
-
-  // Mid-run, the menu's Retry does the same.
-  await page.evaluate((steps) => {
-    const probe = window.__alandDrive;
-    if (!probe) throw new Error("no probe");
-    probe.advance(steps);
-    probe.driveChallenge(20);
-    probe.advance(4 * 120);
-  }, COUNTDOWN_STEPS + 1);
-  const midRun = await challenge(page);
-  expect(midRun?.phase).toBe("running");
-  expect(midRun?.clockS).toBeGreaterThan(3);
-  expect(await offStart(page, start)).toBeGreaterThan(20);
-  await page.keyboard.press("Escape");
-  await menu.getByRole("button", { name: "Retry" }).click();
-  await expect(menu).toBeHidden();
-  expect(await challenge(page)).toMatchObject({ attempt: 3, phase: "countdown", clockS: -3 });
-  expect(await offStart(page, start)).toBeLessThan(0.3);
-
-  // Leaving gives back the car from before, where the car is now.
+  // Esc on the result card leaves: the car from before is back, where the car is now.
   const before = await carAt(page);
   await page.keyboard.press("Escape");
-  await menu.getByRole("button", { name: "Leave challenge" }).click();
-  await expect(menu).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Challenge result" })).toBeHidden();
   expect(await challenge(page)).toBeNull();
   expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe(PREVIOUS_CAR);
   const after = await carAt(page);

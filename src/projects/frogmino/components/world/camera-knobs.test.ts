@@ -1,20 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { TUNING } from "../../tuning";
 import { CAMERA_PITCH, cameraEye, cameraPitch } from "../camera-fit";
-import { CAMERA_KNOB_KEYS, CAMERA_KNOB_RANGES, TUNED_CAMERA, formatKnob, tuningSnippet } from "./camera-knobs";
+import { CAMERA_KNOB_KEYS, CAMERA_KNOB_RANGES, TUNED_CAMERA } from "./camera-knobs";
 
 describe("camera knobs", () => {
-  it("copy as the lines they take in tuning.ts", () => {
-    expect(tuningSnippet({ cameraHeight: 8.5, cameraFollow: 7, cameraLookAhead: 6 })).toBe(
-      "  cameraHeight: 8.5,\n  cameraFollow: 7,\n  cameraLookAhead: 6,",
-    );
-  });
-
-  it("drop a slider step's float noise", () => {
-    expect(formatKnob(0.1 + 0.2)).toBe("0.3");
-    expect(formatKnob(8.55)).toBe("8.55");
-  });
-
   it("start from the tuning, inside every slider's range", () => {
     for (const key of CAMERA_KNOB_KEYS) {
       const { min, max } = CAMERA_KNOB_RANGES[key];

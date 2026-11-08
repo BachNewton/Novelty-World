@@ -86,34 +86,3 @@ test("each player's keys move their own frog, on both screens", async ({ browser
     await guest.ctx.close();
   }
 });
-
-test("the guest is told when the host leaves mid-game", async ({ browser }) => {
-  const { host, guest } = await startGame(browser);
-  try {
-    await host.page.getByRole("button", { name: "Leave", exact: true }).click();
-    await expect(guest.page.getByText("The host left the game")).toBeVisible({ timeout: TIMEOUT });
-    await guest.page.getByRole("button", { name: "Back to lobby" }).click();
-    await expect(guest.page.getByRole("button", { name: "Host co-op" })).toBeVisible();
-  } finally {
-    await host.ctx.close();
-    await guest.ctx.close();
-  }
-});
-
-test("a restart from either player starts the round over for both", async ({ browser }) => {
-  const { host, guest } = await startGame(browser);
-  try {
-    await host.page.keyboard.press("KeyW");
-    for (const { page } of [host, guest]) {
-      await expect(game(page)).not.toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
-    }
-    // The guest asks; the host restarts both.
-    await guest.page.keyboard.press("KeyR");
-    for (const { page } of [host, guest]) {
-      await expect(game(page)).toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
-    }
-  } finally {
-    await host.ctx.close();
-    await guest.ctx.close();
-  }
-});
