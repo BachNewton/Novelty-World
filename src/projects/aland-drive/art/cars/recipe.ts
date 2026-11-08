@@ -137,8 +137,11 @@ export const thirdBrake = (z: number, wide = 0.5): Decal => ({ on: "top", at: [0
  * A stretch of silhouette sampled from one fair curve through `keys`, every `stepM`, the first key included and the
  * last left for the next point: a hood, a screen, a roof and a deck as one smooth line, so no kink between hand-placed
  * points shows as a dent in the reflection. `bands` says which band runs from each z on (`undefined` for paint), and a
- * band's start is always a point. Every third point is firm, so the far model keeps the outline.
+ * band's start is always a point. A point every `FAIRED_FIRM_M` is firm, so the far model keeps the outline in its budget.
  */
+/** How far apart a faired stretch's firm points are, the ones the far model keeps. */
+const FAIRED_FIRM_M = 0.45;
+
 export function faired(keys: readonly Key[], bands: readonly (readonly [z: number, band: string | undefined])[], stepM = 0.08): SilhouettePoint[] {
   const top = curve(keys);
   const [start, end] = [keys[0][0], keys[keys.length - 1][0]];
@@ -149,7 +152,7 @@ export function faired(keys: readonly Key[], bands: readonly (readonly [z: numbe
   const starts = new Set(bands.map(([z]) => z));
   return [...at]
     .sort((a, b) => a - b)
-    .map((z, index) => ({ z, h: top(z), band: bandAt(z), fine: index % 3 !== 0 && !starts.has(z) }));
+    .map((z, index) => ({ z, h: top(z), band: bandAt(z), fine: index % Math.max(1, Math.round(FAIRED_FIRM_M / stepM)) !== 0 && !starts.has(z) }));
 }
 
 /** The hood between its front edge and the screen, as one fair curve: a kink here shows as a dent in the reflection. */

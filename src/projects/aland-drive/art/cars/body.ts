@@ -384,7 +384,7 @@ function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
   const y = h + ground;
   const back = 0.035;
   for (const side of [1, -1]) {
-    const ordered = (rings: Point[][]) => (side > 0 ? rings : [...rings].reverse());
+    const ordered = (rings: Point[][]) => (side > 0 ? [...rings].reverse() : rings);
     // A section from the top of its flat back, round the front, to the bottom of its back.
     const section = (out: number, tall: number, deep: number, lift: number): Point[] =>
       Array.from({ length: 9 }, (_, step) => {
@@ -402,7 +402,7 @@ function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
       [side * out, y + up + 0.007, z + along + 0.018],
       [side * out, y + up - 0.007, z + along + 0.018],
     ];
-    builder.rings(ordered([arm(x - 0.08, -0.06, 0.02), arm(x - 0.02, -0.035, 0.01), arm(x + 0.035, -0.012, 0)]), "paint");
+    builder.rings(ordered([arm(x - 0.02, -0.06, 0.02), arm(x + 0.01, -0.038, 0.01), arm(x + 0.04, -0.012, 0)]), "paint");
     // The glass on its flat back, standing off it.
     const glassZ = z + back + 0.006;
     const [a, b, c, d]: Point[] = [
@@ -477,7 +477,7 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
         [at, y + 0.03, z - chord - 0.03],
       ];
       const [inner, outer] = side > 0 ? [x, x + 0.012] : [x - 0.012, x];
-      builder.rings([plate(inner), plate(outer)], "paint");
+      builder.rings([plate(outer), plate(inner)], "paint");
     }
   }
   for (const side of [1, -1]) {

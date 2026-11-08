@@ -120,13 +120,13 @@ const shape: Shape = {
   ],
   blocks: [
     // A blade of the body's colour across each intake, so it reads as a shaped duct and not a hole.
-    { at: [0.955, 0.52, 0.76], size: [0.05, 0.03, 0.46], surface: "paint", mirror: true, taper: [1, 0.7] },
+    { at: [0.955, 0.52, 0.76], size: [0.05, 0.03, 0.46], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
     // The intake's lip over it and its walls at each end, standing out of the scooped flank, so it reads as a duct.
-    { at: [0.945, 0.655, 0.75], size: [0.07, 0.018, 0.5], surface: "paint", mirror: true, taper: [1, 0.6] },
-    { at: [0.93, 0.5, 0.515], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true },
-    { at: [0.92, 0.5, 0.985], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true },
+    { at: [0.945, 0.655, 0.75], size: [0.07, 0.018, 0.5], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
+    { at: [0.93, 0.5, 0.515], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true, fine: true },
+    { at: [0.92, 0.5, 0.985], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true, fine: true },
     // The corner intakes in the nose, each with a blade across it.
-    { at: [0.66, 0.32, -2.18], size: [0.14, 0.022, 0.1], surface: "paint", mirror: true },
+    { at: [0.66, 0.32, -2.18], size: [0.14, 0.022, 0.1], surface: "paint", mirror: true, fine: true },
     splitter({ z: -2.345, h: 0.26, halfWidth: 0.5, long: 0.2 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] }),
   ],
   extra: {
