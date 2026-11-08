@@ -114,7 +114,11 @@ const shape: Shape = {
     ...louvres({ x: 0.74, z: -1.08, long: 0.32, wide: 0.2, count: 5 }),
     ...louvres({ x: 0.33, z: 1.05, long: 0.75, wide: 0.16, count: 8, surface: "paint" }),
   ],
-  blocks: [splitter({ z: -2.34, h: 0.15, halfWidth: 0.62, long: 0.12 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] })],
+  blocks: [
+    // A blade of the body's colour across each intake, so it reads as a shaped duct and not a hole.
+    { at: [0.955, 0.52, 0.76], size: [0.05, 0.03, 0.46], surface: "paint", mirror: true, taper: [1, 0.7] },
+    splitter({ z: -2.34, h: 0.15, halfWidth: 0.62, long: 0.12 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] }),
+  ],
   extra: {
     bands: BANDS,
     silhouette: [
