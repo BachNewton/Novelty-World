@@ -96,7 +96,7 @@ const views = (car) => {
       { name: "hood", car, detail: "hero", camera: "hood" },
       { name: "night", car, detail: "hero", camera: [6, 1.1, -9, 0, 0.3, 0, 13], lights: { headlights: true }, night: true },
       { name: "night-rear", car, detail: "hero", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22], lights: { headlights: true, brake: true }, night: true },
-      { name: "wheel", car, detail: "hero", camera: [5, 0.45, -1.2, 0, 0.35, -1.25, 18] },
+      { name: "wheel", car, detail: "hero", camera: [3.6, -0.1, -2.7, 0.85, -0.3, -1.3, 24] },
     );
   }
   return shots;

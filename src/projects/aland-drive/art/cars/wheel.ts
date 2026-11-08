@@ -80,13 +80,15 @@ function spokesOf(style: RimStyle, count: number, hub: number, rimInner: number,
     case "blade":
       return around(count).map((a) => ({ ...dish, angle: [a, a], wide: [0.022, 0.016], steps: 1 }));
     case "split":
-      return around(count).flatMap((a) => [-0.11, 0.11].map((off): Spoke => ({ ...dish, angle: [a + off * 0.3, a + off], wide: [0.011, 0.009], steps: 1 })));
+      // A pair meets at the hub, so one of it stands a little proud of the other there and no two faces share a plane.
+      return around(count).flatMap((a) => [-0.11, 0.11].map((off, side): Spoke => ({ ...dish, face: [dish.face[0] - side * 0.005, dish.face[1] - side * 0.005], angle: [a + off * 0.3, a + off], wide: [0.011, 0.009], steps: 1 })));
     case "turbine":
       return around(count).map((a) => ({ ...dish, angle: [a, a + 0.42], wide: [0.013, 0.009], steps: 3 }));
     case "mesh":
       return around(count).flatMap((a) => [-0.32, 0.32].map((sweep, side): Spoke => ({ ...dish, face: [dish.face[0] - side * 0.006, dish.face[1] - side * 0.006], angle: [a, a + sweep], wide: [0.007, 0.006], steps: 2 })));
     case "aero":
-      return around(count).map((a) => ({ ...dish, angle: [a, a + 0.12], wide: [0.04, (Math.PI * rimInner) / count - 0.012], steps: 2 }));
+      // Each as broad as it can be beside its neighbours without touching them, from the hub to the rim.
+      return around(count).map((a) => ({ ...dish, angle: [a, a + 0.12], wide: [(Math.PI * hub) / count - 0.004, (Math.PI * rimInner) / count - 0.012], steps: 2 }));
   }
 }
 

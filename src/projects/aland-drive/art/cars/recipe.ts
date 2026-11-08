@@ -3,6 +3,7 @@ import { ROWS, type Band, type Block, type BodySpec, type Cabin, type Decal, typ
 import { rideOf, WORLD_RIDE, type CarSpec } from "./build";
 import { curve, type Key } from "./curve";
 import type { Surface } from "./mesh";
+import type { RimStyle } from "./wheel";
 
 /*
  * The one recipe every car's art is drawn on: a car is a set of numbers, where
@@ -299,6 +300,8 @@ interface SketchShape {
   rake?: number;
   spokes?: number;
   twin?: boolean;
+  /** The rim's design: what `twin` picks between when it isn't given. */
+  style?: RimStyle;
   rim?: number;
   belt?: number;
   flare?: number;
@@ -464,7 +467,7 @@ export function sketched(car: Sketch): CarSpec {
     paint: car.paint,
     livery: car.livery,
     body: bodyOf(shape),
-    wheel: { radiusM: radius, widthM: tyre, rimShare: car.rim ?? 0.66, spokes: car.spokes ?? 5, twinSpokes: car.twin ?? false },
+    wheel: { radiusM: radius, widthM: tyre, rimShare: car.rim ?? 0.66, spokes: car.spokes ?? 5, twinSpokes: car.twin ?? false, style: car.style },
     shadowHalf: [w, tailZ],
   };
 }
