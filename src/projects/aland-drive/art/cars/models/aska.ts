@@ -4,8 +4,13 @@ import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, handles, plates, type Shape } from "../recipe";
 
 const ASKA = driven("aska");
-const { sill, sillTop, belt, windowBase, rail, roofOuter, roofInner, centre } = ROWS;
+const { sill, sillTop, belt, windowBase, rail, roofInner, centre } = ROWS;
 const ALL = centre + 1;
+
+/*
+ * Every band starts and ends on a row the far model has too (`build.ts`, `FAR`), so the far version's dark shapes are
+ * the near one's.
+ */
 
 /**
  * Tärna's signature: a line of light the whole width of each end, turned down at its outer ends into a short fang,
@@ -14,19 +19,19 @@ const ALL = centre + 1;
 const BANDS: Readonly<Record<string, readonly Band[]>> = {
   bumper: [{ surface: "cladding", from: sill, to: ALL }],
   /** Two intakes either side of a painted nose. */
-  mouth: [{ surface: "grille", from: sillTop, to: roofOuter }],
+  mouth: [{ surface: "grille", from: sillTop, to: rail }],
   gap: [{ surface: "gap", from: belt, to: ALL }],
-  headDark: [{ surface: "trim", from: belt, to: roofOuter }],
+  headDark: [{ surface: "trim", from: belt, to: rail }],
   headLamp: [{ surface: "lensHead", from: windowBase, to: ALL }],
   cowl: [{ surface: "trim", from: belt, to: ALL }],
   screen: [{ surface: "glass", from: rail, to: ALL }],
   rearGlass: [{ surface: "glass", from: rail, to: ALL }],
   /** The engine cover: a painted spine between two dark vents, which the louvres cross. */
-  deck: [{ surface: "grille", from: roofOuter, to: roofInner }],
+  deck: [{ surface: "grille", from: rail, to: roofInner }],
   tailDark: [{ surface: "trim", from: belt, to: ALL }],
   tailBar: [{ surface: "lensTail", from: windowBase, to: ALL }],
   /** The tail's mesh, the engine behind it. */
-  mesh: [{ surface: "grille", from: roofOuter, to: ALL }],
+  mesh: [{ surface: "grille", from: rail, to: ALL }],
   diffuser: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
@@ -109,7 +114,7 @@ const shape: Shape = {
     ...louvres({ x: 0.74, z: -1.08, long: 0.32, wide: 0.2, count: 5 }),
     ...louvres({ x: 0.33, z: 1.05, long: 0.75, wide: 0.16, count: 8, surface: "paint" }),
   ],
-  blocks: [splitter({ z: -2.36, h: 0.15, halfWidth: 0.8, long: 0.13 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] })],
+  blocks: [splitter({ z: -2.34, h: 0.15, halfWidth: 0.62, long: 0.12 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] })],
   extra: {
     bands: BANDS,
     silhouette: [
