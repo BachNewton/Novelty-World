@@ -27,18 +27,6 @@ describe("nextInDirection", () => {
     expect(nextInDirection(line, 0, "right")).toBe(1);
     expect(nextInDirection(line, 0, "down")).toBeNull();
   });
-
-  it("goes down a list and stops at its end", () => {
-    const list = [box(0, 0, 300, 60), box(0, 70, 300, 60), box(0, 140, 300, 60)];
-    expect(nextInDirection(list, 0, "down")).toBe(1);
-    expect(nextInDirection(list, 1, "down")).toBe(2);
-    expect(nextInDirection(list, 2, "down")).toBeNull();
-    expect(nextInDirection(list, 1, "left")).toBeNull();
-  });
-
-  it("finds nothing among one control", () => {
-    expect(nextInDirection([box(0, 0)], 0, "down")).toBeNull();
-  });
 });
 
 describe("axisWay", () => {

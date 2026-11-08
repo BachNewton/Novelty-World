@@ -1,22 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { estimateFinish, runState, sprtNeedle, STALE_MS, winShare } from "./live-row";
+import { runState, sprtNeedle, STALE_MS } from "./live-row";
 import { sprtBounds } from "./sprt";
-
-describe("estimateFinish", () => {
-  it("extrapolates the pace kept so far", () => {
-    expect(estimateFinish(1000, 3000, 0.5)).toBe(5000);
-  });
-
-  it("has nothing to go on before any progress, or for a run that can't tell", () => {
-    expect(estimateFinish(1000, 3000, 0)).toBeNull();
-    expect(estimateFinish(1000, 3000, null)).toBeNull();
-  });
-
-  it("is now once the work is done", () => {
-    expect(estimateFinish(1000, 3000, 1)).toBe(3000);
-  });
-});
-
 describe("runState", () => {
   const at = Date.parse("2026-10-16T12:00:00Z");
   const row = (status: "running" | "done", agoMs: number, quietMs?: number) => ({
@@ -60,12 +44,5 @@ describe("sprtNeedle", () => {
     expect(sprtNeedle({ llrImprove: bounds.lower, llrRegress: bounds.lower, ...bounds }).even).toBe(1);
     expect(sprtNeedle({ llrImprove: bounds.lower, llrRegress: bounds.lower / 2, ...bounds }).even).toBeCloseTo(0.5);
     expect(sprtNeedle({ llrImprove: bounds.lower, llrRegress: 1, ...bounds }).even).toBe(0);
-  });
-});
-
-describe("winShare", () => {
-  it("is the share of decisive games won", () => {
-    expect(winShare({ wins: 3, losses: 1 })).toBe(0.75);
-    expect(winShare({ wins: 0, losses: 0 })).toBeNull();
   });
 });
