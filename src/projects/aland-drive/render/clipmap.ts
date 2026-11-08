@@ -1,7 +1,8 @@
-import { BufferAttribute, BufferGeometry, DataArrayTexture, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Object3D, type Scene, type Vector3 } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, DataArrayTexture, DataTexture, FloatType, Frustum, Matrix4, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Camera, type Node, type Object3D, type Plane, type Scene, type Vector3 } from "three/webgpu";
 import { abs, float, floor, If, int, ivec2, max, min, mix, mod, positionGeometry, positionWorld, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { sharedUniform } from "../art/shared-uniform";
 import { patchIndices } from "./tile";
+import { MEAN_HEIGHT } from "./tree-place";
 import type { World } from "../sim/world";
 
 /*
@@ -30,6 +31,15 @@ import type { World } from "../sim/world";
  * on the same triangles, so the shore is where the two cross and a pixel's depth is
  * exact. Only the near rings draw it: farther out the ground's own colour says it's
  * under water, and a few metres of depth no longer shift anything on screen.
+ *
+ * A ring surrounds the camera, so most of it is behind the view, and its vertices
+ * are the dearest in the frame (each reads the heights, the water and the shore for
+ * itself and the coarser lattice). So a ring's cells are laid in its index buffer by
+ * sector, eighths of the way round its centre, and the same again after, and each
+ * frame a ring draws the one stretch that holds the sectors the camera's four sides
+ * can see, tested on each sector's outline at the lowest and highest the ground is
+ * drawn. What's drawn where the view is never changes: a sector in view is drawn
+ * whole, so the proof is pixel-identical frames.
  */
 
 /** A ring's width in its own cells. A multiple of four, so the hole for the ring within lands on whole cells. */
@@ -43,24 +53,121 @@ const FOLD_STARTS = 0.75;
 const WATER_RINGS = 2;
 /** Where a ring's node has no water near, how far under the ground its water mesh hides. */
 const DRY_WATER_BELOW_M = 1;
+/** The sectors a ring is drawn by: eighths of the way round its centre. */
+const SECTORS = 8;
+/** The lowest and highest the ground is drawn before the canopy's lift, as the forest bounds it. */
+const GROUND_M = [-10, 225] as const;
 
 const nodeStride = (level: number) => 2 ** level;
 
-/** The cells of a ring, leaving the middle for the ring within, which can sit a cell either way off centre. */
-function ringIndices(holeColumn: number, holeRow: number): Uint32Array {
+/** Which sector a cell's middle lies in, round the ring's centre. */
+function sectorOf(column: number, row: number): number {
+  const angle = Math.atan2(row + 0.5 - CELLS / 2, column + 0.5 - CELLS / 2);
+  return Math.floor(((angle + Math.PI) / (2 * Math.PI)) * SECTORS) % SECTORS;
+}
+
+type Corner = [x: number, z: number];
+
+/** The convex outline round some points (Andrew's monotone chain), counter-clockwise. */
+function hullOf(points: readonly Corner[]): Corner[] {
+  const sorted = [...new Map(points.map((point) => [`${String(point[0])},${String(point[1])}`, point])).values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: Corner, a: Corner, b: Corner) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const chain = (ordered: readonly Corner[]) => {
+    const kept: Corner[] = [];
+    for (const point of ordered) {
+      while (kept.length >= 2 && turn(kept[kept.length - 2], kept[kept.length - 1], point) <= 0) kept.pop();
+      kept.push(point);
+    }
+    kept.pop();
+    return kept;
+  };
+  return [...chain(sorted), ...chain([...sorted].reverse())];
+}
+
+export interface SectoredCells {
+  /** Every kept cell's two triangles, sector by sector, then all of them again, so any run of sectors round the ring is one stretch of it. */
+  indices: Uint32Array;
+  /** Where each sector's triangles start in the first copy, and where the last sector's end. */
+  starts: number[];
+  /** Each sector's outline round its cells, in cells from the ring's first node. */
+  hulls: Corner[][];
+}
+
+/** The cells of a ring that `keep` says are drawn, by sector. */
+export function sectoredCells(keep: (column: number, row: number) => boolean): SectoredCells {
   const whole = patchIndices(CELLS);
-  const kept = new Uint32Array(whole.length);
-  let next = 0;
-  const hole = CELLS / 2;
+  const cells = Array.from({ length: SECTORS }, () => [] as number[]);
+  // A sector's outline is held by its first and last cell of each row.
+  const edges = Array.from({ length: SECTORS }, () => new Map<number, [first: number, last: number]>());
   for (let row = 0; row < CELLS; row++) {
     for (let column = 0; column < CELLS; column++) {
-      if (column >= holeColumn && column < holeColumn + hole && row >= holeRow && row < holeRow + hole) continue;
-      const at = (row * CELLS + column) * 6;
-      kept.set(whole.subarray(at, at + 6), next);
-      next += 6;
+      if (!keep(column, row)) continue;
+      const sector = sectorOf(column, row);
+      cells[sector].push(row * CELLS + column);
+      const edge = edges[sector].get(row);
+      if (edge === undefined) edges[sector].set(row, [column, column]);
+      else edge[1] = column;
     }
   }
-  return kept.slice(0, next);
+  const kept = cells.reduce((sum, sector) => sum + sector.length, 0) * 6;
+  const indices = new Uint32Array(kept * 2);
+  const starts = [0];
+  let next = 0;
+  for (const sector of cells) {
+    for (const cell of sector) {
+      indices.set(whole.subarray(cell * 6, cell * 6 + 6), next);
+      next += 6;
+    }
+    starts.push(next);
+  }
+  indices.set(indices.subarray(0, kept), kept);
+  const hulls = edges.map((rows) => hullOf([...rows].flatMap(([row, [first, last]]): Corner[] => [[first, row], [last + 1, row], [first, row + 1], [last + 1, row + 1]])));
+  return { indices, starts, hulls };
+}
+
+/** The ring's cells, leaving the middle for the ring within, which can sit a cell either way off centre. */
+const ringCells = (holeColumn: number, holeRow: number) => sectoredCells((column, row) => !(column >= holeColumn && column < holeColumn + CELLS / 2 && row >= holeRow && row < holeRow + CELLS / 2));
+
+export interface SectorRange {
+  first: number;
+  count: number;
+}
+
+/** The shortest run of sectors round the ring that holds every one seen, into `range`: what's left after the longest run of sectors not seen. */
+export function sectorRange(seen: readonly boolean[], range: SectorRange): SectorRange {
+  const total = seen.length;
+  let longest = 0;
+  let first = 0;
+  for (let start = 0; start < total; start++) {
+    if (seen[start] || !seen[(start + total - 1) % total]) continue;
+    let length = 0;
+    while (length < total && !seen[(start + length) % total]) length++;
+    if (length > longest) {
+      longest = length;
+      first = (start + length) % total;
+    }
+  }
+  if (longest === 0 && !seen.some(Boolean)) longest = total;
+  range.first = first;
+  range.count = total - longest;
+  return range;
+}
+
+/** Whether a view's side planes can see any of a sector: its outline at the ground's lowest and highest, pushed out by the margin. */
+function sectorSeen(sides: readonly Plane[], hull: readonly Corner[], originX: number, originZ: number, stepM: number, low: number, high: number, marginM: number): boolean {
+  for (let side = 0; side < 4; side++) {
+    const { normal, constant } = sides[side];
+    let outside = true;
+    for (const [column, row] of hull) {
+      const flat = normal.x * (originX + column * stepM) + normal.z * (originZ + row * stepM) + constant + marginM;
+      if (flat + normal.y * low >= 0 || flat + normal.y * high >= 0) {
+        outside = false;
+        break;
+      }
+    }
+    if (outside) return false;
+  }
+  return true;
 }
 
 interface Ring {
@@ -88,8 +195,8 @@ interface Ring {
 export interface Clipmap {
   /** Shows or hides the rings only the world map needs. */
   showWide: (shown: boolean) => void;
-  /** Moves the rings to the camera, copying heights where they moved or the world's changed. */
-  update: (camera: Vector3) => void;
+  /** Moves the rings to the spot, copying heights where they moved or the world's changed, and draws of each the sectors the camera can see. */
+  update: (spot: Vector3, camera: Camera) => void;
   /** The height of the ring's nearest node to a place: for a shader to stand something on the ground. */
   groundAt: (level: number, place: Node<"vec2">) => Node<"float">;
   /** The same ground read between the ring's four nearest nodes, so it follows a slope. */
@@ -136,13 +243,21 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   }
   const position = new BufferAttribute(positions, 3);
   const quarter = CELLS / 4;
-  // Each ring draws one stretch of this, by where its hole falls. A mesh or a geometry per hole would mean new render
-  // objects as the camera first moves each ring's hole, and each of those stalls a frame while three builds it.
-  const holes = [0, 1].flatMap((rowShift) => [0, 1].map((columnShift) => ringIndices(quarter + columnShift, quarter + rowShift)));
-  const holeIndices = holes[0].length;
-  const ringIndex = new BufferAttribute(Uint32Array.from(holes.flatMap((hole) => [...hole])), 1);
-  const solid = new BufferAttribute(patchIndices(CELLS), 1);
+  // Each ring draws one stretch of this, by where its hole falls and which sectors are in view. A mesh or a geometry per
+  // hole would mean new render objects as the camera first moves each ring's hole, and each of those stalls a frame
+  // while three builds it.
+  const holes = [0, 1].flatMap((rowShift) => [0, 1].map((columnShift) => ringCells(quarter + columnShift, quarter + rowShift)));
+  const holeIndices = holes[0].indices.length;
+  const ringIndex = new BufferAttribute(Uint32Array.from(holes.flatMap((hole) => [...hole.indices])), 1);
+  const solidCells = sectoredCells(() => true);
+  const solid = new BufferAttribute(solidCells.indices, 1);
   const geometries: BufferGeometry[] = [];
+  const view = new Frustum();
+  const viewProjection = new Matrix4();
+  const seen: boolean[] = Array.from({ length: SECTORS }, () => false);
+  const range: SectorRange = { first: 0, count: 0 };
+  // The canopy lifts the far ground by up to the tallest canopy the image can hold, at the forest's height over it.
+  const highestM = GROUND_M[1] + 255 * world.manifest.canopy.unitM * MEAN_HEIGHT;
 
   const cameraSpot = sharedUniform(new Vector2());
   const materials: MeshBasicNodeMaterial[] = [];
@@ -353,16 +468,19 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
     showWide(shown) {
       for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;
     },
-    update(camera) {
-      cameraSpot.value.set(camera.x, camera.z);
+    update(spot, camera) {
+      cameraSpot.value.set(spot.x, spot.z);
+      // The renderer brings the camera's matrices up to date only as it draws.
+      camera.updateMatrixWorld();
+      view.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
       let inside: Ring | null = null;
       // Far data landing changes every ring, and copying them all at once would cost a frame: one ring a frame instead.
       let farCopyDone = false;
       rings.forEach((ring, level) => {
         const stride = nodeStride(level);
         // Snapped to twice the ring's own step, so its vertices with even indices are the next ring's.
-        const centreColumn = Math.floor(camera.x / (2 * ring.stepM)) * 2 * stride;
-        const centreRow = Math.floor(camera.z / (2 * ring.stepM)) * 2 * stride;
+        const centreColumn = Math.floor(spot.x / (2 * ring.stepM)) * 2 * stride;
+        const centreRow = Math.floor(spot.z / (2 * ring.stepM)) * 2 * stride;
         const column = centreColumn - (CELLS / 2) * stride;
         const row = centreRow - (CELLS / 2) * stride;
         // From the far grid's step up, a ring reads the same heights with or without detail.
@@ -376,13 +494,24 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
           ring.farRevision = world.farRevision;
           copyHeights(ring, level);
         }
+        let cells = solidCells;
+        let from = 0;
         if (inside) {
           const shiftColumn = (inside.column - ring.column) / stride - quarter;
           const shiftRow = (inside.row - ring.row) / stride - quarter;
-          // The water mesh shares the geometry, and with it the draw range.
-          ring.mesh.geometry.setDrawRange((shiftRow * 2 + shiftColumn) * holeIndices, holeIndices);
+          cells = holes[shiftRow * 2 + shiftColumn];
+          from = (shiftRow * 2 + shiftColumn) * holeIndices;
         }
         inside = ring;
+        // One cell of margin covers the rounding between this test and the GPU's clipping. The water mesh shares the
+        // geometry, and with it the draw range.
+        const { x: originX, y: originZ } = ring.origin.value;
+        for (let sector = 0; sector < SECTORS; sector++) seen[sector] = sectorSeen(view.planes, cells.hulls[sector], originX, originZ, ring.stepM, GROUND_M[0], highestM, ring.stepM);
+        sectorRange(seen, range);
+        const once = cells.starts[SECTORS];
+        const start = cells.starts[range.first];
+        const end = range.first + range.count <= SECTORS ? cells.starts[range.first + range.count] : once + cells.starts[range.first + range.count - SECTORS];
+        ring.mesh.geometry.setDrawRange(from + start, end - start);
       });
     },
     dispose() {

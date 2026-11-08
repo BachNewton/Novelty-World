@@ -276,7 +276,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     }
     stream.update(camera.position.x, camera.position.z);
     layers.uploadStep();
-    clipmap.update(spot);
+    clipmap.update(spot, camera);
     lodSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
     renderer.render(scene, camera);

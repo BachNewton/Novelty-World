@@ -2482,7 +2482,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
-    clipmap.update(spot);
+    clipmap.update(spot, camera);
     cameraSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
     for (const clearing of Object.values(wallClearings)) clearing.update(spot);
