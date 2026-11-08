@@ -2,7 +2,7 @@ import { ROWS, type Band } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { diffuser, louvres, sideIntake, splitter } from "../parts";
-import { bodyOf, driven, handles, plates, reversing, thirdBrake, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, reversing, thirdBrake, type Shape } from "../recipe";
 
 const ORKAN = driven("orkan");
 const { sillTop, belt, rail, centre } = ROWS;
@@ -119,9 +119,14 @@ const shape: Shape = {
   blocks: [
     // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
     { at: [0, 0.375, -2.33], size: [1.0, 0.024, 0.06], surface: "paint", taper: [1, 1] },
-    splitter({ z: -2.38, h: 0.19, halfWidth: 0.56, long: 0.1 }),
-    // A blade of the body's colour along each fender vent.
-    { at: [0.962, 0.58, -0.78], size: [0.04, 0.022, 0.28], surface: "paint", mirror: true, taper: [1, 0.7] },
+    splitter({ z: -2.36, h: 0.21, halfWidth: 0.56, long: 0.12 }),
+    // Each fender vent as a duct: a blade of the body's colour along it, a lip over it and a wall at each end.
+    { at: [0.962, 0.58, -0.78], size: [0.04, 0.022, 0.28], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
+    { at: [0.955, 0.64, -0.78], size: [0.06, 0.016, 0.3], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
+    { at: [0.95, 0.58, -0.915], size: [0.05, 0.11, 0.014], surface: "paint", mirror: true, fine: true },
+    { at: [0.95, 0.58, -0.645], size: [0.05, 0.11, 0.014], surface: "paint", mirror: true, fine: true },
+    // A blade across each brake-cooling inlet in the nose's corners.
+    { at: [0.72, 0.31, -2.2], size: [0.15, 0.02, 0.1], surface: "paint", mirror: true, fine: true },
     ...diffuser({ z: 2.02, tailZ: 2.3, h: 0.22, x: [0.2, 0.42] }),
   ],
   extra: {
@@ -136,20 +141,36 @@ const shape: Shape = {
       { z: -2.32, h: 0.497, band: "visor" },
       { z: -2.314, h: 0.511, band: "stroke" },
       { z: -2.306, h: 0.53, band: "visor" },
-      { z: -2.29, h: 0.56 },
-      { z: -2.2, h: 0.595, fine: true },
-      { z: -2.0, h: 0.645 },
-      { z: -1.7, h: 0.705, fine: true },
-      { z: -1.3, h: 0.765 },
-      { z: -0.9, h: 0.815, fine: true },
-      { z: -0.55, h: 0.852 },
+      // The hood, then the screen, roof, rear glass and deck, each as one fair line.
+      ...faired(
+        [
+          [-2.29, 0.56],
+          [-2.0, 0.645],
+          [-1.3, 0.765],
+          [-0.55, 0.852],
+          [-0.32, 0.874],
+        ],
+        [[-2.29, undefined]],
+      ),
       { z: -0.32, h: 0.874, band: "cowl" },
-      { z: -0.26, h: 0.885, band: "screen" },
-      { z: 0.3, h: 1.2 },
-      { z: 0.62, h: 1.275 },
-      { z: 1.08, h: 1.25, band: "rearGlass" },
-      { z: 1.85, h: 0.98 },
-      { z: 2.06, h: 0.95, fine: true },
+      ...faired(
+        [
+          [-0.26, 0.885],
+          [0.05, 1.075],
+          [0.3, 1.2],
+          [0.62, 1.275],
+          [1.08, 1.25],
+          [1.5, 1.125],
+          [1.85, 0.985],
+          [2.2, 0.935],
+        ],
+        [
+          [-0.26, "screen"],
+          [0.3, undefined],
+          [1.08, "rearGlass"],
+          [1.85, undefined],
+        ],
+      ),
       { z: 2.2, h: 0.935 },
       { z: 2.24, h: 0.93, band: "gap" },
       { z: 2.25, h: 0.92, band: "visor" },
@@ -163,10 +184,10 @@ const shape: Shape = {
       { z: 2.33, h: 0.21 },
     ],
     crown: [
-      [-2.345, 0.0],
-      [-1.9, -0.05],
-      [-1.3, -0.07],
-      [-0.5, -0.03],
+      [-2.345, -0.02],
+      [-1.9, -0.08],
+      [-1.3, -0.11],
+      [-0.6, -0.07],
       [-0.2, 0.04],
       [0.6, 0.06],
       [1.42, 0.0],
