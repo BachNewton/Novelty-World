@@ -253,14 +253,16 @@ export const virvel: CarSpec = {
   body: bodyOf(shape),
   wheel: { radiusM: VIRVEL.wheelRadiusM, widthM: 0.29, rimShare: 0.75, spokes: 5, twinSpokes: true, style: "split" },
   shadowHalf: [1.0, 2.26],
-  // Tärna's sporting cabin: two dials and a screen between them, a flat-bottomed wheel, carbon with tan leather and
-  // Tärna blue round the dials and vents, and a dark headliner so the pillars framing the screen don't glare grey.
+  // Tärna's sporting cabin: one big analogue rev counter with the speed and gear in figures beside it (clear of the
+  // column, which hid the analogue pair's gear window), a flat-bottomed wheel, carbon with tan leather and Tärna blue
+  // round the dials and vents, a dark headliner, and the eye a little lower so the low roof is a band, not a lid.
   interior: {
-    gauges: "analogue",
+    gauges: "race",
     wheel: "flat",
     seats: "bucket",
     screen: true,
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", accent: "car-cabin-tarna", glow: "car-cabin-glow-amber" },
     turnsToLock: 1.2,
+    eye: [0, -0.025, 0],
   },
 };
