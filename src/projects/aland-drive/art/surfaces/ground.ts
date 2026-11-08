@@ -1,4 +1,4 @@
-import { dot, float, max, min, mix, smoothstep, texture, vec2, vec3 } from "three/tsl";
+import { dot, float, Fn, If, max, min, mix, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
 import type { Tiled } from "./tiled";
 
@@ -97,32 +97,39 @@ export function rockFloor(floor: Node<"vec3">, rockColour: Node<"vec3">, rock: N
 }
 
 export function groundDetail({ tiled, toCamera, photo, roadNearby, litterColour, rock, fields, rockColour, stonesColour, detail }: GroundInput): Node<"vec3"> {
-  const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
-  const coarse = texture(detail, tiled(COARSE_M));
-  const fine = texture(detail, tiled(FINE_M).add(vec2(0.37, 0.11)));
-  const drift = texture(detail, tiled(DRIFT_M)).a.sub(0.5).mul(0.05);
-  const mottled = texture(detail, tiled(MOTTLE_M));
+  return Fn(() => {
+    const shown = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera)).toVar();
+    const drift = texture(detail, tiled(DRIFT_M)).a.sub(0.5).mul(0.05);
+    const kinds = groundKinds(photo, drift);
+    const { grassShare } = kinds;
+    const field = smoothstep(float(0.2), float(0.6), fields).toVar();
+    const floor = rockFloor(groundFloor(photo, litterColour, kinds), rockColour, rock, grassShare);
+    const stony = mix(floor, toned(floor, stonesColour, ROCK_BRIGHTEST).mul(FIELD_BRIGHTNESS), field.mul(FIELD_TONE)).toVar();
 
-  const kinds = groundKinds(photo, drift);
-  const { grassShare } = kinds;
-  const stoneShare = max(kinds.stoneShare, rock.mul(float(1).sub(grassShare)).mul(MAPPED_ROCK));
-  const earthShare = float(1).sub(grassShare).sub(stoneShare).max(0);
-  const gravelShare = smoothstep(float(0.04), float(0.2), roadNearby);
+    // The relief is read and worked out only where it shows: past its fade it is exactly nothing, and the ground is the floor.
+    const relief = float(0).toVar();
+    const bladeTint = vec3(1).toVar();
+    If(shown.greaterThan(0), () => {
+      const coarse = texture(detail, tiled(COARSE_M));
+      const fine = texture(detail, tiled(FINE_M).add(vec2(0.37, 0.11)));
+      const mottled = texture(detail, tiled(MOTTLE_M));
+      const stoneShare = max(kinds.stoneShare, rock.mul(float(1).sub(grassShare)).mul(MAPPED_ROCK));
+      const earthShare = float(1).sub(grassShare).sub(stoneShare).max(0);
+      const gravelShare = smoothstep(float(0.04), float(0.2), roadNearby);
 
-  // Rock's cracks are clipped off here: only its broad folds are wanted, as light and dark patches of grass.
-  const tufts = mottled.a.sub(0.5).mul(0.5).add(mottled.b.max(0.32).sub(0.5).mul(0.7));
-  const grassRelief = coarse.r.mul(0.5).add(fine.r.mul(0.5)).mul(2).sub(1).mul(STRENGTH.grass).add(tufts);
-  const earthRelief = coarse.a.mul(0.45).add(fine.a.mul(0.55)).mul(2).sub(1).mul(STRENGTH.soil);
-  const rockRelief = coarse.b.max(0.2).mul(0.7).add(fine.b.max(0.2).mul(0.3)).mul(2).sub(1).mul(STRENGTH.rock);
-  const gravelRelief = coarse.g.mul(0.35).add(fine.g.mul(0.65)).mul(2).sub(1).mul(STRENGTH.gravel);
-  const stoneRelief = mix(rockRelief, gravelRelief, gravelShare);
+      // Rock's cracks are clipped off here: only its broad folds are wanted, as light and dark patches of grass.
+      const tufts = mottled.a.sub(0.5).mul(0.5).add(mottled.b.max(0.32).sub(0.5).mul(0.7));
+      const grassRelief = coarse.r.mul(0.5).add(fine.r.mul(0.5)).mul(2).sub(1).mul(STRENGTH.grass).add(tufts);
+      const earthRelief = coarse.a.mul(0.45).add(fine.a.mul(0.55)).mul(2).sub(1).mul(STRENGTH.soil);
+      const rockRelief = coarse.b.max(0.2).mul(0.7).add(fine.b.max(0.2).mul(0.3)).mul(2).sub(1).mul(STRENGTH.rock);
+      const gravelRelief = coarse.g.mul(0.35).add(fine.g.mul(0.65)).mul(2).sub(1).mul(STRENGTH.gravel);
+      const stoneRelief = mix(rockRelief, gravelRelief, gravelShare);
 
-  const field = smoothstep(float(0.2), float(0.6), fields);
-  const stones = texture(detail, tiled(STONES_M)).g.mul(0.65).add(texture(detail, tiled(STONES_M * 0.41).add(vec2(0.23, 0.71))).g.mul(0.35)).mul(2).sub(1).mul(STRENGTH.stones);
-  const relief = mix(grassRelief.mul(grassShare).add(earthRelief.mul(earthShare)).add(stoneRelief.mul(stoneShare)), stones, field).mul(shown);
-  // Close up, tips take yellow and roots blue-green from the same relief, so the colour isn't one flat wash.
-  const bladeTint = mix(vec3(1), vec3(1).add(vec3(0.2, 0.12, -0.3).mul(relief)), grassShare.mul(float(1).sub(field)));
-  const floor = rockFloor(groundFloor(photo, litterColour, kinds), rockColour, rock, grassShare);
-  const stony = mix(floor, toned(floor, stonesColour, ROCK_BRIGHTEST).mul(FIELD_BRIGHTNESS), field.mul(FIELD_TONE));
-  return stony.mul(relief.add(1).max(0.05)).mul(bladeTint);
+      const stones = texture(detail, tiled(STONES_M)).g.mul(0.65).add(texture(detail, tiled(STONES_M * 0.41).add(vec2(0.23, 0.71))).g.mul(0.35)).mul(2).sub(1).mul(STRENGTH.stones);
+      relief.assign(mix(grassRelief.mul(grassShare).add(earthRelief.mul(earthShare)).add(stoneRelief.mul(stoneShare)), stones, field).mul(shown));
+      // Close up, tips take yellow and roots blue-green from the same relief, so the colour isn't one flat wash.
+      bladeTint.assign(mix(vec3(1), vec3(1).add(vec3(0.2, 0.12, -0.3).mul(relief)), grassShare.mul(float(1).sub(field))));
+    });
+    return stony.mul(relief.add(1).max(0.05)).mul(bladeTint);
+  })();
 }

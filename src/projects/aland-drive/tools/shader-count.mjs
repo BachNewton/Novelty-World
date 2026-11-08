@@ -1,7 +1,8 @@
 // What a cold game page compiles: every WebGPU shader module and pipeline it builds, from the device's own calls, up to
 // the drive settled on the e2e fixture tile. Counts, not times: the same on every run whatever the machine's load.
 // Prints the render and compute pipelines, the modules, the WGSL in the unique modules and summed over the pipelines
-// that use each (each pipeline compiles its own), and the biggest modules with how many pipelines use them.
+// that use each (each pipeline compiles its own), the biggest modules with how many pipelines use them, and every
+// module that reads a node variable where the branch that set it may not have run (`unset-reads.mjs`).
 //
 // Prereq: a dev server. Usage:
 //   node src/projects/aland-drive/tools/shader-count.mjs [--dump=<folder>]
@@ -12,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openGame } from "./game-page.mjs";
 import { serveTiles } from "./serve-tiles.mjs";
+import { describeUnsetReads } from "./unset-reads.mjs";
 
 const option = (name) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
 const DUMP = option("dump");
@@ -94,6 +96,15 @@ for (const pipeline of pipelines) {
 }
 console.log("\nrender pipelines by vertex inputs: pipelines, compiled in all");
 [...families].sort((a, b) => b[1].chars - a[1].chars).forEach(([name, { count: many, chars: all }]) => console.log(`  ${String(many).padStart(3)}  ${k(all).padStart(9)}  ${name}`));
+
+// A node two branches share is written in the first and read, silently zero, in the second (`unset-reads.mjs`).
+const unset = modules.map((code, id) => ({ id, lines: describeUnsetReads(code) })).filter(({ lines }) => lines.length > 0);
+const labelsOf = (id) => pipelines.filter((pipeline) => pipeline.modules.includes(id)).map((pipeline) => pipeline.label.replace(/^(render|compute)Pipeline_/, "").replace(/_\d+$/, ""));
+console.log(`\nmodules reading a node variable where its branch may not have run: ${unset.length}`);
+for (const { id, lines } of unset) {
+  console.log(`  #${id} (${labelsOf(id).join(", ") || "no pipeline"})`);
+  for (const line of lines) console.log(`    ${line}`);
+}
 
 if (DUMP) {
   mkdirSync(DUMP, { recursive: true });

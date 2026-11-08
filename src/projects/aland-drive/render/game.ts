@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, Fn, fwidth, greaterThanEqual, If, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { orderScene } from "./draw-order";
 import { startFreeCamera, type View } from "./free-camera";
@@ -791,8 +791,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const worldUv = positionWorld.xz.div(tileM);
   const pixelTile = worldUv.floor();
   const imageUv = worldUv.sub(pixelTile);
-  const gradientX = dFdx(worldUv);
-  const gradientY = dFdy(worldUv);
+  // Each read takes its own derivatives: a pair every read shared would be written in the first branch that read it
+  // and be nothing in the others (`tools/unset-reads.mjs`), and nothing short of a read keeps a node ahead of the branches.
+  const gradients = () => [dFdx(worldUv), dFdy(worldUv)] as const;
   const mapPlace = pixelTile.sub(vec2(layers.mapColumn, layers.mapRow));
   const inMap = all(greaterThanEqual(mapPlace, vec2(0, 0))).and(all(lessThan(mapPlace, vec2(layers.mapColumns, layers.mapRows))));
   const mapClamped = ivec2(mapPlace.clamp(vec2(0, 0), vec2(layers.mapColumns - 1, layers.mapRows - 1)));
@@ -800,7 +801,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const farLayer = int(slots.r.mul(255).round().sub(1).max(0));
   const nearSlot = slots.g.mul(255).round();
   const nearLayer = int(nearSlot.sub(1).max(0));
-  const sampled = (map: Texture, layer: Node<"int">) => texture(map, imageUv).depth(layer).grad(gradientX, gradientY);
+  const sampled = (map: Texture, layer: Node<"int">) => texture(map, imageUv).depth(layer).grad(...gradients());
 
   // Detail is worked out from here, not from the camera, so a camera lifted to the world map changes nothing it stands on.
   const detailSpot = uniform(new Vector3());
@@ -839,7 +840,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const light = lightOf(shade);
   const mask = sampled(layers.mask, farLayer);
   const photo = mix(sampled(layers.groundFar, farLayer), sampled(layers.groundNear, nearLayer), nearShare);
-  const roadNearby = texture(layers.mask, imageUv).depth(farLayer).grad(gradientX.mul(8), gradientY.mul(8));
+  const [coarseX, coarseY] = gradients();
+  const roadNearby = texture(layers.mask, imageUv).depth(farLayer).grad(coarseX.mul(8), coarseY.mul(8));
   const linear = (name: string) => {
     const { r, g, b } = token(name);
     return new Vector3(r, g, b);
@@ -910,25 +912,48 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // The world's clock for what moves on its own whatever the car does, the ripples and the traffic lights: the game's,
   // moved a frame at a time and held by the probe's hold, never the renderer's, so a held frame is the same frame.
   const worldClock = uniform(0);
-  const waterOf = createWater({ colour: colorOf, sun, clock: worldClock, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  // Two of the water, one for the tiles' and one for the open sea past them: the terrain's shader reads them in branches
+  // a pixel takes one of (`terrainColour`), and a node two branches share is written in the first and read unset in the
+  // second. The ice is looked up twice for the same reason.
+  const waterNear = createWater({ colour: colorOf, sun, clock: worldClock, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  const waterFar = createWater({ colour: colorOf, sun, clock: worldClock, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
   // The sea ice, on every water the terrain, its water rings and the sea plane draw (`render/sea-ice.ts`), and under the car.
   const seaIce = createSeaIce(iceExposure, season);
-  const iceHere = seaIce.lookAt(positionWorld.xz);
+  const iceNear = seaIce.lookAt(positionWorld.xz);
+  const iceFar = seaIce.lookAt(positionWorld.xz);
   world.setIceDrivable(season.current().iceDrivable);
   world.setPlacedSeason(season.current());
-  const openSea = waterOf.colorFor(shoreOfLand(texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a.mul(inOverview)), iceHere);
+  const openSea = waterFar.colorFor(shoreOfLand(texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a.mul(inOverview)), iceFar);
   const openSeaInLand = seaInLand(night, openSea);
   const pastTiles = mix(openSeaInLand, snowOnGround(overviewPixel.rgb.pow(vec3(2.2)), snow, { place: positionWorld.xz, up: vec3(0, 1, 0), photo: overviewPixel.rgb.pow(vec3(2.2)), rock: float(0), roads: float(0), paved: float(0), toCamera, far: true }).mul(lightOf(float(FLAT_LIGHT).pow(1 / manifest.shade.gamma))), overviewPixel.a.mul(inOverview));
-  const waterColour = (depth: Node<"float">) => waterOf.colorFor(shoreOfDepth(depth), iceHere);
-  const terrainColour = (depth: Node<"float">, shore: Node<"float">, up: Node<"vec3">) => {
-    // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
-    // line rather than where the mesh's corners cross the water.
-    const edge = fwidth(shore).max(0.001);
-    const under = smoothstep(edge.negate(), edge, shore);
-    const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
-    const near = mix(land(up).mul(mix(float(1), float(WET_SHADE), wet)), seaInLand(night, waterColour(depth)), under);
-    return hazed(mix(pastTiles, near, farSeen));
-  };
+  const waterColour = (depth: Node<"float">) => waterNear.colorFor(shoreOfDepth(depth), iceNear);
+  const terrainColour = (depth: Node<"float">, shore: Node<"float">, up: Node<"vec3">) =>
+    Fn(() => {
+      // The ground past the shore is drawn as the water over it, in a line as sharp as the pixel, from the shore's smooth
+      // line rather than where the mesh's corners cross the water.
+      const edge = fwidth(shore).max(0.001);
+      const under = smoothstep(edge.negate(), edge, shore).toVar();
+      const wet = float(1).sub(smoothstep(float(0), float(WET_BAND_M), depth.negate()));
+      const seen = farSeen.toVar();
+      // A pixel works out only what it shows: the land where it's land, the water where it's water, and the overview
+      // where the far images give out; a pixel on an edge between two works out both. Off its band each weight is
+      // exactly 0 or 1, so the blends give the colour that working everything out everywhere gave. What the branches
+      // share is worked out before them: a node written in one branch is unset in another (`tools/unset-reads.mjs`).
+      const landHere = vec3(0).toVar();
+      If(under.lessThan(1).and(seen.greaterThan(0)), () => {
+        landHere.assign(land(up));
+      });
+      const waterHere = vec3(0).toVar();
+      If(under.greaterThan(0).and(seen.greaterThan(0)), () => {
+        waterHere.assign(seaInLand(night, waterColour(depth)));
+      });
+      const beyond = vec3(0).toVar();
+      If(seen.lessThan(1), () => {
+        beyond.assign(pastTiles);
+      });
+      const near = mix(landHere.mul(mix(float(1), float(WET_SHADE), wet)), waterHere, under);
+      return hazed(mix(beyond, near, seen));
+    })();
 
   const { canopyAt, clearanceAt, standsAt, roadsAt, pavedAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM, manifest.clearing);
   const cameraSpot = uniform(new Vector2());
@@ -2917,7 +2942,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       seaMaterial.dispose();
       sky.dispose();
       aurora.dispose();
-      waterOf.dispose();
+      waterNear.dispose();
+      waterFar.dispose();
       seaIce.dispose();
       roadMaterial.dispose();
       layers.dispose();

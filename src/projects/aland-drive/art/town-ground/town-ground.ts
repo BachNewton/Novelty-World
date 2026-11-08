@@ -1,4 +1,4 @@
-import { abs, atan, cos, dFdx, dFdy, dot, float, floor, fract, fwidth, max, min, mix, select, sin, smoothstep, texture, vec2, vec3 } from "three/tsl";
+import { abs, atan, cos, dFdx, dFdy, dot, float, floor, Fn, fract, fwidth, If, max, min, mix, select, sin, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import type { Node, Texture } from "three/webgpu";
 import type { Tiled } from "../surfaces/tiled";
 
@@ -166,8 +166,12 @@ const luminance = (color: Node<"vec3">) => dot(color, vec3(0.2126, 0.7152, 0.072
 
 /** The colour of the town's ground at this pixel, over whatever `ground` is. */
 export function townGround({ place, tiled, toCamera, mask, angle, ground, photoSoft, colour, detail }: TownInput): Node<"vec3"> {
+  return Fn(() => {
+  const near = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera)).toVar();
+  // Past its fade the town's ground is exactly the ground under it, so nothing of it is read or worked out there.
+  const drawn = vec3(ground).toVar();
+  If(near.greaterThan(0), () => {
   const shown = float(1).sub(smoothstep(float(DETAIL_FADE[0]), float(DETAIL_FADE[1]), toCamera));
-  const near = float(1).sub(smoothstep(float(FADE[0]), float(FADE[1]), toCamera));
   const tone = texture(detail, tiled(COARSE_M).add(vec2(0.61, 0.17)));
   const fineTone = texture(detail, tiled(FINE_M).add(vec2(0.13, 0.57)));
   const drift = texture(detail, tiled(DRIFT_M)).a;
@@ -207,7 +211,10 @@ export function townGround({ place, tiled, toCamera, mask, angle, ground, photoS
   const edged = mix(lit.mul(float(1).sub(contact.mul(0.28))), kerbStone, edging);
 
   const classed = lawnShare.add(bedShare).add(gravelShare).add(slabShare).add(tarmacShare).add(settShare);
-  return mix(ground, edged.add(ground.mul(float(1).sub(classed))), near);
+  drawn.assign(mix(ground, edged.add(ground.mul(float(1).sub(classed))), near));
+  });
+  return drawn;
+  })();
 }
 
 export interface RibbonInput {
