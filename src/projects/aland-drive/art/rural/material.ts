@@ -314,8 +314,9 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
         const metres = vec3(x, local.y, z).mul(fit.x).toVar();
         const at = metres.add(placeRoll.mul(37)).toVar();
         const away = positionWorld.sub(cameraPosition).length().toVar();
+        const standing = foot.toVar();
         If(kind.equal(pattern("rapakivi")), () => {
-          painted.assign(rapakivi(inputs, base, at, away, abs(normal.y), foot));
+          painted.assign(rapakivi(inputs, base, at, away, abs(normal.y), standing));
         })
           .ElseIf(kind.equal(pattern("boards")), () => {
             painted.assign(boards(base, metres, away));

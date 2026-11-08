@@ -449,7 +449,8 @@ export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: S
   const material = new MeshBasicNodeMaterial();
   material.name = "sign-plates";
   const normal = placed(material, placing);
-  const facing = select(frontFacing, normal, normal.negate());
+  // One node for both faces: a select between the normal and its negation would build it in the front's branch alone.
+  const facing = normal.mul(select(frontFacing, float(1), float(-1)));
   const light = float(AMBIENT).add(facing.dot(lightFrom(sun)).max(0).mul(SUN_SHARE));
   material.colorNode = hazed(select(frontFacing, vec3(texture(sheet, placing?.uv ?? uv()).rgb), colour("sign-back")).mul(light));
   material.side = DoubleSide;

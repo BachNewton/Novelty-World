@@ -1,4 +1,4 @@
-import { float, select, smoothstep } from "three/tsl";
+import { float, mix, select, smoothstep } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { changeOf, type SeasonNodes } from "./season";
 
@@ -28,7 +28,9 @@ export interface Leaves {
  */
 export function leavesOf(season: SeasonNodes, threshold: Node<"float">, fallSpan = 0.04): Leaves {
   const spring = season.turned.lessThanEqual(0);
-  const inLeaf = changeOf(season.leafed, select(spring, threshold, float(1).sub(threshold)), fallSpan);
+  // A blend, not a select: the threshold is one node for both seasons, and a select would build it in spring's branch alone.
+  const inSpring = select(spring, float(1), float(0));
+  const inLeaf = changeOf(season.leafed, mix(float(1).sub(threshold), threshold, inSpring), fallSpan);
   return { inLeaf, turned: changeOf(season.turned, threshold), fresh: select(spring, float(1).sub(season.leafed), float(0)).mul(inLeaf) };
 }
 

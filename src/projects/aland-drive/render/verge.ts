@@ -255,12 +255,14 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const strawRoll = tuftRoll(STRAW_ROLL);
       const strawed = min(changeOf(float(1).sub(seasons.leafed), mix(float(STRAWS_FROM), float(1), strawRoll)), changeOf(seasons.turned, strawRoll)).mul(STRAW_SHARE);
       const littered = changeOf(seasons.fallen, tuftRoll(LITTER_ROLL)).mul(float(1).sub(smoothstep(float(0), float(LITTER_M), local.y.mul(size)))).mul(LITTER_SHARE);
-      const painted = select(isPetal, paint, mix(mix(paint, straw.mul(tint.g.mul(255 / 128)), strawed), fallenLeaves, littered));
+      // A blend, not a select: the straw share is read again for the ground, and a select would build it in the grass's branch alone.
+      const petal = select(isPetal, float(1), float(0));
+      const painted = mix(mix(mix(paint, straw.mul(tint.g.mul(255 / 128)), strawed), fallenLeaves, littered), paint, petal);
 
       const matched = smoothstep(float(MATCHES[0]), float(MATCHES[1]), standing.xz.sub(camera).length());
       const foot = mix(mix(float(FOOT_SHADE), float(1), smoothstep(float(0), float(FOOT_M), local.y.mul(size))), float(1), matched);
       // A flower holds its colour longer than the grass round it.
-      const groundShare = mix(mix(float(GROUND_SHARE), float(1), matched), matched.mul(matched), select(isPetal, float(1), float(0)));
+      const groundShare = mix(mix(float(GROUND_SHARE), float(1), matched), matched.mul(matched), petal);
       // The ground's share is the spring photo's colour, so it goes to straw with the grass.
       const ground = mix(colour.rgb, straw.mul(colour.rgb.dot(vec3(1 / 3)).div(straw.dot(vec3(1 / 3)))), strawed);
       const lit = varying(mix(painted, ground, groundShare).mul(colour.w).mul(foot));
