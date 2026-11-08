@@ -11,6 +11,19 @@ describe("fitElo", () => {
     const elo = fitElo(["v1", "v2"], results, { anchor: "v1" });
     expect(elo["v2"]).toBeCloseTo(400 * Math.log10(3), 4);
   });
+
+  it("can crown a non-transitive champion the head-to-head misses", () => {
+    // v3 ties v2 but crushes v1; v2 only edges v1. Against the whole field v3 is
+    // strongest even though v3-vs-v2 alone is a coin flip — the point of Elo.
+    const results: PairResult[] = [
+      { a: "v3", b: "v2", aWins: 50, bWins: 50 },
+      { a: "v3", b: "v1", aWins: 75, bWins: 25 },
+      { a: "v2", b: "v1", aWins: 60, bWins: 40 },
+    ];
+    const elo = fitElo(["v1", "v2", "v3"], results, { anchor: "v1" });
+    expect(elo["v3"]).toBeGreaterThan(elo["v2"]);
+    expect(elo["v3"]).toBeGreaterThan(elo["v1"]);
+  });
 });
 
 describe("pairsFromFinishes", () => {

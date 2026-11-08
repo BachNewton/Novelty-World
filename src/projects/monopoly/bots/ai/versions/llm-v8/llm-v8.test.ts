@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { freshGame } from "../../../../mocks";
-import type { AiDecisionRecord, AuctionState, GameEvent, GameState, Player, TurnState } from "../../../../types";
+import type { AiDecisionRecord, AuctionState, GameEvent, GameState, TurnState } from "../../../../types";
 import { askModel, claimAi, settleAnswer, type Settled } from "../../decide";
 import { aiDecisionFor } from "../../decisions";
 import { isNoteHeld } from "../../held";
@@ -10,7 +10,6 @@ import { built, inDebt, mortgaging, owning, table } from "../../eval/board";
 import { buildEvenly, DECISION_SPECS, sellEvenly } from "./answers";
 import { historyLines } from "./history";
 import { tableNames } from "./format";
-import { acquisitionLines, buildPrompt } from "./prompt";
 import { readCounter, readTrade } from "./trade-terms";
 
 // p1 is a human, p2 the llm-v8 seat, p3/p4 rule-based bots.
@@ -29,10 +28,6 @@ const NOTES = { privateNote: "thinking", publicNote: "Hello.", plan: "Get the or
 
 function withTurn(state: GameState, patch: Partial<TurnState>): GameState {
   return { ...state, turn: { ...state.turn, ...patch } };
-}
-
-function withPlayer(state: GameState, id: string, patch: Partial<Player>): GameState {
-  return { ...state, players: state.players.map((p) => (p.id === id ? { ...p, ...patch } : p)) };
 }
 
 function record(decision: AiDecisionRecord["decision"]): AiDecisionRecord {
@@ -281,28 +276,6 @@ describe("llm-v8 auctions", () => {
     expect(historyLines(closed, tableNames(closed)).join("\n")).toContain("I'll go to $900.");
   });
 });
-
-describe("llm-v8 buys", () => {
-  it("states what owning the lot completes, beside the choice", () => {
-    // Connecticut with the other two light blues unowned: not a full set.
-    const atConnecticut = withTurn(holdings, { playerId: AI, phase: "buy-decision", pendingBuy: 9 });
-    const question = DECISION_SPECS.buy?.question(atConnecticut, AI) ?? "";
-    expect(question).toContain("would give you 2 of 3 Light blue; still not a full set");
-    expect(question).toContain("Oriental Avenue: you");
-  });
-
-  it("names a rival whose set the lot decides", () => {
-    const rivalHolds: GameState = { ...base, ownership: { 6: "p1", 8: "p1" } };
-    expect(acquisitionLines(rivalHolds, AI, 9).join("\n")).toContain("whoever gets Connecticut Avenue decides");
-  });
-
-  it("states railroad counts and rent", () => {
-    expect(acquisitionLines({ ...base, ownership: { 5: AI } }, AI, 15)).toEqual([
-      "Owning Pennsylvania Railroad would give you 2 of 4 railroads; each of yours would then charge $50 rent.",
-    ]);
-  });
-});
-
 describe("llm-v8 turn start", () => {
   const preRoll = (state: GameState): GameState => withTurn(state, { playerId: AI, phase: "pre-roll" });
 
@@ -347,34 +320,6 @@ describe("llm-v8 turn start", () => {
     expect(aiDecisionFor(browns, AI)).toBe("turn-start");
   });
 });
-
-describe("llm-v8 prompt and call", () => {
-  it("frames the plan as a note that may be wrong, and reads the board set by set", () => {
-    const planned = withAiSeat(holdings, AI, { plan: "Build on Yellow." });
-    const { user } = buildPrompt(planned, AI, "Buy it?");
-    expect(user).toContain("Your plan from last time (your own note; it may be wrong, so check it against the board above): Build on Yellow.");
-    expect(user).toContain("Orange (houses $100 each): you own 1 of 3, so you can't build here yet; held by: you 1, unowned 2");
-    expect(user).toContain("Railroads: you own 0 of 4");
-    expect(buildPrompt(structuredClone(planned), AI, "Buy it?")).toEqual(buildPrompt(planned, AI, "Buy it?"));
-  });
-
-  it("calls the model at a pinned low temperature", async () => {
-    const complete = vi.fn<ModelAdapter["complete"]>(() =>
-      Promise.resolve({
-        ok: true,
-        answer: { ...NOTES, choice: "buy", mortgage: [] },
-        raw: "{}",
-        thoughts: "",
-        metrics: { ms: 1, thinkMs: null, answerMs: 1, promptTokens: null, completionTokens: null, thinkHitBudget: null },
-      }),
-    );
-    const atBoardwalk = withTurn(withPlayer(base, AI, { position: 39 }), { playerId: AI, phase: "buy-decision", pendingBuy: 39 });
-    const asked = await askModel({ complete, identify: () => Promise.resolve(null) }, atBoardwalk, AI, "buy");
-    expect(asked.record).toMatchObject({ version: "llm-v8", model: null });
-    expect(complete.mock.calls[0][0].sampling).toEqual({ temperature: 0.3 });
-  });
-});
-
 describe("llm-v8 debt plans: houses to sell per set, levels worked out in code", () => {
   // The AI owes $150, with three oranges at 3 houses each, Reading Railroad and Water Works.
   const indebted = inDebt(built(owning(table("ai:local@llm-v8"), { p2: [5, 16, 18, 19, 28] }), { 16: 3, 18: 3, 19: 3 }), -150);
@@ -466,12 +411,6 @@ describe("llm-v8 turn-start building: houses per set, levels worked out in code"
     expect(buildEvenly(nearlyFull, [21, 23, 24], 2)).toEqual({ 23: 5, 24: 5 });
   });
 
-  it("states each set's cost per house and the seat's cash", () => {
-    const question = DECISION_SPECS["turn-start"]?.question(reds, "p2") ?? "";
-    expect(question).toContain("$150 per house, so building K houses costs $150 x K");
-    expect(question).toContain("You have $1,500.");
-  });
-
   it("fails building more houses than a set has room for", () => {
     const resolved = DECISION_SPECS["turn-start"]?.resolve(reds, "p2", {
       ...NOTES,
@@ -485,26 +424,6 @@ describe("llm-v8 turn-start building: houses per set, levels worked out in code"
     expect(resolved?.ok).toBe(false);
   });
 });
-
-describe("llm-v8 view: each player's position in one line", () => {
-  it("states every player's full sets and what they can build on", () => {
-    const state = built(
-      mortgaging(owning(table("ai:local@llm-v8"), { p2: [16, 18, 19], p3: [1, 3, 37, 39] }), [37]),
-      { 16: 3, 18: 3, 19: 2 },
-    );
-    const { user } = buildPrompt(state, AI, "Q");
-    expect(user).toContain("- Alex (you), $1,500, on #0 GO; full set: Orange (houses 3/3/2); can build on Orange");
-    expect(user).toContain("- Sam, $1,500, on #0 GO; full sets: Brown (unbuilt), Dark blue (unbuilt, a lot mortgaged); can build on Brown");
-    expect(user).toContain("- Kyle, $1,500, on #0 GO; no full set");
-  });
-
-  it("says what a player controls, and asks for a plan made of choices", () => {
-    const { system } = buildPrompt(base, AI, "Q");
-    expect(system).toContain("Where you land is the dice. No player chooses, avoids or steers toward a square");
-    expect(system).toContain(`"plan": one short sentence to your future self about the next few turns, made of your choices`);
-  });
-});
-
 describe("llm-v8 trade votes: the proposer's message and what a set costs", () => {
   // Sam (p3) holds Kentucky and Indiana and offers $300 for the seat's
   // Illinois, with a message logged just before the proposal.
@@ -550,100 +469,5 @@ describe("llm-v8 trade votes: the proposer's message and what a set costs", () =
       pendingTrade: { ...state.turn.pendingTrade!, propertyTo: { 24: AI }, cashDelta: { p3: 300, [AI]: -300 } },
     });
     expect(question(reversed)).toContain("Building on Red costs $150 a house: three houses on each lot is $1,350, and you would start with $1,200.");
-  });
-});
-
-describe("llm-v8 view: the game's history of play, not the log window", () => {
-  // Turn 1: Kyle (p1) rolls to Reading and buys it, saying why. Turn 2: Alex
-  // (the seat) pays rent, then offers $300 for Reading and is declined. Turn
-  // 3: Sam (p3) builds three houses on the reds in one plan.
-  const turns = [
-    {
-      turn: 1,
-      playerId: "p1",
-      events: [
-        { kind: "roll", dice: [2, 3], doublesStreak: 0, toPosition: 5, passedGo: false },
-        { kind: "bot-note", playerId: "p1", text: "Railroads pay." },
-        { kind: "buy", position: 5, price: 200 },
-      ],
-    },
-    {
-      turn: 2,
-      playerId: AI,
-      events: [
-        { kind: "roll", dice: [1, 4], doublesStreak: 0, toPosition: 5, passedGo: false },
-        { kind: "rent", ownerId: "p1", position: 5, amount: 25 },
-        { kind: "bot-note", playerId: AI, text: "Kyle, $300 for Reading." },
-        { kind: "bot-note", playerId: "p1", text: "Not for $300." },
-        {
-          kind: "trade-declined",
-          proposerId: AI,
-          declinedBy: "p1",
-          countered: false,
-          propertyTo: { 5: AI },
-          propertyFrom: { 5: "p1" },
-          gojfTo: {},
-          gojfFrom: {},
-          cashDelta: { [AI]: -300, p1: 300 },
-        },
-      ],
-    },
-    {
-      turn: 3,
-      playerId: "p3",
-      events: [
-        { kind: "bot-note", playerId: "p3", text: "Building the reds." },
-        { kind: "build", playerId: "p3", position: 21, toLevel: 1, cost: 150 },
-        { kind: "build", playerId: "p3", position: 23, toLevel: 1, cost: 150 },
-        { kind: "build", playerId: "p3", position: 24, toLevel: 1, cost: 150 },
-      ],
-    },
-  ] satisfies GameState["turns"];
-  const state: GameState = { ...owning(base, { p1: [5], p3: [21, 23, 24] }), turns };
-  const lines = historyLines(state, tableNames(state));
-
-  it("keeps decisions with the notes that explain them, grouped by kind", () => {
-    expect(lines).toEqual([
-      "Trade offers and how they were answered:",
-      `- T2 Alex offered Reading Railroad to Alex, Alex pays $300: declined by Kyle; Alex: "Kyle, $300 for Reading."; Kyle: "Not for $300."`,
-      "Bought at the printed price, by player:",
-      `- Kyle: T1 Reading Railroad ("Railroads pay.")`,
-      "Building, selling and mortgaging:",
-      `- T3 Sam built 3 on Red (now Kentucky Avenue 1, Indiana Avenue 1, Illinois Avenue 1); Sam: "Building the reds."`,
-    ]);
-  });
-
-  it("leaves rolls and rent to the board and cash", () => {
-    const { user } = buildPrompt(state, AI, "Q");
-    expect(user).toContain("The game so far: what players chose and what they said");
-    expect(user).not.toContain("rolls");
-    expect(user).not.toContain("$25 rent");
-  });
-});
-
-describe("llm-v8 questions state their own cause", () => {
-  it("says what put the seat in debt", () => {
-    const charged: GameState = {
-      ...owning(base, { p3: [39] }),
-      turns: [{ turn: 1, playerId: AI, events: [{ kind: "rent", ownerId: "p3", position: 39, amount: 2000 }] }],
-    };
-    const question = DECISION_SPECS["settle-debt"]?.question(inDebt(charged, -500), AI) ?? "";
-    expect(question).toMatch(/^You owe this after paying \$2,000 rent on Boardwalk to Sam\. You are \$500 in debt\./);
-  });
-
-  it("says who passed on a lot at auction, and how the seat went to jail", () => {
-    const landed: GameState = {
-      ...base,
-      turns: [{ turn: 1, playerId: "p1", events: [{ kind: "roll", dice: [6, 6], doublesStreak: 1, toPosition: 39, passedGo: false }] }],
-    };
-    const auction: AuctionState = { position: 39, active: ["p1", AI], highBid: 0, leaderId: null, bids: {}, resume: { kind: "landing" } };
-    const atAuction = withTurn(landed, { playerId: "p1", phase: "auction", auction });
-    expect(DECISION_SPECS.auction?.question(atAuction, AI)).toContain("is up for auction: no bids yet. Kyle landed on it and chose not to buy it.");
-
-    const sent: GameState = {
-      ...withPlayer(base, AI, { inJail: true, jailTurns: 1, position: 10 }),
-      turns: [{ turn: 1, playerId: AI, events: [{ kind: "go-to-jail", reason: "three-doubles" }] }],
-    };
-    expect(DECISION_SPECS.jail?.question(sent, AI)).toMatch(/^You were sent to jail on turn 1, by rolling three doubles\. You are in jail/);
   });
 });

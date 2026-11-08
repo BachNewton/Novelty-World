@@ -17,9 +17,8 @@ import { VERSIONS } from "./index";
 // moment it is registered, and a bot that cannot hold these has to say so HERE, out
 // loud, rather than by quietly omitting a file.
 //
-// What belongs here: contracts true of ALL bots (determinism, legality). What does
-// NOT: a version's own hypothesis — that stays in its `versions/<label>/*.test.ts`,
-// where it grades one claim against one measurement.
+// What belongs here: contracts true of ALL bots (determinism, legality). A version's
+// own hypothesis is a build-time check, and its frozen play is `frozen.test.ts`'s.
 //
 // The two contracts:
 //   - DETERMINISM. A bot is a pure function of (state, playerId) — the engine's

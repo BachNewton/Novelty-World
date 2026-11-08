@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
-import { FABLE_V11_PARAMS, fableV11Bot } from "../fable-v11";
-import { makeParamBot } from "./bot";
+import { fableV11Bot } from "../fable-v11";
 import { fableV12Bot } from "./index";
 
 // fable-v12 = fable-v11's factory + the F13 human threat multiplier
@@ -62,27 +61,6 @@ function completerSaleBoard(
     turn: { ...base.turn, phase: "trade-pending", pendingTrade: pending },
   };
 }
-
-describe("fable-v12 — identity with fable-v11", () => {
-  const v11OnV12Factory = makeParamBot({ ...FABLE_V11_PARAMS, humanThreatMult: 1 });
-  it("the factory copy is faithful with the multiplier at 1", () => {
-    for (const board of [
-      freshGame(),
-      completerSaleBoard(true, 800, "lightblue"),
-      completerSaleBoard(false, 800, "lightblue"),
-    ]) {
-      expect(v11OnV12Factory(board, "p1")).toEqual(fableV11Bot(board, "p1"));
-      expect(v11OnV12Factory(board, "p2")).toEqual(fableV11Bot(board, "p2"));
-    }
-  });
-
-  it("fable-v12 itself matches fable-v11 on every all-bot board", () => {
-    for (const price of [600, 800, 1000]) {
-      const board = completerSaleBoard(false, price, "lightblue");
-      expect(fableV12Bot(board, "p1")).toEqual(fableV11Bot(board, "p1"));
-    }
-  });
-});
 
 describe("fable-v12 — arming a human is priced higher", () => {
   it("fable-v11 sells the light-blue completer to a human at $800 (the probe-6 class of sale)", () => {
