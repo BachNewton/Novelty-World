@@ -1,7 +1,7 @@
 // Every kit's models, near and far, drawn as the game draws them on WebGPU in headless full Chromium, and compared at
 // the swap (`page.ts`): a far version that changes shape or colour from its near version is noticed when it swaps.
 //
-//   node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--only=<kit: model> ...] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...] [--score=<kit: model>@<swap m|built>,... ...]
+//   npm run slot -- e2e -- node src/projects/aland-drive/art/lod-check/check.mjs [--out=<folder>] [--write] [--pictures-only] [--only=<kit: model> ...] [--picture=<kit: model>@<azimuth>,<elevation>[,<swap m>] ...] [--score=<kit: model>@<swap m|built>,... ...]
 //
 // It finds the kits by their catalogues, needs no dev server and no tiles, and never touches a browser of the owner's.
 // A change is noticed where its outline moves, or its look changes by FLIP on the whole or at its worst spot, more
@@ -19,6 +19,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright";
+import { requireSlot } from "../../../../../scripts/machine-budget.mjs";
+
+// Four pages on the GPU at once, as many as an e2e run's slot holds.
+requireSlot("The LOD check");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const art = resolve(here, "..");
