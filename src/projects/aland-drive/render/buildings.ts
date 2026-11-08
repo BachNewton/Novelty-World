@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, NotEqualDepth, Vector3, type Node, type Texture } from "three/webgpu";
-import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniformArray, varying, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
 import { band, pulses, roofDetail, shopfront, type SignSheet } from "../art/surfaces";
@@ -154,8 +154,13 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   const tint = attribute<"vec4">("tint", "vec4");
   const along = facade.x;
   const up = facade.y;
-  const width = facade.z;
-  const eaves = facade.w;
+  // A facade's width and eaves are the same at every corner, and the windows, bays and storeys are counted from them by
+  // rounding, which flips wherever a count lands near a half. Blended across a triangle they reach some pixels a bit or
+  // two off on Nvidia, so a wall drew two layouts of its windows at once, speckled; taken flat, every pixel has the
+  // corner's own value.
+  const shape = varying(facade.zw).setInterpolation("flat");
+  const width = shape.x;
+  const eaves = shape.y;
   const style = round(tint.a.mul(255));
 
   const normal = flatNormal();
