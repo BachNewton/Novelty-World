@@ -1,8 +1,8 @@
 import type { Voice } from "../vehicles";
 
 /**
- * A twin-turbo flat-plane V8 behind the seats, to 8,700: even firing that shrieks rather than burbles, a little of the
- * turbos' whistle riding high over it, and the hollow intake roar of a mid-engined car close behind the driver.
+ * A twin-turbo flat-plane V8 behind the seats, to 8,700: even firing that shrieks rather than burbles, a thin high
+ * order over it for the edge of the scream, and the hollow intake roar of an engine just behind the driver's head.
  */
 export const virvel: Voice = {
   seed: 733,
