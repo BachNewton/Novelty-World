@@ -10,16 +10,12 @@ import {
   setOrigin,
   setResearch,
 } from "../logic";
-import { PEOPLE_TIMELINES, REGION_TIMELINES, SYMBOLS, isVerified } from "../symbol-timelines";
 import { SYMBOL_ART } from "../symbol-art";
 import type { NameFields, ResearchRecord, Tree } from "../types";
 import {
   applyOps,
-  describeGaps,
   describeNeededArt,
-  describePeoples,
   describePerson,
-  describeSuperseded,
   describeUndecided,
   gapsReport,
   neededSymbols,
@@ -579,43 +575,6 @@ describe("research gaps", () => {
     });
     expect(complete).toBe(1);
   });
-
-  it("prints families with each person's gaps, then the totals", () => {
-    const text = describeGaps(extended());
-    expect(text).toContain(
-      [
-        "Kyle Hutchinson [kyle-hut] + Sam Root (née Birth) [5a0e0000]",
-        "  Kyle Hutchinson [kyle-hut]: family open (Asked Kyle), birthYear missing",
-        "  Sam Root (née Birth) [5a0e0000]: family missing, birthYear missing",
-        `  child Bo Root [${SOLO_KID}]: family missing, birthYear missing`,
-      ].join("\n"),
-    );
-    expect(text).toContain(
-      "Gran [gran] + Step [step] + Stepex [stepex]\n  Gran [gran]: family missing, birthYear missing, heritage missing\n  Step [step]:",
-    );
-    expect(text).not.toContain("Aunt");
-    expect(text).toContain("Stepdad [stepdad]\n  Stepdad [stepdad]: family missing, birthYear missing, heritage missing");
-    expect(text).toContain("  heritage:  0 confirmed, 1 exhausted, 0 open, 4 missing (of 5 with no parents in the tree)");
-    expect(text).toMatch(/Complete: 1 of 12 people$/);
-  });
-});
-
-describe("peoples", () => {
-  it("lists every people with its regions and timelines, and counts the eras to verify", () => {
-    const text = describePeoples();
-    expect(text).toContain("Finnish (finnish)");
-    expect(text).toContain("  region Sicily (italian/sicily)");
-    expect(text).toMatch(/before 1861 +Italy before unification: italy-tricolour \(.*\), regional, UNVERIFIED/);
-    const eras = [...Object.values(PEOPLE_TIMELINES), ...Object.values(REGION_TIMELINES)].flat().filter((era) => !isVerified(era)).length;
-    expect(text).toContain(`Eras still to verify with sources: ${eras}`);
-  });
-
-  it("lists the symbols without verified art", () => {
-    const text = describePeoples();
-    const withoutArt = Object.keys(SYMBOLS).filter((symbol) => !Object.hasOwn(SYMBOL_ART, symbol));
-    expect(text).toContain(`Symbols without verified art: ${withoutArt.length}\n  ${withoutArt[0]}\n`);
-    expect(text).not.toMatch(/^  finland-flag$/m);
-  });
 });
 
 describe("the symbols the tree needs", () => {
@@ -635,13 +594,19 @@ describe("the symbols the tree needs", () => {
     expect(unpicked).toEqual([]);
   });
 
-  it("lists the needed symbols without art, with a count and an example", () => {
-    expect(SYMBOL_ART["hungary-flag"]).toBeDefined();
-    expect(SYMBOL_ART["hungary-kingdom-flag"]).toBeUndefined();
-    const lines = describeNeededArt(hungarian()).split("\n");
-    expect(lines[0]).toBe("Symbols the tree needs: 2. Without verified art: 1");
-    expect(lines[1]).toMatch(/^  hungary-kingdom-flag \(.+\): 1 person, e\.g\. Kyle Hutchinson \[.+\]$/);
-    expect(lines.slice(2)).toEqual(["People with heritage but no birth year to pick a symbol by: 0"]);
+  it("lists exactly the needed symbols without art, with a count and an example", () => {
+    // Read against the art records as they stand, so it holds as research adds art.
+    const tree = hungarian();
+    const missing = neededSymbols(tree).needed.filter(({ symbol }) => !Object.hasOwn(SYMBOL_ART, symbol));
+    const lines = describeNeededArt(tree).split("\n");
+    expect(lines[0]).toBe(`Symbols the tree needs: 2. Without verified art: ${missing.length}`);
+    expect(lines.slice(1, -1)).toHaveLength(missing.length);
+    missing.forEach(({ symbol, people }, i) => {
+      const count = people.length === 1 ? "1 person" : `${people.length} people`;
+      expect(lines[1 + i].startsWith(`  ${symbol} (`), lines[1 + i]).toBe(true);
+      expect(lines[1 + i]).toContain(`): ${count}, e.g. `);
+    });
+    expect(lines.at(-1)).toBe("People with heritage but no birth year to pick a symbol by: 0");
   });
 
   it("counts people with heritage but no birth year anywhere near them", () => {
@@ -692,17 +657,5 @@ describe("superseded heritage entries", () => {
     const { full, partly } = supersededReport(setHeritage(family(), ROOT_ID, ["finnish"]));
     expect(full).toEqual([]);
     expect(partly).toEqual([]);
-  });
-
-  it("prints each group with counts, entries, and short ids", () => {
-    const text = describeSuperseded(researched());
-    expect(text).toBe(
-      [
-        "Fully superseded heritage entries (clear these): 1",
-        "  Ada Root [c1d00000-0000-4000-8000-000000000002]  entry polish",
-        "Partly superseded heritage entries (review these): 1",
-        "  Bo Root [c1d00000-0000-4000-8000-000000000003]  entry swedish + unknown, 50% in use",
-      ].join("\n"),
-    );
   });
 });

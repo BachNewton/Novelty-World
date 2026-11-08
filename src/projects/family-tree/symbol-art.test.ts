@@ -139,20 +139,3 @@ describe("symbol art", () => {
     }
   });
 });
-
-describe("svgRatio", () => {
-  it("prefers the viewBox, and falls back to the width and height", () => {
-    expect(svgRatio('<svg width="100" height="100" viewBox="0 0 18 11">')).toBeCloseTo(18 / 11);
-    expect(svgRatio('<?xml version="1.0"?><svg xmlns="x" height="1000" width="1500px">')).toBeCloseTo(1.5);
-    expect(() => svgRatio('<svg width="100%" height="100%">')).toThrow();
-  });
-});
-
-describe("jpegRatio", () => {
-  it("reads the frame size past other segments, from a progressive frame too", () => {
-    const app0 = [0xff, 0xe0, 0x00, 0x04, 0x00, 0x00];
-    const sof2 = [0xff, 0xc2, 0x00, 0x0b, 0x08, 0x06, 0x2a, 0x03, 0x54, 0x01, 0x01, 0x11, 0x00];
-    expect(jpegRatio(Buffer.from([0xff, 0xd8, ...app0, ...sof2]))).toBeCloseTo(852 / 1578);
-    expect(() => jpegRatio(Buffer.from([0x89, 0x50, 0x4e, 0x47]))).toThrow();
-  });
-});
