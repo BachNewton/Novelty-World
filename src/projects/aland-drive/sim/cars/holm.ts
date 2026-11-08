@@ -1,0 +1,43 @@
+import { tuned, type CarEntry } from "./character";
+
+/** A working pickup with a lazy cross-plane V8 and four gears: heavy, soft, wallowing on its tall tyres. */
+export const holm: CarEntry = {
+  tier: "B3",
+  tuning: tuned({
+    name: "Holm",
+    class: "offroad",
+    massKg: 2150,
+    outline: [5.24, 1.94, 1.76, 0.36],
+    axleZ: [-1.6, 1.6],
+    trackM: 1.66,
+    wheelRadiusM: 0.385,
+    massHeightM: 0.78,
+    rideHz: 1.15,
+    damping: 0.3,
+    rollStiffness: 0.3,
+    droopM: 0.45,
+    travelM: 0.36,
+    grip: [1, 1.02],
+    peakSlip: 0.17,
+    slideShare: 0.85,
+    engine: {
+      peakTorqueNm: 540,
+      torqueCurve: [
+        [0.12, 0.75],
+        [0.3, 0.95],
+        [0.5, 1],
+        [0.75, 0.9],
+        [1, 0.72],
+      ],
+      engineBrakeNm: 70,
+    },
+    gearbox: { idleRpm: 650, redlineRpm: 5600, gearTopMS: [17, 30, 45, 61], shiftS: 0.35, gentleShift: 0.36 },
+    launchMS2: 5,
+    rearShare: 0.75,
+    brakeMS2: 9.5,
+    dragPerMS2: 1.15,
+    aero: 0.6,
+    lock: 0.55,
+    turnPerS: 2,
+  }),
+};

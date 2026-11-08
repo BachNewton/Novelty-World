@@ -1,0 +1,43 @@
+import { tuned, type CarEntry } from "./character";
+
+/** An old four-by-four with a slow straight six: tall, soft, heavy, on mud tyres, and the slowest thing on the road. */
+export const berg: CarEntry = {
+  tier: "B4",
+  tuning: tuned({
+    name: "Berg",
+    class: "offroad",
+    massKg: 2050,
+    outline: [4.4, 1.84, 1.92, 0.42],
+    axleZ: [-1.3, 1.3],
+    trackM: 1.55,
+    wheelRadiusM: 0.4,
+    massHeightM: 0.82,
+    rideHz: 1.05,
+    damping: 0.28,
+    rollStiffness: 0.25,
+    droopM: 0.48,
+    travelM: 0.4,
+    grip: [0.935, 0.95],
+    peakSlip: 0.18,
+    slideShare: 0.88,
+    engine: {
+      peakTorqueNm: 300,
+      torqueCurve: [
+        [0.15, 0.85],
+        [0.35, 1],
+        [0.6, 0.97],
+        [0.85, 0.82],
+        [1, 0.65],
+      ],
+      engineBrakeNm: 55,
+    },
+    gearbox: { idleRpm: 650, redlineRpm: 4600, gearTopMS: [11, 20, 32, 46], shiftS: 0.4, gentleShift: 0.4 },
+    launchMS2: 4.5,
+    rearShare: 0.5,
+    brakeMS2: 8.5,
+    dragPerMS2: 1.05,
+    aero: 0.5,
+    lock: 0.55,
+    turnPerS: 1.8,
+  }),
+};

@@ -6,7 +6,7 @@
 //   npx tsx src/projects/aland-drive/tools/challenge-par.ts [--folder=<tiles>] [--only=<id>] [--profile]
 //
 // The driver goes flat out wherever the bends allow and brakes for each bend as late as a share of the car's own grip
-// on the ground under it allows (`sim/car-limits.json`, dry), the boldest share it gets round at,
+// on the ground under it allows (`sim/limits/`, dry), the boldest share it gets round at,
 // from the first player's start place, held on the handbrake through the countdown. A run takes seconds. --profile
 // prints the speed every 100 m, which is what a Speed trap's length is chosen from.
 

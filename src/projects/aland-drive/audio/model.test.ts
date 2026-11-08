@@ -123,7 +123,7 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"], 1), engineCycle(ENGINES.kobb, 2), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
+    for (const loop of [engineCycle(ENGINES["skerry-gt"]), engineCycle(ENGINES.kobb), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);

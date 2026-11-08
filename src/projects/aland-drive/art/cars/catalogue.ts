@@ -6,7 +6,7 @@ import { buildCockpit } from "./cockpit/interior";
 import { BufferAttribute, BufferGeometry } from "three";
 import { CARS, WORLD_CARS } from "./specs";
 
-/** Every car the gallery shows: the fourteen drivable cars at both details, body and glass together, their cockpits, and the world cars. */
+/** Every car the gallery shows: every drivable car at both details, body and glass together, their cockpits, and the world cars. */
 export function artModels(): ArtModel[] {
   const drivable = CARS.flatMap((spec) =>
     (["hero", "far"] as const).flatMap((detail): ArtModel[] => {

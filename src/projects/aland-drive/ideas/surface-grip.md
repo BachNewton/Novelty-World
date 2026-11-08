@@ -102,7 +102,7 @@ On each set of tyres, sideways grip at 60 km/h and metres to stop from 100, for 
 
 Winter tyres in snow and on ice are the rows the table had before tyres, to the last digit, and summer tyres in the dry and the wet are too.
 
-Every car's thirty-two rows are in `sim/car-limits.json`.
+Every car's thirty-two rows are in its own file under `sim/limits/`.
 
 ## Open
 

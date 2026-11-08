@@ -1,0 +1,42 @@
+import { tuned, type CarEntry } from "./character";
+
+/** A hot hatch with a four that revs to 8,200 and close gears: front-driven, stiff, and it wants to be wrung out. */
+export const sten: CarEntry = {
+  tier: "A6",
+  tuning: tuned({
+    name: "Sten",
+    class: "road",
+    massKg: 1180,
+    outline: [3.95, 1.78, 1.42, 0.2],
+    axleZ: [-1.25, 1.25],
+    trackM: 1.535,
+    wheelRadiusM: 0.31,
+    massHeightM: 0.5,
+    rideHz: 1.7,
+    damping: 0.42,
+    rollStiffness: 0.55,
+    grip: [1.3, 1.3],
+    peakSlip: 0.13,
+    slideShare: 0.8,
+    engine: {
+      peakTorqueNm: 215,
+      torqueCurve: [
+        [0.12, 0.55],
+        [0.4, 0.82],
+        [0.62, 0.93],
+        [0.82, 1],
+        [0.94, 0.97],
+        [1, 0.88],
+      ],
+      engineBrakeNm: 30,
+    },
+    gearbox: { idleRpm: 950, redlineRpm: 8200, gearTopMS: [15, 24, 33, 42, 52, 66], shiftS: 0.1, gentleShift: 0.45 },
+    launchMS2: 6,
+    rearShare: 0,
+    brakeMS2: 12,
+    dragPerMS2: 0.52,
+    aero: 1,
+    lock: 0.62,
+    turnPerS: 3,
+  }),
+};
