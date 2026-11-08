@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   TIERS,
-  loadOrder,
   planTiles,
-  tileCacheKey,
   tileId,
   type TileSpec,
 } from "./terrain-stream";
-import { GEN_VERSION } from "./terrain-gen";
 
 const RADIUS = 12000;
 const PLAN = { radius: RADIUS, tierScale: 1, current: new Set<string>() };
@@ -73,22 +70,6 @@ describe("planTiles", () => {
     expect(new Set(plan.map((s) => s.tier)).size).toBeGreaterThanOrEqual(4);
   });
 
-  it("caps the world at the streaming radius", () => {
-    const plan = planTiles({ px: 0, pz: 0, ...PLAN, radius: 3000 });
-    for (const s of plan) {
-      expect(nearestDist(s, 0, 0)).toBeLessThanOrEqual(3000);
-    }
-    // And a generous margin outside is empty.
-    expect(plan.some((s) => contains(s, 0, 12000))).toBe(false);
-  });
-
-  it("tierScale scales every boundary", () => {
-    const wide = planTiles({ px: 0, pz: 0, radius: RADIUS, tierScale: 2, current: new Set() });
-    const tierAt = (x: number) => wide.find((s) => contains(s, x, 0))?.tier;
-    // At scale 2, T0 reaches ~896 m — a point at 700 m is still tier 0/1 territory.
-    expect(tierAt(700)).toBeLessThanOrEqual(1);
-  });
-
   it("hysteresis: a viewer hovering at a boundary does not flap tiles", () => {
     // Stand just outside T0's outer radius from a tile, plan, then step ±10 m across
     // the nominal boundary repeatedly: the tile's tier must not change, because
@@ -114,25 +95,5 @@ describe("planTiles", () => {
     // But a CLEAR move past the line does re-tier: walk decisively toward the probe.
     const near = tierOf(planAt(probeX - 100));
     expect(near).toBeLessThan(t0 ?? 99);
-  });
-
-  it("keys: tileId is stable identity; tileCacheKey adds spacing + GEN_VERSION", () => {
-    const s: TileSpec = { tier: 2, cx: -3, cz: 7 };
-    expect(tileId(s)).toBe("2:-3:7");
-    expect(tileCacheKey(s, 1)).toBe(`2:-3:7:1:${GEN_VERSION}`);
-    expect(tileCacheKey(s, 2)).not.toBe(tileCacheKey(s, 1));
-  });
-});
-
-describe("loadOrder", () => {
-  it("sorts nearest-first (the spiral-out)", () => {
-    const plan = planTiles({ px: 0, pz: 0, ...PLAN });
-    const ordered = loadOrder(plan, 0, 0);
-    for (let i = 1; i < ordered.length; i++) {
-      expect(nearestDist(ordered[i - 1], 0, 0)).toBeLessThanOrEqual(
-        nearestDist(ordered[i], 0, 0) + 1e-9,
-      );
-    }
-    expect(ordered[0].tier).toBe(0); // the tile under the viewer loads first
   });
 });

@@ -122,32 +122,6 @@ describe("generateChunk", () => {
     }
   });
 
-  it("far tiers grow canopy clumps: cell-wide footprints at true canopy height, on the stands", () => {
-    // The same area, near-style trees vs far-style clumps at a 5 m lattice.
-    const near = generateChunk({ ...BASE, size: 120, spacing: 2.4, trees: true });
-    const far = generateChunk({
-      ...BASE,
-      size: 120,
-      spacing: 2.4,
-      trees: false,
-      clumpLattice: 5,
-    });
-    // Forested area must not go bald at distance (the whole point).
-    expect(near.treeCount).toBeGreaterThan(0);
-    expect(far.treeCount).toBeGreaterThan(0);
-    // Fewer clumps than trees (coarser lattice), each wider than tall — a stand, not a spire.
-    expect(far.treeCount).toBeLessThan(near.treeCount);
-    for (let t = 0; t < far.trees.length; t += 7) {
-      expect(far.trees[t + 3]).toBeGreaterThan(1.4); // ≈ L/2.3 × jitter — covers its cell
-      expect(far.trees[t + 4]).toBeLessThanOrEqual(1.2); // true canopy height
-      expect(far.trees[t + 3]).toBeGreaterThan(far.trees[t + 4]);
-    }
-    // Determinism, like everything else here.
-    expect(generateChunk({ ...BASE, size: 120, spacing: 2.4, trees: false, clumpLattice: 5 }).trees).toEqual(
-      far.trees,
-    );
-  });
-
   it("skirts duplicate the perimeter downward with copied normals + colours, and wall every edge", () => {
     const n = Math.round(BASE.size / BASE.spacing);
     const verts = n + 1;

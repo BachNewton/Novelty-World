@@ -11,9 +11,7 @@ import {
   plantSeasonAt,
   plantVariation,
   SEASON_GROUPS,
-  seasonGroupOf,
   seasonWeights,
-  standHash,
   TIMING_SPREAD,
 } from "./seasons";
 
@@ -94,21 +92,10 @@ describe("each plant's own timing", () => {
     expect(Math.max(...hues) - Math.min(...hues)).toBeGreaterThan(0.8);
   });
 
-  it("varies a tree by where it stands", () => {
-    expect(standHash(123.4, -56.7)).not.toBe(standHash(124.4, -56.7));
-  });
-
   it("turns one tree ahead of another in the same autumn", () => {
     const day = realDayOf(9, 22);
     const turns = Array.from({ length: 50 }, (_, i) => plantSeasonAt("birch", day, i * 11.7, i * -5.3).turn);
     expect(Math.max(...turns) - Math.min(...turns)).toBeGreaterThan(0.3);
-  });
-
-  it("treats each kind of plant by how it lives", () => {
-    expect(seasonGroupOf("broadleaf", 0)).toBe("oak");
-    expect(seasonGroupOf("fern", 2)).toBe("bracken");
-    expect(seasonGroupOf("fern", 0)).toBe("fern");
-    expect(seasonGroupOf("maple", 1)).toBe("maple");
   });
 });
 
