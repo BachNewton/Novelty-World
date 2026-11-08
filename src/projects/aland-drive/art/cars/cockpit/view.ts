@@ -4,7 +4,7 @@ import { CARS as TUNINGS } from "../../../sim/cars";
 import { topSpeedMS, type EngineRead } from "../../../sim/gearbox";
 import type { CarState } from "../../../sim/car-state";
 import type { Units } from "../../../units";
-import { geometryOf } from "../material";
+import { geometryOf, insideGlassMaterial } from "../material";
 import type { CarSpec } from "../build";
 import type { Sun } from "../../sun";
 import { SOURCE } from "./atlas";
@@ -25,6 +25,8 @@ export interface CockpitOptions {
   /** How far after dark it is for the instruments, 0 to 1. */
   glowing?: Node<"float">;
   units: Units;
+  /** The car's see-through glass, drawn from inside while the cockpit is. */
+  glass?: BufferGeometry | null;
 }
 
 /** What a cockpit reads besides the car: the engine, and the hour and air outside. */
@@ -43,7 +45,7 @@ const speedScale = (topKmh: number, units: Units) => {
   return Math.ceil((top + 5) / 20) * 20;
 };
 
-export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), units }: CockpitOptions) {
+export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), units, glass = null }: CockpitOptions) {
   if (spec.id === undefined) throw new Error(`${spec.name} isn't a car a player drives`);
   const tuning = TUNINGS[spec.id];
   const parts = buildCockpit(spec);
@@ -69,6 +71,12 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
   interior.updateMatrix();
   // The camera is inside it, so its bounds always hold the view.
   interior.frustumCulled = false;
+  const insideGlass = glass && new Mesh(glass, insideGlassMaterial({ sun, hazed }));
+  if (insideGlass) {
+    insideGlass.frustumCulled = false;
+    insideGlass.updateMatrix();
+    interior.add(insideGlass);
+  }
 
   const dialsOf = () => {
     const scale = faces();
@@ -116,6 +124,7 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
       geometry.dispose();
       shell.dispose();
       material.dispose();
+      insideGlass?.material.dispose();
       sheet.dispose();
     },
   };

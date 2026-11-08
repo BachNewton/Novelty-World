@@ -60,6 +60,7 @@ const ORDER: readonly string[] = [
   "forest-haze-far",
   "shrubs-haze",
   "linden-haze",
+  "car-glass-inside",
   "car-glass",
   "tyre-smoke",
   "precipitation",

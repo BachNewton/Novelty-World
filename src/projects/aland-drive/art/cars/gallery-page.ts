@@ -98,7 +98,7 @@ async function start(width: number, height: number) {
       const model = createCarModel(art, sun, { hazed: dimmed });
       scene.add(model.root);
       const inside = shot.camera === "eye" || shot.camera === "dash" || shot.camera === "side";
-      const cockpit = inside ? createCockpit(art.spec, { sun, hazed: dimmed, glowing, units: "metric" }) : null;
+      const cockpit = inside ? createCockpit(art.spec, { sun, hazed: dimmed, glowing, units: "metric", glass: art.glass }) : null;
       if (cockpit) {
         model.pivot.add(cockpit.interior);
         model.shell.geometry = cockpit.shell;

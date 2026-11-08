@@ -1312,7 +1312,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   fitCarVolume(carView.art);
   // The player's own car carries its cockpit, hidden until the driver's seat is the view.
   const cockpitOf = (view: typeof carView, spec: typeof carSpec) => {
-    const made = createCockpit(spec, { sun, hazed, glowing: night.lampsOn, units: useUnits.getState().units });
+    const made = createCockpit(spec, { sun, hazed, glowing: night.lampsOn, units: useUnits.getState().units, glass: view.art.glass });
     made.interior.visible = false;
     view.pivot.add(made.interior);
     // Drawn first among the car's parts: from the seat it covers most of the screen.
