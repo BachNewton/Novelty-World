@@ -2,7 +2,7 @@ import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { diffuser, lightLine, louvres, sideIntake, splitter } from "../parts";
-import { bodyOf, driven, handles, plates, reflector, reversing, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, reflector, reversing, type Shape } from "../recipe";
 
 const VARG = driven("varg");
 const { sill, sillTop, belt, windowBase, rail, centre } = ROWS;
@@ -51,12 +51,11 @@ const shape: Shape = {
   shoulder: [
     [-2.37, 0.42],
     [-2.0, 0.64],
-    [-1.46, 0.79],
-    [-0.9, 0.74],
-    [-0.2, 0.72],
-    [0.6, 0.8],
-    [1.32, 0.88],
-    [1.9, 0.89],
+    [-1.46, 0.78],
+    [-0.6, 0.745],
+    [0.4, 0.775],
+    [1.32, 0.87],
+    [1.9, 0.88],
     [2.37, 0.84],
   ],
   belt: [
@@ -83,9 +82,10 @@ const shape: Shape = {
   railWidth: [
     [-2.37, 0.13],
     [-1.9, 0.16],
-    [-1.2, 0.2],
-    [-0.75, 0.3],
-    [-0.36, 0.62],
+    [-1.4, 0.2],
+    [-0.9, 0.29],
+    [-0.55, 0.43],
+    [-0.3, 0.62],
     [0.2, 0.6],
     [0.9, 0.58],
     [1.6, 0.68],
@@ -118,7 +118,10 @@ const shape: Shape = {
     topStripe(0.6, 0.56),
     topStripe(1.87, 0.56),
   ],
-  blocks: [splitter({ z: -2.38, h: 0.18, halfWidth: 0.5, long: 0.1 }),
+  blocks: [splitter({ z: -2.355, h: 0.19, halfWidth: 0.55, long: 0.2 }),
+    // A lip of the body's colour over the fender's vent and over the brake duct ahead of the rear wheel, so each reads as a duct.
+    { at: [0.955, 0.688, -0.98], size: [0.05, 0.014, 0.28], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
+    { at: [0.985, 0.508, 0.82], size: [0.06, 0.016, 0.24], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
     // The spine of the body's colour down the middle of the face, splitting the intake.
     { at: [0, 0.37, -2.34], size: [0.13, 0.16, 0.08], surface: "paint", taper: [0.85, 1] }, ...diffuser({ z: 1.95, tailZ: 2.34, h: 0.3, x: [0, 0.3] })],
   extra: {
@@ -130,23 +133,37 @@ const shape: Shape = {
       { z: -2.369, h: 0.49, band: "gap" },
       { z: -2.368, h: 0.5 },
       { z: -2.355, h: 0.6 },
-      { z: -2.31, h: 0.65 },
-      { z: -2.2, h: 0.69, fine: true },
-      { z: -2.05, h: 0.735 },
-      { z: -1.85, h: 0.78, fine: true },
-      { z: -1.6, h: 0.815 },
-      { z: -1.3, h: 0.845, fine: true },
-      { z: -1.0, h: 0.868 },
-      { z: -0.7, h: 0.887, fine: true },
-      { z: -0.45, h: 0.9 },
+      // The long hood, then the screen, roof, fastback glass and the short deck, each as one fair line.
+      ...faired(
+        [
+          [-2.31, 0.65],
+          [-2.0, 0.745],
+          [-1.4, 0.83],
+          [-0.8, 0.88],
+          [-0.36, 0.908],
+        ],
+        [[-2.31, undefined]],
+      ),
       { z: -0.36, h: 0.908, band: "cowl" },
-      { z: -0.3, h: 0.915, band: "screen" },
-      { z: 0.3, h: 1.18 },
-      { z: 0.62, h: 1.24 },
-      { z: 0.9, h: 1.22, band: "rearGlass" },
-      { z: 1.55, h: 1.02 },
-      { z: 1.9, h: 1.005, fine: true },
-      { z: 2.17, h: 1.02 },
+      ...faired(
+        [
+          [-0.3, 0.915],
+          [0.05, 1.1],
+          [0.35, 1.2],
+          [0.65, 1.235],
+          [0.95, 1.2],
+          [1.3, 1.09],
+          [1.6, 1.025],
+          [1.9, 1.008],
+          [2.2, 1.02],
+        ],
+        [
+          [-0.3, "screen"],
+          [0.3, undefined],
+          [0.9, "rearGlass"],
+          [1.56, undefined],
+        ],
+      ),
       { z: 2.2, h: 1.02, band: "gap" },
       { z: 2.21, h: 1.005 },
       { z: 2.245, h: 0.88 },
@@ -189,10 +206,9 @@ const shape: Shape = {
       [2.37, 0.95],
     ],
     scoop: [
-      [-1.0, 0],
-      [-0.6, 0.03],
-      [0.3, 0.045],
-      [0.8, 0.03],
+      [-1.05, 0],
+      [-0.4, 0.015],
+      [0.4, 0.022],
       [0.95, 0],
     ],
     cornerPullM: [0.26, 0.1],
