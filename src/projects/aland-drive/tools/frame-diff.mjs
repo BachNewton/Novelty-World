@@ -57,24 +57,36 @@ const views = [
   ...LOOKS.map(({ name, at }) => ({ name, go: (opened) => opened.page.evaluate((place) => { window.__frameDiffDone = true; window.__alandDrive.look(place); }, at) })),
 ];
 
+const frames = async (opened) => opened.page.evaluate(() => window.__alandDrive.frames());
+/** Ticks the pages until both have drawn `target` frames. */
+const drawLevel = async (target) => {
+  for (const opened of pages) while ((await frames(opened)) < target) await opened.tick();
+};
+const hold = (opened) =>
+  opened.page.evaluate(({ seaSeconds, hour }) => {
+    const probe = window.__alandDrive;
+    probe.hold(true);
+    probe.holdSea(seaSeconds);
+    probe.setDay({ hour, held: true });
+  }, { seaSeconds: CLOCK / 1000, hour: HOUR });
+
+// Every clock the game keeps moves by the frame, so once both pages have drawn the same number of frames their clocks
+// agree, however many ticks each spent loading before its first frame. The clocks the hold stops (the ripples', the
+// indicators') keep the value the hold found, so the pages are drawn level before the first hold, and stay held after.
+await before.step("drawing the pages level", async () => {
+  await drawLevel(Math.max(...(await Promise.all(pages.map(frames)))));
+  for (const opened of pages) await hold(opened);
+});
+
 let identical = 0;
 for (const { name, go } of views) {
   const result = await before.step(name, async () => {
     for (const opened of pages) {
-      await opened.page.evaluate(({ seaSeconds, hour }) => {
-        const probe = window.__alandDrive;
-        probe.hold(true);
-        probe.holdSea(seaSeconds);
-        probe.setDay({ hour, held: true });
-      }, { seaSeconds: CLOCK / 1000, hour: HOUR });
+      await hold(opened);
       await go(opened);
       await tickUntil(opened, () => window.__frameDiffDone === true);
     }
-    // Drawn level: every clock the game keeps moves by the frame, so once both pages have drawn the same number of
-    // frames their clocks agree, however many ticks each spent loading before its first frame.
-    const frames = async (opened) => opened.page.evaluate(() => window.__alandDrive.frames());
-    const target = Math.max(...(await Promise.all(pages.map(frames)))) + SETTLE_FRAMES;
-    for (const opened of pages) while ((await frames(opened)) < target) await opened.tick();
+    await drawLevel(Math.max(...(await Promise.all(pages.map(frames)))) + SETTLE_FRAMES);
     const drawn = await Promise.all(pages.map(frames));
     if (drawn[0] !== drawn[1]) throw new Error(`the pages drew ${drawn.join(" and ")} frames: a tick must be one frame`);
     // The page with only the game's canvas showing: nothing of the HUD, which fades and counts on its own, over it.
