@@ -2,7 +2,7 @@ import { ROWS, type Band } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { diffuser, louvres, sideIntake, splitter } from "../parts";
-import { bodyOf, driven, faired, handles, plates, reversing, thirdBrake, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const ORKAN = driven("orkan");
 const { sillTop, belt, rail, centre } = ROWS;
@@ -50,6 +50,7 @@ const shape: Shape = {
   halfWidth: 0.99,
   sillH: 0.13,
   flareM: 0.03,
+  cornerPullM: [0.2, 0.18],
   archClearM: 0.035,
   grilleH: 0.41,
   lampH: [0.485, 0.533],
@@ -110,8 +111,10 @@ const shape: Shape = {
     ...plates(0.62, 0.3),
     ...handles([0.55], 0.82),
     reversing(0.3, 0.405),
+    // A reflector low in each corner.
+    reflector(0.7, 0.4),
     thirdBrake(1.14, 0.42),
-    sideIntake({ z: -0.78, h: 0.58, long: 0.26, tall: 0.1 }),
+    sideIntake({ z: -0.76, h: 0.58, long: 0.34, tall: 0.09 }),
     ...louvres({ x: 0.34, z: -1.2, long: 0.34, wide: 0.15, count: 4 }),
     // A brake-cooling inlet at each outer corner of the nose, under the visor.
     { on: "front", at: [0.72, 0.31], size: [0.17, 0.11], surface: "grille", mirror: true, cells: [3, 2], liftM: 0.012 },
@@ -120,11 +123,9 @@ const shape: Shape = {
     // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
     { at: [0, 0.375, -2.33], size: [1.0, 0.024, 0.06], surface: "paint", taper: [1, 1] },
     splitter({ z: -2.36, h: 0.21, halfWidth: 0.56, long: 0.12 }),
-    // Each fender vent as a duct: a blade of the body's colour along it, a lip over it and a wall at each end.
-    { at: [0.962, 0.58, -0.78], size: [0.04, 0.022, 0.28], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
-    { at: [0.955, 0.64, -0.78], size: [0.06, 0.016, 0.3], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
-    { at: [0.95, 0.58, -0.915], size: [0.05, 0.11, 0.014], surface: "paint", mirror: true, fine: true },
-    { at: [0.95, 0.58, -0.645], size: [0.05, 0.11, 0.014], surface: "paint", mirror: true, fine: true },
+    // Each fender vent as a duct: a blade of the body's colour along it and a lip over it, tapering back.
+    { at: [0.962, 0.58, -0.76], size: [0.04, 0.02, 0.32], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
+    { at: [0.958, 0.632, -0.76], size: [0.05, 0.014, 0.34], surface: "paint", mirror: true, taper: [0.8, 0.6], fine: true },
     // A blade across each brake-cooling inlet in the nose's corners.
     { at: [0.72, 0.31, -2.2], size: [0.15, 0.02, 0.1], surface: "paint", mirror: true, fine: true },
     ...diffuser({ z: 2.02, tailZ: 2.3, h: 0.22, x: [0.2, 0.42] }),
