@@ -1,6 +1,6 @@
 # The learned Risk bot: the plan
 
-The design doc for the one line of Risk bots that learn. It is written to the `machine-learning` skill (`.claude/skills/machine-learning/`): the brief first, then the ruler, then the approach, then the plan of the next run with its predictions. It consolidates what the self-play, distillation and learned-evaluation lines found and says what they add up to. Those docs (`gpu-engine.md`, `self-play-league.md`, `distilled-v7.md`, `student-v1.md`, `rule-bot-v8.md`) stay as the record of their measurements; where their next-step sections differ from this doc, this doc is the plan. The direction is decided; the first night's predictions are written and wait on the owner's go-ahead and a night of the machine.
+The design doc for the one line of Risk bots that learn. It is written to the `machine-learning` skill (`.claude/skills/machine-learning/`): the brief first, then the ruler, then the approach, then the plan of the next run with its predictions. It consolidates what the self-play, distillation and learned-evaluation lines found and says what they add up to. Those docs (`gpu-engine.md`, `self-play-league.md`, `distilled-v7.md`, `student-v1.md`, `rule-bot-v8.md`) stay as the record of their measurements; where their next-step sections differ from this doc, this doc is the plan. The direction is decided, and stage 1 has run: its report is under the first night's predictions.
 
 ## The brief
 
@@ -95,7 +95,7 @@ The plan of the stage-1 run, in the skill's shape (`references/recipes.md`, "The
 
 - **The teacher is native-v2 at its baseline**, v7.1's search on the native planner at v6.1's settings (`native-v2.md`): the same class as rule-v7.1 (it agrees with v7.1 on nine decisions in ten and matched v7's gain over v6.1 natively), at a tenth of the turn time, and stall-free where it is recorded (0.8% capped in 5-player mirrors; 1.8% at 6 players, where the recording is small). Not rule-v7.1, which the crate can't play and which costs eight times the runner time for the same class; not `execute`, which is stronger than v7.1 and stalls, so a copy of it would learn not to close games (it becomes the teacher once it does). rule-v7.1 stays the yardstick: the harness reads the imitation net against it whichever bot taught it.
 - **The recording.** The teacher's games as game records, by the crate's `risk-native play` (`native/src/record.rs`: seed, every move, and the hashes the GPU replays against), on GitHub Actions' `native-play` tool (`docs/actions.md`, "Game records"): one recorder per core on twenty machines, each on its own run of seeds, the files gathered into one artifact and downloaded into `gpu/runs/records/native-v2/` in the main checkout (ignored by git, never in a worktree). Seatings, each a run of the workflow: the teacher in every seat at 5 players (seeds `imit-5m`, 3,200 games); two teachers among native v6.1 (`native-v2~{"replies":0}`), GD Defensive and GD Stacker at 5 players (`imit-5x`, 8,000), so its decisions cover both the positions its own class reaches and the ones the league's bots produce; mirrors at 6 and 3 players (`imit-6m`, 1,200; `imit-3m`, 3,200) and two teachers among GD at 4 (`imit-4x`, 4,000), so the net has seen every table. About 20,000 games and on the order of thirteen million teacher decisions, recorded in an evening with the laptop's CPU free; more is one more run away. A mirror game is dear where the search's replies seat more opponents: on the laptop a 3-player mirror takes 2 seconds and a 5-player mixed game 5, a 5-player mirror about a minute and a 6-player mirror two and a half, and a runner's core is slower again, so a machine's share is sized well inside the six-hour job limit, since a recorder writes its file only when its games are done. Every seating replays exactly on the GPU engine, checked before the runs were started. The GPU replays each record in lockstep; a record whose replay diverges (a blitz on one of the rare inputs where the runners' `pow` differs from the laptop's) is cut at the divergence, counted and reported.
-- **The trainer**, `riskgpu.selfplay.imitate`, a new module beside `ppo.py`. It replays the records on the GPU engine as `lockstep.py` does, a batch of games at a time, and at every decision of a teacher's seat builds the observation (`obs.py`'s `observe`, with the turn-log tensors the runner keeps during play derived from the moves being replayed) and the target: the main choice from the move (a territory, the trade, an edge, end-attack, a move-in bucket, a pair, end-turn) and the amount bucket. A teacher amount that no bucket expresses exactly (v6.1 places the plan's own allocation and blitzes keeping the fewest armies that are as sure as all, neither of which is "all", "half" or "one") is mapped to the nearest bucket and flagged, and the flagged share is reported by kind: it is a measurement of the action space, not noise. The loss is cross-entropy over the legal main choices, cross-entropy over the amount where the group has buckets, and the value head fitted to the seat's score in the recorded game (the win reward's), so the warm start carries a baseline too. Held out by game, every fifth game. Trained to the held-out plateau with the best kept by held-out main agreement; the observations kept on the host or rebuilt by replay each epoch, whichever the memory allows. Tested first on the committed fixtures (`gpu/fixtures/rule-4p.jsonl.gz` holds rule bots' games), so the pipeline reads end to end before the night's data lands.
+- **The trainer**, `riskgpu.selfplay.imitate`, a new module beside `ppo.py`. It replays the records on the GPU engine as `lockstep.py` does, a batch of games at a time, and at every decision of a teacher's seat builds the observation (`obs.py`'s `observe`, with the turn-log tensors the runner keeps during play derived from the moves being replayed) and the target: the main choice from the move (a territory, the trade, an edge, end-attack, a move-in bucket, a pair, end-turn) and the amount bucket. A teacher amount that no bucket expresses exactly (v6.1 places the plan's own allocation and blitzes keeping the fewest armies that are as sure as all, neither of which is "all", "half" or "one") is mapped to the nearest bucket and flagged, and the flagged share is reported by kind: it is a measurement of the action space, not noise. The loss is cross-entropy over the legal main choices, cross-entropy over the amount where the group has buckets, and the value head fitted to the seat's score in the recorded game (the win reward's), so the warm start carries a baseline too. Held out by game: a recording's shard k is held out when k % 5 is 4, a fifth of the games, none split. Trained to the held-out plateau (the rate cut when a read on a fixed sample of held-out decisions stalls, training stopped when it stays stalled) with the best kept by held-out main agreement; the states are kept on the host (15.5 million decisions in about 6 GB) and the observations rebuilt from them on the GPU each minibatch, as PPO's update does. Tested first on the committed fixtures (`gpu/fixtures/rule-4p.jsonl.gz` holds rule bots' games), so the pipeline reads end to end before the night's data lands.
 - **The reads.**
   - Held-out agreement with the teacher by decision kind (place, trade, attack, end-attack, move-in, fortify, end-turn) and overall, with intervals by bootstrap over games; the turn-start placement apart, since that is the search's own decision and every other is v6.1's.
   - The data curve: the same at a quarter, a half and all of the games.
@@ -118,6 +118,100 @@ The recording runs on Actions before the night (`gh` on the owner's own account)
 | 5 | On the GPU panel, the imitation net alone among four GD Defensive at 5 players wins 40% or more of decisive games (par 20%). | 55% |
 | 6 | In the harness, `net-v1~{"weights":"imit-1"}` alone among four rule-v6.1 at 5 players is not worse (even or better at ±30 Elo a seat). | 35% |
 
+### The first night's report
+
+**In one paragraph.** The copy works, and the way it plays decides its strength. imit-1 makes the teacher's choice on 64.8% of held-out decisions. Played as net-v1 plays (sampling its moves), it is worse than rule-v6.1 alone among four of them: −136 win Elo. Played by its most likely move, it is better than rule-v6.1 by +110 win Elo, more than sw128b-450's +46 and about v7's own gain over its planner. But the same argmax copy stalls among its own copies, 4 of 10 five-player mirrors capped, where the teacher capped none of 160. Predictions 1 and 5 held; 3, 4 and 6 failed. 2 isn't read: a second seed of the full run came out 2.1 points lower, more than the data curve's top gap, because of how the trainer's schedule cut its rate. The next night is stage 2, from imit-1.
+
+**What ran.** Five recordings on Actions, every machine of each succeeded: run 42405066556 (`imit-5m`, 3,200 games), 42400208888 (`imit-5x`, 8,000), 42405064040 (`imit-6m`, 1,200), 42400215077 (`imit-3m`, 3,200), 42400217997 (`imit-4x`, 4,000). Two earlier runs at the first sizes (5-player mirrors at `--count 150`, 6-player at 50) were cancelled and replaced by these. That makes 19,600 games, 18.96 million moves and 15.53 million teacher decisions. A sample of 245 games, one file per seating, replayed exactly in `lockstep.py`. The extraction then replayed every game on the GPU engine, comparing the state's hash every 32 decisions and at the end: **none diverged, none was cut**, in 20 minutes on the eGPU.
+
+The trainer is `riskgpu.selfplay.imitate` (extract, train, read), with the stage-0 panel as `riskgpu.selfplay.panel`. 3,920 games (3.12 million decisions) are held out. The runs were imit-1 on all 15,680 training games and imit-1-f2, -f4 and -f16 on a half, a quarter and a sixteenth of them, each capped at 100 million samples. The full and the half both reached the cap still climbing, at 7.8 and 14.8 epochs; the quarter and the sixteenth stopped at their plateaus. In the morning, imit-1-s2 ran the full recipe again on seed 2. Every interval below is 95%: by bootstrap over games for agreement, Wilson for win shares.
+
+**Held-out agreement with the teacher** (imit-1). "Main" is the choice of move and place; "move" is the whole move, its amount included.
+
+| Teacher's move | Decisions | Main | Move |
+|---|---|---|---|
+| all | 3,119,327 | **64.8% [64.6, 65.0]** | 49.4% [49.2, 49.6] |
+| turn-start placement (the search's own decision) | 305,750 | 41.5% [41.2, 41.8] | 28.0% [27.7, 28.3] |
+| other placement | 100,510 | 70.4% [70.1, 70.7] | 65.0% [64.7, 65.4] |
+| trade | 91,926 | 97.7% [97.6, 97.8] | 82.9% [82.7, 83.2] |
+| attack | 1,259,710 | 65.2% [64.9, 65.5] | 33.8% [33.4, 34.2] |
+| end the attack | 292,724 | 72.7% [72.4, 72.9] | the same |
+| move in | 774,929 | 74.2% [74.0, 74.5] | 72.9% [72.6, 73.2] |
+| fortify | 266,956 | 40.2% [40.0, 40.5] | 35.2% [35.0, 35.4] |
+| end the turn | 26,822 | 59.5% [58.2, 61.0] | the same |
+
+By seating, main agreement falls with the table: 72.4% at 3 players, 69.5% at 4 (two teachers among GD), 67.2% in the 5-player mixed games, 62.0% and 61.5% in the 5- and 6-player mirrors.
+
+**The data curve**, main agreement on all held-out decisions:
+
+| Training games | Main | Turn-start placement | Value head's explained variance |
+|---|---|---|---|
+| 980 (a sixteenth) | 56.5% [56.3, 56.8] | 35.4% [35.1, 35.6] | 40.5% |
+| 3,920 (a quarter) | 61.5% [61.3, 61.7] | 39.5% [39.2, 39.7] | 41.3% |
+| 7,840 (a half) | 63.1% [62.9, 63.3] | 40.6% [40.3, 40.8] | 41.9% |
+| 15,680 (all) | 64.8% [64.6, 65.0] | 41.5% [41.2, 41.8] | 42.2% |
+
+| 15,680 (all), seed 2 (`imit-1-s2`) | 62.7% [62.5, 62.9] | 40.2% [40.0, 40.5] | 41.9% |
+
+At face value that is 2.5 points a doubling at the small end and 1.6 at the top. **The seed pair says the top of the curve isn't read yet.** `imit-1-s2` is the full recipe again on seed 2, allowed past the cap. It tracked imit-1 within 0.4 points at matched steps until the plateau rule cut its rate at step 9,500, on a read's noise. imit-1's first cut came at 19,500. Seed 2 then stopped at its plateau, at 90 million samples and 62.7%, 2.1 points under imit-1 and below the half-data run, whose first cut also came early (step 10,000). The spread between two seeds of this recipe is larger than the gap between half the data and all of it, and it comes from the trainer's schedule (a rate cut after two reads without a gain on a monitor sample whose own noise is about the late gains' size), not from the data. The fix is the standard one: a fixed schedule over a set sample budget, the held-out read only choosing the checkpoint. Then the half and the full are re-read on two seeds each. The value head explains 42% of the variance of a seat's final score on held-out games, so stage 2 starts with a baseline, which the from-scratch runs never measured.
+
+**The teacher's own consistency**, read by the crate's `agree` on 40 held-out 5-player mirror games, the same 7,211 turn-start placements the net was read on. (`agree` gained the turn-start tally and the off-path rule `agree-log` already had: once the bot answers a reinforce phase's decision otherwise than recorded, the phase's later decisions aren't asked.)
+
+| On the same positions | Turn-start placement, whole move |
+|---|---|
+| native-v2 at 32 replies, against its own choice at 8 | 65.0% [63.8, 66.2] |
+| native-v2 at 0 replies (v6.1's planner) | 33.4% [32.5, 34.3] |
+| imit-1 | 25.7% [24.3, 27.0] (the territory alone: 39.7% [38.3, 41.2]) |
+
+Every attack, move-in and fortify the teacher makes is its planner's, deterministic: 100% at 32 replies as at 0. So the ceiling on every decision but the turn-start placement is 100%, and the net reaches about two thirds of it.
+
+**The action space.** The buckets can't express 22.0% [21.9, 22.1] of the teacher's held-out moves: 11.7% [11.6, 11.8] of placements, 14.8% [14.6, 15.1] of trades (another set or bonus than the trade rule's), 45.8% [45.4, 46.2] of attacks, 4.2% of move-ins and 5.9% of fortifies. The attacks are all blitzes. Battles are always expressed: the teacher's fewer dice are always the most it may roll. In the 5-player mirrors, 57% of its blitzes keep back a count of armies that is neither one nor half the source, mostly seven or more. That is where the move agreement on attacks falls from 65% to 34%.
+
+**The panel**, on the GPU at 5 players, 1,024 games each. It reads par on its own calibration: sw128b-450 against itself, one-in 20.7% [17.4, 24.4] (par 20%), one-out 82.0% [78.5, 85.1] (par 80%). sw128b-450 alone among GD Defensive wins 69.7% [66.8, 72.5].
+
+| imit-1 | Sampling | Argmax |
+|---|---|---|
+| alone among four GD Defensive (par 20%) | 81.5% [79.0, 83.7] | 94.0% [92.4, 95.3], none capped |
+| alone among four sw128b-450 (par 20%) | 13.7% [11.0, 16.9] | 29.3% [25.5, 33.4] |
+| four against one sw128b-450 (par 80%) | 75.6% [71.7, 79.1] | 91.1% [88.3, 93.3], 5.5% capped |
+
+**The harness.** imit-1 is exported as the net-v1 weight set `imit-1`. The parity test passed on a fixture of its own (4 games on the reference engine, all 736 network decisions within the test's tolerance, every move the same); the fixture isn't kept, since the committed fixtures already hold the network's code and the exporter. On train seeds, 5 players, alone among four rule-v6.1, by the gauntlet's SPRT (±30 Elo a seat):
+
+- `net-v1~{"weights":"imit-1"}` (sampling): **worse**, 10.2% [6.8, 15.2] of 205 decisive games against par 20%, win Elo −136, finishing-order Elo −52, mean place 3.30, none capped.
+- `net-v1~{"weights":"imit-1","pick":"argmax"}`: **better**, 32.0% [25.5, 39.2] of 175 decisive games, win Elo +110, finishing-order Elo +111, mean place 2.38, none capped.
+
+**A replayed game.** Five argmax copies at one table (`risk:trace --mirror`). The traced game ended in 71 player-turns: a capture every turn, no idle turn, armies on the board kept to 50 or 60 and the cards cycling, the winner taking five continents. The survey of 10 such games tells the other half: 4 capped [Wilson 17%, 69%], the decided ones 279 turns on average, 409 armies on the board at turn 100. The teacher's 5-player mirrors capped 0 of 160, median 203 turns. Among rule-v6.1 the copy closes its games; among copies of itself it often doesn't, as net-v1's from-scratch checkpoints didn't when they played argmax.
+
+**The predictions.**
+
+| # | Reading | |
+|---|---|---|
+| 1 | 64.8% [64.6, 65.0] | **held** |
+| 2 | all 64.8% [64.6, 65.0] against half 63.1% [62.9, 63.3], 1.6 points apart; all again on seed 2, 62.7% | **not read**: the gap is outside the reads' intervals but inside the recipe's spread between seeds (2.1 points), so the curve's top waits on the fixed schedule |
+| 3 | 25.7% [24.3, 27.0] against half of 65.0%, 32.5% | **failed**: the net copies the search's own decision worse than v6.1's planner does (33.4%) |
+| 4 | the buckets express 88.3% of placements and 54.2% of attacks | **failed**: they express more than predicted; the misses are blitz keeps, 57% of mirror blitzes |
+| 5 | 81.5% [79.0, 83.7] (94.0% argmax) | **held** |
+| 6 | sampling: worse, −136 win Elo | **failed** as written; the argmax copy is better, +110 |
+
+**What it rules out.** Cause 4 (the representation can't copy the teacher) is ruled out: two thirds of the decisions, and a copy stronger than v6.1, from the raw board on net-v1 as it stands. The rule for "6 fails while 1 holds" (a DAgger round, on the reading that the copy learned the wrong decisions) doesn't apply. The argmax read shows its most likely moves win; what loses is sampling from a copy that is unsure on a third of its decisions, over hundreds of decisions a game. The next step is stage 2 from imit-1: 1 holds, and the copy is already past v6.1, which is what a warm start needs. Whether more data pays is still open, since prediction 2 isn't read. But even the face-value slope, 1.6 points a doubling, is under the plan's three, so no second recording round until the curve is re-read. Prediction 4's rule (a count head) is not triggered as written. The blitz keeps are still the action space's one large miss, and a candidate once stage 2 has read.
+
+**Two rulings for the line, from these readings.** How a learned bot plays (sampling, argmax, or a temperature between) is a measured choice per checkpoint, never fixed by a past one's result: argmax stalled the from-scratch nets and makes this copy strong. So every panel read of stage 2 is taken both ways. And the stall is a health reading of every checkpoint: the argmax copy's mirror cap rate, beside its strength.
+
+**The next night: stage 2's seed pair from imit-1.** PPO (`ppo.py --init` from imit-1's weights), with imit-1 pinned in the league beside sw128b-450 and GD's personas, the win reward alone and pf4's cold recipe, two seeds. PPO samples and is paid only for the win, and a capped game scores below placing behind the survivors, so it attacks both of the copy's faults at once: sampling's noise and argmax's stall. Predictions, read at matched samples on the panel each 25 iterations:
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | By the night's end, the sampled learner alone among four sw128b-450 reaches par (20%) or more, from 13.7%. | 60% |
+| 2 | The argmax learner alone among four GD Defensive stays at 90% or more throughout: PPO doesn't unlearn the copy. | 65% |
+| 3 | The argmax learner's 5-player mirror cap rate falls below 20%, from 40%. | 45% |
+| 4 | The two seeds' best checkpoints are within 30 win Elo of each other on the panel's pair read. | 55% |
+
+The kill reading is the plan's: the pair against imit-1 falling below the start by more than its interval twice. Then the update is destroying what imitation gave, and the standard fix, a KL penalty toward the imitation policy (AlphaStar's), is the diagnosis's first test. Before it, two things that take the GPU or the runners for hours, not a night:
+- the reads the plan leaves for Actions: the argmax copy one-out among rule-v6.1, and one-in and one-out against rule-v7.1, at 5 players;
+- the imitation trainer on a fixed schedule, with the half and the full re-read on two seeds each. That gives prediction 2 its reading and gives stage 2 a known spread for the imitation it starts from.
+
+**Is another night worth it?** Yes. One night took the learned line from below the planner's class to a copy that beats rule-v6.1 by more than any net here has, and stage 2 is the first time policy improvement starts from the target's class.
+
 ### Kill rule, cost, and what follows
 
 - **Kill rule.** None for the recording, which is data whatever it shows, and none for the training, whose reading is the answer. The line's own reading: if the overall agreement at the full recording is under 40% and the curve has bent (under two points from half to all), the raw-board observation or the net can't copy the teacher, and that is fixed before any night of PPO (features the planner reads as extra tokens, or capacity), read by the same tool at an evening's cost.
@@ -136,7 +230,9 @@ The skill's shape: every reading above with its interval; the six predictions ea
 
 Briefed in the skill's form: the question, the options with their cost and what standard practice says, the recommendation and the one piece of evidence that would change it, and what is needed.
 
-### Now: start the learned bot from an imitation of rule-v7.1, or keep training from scratch?
+### Ruled: start the learned bot from an imitation of rule-v7.1, or keep training from scratch?
+
+The owner ruled for imitation first by running stage 1. The briefing stays below as the reasoning.
 
 - **Imitation first (recommended).** Cost: a few hours of Actions' runners and a day's build, then an hour or two of the GPU, with the laptop's CPU left free. Gain: the representation question answered before another night of policy gradient; a start at the target's class rather than below the planner's; a league anchor of the target's class, which the from-scratch runs never had. Risk: the action space's buckets can't express the teacher's amounts, which the test will show and a count head fixes. Standard practice: every system that reached strong play in a game of this kind started from imitation of the strongest play available (AlphaGo's supervised start, AlphaStar's, Cicero's and Diplodocus's human-anchored policies), and `risk-bot-ai.md` found no from-scratch self-play attempt at Risk that didn't fail or plateau.
 - **Continue the from-scratch diagnosis.** Cost: two nights for the seed pair, then the bias tests `self-play-league.md` names. Gain: whether sw128b's recipe can climb at all. Risk: the ruler can't read progress toward v7.1 without the harness, the league still lacks v7.1's class, and the record already shows the net outlasting v7.1 without finishing. Standard practice does not favour it.
