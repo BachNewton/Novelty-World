@@ -61,7 +61,7 @@ The order of work, each step checked in the gallery before the next:
 
 1. **Proportions from the side.** Axles and wheels from the simulation, then the silhouette: nose height, hood, where the screen starts (the cowl), the roof, where it ends, the tail. A cab-forward car's cowl sits near its front axle and its roof ends over its rear one; a front-engined car's cowl sits a metre and more behind its front axle.
 2. **The plan from above.** `halfWidth` (hips over the rear wheels for a sports car), `railWidth` (the roof's edge: a narrow canopy on a wide body is a mid-engined car's), and `shelf`, a band of paint between the flank's top and the side glass, which is what lets a narrow cabin sit inboard of wide hips.
-3. **The section.** `shoulder` and `belt` heights along the car (the flank's top and the crease below it), `crown` (how far the roof's edge sits below the centre; below zero over the hood, the fenders stand above a hood that dips between them).
+3. **The section.** `shoulder` and `belt` heights along the car (the flank's top and the crease below it), `crown` (how far the roof's edge sits below the centre; below zero over the hood, the fenders stand above a hood that dips between them, and over the rear wheels, hips above an engine cover), and `scoop` (how far the lower flank is sculpted in along the car, leading into an intake).
 4. **Glass.** `windowZ`, `windowTop`, `pillars`, and the screen and rear glass as bands. A teardrop canopy is a `windowTop` that rises from the cowl, peaks over the seats and tapers behind them.
 5. **Face and tail.** The silhouette's points at each end, each with a band: the mouth, the lamp, the housing, the gap, the tail bar, the mesh, the diffuser. The maker's signature goes here (Tärna's is a bracket of light, a full-width line turned down at its ends).
 6. **Parts** (`art/cars/parts.ts`): `splitter`, `diffuser`, `sideIntake`, `lightLine`, `projectors`, `tailLine`, `louvres`; the recipe's own `plates`, `handles`, `reversing`, `reflector`, `thirdBrake`, `lampUnits`, `roundLamps`, `stripe`; the body's `wing` (with `endplates`), `exhausts`, `roofBars` and `blocks`.
@@ -75,6 +75,14 @@ Rules the recipe holds you to:
 - **Mid-silhouette points marked `fine`** smooth the near hood and deck; the far model uses only the firm points, so the firm points alone must still give the outline.
 
 ## Art: the review
+
+While shaping, sketch the car on the CPU, which needs no GPU page and takes a second or two:
+
+```
+npx tsx src/projects/aland-drive/art/cars/sketch.ts --car=<id> <out>
+```
+
+It draws the near model from the side, the three-quarters, above, the front, the rear, the chase camera and a front wheel, and the far model, in flat colours under one light: proportions, sections, bands, parts and wheels, not the material. GPU pages are the machine's scarcest share, so iterate on the sketch and shoot the gallery for each real round.
 
 Shoot the car in the gallery, near and far, by day and by night:
 
