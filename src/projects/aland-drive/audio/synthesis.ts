@@ -1,4 +1,5 @@
-import { BIKE, type EngineSpec } from "./vehicles";
+import { ENGINE_RATE, loopRpms } from "./model";
+import { BIKE, type Combustion, type EngineSpec } from "./vehicles";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
@@ -12,9 +13,6 @@ export interface Loop {
   rate: number;
   channels: Float32Array<ArrayBuffer>[];
 }
-
-/** The rate an engine cycle is rendered at; its playback rate is `rpm / CYCLE_RPM`. */
-export const CYCLE_RPM = 3000;
 
 const HIGH_RATE = 44100;
 const BED_RATE = 22050;
@@ -77,37 +75,183 @@ export function noiseLoop(): Loop {
   return { rate: HIGH_RATE, channels };
 }
 
+/** Each loop holds about this long of the engine, a whole number of cycles, so a held note doesn't repeat a pattern fast enough to hear. */
+const ENGINE_LOOP_S = 0.6;
+/** Off load the cylinders still fire, but weakly and raggedly: the timbre a lift turns to. */
+const OFF_LOAD = 0.55;
+/** Where in a cylinder's 720° each of its four valves opens or shuts, as a share of the cycle after it fires: the ticks of the valve gear. */
+const VALVE_EVENTS = [0.19, 0.47, 0.53, 0.81];
+
+/** `make(t)` over `seconds`, one value a sample, with one to spare for the rounding of the last. */
+function shape(seconds: number, make: (t: number) => number): Float32Array {
+  return Float32Array.from({ length: Math.round(seconds * ENGINE_RATE) + 1 }, (_, i) => make(i / ENGINE_RATE));
+}
+
+/** An engine's four loops (`loopRpms`, `loopWeights` in `model.ts`): low revs off and on load, then high revs off and on. */
+export interface EngineLoops {
+  rpm: readonly [low: number, high: number];
+  /** Each a pair of channels that aren't left and right: the exhaust's pulses, and the engine bay's intake roar and mechanicals. */
+  loops: readonly [Loop, Loop, Loop, Loop];
+}
+
 /**
- * Eight four-stroke cycles of one engine at `CYCLE_RPM`, each firing a ringing
- * pulse. Each cylinder has its own strength and each cycle strays a little, so
- * the note has a lope below its firing rate rather than a buzz.
+ * One loop of an engine at `rpm`, on load or off: each firing a pressure pulse leaving its port (a thump, its header's
+ * ring and a share of turbulence) down its bank's pipe, and in the bay the cylinder breathing in half a cycle later, the
+ * valve gear ticking, a diesel's knock and an air-cooled fan. Every loop of an engine has its firings at the same
+ * places in its cycles, so loops blended together stay in step.
  */
-export function engineCycle(spec: EngineSpec): Loop {
-  const next = random(spec.seed);
-  const cylinders = Math.max(1, Math.round(spec.firesPerRev * 2));
-  const cycleS = (2 * 60) / CYCLE_RPM;
-  const cycles = 8;
-  const gapS = cycleS / cylinders;
-  const channel = samplesOf(cycleS * cycles, HIGH_RATE);
-  const strengths = Array.from({ length: cylinders }, () => 1 - spec.unevenness * next());
-  const firingHz = 1 / gapS;
+function engineLoop(engine: Combustion, rpm: number, onLoad: boolean, strengths: readonly number[], next: () => number): Loop {
+  const samplesPerCycle = Math.round((120 * ENGINE_RATE) / rpm);
+  const cycleS = samplesPerCycle / ENGINE_RATE;
+  const cycles = Math.max(4, Math.round(ENGINE_LOOP_S / cycleS));
+  const exhaust = new Float32Array(samplesPerCycle * cycles);
+  const bay = new Float32Array(samplesPerCycle * cycles);
+  const { firing, banks } = engine;
+  const pulseS = (engine.pulseMs / 1000) * (onLoad ? 1 : 1.5);
+  const roughness = engine.roughness * (onLoad ? 1 : 0.5);
+  const breathS = cycleS / 4;
+  const breathing = 1 - Math.exp((-TAU * 1800) / ENGINE_RATE);
+  // Every pulse of a bank has the same shape, worked out once: only its strength and its turbulence differ.
+  const thumps = [1, banks.ring].map((ring) => shape(pulseS * 8, (t) => (t / pulseS) * Math.exp(1 - t / pulseS) * (1 + 0.5 * Math.sin(TAU * engine.headerHz * ring * t))));
+  const turbulence = shape(pulseS * 8, (t) => roughness * Math.exp(-t / (0.7 * pulseS)));
+  const breath = shape(breathS, (t) => 3 * Math.sin((Math.PI * t) / breathS));
+  const knockRing = shape(0.008, (t) => Math.exp(-t / 0.0012) * (Math.sin(TAU * engine.knockHz * t) + 0.5 * Math.sin(TAU * engine.knockHz * 1.47 * t)));
+  const knockRattle = shape(0.008, (t) => 0.6 * Math.exp(-t / 0.0012));
+  const ticks = Array.from({ length: 8 }, () => {
+    const hz = 4200 + 2500 * next();
+    return shape(0.0015, (t) => Math.exp(-t / 0.00022) * Math.sin(TAU * hz * t));
+  });
   for (let cycle = 0; cycle < cycles; cycle++) {
-    for (let cylinder = 0; cylinder < cylinders; cylinder++) {
-      const strength = strengths[cylinder] * (1 - 0.5 * spec.unevenness * next());
-      const start = (cycle * cylinders + cylinder + 0.25 * spec.unevenness * next()) * gapS;
-      const decayS = spec.pulseDecay * gapS;
-      addEvent(channel, HIGH_RATE, start, decayS * 6, (t) => {
-        const ring = Math.exp(-t / decayS);
-        let sum = 0;
-        spec.pulseOrders.forEach((order, index) => {
-          sum += Math.sin(TAU * order * firingHz * t) / (index + 1);
-        });
-        return strength * ring * sum;
+    firing.angles.forEach((angle, cylinder) => {
+      const stray = engine.jitter * (next() * 2 - 1);
+      const own = strengths[cylinder];
+      const strength = onLoad ? own * (1 + stray) : OFF_LOAD * own * own * (1 + 2 * stray);
+      const at = (cycle + angle / 720) * cycleS;
+      const bank = firing.banks[cylinder];
+      const gain = (bank === 1 ? banks.gain : 1) * strength;
+      const thump = thumps[bank];
+      addEvent(exhaust, ENGINE_RATE, at + (bank === 1 ? banks.delayMs / 1000 : 0), pulseS * 8, (t) => {
+        const i = Math.round(t * ENGINE_RATE);
+        return gain * (thump[i] + (next() * 2 - 1) * turbulence[i]);
       });
-    }
+      const drawn = (onLoad ? strength : 0.2 * own) * engine.intake;
+      let held = 0;
+      addEvent(bay, ENGINE_RATE, at + cycleS / 2, breathS, (t) => {
+        held += (next() * 2 - 1 - held) * breathing;
+        return drawn * breath[Math.round(t * ENGINE_RATE)] * held;
+      });
+      if (engine.knock > 0) {
+        const knock = engine.knock * own * (onLoad ? 0.8 : 1);
+        addEvent(bay, ENGINE_RATE, at, 0.008, (t) => {
+          const i = Math.round(t * ENGINE_RATE);
+          return knock * (knockRing[i] + (next() * 2 - 1) * knockRattle[i]);
+        });
+      }
+      if (engine.chatter > 0) {
+        for (const share of VALVE_EVENTS) {
+          const tick = ticks[Math.floor(next() * ticks.length)];
+          const level = engine.chatter * 0.35 * (0.7 + 0.3 * next());
+          addEvent(bay, ENGINE_RATE, at + share * cycleS, 0.0015, (t) => level * tick[Math.round(t * ENGINE_RATE)]);
+        }
+      }
+    });
   }
-  normalise([channel], 1);
+  if (engine.fan !== null) {
+    const turns = Math.round(cycles * 2 * engine.fan.order);
+    for (let i = 0; i < bay.length; i++) bay[i] += 0.25 * engine.fan.level * Math.sin((TAU * turns * i) / bay.length);
+  }
+  for (const channel of [exhaust, bay]) {
+    const mean = channel.reduce((sum, sample) => sum + sample, 0) / channel.length;
+    for (let i = 0; i < channel.length; i++) channel[i] -= mean;
+  }
+  return { rate: ENGINE_RATE, channels: [exhaust, bay] };
+}
+
+/**
+ * An engine's loops, rendered once: at its low and high revs, off and on load. Each cylinder's strength is drawn once
+ * from the voice's seed and shared by all four, so the lope is the engine's own; all four are scaled by the one
+ * factor that brings the loudest exhaust to the top, so a loop off load stays as much quieter as it was rendered.
+ */
+export function engineLoops(spec: EngineSpec): EngineLoops | null {
+  const engine = spec.combustion;
+  if (engine === null) return null;
+  const next = random(spec.seed);
+  const strengths = engine.firing.angles.map(() => 1 - engine.lope * next());
+  const rpm = loopRpms(spec);
+  const loops = rpm.flatMap((at) => [false, true].map((onLoad) => engineLoop(engine, at, onLoad, strengths, next))) as unknown as EngineLoops["loops"];
+  let highest = 0;
+  for (const loop of loops) for (const sample of loop.channels[0]) highest = Math.max(highest, Math.abs(sample));
+  for (const loop of loops) for (const channel of loop.channels) for (let i = 0; i < channel.length; i++) channel[i] *= 0.9 / highest;
+  return { rpm, loops };
+}
+
+/** The one-shots an engine's exhaust and turbo make, shared by every car and coloured by each car's own pipe. */
+export interface EngineShots {
+  /** Unburnt fuel catching in the pipe on a lift: a few cracks, each a little different. */
+  pops: Loop[];
+  /** Anti-lag: fuel lit in the manifold to keep the turbo spinning, a gunshot bang. */
+  bang: Loop;
+  /** A blow-off valve venting the boost on a lift: a falling psssh. */
+  blowOff: Loop;
+  /** The boost with no valve to vent it, backing up through the compressor in a fluttering chatter. */
+  flutter: Loop;
+}
+
+/** Noise between two one-pole low-passes, under an envelope, with the upper corner moving: a hiss that falls as it goes. */
+function sweptHiss(next: () => number, seconds: number, envelope: (t: number) => number, corner: (t: number) => number): Loop {
+  const channel = samplesOf(seconds, HIGH_RATE);
+  let low = 0;
+  let lower = 0;
+  for (let i = 0; i < channel.length; i++) {
+    const t = i / HIGH_RATE;
+    const share = 1 - Math.exp((-TAU * corner(t)) / HIGH_RATE);
+    low += (next() * 2 - 1 - low) * share;
+    lower += (low - lower) * share * 0.25;
+    channel[i] = envelope(t) * (low - lower);
+  }
+  normalise([channel], 0.9);
   return { rate: HIGH_RATE, channels: [channel] };
+}
+
+/** A crack of burning fuel: bright noise dying in `crackS`, over a low thump of the pipe. */
+function crack(next: () => number, seconds: number, crackS: number, thumpHz: number, thumpS: number): Loop {
+  const channel = samplesOf(seconds, HIGH_RATE);
+  let held = 0;
+  const share = 1 - Math.exp((-TAU * (2500 + 3000 * next())) / HIGH_RATE);
+  for (let i = 0; i < channel.length; i++) {
+    const t = i / HIGH_RATE;
+    held += (next() * 2 - 1 - held) * share;
+    channel[i] = 2.5 * held * Math.exp(-t / crackS) + 0.6 * Math.sin(TAU * thumpHz * t) * Math.exp(-t / thumpS);
+  }
+  normalise([channel], 0.9);
+  return { rate: HIGH_RATE, channels: [channel] };
+}
+
+export function engineShots(): EngineShots {
+  const next = random(73);
+  const pops = Array.from({ length: 6 }, () => crack(next, 0.09, 0.0015 + 0.002 * next(), 70 + 60 * next(), 0.008 + 0.006 * next()));
+  const bang = crack(next, 0.3, 0.006, 55, 0.04);
+  // A tail of smaller crackles after the bang.
+  const [bangChannel] = bang.channels;
+  for (const pop of pops) {
+    const at = Math.round((0.03 + 0.15 * next()) * HIGH_RATE);
+    const [small] = pop.channels;
+    for (let j = 0; j < small.length && at + j < bangChannel.length; j++) bangChannel[at + j] += 0.3 * small[j];
+  }
+  normalise(bang.channels, 0.9);
+  const blowOff = sweptHiss(next, 0.55, (t) => Math.min(1, t / 0.012) * Math.exp(-t / 0.16), (t) => 900 + 3600 * Math.exp(-t / 0.2));
+  // Compressor surge: the air backing up and letting go about twenty times a second, slowing as the shaft runs down.
+  let phase = 0;
+  const flutter = sweptHiss(
+    next,
+    0.7,
+    (t) => {
+      phase += (TAU * (24 - 12 * t)) / HIGH_RATE;
+      return Math.exp(-t / 0.25) * Math.max(0, Math.sin(phase)) ** 3;
+    },
+    () => 1700,
+  );
+  return { pops, bang, blowOff, flutter };
 }
 
 /** A short burst of noise through a one-pole low-pass at `corner`, dying away over `decayS`: unpitched, as stone on stone is. */
