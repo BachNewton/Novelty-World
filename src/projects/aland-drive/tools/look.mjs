@@ -9,7 +9,7 @@
 // --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
 // says when one passes). An hour in the link (`?hour=`) is held for every look. --pair saves each look twice from the
 // one camera, as <out> and <out>-without, the second with the boats under way and the sea marks left out: a before and
-// after of them.
+// after of them. --egpu draws on the eGPU, when one is plugged in.
 
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";
 
@@ -22,6 +22,9 @@ const FRAMES_TO_SETTLE = 3;
 const SHOTS = option("shots");
 const SEA = option("sea");
 const PAIR = flags.includes("--pair");
+// Chrome's GPU process draws on the integrated GPU unless told otherwise; --egpu moves it to the eGPU when one is
+// plugged in, for what shows on Nvidia alone.
+const EGPU_ARGS = flags.includes("--egpu") ? ["--force-high-performance-gpu"] : [];
 
 const looks = SHOTS
   ? positional.map((look) => {
@@ -30,7 +33,7 @@ const looks = SHOTS
     })
   : [{ out: positional[0] ?? "look.png", place: positional.slice(1).map(Number) }];
 
-const { page, step, reported, close } = await openGame(URL, { width: WIDTH, height: HEIGHT, args: UNCAPPED_ARGS });
+const { page, step, reported, close } = await openGame(URL, { width: WIDTH, height: HEIGHT, args: [...UNCAPPED_ARGS, ...EGPU_ARGS] });
 
 if (SEA !== undefined) await page.evaluate((seconds) => window.__alandDrive.holdSea(seconds), Date.parse(SEA) / 1000);
 // A link's hour runs on at the game's pace, a day in half an hour, so on a busy machine a run's last shots were evenings.
