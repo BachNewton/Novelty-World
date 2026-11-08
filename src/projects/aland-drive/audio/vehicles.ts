@@ -1,5 +1,6 @@
 import type { Gearbox } from "../sim/gearbox";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
+import { aska } from "./voices/aska";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
@@ -81,6 +82,7 @@ export type EngineSpec = Gearbox & Voice;
 /** Every car's voice, under its tier as `sim/cars.ts` has it. */
 const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
+  aska,
   // A2
   // A3
   // A4

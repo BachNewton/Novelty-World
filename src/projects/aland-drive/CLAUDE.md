@@ -25,7 +25,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `tools/` | The measuring tools and the labs |
 | `playground/` | `?playground`, the made-up test map |
 
-`docs/` holds the longer references: `DATA.md` (the sources and what was measured in them), `PLAN.md` (the phases), `ART.md` (every art kit), `TIME-AND-WEATHER.md`, `ROAD-SURFACES.md`, `JUNCTIONS.md`, `LIGHTHOUSES.md`, `HISTORY.md`, `DRIVING-CULTURE.md`, and `HANDOFF.md` (where the work stands). `ideas/` holds what isn't decided.
+`docs/` holds the longer references: `DATA.md` (the sources and what was measured in them), `PLAN.md` (the phases), `ART.md` (every art kit), `CAR-METHOD.md` (how a car is built, reviewed and tuned into its tier), `TIME-AND-WEATHER.md`, `ROAD-SURFACES.md`, `JUNCTIONS.md`, `LIGHTHOUSES.md`, `HISTORY.md`, `DRIVING-CULTURE.md`, and `HANDOFF.md` (where the work stands). `ideas/` holds what isn't decided.
 
 ## Controls
 

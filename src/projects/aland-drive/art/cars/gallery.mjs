@@ -4,7 +4,7 @@
 //   node src/projects/aland-drive/art/cars/gallery.mjs <out-folder> [--car=<index>] [--size=WxH] [--detail] [--paints] [--cockpit]
 //
 // --detail adds the views a car is judged on up close: a tight chase, the back, braking, steered wheels, the far model
-// at 60 m, and the bumper camera. --paints shoots each car in each of its paints instead, a row a paint: by day near and
+// at 60 m, the bumper camera, the front and the back by night with the lamps lit, and a front wheel close up. --paints shoots each car in each of its paints instead, a row a paint: by day near and
 // from the chase, by night with its headlamps on, and the near and far models side by side at 30 m, so a colour set and
 // its finishes are judged at a glance; it saves one sheet a car, `paints-<index>.png`. --cockpit shoots only the
 // cockpits: from the driver's eye, the dash from behind the seats and across to the passenger's door, by day, and the
@@ -168,6 +168,9 @@ const views = (car) => {
       { name: "steer", car, detail: "hero", camera: [3.5, 1.2, -5.2, 0, 0.1, -0.8, 26], steer: 0.5, roll: 0.6 },
       { name: "far", car, detail: "far", camera: [8, 2.5, 18, 0, 0.1, 0, 12] },
       { name: "hood", car, detail: "hero", camera: "hood" },
+      { name: "night", car, detail: "hero", camera: [6, 1.1, -9, 0, 0.3, 0, 13], lights: { headlights: true }, night: true },
+      { name: "night-rear", car, detail: "hero", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22], lights: { headlights: true, brake: true }, night: true },
+      { name: "wheel", car, detail: "hero", camera: [3.6, -0.1, -2.7, 0.85, -0.3, -1.3, 24] },
     );
   }
   return shots;

@@ -83,6 +83,7 @@ const FINISHES: Record<Surface, Finish> = {
   rack: { token: "car-trim", mirror: 0.03, gloss: 0.3, metal: 0, lamp: 0 },
   plateBand: { token: "car-plate-band", mirror: 0.03, gloss: 0.2, metal: 0, lamp: 0 },
   lensIndicator: { token: "car-lens-indicator", mirror: 0.05, gloss: 0.5, metal: 0, lamp: 0 },
+  caliper: { token: "car-caliper", mirror: 0.05, gloss: 0.6, metal: 0, lamp: 0 },
 };
 
 /**

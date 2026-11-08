@@ -2,7 +2,7 @@ import { CARS, DEFAULT_CAR, type CarId } from "../../sim/cars";
 import { sagOf, type CarTuning } from "../../sim/tuning";
 import { buildBody, ROWS, type BodySpec, type BodyDetail } from "./body";
 import { pick, SURFACES, type Point, type Soup, type Surface } from "./mesh";
-import { buildWheel, type WheelSpec } from "./wheel";
+import { buildCaliper, buildWheel, type WheelSpec } from "./wheel";
 import type { CarPaint } from "./paints";
 import type { InteriorChoice } from "./cockpit/style";
 
@@ -49,6 +49,8 @@ export interface CarParts {
   /** A hero's see-through glass, drawn apart. A world car's is in its body. */
   glass: Soup | null;
   wheel: Soup;
+  /** A hero's brake calipers, the right side's then the left's: they steer with the wheels but don't roll. */
+  calipers: readonly [right: Soup, left: Soup] | null;
 }
 
 const { sill, sillTop, mid, shoulder, belt, windowBase, windowTop, rail, roofOuter, roofInner, centre } = ROWS;
@@ -120,6 +122,26 @@ export function lampCentres(body: Soup): LampCentres {
   return { head: centre("lensHead", -1), tail: centre("lensTail", 1) };
 }
 
+/** The caliper for each side: the left's is the right's mirrored, so both sit towards the back of their discs. */
+function calipersOf(wheel: WheelSpec): readonly [Soup, Soup] {
+  const right = buildCaliper(wheel);
+  const left: Soup = { positions: new Float32Array(right.positions), normals: new Float32Array(right.normals), surfaces: right.surfaces, triangles: right.triangles };
+  for (let vertex = 0; vertex < right.triangles * 3; vertex++) {
+    left.positions[vertex * 3] *= -1;
+    left.normals[vertex * 3] *= -1;
+  }
+  // Mirroring turns every face inside out, so each triangle's corners are put back in order.
+  for (let face = 0; face < right.triangles; face++) {
+    for (const array of [left.positions, left.normals]) {
+      const [b, c] = [face * 9 + 3, face * 9 + 6];
+      const corner = array.slice(b, b + 3);
+      array.copyWithin(b, c, c + 3);
+      array.set(corner, c);
+    }
+  }
+  return [right, left];
+}
+
 export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false): CarParts {
   const hero = detail === "hero";
   const shell = buildBody(spec.body, groundY(spec), hero ? HERO : FAR);
@@ -127,6 +149,7 @@ export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false)
     body: pick(shell, (surface) => (options || !isOption(surface)) && !(hero && surface === "glass")),
     glass: hero ? pick(shell, (surface) => surface === "glass") : null,
     wheel: buildWheel(spec.wheel, { sides: hero ? 30 : 9, spokes: hero, fine: hero }),
+    calipers: hero ? calipersOf(spec.wheel) : null,
   };
 }
 

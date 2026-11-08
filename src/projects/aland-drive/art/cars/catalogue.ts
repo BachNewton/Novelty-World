@@ -10,10 +10,10 @@ import { CARS, WORLD_CARS } from "./specs";
 export function artModels(): ArtModel[] {
   const drivable = CARS.flatMap((spec) =>
     (["hero", "far"] as const).flatMap((detail): ArtModel[] => {
-      const { body, glass, wheel } = buildCarArt(spec, detail);
+      const { body, glass, wheel, calipers } = buildCarArt(spec, detail);
       return [
         { name: `${spec.name} ${detail}`, geometries: { body: glass === null ? body : [body, glass] }, groundY: groundY(spec) },
-        { name: `${spec.name} ${detail} wheel`, geometries: { wheel }, groundY: -spec.wheel.radiusM },
+        { name: `${spec.name} ${detail} wheel`, geometries: { wheel: calipers === null ? wheel : [wheel, calipers[0]] }, groundY: -spec.wheel.radiusM },
       ];
     }),
   );

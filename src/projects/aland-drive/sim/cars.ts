@@ -1,6 +1,7 @@
 import type { Tier } from "./tiers";
 import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
+import { aska } from "./cars/aska";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
@@ -33,6 +34,7 @@ import { vik } from "./cars/vik";
 /** Every car, under its tier (`tiers.ts`): a new car's line goes under its tier's header. */
 const ENTRIES = {
   // A1
+  aska,
   // A2
   // A3
   // A4

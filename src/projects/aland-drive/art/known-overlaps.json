@@ -24,19 +24,16 @@
     "body": 120
   },
   "cars: Ljus hero": {
-    "body": 89
-  },
-  "cars: Ljus hero wheel": {
-    "wheel": 204
+    "body": 81
   },
   "cars: Fjärd hero": {
-    "body": 89
+    "body": 81
   },
   "cars: Sund hero": {
     "body": 173
   },
   "cars: Holm hero": {
-    "body": 38
+    "body": 30
   },
   "cars: Holm far": {
     "body": 4
@@ -51,13 +48,13 @@
     "body": 2
   },
   "cars: Vik hero": {
-    "body": 76
+    "body": 68
   },
   "cars: Sten hero": {
-    "body": 53
+    "body": 45
   },
   "cars: Berg hero": {
-    "body": 62
+    "body": 54
   },
   "cars: Ström hero": {
     "body": 44
@@ -66,7 +63,7 @@
     "body": 46
   },
   "cars: Bris hero": {
-    "body": 54
+    "body": 46
   },
   "cars: Bris far": {
     "body": 2
