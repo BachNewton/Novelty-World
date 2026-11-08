@@ -223,6 +223,8 @@ export interface GameProbe {
   /** Puts the car at a distance along one of the start tile's chains, facing along it. */
   placeOnRoad: (chain: number, along: number) => void;
   setCamera: (mode: CameraMode) => void;
+  /** The view drawn now: from the map's flight it is still the view the map was opened from. */
+  cameraMode: () => CameraMode;
   /** Holds the driver's head turned in the cockpit, or lets it follow the controls again with null. */
   holdHead: (look: HeadLook | null) => void;
   /** Moves the car to a showcase spot by its id, resolving once it's there, on loaded ground. */
@@ -2507,6 +2509,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       chaseCamera.update(car, held ? STEP_S * 4 : seconds, controls.look());
       paintedShare.value = 1;
     }
+    // The driver's seat is drawn, and heard from, only while no map flight has lifted the camera out of it.
     const inCockpit = cameraMode === "cockpit" && !mapFrom;
     showCockpit(inCockpit);
     setNear(inCockpit ? cockpitCamera.nearM : CAMERA_NEAR);
@@ -2712,6 +2715,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         drive.placeAt(startLine(chain).at(at));
       },
       setCamera,
+      cameraMode: () => cameraMode,
       holdHead: (look) => {
         heldHead = look;
       },
