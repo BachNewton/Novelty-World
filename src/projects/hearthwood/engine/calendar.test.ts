@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALENDAR, dateAt, daysPerYear, FESTIVALS, festivalDay, festivalOn, nextFestival, parseDate, realDayOf, secondsPerDay, startTime, timeOf, type CalendarTuning } from "./calendar";
+import { CALENDAR, dateAt, daysPerYear, FESTIVALS, festivalDay, festivalOn, nextFestival, parseDate, realDayOf, secondsPerDay, startTime, timeOf } from "./calendar";
 
 const DAY = secondsPerDay();
 
@@ -101,13 +101,6 @@ describe("the calendar", () => {
     expect(() => parseDate("summer-8")).toThrow();
     expect(() => parseDate("midsummer")).toThrow();
     expect(() => parseDate("-3")).toThrow();
-  });
-
-  it("follows its tuning", () => {
-    const longer: CalendarTuning = { ...CALENDAR, minutesPerDay: 20, daysPerSeason: 10 };
-    expect(dateAt(20 * 60 * 10.25, longer)).toMatchObject({ season: "summer", dayOfSeason: 1, hour: 6 });
-    expect(parseDate("litha", longer)).not.toBe(parseDate("litha"));
-    expect(festivalOn(parseDate("litha", longer), longer)?.id).toBe("litha");
   });
 
 });

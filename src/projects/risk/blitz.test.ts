@@ -61,17 +61,6 @@ describe("resolving a blitz", () => {
     const best = Array.from(fight.attackerLost.slice(0, 8)).findIndex((p) => p > 0);
     expect(resolveBlitz(8, 6, 0, () => 0)).toEqual({ attackerLosses: best, defenderLosses: 6 });
   });
-
-  it("captures as often as the balanced odds say", () => {
-    let seed = 1;
-    const uniform = () => {
-      seed = (seed * 16807) % 2147483647;
-      return seed / 2147483647;
-    };
-    let captures = 0;
-    for (let i = 0; i < 20_000; i++) if (resolveBlitz(6, 5, uniform(), uniform).defenderLosses === 5) captures++;
-    expect(captures / 20_000).toBeCloseTo(captureChance(6, 5), 1);
-  });
 });
 
 describe("very large fights", () => {

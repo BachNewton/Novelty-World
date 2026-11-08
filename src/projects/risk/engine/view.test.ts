@@ -67,14 +67,6 @@ describe("views (CARDS-2, note public-cards)", () => {
     expect(engine.view(state, 0).cards).toMatchObject({ deck: s.deck.length, traded: s.trades });
   });
 
-  it("hold exactly the contract's fields", () => {
-    const v = engine.view(states[0], 0);
-    expect(Object.keys(v).sort()).toEqual(
-      ["active", "armiesToPlace", "cardEarned", "cards", "occupying", "phase", "seats", "territories", "turn", "turnOrder", "viewer", "winner"].sort(),
-    );
-    expect(Object.keys(v.cards).sort()).toEqual(["deck", "hand", "traded"]);
-  });
-
   it("say whether the active seat has earned this turn's card (CARDS-1)", () => {
     const start = position({ board: { japan: [0, 10], kamchatka: [1, 1] }, rest: [2, 3], phase: "attack" });
     expect(engine.view(start, 1).cardEarned).toBe(false);

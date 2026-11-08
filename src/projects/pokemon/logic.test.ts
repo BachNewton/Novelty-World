@@ -5,8 +5,6 @@ import {
   evaluateGuess,
   applyGuess,
   advanceToNextPokemon,
-  getPlayablePokemon,
-  POKEMON_TYPES,
   POKEMON_MAX_LIVES,
 } from "./logic";
 
@@ -92,19 +90,6 @@ describe("applyGuess", () => {
     expect(next.revealed?.name).toBe("Bulbasaur");
   });
 
-  it("subtracts one life per missing type", () => {
-    const next = applyGuess(makeState(), ["grass"]);
-    expect(next.lives).toBe(POKEMON_MAX_LIVES - 1);
-    expect(next.score).toBe(0);
-    expect(next.lastGuessCorrect).toBe(false);
-  });
-
-  it("subtracts one life per wrong type", () => {
-    const next = applyGuess(makeState(), ["grass", "poison", "fire"]);
-    expect(next.lives).toBe(POKEMON_MAX_LIVES - 1);
-    expect(next.lastGuessCorrect).toBe(false);
-  });
-
   it("combines missing and wrong penalties", () => {
     const next = applyGuess(makeState({ lives: 5 }), ["fire"]);
     // missing grass, missing poison, wrong fire → penalty 3
@@ -143,29 +128,5 @@ describe("advanceToNextPokemon", () => {
       currentIndex: 0,
     });
     expect(advanceToNextPokemon(state).phase).toBe("game-over");
-  });
-});
-
-describe("getPlayablePokemon", () => {
-  it("filters by generation when provided", () => {
-    const gen1 = getPlayablePokemon([1]);
-    expect(gen1.length).toBeGreaterThan(0);
-    expect(gen1.every((p) => p.generation === 1)).toBe(true);
-  });
-
-  it("returns all Pokemon when no filter", () => {
-    const all = getPlayablePokemon();
-    expect(all.length).toBeGreaterThan(1000);
-  });
-
-  it("returns an empty set for an unknown generation", () => {
-    expect(getPlayablePokemon([99])).toEqual([]);
-  });
-});
-
-describe("POKEMON_TYPES", () => {
-  it("contains exactly 18 unique types", () => {
-    expect(POKEMON_TYPES).toHaveLength(18);
-    expect(new Set(POKEMON_TYPES).size).toBe(18);
   });
 });

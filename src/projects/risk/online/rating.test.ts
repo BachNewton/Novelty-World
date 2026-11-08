@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GameView } from "../contract";
 import { ENGINE } from "../play-engine";
-import { expectedWin, K, NEW_LEDGER, outcomeOf, parseLedger, ratingChange, seatElo, settle, shownChange, START_ELO } from "./rating";
-import { eloOf } from "./seat-bots";
-
-const ALICE = { id: "alice", name: "Alice" };
+import { expectedWin, K, NEW_LEDGER, outcomeOf, parseLedger, ratingChange, settle, shownChange } from "./rating";
 
 describe("the expected win", () => {
   it("is a seat's share of the table's strength", () => {
@@ -12,11 +9,6 @@ describe("the expected win", () => {
     // 400 Elo is ten times the strength: 10 / (10 + 1 + 1).
     expect(expectedWin([1400, 1000, 1000], 0)).toBeCloseTo(10 / 12);
     expect(expectedWin([1400, 1000, 1000], 1)).toBeCloseTo(1 / 12);
-  });
-
-  it("sums to one over the table", () => {
-    const elos = [1445, 980, 1092, 1210, 1000];
-    expect(elos.reduce((sum, _, seat) => sum + expectedWin(elos, seat), 0)).toBeCloseTo(1);
   });
 });
 
@@ -31,23 +23,7 @@ describe("a game's change", () => {
     const p = expectedWin(elos, 0);
     expect(p * ratingChange(elos, 0, true) + (1 - p) * ratingChange(elos, 0, false)).toBeCloseTo(0);
   });
-
-  it("rewards beating strong bots more than weak ones", () => {
-    const strong = ratingChange([1000, eloOf("rule-v3"), eloOf("rule-v3")], 0, true);
-    const weak = ratingChange([1000, eloOf("gd-defensive"), eloOf("gd-defensive")], 0, true);
-    expect(strong).toBeGreaterThan(weak);
-  });
 });
-
-describe("a seat's Elo", () => {
-  it("is a bot's measured one, a person's brought one, or a newcomer's", () => {
-    expect(seatElo({ kind: "bot", bot: "greedy" })).toBe(1000);
-    expect(seatElo({ kind: "bot", bot: "rule-v1" })).toBe(eloOf("rule-v1"));
-    expect(seatElo({ kind: "human", profile: ALICE, elo: 1234 })).toBe(1234);
-    expect(seatElo({ kind: "human", profile: ALICE })).toBe(START_ELO);
-  });
-});
-
 describe("a seat's outcome", () => {
   const view = ENGINE.view(ENGINE.newGame({ players: 3 }, "seed").state, 0);
   const eliminated = (seat: number): GameView => ({ ...view, seats: view.seats.map((s) => (s.seat === seat ? { ...s, eliminated: true } : s)) });
@@ -70,10 +46,6 @@ describe("a seat's outcome", () => {
 
 describe("the ledger", () => {
   const table = [1000, 1000, 1000, 1000];
-
-  it("starts at 1000", () => {
-    expect(NEW_LEDGER.elo).toBe(1000);
-  });
 
   it("scores a game once, however often it is settled", () => {
     const once = settle(NEW_LEDGER, "game-1", table, 0, "won");

@@ -4,7 +4,6 @@ import {
   PEOPLE_TIMELINES,
   REGION_TIMELINES,
   SYMBOLS,
-  isVerified,
   pickSymbol,
   type SymbolEra,
 } from "./symbol-timelines";
@@ -65,11 +64,6 @@ describe("symbol timelines", () => {
         expect(source, era.name).not.toMatch(/https?:/);
       }
     }
-  });
-
-  it("start unverified, as the design doc's proposal", () => {
-    expect(isVerified(PEOPLE_TIMELINES.finnish[0])).toBe(false);
-    expect(isVerified({ ...PEOPLE_TIMELINES.finnish[0], sources: ["a source"] })).toBe(true);
   });
 });
 

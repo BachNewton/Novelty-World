@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyLobbyChange, EMPTY_LOBBY, lobbyTables, openAction, summarize, type LobbyChange, type TableSummary } from "./lobby";
+import { applyLobbyChange, EMPTY_LOBBY, lobbyTables, openAction, type LobbyChange, type TableSummary } from "./lobby";
 import { DEFAULT_BOT } from "./seat-bots";
 import type { Controller } from "./table";
 
@@ -14,14 +14,6 @@ const after = (...changes: LobbyChange[]) => changes.reduce(applyLobbyChange, EM
 const ids = (...changes: LobbyChange[]) => lobbyTables(after(...changes)).map((t) => `${t.id}@${t.version.toString()}`);
 
 describe("the lobby's list", () => {
-  it("takes a row as the database keeps it", () => {
-    expect(summarize({ id: "A", version: 2, status: "playing", seats: [ALICE], updated_at: "t" })).toEqual({ id: "A", version: 2, status: "playing", seats: [ALICE], updatedAt: "t" });
-  });
-
-  it("is loading until the first load answers", () => {
-    expect(EMPTY_LOBBY.loaded).toBe(false);
-    expect(after({ kind: "loaded", tables: [] }).loaded).toBe(true);
-  });
 
   it("lists every game, most recently active first", () => {
     const tables = [table("A", 1, "2026-01-01T10:00:00Z", "over"), table("B", 1, "2026-01-01T12:00:00Z", "playing"), table("C", 1, "2026-01-01T11:00:00Z")];

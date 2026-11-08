@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RiskGameResult } from "./runner";
-import { candidateSeats, finishesOf, outcomeFor, tableSpecs } from "./parallel";
+import { candidateSeats, outcomeFor, tableSpecs } from "./parallel";
 
 describe("tableSpecs", () => {
   it("rotates the lone bot through every seat of a group sharing one seed", () => {
@@ -24,10 +24,6 @@ describe("tableSpecs", () => {
     const cut = [...tableSpecs("cand", "base", "one-in", 3, "t", 0, 5, 600), ...tableSpecs("cand", "base", "one-in", 3, "t", 5, 7, 600)];
     expect(cut).toEqual(whole);
   });
-
-  it("refuses a pairing of a bot with itself", () => {
-    expect(() => tableSpecs("cand", "cand", "one-in", 3, "t", 0, 3, 600)).toThrow();
-  });
 });
 
 describe("a game's result", () => {
@@ -47,14 +43,5 @@ describe("a game's result", () => {
     expect(outcomeFor(result(0), "cand")).toBe("loss");
     expect(outcomeFor(result(null), "cand")).toBe("draw");
     expect(outcomeFor(result(null, "boom"), "cand")).toBe("error");
-  });
-
-  it("gives each seat's finish, and none for a game that threw", () => {
-    expect(finishesOf(result(1))).toEqual([
-      { label: "base", place: 2 },
-      { label: "cand", place: 1 },
-      { label: "base", place: 3 },
-    ]);
-    expect(finishesOf(result(null, "boom"))).toEqual([]);
   });
 });

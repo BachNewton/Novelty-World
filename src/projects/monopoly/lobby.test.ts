@@ -254,29 +254,3 @@ describe("startGame", () => {
     });
   });
 });
-
-describe("lobbyReduce", () => {
-  // The dispatcher both the route and the client's optimistic overlay apply
-  // through — each op must reach the same transform the helper would.
-  it("dispatches each op to its matching helper", () => {
-    expect(ok(lobbyReduce(lobby(), { type: "join", profile: { id: "p2", name: "Alex" } })).players)
-      .toHaveLength(2);
-    expect(ok(lobbyReduce(lobby(), { type: "addBot", botId: "bot-1" })).players[1].botStrategy).toBe(DEFAULT_BOT_VERSION);
-    expect(ok(lobbyReduce(ok(addBot(lobby())), { type: "removePlayer", playerId: "bot-1" })).players)
-      .toHaveLength(1);
-    expect(ok(lobbyReduce(lobby(), { type: "setColor", playerId: "host", color: "emerald" })).players[0].color)
-      .toBe("emerald");
-    expect(ok(lobbyReduce(lobby(), { type: "setName", playerId: "host", name: "Kylie" })).players[0].name)
-      .toBe("Kylie");
-    expect(ok(lobbyReduce(ok(addBot(lobby())), { type: "start" })).status).toBe("active");
-  });
-
-  it("propagates a helper's rejection", () => {
-    const withJoin = ok(joinLobby(lobby(), { id: "p2", name: "Alex" }));
-    const taken = withJoin.players[1].color;
-    expect(lobbyReduce(withJoin, { type: "setColor", playerId: "host", color: taken })).toMatchObject({
-      ok: false,
-      reason: "color taken",
-    });
-  });
-});

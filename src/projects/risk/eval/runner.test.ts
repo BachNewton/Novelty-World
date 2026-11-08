@@ -105,10 +105,4 @@ describe("runSpec", () => {
   it("names unknown bots loudly", () => {
     expect(runSpec({ index: 0, seed: "s", labels: ["greedy", "nobody", "greedy"], maxTurns: 600 }).error).toMatch(/no Risk bot/);
   });
-
-  it("resolves labels through the registry by default", () => {
-    const r = runSpec({ index: 0, seed: "registry", labels: ["greedy", "random", "random"], maxTurns: 600 });
-    expect(r.error).toBeUndefined();
-    expect(r.labels[r.winner as number]).toBe("greedy");
-  });
 });

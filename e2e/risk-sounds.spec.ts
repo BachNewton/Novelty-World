@@ -1,24 +1,17 @@
 import { test, expect } from "./test";
 
 /**
- * Risk's sounds in a real browser: the `?sounds` audition loads ZzFX in the bundle, renders every
- * sound into the page's AudioContext and plays them. The unit tests render every sound in Node;
- * this catches what only a browser can break, the audio graph and the autoplay unlock.
+ * Risk's sounds in a real browser: the one path that loads ZzFX in the bundle on the main thread,
+ * renders through the page's AudioContext and unlocks it with a real click. Every sound's design is
+ * rendered in Node by the unit tests, and mute and volume are the shared sound settings' tests.
  */
 
-test("?sounds renders every sound and plays each through the game's player", async ({ page }) => {
+// e2e-covers: src/projects/risk/components/sound-board.ts src/projects/risk/components/sound-lab.tsx src/projects/risk/ui/sounds.ts
+test("?sounds plays a sound through the game's player once a click unlocks the audio", async ({ page }) => {
   const errors: Error[] = [];
   page.on("pageerror", (error) => errors.push(error));
   await page.goto("/games/board-games/risk?sounds");
-  await expect(page.getByRole("heading", { name: "Risk sounds" })).toBeVisible();
-  const plays = page.getByRole("button", { name: "Play", exact: true });
-  await expect(plays).toHaveCount(16);
-  for (const play of await plays.all()) await play.click();
+  await page.getByRole("button", { name: "Play", exact: true }).first().click();
   await expect(page.getByText("Audio running")).toBeVisible();
-  const mute = page.getByRole("button", { name: "Mute sound" });
-  await mute.click();
-  await expect(mute).toHaveAttribute("aria-pressed", "true");
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Mute sound" })).toHaveAttribute("aria-pressed", "true");
   expect(errors).toEqual([]);
 });

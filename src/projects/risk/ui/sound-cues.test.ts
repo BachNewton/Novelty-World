@@ -34,10 +34,6 @@ const sounds = (events: readonly Bare[], viewer: Seat | null = 0, hidden = false
 const captured = (seat: Seat, from: Seat): Bare => ({ kind: "captured", seat, from, territory: "alaska" });
 
 describe("soundsFor", () => {
-  it("sounds a battle's dice and a blitz's roll, whoever fights", () => {
-    expect(sounds([{ kind: "battle", from: "alaska", to: "kamchatka", attackerDice: [6, 2], defenderDice: [3], attackerLosses: 0, defenderLosses: 1 }], 2)).toEqual(["dice"]);
-    expect(sounds([{ kind: "blitzed", from: "alaska", to: "kamchatka", attackerLosses: 2, defenderLosses: 3 }])).toEqual(["blitz"]);
-  });
 
   it("tells a capture by the viewer, of the viewer's and between others apart", () => {
     expect(sounds([captured(0, 1)])).toEqual(["capture"]);

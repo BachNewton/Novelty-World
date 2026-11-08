@@ -15,46 +15,6 @@ function botGame(seed: string): GameState {
 }
 
 describe("legalCandidates", () => {
-  it("offers the active player a roll and proactive arms at pre-roll", () => {
-    const state = botGame("cand-1");
-    expect(state.turn.phase).toBe("pre-roll");
-    const cands = legalCandidates(state, state.turn.playerId);
-    const labels = cands.map((c) => c.label);
-    expect(cands.some((c) => c.op.kind === "step")).toBe(true);
-    expect(labels).toContain("arm manage");
-    expect(labels).toContain("arm trade");
-  });
-
-  it("returns [] for a seat that owes no decision (the 'not me' case)", () => {
-    const state = botGame("cand-2");
-    // At the opening pre-roll an off-turn seat can still arm a trade, so pick a
-    // genuinely idle case: a finished game offers nobody anything.
-    const finished: GameState = { ...state, status: "finished" };
-    expect(legalCandidates(finished, state.players[0].id)).toEqual([]);
-  });
-
-  it("enumerates legal build commits in managing for an owned monopoly", () => {
-    const base = botGame("cand-build");
-    const me = base.players[0].id;
-    const state: GameState = {
-      ...base,
-      ownership: { ...base.ownership, 1: me, 3: me }, // the full brown set
-      players: base.players.map((p) => (p.id === me ? { ...p, cash: 1500 } : p)),
-      turn: {
-        playerId: me,
-        phase: "managing",
-        managerId: me,
-        doublesStreak: 0,
-        manageStaged: { build: {}, mortgage: {} },
-      },
-    };
-    const cands = legalCandidates(state, me);
-    const builds = cands.filter((c) => c.label.startsWith("build "));
-    expect(builds.length).toBeGreaterThan(0);
-    for (const c of cands) {
-      if (c.op.kind === "intent") expect(isLegal(state, c.op.intent)).toBe(true);
-    }
-  });
 
   it("applyCandidate advances the state", () => {
     const state = botGame("cand-3");

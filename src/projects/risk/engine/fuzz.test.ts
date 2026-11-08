@@ -5,7 +5,7 @@ import { checkOptionsMatchApply, MAX_STEPS, play, playRandomGame } from "./test-
 
 // Random-legal games with every invariant checked on every step (INV-1..INV-9) and the options
 // held equal to what `apply` accepts: one game per player count, which between them reach every
-// event the engine emits. `fuzz.slow.test.ts` plays many more.
+// event the engine emits.
 
 describe("random-legal games", () => {
   for (const players of [3, 4, 5, 6]) {

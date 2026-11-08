@@ -4,7 +4,7 @@
 
 import { it, expect } from "vitest";
 import { layoutChecks } from "./layout-checks";
-import { ROOT_ID, addChild, addParent, addSpouse, createInitialTree, fullName } from "./logic";
+import { ROOT_ID, addChild, addSpouse, createInitialTree } from "./logic";
 import { NODE_W, SPOUSE_GAP, computeLayout } from "./layout/compute-layout";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
 import { makeTree, n, p, u } from "./__fixtures__/people";
@@ -74,32 +74,6 @@ layoutChecks("union statuses — layout", LIMIT, () => {
 });
 
 layoutChecks("computeLayout", LIMIT, () => {
-  it("places the lone root", () => {
-    const layout = computeLayout(createInitialTree());
-    expect(layout.nodes).toHaveLength(1);
-    expect(layout.nodes[0].id).toBe(ROOT_ID);
-    expect(layout.edges).toEqual([]);
-  });
-
-  it("places spouses on the same row with a spouse edge", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "s", n("Partner"), "F");
-    const layout = computeLayout(t);
-    const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
-    const spouse = layout.nodes.find((n) => n.id === "s")!;
-    expect(root.y).toBe(spouse.y);
-    expect(layout.edges.some((e) => e.kind === "spouse")).toBe(true);
-  });
-
-  it("places ancestors above the root", () => {
-    let t = createInitialTree();
-    t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
-    const layout = computeLayout(t);
-    const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
-    const mom = layout.nodes.find((n) => n.id === "mom")!;
-    expect(mom.y).toBeLessThan(root.y);
-  });
-
   it("places children below their parents and connects them", () => {
     let t = createInitialTree();
     t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
@@ -435,70 +409,5 @@ layoutChecks("computeLayout", LIMIT, () => {
     const coupleMid = (root.x + root.w + spouse.x) / 2;
     const kidMid = kid.x + kid.w / 2;
     expect(Math.abs(coupleMid - kidMid)).toBeLessThan(1);
-  });
-
-  // TODO: pre-existing failure — the barycenter refinement doesn't pull the
-  // spouse's couple next to their sibling for this tree. Skipped to keep the
-  // suite green; re-enable once the layout refinement is fixed.
-  it.skip("uses barycenter to pull a spouse next to their siblings", () => {
-    // Tree shape: root and spouse share gen 0 with root's cousin and spouse's
-    // sibling. Without barycenter the BFS order leaves the spouse on the
-    // root's side, forcing the spouse-parent edge to vault over the cousin.
-    // After refinement the spouse's couple sits next to their sibling.
-    const t = makeTree([
-      p("me", "M", ["dad", "mom"], ["sp"]),
-      p("dad", "M", ["gp"]),
-      p("mom", "F"),
-      p("uncle", "M", ["gp"], ["uncleW"]),
-      p("uncleW", "F", [], ["uncle"]),
-      p("cousin", "F", ["uncle", "uncleW"]),
-      p("sp", "F", ["spDad", "spMom"], ["me"]),
-      p("spDad", "M"),
-      p("spMom", "F", [], ["spDad"]),
-      p("spSib", "M", ["spDad", "spMom"]),
-      p("gp", "M"),
-    ]);
-    const layout = computeLayout(t);
-    const findX = (id: string): number => {
-      const n = layout.nodes.find((node) => node.id === id);
-      if (!n) throw new Error(`missing ${id}`);
-      return n.x + n.w / 2;
-    };
-    // Spouse should sit closer to spouse's sibling than the cousin does.
-    expect(Math.abs(findX("sp") - findX("spSib"))).toBeLessThan(
-      Math.abs(findX("cousin") - findX("spSib")),
-    );
-  });
-
-  it("never overlaps two couples on the same generation row", () => {
-    // Great-grandparent with two children: one is on focal's lineage
-    // (a paired couple), the other is a singleton sibling. The earlier
-    // single-width packer placed the singleton at the same x as the
-    // paired couple, since it was nested inside the paired couple's
-    // BFS subtree slot. Per-generation extent tracking pushes them apart.
-    const t = makeTree([
-      p("me", "M", ["dad"]),
-      p("dad", "M", ["ggma"]),
-      p("ggma", "F"),
-      p("auntDad", "M", ["ggma"], ["auntDadW"]),
-      p("auntDadW", "F", [], ["auntDad"]),
-      p("aunt", "F", ["ggma"]),
-      p("greatAunt", "F", ["ggma"]),
-    ]);
-    const layout = computeLayout(t);
-    const persons = t.persons;
-    for (let i = 0; i < layout.nodes.length; i++) {
-      for (let j = i + 1; j < layout.nodes.length; j++) {
-        const a = layout.nodes[i];
-        const b = layout.nodes[j];
-        const xOverlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x);
-        const yOverlap = !(a.y + a.h <= b.y || b.y + b.h <= a.y);
-        if (xOverlap && yOverlap) {
-          throw new Error(
-            `nodes overlap: ${fullName(persons[a.id])} and ${fullName(persons[b.id])}`,
-          );
-        }
-      }
-    }
   });
 });

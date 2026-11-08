@@ -1,0 +1,253 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`archived bots are frozen > claude-v1 plays the game it was rated on 1`] = `
+[
+  "187 turns, 616 steps: p2 118/6023, p1 0/0 out, p4 0/0 out, p3 0/0 out",
+  "277 turns, 952 steps: p2 653/3788, p3 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v2 plays the game it was rated on 1`] = `
+[
+  "209 turns, 593 steps: p1 1066/6256, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "162 turns, 494 steps: p3 332/5122, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v5 plays the game it was rated on 1`] = `
+[
+  "165 turns, 952 steps: p3 3128/6303, p1 0/0 out, p4 0/0 out, p2 0/0 out",
+  "154 turns, 550 steps: p3 651/5311, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v17 plays the game it was rated on 1`] = `
+[
+  "177 turns, 911 steps: p3 3502/6647, p1 0/0 out, p4 0/0 out, p2 0/0 out",
+  "150 turns, 613 steps: p3 289/4079, p2 0/0 out, p4 0/0 out, p1 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v35 plays the game it was rated on 1`] = `
+[
+  "236 turns, 701 steps: p1 572/5422, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "162 turns, 494 steps: p3 332/5122, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v36 plays the game it was rated on 1`] = `
+[
+  "176 turns, 1061 steps: p1 266/4931, p3 0/0 out, p4 0/0 out, p2 0/0 out",
+  "209 turns, 712 steps: p1 2591/5556, p3 0/0 out, p2 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v38 plays the game it was rated on 1`] = `
+[
+  "176 turns, 1061 steps: p1 266/4931, p3 0/0 out, p4 0/0 out, p2 0/0 out",
+  "215 turns, 827 steps: p2 4040/6110, p1 0/0 out, p3 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v41 plays the game it was rated on 1`] = `
+[
+  "218 turns, 720 steps: p1 671/5201, p4 0/0 out, p2 0/0 out, p3 0/0 out",
+  "173 turns, 593 steps: p3 651/5201, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v45 plays the game it was rated on 1`] = `
+[
+  "243 turns, 798 steps: p1 327/6682, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "242 turns, 841 steps: p2 562/4122, p3 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v46 plays the game it was rated on 1`] = `
+[
+  "140 turns, 519 steps: p1 362/4907, p4 0/0 out, p2 0/0 out, p3 0/0 out",
+  "216 turns, 772 steps: p3 1100/5400, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > claude-v47 plays the game it was rated on 1`] = `
+[
+  "221 turns, 738 steps: p1 183/5918, p2 0/0 out, p3 0/0 out, p4 0/0 out",
+  "141 turns, 523 steps: p3 297/4547, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > dumb plays the game it was rated on 1`] = `
+[
+  "204 turns, 646 steps: p2 169/5819, p4 0/0 out, p1 0/0 out, p3 0/0 out",
+  "207 turns, 693 steps: p2 283/4518, p4 0/0 out, p1 0/0 out, p3 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v1 plays the game it was rated on 1`] = `
+[
+  "205 turns, 745 steps: p1 4056/6016, p4 0/0 out, p3 0/0 out, p2 0/0 out",
+  "256 turns, 949 steps: p3 543/3873, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v2 plays the game it was rated on 1`] = `
+[
+  "243 turns, 842 steps: p1 567/6832, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 995 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v3 plays the game it was rated on 1`] = `
+[
+  "243 turns, 817 steps: p1 567/6832, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 995 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v4 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 995 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v5 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 995 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v6 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v7 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v8 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v9 plays the game it was rated on 1`] = `
+[
+  "245 turns, 778 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 974 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v10 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v11 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v12 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v14 plays the game it was rated on 1`] = `
+[
+  "245 turns, 818 steps: p1 237/6777, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "281 turns, 994 steps: p3 812/4742, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > fable-v15 plays the game it was rated on 1`] = `
+[
+  "204 turns, 743 steps: p3 288/5823, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+  "159 turns, 617 steps: p3 1003/5323, p4 0/0 out, p2 0/0 out, p1 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > gemini-v1 plays the game it was rated on 1`] = `
+[
+  "222 turns, 715 steps: p2 703/6693, p1 0/0 out, p3 0/0 out, p4 0/0 out",
+  "277 turns, 949 steps: p2 631/3766, p3 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > jane-v2 plays the game it was rated on 1`] = `
+[
+  "98 turns, 639 steps: p3 837/4437, p4 0/0 out, p1 0/0 out, p2 0/0 out",
+  "247 turns, 830 steps: p3 772/5567, p4 0/0 out, p1 0/0 out, p2 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > jane-v4 plays the game it was rated on 1`] = `
+[
+  "118 turns, 493 steps: p3 264/4259, p4 0/0 out, p2 0/0 out, p1 0/0 out",
+  "208 turns, 730 steps: p1 500/4765, p3 0/0 out, p4 0/0 out, p2 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > jane-v20 plays the game it was rated on 1`] = `
+[
+  "246 turns, 821 steps: p1 839/7194, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "271 turns, 954 steps: p3 755/4665, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > kyle-v1 plays the game it was rated on 1`] = `
+[
+  "272 turns, 1021 steps: p3 3597/8662, p2 0/0 out, p4 0/0 out, p1 0/0 out",
+  "131 turns, 633 steps: p3 269/4304, p1 0/0 out, p4 0/0 out, p2 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > kyle-v2 plays the game it was rated on 1`] = `
+[
+  "266 turns, 819 steps: p3 1544/7524, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+  "242 turns, 826 steps: p3 771/4461, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > kyle-v3 plays the game it was rated on 1`] = `
+[
+  "266 turns, 828 steps: p3 867/6917, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+  "236 turns, 798 steps: p3 559/3969, p2 0/0 out, p1 0/0 out, p4 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > opt-v2 plays the game it was rated on 1`] = `
+[
+  "160 turns, 842 steps: p1 1317/5542, p4 0/0 out, p2 0/0 out, p3 0/0 out",
+  "149 turns, 1146 steps: p2 723/5618, p1 0/0 out, p4 0/0 out, p3 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > opt-v4 plays the game it was rated on 1`] = `
+[
+  "122 turns, 735 steps: p1 11/4161, p2 0/0 out, p4 0/0 out, p3 0/0 out",
+  "149 turns, 1146 steps: p2 723/5618, p1 0/0 out, p4 0/0 out, p3 0/0 out",
+]
+`;
+
+exports[`archived bots are frozen > trade-v1 plays the game it was rated on 1`] = `
+[
+  "192 turns, 662 steps: p3 805/6050, p1 0/0 out, p4 0/0 out, p2 0/0 out",
+  "164 turns, 619 steps: p2 105/4410, p1 0/0 out, p4 0/0 out, p3 0/0 out",
+]
+`;
