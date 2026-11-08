@@ -1,10 +1,10 @@
 import { audioContext, listenForAudioUnlock, renderSound, SoundPlayer, unlockAudio, type SoundSettings } from "@/shared/lib/sound";
 import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
-import { landing, mix, noJolts, PLACED_VOICES, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
+import { landing, mix, noJolts, PLACED_VOICES, quietEngine, readJolts, stepEngineSound, type DriveAudioState, type EngineHeard, type EngineSound, type Jolt, type Mix } from "./model";
 import { createPlacedVoices, type PlacedLoop, type PlacedSoundId } from "./placed";
 import { SOUNDS, type SoundId } from "./sounds";
-import { CYCLE_RPM, engineCycle, birdsBed, freewheelLoop, grassLoop, gravelLoop, iceBed, lakeBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, winterCallsBed, type Loop } from "./synthesis";
+import { engineLoops, engineShots, birdsBed, freewheelLoop, grassLoop, gravelLoop, iceBed, lakeBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, winterCallsBed, type Loop } from "./synthesis";
 import { ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
@@ -24,6 +24,8 @@ export interface DriveAudio {
   update(state: DriveAudioState, dt: number): void;
   /** The car jumped (a respawn, a showcase spot): forgets the last frame, so it isn't heard as a crash. */
   reset(): void;
+  /** Audition only: plays every car's engine through another voice from now on, null for its own. */
+  auditionEngine(maker: EngineVoiceMaker | null): void;
   /** The one-shots' player, unlocked: the audition's way in. */
   audition(): Promise<SoundPlayer<SoundId>>;
   /** What the last frame asked for and which gear it's in, for the audition's readout. */
@@ -60,6 +62,11 @@ function toBuffer(loop: Loop): AudioBuffer {
   return buffer;
 }
 
+function shotBuffers(): EngineShared["shots"] {
+  const { pops, bang, blowOff, flutter } = engineShots();
+  return { pops: pops.map(toBuffer), bang: toBuffer(bang), blowOff: toBuffer(blowOff), flutter: toBuffer(flutter) };
+}
+
 function softClipCurve(): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(1025);
   for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(((i / (curve.length - 1)) * 2 - 1) * 2.4);
@@ -77,7 +84,7 @@ function steerer(context: BaseAudioContext) {
   };
 }
 
-type Steer = ReturnType<typeof steerer>;
+export type Steer = ReturnType<typeof steerer>;
 
 interface Voice {
   steer(mixed: Mix, steer: Steer): void;
@@ -94,57 +101,212 @@ function stopAll(context: BaseAudioContext, sources: AudioScheduledSourceNode[],
   });
 }
 
-function engineVoice(context: BaseAudioContext, spec: EngineSpec, cycle: AudioBuffer, noise: AudioNode, bus: AudioNode): Voice {
-  const body = new GainNode(context, { gain: spec.cycleLevel });
-  const loop = new AudioBufferSourceNode(context, { buffer: cycle, loop: true });
-  loop.connect(body);
-  const blend = new GainNode(context, { gain: 1 });
-  body.connect(blend);
+/** One steer of an engine's voice: what the mix asks for, and the frame and engine it was made from. */
+export interface EngineFrame {
+  mix: Mix;
+  state: DriveAudioState;
+  read: EngineRead;
+}
 
-  const oscillators = spec.harmonics.map((harmonic) => {
-    const oscillator = new OscillatorNode(context, { type: harmonic.wave, detune: harmonic.cents, frequency: 0 });
-    oscillator.connect(new GainNode(context, { gain: harmonic.level })).connect(blend);
-    return oscillator;
-  });
+export interface EngineVoiceNodes {
+  steer(frame: EngineFrame, steer: Steer): void;
+  /** Plays what the engine set off this frame: a blow-off, pops, anti-lag's bangs. */
+  hear?(heard: EngineHeard): void;
+  stop(): void;
+}
 
-  // The load drives a soft clipper: flat out, the note gains its edge.
-  const drive = new GainNode(context, { gain: 1 });
-  const shaper = new WaveShaperNode(context, { curve: softClipCurve() });
-  const exhaust = new BiquadFilterNode(context, { type: "lowpass", frequency: spec.exhaustHz[0], Q: 0.9 });
-  const silencer = new BiquadFilterNode(context, { type: "peaking", frequency: spec.bodyHz, Q: 1.1, gain: spec.bodyDb });
-  const level = new GainNode(context, { gain: 0 });
+/** What every engine voice draws on: the shared noise, the bus it plays into, the one-shots, and the loops rendered so far. */
+export interface EngineShared {
+  noise: AudioNode;
+  bus: AudioNode;
+  shots: { pops: AudioBuffer[]; bang: AudioBuffer; blowOff: AudioBuffer; flutter: AudioBuffer };
+  loops: Map<EngineId, { rpm: readonly [number, number]; buffers: AudioBuffer[] } | null>;
+}
+
+/** Builds a car's engine on the graph, playing into the shared bus: the car's own (`engineVoice`), or for the audition another (`old/engine.ts`). */
+export type EngineVoiceMaker = (context: BaseAudioContext, id: EngineId, shared: EngineShared) => EngineVoiceNodes;
+
+/** The cabin between the exhaust and the driver: the body passes the low boom and takes the rest. */
+const CABIN_HZ = 420;
+const CABIN_BOOM_HZ = 95;
+/** How deep the limiter cuts the engine, and how far the revs bounce with it, cents. */
+const LIMITER_CUT = 0.8;
+const LIMITER_CENTS = 30;
+const POP_LEVEL = 0.4;
+const BANG_LEVEL = 0.9;
+const BLOW_OFF_LEVEL = 0.6;
+
+/**
+ * A car's engine on the graph, built from what its voice has. A combustion engine's four loops are blended by revs
+ * and load into two channels: the exhaust, driven into rasp by the load, ringing down its pipe (a feedback delay at
+ * the pipe's note), through the silencer, and then heard outside as it is or inside through the cabin; and the bay,
+ * through the airbox's resonance. The limiter cuts the lot in a bounce. A turbo whistles and hisses on the shared
+ * noise, a supercharger and the gearbox whine, and a motor whines in its orders with its inverter's tones over it.
+ */
+export const engineVoice: EngineVoiceMaker = (context, id, { noise, bus, shots, loops }) => {
+  const spec = ENGINES[id];
   const out = new GainNode(context, { gain: 1 });
-  // What's under this no small speaker plays: an idling four fires at 26 Hz, and it would only eat headroom.
-  const rumbleCut = new BiquadFilterNode(context, { type: "highpass", frequency: 60, Q: 0.7 });
-  blend.connect(drive).connect(shaper).connect(exhaust).connect(silencer).connect(rumbleCut).connect(level).connect(out).connect(bus);
+  out.connect(bus);
+  const sources: AudioScheduledSourceNode[] = [];
+  const inputs: [AudioNode, AudioNode][] = [];
+  const steering: ((mixed: Mix, steer: Steer) => void)[] = [];
+  const level = (gain = 0) => {
+    const node = new GainNode(context, { gain });
+    node.connect(out);
+    return node;
+  };
+  const tone = (type: OscillatorType, into: AudioNode) => {
+    const oscillator = new OscillatorNode(context, { type, frequency: 100 });
+    oscillator.connect(into);
+    sources.push(oscillator);
+    return oscillator;
+  };
+  const share = (gain: number, into: AudioNode) => {
+    const node = new GainNode(context, { gain });
+    node.connect(into);
+    return node;
+  };
 
-  // Noise chopped by the firings: the breath of the intake, and a diesel's knock.
-  const intake = new BiquadFilterNode(context, { type: "bandpass", frequency: spec.intakeHz[0], Q: spec.intakeQ });
-  const beaten = new GainNode(context, { gain: 1 - spec.firingBeat * 0.6 });
-  const intakeLevel = new GainNode(context, { gain: 0 });
-  noise.connect(intake).connect(beaten).connect(intakeLevel).connect(out);
-  if (spec.firingBeat > 0) {
-    const firing = oscillators.find(({ type }) => type !== "sine") ?? oscillators[0];
-    firing.connect(new GainNode(context, { gain: spec.firingBeat })).connect(beaten.gain);
+  let exhaustIn: AudioNode | null = null;
+  const engine = spec.combustion;
+  let rendered = loops.get(id);
+  if (rendered === undefined) {
+    const made = engineLoops(spec);
+    rendered = made === null ? null : { rpm: made.rpm, buffers: made.loops.map(toBuffer) };
+    loops.set(id, rendered);
+  }
+  if (engine !== null && rendered !== null) {
+    const { rpm: loopRpm, buffers } = rendered;
+    const blend = new GainNode(context, { gain: 1, channelCount: 2, channelCountMode: "explicit", channelInterpretation: "discrete" });
+    const players = buffers.map((buffer) => {
+      const source = new AudioBufferSourceNode(context, { buffer, loop: true });
+      const weight = new GainNode(context, { gain: 0, channelCount: 2, channelCountMode: "explicit", channelInterpretation: "discrete" });
+      source.connect(weight).connect(blend);
+      sources.push(source);
+      return { source, weight };
+    });
+    const cut = new GainNode(context, { gain: 1, channelCount: 2, channelCountMode: "explicit", channelInterpretation: "discrete" });
+    const split = new ChannelSplitterNode(context, { numberOfOutputs: 2 });
+    blend.connect(cut).connect(split);
+
+    const drive = new GainNode(context, { gain: 1 });
+    const shaper = new WaveShaperNode(context, { curve: softClipCurve() });
+    const pipe = new GainNode(context, { gain: 1 });
+    split.connect(drive, 0).connect(shaper).connect(pipe);
+    const delay = new DelayNode(context, { maxDelayTime: 0.05, delayTime: 1 / engine.pipeHz });
+    const damping = new BiquadFilterNode(context, { type: "lowpass", frequency: Math.min(engine.pipeHz * 12, 6000), Q: 0.5 });
+    pipe.connect(delay).connect(damping).connect(new GainNode(context, { gain: engine.pipeRing })).connect(pipe);
+    const muffler = new BiquadFilterNode(context, { type: "lowpass", frequency: engine.exhaustHz[0], Q: 0.9 });
+    const silencer = new BiquadFilterNode(context, { type: "peaking", frequency: engine.silencerHz, Q: 1.1, gain: engine.silencerDb });
+    // What's under this no small speaker plays: an idling four fires at 26 Hz, and it would only eat headroom.
+    const rumbleCut = new BiquadFilterNode(context, { type: "highpass", frequency: 50, Q: 0.7 });
+    pipe.connect(muffler).connect(silencer).connect(rumbleCut);
+    exhaustIn = silencer;
+    const outside = level();
+    rumbleCut.connect(outside);
+    const inside = level();
+    rumbleCut
+      .connect(new BiquadFilterNode(context, { type: "lowpass", frequency: CABIN_HZ, Q: 0.7 }))
+      .connect(new BiquadFilterNode(context, { type: "peaking", frequency: CABIN_BOOM_HZ, Q: 1.2, gain: 4 }))
+      .connect(inside);
+
+    const bay = level();
+    split
+      .connect(new BiquadFilterNode(context, { type: "peaking", frequency: engine.intakeHz, Q: engine.intakeQ, gain: 12 }), 1)
+      .connect(new BiquadFilterNode(context, { type: "highpass", frequency: 70, Q: 0.7 }))
+      .connect(bay);
+
+    // The limiter: a square wave cuts the engine between full and a fifth, and bounces its revs.
+    const bounce = new OscillatorNode(context, { type: "square", frequency: engine.limiterHz });
+    const cutDepth = new GainNode(context, { gain: 0 });
+    bounce.connect(cutDepth).connect(cut.gain);
+    const wobble = new GainNode(context, { gain: 0 });
+    bounce.connect(wobble);
+    for (const { source } of players) wobble.connect(source.detune);
+    sources.push(bounce);
+
+    steering.push((mixed, steer) => {
+      players.forEach(({ source, weight }, i) => {
+        steer(source.playbackRate, Math.max(mixed.rpm / loopRpm[i >> 1], 0.01));
+        steer(weight.gain, mixed.loopWeights[i]);
+      });
+      steer(drive.gain, mixed.driveAmount);
+      steer(muffler.frequency, mixed.exhaustHz);
+      steer(outside.gain, mixed.exhaustLevel);
+      steer(inside.gain, mixed.muffledLevel);
+      steer(bay.gain, mixed.bayLevel);
+      steer(cut.gain, 1 - (LIMITER_CUT / 2) * mixed.limiter, 0.01);
+      steer(cutDepth.gain, (LIMITER_CUT / 2) * mixed.limiter, 0.01);
+      steer(wobble.gain, LIMITER_CENTS * mixed.limiter, 0.01);
+    });
   }
 
-  const orders = spec.harmonics.map(({ order }) => order);
-  const sources = [loop, ...oscillators];
+  if (spec.turbo !== null) {
+    const whistleLevel = level();
+    const whistle = tone("sine", whistleLevel);
+    const hiss = new BiquadFilterNode(context, { type: "bandpass", frequency: 3000, Q: 1.4 });
+    const hissLevel = level();
+    noise.connect(hiss).connect(hissLevel);
+    inputs.push([noise, hiss]);
+    steering.push((mixed, steer) => {
+      steer(whistle.frequency, mixed.whistleHz);
+      steer(whistleLevel.gain, mixed.whistleLevel);
+      steer(hiss.frequency, 1500 + 0.8 * mixed.whistleHz);
+      steer(hissLevel.gain, mixed.turboHissLevel);
+    });
+  }
+  if (spec.supercharger !== null) {
+    const blowerLevel = level();
+    const blower = tone("triangle", blowerLevel);
+    steering.push((mixed, steer) => {
+      steer(blower.frequency, mixed.blowerHz);
+      steer(blowerLevel.gain, mixed.blowerLevel);
+    });
+  }
+  if (spec.gearWhine.level > 0) {
+    const whineLevel = level();
+    const whine = tone("triangle", whineLevel);
+    steering.push((mixed, steer) => {
+      steer(whine.frequency, mixed.gearWhineHz);
+      steer(whineLevel.gain, mixed.gearWhineLevel);
+    });
+  }
+  if (spec.electric !== null) {
+    const motorLevel = level();
+    const whines = spec.electric.orders.map(([order, gain]) => ({ order, oscillator: tone("sine", share(gain, motorLevel)) }));
+    const inverterLevel = level();
+    const carrier = tone("sine", inverterLevel);
+    const sidebands = [-2, 2].map((side) => ({ side, oscillator: tone("sine", share(0.5, inverterLevel)) }));
+    const { carrierHz } = spec.electric;
+    steering.push((mixed, steer) => {
+      for (const { order, oscillator } of whines) steer(oscillator.frequency, Math.max(mixed.motorHz * order, 1));
+      steer(motorLevel.gain, mixed.motorLevel);
+      steer(carrier.frequency, carrierHz);
+      for (const { side, oscillator } of sidebands) steer(oscillator.frequency, Math.max(carrierHz + side * mixed.inverterHz, 20));
+      steer(inverterLevel.gain, mixed.inverterLevel);
+    });
+  }
   for (const source of sources) source.start();
 
-  return {
-    steer: (mixed, steer) => {
-      steer(loop.playbackRate, Math.max(mixed.rpm / CYCLE_RPM, 0.01));
-      oscillators.forEach((oscillator, index) => steer(oscillator.frequency, mixed.firingHz * orders[index]));
-      steer(drive.gain, mixed.driveAmount);
-      steer(exhaust.frequency, mixed.exhaustHz);
-      steer(level.gain, mixed.engineLevel);
-      steer(intake.frequency, mixed.intakeHz);
-      steer(intakeLevel.gain, mixed.intakeLevel);
-    },
-    stop: () => stopAll(context, sources, out, [[noise, intake]]),
+  const shot = (buffer: AudioBuffer, gain: number, into: AudioNode) => {
+    const source = new AudioBufferSourceNode(context, { buffer, playbackRate: 0.9 + 0.2 * Math.random() });
+    source.connect(new GainNode(context, { gain })).connect(into);
+    source.start();
   };
-}
+  return {
+    steer: ({ mix: mixed }, steer) => {
+      for (const steerPart of steering) steerPart(mixed, steer);
+    },
+    hear: ({ blowOff, pops, bangs }) => {
+      if (exhaustIn !== null) {
+        for (let i = 0; i < pops; i++) shot(shots.pops[Math.floor(Math.random() * shots.pops.length)], POP_LEVEL * spec.level * (0.5 + 0.5 * Math.random()), exhaustIn);
+        for (let i = 0; i < bangs; i++) shot(shots.bang, BANG_LEVEL * spec.level, exhaustIn);
+      }
+      if (blowOff > 0 && spec.turbo !== null) shot(spec.turbo.blowOff === "valve" ? shots.blowOff : shots.flutter, BLOW_OFF_LEVEL * spec.level * spec.turbo.blowOffLevel * blowOff, out);
+    },
+    stop: () => stopAll(context, sources, out, inputs),
+  };
+};
 
 function bikeVoice(context: BaseAudioContext, ticks: AudioBuffer, noise: AudioNode, bus: AudioNode): Voice {
   const out = new GainNode(context, { gain: 1 });
@@ -224,7 +386,8 @@ interface Rig {
   ice: GainNode;
   placed: ReturnType<typeof createPlacedVoices>;
   ticks: AudioBuffer;
-  cycles: Map<EngineId, AudioBuffer>;
+  shots: EngineShared["shots"];
+  loops: EngineShared["loops"];
   sources: AudioScheduledSourceNode[];
 }
 
@@ -327,7 +490,8 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     ice: ice.level,
     placed: createPlacedVoices(context, master, toBuffer),
     ticks: toBuffer(freewheelLoop()),
-    cycles: new Map(),
+    shots: shotBuffers(),
+    loops: new Map(),
     sources: [raw, gravel.source, grass.source, rock.source, spray.source, snow.source, studs.source, rainLight.source, rainHeavy.source, birds.source, winterCalls.source, shore.source, lake.source, ice.source, ...squealTones, ...squeakTones, stickSlip],
   };
 }
@@ -346,6 +510,11 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
   let steer: Steer | null = null;
   let voice: Voice | null = null;
   let voiceOf: VehicleId | null = null;
+  let maker: EngineVoiceMaker | null = null;
+  let engineNodes: EngineVoiceNodes | null = null;
+  let engineSound: EngineSound = quietEngine();
+  let makerOf: EngineVoiceMaker | null = null;
+  let lastState: DriveAudioState | null = null;
   let spec: EngineSpec | null = null;
   let engine: EngineRead | null = null;
   let jolts = noJolts();
@@ -366,23 +535,28 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
   })();
 
   function choose(vehicle: VehicleId, audio: BaseAudioContext, built: Rig): void {
-    if (vehicle === voiceOf) return;
+    if (vehicle === voiceOf && maker === makerOf) return;
     voice?.stop();
+    if (vehicle !== voiceOf) {
+      spec = vehicle === "bike" ? null : ENGINES[vehicle];
+      engine = spec === null ? null : restingEngine(spec);
+      engineSound = quietEngine();
+    }
     voiceOf = vehicle;
+    makerOf = maker;
     if (vehicle === "bike") {
-      spec = null;
-      engine = null;
+      engineNodes = null;
       voice = bikeVoice(audio, built.ticks, built.noise, built.master);
       return;
     }
-    spec = ENGINES[vehicle];
-    engine = restingEngine(spec);
-    let cycle = built.cycles.get(vehicle);
-    if (cycle === undefined) {
-      cycle = toBuffer(engineCycle(spec));
-      built.cycles.set(vehicle, cycle);
-    }
-    voice = engineVoice(audio, spec, cycle, built.noise, built.master);
+    const nodes = (maker ?? engineVoice)(audio, vehicle, { noise: built.noise, bus: built.master, shots: built.shots, loops: built.loops });
+    engineNodes = nodes;
+    voice = {
+      steer: (mixed, to) => {
+        if (engine !== null && lastState !== null) nodes.steer({ mix: mixed, state: lastState, read: engine }, to);
+      },
+      stop: () => nodes.stop(),
+    };
   }
 
   function hear({ sound, strength: amount }: Jolt, player: SoundPlayer<SoundId>): void {
@@ -437,11 +611,15 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
     update(state, dt) {
       if (rig === null || live === null || steer === null || dt <= 0) return;
       choose(state.vehicle, live, rig);
+      lastState = state;
 
       if (engine !== null && spec !== null) {
         const stepped = state.engine ? { read: state.engine, shifted: state.engine.gear !== engine.gear } : stepEngine(spec, engine, state.speedMS, state.throttle, dt);
         engine = stepped.read;
         if (stepped.shifted && state.paused !== true) rig.player.play("gear");
+        const sounded = stepEngineSound(spec, engineSound, state.heldRpm ?? engine.rpm, engine.load, dt, Math.random);
+        engineSound = sounded.sound;
+        if (state.paused !== true) engineNodes?.hear?.(sounded.heard);
       }
 
       const read = readJolts(jolts, state, dt);
@@ -469,15 +647,19 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
       since += dt;
       if (since < STEER_EVERY_S) return;
       wander += (Math.random() * 2 - 1 - wander) * Math.min(since * 4, 1);
-      last = mix({ state, engine: engine !== null && spec !== null ? { spec, read: engine } : null, time: live.currentTime, wander });
+      last = mix({ state, engine: engine !== null && spec !== null ? { spec, read: engine, sound: engineSound } : null, time: live.currentTime, wander });
       steerAll(rig, last, steer);
       const { muted, volume } = settings();
       steer(rig.master.gain, muted ? 0 : volume * HEADROOM, 0.02);
       since = 0;
     },
+    auditionEngine(next) {
+      maker = next;
+    },
     reset() {
       jolts = noJolts();
       if (spec !== null) engine = restingEngine(spec);
+      engineSound = quietEngine();
     },
     audition: async () => {
       unlockAudio();
