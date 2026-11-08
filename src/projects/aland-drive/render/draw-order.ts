@@ -8,7 +8,8 @@ import type { Material, Mesh, Object3D } from "three/webgpu";
  * kept in the order below, by the name of the material each draws with: three draws a scene's children in order, the
  * opaque ones first and the transparent ones after, each in that order.
  *
- * What covers most comes first: the player's car, the buildings, then the roads lying on the ground, the placed things,
+ * What covers most comes first: the player's car (its cockpit first, which from the driver's seat covers most of the
+ * screen), the buildings, then the roads lying on the ground, the placed things,
  * the plantings and the forest, and only then the ground itself, which the depth test spares wherever something already
  * stands. The sea plane shows only past the last ring of terrain and the sky only where nothing is, so each is drawn once
  * everything it could be behind has been. No pixel changes: an opaque frame comes out the same in any order, only what is
@@ -21,6 +22,7 @@ const PLACED = "(placed)";
 
 /** Material names, earliest drawn first. */
 const ORDER: readonly string[] = [
+  "car-cockpit",
   "car-hero",
   "car",
   "walls-depth",

@@ -27,6 +27,9 @@ const LOW_SHADE = 0.62;
 /** How much of a straight-on view a hero's glass lets through, and mirrors. */
 const GLASS_CLEAR = 0.62;
 const GLASS_MIRROR = 0.1;
+/** From inside: how much a straight-on view is tinted, and how much more a glancing one mirrors. */
+const GLASS_INSIDE = 0.1;
+const GLASS_INSIDE_MIRROR = 0.35;
 /** How much of the swap distance the two tiers take to dissolve across. */
 const DISSOLVE_SHARE = 0.15;
 
@@ -227,10 +230,14 @@ export function glassMaterial({ sun, hazed }: Pick<CarMaterialOptions, "sun" | "
   const ray = reflect(toCamera.negate(), normal);
   const specular = sky.sunColour.mul(ray.dot(sky.toSun).max(0).pow(SPECULAR_POWER)).mul(SPECULAR_SHARE);
   const finished: Node<"vec3"> = vec3(mix(tint, sky.reflectedBy(ray), fresnel).add(specular));
-  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  // From inside, the glass is a faint tint with the dark cabin and the sky's glint in it, much clearer than seen from out.
+  const inside: Node<"vec3"> = vec3(mix(tint.mul(0.5), sky.reflectedBy(ray).mul(0.5), fresnel).add(specular.mul(0.5)));
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: DoubleSide });
   material.name = "car-glass";
-  material.colorNode = hazed ? hazed(finished) : finished;
-  material.opacityNode = fresnel.mul(1 - GLASS_CLEAR).add(GLASS_CLEAR);
+  // A blend by a 0-or-1 weight rather than a select, which three would write as two branches reading shared nodes.
+  const outward = select(frontFacing, float(1), float(0));
+  material.colorNode = mix(hazed ? hazed(inside) : inside, hazed ? hazed(finished) : finished, outward);
+  material.opacityNode = mix(fresnel.mul(GLASS_INSIDE_MIRROR).add(GLASS_INSIDE), fresnel.mul(1 - GLASS_CLEAR).add(GLASS_CLEAR), outward);
   return material;
 }
 

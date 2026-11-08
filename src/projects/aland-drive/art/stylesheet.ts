@@ -12,6 +12,7 @@ export function installTokenStylesheet(): void {
     readFileSync(path.resolve(__dirname, "../../../app/globals.css"), "utf8"),
     readFileSync(path.resolve(__dirname, "bikes/tokens.css"), "utf8"),
     readFileSync(path.resolve(__dirname, "boats/tokens.css"), "utf8"),
+    readFileSync(path.resolve(__dirname, "cars/cockpit/tokens.css"), "utf8"),
     readFileSync(path.resolve(__dirname, "dealers/tokens.css"), "utf8"),
     readFileSync(path.resolve(__dirname, "homes/tokens.css"), "utf8"),
     readFileSync(path.resolve(__dirname, "identity/tokens.css"), "utf8"),

@@ -1,10 +1,12 @@
 // Renders every car on the real renderer, in WebGPU, from chase distance, side and three-quarter, and saves a contact
 // sheet. Needs no dev server: it bundles its own page and serves it to itself on a port the OS picks.
 //
-//   node src/projects/aland-drive/art/cars/gallery.mjs <out-folder> [--car=<index>] [--size=WxH] [--detail]
+//   node src/projects/aland-drive/art/cars/gallery.mjs <out-folder> [--car=<index>] [--size=WxH] [--detail] [--cockpit]
 //
 // --detail adds the views a car is judged on up close: a tight chase, the back, braking, steered wheels, the far model
-// at 60 m, and the bumper camera. The full Chromium is asked for by name: the default headless shell falls back to WebGL2.
+// at 60 m, and the bumper camera. --cockpit shoots only the cockpits: from the driver's eye, the dash from behind the
+// seats and across to the passenger's door, by day, and the eye and dash after dark with the instruments lit. The full
+// Chromium is asked for by name: the default headless shell falls back to WebGL2.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
 
@@ -23,6 +25,7 @@ const option = (name) => flags.find((arg) => arg.startsWith(`--${name}=`))?.slic
 const [WIDTH, HEIGHT] = (option("size") ?? "2408x1007").split("x").map(Number);
 const onlyCar = option("car") === undefined ? null : Number(option("car"));
 const detail = flags.includes("--detail");
+const cockpits = flags.includes("--cockpit");
 
 const bundleDir = join(outFolder, ".bundle");
 await mkdir(bundleDir, { recursive: true });
@@ -36,7 +39,8 @@ await build({
 });
 
 const globals = await readFile(join(root, "src/app/globals.css"), "utf8");
-const tokens = globals.match(/--color-aland-drive-[a-z-]+:[^;]+;/g).join("\n");
+const cockpitTokens = await readFile(join(here, "cockpit/tokens.css"), "utf8");
+const tokens = [globals, cockpitTokens].join("\n").match(/--color-aland-drive-[a-z-]+:[^;]+;/g).join("\n");
 const page = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><style>:root{${tokens}}html,body{margin:0;background:#000;overflow:hidden}</style><script type="module" src="/gallery.js"></script>`;
 
 const server = createServer(async (request, response) => {
@@ -80,6 +84,15 @@ console.log("hero cost:", JSON.stringify(await tab.evaluate(async () => {
 })));
 
 const views = (car) => {
+  if (cockpits) {
+    return [
+      { name: "eye", car, detail: "hero", camera: "eye", steer: 0.12 },
+      { name: "dash", car, detail: "hero", camera: "dash", steer: 0.12 },
+      { name: "side", car, detail: "hero", camera: "side" },
+      { name: "eye-night", car, detail: "hero", camera: "eye", night: true, steer: 0.12 },
+      { name: "dash-night", car, detail: "hero", camera: "dash", night: true, steer: 0.12 },
+    ];
+  }
   const shots = [
     { name: "chase", car, detail: "hero", camera: "chase" },
     { name: "side", car, detail: "hero", camera: [20, 0.3, 0, 0, 0.15, 0, 9] },
@@ -115,7 +128,7 @@ for (const car of cars) {
 }
 
 // The ranks twice, a third of a flash apart, so every car's indicators are seen lit in one or the other.
-const fleetViews = [
+const fleetViews = cockpits ? [] : [
   ["ranks", 0],
   ["ranks", 0.22],
   ["above", 0],
@@ -133,7 +146,7 @@ for (const [view, clock] of fleetViews) {
 }
 
 // The sheet is a page of the shots themselves, screenshotted whole.
-const columns = detail ? 5 : 4;
+const columns = detail || cockpits ? 5 : 4;
 const cell = Math.floor(2400 / columns);
 const sheetRows = Math.ceil(saved.length / columns);
 const pictures = await Promise.all(
