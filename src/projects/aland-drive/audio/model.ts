@@ -81,6 +81,8 @@ export interface DriveAudioState {
   heldRpm?: number;
   /** The simulation's own engine. With none, as in the audition, the sound runs a gearbox of its own. */
   engine?: EngineRead;
+  /** Where the player hears the car from: the chase camera outside (the default), or the cockpit. */
+  perspective?: Perspective;
 }
 
 const clamp = (value: number, low = 0, high = 1) => Math.min(Math.max(value, low), high);
@@ -116,7 +118,7 @@ export function slipOf(car: CarState, handbrake: boolean, spinsMS: readonly numb
 export function stateFromCar(
   car: CarState,
   input: DriveInput,
-  known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "listener" | "paused" | "engine">,
+  known: Pick<DriveAudioState, "vehicle" | "wheels" | "condition" | "tyres" | "place" | "weather" | "season" | "listener" | "paused" | "engine" | "perspective">,
   spinsMS: readonly number[] = [],
 ): DriveAudioState {
   return {
@@ -194,15 +196,7 @@ export function landing(carry: number, perS: number, dt: number, random: number)
 // ---- The mix ----
 
 /** A voice's level, and what it's tuned to. Levels are linear, before the master volume. */
-export interface Mix {
-  rpm: number;
-  firingHz: number;
-  engineLevel: number;
-  driveAmount: number;
-  exhaustHz: number;
-  intakeHz: number;
-  intakeLevel: number;
-
+export interface Mix extends EngineMix {
   chainLevel: number;
   chainHz: number;
   freewheelLevel: number;
@@ -375,30 +369,213 @@ const GALE_FULL_MS = 16;
 export interface MixInputs {
   state: DriveAudioState;
   /** Null for a bicycle. */
-  engine: { spec: EngineSpec; read: EngineRead } | null;
+  engine: { spec: EngineSpec; read: EngineRead; sound: EngineSound } | null;
   /** Seconds, for the gusts. */
   time: number;
   /** A slow wander, -1 to 1, so a long slide isn't one held note. */
   wander: number;
 }
 
-const QUIET_ENGINE = { rpm: 0, firingHz: 0, engineLevel: 0, driveAmount: 0, exhaustHz: 400, intakeHz: 500, intakeLevel: 0 };
+// ---- The engine ----
 
-function engineMix({ spec, read }: { spec: EngineSpec; read: EngineRead }, heldRpm: number | undefined) {
-  const rpm = heldRpm ?? read.rpm;
-  const revs = clamp((rpm - spec.idleRpm) / (spec.redlineRpm - spec.idleRpm));
+/** The rate an engine's loops are rendered at. */
+export const ENGINE_RATE = 44100;
+
+/**
+ * The revs an engine's loops are rendered at, low and high, each moved to a whole number of samples a cycle, so every
+ * loop is a whole number of cycles long and loops played side by side stay in step however long they run. Played back
+ * at the revs over these, the low loop covers idle and the high one the redline, neither stretched by more than about
+ * half, which would shift its ring and its turbulence too far from where they were rendered.
+ */
+export function loopRpms({ idleRpm, redlineRpm }: { idleRpm: number; redlineRpm: number }): readonly [number, number] {
+  const snapped = (rpm: number) => (120 * ENGINE_RATE) / Math.round((120 * ENGINE_RATE) / rpm);
+  return [snapped(Math.max(idleRpm * 1.5, 1100)), snapped(redlineRpm * 0.62)];
+}
+
+/**
+ * How much of each loop plays at some revs and load: low off, low on, high off, high on. The loops' firings line up,
+ * so they blend as one engine: by the revs between the two rendered, on a log scale as a pitch is heard, and by the load.
+ */
+export function loopWeights(rpms: readonly [number, number], rpm: number, load: number): [number, number, number, number] {
+  const high = clamp(Math.log(Math.max(rpm, 1) / rpms[0]) / Math.log(rpms[1] / rpms[0]));
+  const on = clamp(load);
+  return [(1 - high) * (1 - on), (1 - high) * on, high * (1 - on), high * on];
+}
+
+/** What the sound remembers of an engine from frame to frame: its turbo's boost and shaft, and what the last lift set off. */
+export interface EngineSound {
+  /** The turbo's boost, 0 to 1. */
+  boost: number;
+  /** How fast its shaft spins, 0 to 1: it follows the boost up and runs down slower, still whistling after a lift. */
+  shaft: number;
+  /** On the throttle, with some hysteresis, so a lift is one event. */
+  loaded: boolean;
+  sinceLiftS: number;
+  sinceBlowOffS: number;
+  /** What's left over of the pops and bangs due, carried to the next frame. */
+  pops: number;
+  bangs: number;
+}
+
+export const quietEngine = (): EngineSound => ({ boost: 0, shaft: 0, loaded: false, sinceLiftS: Infinity, sinceBlowOffS: Infinity, pops: 0, bangs: 0 });
+
+/** What an engine set off this frame, for the graph to play: a blow-off's strength (0 none), and how many pops and bangs. */
+export interface EngineHeard {
+  blowOff: number;
+  pops: number;
+  bangs: number;
+}
+
+const LOADED_ABOVE = 0.55;
+const LIFTED_BELOW = 0.25;
+/** A turbo builds its boost over this share of the revs past where it starts. */
+const BOOST_SPAN = 0.25;
+const BOOST_FALLS_S = 0.12;
+const SHAFT_RUNS_DOWN_S = 1.4;
+/** Below this much boost a lift vents nothing worth hearing. */
+const BLOW_OFF_FROM = 0.3;
+const BLOW_OFF_EVERY_S = 0.5;
+/** Pops after a lift die away over this long, and only above these revs. */
+const CRACKLE_S = 1.5;
+const CRACKLE_FROM = 0.3;
+/** Anti-lag holds this much boost off the throttle, and bangs only above these revs. */
+const ANTI_LAG_BOOST = 0.7;
+const ANTI_LAG_FROM = 0.25;
+/** The limiter cuts in this close to the redline with the throttle down. */
+const LIMITER_FROM = 0.985;
+
+const revsOf = (spec: EngineSpec, rpm: number) => clamp((rpm - spec.idleRpm) / Math.max(spec.redlineRpm - spec.idleRpm, 1));
+
+/** Whether the engine is bouncing off its limiter: at the redline with the throttle down. */
+export const onLimiter = (spec: EngineSpec, rpm: number, load: number) => spec.combustion !== null && rpm >= spec.redlineRpm * LIMITER_FROM && load > LOADED_ABOVE;
+
+/**
+ * One frame of what the engine's sound remembers: the turbo spooling with load and revs after its lag and venting on
+ * a lift, and the exhaust popping as the revs fall with the throttle shut, or banging all the while off it with
+ * anti-lag. `random` (0 to 1) scatters the pops, so they don't tick like a clock.
+ */
+export function stepEngineSound(spec: EngineSpec, past: EngineSound, rpm: number, load: number, dt: number, random: () => number): { sound: EngineSound; heard: EngineHeard } {
+  const revs = revsOf(spec, rpm);
+  const loaded = load > LOADED_ABOVE ? true : load < LIFTED_BELOW ? false : past.loaded;
+  const lifted = past.loaded && !loaded;
+  const sinceLiftS = lifted ? 0 : loaded ? Infinity : past.sinceLiftS + dt;
+  const antiLag = spec.overrun.antiLag > 0 && revs > ANTI_LAG_FROM;
+
+  let { boost, shaft } = past;
+  let blowOff = 0;
+  let sinceBlowOffS = past.sinceBlowOffS + dt;
+  if (spec.turbo !== null) {
+    const boostable = clamp((rpm / spec.redlineRpm - spec.turbo.boostFrom) / BOOST_SPAN);
+    const target = Math.max(load, antiLag ? ANTI_LAG_BOOST : 0) * boostable;
+    const spoolS = spec.turbo.spoolS / (0.5 + revs);
+    boost += (target - boost) * settle(dt, target > boost ? spoolS : BOOST_FALLS_S);
+    const spinning = Math.max(boost, 0.15 * revs);
+    shaft += (spinning - shaft) * settle(dt, spinning > shaft ? spoolS * 0.8 : SHAFT_RUNS_DOWN_S);
+    if (lifted && past.boost > BLOW_OFF_FROM && past.sinceBlowOffS > BLOW_OFF_EVERY_S) {
+      blowOff = past.boost;
+      sinceBlowOffS = 0;
+    }
+  }
+
+  const limiting = onLimiter(spec, rpm, load);
+  const crackling = spec.combustion !== null && revs > CRACKLE_FROM ? spec.overrun.crackle * (loaded ? 0 : revs * revs * Math.exp(-sinceLiftS / CRACKLE_S)) + (limiting ? 0.6 * spec.overrun.crackle : 0) : 0;
+  const banging = antiLag && !loaded ? spec.overrun.antiLag * (0.4 + revs) : 0;
+  const pops = landing(past.pops, crackling, dt, random());
+  const bangs = landing(past.bangs, banging, dt, random());
+
+  return {
+    sound: { boost, shaft, loaded, sinceLiftS, sinceBlowOffS, pops: pops.carry, bangs: bangs.carry },
+    heard: { blowOff, pops: pops.count, bangs: bangs.count },
+  };
+}
+
+export type Perspective = "outside" | "inside";
+
+/**
+ * How much of each part of a car's sound is heard from each place. Outside, behind the car, it's the exhaust, with
+ * the engine bay and the whines further off. Inside, the exhaust comes through the body, muffled to its boom, and the
+ * intake, the mechanicals, the turbo and the gearbox are right there; an open car lets the exhaust straight in.
+ */
+const HEARD_FROM: Record<Perspective, { exhaust: number; muffled: number; bay: number; whine: number; turbo: number; motor: number }> = {
+  outside: { exhaust: 1, muffled: 0, bay: 0.3, whine: 0.4, turbo: 0.5, motor: 0.7 },
+  inside: { exhaust: 0, muffled: 1, bay: 0.7, whine: 1, turbo: 1, motor: 1 },
+};
+
+/** A motor's whine grows louder with the speed up to this, m/s. */
+const MOTOR_FULL_MS = 50;
+/** The share of the exhaust an open car lets straight in, when inside. */
+const OPEN_CAR_EXHAUST = 0.7;
+
+function partsHeard(perspective: Perspective, cabin: number) {
+  const heard = HEARD_FROM[perspective];
+  if (perspective === "outside") return heard;
+  return { ...heard, exhaust: OPEN_CAR_EXHAUST * cabin, muffled: heard.muffled * (1 - cabin) };
+}
+
+const QUIET_ENGINE = {
+  rpm: 0,
+  firingHz: 0,
+  loopWeights: [0, 0, 0, 0] as [number, number, number, number],
+  driveAmount: 1,
+  exhaustHz: 400,
+  exhaustLevel: 0,
+  muffledLevel: 0,
+  bayLevel: 0,
+  limiter: 0,
+  whistleHz: 1000,
+  whistleLevel: 0,
+  turboHissLevel: 0,
+  blowerHz: 100,
+  blowerLevel: 0,
+  gearWhineHz: 100,
+  gearWhineLevel: 0,
+  motorHz: 0,
+  motorLevel: 0,
+  inverterHz: 0,
+  inverterLevel: 0,
+};
+
+export type EngineMix = typeof QUIET_ENGINE;
+
+/** Every part of an engine's sound, for its revs, load and speed, its turbo's state, and where it's heard from. */
+export function engineMix(spec: EngineSpec, read: EngineRead, sound: EngineSound, state: Pick<DriveAudioState, "heldRpm" | "speedMS" | "perspective">): EngineMix {
+  const rpm = state.heldRpm ?? read.rpm;
   const { load } = read;
+  const revs = revsOf(spec, rpm);
+  const heard = partsHeard(state.perspective ?? "outside", spec.cabin);
+  const moving = clamp(state.speedMS / 5);
+  const engine = spec.combustion;
   const shaped = lerp(spec.idleLevel, 1, 0.42 * revs + 0.58 * load * Math.sqrt(revs + 0.15));
-  // An electric car is silent at rest: its whine comes with the speed.
-  const stirring = spec.idleRpm > 0 ? 1 : clamp(rpm / 700);
+  const loud = engine === null ? 0 : spec.level * shaped;
+
+  const motor = spec.electric;
+  const motorRpm = motor === null ? 0 : motor.rpmPerMS === null ? rpm : state.speedMS * motor.rpmPerMS;
+  const motorHz = motorRpm / 60;
+  // A motor regenerates on the lift, its whine a share of the drive's; it's silent at rest.
+  const current = motor === null ? 0 : Math.max(load, (1 - load) * motor.regen * moving);
+  const stirring = clamp(motorRpm / 700);
+
   return {
     rpm,
-    firingHz: (rpm / 60) * spec.firesPerRev,
-    engineLevel: spec.level * shaped * stirring,
-    driveAmount: 1 + spec.drive * load,
-    exhaustHz: spec.exhaustHz[0] + spec.exhaustHz[1] * revs + spec.exhaustHz[2] * load,
-    intakeHz: lerp(spec.intakeHz[0], spec.intakeHz[1], revs),
-    intakeLevel: spec.intakeLevel * (0.25 + 0.75 * load) * (0.35 + 0.65 * revs) * stirring,
+    firingHz: engine === null ? motorHz * (motor?.polePairs ?? 0) : (rpm / 120) * engine.firing.angles.length,
+    loopWeights: engine === null ? QUIET_ENGINE.loopWeights : loopWeights(loopRpms(spec), rpm, load),
+    driveAmount: engine === null ? 1 : 1 + engine.rasp * load * (0.5 + 0.5 * revs),
+    exhaustHz: engine === null ? QUIET_ENGINE.exhaustHz : engine.exhaustHz[0] + engine.exhaustHz[1] * revs + engine.exhaustHz[2] * load,
+    exhaustLevel: loud * heard.exhaust,
+    muffledLevel: loud * heard.muffled,
+    bayLevel: loud * heard.bay,
+    limiter: onLimiter(spec, rpm, load) ? 1 : 0,
+    whistleHz: spec.turbo === null ? QUIET_ENGINE.whistleHz : lerp(spec.turbo.whistleHz[0], spec.turbo.whistleHz[1], sound.shaft),
+    whistleLevel: spec.turbo === null ? 0 : spec.level * spec.turbo.whistle * sound.shaft * sound.shaft * (0.5 + 0.5 * load) * heard.turbo,
+    turboHissLevel: spec.turbo === null ? 0 : spec.level * spec.turbo.hiss * sound.boost * heard.turbo,
+    blowerHz: spec.supercharger === null ? QUIET_ENGINE.blowerHz : (rpm / 60) * spec.supercharger.order,
+    blowerLevel: spec.supercharger === null ? 0 : spec.level * spec.supercharger.level * (0.25 + 0.75 * load) * (0.2 + 0.8 * revs) * heard.whine,
+    gearWhineHz: ((engine === null ? motorRpm : rpm) / 60) * spec.gearWhine.teeth,
+    gearWhineLevel: spec.level * spec.gearWhine.level * (0.3 + 0.7 * Math.max(load, engine === null ? current : 0)) * (0.3 + 0.7 * (engine === null ? clamp(motorRpm / spec.redlineRpm) : revs)) * moving * heard.whine,
+    motorHz,
+    motorLevel: motor === null ? 0 : spec.level * motor.level * stirring * (0.5 + 0.5 * clamp(state.speedMS / MOTOR_FULL_MS)) * (0.25 + 0.75 * current) * heard.motor,
+    inverterHz: motorHz * (motor?.polePairs ?? 0),
+    inverterLevel: motor === null ? 0 : spec.level * motor.inverter * current * clamp(motorRpm / 200) * (1 - 0.6 * clamp(motorRpm / spec.redlineRpm)) * heard.motor,
   };
 }
 
@@ -443,12 +620,12 @@ export function mix({ state, engine, time, wander }: MixInputs): Mix {
   const cadenceHz = BIKE.fullCadenceHz * Math.sqrt(speed);
 
   const placeShare = bike ? 1 : 1 - PLACE_SINKS_AT_SPEED * speed;
-  const running = engine === null ? QUIET_ENGINE : engineMix(engine, state.heldRpm);
+  const running = engine === null ? QUIET_ENGINE : engineMix(engine.spec, engine.read, engine.sound, state);
+  const silenced = stage === 0 ? { exhaustLevel: 0, muffledLevel: 0, bayLevel: 0, whistleLevel: 0, turboHissLevel: 0, blowerLevel: 0, gearWhineLevel: 0, motorLevel: 0, inverterLevel: 0 } : {};
 
   return {
     ...running,
-    engineLevel: running.engineLevel * stage,
-    intakeLevel: running.intakeLevel * stage,
+    ...silenced,
 
     chainLevel: pedalling ? stage * (0.05 + 0.1 * state.throttle) * clamp(speedMS / 2) : 0,
     chainHz: cadenceHz * BIKE.chainringTeeth,
