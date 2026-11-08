@@ -1,0 +1,8 @@
+# Node on Windows links the C runtime statically, and since Node 24 its Math.pow is that runtime's
+# pow (Risk's native crate, `src/jsmath.rs`), which differs in the last bit now and then from the
+# system's ucrtbase.dll. Linking it statically here too gives the port the same pow as Node's.
+# Cargo reads this file from the directory it is run in and that directory's parents, never from
+# the manifest's, so it lives at the repo root: `cargo --manifest-path` from here finds it too.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+rustdocflags = ["-C", "target-feature=+crt-static"]

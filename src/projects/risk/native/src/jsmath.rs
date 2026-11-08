@@ -4,6 +4,12 @@
 //! and `e_log.c`), ported here rather than taken from the platform's libm, whose last bit may
 //! differ; every operation keeps fdlibm's order. `pow` is the exception: see its own note.
 
+#[cfg(all(target_env = "msvc", not(target_feature = "crt-static")))]
+compile_error!(
+    "risk-native needs the static C runtime on Windows, as Node links it, or `pow` differs from \
+     Node's: build from inside the repo, where `.cargo/config.toml` sets `+crt-static`"
+);
+
 /// `Number.MIN_VALUE`, the smallest positive subnormal.
 pub const MIN_VALUE: f64 = f64::from_bits(1);
 
@@ -270,7 +276,8 @@ pub fn log(x: f64) -> f64 {
 /// default): the platform C library's `pow`, which `f64::powf` calls too, behind ECMAScript's
 /// special cases and the shortcuts V8's optimizing compilers take. So a result is exact against
 /// Node on the same platform only: Windows' UCRT and Linux's glibc differ in the last bit now and
-/// then, and so do Node's games on them.
+/// then, and so do Node's games on them. On Windows Node links the runtime statically, whose `pow`
+/// differs from the system's `ucrtbase.dll` too, so the crate must be built the same way.
 pub fn pow(x: f64, y: f64) -> f64 {
     if y.is_nan() || (y.is_infinite() && (x == 1.0 || x == -1.0)) {
         return f64::NAN;
