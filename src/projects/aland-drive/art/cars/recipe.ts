@@ -4,6 +4,7 @@ import { rideOf, WORLD_RIDE, type CarSpec } from "./build";
 import { curve, type Key } from "./curve";
 import type { Surface } from "./mesh";
 import type { RimStyle } from "./wheel";
+import type { CarPaint } from "./paints";
 
 /*
  * The one recipe every car's art is drawn on: a car is a set of numbers, where
@@ -287,6 +288,8 @@ export type Sketch = SketchShape & ({ driven: ReturnType<typeof driven> } | { na
 
 interface SketchShape {
   paint: string;
+  /** A drivable car's paints, the first `paint` itself (`paints.ts`). */
+  paints?: readonly CarPaint[];
   livery?: boolean;
   /** Length, width, height. */
   size: readonly [number, number, number];
@@ -465,6 +468,7 @@ export function sketched(car: Sketch): CarSpec {
     name,
     ride: sim?.ride ?? WORLD_RIDE,
     paint: car.paint,
+    paints: car.paints,
     livery: car.livery,
     body: bodyOf(shape),
     wheel: { radiusM: radius, widthM: tyre, rimShare: car.rim ?? 0.66, spokes: car.spokes ?? 5, twinSpokes: car.twin ?? false, style: car.style },

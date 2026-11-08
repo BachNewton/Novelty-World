@@ -1,6 +1,5 @@
 import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer, type Node } from "three/webgpu";
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
-import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
@@ -8,6 +7,10 @@ import { buildCarArt, createCarModel, type CarLights } from "./model";
 import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
 import { indicatorClock } from "./material";
 import { CARS, PLAYER_CAR, WORLD_CARS } from "./specs";
+import { paintName, paintsOf } from "./paints";
+import { createLiveSun } from "../sun";
+import { sharedUniform } from "../shared-uniform";
+import { createNight, landAtHour } from "../night/night";
 
 /*
  * The page `gallery.mjs` drives: one car at a time on a stretch of road, on the
@@ -20,7 +23,7 @@ const HOOD = { forwardM: 2.35, aboveM: 0.28, lookAheadM: 30, fieldOfViewDeg: 72 
 
 const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
 
-const restState = ({ id, ride }: CarSpec, steer: number, roll: number): CarState => ({
+const restState = ({ id, ride }: CarSpec, steer: number, roll: number, paint?: number): CarState => ({
   position: [0, 0, 0],
   rotation: [0, 0, 0, 1],
   velocity: [0, 0, 0],
@@ -30,6 +33,7 @@ const restState = ({ id, ride }: CarSpec, steer: number, roll: number): CarState
   suspension: [ride.sagM, ride.sagM, ride.sagM, ride.sagM],
   roll: [roll, roll, roll, roll],
   lamps: LAMPS_OFF,
+  paint,
 });
 
 export interface Shot {
@@ -40,19 +44,28 @@ export interface Shot {
   steer?: number;
   roll?: number;
   lean?: [pitch: number, roll: number];
-  /** The world dimmed as a night does it, so the lamps are judged against dark. */
+  /** A paint by its index in the car's list: its default when left out. */
+  paint?: number;
+  /** The deepest midsummer night's light, as the game's land takes it, with the sun gone and the headlamps on. */
   night?: boolean;
 }
 
-/** How much of the day's light a night leaves the world and the car, before their lamps. */
-const NIGHT_SHARE = 0.08;
+/** The night the gallery's ground and cars can be lit by, a dial between day (0) and the deepest midsummer night (1). */
+const NIGHT_AMOUNT = 1;
 
 async function start(width: number, height: number) {
   const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true, trackTimestamp: true });
   await renderer.init();
   if (!("isWebGPUBackend" in renderer.backend)) throw new Error("not WebGPU");
   renderer.setSize(width, height);
-  renderer.setClearColor(new Color(token("sky")));
+  const daySky = new Color(token("sky"));
+  const nightSky = new Color(themeColor("--color-aland-drive-night-land-deep")).multiplyScalar(0.3);
+  renderer.setClearColor(daySky);
+  // One sun and one switch for day and night, so a day shot and a night shot are the same shaders.
+  const sun = createLiveSun(SUN);
+  const night = createNight(NIGHT_AMOUNT);
+  const nightOn = sharedUniform(0);
+  const atHour = (colour: Node<"vec3">) => mix(colour, landAtHour(night, colour), nightOn);
   document.body.appendChild(renderer.domElement);
 
   const scene = new Scene();
@@ -64,9 +77,7 @@ async function start(width: number, height: number) {
   const paintLine = vec3(...token("road-paint").toArray());
   const onRoad = smoothstep(float(4.2), float(3.9), abs(positionWorld.x));
   const edge = smoothstep(float(0.09), float(0.07), abs(abs(positionWorld.x).sub(3.6)));
-  const light = sharedUniform(1);
-  asphalt.colorNode = mix(mix(grass, road, onRoad), paintLine, edge).mul(light);
-  const night = { hazed: (colour: Node<"vec3">) => colour.mul(NIGHT_SHARE) };
+  asphalt.colorNode = atHour(mix(mix(grass, road, onRoad), paintLine, edge));
   const ground = new Mesh(new PlaneGeometry(2000, 2000), asphalt);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = groundY(PLAYER_CAR);
@@ -83,16 +94,17 @@ async function start(width: number, height: number) {
   };
 
   return {
-    cars: () => CARS.map((car, index) => ({ index, name: car.name, near: artOf(index, "hero").triangles, far: artOf(index, "far").triangles })),
+    cars: () => CARS.map((car, index) => ({ index, name: car.name, near: artOf(index, "hero").triangles, far: artOf(index, "far").triangles, paints: paintsOf(car).map(paintName) })),
     async shoot(shot: Shot) {
       const art = artOf(shot.car, shot.detail);
-      const model = createCarModel(art, SUN, shot.night ? night : {});
+      const model = createCarModel(art, sun, { hazed: atHour });
       scene.add(model.root);
-      light.value = shot.night ? NIGHT_SHARE : 1;
-      renderer.setClearColor(new Color(token("sky")).multiplyScalar(shot.night ? NIGHT_SHARE : 1));
       ground.position.y = groundY(art.spec);
-      model.setLights({ brake: false, reversing: false, headlights: false, ...shot.lights });
-      model.draw(restState(art.spec, shot.steer ?? 0, shot.roll ?? 0));
+      nightOn.value = shot.night ? 1 : 0;
+      sun.setSun(shot.night ? { ...SUN, elevationDeg: -10 } : SUN);
+      renderer.setClearColor(shot.night ? nightSky : daySky);
+      model.setLights({ brake: false, reversing: false, headlights: shot.night ?? false, ...shot.lights });
+      model.draw(restState(art.spec, shot.steer ?? 0, shot.roll ?? 0, shot.paint));
       if (shot.lean) {
         model.pivot.rotation.x = shot.lean[0];
         model.pivot.rotation.z = shot.lean[1];
@@ -126,8 +138,6 @@ async function start(width: number, height: number) {
      * 75 m up, as the map's flight and a high chase see traffic.
      */
     async fleet(view: "ranks" | "line" | "above", clock = 0) {
-      light.value = 1;
-      renderer.setClearColor(new Color(token("sky")));
       const specs = [...CARS, ...WORLD_CARS];
       const ranks = view !== "line";
       const cars: FleetCar[] = ranks
@@ -138,6 +148,8 @@ async function start(width: number, height: number) {
           })
         : Array.from({ length: 34 }, (_, index) => ({ spec: specs[index % specs.length], x: 2, y: 0, z: 40 - index * 8, yaw: Math.PI, seed: index, signal: 3 }));
       indicatorClock.value = clock;
+      nightOn.value = 0;
+      renderer.setClearColor(daySky);
       const made = createCarFleet(cars, SUN);
       ground.position.y = 0;
       scene.add(...made.meshes);

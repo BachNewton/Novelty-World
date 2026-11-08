@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, plates } from "../recipe";
 
 const van = driven("kobb");
@@ -8,6 +9,14 @@ export const kobb: CarSpec = {
   name: van.name,
   ride: van.ride,
   paint: "car-paint-white",
+  paints: [
+    paint("car-paint-white"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-sky"),
+    paint("car-paint-orange"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-forest"),
+  ],
   wheel: { radiusM: van.wheelRadiusM, widthM: 0.215, rimShare: 0.62, spokes: 5, twinSpokes: false },
   shadowHalf: [0.96, 2.48],
   body: bodyOf({

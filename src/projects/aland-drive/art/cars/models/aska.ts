@@ -1,5 +1,6 @@
 import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, handles, plates, type Shape } from "../recipe";
 
@@ -204,6 +205,14 @@ export const aska: CarSpec = {
   name: ASKA.name,
   ride: ASKA.ride,
   paint: "car-paint-aska",
+  paints: [
+    paint("car-paint-aska", "metallic"),
+    paint("car-paint-glacier", "metallic"),
+    paint("car-paint-ivory", "pearl", { flip: "car-paint-ivory-flip" }),
+    paint("car-paint-signal-red"),
+    paint("car-paint-lime"),
+    paint("car-paint-graphite", "matte"),
+  ],
   body: bodyOf(shape),
   wheel: { radiusM: ASKA.wheelRadiusM, widthM: 0.3, rimShare: 0.76, spokes: 10, twinSpokes: false, style: "turbine" },
   shadowHalf: [1.03, 2.31],

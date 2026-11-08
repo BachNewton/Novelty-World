@@ -125,6 +125,7 @@ function between(from: CarState, to: CarState, seconds: number, share: number): 
     spin: [lerp(from.spin[0], to.spin[0], share), lerp(from.spin[1], to.spin[1], share), lerp(from.spin[2], to.spin[2], share)],
     car: from.car,
     lamps: from.lamps,
+    paint: from.paint,
   };
 }
 

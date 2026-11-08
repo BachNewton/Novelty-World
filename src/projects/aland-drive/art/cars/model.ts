@@ -2,6 +2,7 @@ import { BufferGeometry, Group, Mesh, type Node, type Object3D, type Scene } fro
 import type { CarState } from "../../sim/car-state";
 import { axleY, buildCarParts, groundY, lampCentres, type CarDetail, type CarSpec, type LampCentres } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
+import { paintAt, paintsOf, type CarPaint } from "./paints";
 import { type Sun } from "../sun";
 
 /*
@@ -29,7 +30,7 @@ export interface CarArt {
 
 export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
   const parts = buildCarParts(spec, detail);
-  const body = geometryOf(parts.body, detail === "hero");
+  const body = geometryOf(parts.body);
   const wheel = geometryOf(parts.wheel);
   const glass = parts.glass && geometryOf(parts.glass);
   const calipers = parts.calipers && ([geometryOf(parts.calipers[0]), geometryOf(parts.calipers[1])] as const);
@@ -53,8 +54,8 @@ export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
 }
 
 export interface CarViewOptions {
-  /** Another car's paint: a token without the `--color-aland-drive-` prefix. */
-  paint?: string;
+  /** A paint of the car's own choosing, for a car shown rather than driven: a driven car's is its state's. */
+  paint?: CarPaint;
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }
 
@@ -62,7 +63,10 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
   const { spec } = art;
   const road = groundY(spec);
   const { ride } = spec;
-  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed, hero: art.glass !== null });
+  const paints = paintsOf(spec);
+  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? paints[0], groundY: road, hazed: options.hazed, hero: art.glass !== null });
+  /** The paint drawn, by its index in the car's list: a state's paint, or none for one set by hand. */
+  let painted: number | undefined = options.paint ? undefined : 0;
   const glassLook = art.glass && glassMaterial({ sun, hazed: options.hazed });
 
   // In the game an object stands still unless it says so (`render/game.ts`): the car and its hinge move every frame, its
@@ -121,8 +125,19 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     pivot,
     wheels,
     setLights,
-    setPaint,
+    /** Paints the car by hand, until a state names a paint. */
+    setPaint(paint: CarPaint) {
+      setPaint(paint);
+      painted = undefined;
+    },
     draw(state: CarState) {
+      // The paint a state names, or the car's default for one it doesn't have: another version's, or none at all.
+      const paint = paintAt(paints, state.paint);
+      const index = paints.indexOf(paint);
+      if (index !== painted && (state.paint !== undefined || painted !== undefined)) {
+        setPaint(paint);
+        painted = index;
+      }
       root.position.set(...state.position);
       root.quaternion.set(...state.rotation);
       wheels.forEach(({ steering, rolling, isFront }, index) => {

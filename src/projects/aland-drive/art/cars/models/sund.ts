@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, plates, reflector, reversing, thirdBrake } from "../recipe";
 
 const coupe = driven("sund");
@@ -8,6 +9,14 @@ export const sund: CarSpec = {
   name: coupe.name,
   ride: coupe.ride,
   paint: "car-paint-mustard",
+  paints: [
+    paint("car-paint-mustard"),
+    paint("car-paint-signal-red"),
+    paint("car-paint-ultramarine", "metallic"),
+    paint("car-paint-lime"),
+    paint("car-paint-ivory", "pearl", { flip: "car-paint-ivory-flip" }),
+    paint("car-paint-black", "matte"),
+  ],
   wheel: { radiusM: coupe.wheelRadiusM, widthM: 0.265, rimShare: 0.76, spokes: 6, twinSpokes: true },
   shadowHalf: [0.96, 2.2],
   body: bodyOf({

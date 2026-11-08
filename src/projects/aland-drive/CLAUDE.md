@@ -67,7 +67,7 @@ A player starts in Grus while the game is in development (`PLAYER_START_CAR`), a
 | | |
 |---|---|
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
-| `?car=<id>`, `?tyres=` | Starts in that car (its id in `sim/cars.ts`), on those tyres |
+| `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |

@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, plates } from "../recipe";
 
 const hatch = driven("ljus");
@@ -8,6 +9,14 @@ export const ljus: CarSpec = {
   name: hatch.name,
   ride: hatch.ride,
   paint: "car-paint-teal",
+  paints: [
+    paint("car-paint-teal"),
+    paint("car-paint-white"),
+    paint("car-paint-coral"),
+    paint("car-paint-lemon"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-graphite", "metallic"),
+  ],
   wheel: { radiusM: hatch.wheelRadiusM, widthM: 0.195, rimShare: 0.68, spokes: 7, twinSpokes: false },
   shadowHalf: [0.86, 1.98],
   body: bodyOf({

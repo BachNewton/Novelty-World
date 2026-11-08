@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, lampUnits, plates, reflector, reversing, type Shape, thirdBrake } from "../recipe";
 
 const SKERRY = driven("skerry-gt");
@@ -81,7 +82,15 @@ export const skerryGt: CarSpec = {
   id: SKERRY.id,
   name: SKERRY.name,
   ride: SKERRY.ride,
-  paint: "car-body",
+  paint: "car-paint-signal-red",
+  paints: [
+    paint("car-paint-signal-red"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-racing-green", "metallic"),
+    paint("car-paint-midnight", "metallic"),
+    paint("car-paint-ivory", "pearl", { flip: "car-paint-ivory-flip" }),
+    paint("car-paint-graphite", "matte"),
+  ],
   body: bodyOf(shape),
   wheel: { radiusM: SKERRY.wheelRadiusM, widthM: 0.235, rimShare: 0.74, spokes: 5, twinSpokes: true },
   shadowHalf: [0.92, 2.2],

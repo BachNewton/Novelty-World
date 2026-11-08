@@ -88,7 +88,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, graphicsMenu, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { drivingMenu, graphicsMenu, isPaintItem, paintMenu, paintOfItem, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
 import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
@@ -127,6 +127,8 @@ import { roadWeather } from "./road-weather";
 import { createPrecipitation } from "./precipitation";
 import { keepAssists, keptAssists } from "../garage/assists";
 import { fitTyres, tyresOn } from "../garage/tyres";
+import { keepPaint, paintOn } from "../garage/paint";
+import { paintAsked, paintIndex, paintsOf } from "../art/cars/paints";
 import { pixelRatio, useDriveGraphics } from "./graphics-settings";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
@@ -1301,6 +1303,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   drive.assists = keptAssists();
   const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
+  // As with tyres, a link's paint is for this drive only: what's kept is what the player chose.
+  drive.paint = paintAsked(window.location.search, paintsOf(carSpec)) ?? paintIndex(paintsOf(carSpec), paintOn(startCar));
   let carView = createCarView(scene, sun, carSpec, "hero", { hazed });
   fitCarVolume(carView.art);
   const tyres = createTyreParticles(scene, token, hazed);
@@ -1839,6 +1843,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const pickMenuItem = (id: MenuItemId) => {
+    if (isPaintItem(id)) {
+      setPaint(paintOfItem(id));
+      showMenu(paintMenuNow());
+      return;
+    }
     switch (id) {
       case "resume":
       case "cancel":
@@ -1870,6 +1879,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         break;
       case "graphics":
         showMenu(graphicsMenu);
+        break;
+      case "paint":
+        showMenu(paintMenuNow());
         break;
       case "back":
         showMenu(menuNow());
@@ -1940,12 +1952,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!spec) throw new Error(`no car's art for ${id}`);
     if (spec === carSpec) return;
     drive.setCar(id, tyresOn(id));
+    drive.paint = paintIndex(paintsOf(spec), paintOn(id));
     carView.dispose();
     carSpec = spec;
     carView = createCarView(scene, sun, spec, "hero", { hazed });
     fitCarVolume(carView.art);
     events.onCarChange?.(id);
   };
+
+  /** Paints the car being driven, kept for it, drawn at once and sent to everyone with its next state. */
+  const setPaint = (paint: number) => {
+    keepPaint(drive.carId, paint);
+    drive.paint = paint;
+  };
+  const paintMenuNow = () => paintMenu(carSpec.name, paintsOf(carSpec), drive.paint);
 
   const setTyres = (tyres: Tyre) => {
     fitTyres(drive.carId, tyres);
