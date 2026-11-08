@@ -13,39 +13,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openGame } from "./game-page.mjs";
 import { serveTiles } from "./serve-tiles.mjs";
+import { watchDevice } from "./device-watch.mjs";
 import { describeUnsetReads } from "./unset-reads.mjs";
 
 const option = (name) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
 const DUMP = option("dump");
 const BASE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const SETTLE_FRAMES = 30;
-
-/** Runs in the page before the game: wraps the device so every module and pipeline it makes is written down. */
-function watchDevice() {
-  const record = { modules: [], pipelines: [] };
-  window.__shaderCount = record;
-  const ids = new WeakMap();
-  const requestDevice = GPUAdapter.prototype.requestDevice;
-  GPUAdapter.prototype.requestDevice = async function (...args) {
-    const device = await requestDevice.apply(this, args);
-    const createShaderModule = device.createShaderModule.bind(device);
-    device.createShaderModule = (descriptor) => {
-      const shader = createShaderModule(descriptor);
-      ids.set(shader, record.modules.length);
-      record.modules.push(descriptor.code);
-      return shader;
-    };
-    const stages = (descriptor) => [descriptor.vertex?.module, descriptor.fragment?.module, descriptor.compute?.module].filter(Boolean).map((shader) => ids.get(shader));
-    for (const [name, kind] of [["createRenderPipeline", "render"], ["createRenderPipelineAsync", "render"], ["createComputePipeline", "compute"], ["createComputePipelineAsync", "compute"]]) {
-      const original = device[name].bind(device);
-      device[name] = (descriptor) => {
-        record.pipelines.push({ kind, modules: stages(descriptor), label: descriptor.label ?? "" });
-        return original(descriptor);
-      };
-    }
-    return device;
-  };
-}
 
 const { server, port } = await serveTiles("src/projects/aland-drive/fixture");
 const url = new URL(BASE);
