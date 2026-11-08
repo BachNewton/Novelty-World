@@ -1,0 +1,43 @@
+import { tuned, type CarEntry } from "./character";
+
+/** A low two-seater with a flat-plane V8 that screams to 9,000: the fastest car here, stiff, sharp, and all its drive at the back. */
+export const sund: CarEntry = {
+  tier: "A4",
+  tuning: tuned({
+    name: "Sund",
+    class: "sports",
+    massKg: 1360,
+    outline: [4.35, 1.86, 1.27, 0.16],
+    axleZ: [-1.27, 1.23],
+    trackM: 1.62,
+    wheelRadiusM: 0.34,
+    massHeightM: 0.44,
+    rideHz: 1.75,
+    damping: 0.45,
+    rollStiffness: 0.55,
+    grip: [1.525, 1.6],
+    peakSlip: 0.12,
+    slideShare: 0.75,
+    handbrakeRearShare: 0.45,
+    engine: {
+      peakTorqueNm: 390,
+      torqueCurve: [
+        [0.12, 0.5],
+        [0.35, 0.78],
+        [0.65, 0.97],
+        [0.8, 1],
+        [0.93, 0.95],
+        [1, 0.85],
+      ],
+      engineBrakeNm: 55,
+    },
+    gearbox: { idleRpm: 1000, redlineRpm: 9000, gearTopMS: [21, 35, 49, 63, 77, 92], shiftS: 0.08, gentleShift: 0.45 },
+    launchMS2: 7.5,
+    rearShare: 1,
+    brakeMS2: 13,
+    dragPerMS2: 0.46,
+    aero: 1.5,
+    lock: 0.58,
+    turnPerS: 3.1,
+  }),
+};

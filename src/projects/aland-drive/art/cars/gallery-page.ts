@@ -6,7 +6,7 @@ import { axleY, groundY, type CarDetail, type CarSpec } from "./build";
 import { buildCarArt, createCarModel, type CarLights } from "./model";
 import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
 import { indicatorClock } from "./material";
-import { CARS, WORLD_CARS } from "./specs";
+import { CARS, PLAYER_CAR, WORLD_CARS } from "./specs";
 import { paintName, paintsOf } from "./paints";
 import { createLiveSun } from "../sun";
 import { sharedUniform } from "../shared-uniform";
@@ -80,7 +80,7 @@ async function start(width: number, height: number) {
   asphalt.colorNode = atHour(mix(mix(grass, road, onRoad), paintLine, edge));
   const ground = new Mesh(new PlaneGeometry(2000, 2000), asphalt);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = groundY(CARS[0]);
+  ground.position.y = groundY(PLAYER_CAR);
   scene.add(ground);
 
   const arts = new Map<string, ReturnType<typeof buildCarArt>>();
@@ -211,7 +211,7 @@ declare global {
   }
 }
 
-window.__axleY = axleY(CARS[0]);
+window.__axleY = axleY(PLAYER_CAR);
 window.__startCarGallery = async (width, height) => {
   window.__carGallery = await start(width, height);
 };

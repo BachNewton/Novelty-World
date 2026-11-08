@@ -1,0 +1,43 @@
+import { tuned, type CarEntry } from "./character";
+
+/** A tradesman's turbo-diesel van: slow, tall and top-heavy, but it pulls hard low down and never minds a hill. */
+export const kobb: CarEntry = {
+  tier: null,
+  tuning: tuned({
+    name: "Kobb",
+    class: "road",
+    massKg: 1950,
+    outline: [4.94, 1.9, 1.98, 0.24],
+    axleZ: [-1.62, 1.42],
+    trackM: 1.66,
+    wheelRadiusM: 0.345,
+    massHeightM: 0.78,
+    rideHz: 1.25,
+    damping: 0.32,
+    rollStiffness: 0.32,
+    travelM: 0.32,
+    grip: [1.025, 1.05],
+    peakSlip: 0.15,
+    slideShare: 0.85,
+    engine: {
+      peakTorqueNm: 340,
+      torqueCurve: [
+        [0.18, 0.6],
+        [0.3, 0.95],
+        [0.4, 1],
+        [0.65, 0.95],
+        [0.85, 0.8],
+        [1, 0.55],
+      ],
+      engineBrakeNm: 60,
+    },
+    gearbox: { idleRpm: 760, redlineRpm: 4200, gearTopMS: [10, 19, 31, 45, 62], shiftS: 0.34, gentleShift: 0.52 },
+    launchMS2: 4.5,
+    rearShare: 0,
+    brakeMS2: 9.5,
+    dragPerMS2: 0.95,
+    aero: 0.6,
+    lock: 0.58,
+    turnPerS: 2,
+  }),
+};

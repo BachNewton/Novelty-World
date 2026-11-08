@@ -271,7 +271,7 @@ export function SoundLab() {
       intro={
         <>
           The drive runs here as it does in the game, through the same sound. Start it and move the sliders: floor it to hear the gears, hold the revs to sit on one note. The one-shots are below. Edit the engines in{" "}
-          <code>audio/vehicles.ts</code>, the mix in <code>audio/model.ts</code> and the one-shots in <code>audio/sounds.ts</code>.
+          <code>audio/voices/</code>, the mix in <code>audio/model.ts</code> and the one-shots in <code>audio/sounds.ts</code>.
         </>
       }
       controls={

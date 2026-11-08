@@ -1,7 +1,20 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
-import table from "./car-limits.json";
+import ankar from "./limits/ankar.json";
+import berg from "./limits/berg.json";
+import bris from "./limits/bris.json";
+import fjard from "./limits/fjard.json";
+import grus from "./limits/grus.json";
+import holm from "./limits/holm.json";
+import kobb from "./limits/kobb.json";
+import ljus from "./limits/ljus.json";
+import salta from "./limits/salta.json";
+import skerryGt from "./limits/skerry-gt.json";
+import sten from "./limits/sten.json";
+import strom from "./limits/strom.json";
+import sund from "./limits/sund.json";
+import vik from "./limits/vik.json";
 
 /*
  * What each car can do at the limit, measured in the simulation
@@ -11,7 +24,8 @@ import table from "./car-limits.json";
  * row for every ground, each surface in each condition on each set of tyres
  * that matters there, measured on a pad of that surface alone. Each car's entry carries a print of the tuning and the
  * surfaces' grip it was measured with, and a test holds the two together, so a
- * change to either asks for the table to be measured again.
+ * change to either asks for the table to be measured again. Each car's entry is
+ * a file of its own (`limits/<id>.json`), written by the tool, and a line here.
  */
 
 /** A rate over a band of speeds, in g. */
@@ -56,8 +70,39 @@ export function tuningPrint(tuning: CarTuning): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = table;
-
+/** Every car's entry, under its tier as `cars.ts` has it. */
+export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = {
+  // A1
+  // A2
+  // A3
+  // A4
+  sund,
+  // A5
+  "skerry-gt": skerryGt,
+  strom,
+  ankar,
+  // A6
+  bris,
+  sten,
+  // A7
+  ljus,
+  // B1
+  grus,
+  // B2
+  fjard,
+  // B3
+  holm,
+  // B4
+  berg,
+  // C1
+  // C2
+  // C3
+  vik,
+  // C4
+  salta,
+  // Outside the tiers
+  kobb,
+};
 
 /** A car's limits on one ground: a ground the table doesn't measure is a mistake in the caller, not a gap to fill. */
 export function limitsOn(id: CarId, condition: Condition, surface: Surface, tyres: Tyre = "summer"): CarLimits {
