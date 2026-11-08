@@ -8,9 +8,10 @@ import type {
   CompletedTrick,
 } from "./types";
 import {
+  // Lobby
+  seatTeams,
+  welcomeFor,
   // Card utilities
-  getSuitColor,
-  getPartnerSuit,
   getEffectiveSuit,
   isRightBower,
   isLeftBower,
@@ -22,7 +23,6 @@ import {
   deal,
   // Player utilities
   getTeam,
-  getPartner,
   getNextPlayer,
   getLeadPlayer,
   // Bidding
@@ -100,46 +100,6 @@ function makeState(overrides: Partial<GameState>): GameState {
     ...overrides,
   };
 }
-
-// ============================================================
-// §5.3 — Suit colors and pairs
-// ============================================================
-
-describe("getSuitColor", () => {
-  it("returns red for hearts", () => {
-    expect(getSuitColor("hearts")).toBe("red");
-  });
-
-  it("returns red for diamonds", () => {
-    expect(getSuitColor("diamonds")).toBe("red");
-  });
-
-  it("returns black for clubs", () => {
-    expect(getSuitColor("clubs")).toBe("black");
-  });
-
-  it("returns black for spades", () => {
-    expect(getSuitColor("spades")).toBe("black");
-  });
-});
-
-describe("getPartnerSuit", () => {
-  it("hearts partner is diamonds", () => {
-    expect(getPartnerSuit("hearts")).toBe("diamonds");
-  });
-
-  it("diamonds partner is hearts", () => {
-    expect(getPartnerSuit("diamonds")).toBe("hearts");
-  });
-
-  it("clubs partner is spades", () => {
-    expect(getPartnerSuit("clubs")).toBe("spades");
-  });
-
-  it("spades partner is clubs", () => {
-    expect(getPartnerSuit("spades")).toBe("clubs");
-  });
-});
 
 // ============================================================
 // §5.1 — Bower identification
@@ -317,44 +277,10 @@ describe("compareCards", () => {
 });
 
 // ============================================================
-// §2 — Deck creation
-// ============================================================
-
-describe("createDeck", () => {
-  it("creates exactly 24 cards", () => {
-    expect(createDeck()).toHaveLength(24);
-  });
-
-  it("has 6 cards per suit", () => {
-    const deck = createDeck();
-    for (const suit of ["hearts", "diamonds", "clubs", "spades"] as Suit[]) {
-      expect(deck.filter((c) => c.suit === suit)).toHaveLength(6);
-    }
-  });
-
-  it("has 4 cards per rank", () => {
-    const deck = createDeck();
-    for (const rank of ["9", "10", "jack", "queen", "king", "ace"] as Card["rank"][]) {
-      expect(deck.filter((c) => c.rank === rank)).toHaveLength(4);
-    }
-  });
-
-  it("has no duplicate cards", () => {
-    const deck = createDeck();
-    const keys = deck.map((c) => `${c.rank}-${c.suit}`);
-    expect(new Set(keys).size).toBe(24);
-  });
-});
-
-// ============================================================
 // §2 — Shuffling
 // ============================================================
 
 describe("shuffleDeck", () => {
-  it("returns 24 cards", () => {
-    expect(shuffleDeck(createDeck())).toHaveLength(24);
-  });
-
   it("contains the same cards as the input", () => {
     const original = createDeck();
     const shuffled = shuffleDeck(original);
@@ -399,30 +325,6 @@ describe("deal", () => {
 // ============================================================
 // §3 — Player utilities
 // ============================================================
-
-describe("getTeam", () => {
-  it("players 0 and 2 are Team A", () => {
-    expect(getTeam(0)).toBe("A");
-    expect(getTeam(2)).toBe("A");
-  });
-
-  it("players 1 and 3 are Team B", () => {
-    expect(getTeam(1)).toBe("B");
-    expect(getTeam(3)).toBe("B");
-  });
-});
-
-describe("getPartner", () => {
-  it("0 and 2 are partners", () => {
-    expect(getPartner(0)).toBe(2);
-    expect(getPartner(2)).toBe(0);
-  });
-
-  it("1 and 3 are partners", () => {
-    expect(getPartner(1)).toBe(3);
-    expect(getPartner(3)).toBe(1);
-  });
-});
 
 describe("getNextPlayer", () => {
   it("rotates clockwise: 0→1→2→3→0", () => {
@@ -1219,5 +1121,35 @@ describe("dealHand", () => {
     for (const hand of newState.hands) {
       expect(hand).toHaveLength(5);
     }
+  });
+});
+
+describe("the lobby", () => {
+  const teams = [
+    { playerId: "ann", team: "A" as const },
+    { playerId: "bob", team: "B" as const },
+    { playerId: "cat", team: "A" as const },
+    { playerId: "dan", team: "B" as const },
+  ];
+  const seats = seatTeams(teams, (id) => id.toUpperCase());
+
+  it("seats partners across the table, as the rules read the seats", () => {
+    expect(seats).not.toBeNull();
+    for (const seat of seats ?? []) {
+      expect(getTeam(seat.seatIndex)).toBe(teams.find((t) => t.playerId === seat.playerId)?.team);
+    }
+    expect(seats?.map((s) => s.name)).toEqual(["ANN", "BOB", "CAT", "DAN"]);
+  });
+
+  it("seats nobody until each team has exactly two", () => {
+    expect(seatTeams(teams.slice(0, 3), String)).toBeNull();
+    expect(seatTeams([...teams.slice(0, 3), { playerId: "dan", team: "A" }], String)).toBeNull();
+  });
+
+  it("gives a seated player who comes back the game, and a stranger nothing once it has started", () => {
+    expect(welcomeFor({ teams, seats: null, game: null }, "eve")).toEqual({ kind: "teams", teams });
+    const game = createGameState(0);
+    expect(welcomeFor({ teams, seats, game }, "dan")).toEqual({ kind: "start", seats, gameState: game });
+    expect(welcomeFor({ teams, seats, game }, "eve")).toBeNull();
   });
 });

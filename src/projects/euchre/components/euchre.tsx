@@ -2,6 +2,7 @@
 
 import { useRoom } from "@/shared/lib/peer";
 import { useProfile } from "@/shared/lib/profile";
+import { seatTeams, welcomeFor } from "../logic";
 import { useEuchreStore } from "../store";
 import type {
   BidAction,
@@ -9,7 +10,6 @@ import type {
   GuestMessage,
   HostMessage,
   PlayerIndex,
-  SeatAssignment,
   Team,
 } from "../types";
 import { EuchreLobby } from "./lobby";
@@ -32,14 +32,8 @@ export function Euchre() {
     game: "euchre",
     profile,
     onGuestJoined(player) {
-      const { seats, game, teams } = useEuchreStore.getState();
-      if (seats !== null && game !== null) {
-        if (seats.some((s) => s.playerId === player.id)) {
-          room.sendTo(player.peerId, { kind: "start", seats, gameState: game });
-        }
-        return;
-      }
-      room.sendTo(player.peerId, { kind: "teams", teams });
+      const welcome = welcomeFor(useEuchreStore.getState(), player.id);
+      if (welcome !== null) room.sendTo(player.peerId, welcome);
     },
     onGuestLeft(player) {
       if (useEuchreStore.getState().seats !== null) return;
@@ -128,20 +122,10 @@ export function Euchre() {
     }
   }
 
-  /** Host: Team A takes seats 0 and 2, Team B seats 1 and 3. */
   function startGame() {
     const store = useEuchreStore.getState();
-    const nameOf = (playerId: string) =>
-      room.players.find((p) => p.id === playerId)?.name ?? "Player";
-    const teamA = store.teams.filter((t) => t.team === "A");
-    const teamB = store.teams.filter((t) => t.team === "B");
-    if (teamA.length !== 2 || teamB.length !== 2) return;
-    const order = [teamA[0], teamB[0], teamA[1], teamB[1]];
-    const seats: SeatAssignment[] = order.map((t, i) => ({
-      playerId: t.playerId,
-      name: nameOf(t.playerId),
-      seatIndex: i as PlayerIndex,
-    }));
+    const seats = seatTeams(store.teams, (playerId) => room.players.find((p) => p.id === playerId)?.name ?? "Player");
+    if (seats === null) return;
     store.seatPlayers(seats, profile.id);
     store.startGame(randomDealer());
     const game = useEuchreStore.getState().game;

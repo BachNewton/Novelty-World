@@ -6,12 +6,13 @@ import type { World } from "../src/projects/whisker-hollow/types";
 import { newWorld } from "../src/projects/whisker-hollow/world";
 
 /**
- * Whisker Hollow: finding a pair, carrying both home and naming them, alone
- * and with a friend. Each test plays its own world (`?world=`) on this run's
- * relay, saved in the host's browser (`?save=local`), so nothing reaches
- * Supabase or the real relay. The host's browser starts with a saved world in
- * which one pair waits by the spawn, a few steps from their home, so the walks
- * are short and clear of junk. The page's probe (`window.__whiskerHollow`)
+ * Whisker Hollow in a browser: two players on one island through the relay,
+ * and the mouse under pointer lock. Bringing pairs home and naming them are
+ * the rules' (`world.test.ts`). Each test plays its own world (`?world=`) on
+ * this run's relay, saved in the host's browser (`?save=local`), so nothing
+ * reaches Supabase or the real relay. The co-op host's browser starts with a
+ * saved world in which one pair waits by the spawn, so the walk is short and
+ * clear of junk. The page's probe (`window.__whiskerHollow`)
  * reports where the player stands, what interact would do, the camera, whether
  * the pointer is locked, and the world.
  */
@@ -87,39 +88,9 @@ async function walkAxis(page: Page, axis: "x" | "z", to: number): Promise<void> 
 }
 
 const canPickUp = () => window.__whiskerHollow?.target()?.kind === "pick-up";
-const atRightHome = () => window.__whiskerHollow?.target()?.right === true;
 
 // Software drawing is slow: a few steps take seconds.
 test.describe.configure({ timeout: 240_000 });
-
-test("find both of a pair, carry them home and name them", async ({ browser }) => {
-  const page = await enterIsland(browser, `wh-solo-${Date.now()}`, "Sonja", worldWithPairNearby());
-
-  await walkAxis(page, "x", HOME.x);
-  await walkUntil(page, "KeyW", canPickUp);
-  await page.keyboard.press("Space");
-  await walkUntil(page, "KeyW", atRightHome);
-  await page.keyboard.press("Space");
-  await page.waitForFunction((n) => (window.__whiskerHollow?.world()?.animals.filter((a) => a.where.kind === "home").length ?? 0) === n, 1);
-
-  // The second waits a step back the way they came.
-  await walkUntil(page, "KeyS", canPickUp);
-  await page.keyboard.press("Space");
-  await walkUntil(page, "KeyW", atRightHome);
-  await page.keyboard.press("Space");
-
-  // Both home: the one who brought the second is asked for the pair's name.
-  const name = page.getByLabel("Name", { exact: true });
-  await expect(name).toBeVisible();
-  await name.fill("Pip and Pop");
-  await page.getByRole("button", { name: "Welcome home" }).click();
-  await page.waitForFunction(() => window.__whiskerHollow?.world()?.pairs[0]?.naming?.name === "Pip and Pop");
-
-  // The album remembers who named whom.
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("listitem").filter({ hasText: "Pip and Pop" })).toContainText("Sonja");
-  await page.context().close();
-});
 
 test("two friends share one island, and it stays when the host leaves", async ({ browser }) => {
   const world = `wh-coop-${Date.now()}`;

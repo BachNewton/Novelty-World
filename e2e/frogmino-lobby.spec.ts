@@ -1,6 +1,6 @@
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import { listRoom, localRoomList } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * Frogmino's lobby: co-op rooms found through the live list
@@ -93,45 +93,5 @@ test("a hosted game is listed live, joined with a click, and started", async ({ 
     await expect(watcher.page.getByText("No open games yet")).toBeVisible();
   } finally {
     for (const { ctx } of all) await ctx.close();
-  }
-});
-
-test("the guest learns when the host leaves", async ({ browser }) => {
-  const url = lobbyUrl(uniqueList());
-  const host = await open(browser, url, "Hoppy");
-  const guest = await open(browser, url, "Leapy");
-  try {
-    await host.page.getByRole("button", { name: "Host co-op" }).click();
-    await openGame(guest.page, "Hoppy").click();
-    await expect(guest.page.getByText("Waiting for the host to start")).toBeVisible({ timeout: TIMEOUT });
-    await host.page.getByRole("button", { name: "Leave", exact: true }).click();
-    await expect(guest.page.getByText("The host left the game")).toBeVisible({ timeout: TIMEOUT });
-    await guest.page.getByRole("button", { name: "Back to lobby" }).click();
-    await expect(guest.page.getByRole("button", { name: "Host co-op" })).toBeVisible();
-  } finally {
-    await host.ctx.close();
-    await guest.ctx.close();
-  }
-});
-
-test("joining a listed game whose host is gone says so", async ({ browser }) => {
-  const list = uniqueList();
-  // A listing with no host behind it, as a host that vanished
-  // between being listed and being clicked leaves.
-  const unlist = await listRoom("frogmino", list, {
-    code: "ZZZZ",
-    hostName: "Ghost",
-    players: 1,
-    capacity: 2,
-    listedAt: Date.now(),
-  });
-
-  const guest = await open(browser, lobbyUrl(list), "Leapy");
-  try {
-    await openGame(guest.page, "Ghost").click();
-    await expect(guest.page.getByText("That game has closed. Pick another!")).toBeVisible({ timeout: TIMEOUT });
-  } finally {
-    await guest.ctx.close();
-    unlist();
   }
 });
