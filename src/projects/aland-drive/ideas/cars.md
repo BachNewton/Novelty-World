@@ -127,6 +127,15 @@ TDU2's intent is a dream garage: a range from hot hatches to hypercars, and the 
 
 So the number of dealerships follows Åland's own scale, not TDU2's density, and the variety comes from the harbour, the barns and the club instead of more showrooms. The harbour's showroom only takes orders, which keeps a permanent supercar store, implausible here, out of the town.
 
+## Barn finds
+
+The classics are found, as Forza Horizon's barn finds were: Forza Horizon 2 had 10 and Forza Horizon 3 15, and TDU2 six wrecks in its base game. **8 to 10 here**: the eight C cars, and Berg, the old four-by-four, as a ninth if it fits.
+
+- **A barn or a boathouse.** Åland has hundreds of each, and the game already builds both from the map's data. A classic under a tarp in a boathouse by the shore is as much a find here as one in a barn.
+- **A rumour marks an area, and the player searches it.** Forza's came over the festival radio; here a rumour is heard in town, and an area lights up on the map. The search is the places-to-find machinery (`map/`): an area to explore, and a note on arriving.
+- **Finds appear as the player goes**, not all at once, as Forza's did.
+- **The village garage restores the car**: free for a player who waits, sooner for one who pays, as in Forza's later games. It gives the garage a job.
+
 ## Makers
 
 The makers are a separate decision from the buildings. TDU2 had 32 car makers across about 89 base-game cars, very unevenly: Ferrari 11, Audi 9 and Mercedes-Benz 8 carried the list, Aston Martin, Pagani, RUF and Spyker had four to six each, and a long tail of a dozen makers, Koenigsegg, McLaren and TVR among them, had one car each. A few big makers and a long tail is the pattern to follow, with invented makers, since the game's cars carry no real brands. A small maker needs no building of its own when its car comes by ship or turns up in a barn. How many makers, and which of the three of today (Tärna, Västan, Klippa) stay, comes with the car list.
@@ -142,10 +151,13 @@ TDU2 sold through 11 dealerships, most of them grouping makers: three single-bra
 - **Classes and tiers are TDU2's, with today's cars in each tier**: A1–A7 asphalt, B1–B4 gravel (widened from off-road, with B1 back), C1–C4 classic.
 - **About 38 cars, two to three per tier**, built from the tiers down: today's cars, makers and dealer art are candidates, kept, changed or dropped to fit.
 - **Each kind of car reaches the island as it would in life**: dealers at Åland's own scale for the everyday tiers, the harbour for the fastest, barns for the classics and the motor club for the rally cars.
+- **8 to 10 barn finds**, in barns and boathouses, searched for from a rumour and restored at the village garage.
+- **About 25 bucket-list challenges, a car each** (`ideas/bucket-list.md`), each choosing its car, road, hour, date and weather.
 - **Makers follow TDU2's pattern** of a few big ones and a long tail, all invented; their number comes with the car list.
 
 ## Sources
 
+- Forza Horizon's barn finds: [Twinfinite on Forza Horizon 2's ten](https://twinfinite.net/guides/forza-horizon-2-all-barn-finds-locations/), [eXputer on Forza Horizon 3's fifteen](https://exputer.com/guides/forza-horizon-3-guide-all-15-barn-find-locations-with-videos/), [the Forza forums on how they're found](https://forums.forza.net/t/barn-finds-in-fh4/74201) and [TrueAchievements on restoring them](https://www.trueachievements.com/a259014/auto-barn-achievement).
 - TDU2's classes, tiers, cars, makers and dealerships: [the Test Drive wiki's vehicle list](https://testdrive.fandom.com/wiki/Test_Drive_Unlimited_2/Vehicles), counted by hand; its road surfaces: [Wikipedia, Test Drive Unlimited 2](https://en.wikipedia.org/wiki/Test_Drive_Unlimited_2).
 - Today's cars' figures for each tier are factory numbers as commonly quoted, not checked one by one.
 - Åland's road surfaces: measured from the game's OpenStreetMap data (© OpenStreetMap contributors, ODbL). Its car culture: `docs/DRIVING-CULTURE.md`, which carries its own sources.

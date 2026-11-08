@@ -73,6 +73,15 @@ The second list, replacing a first pass of twelve that was too short and too eas
 
 Left out on the way, each for a reason worth keeping: the 201 m drags and Storagatan, over in seconds; the Soltuna climb, 1.2 km; Orrdalsklint's forest track and Bodkaröjvägen, whose tightest turns the scripted driver can't follow, so neither gets a par. The roads and places are the point, so their names stay real. Only clubs, sponsors and brands are invented.
 
+## The next list: about 25, a car each
+
+Decided, for when cars are bought (`ideas/cars.md`): **about 25 challenges**, each built round one car, and the eleven above are candidates like any other, kept, changed or dropped.
+
+- **The size follows Forza's.** Forza Horizon 3 had 30 challenges beside 63 championships, about one to every two, and Forza Horizon 2 30 beside about 168. At FH3's rate the 56 events of `ideas/races.md` carry about 28.
+- **A challenge is a test drive.** Forza's handed you cars you didn't own, dream cars above all. So the list is built round the car list: about 25 of its 38 cars get a challenge, first the ones hardest to own (the harbour's A1–A4 cars, the motor club's rally cars, a few of the barn-find classics), so every car worth dreaming of can be driven before it's bought.
+- **A challenge chooses its car, its road, its hour, its date and its weather.** The date gives the season: a midsummer night that never gets dark, autumn rain, January ice, a snowfall. The conditions can be the challenge's idea, as Forza's "Outrun the Sun in a Ferrari F40" was, not only its setting.
+- **Roads beyond the eleven.** The list above took the island's best-known roads, so the rest find their stories elsewhere: the coast, the bridges and causeways, the islands, the ferry harbours by night.
+
 ## The car suits the road
 
 Grip by surface (`ideas/surface-grip.md`) gives every car a class (sports, road, rally, off-road), and the order of the cars changes with the ground: on gravel the rally car and the four-by-fours lead, and the sports cars and the V12 saloon fall to the bottom.
@@ -102,7 +111,7 @@ Forza's designers tuned their targets. Here they start from the simulation:
 ## Still open
 
 - **Whether the second list is right**: whether its targets take several tries and its roads are worth retrying, once it's been played.
-- **Which conditions each challenge names**, once the world has its day, seasons and weather (decided above: a challenge sets its own), as Forza's "Drift an Enzo Ferrari in the Rain" did, and how a co-op pair is put in them together.
+- **The next list itself**: its 25 cars, roads, hours, dates and weather, and how a co-op pair is put in a challenge's conditions together.
 - **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.
@@ -116,3 +125,4 @@ Forza's designers tuned their targets. Here they start from the simulation:
 - [Co-Optimus, Forza Horizon 3 co-op review](https://www.co-optimus.com/review/1963/page/3/forza-horizon-3-co-op-review.html) (a search excerpt): two players only.
 - The co-op restart, and the average carrying a partner: the owner, from playing FH2 and FH3 co-op.
 - Åland's events, roads and places: `docs/DRIVING-CULTURE.md`, which carries its own sources.
+- [GamerFuzion, Forza Horizon 2 bucket list challenges](https://www.gamerfuzion.com/forza-horizon-2-bucket-list-challenges-guide/): FH2's 30, and the update that took them to 45.
