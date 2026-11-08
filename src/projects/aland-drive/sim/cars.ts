@@ -5,6 +5,7 @@ import { aska } from "./cars/aska";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
+import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { grus } from "./cars/grus";
 import { holm } from "./cars/holm";
@@ -37,6 +38,7 @@ const ENTRIES = {
   aska,
   // A2
   // A3
+  dyning,
   // A4
   sund,
   // A5
