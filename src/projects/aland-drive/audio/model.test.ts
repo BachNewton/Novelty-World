@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bellStrikesBetween, heardAt, mix, noJolts, placeMix, voicesHeard, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
+import { bellStrikesBetween, ENGINE_RATE, engineMix, heardAt, loopRpms, loopWeights, mix, quietEngine, stepEngineSound, type EngineSound, noJolts, placeMix, voicesHeard, readJolts, slipOf, type DriveAudioState, type Mix } from "./model";
 import { CONDITIONS, SURFACES, type Surface } from "../sim/surfaces";
 import { LAMPS_OFF, type CarState } from "../sim/car-state";
-import { engineCycle, gravelLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
-import { ENGINES } from "./vehicles";
+import { engineLoops, gravelLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop } from "./synthesis";
+import { ENGINE_IDS, ENGINES, type EngineSpec } from "./vehicles";
+import * as FIRINGS from "./firing";
+import { restingEngine } from "../sim/gearbox";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
   vehicle: "skerry-gt",
@@ -62,7 +64,7 @@ describe("the mix", () => {
     const flying = mixed({ speedMS: 40, wheels: ["gravel", "gravel", "gravel", "gravel"], suspension: [0, 0, 0, 0] });
     expect(flying.gravelLevel + flying.rumbleLevel + flying.asphaltLevel).toBe(0);
     const paused = mixed({ speedMS: 40, paused: true, place: { forest: 1, shore: 0, town: 0 } });
-    expect(paused.windLowLevel + paused.asphaltLevel + paused.engineLevel).toBe(0);
+    expect(paused.windLowLevel + paused.asphaltLevel + paused.exhaustLevel).toBe(0);
     expect(paused.birdsLevel).toBeGreaterThan(0);
   });
 
@@ -70,6 +72,128 @@ describe("the mix", () => {
     const [slow, fast] = [mixed({ speedMS: 15 }), mixed({ speedMS: 50 })];
     expect(fast.windLowLevel).toBeGreaterThan(slow.windLowLevel * 3);
     expect(fast.asphaltHz).toBeGreaterThan(slow.asphaltHz);
+  });
+});
+
+describe("the engine", () => {
+  const STEP_S = 1 / 60;
+  /** Holds an engine at `rpm` and `load` for `seconds`, from `sound`, counting what it set off. */
+  const hold = (spec: EngineSpec, rpm: number, load: number, seconds: number, from: EngineSound = quietEngine()) => {
+    let sound = from;
+    const heard = { blowOffs: 0, pops: 0, bangs: 0 };
+    for (let t = 0; t < seconds; t += STEP_S) {
+      const stepped = stepEngineSound(spec, sound, rpm, load, STEP_S, () => 0.5);
+      sound = stepped.sound;
+      heard.blowOffs += stepped.heard.blowOff > 0 ? 1 : 0;
+      heard.pops += stepped.heard.pops;
+      heard.bangs += stepped.heard.bangs;
+    }
+    return { sound, heard };
+  };
+  const grus = ENGINES.grus;
+  const high = grus.redlineRpm * 0.8;
+
+  it("spools a turbo after its lag, and makes no boost below its revs", () => {
+    expect(hold(grus, high, 1, 0.1).sound.boost).toBeLessThan(0.3);
+    expect(hold(grus, high, 1, 3).sound.boost).toBeGreaterThan(0.9);
+    expect(hold(grus, grus.idleRpm * 1.5, 1, 3).sound.boost).toBe(0);
+    expect(hold(ENGINES["skerry-gt"], high, 1, 3).sound.boost).toBe(0);
+  });
+
+  it("vents a lift with the boost up once, not again while lifted, and not without boost", () => {
+    const boosted = hold(ENGINES.fjard, ENGINES.fjard.redlineRpm * 0.8, 1, 3).sound;
+    expect(hold(ENGINES.fjard, ENGINES.fjard.redlineRpm * 0.8, 0, 2, boosted).heard.blowOffs).toBe(1);
+    const unboosted = hold(ENGINES.fjard, ENGINES.fjard.idleRpm, 1, 3).sound;
+    expect(hold(ENGINES.fjard, ENGINES.fjard.idleRpm, 0, 2, unboosted).heard.blowOffs).toBe(0);
+  });
+
+  it("pops on a lift at high revs, dying away, but never on load or at low revs", () => {
+    const sund = ENGINES.sund;
+    const revs = sund.redlineRpm * 0.9;
+    const lift = hold(sund, revs, 0, 1, hold(sund, revs, 1, 1).sound);
+    const later = hold(sund, revs, 0, 1, hold(sund, revs, 0, 3, lift.sound).sound);
+    expect(lift.heard.pops).toBeGreaterThan(1);
+    expect(later.heard.pops).toBeLessThan(lift.heard.pops);
+    expect(hold(sund, revs, 1, 2).heard.pops).toBe(0);
+    expect(hold(sund, sund.idleRpm, 0, 2, hold(sund, sund.idleRpm, 1, 1).sound).heard.pops).toBe(0);
+  });
+
+  it("bangs with anti-lag off the throttle, only in a car that has it", () => {
+    const flatOut = hold(grus, high, 1, 1).sound;
+    expect(hold(grus, high, 0, 1, flatOut).heard.bangs).toBeGreaterThan(0);
+    expect(hold(grus, high, 1, 1).heard.bangs).toBe(0);
+    expect(hold(ENGINES.fjard, high, 0, 1, hold(ENGINES.fjard, high, 1, 1).sound).heard.bangs).toBe(0);
+  });
+
+  const mixedAt = (spec: EngineSpec, rpm: number, load: number, changes: { speedMS?: number; perspective?: "inside" | "outside" } = {}) =>
+    engineMix(spec, { ...restingEngine(spec), rpm, load }, quietEngine(), { speedMS: changes.speedMS ?? 0, perspective: changes.perspective });
+
+  it("bounces off the limiter only at the redline with the throttle down", () => {
+    const sten = ENGINES.sten;
+    expect(mixedAt(sten, sten.redlineRpm, 1).limiter).toBe(1);
+    expect(mixedAt(sten, sten.redlineRpm, 0).limiter).toBe(0);
+    expect(mixedAt(sten, sten.redlineRpm * 0.9, 1).limiter).toBe(0);
+  });
+
+  it("hears the exhaust from outside, and from inside the intake and the exhaust through the body, unless the car is open", () => {
+    const shut = ENGINES.ankar;
+    const [outside, inside] = [mixedAt(shut, 4000, 1), mixedAt(shut, 4000, 1, { perspective: "inside" })];
+    expect(outside.muffledLevel).toBe(0);
+    expect(inside.exhaustLevel).toBe(0);
+    expect(inside.muffledLevel).toBeGreaterThan(0);
+    expect(inside.bayLevel).toBeGreaterThan(outside.bayLevel);
+    expect(mixedAt(ENGINES.vik, 4000, 1, { perspective: "inside" }).exhaustLevel).toBeGreaterThan(0);
+  });
+
+  it("blends its loops by revs and load, all of them always one engine", () => {
+    const rpms = loopRpms(ENGINES["skerry-gt"]);
+    for (const [rpm, load] of [[500, 0], [rpms[0], 1], [3000, 0.4], [rpms[1], 0.7], [12000, 1]]) {
+      const weights = loopWeights(rpms, rpm, load);
+      expect(weights.reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 9);
+      for (const weight of weights) expect(weight).toBeGreaterThanOrEqual(0);
+    }
+    expect(loopWeights(rpms, rpms[0], 0)[0]).toBeCloseTo(1, 9);
+    expect(loopWeights(rpms, rpms[1], 1)[3]).toBeCloseTo(1, 9);
+  });
+
+  it("gives an electric car no exhaust, no sound at rest, and a whine that rises with its speed", () => {
+    const strom = ENGINES.strom;
+    const [rest, slow, fast] = [0, 3000, 12000].map((rpm) => mixedAt(strom, rpm, 1, { speedMS: (rpm / strom.redlineRpm) * 64 }));
+    expect(rest.motorLevel + rest.inverterLevel + rest.gearWhineLevel).toBe(0);
+    expect(fast.exhaustLevel + fast.bayLevel + fast.muffledLevel).toBe(0);
+    expect(fast.motorHz).toBeGreaterThan(slow.motorHz * 3);
+    expect(slow.motorLevel).toBeGreaterThan(0);
+  });
+
+  it("renders every engine's loops as whole cycles at revs that fit, so blended loops stay in step", () => {
+    for (const id of ENGINE_IDS) {
+      const spec = ENGINES[id];
+      const rendered = engineLoops(spec);
+      if (spec.combustion === null) {
+        expect(rendered).toBeNull();
+        continue;
+      }
+      // A delay in a feedback loop can't be shorter than a render quantum, 128 samples at up to 48 kHz.
+      expect(spec.combustion.pipeHz).toBeLessThanOrEqual(300);
+      if (rendered === null) throw new Error(`${id} rendered no loops`);
+      rendered.loops.forEach((loop, i) => {
+        const samplesPerCycle = (120 * ENGINE_RATE) / rendered.rpm[i >> 1];
+        expect(Math.abs(samplesPerCycle - Math.round(samplesPerCycle))).toBeLessThan(1e-9);
+        expect(loop.channels[0].length % Math.round(samplesPerCycle)).toBe(0);
+      });
+    }
+  });
+
+  it("fires every cylinder once a cycle, in order, from one exhaust or the other", () => {
+    const firings = Object.values(FIRINGS).flatMap((made) => (typeof made === "function" ? [3, 4, 5, 6, 8, 10, 12].map(made) : [made]));
+    for (const { angles, banks } of [...firings, ...ENGINE_IDS.flatMap((id) => ENGINES[id].combustion?.firing ?? [])]) {
+      expect(banks).toHaveLength(angles.length);
+      angles.forEach((angle, i) => {
+        if (i === 0) expect(angle).toBeGreaterThanOrEqual(0);
+        else expect(angle).toBeGreaterThan(angles[i - 1]);
+        expect(angle).toBeLessThan(720);
+      });
+    }
   });
 });
 
@@ -123,7 +247,8 @@ describe("the loops", () => {
   const jump = (channel: Float32Array) => Math.abs(channel[0] - channel[channel.length - 1]);
 
   it("wrap without a click", () => {
-    for (const loop of [engineCycle(ENGINES["skerry-gt"]), engineCycle(ENGINES.kobb), gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
+    const engines = [ENGINES["skerry-gt"], ENGINES.kobb].flatMap((spec) => engineLoops(spec)?.loops ?? []);
+    for (const loop of [...engines, gravelLoop(), rockLoop(), snowLoop(), sprayLoop(), studsLoop(), rainLightLoop(), rainHeavyLoop(), shoreBed()]) {
       const channel = loop.channels[0];
       const biggest = channel.reduce((most, sample, i) => (i === 0 ? most : Math.max(most, Math.abs(sample - channel[i - 1]))), 0);
       expect(jump(channel)).toBeLessThanOrEqual(biggest);
