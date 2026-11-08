@@ -305,6 +305,36 @@ class PairEval:
         return out
 
 
+class MirrorEval:
+    """Copies of the learner in every seat of fixed 5-player deals, each playing its most likely move
+    unless `greedy` is off: the share of games that reach the cap, the stall's health reading (an
+    argmax copy of imit-1 capped 4 of 10 such games, its teacher none of 160)."""
+
+    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, greedy: bool = True):
+        cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
+                        snapshots=0, record=False, reset=False, learner_greedy=greedy, cap_learner=1.0, cap_greedy=0.01)
+        env = self.env = Env(cfg, board, tables, net, device, seed_prefix="mirror")
+        env.kind_probs.zero_()
+        env.kind_probs[LEARNER] = 1.0
+        seat_kind = torch.full((games, MAX_SEATS), GREEDY, dtype=torch.int64)
+        seat_kind[:, :players] = LEARNER
+        env.seat_kind.copy_(seat_kind.to(device))
+        self.games = games
+        self.base = env._save()
+        env.capture()
+
+    def run(self) -> dict:
+        env = self.env
+        env._restore(self.base)
+        steps = 0
+        while not bool(env.done.all()) and steps <= 40000:
+            env.run(64)
+            steps += 64
+        st = env.take_stats()
+        return {"games": st["games"], "capped": st["capped"] / max(st["games"], 1),
+                "turns": st["turns"] / max(st["games"], 1), "unfinished": float((~env.done).sum())}
+
+
 class Ladder:
     """The checkpoint ladder: is the network still climbing against itself, not only against the
     league's fixed bots? The current network and up to `slots` earlier checkpoints are seated
@@ -399,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--self-share", type=float, default=0.2, help="share of non-learner seats taken by the learner")
     p.add_argument("--snapshot-share", type=float, default=0.0, help="share of non-learner seats taken by past checkpoints")
     p.add_argument("--reward", default="win", choices=["win", "place"])
-    p.add_argument("--lr-end", type=float, default=None, help="anneal the learning rate linearly to this over --hours")
+    p.add_argument("--lr-end", type=float, default=None, help="anneal the learning rate linearly to this over --iters")
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--snapshots", type=int, default=4, help="snapshot slots in the league")
@@ -413,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ladder-games", type=int, default=2048)
     p.add_argument("--pair", default="", help="label=checkpoint of each head-to-head test's fixed opponent, comma-separated")
     p.add_argument("--pair-games", type=int, default=1024)
+    p.add_argument("--panel", type=int, default=0, help="read the stage-0 panel (`panel.py`) at every eval on this many games a check")
     p.add_argument("--eval-sample", action="store_true", help="evaluations sample moves as in training, not the most likely")
     p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
     p.add_argument("--ckpt-every", type=int, default=25)
@@ -455,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
         net.load_state_dict(init["net"] if "net" in init else init)
         print(f"initialised from {args.init}", flush=True)
     evals = [(e.split("@")[0], int(e.split("@")[1])) for e in args.eval.split(",")]
-    need_gd = args.gd_share > 0 or any(o.startswith("gd-") for o, _ in evals)
+    need_gd = args.gd_share > 0 or args.panel > 0 or any(o.startswith("gd-") for o, _ in evals)
     gd_bots = None
     if need_gd:
         from ..bots.gd import gd_bot_graphable
@@ -512,21 +543,29 @@ def main(argv: list[str] | None = None) -> int:
     ladder = Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample) if args.ladder_games > 0 else None
     extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
     pairs = [PairEval(board, tables, net, *x.split("=", 1), args.pair_games, device) for x in args.pair.split(",") if x]
+    panel = None
+    if args.panel:
+        from .panel import Panel
+        panel = Panel(board, tables, net, args.panel, device, gd_bots)
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time() - trained_s
     print(f"{args.name}: batch {args.batch} x horizon {args.horizon}, {sum(x.numel() for x in net.parameters()):,} weights",
           flush=True)
 
+    assert args.lr_end is None or args.iters < 10**9, "--lr-end anneals over --iters: give it"
     while iteration < args.iters and time.time() - started < args.hours * 3600:
         t0 = time.time()
         if args.lr_end is not None:
-            frac = min(1.0, (t0 - started) / (args.hours * 3600))
+            # By iterations, not the clock: two runs sharing the GPU stay on the same schedule.
             for group in opt.param_groups:
-                group["lr"] = args.lr + (args.lr_end - args.lr) * frac
+                group["lr"] = args.lr + (args.lr_end - args.lr) * iteration / args.iters
         env.run(args.horizon)
         boot = env.bootstrap()
         targets = advantages(env, boot, args.lam, args.shaping)
+        mine = env.buf["learner"]
+        # The value head's explained variance on the learner's decisions: 1 − Var(ret − v) / Var(ret).
+        explained = float(1 - targets["adv"][mine].var() / targets["ret"][mine].var().clamp(min=1e-8))
         torch.cuda.synchronize()
         t1 = time.time()
         losses = update(net, opt, env, targets, args)
@@ -542,7 +581,8 @@ def main(argv: list[str] | None = None) -> int:
             record_of[path][0] += stats["wins"][first_own + k]
             record_of[path][1] += stats["decisive_seats"][first_own + k]
         record = {"iter": iteration, "steps": steps_done, "time": time.time(), "rollout_s": t1 - t0, "update_s": t2 - t1,
-                  "steps_per_s": args.batch * args.horizon / (t1 - t0), "params": n_params, **summarize(stats, kinds), **losses}
+                  "steps_per_s": args.batch * args.horizon / (t1 - t0), "params": n_params, "lr": opt.param_groups[0]["lr"],
+                  "explained": explained, **summarize(stats, kinds), **losses}
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
             torch.save(net.state_dict(), path)
@@ -551,6 +591,8 @@ def main(argv: list[str] | None = None) -> int:
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
+            if panel is not None:
+                record["panel"] = panel.run()
             if pairs:
                 record["pair"] = [pair.run() for pair in pairs]
                 record["league"] = [os.path.basename(p)[5:-3] for p in slot_paths]
@@ -568,12 +610,14 @@ def main(argv: list[str] | None = None) -> int:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
                  if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "gd-stacker_score", "capped",
-                          "turns", "ent", "kl", "v", "stalled", "samples")}
+                          "turns", "ent", "kl", "clip", "explained", "v", "stalled", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)
             if "pair" in record:
                 print("  pair", json.dumps(record["pair"]), flush=True)
+            if "panel" in record:
+                print("  panel", json.dumps({k: v.get("win", v.get("share")) for k, v in record["panel"].items()}), flush=True)
             if "ladder" in record:
                 print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,

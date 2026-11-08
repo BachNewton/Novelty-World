@@ -27,12 +27,13 @@ teacher's move exactly.
 **Train.** Cross-entropy over the legal main choices and over the amount where its group has
 buckets, and the value head (every present slot) fitted to its seat's score in the recorded game
 (`env.scores`, the win reward). The observations are rebuilt on the GPU from the kept states each
-minibatch, as PPO's update does. Checkpoints are kept by held-out main-choice agreement, read on a
-fixed sample of the held-out decisions. The rate holds until `--lr-patience` reads bring no gain,
-then drops by `--lr-drop` from the best weights; training stops at the plateau (`--patience` reads
-without a gain) or at `--max-samples`, so a run on a small share is trained to its own plateau as
-the full one is. `--fraction` trains on that share of the training games (the same games
-at every run, nested: a quarter holds the sixteenth), for the data curve.
+minibatch, as PPO's update does. The rate is a fixed schedule over a set budget of samples
+(`--max-samples`): a linear warmup, then a cosine fall to zero. The held-out read, on a fixed sample
+of the held-out decisions, only chooses the checkpoint kept (`best.pt`); it never moves the rate. A
+schedule that cut the rate on that read's noise spread two seeds of one recipe 2 points apart, more
+than the data curve's top gap (`ideas/learned-bot.md`). `--fraction` trains on that share of the
+training games (the same games at every run, nested: a quarter holds the sixteenth), for the data
+curve; every share gets the same budget of samples.
 
 **Read.** Held-out agreement over every held-out decision, by the teacher's move kind and by the
 decision's kind as the crate's `agree` tallies it, the main choice alone and the whole move, with
@@ -491,19 +492,15 @@ def train(args) -> None:
 
     net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency).to(device)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.wd, eps=1e-6)
-    steps_per_epoch = len(train_idx) // args.minibatch
-    total_steps = args.epochs * steps_per_epoch
-    if args.max_samples:
-        total_steps = min(total_steps, math.ceil(args.max_samples / args.minibatch))
-    # A small training set is read more often than once in two epochs, so its plateau is caught.
-    read_every = max(25, min(args.read_every, steps_per_epoch // 2))
-    lr = args.lr
+    total_steps = math.ceil(args.max_samples / args.minibatch)
 
     def lr_at(step_: int) -> float:
-        return lr * min(1.0, (step_ + 1) / args.warmup)
+        if step_ < args.warmup:
+            return args.lr * (step_ + 1) / args.warmup
+        return args.lr * 0.5 * (1 + math.cos(math.pi * (step_ - args.warmup) / max(1, total_steps - args.warmup)))
 
     log_path = os.path.join(out_dir, "log.jsonl")
-    best, best_step, reads_since, stalled = -1.0, 0, 0, 0
+    best, best_step = -1.0, 0
     step_, samples, t0 = 0, 0, time.time()
     sums: dict[str, float] = {}
     count = 0
@@ -525,7 +522,7 @@ def train(args) -> None:
             count += 1
             step_ += 1
             samples += args.minibatch
-            if step_ % read_every == 0 or step_ >= total_steps:
+            if step_ % args.read_every == 0 or step_ >= total_steps:
                 main_ok, move_ok, verr = agreement(net, data, monitor, board, device, args.bf16)
                 held = float(main_ok.float().mean())
                 record = {"step": step_, "samples": samples, "epoch": round(samples / len(train_idx), 3),
@@ -535,25 +532,14 @@ def train(args) -> None:
                           "samples_per_s": round(samples / (time.time() - t0))}
                 sums, count = {}, 0
                 if held > best:
-                    best, best_step, reads_since = held, step_, 0
+                    best, best_step = held, step_
                     torch.save({"net": net.state_dict(), "config": net.config(), "step": step_, "held_main": held},
                                os.path.join(out_dir, "best.pt"))
-                else:
-                    reads_since += 1
-                    stalled += 1
-                    if stalled >= args.lr_patience:
-                        # The plateau at this rate: a lower one, from the best weights so far.
-                        lr *= args.lr_drop
-                        stalled = 0
-                        net.load_state_dict(torch.load(os.path.join(out_dir, "best.pt"), weights_only=False)["net"])
                 record["best"] = round(best, 5)
                 with open(log_path, "a") as f:
                     f.write(json.dumps(record) + "\n")
                 print(json.dumps(record), flush=True)
-                if reads_since >= args.patience:
-                    print(f"plateau: no gain in {args.patience} reads since step {best_step}", flush=True)
-                    done = True
-            if step_ >= total_steps or done:
+            if step_ >= total_steps:
                 done = True
                 break
     torch.save({"net": net.state_dict(), "config": net.config(), "step": step_}, os.path.join(out_dir, "last.pt"))
@@ -642,19 +628,15 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--layers", type=int, default=4)
     t.add_argument("--heads", type=int, default=8)
     t.add_argument("--lr", type=float, default=5e-4)
-    t.add_argument("--lr-patience", type=int, default=2, help="reads without a gain before the rate drops")
-    t.add_argument("--lr-drop", type=float, default=0.3)
     t.add_argument("--wd", type=float, default=0.01)
     t.add_argument("--warmup", type=int, default=500)
     t.add_argument("--minibatch", type=int, default=4096)
-    t.add_argument("--epochs", type=int, default=60)
-    t.add_argument("--max-samples", type=int, default=100_000_000, help="stop after this many samples (0: --epochs decides)")
+    t.add_argument("--max-samples", type=int, default=100_000_000, help="the schedule's budget of samples")
     t.add_argument("--amount-weight", type=float, default=0.5)
     t.add_argument("--vf", type=float, default=0.25)
     t.add_argument("--grad-clip", type=float, default=1.0)
     t.add_argument("--read-every", type=int, default=500)
     t.add_argument("--monitor", type=int, default=131072, help="held-out samples read at each checkpoint")
-    t.add_argument("--patience", type=int, default=6, help="reads without a gain before training stops")
     t.add_argument("--seed", type=int, default=1)
     t.add_argument("--no-bf16", dest="bf16", action="store_false")
     r = sub.add_parser("read")
