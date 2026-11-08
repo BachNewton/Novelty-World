@@ -283,6 +283,7 @@ function placedMaterial(inputs: RoadsideInputs, isNear: boolean, season: SeasonL
   const yawSin = sin(place.w);
 
   const material = new MeshBasicNodeMaterial();
+  material.name = isNear ? "rural-near" : "rural-far";
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(up.mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
 
   const blend = varying(smoothstep(dissolveFrom, swap, distance));

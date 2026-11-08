@@ -1,5 +1,5 @@
+import type { Node } from "three/webgpu";
 import type { Mesh } from "three/webgpu";
-import { time } from "three/tsl";
 import { placeModel, placeSigns, type Placement, type RoadsideInputs, type RoadsideModel } from "../art/roadside/index";
 import type { StreetInputs } from "../art/street/index";
 import { buildTownLamp } from "../art/town-kit/lamps";
@@ -21,6 +21,8 @@ export interface TownLooks {
   inputs: RoadsideInputs;
   /** A token's name to a CSS colour, for the name sheets. */
   ink: (token: string) => string;
+  /** The seconds the traffic lights cycle on: the game's world clock. */
+  clock: Node<"float">;
 }
 
 /** Hands a list's old meshes over to its new ones; the roadside keeps which are shown. */
@@ -57,9 +59,9 @@ function namePlates(model: RoadsideModel, aspect: number, cellPx: number, inputs
   };
 }
 
-export function createTownRoadside({ inputs: still, ink }: TownLooks, swap: Swap) {
-  // The traffic lights run on the renderer's own clock, as the water does.
-  const inputs: StreetInputs = { ...still, time };
+export function createTownRoadside({ inputs: still, ink, clock }: TownLooks, swap: Swap) {
+  // The traffic lights run on the game's world clock, as the water does: a clock a tool can hold.
+  const inputs: StreetInputs = { ...still, time: clock };
   const materials = townMaterials(inputs);
   const signalMaterials = trafficLightMaterials(inputs);
   const models = { lamp: buildTownLamp(), light: buildTrafficLight(), post: buildStreetNamePost(), frame: buildVillageSign() };

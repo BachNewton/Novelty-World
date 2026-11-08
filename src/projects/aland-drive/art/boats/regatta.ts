@@ -89,6 +89,7 @@ export function buildRegatta({ linear, hazed, colour, time }: RegattaInputs, { f
   const size = max(float(1), distance.mul((PIXEL_M_PER_M * SMALLEST_PIXELS) / TALL_M)).mul(shown);
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "regatta";
   material.positionNode = place.add(side.mul(positionGeometry.x.mul(tack).mul(size))).add(vec3(0, positionGeometry.y.mul(size), 0));
   material.colorNode = hazed(mix(attribute<"vec3">("sailColour", "vec3"), colour("boat-boot"), attribute<"float">("isHull", "float")));
   material.side = DoubleSide;

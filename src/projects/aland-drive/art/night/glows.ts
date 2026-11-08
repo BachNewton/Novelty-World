@@ -143,6 +143,7 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
   const inView = vec4(viewPlace.x.add(positionGeometry.x.mul(wide)), viewPlace.y.add(fall.mul(tall)), viewPlace.z, 1);
 
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending });
+  material.name = "glows";
   material.vertexNode = cameraProjectionMatrix.mul(inView);
 
   const across = uv().mul(2).sub(1);

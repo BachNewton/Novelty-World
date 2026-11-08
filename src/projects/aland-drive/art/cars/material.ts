@@ -193,6 +193,7 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
   // A lamp's own light goes on after the world's haze and hour, which would dim it at night.
   const lit = (surface: Node<"vec3">) => (hazed ? hazed(surface) : surface);
   const material = new MeshBasicNodeMaterial();
+  material.name = hero ? "car-hero" : "car";
   if (hero) {
     // Seen through the glass the shell's inside is the cabin's lining, for no extra faces.
     material.side = DoubleSide;
@@ -226,6 +227,7 @@ export function glassMaterial({ sun, hazed }: Pick<CarMaterialOptions, "sun" | "
   const specular = sky.sunColour.mul(ray.dot(sky.toSun).max(0).pow(SPECULAR_POWER)).mul(SPECULAR_SHARE);
   const finished: Node<"vec3"> = vec3(mix(tint, sky.reflectedBy(ray), fresnel).add(specular));
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  material.name = "car-glass";
   material.colorNode = hazed ? hazed(finished) : finished;
   material.opacityNode = fresnel.mul(1 - GLASS_CLEAR).add(GLASS_CLEAR);
   return material;
@@ -283,6 +285,7 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM, season, snow
   const finished: Node<"vec3"> = vec3(mix(snowed, uniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
 
   const material = new MeshBasicNodeMaterial();
+  material.name = `cars-${tier}`;
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(scale)), place.y.add(y.mul(look.x).mul(scale)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(scale)));
   material.colorNode = hazed ? hazed(finished) : finished;
   material.opacityNode = select(isWorld ? fade.lessThanEqual(noise) : fade.greaterThan(noise).and(gone.lessThanEqual(noise)), float(1), float(0));

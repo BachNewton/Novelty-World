@@ -199,6 +199,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
       const size = live.z;
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
+      material.name = family === 0 ? "reeds-near" : "reeds-far";
       material.positionNode = vec3(standing.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), standing.y.add(local.y.mul(size)), standing.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
       const isFar = family === 0;
       // The model's own height, before the clump's size, picks the band, as it did when the bands were measured.

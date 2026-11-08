@@ -153,6 +153,7 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">, hazed: (co
   const turned = vec2(corner.x.mul(cos(turn)).sub(corner.y.mul(sin(turn))), corner.x.mul(sin(turn)).add(corner.y.mul(cos(turn))));
 
   const material = new MeshBasicNodeMaterial(solid ? {} : { transparent: true, depthWrite: false });
+  material.name = solid ? "tyre-kicks" : "tyre-smoke";
   const corner3 = vec4(inView.xy.add(turned), inView.z, 1);
   material.vertexNode = cameraProjectionMatrix.mul(corner3);
   const across = uv().mul(2).sub(1);

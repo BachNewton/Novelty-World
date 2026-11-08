@@ -125,6 +125,7 @@ function tileGeometry(lanes: TileLanes, inks: Record<Ink, Color>): BufferGeometr
 export function createLaneOverlay(scene: Scene, net: LaneNet, ink: (name: string) => Color) {
   const inks = Object.fromEntries(Object.entries(INKS).map(([key, name]) => [key, ink(name)])) as Record<Ink, Color>;
   const material = new MeshBasicNodeMaterial();
+  material.name = "lane-overlay";
   material.colorNode = attribute("colour", "vec3");
   material.side = 2;
   const meshes = new Map<string, Mesh>();

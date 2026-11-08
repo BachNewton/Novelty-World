@@ -1,5 +1,5 @@
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, type Node } from "three/webgpu";
-import { cameraPosition, dot, float, max, mix, normalize, positionWorld, pow, reflect, smoothstep, texture, time, vec2, vec3 } from "three/tsl";
+import { cameraPosition, dot, float, max, mix, normalize, positionWorld, pow, reflect, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import { towardsSun, type Sun } from "../art/sun";
 import type { IceLook } from "./sea-ice";
 
@@ -115,6 +115,8 @@ export function slopePixels(size: number): Uint8Array {
 export interface WaterInputs {
   colour: (name: string) => Node<"vec3">;
   sun: Sun;
+  /** The seconds the ripples drift by: the game's own clock, which a tool can hold, never the renderer's. */
+  clock: Node<"float">;
   /** The sky along a direction, to reflect: `sky.clearAlong`, or `sky.colourAlong` for clouds at five more reads. Without one, the sky's flat colour. */
   skyAlong?: (direction: Node<"vec3">) => Node<"vec3">;
   /** Melts a colour into the sky's foot along a direction from the eye: `sky.seaToSky`. Open water takes it, so the sea has no line at the horizon, and shores don't. */
@@ -137,7 +139,7 @@ export function shoreOfLand(landShare: Node<"float">): Node<"float"> {
   return smoothstep(float(SHALLOW_FROM), float(SHALLOW_TO), landShare);
 }
 
-export function createWater({ colour, sun, skyAlong, meltAlong }: WaterInputs): Water {
+export function createWater({ colour, sun, clock, skyAlong, meltAlong }: WaterInputs): Water {
   const map = new DataTexture(slopePixels(SLOPE_PIXELS), SLOPE_PIXELS, SLOPE_PIXELS, RGBAFormat);
   map.colorSpace = NoColorSpace;
   map.wrapS = map.wrapT = RepeatWrapping;
@@ -151,7 +153,7 @@ export function createWater({ colour, sun, skyAlong, meltAlong }: WaterInputs): 
   const view = toEye.div(distance);
   const place = positionWorld.xz;
   const layers = RIPPLES.map(({ tileM, share, drift }) =>
-    texture(map, place.add(vec2(drift[0], drift[1]).mul(time)).div(tileM))
+    texture(map, place.add(vec2(drift[0], drift[1]).mul(clock)).div(tileM))
       .rg.sub(0.5)
       .mul(2 * TALLEST_SLOPE * share),
   );

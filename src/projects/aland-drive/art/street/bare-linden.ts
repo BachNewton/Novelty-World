@@ -114,6 +114,7 @@ export function bareLindenMaterials(inputs: StreetInputs): RoadsideMaterials {
   const bare = bareVertex(attribute<"vec3">("position", "vec3"), attribute<"vec4">("bare", "vec4"), share, roll);
   const shown = float(1).sub(step(float(1), share)).mul(step(distance, reach.y));
   const material = new MeshBasicNodeMaterial();
+  material.name = "linden-bare";
   material.positionNode = toWorld(bare.position, fit.x.mul(shown));
 
   const isClump = varying(bare.isClump);
@@ -136,6 +137,7 @@ export function lindenHazeMaterials(inputs: StreetInputs): RoadsideMaterials {
   const local = attribute<"vec3">("position", "vec3");
   const bareness = float(1).sub(leaves.inLeaf);
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  material.name = "linden-haze";
   material.positionNode = toWorld(local, fit.x.mul(step(float(1e-4), bareness)));
   // Out from the crown's middle, for how thick the haze is seen through.
   const rounded = varying(toWorld(local, fit.x).sub(toWorld(vec3(0, LINDEN_CROWN_MIDDLE, 0), fit.x)));

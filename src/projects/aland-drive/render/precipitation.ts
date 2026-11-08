@@ -66,6 +66,7 @@ function fall(kind: "rain" | "snow", colour: Vector3, hazed: PrecipitationLook["
   const least = depth.mul(LEAST_WIDTH_PER_M);
 
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  material.name = "precipitation";
   let corner: Node<"vec3">;
   if (kind === "rain") {
     const along = normalize(velocity);

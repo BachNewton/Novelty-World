@@ -900,7 +900,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // A weight rather than a condition: three writes a `select` of anything but a plain value as two branches, each
   // building its own copy of what both share (here the open sea's whole colour), which the shader then compiles twice.
   const inOverview = select(all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1)))), float(1), float(0));
-  const waterOf = createWater({ colour: colorOf, sun, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
+  // The world's clock for what moves on its own whatever the car does, the ripples and the traffic lights: the game's,
+  // moved a frame at a time and held by the probe's hold, never the renderer's, so a held frame is the same frame.
+  const worldClock = uniform(0);
+  const waterOf = createWater({ colour: colorOf, sun, clock: worldClock, skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
   // The sea ice, on every water the terrain, its water rings and the sea plane draw (`render/sea-ice.ts`), and under the car.
   const seaIce = createSeaIce(iceExposure, season);
   const iceHere = seaIce.lookAt(positionWorld.xz);
@@ -927,6 +930,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // The ground the paving cuts through, coloured and lit as the terrain is, drawn where the innermost ring leaves its cells out.
   const cutPlace = positionGeometry.xz;
   const cutMaterial = new MeshBasicNodeMaterial();
+  cutMaterial.name = "cut-ground";
   cutMaterial.colorNode = terrainColour(varying(clipmap.waterLevelAt(0, cutPlace).sub(positionGeometry.y)), varying(clipmap.shoreAt(0, cutPlace)), varying(clipmap.upAt(0, cutPlace)).normalize());
   cutMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
   cutMaterial.alphaTest = 0.5;
@@ -970,6 +974,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
   const seaMaterial = new MeshBasicNodeMaterial();
+  seaMaterial.name = "sea-plane";
   seaMaterial.colorNode = seaHazed(openSea);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
@@ -997,16 +1002,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const shoulderColour = mix(dressed.shoulder, groundColor, max(townRoad.claimed, kerbKept).mul(townHard));
   const shoulderShare = mix(dressed.shoulderShare, smoothstep(float(0.995), float(1.01), across), townHard);
   const roadMaterial = new MeshBasicNodeMaterial();
+  roadMaterial.name = "road";
   const snowCover = onRoad.snowCover(across, shoulderShare);
   roadMaterial.colorNode = hazed(onRoad.surface(mix(painted, shoulderColour, shoulderShare), snowCover).mul(light).add(onRoad.shine(snowCover, light)));
 
   const bridgeMaterial = new MeshBasicNodeMaterial();
+  bridgeMaterial.name = "bridge";
   const part = attribute<"float">("part", "float");
   const concrete = colorOf("wall-pale");
   bridgeMaterial.colorNode = hazed(mix(mix(concrete, colorOf("wall-plinth"), smoothstep(float(0.5), float(0.6), part)), concrete.mul(0.45), smoothstep(float(1.5), float(1.6), part)));
   bridgeMaterial.side = 2;
   // An underpass's walls are the bridge's concrete, drawn where the cut ground is.
   const underpassMaterial = new MeshBasicNodeMaterial();
+  underpassMaterial.name = "underpass";
   underpassMaterial.colorNode = hazed(concrete);
   underpassMaterial.opacityNode = clipmap.cutDrawnAt(positionWorld.xz);
   underpassMaterial.alphaTest = 0.5;
@@ -1050,7 +1058,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     identity: identityKit,
     wires: wireMaterial({ colour: colorOf, hazed }, viewHeight, CAMERA_FIELD_OF_VIEW),
     signs: createSignKit(signSheet, { colour: colorOf, hazed }, sun),
-    town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}` },
+    town: { inputs: { colour: colorOf, linear, hazed, sun }, ink: (name) => `#${token(name).getHexString()}`, clock: worldClock },
     season,
     bareLindens: { branches: bareLindenMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }), haze: lindenHazeMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }) },
   });
@@ -1226,6 +1234,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const startLine = (chain: number) => chainLine(startRoads, chain);
   const edgeGeometry = edgeBand(world);
   const edgeMaterial = new MeshBasicNodeMaterial();
+  edgeMaterial.name = "world-edge";
   edgeMaterial.colorNode = hazed(colorOf("edge"));
   edgeMaterial.side = 2;
   const edgeMesh = new Mesh(edgeGeometry, edgeMaterial);
@@ -2449,6 +2458,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       streetClock.value += seconds;
       indicatorClock.value += seconds;
     }
+    if (!held) worldClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
     drive.condition = weatherNow.condition();
     stoneWalls.update(camera.position);

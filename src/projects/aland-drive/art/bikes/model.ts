@@ -32,6 +32,7 @@ export function shadowQuad(): PlaneGeometry {
 /** The shadow's look: soft from the middle of its quad out. `fade` takes it away, for a crowd's shadows at their reach. */
 export function bikeShadowMaterial(fade: Node<"float"> = float(1)) {
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  material.name = "bike-shadow";
   const { r, g, b } = themeColor("--color-aland-drive-bike-shadow");
   material.colorNode = vec3(r, g, b);
   const outside = vec2(positionGeometry.x, positionGeometry.z).length();

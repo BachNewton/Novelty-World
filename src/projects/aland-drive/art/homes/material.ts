@@ -165,6 +165,7 @@ export function interiorMaterial(inputs: Inputs) {
   // Bright surfaces roll off rather than clip.
   const lit = surfaced.mul(baked);
   const material = new MeshBasicNodeMaterial();
+  material.name = "home-interior";
   material.colorNode = mix(lit.div(lit.mul(ROLL_OFF).add(1)).mul(1 + ROLL_OFF * 0.7), surfaced, step(float(0.5), tint.a));
   material.side = DoubleSide;
   return {

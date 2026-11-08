@@ -83,6 +83,7 @@ function placedMaterial(inputs: StreetInputs, isNear: boolean): MeshBasicNodeMat
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
+  material.name = isNear ? "identity-near" : "identity-far";
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin)).mul(size)), place.y.add(up.mul(size)), place.z.add(z.mul(yawCos).sub(x.mul(yawSin)).mul(size)));
 
   const toSun = towardsSun(sun);

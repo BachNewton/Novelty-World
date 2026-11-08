@@ -447,6 +447,7 @@ function placed(material: MeshBasicNodeMaterial, placing: SignPlacing | undefine
 /** The plates' material: the sheet on the front, bare grey metal behind, lit as the walls are. */
 export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: SignLook, sun: Sun, placing?: SignPlacing): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
+  material.name = "sign-plates";
   const normal = placed(material, placing);
   const facing = select(frontFacing, normal, normal.negate());
   const light = float(AMBIENT).add(facing.dot(lightFrom(sun)).max(0).mul(SUN_SHARE));
@@ -458,6 +459,7 @@ export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: S
 /** Galvanised steel, lit the same way. */
 export function signPostMaterial({ colour, hazed }: SignLook, sun: Sun, placing?: SignPlacing): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
+  material.name = "sign-posts";
   const normal = placed(material, placing);
   material.colorNode = hazed(colour("sign-post").mul(float(AMBIENT).add(normal.dot(lightFrom(sun)).max(0).mul(SUN_SHARE))));
   return material;

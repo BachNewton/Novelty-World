@@ -143,6 +143,7 @@ export function deerMaterial(inputs: DeerInputs, kind: DeerKind, detail: Detail,
   const local = posed(kind, inputs.time).mul(select(shown, float(1), float(0)));
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const material = new MeshBasicNodeMaterial();
+  material.name = "deer";
   material.positionNode = vec3(place.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin))), place.y.add(local.y), place.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin))));
 
   const share = varying(smoothstep(swap.mul(1 - SWAP_BAND), swap.mul(1 + SWAP_BAND), distance));
@@ -180,6 +181,7 @@ export function deerShadowMaterial(inputs: DeerInputs, reachM: number): MeshBasi
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const [x, z] = [positionGeometry.x.mul(body.z), positionGeometry.z.mul(body.w.mul(0.55))];
   const material = new MeshBasicNodeMaterial();
+  material.name = "deer-shadow";
   material.positionNode = vec3(place.x.add(x.mul(yawCos).add(z.mul(yawSin))).add(away.x), place.y.add(SHADOW_LIFT_M), place.z.add(z.mul(yawCos).sub(x.mul(yawSin))).add(away.y));
   const distance = place.xz.sub(cameraPosition.xz).length();
   const fade = float(1).sub(smoothstep(float(reachM * (1 - LEAVE_SHARE)), float(reachM), distance));

@@ -139,6 +139,7 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   const postTone = new InstancedBufferAttribute(new Float32Array(capacity * POSTS_A_RING), 1);
   postGeometry.setAttribute("tone", postTone);
   const postMaterial = new MeshBasicNodeMaterial();
+  postMaterial.name = "challenge-posts";
   postMaterial.colorNode = hazed(mark.mul(shade));
   // Few enough faces that both sides are drawn rather than each wound by hand.
   postMaterial.side = 2;
@@ -154,6 +155,7 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   beamGeometry.setAttribute("tone", beamTone);
   const rise = attribute<"vec3">("position", "vec3").y.div(BEAM_TALL_M);
   const beamMaterial = new MeshBasicNodeMaterial();
+  beamMaterial.name = "challenge-beams";
   beamMaterial.colorNode = hazed(mix(mark, colour("challenge-light"), rise.mul(0.5)));
   beamMaterial.opacityNode = float(1).sub(rise).pow(1.5).mul(BEAM_OPACITY);
   beamMaterial.transparent = true;
@@ -169,6 +171,7 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   const chequered = mix(colour("challenge-light"), colour("challenge-dark"), chequer);
   const painted = mix(mix(colour("challenge-mark"), chequered, paint.x.min(1)), colour("challenge-dark"), paint.x.sub(1).max(0));
   const lineMaterial = new MeshBasicNodeMaterial();
+  lineMaterial.name = "challenge-lines";
   lineMaterial.colorNode = hazed(painted.mul(shade));
   lineMaterial.side = 2;
   const line = new Mesh(new BufferGeometry(), lineMaterial);

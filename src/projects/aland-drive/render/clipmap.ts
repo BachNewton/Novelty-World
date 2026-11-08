@@ -204,6 +204,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   const up = varying(vec3(slope.x.negate(), 1, slope.y.negate()));
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "terrain";
   material.positionNode = vec3(moved.x, ground.add(lift(moved, levelNode)), moved.y);
   material.colorNode = groundColour(depth, fromShore, up.normalize());
   materials.push(material);
@@ -211,6 +212,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   // turns off the early depth test, isn't paid by every other ring. Its water doesn't, since the cut ground meets the
   // grid on its nodes and lies under the same water.
   const cutMaterial = new MeshBasicNodeMaterial();
+  cutMaterial.name = "terrain-inner";
   cutMaterial.positionNode = material.positionNode;
   cutMaterial.colorNode = material.colorNode;
   cutMaterial.opacityNode = float(1).sub(textureLoad(cutTexture, ivec2(floor(positionWorld.xz.sub(originNode).div(stepNode)))).r.mul(exactAt(positionWorld.xz)));
@@ -220,6 +222,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   const wetNode = (nodeLevel: Node<"float">) => step(float(dryLevel + 1), nodeLevel);
   const wet = varying(min(wetNode(ownLevel), mix(wetNode(ownLevel), wetNode(coarseLevel), step(float(1e-4), fold))));
   const waterMaterial = new MeshBasicNodeMaterial();
+  waterMaterial.name = "water";
   waterMaterial.positionNode = vec3(moved.x, mix(ground.sub(DRY_WATER_BELOW_M), waterLevel, wet), moved.y);
   waterMaterial.colorNode = waterColour(depth, fromShore, vec3(0, 1, 0));
   // Only a triangle wet at all three corners is water, and only past the shore: the land's own colour says where

@@ -317,6 +317,7 @@ export function createSky({ reach, look }: SkyOptions): Sky {
 
   const geometry = new SphereGeometry(reach, DOME_WIDTH_SEGMENTS, DOME_HEIGHT_SEGMENTS);
   const material = new MeshBasicNodeMaterial({ side: BackSide, depthWrite: false });
+  material.name = "sky";
   material.colorNode = dithered(colourAlong(positionLocal));
   // Depth 0 is the far plane of a reversed depth buffer: a sky at any real distance would cover the ground at the corners of a view from high up.
   const clip = modelViewProjection as Node<"vec4">;

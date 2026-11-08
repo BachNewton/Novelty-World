@@ -241,6 +241,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
       const z = local.z.add(sway);
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
+      material.name = isFar ? "verge-far" : "verge-near";
       const tuftRoll = (salt: number) => unitOf(placeSeed(standing.xz), salt);
       const buried = select(seasons.snowDepthCm.greaterThan(mix(float(BURIED_CM[0]), float(BURIED_CM[1]), tuftRoll(BURIED_ROLL))), float(0), float(1));
       const bloom = changeOf(seasons.leafed.mul(float(1).sub(seasons.turned)), mix(float(BLOOMS[0]), float(BLOOMS[1]), tuftRoll(BLOOM_ROLL)));

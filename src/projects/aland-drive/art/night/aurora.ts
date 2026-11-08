@@ -52,6 +52,7 @@ export function createAurora(night: Night, reach: number): Aurora {
   const strength = uniform(0);
   const geometry = stripGeometry(reach);
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, side: 2 });
+  material.name = "aurora";
   const place = varying(positionGeometry);
   const arc = place.x.div(reach).mul(3).add(place.z.div(reach));
   const rise = place.y.div(reach);

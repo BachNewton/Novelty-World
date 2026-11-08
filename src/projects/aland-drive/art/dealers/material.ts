@@ -80,6 +80,7 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
   const local = varying(positionLocal);
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "dealer";
   material.colorNode = Fn(() => {
     const toCamera = cameraPosition.sub(positionWorld).normalize();
     const raw = normalWorld.normalize();

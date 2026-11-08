@@ -129,6 +129,7 @@ export function createLampLight(night: Night, capacity: number) {
   // its `compileAsync` builds neither, only one for both sides at once. Light adds up in any order, so one pass draws
   // the same.
   const material = new MeshBasicNodeMaterial({ transparent: true, depthTest: false, depthWrite: false, blending: AdditiveBlending, side: 2, forceSinglePass: true });
+  material.name = "lamp-light";
   material.positionNode = vec3(place.x.add(positionGeometry.x.mul(place.w)), 0, place.z.sub(positionGeometry.y.mul(place.w)));
   const fromCentre = varying(positionGeometry.xy).length();
   const pool = float(1).sub(fromCentre.mul(fromCentre)).max(0);

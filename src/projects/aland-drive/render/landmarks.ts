@@ -66,6 +66,7 @@ export function createLandmarks(scene: Scene, wallMaterial: MeshBasicNodeMateria
   const flags = uniformArray<"float">(nearShown.length > 0 ? nearShown : [0], "float");
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "landmarks-far";
   material.colorNode = wallMaterial.colorNode;
   material.side = wallMaterial.side;
   const tag = attribute<"vec2">("landmark", "vec2");

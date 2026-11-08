@@ -227,6 +227,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const metres = varying(vec3(offset.x, ground.add(lift).sub(standing.y), offset.y).add(standing.w.mul(37)));
 
       const material = new MeshBasicNodeMaterial();
+      material.name = "granite-outcrops";
       material.positionNode = vec3(spot.x, ground.add(lift), spot.y);
 
       const facing = flatNormal();
@@ -298,6 +299,7 @@ export function createGranite(scene: Scene, renderer: WebGPURenderer, inputs: Gr
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const turned = vec3(local.x.mul(yawCos).add(local.z.mul(yawSin)), local.y, local.z.mul(yawCos).sub(local.x.mul(yawSin))).mul(live.z);
       const material = new MeshBasicNodeMaterial();
+      material.name = "granite-stones";
       material.positionNode = standing.xyz.add(turned);
 
       const facing = flatNormal();

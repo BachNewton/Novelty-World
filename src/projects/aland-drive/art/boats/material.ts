@@ -98,6 +98,7 @@ function placedMaterial(inputs: BoatInputs, isNear: boolean, underWay: boolean):
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
 
   const material = new MeshBasicNodeMaterial();
+  material.name = `boats-${isNear ? "near" : "far"}${underWay ? "-sailing" : ""}`;
   material.positionNode = vec3(place.x.add(bodyX.mul(yawCos).add(bodyZ.mul(yawSin)).mul(size)), place.y.add(bodyY.mul(size)), place.z.add(bodyZ.mul(yawCos).sub(bodyX.mul(yawSin)).mul(size)));
   material.colorNode = inputs.hazed(paintOf(inputs));
 

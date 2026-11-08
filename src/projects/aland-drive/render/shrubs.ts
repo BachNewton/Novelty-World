@@ -279,6 +279,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
     const plantRoll = fract(standing.w.mul(7.31));
     const vertex = bareVertex(point.xyz, carried, leaves.inLeaf, plantRoll);
     const material = new MeshBasicNodeMaterial();
+    material.name = "shrubs-bare";
     material.positionNode = placedAt(standing, live.z, vertex.position);
     const isClump = varying(vertex.isClump);
     const tall = tallsOf.element(kind) as unknown as Node<"float">;
@@ -309,6 +310,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
     const wide = (spreadOfKind.element(kind) as unknown as Node<"float">).mul(2 * HAZE_SPREAD);
     const local = vec3(positionGeometry.x.mul(wide), positionGeometry.y.mul(tall), positionGeometry.z.mul(wide));
     const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    material.name = "shrubs-haze";
     material.positionNode = placedAt(standing, live.z, local);
     const rounded = varying(turnedOut(standing, positionGeometry.sub(vec3(0, 0.5, 0))));
     const fromCamera = positionWorld.sub(cameraPosition);
@@ -397,6 +399,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
       const [yawCos, yawSin] = [cos(standing.w), sin(standing.w)];
       const material = new MeshBasicNodeMaterial();
       const isFar = family === FAMILY_FAR;
+      material.name = isFar ? "shrubs-far" : "shrubs-near";
       const kind = varying(int(round(live.w)));
       // 1 for a plant that loses its leaves, 0 for a juniper, which keeps its needles and holds snow.
       const deciduous = deciduousOf.element(kind) as unknown as Node<"float">;

@@ -202,6 +202,7 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   })();
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "walls";
   material.colorNode = shaded;
   material.positionNode = addOnPosition(art.addOnReachM);
   material.side = 2;

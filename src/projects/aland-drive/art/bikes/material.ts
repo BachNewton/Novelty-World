@@ -123,6 +123,7 @@ export function bikeMaterial(options: BikeMaterialOptions) {
   const normalInModel = placed.mul(vec4(normalGeometry, 0)).xyz;
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "bike";
   material.positionNode = position;
   material.colorNode = shaded(options, {
     normal: varying(modelWorldMatrix.mul(vec4(normalInModel, 0)).xyz),
@@ -191,6 +192,7 @@ export function crowdBikeMaterial(options: CrowdTierOptions) {
   const noise = fract(fract(screenCoordinate.xy.dot(vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "cyclists";
   material.positionNode = place.xyz.add(turned(local));
   material.colorNode = shaded(options, {
     normal: varying(turned(normalInBike)),

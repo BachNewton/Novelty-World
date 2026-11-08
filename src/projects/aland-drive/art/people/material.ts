@@ -132,6 +132,7 @@ function figureMaterial(inputs: PeopleInputs, isNear: boolean, { place, gait }: 
   const local = moved(inputs.time, gait);
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const material = new MeshBasicNodeMaterial();
+  material.name = isNear ? "people-near" : "people-far";
   material.positionNode = vec3(place.x.add(local.x.mul(yawCos).add(local.z.mul(yawSin)).mul(size)), place.y.add(local.y.mul(size)), place.z.add(local.z.mul(yawCos).sub(local.x.mul(yawSin)).mul(size)));
 
   const palette = uniformArray(PARTS.map((part) => inputs.linear(part)));
@@ -168,6 +169,7 @@ function shadowMaterial({ sun, colour }: PeopleInputs, { middle, spread, place }
   const toSun = towardsSun(sun);
   const away = vec2(toSun.x, toSun.z).negate().normalize().mul(SHADOW_DRIFT_M);
   const material = new MeshBasicNodeMaterial();
+  material.name = "people-shadow";
   material.positionNode = middle.add(vec3(spread.x.mul(corner.x).add(spread.z.mul(corner.y)).add(away.x), SHADOW_LIFT_M, spread.y.mul(corner.x).add(spread.w.mul(corner.y)).add(away.y)));
   const distance = place.xz.sub(cameraPosition.xz).length();
   const fade = float(1).sub(smoothstep(float(PEOPLE_REACH_M * (1 - GROW_SHARE)), float(PEOPLE_REACH_M), distance));

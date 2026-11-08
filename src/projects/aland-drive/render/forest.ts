@@ -544,6 +544,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const wander = vec2(sin(unit.y.mul(2.1).add(yaw)), cos(unit.y.mul(1.3).add(yaw.mul(2)))).mul(rocky).mul(GNARL).mul(smoothstep(float(0), float(0.3), rise));
     const across = radial.mul(width).add(growing.zw.mul(rise).mul(rise)).add(wander).mul(height);
     const material = new MeshBasicNodeMaterial();
+    material.name = `forest-${name}`;
     material.positionNode = vec3(place.x.add(across.x), standing.y.add(rise.mul(height)), place.y.add(across.y));
 
     const kindHere = varying(kind);
@@ -585,6 +586,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const [crownPoint, offset] = bareRows(BRANCHES, branchTable, tree);
     const { position, shape } = placeBare(tree, crownPoint.xyz, offset.xyz);
     const material = new MeshBasicNodeMaterial();
+    material.name = "forest-branches";
     material.positionNode = position;
     // Lit as a trunk is, each branch round its own length: its sides' way out, or the trunk's.
     const out = select(offset.xyz.length().greaterThan(1e-6), vec3(tree.turn(offset.xz).x, offset.y, tree.turn(offset.xz).y), vec3(tree.turn(crownPoint.xz).x, 0, tree.turn(crownPoint.xz).y));
@@ -607,6 +609,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const point = mix(middle.xyz, corner.xyz, size).toVar();
     const { position, shape } = placeBare(tree, point, vec3(0));
     const material = new MeshBasicNodeMaterial();
+    material.name = "forest-clumps";
     material.positionNode = position;
     const outward = tree.turn(point.xz.div(0.6));
     const rounded = varying(vec3(outward.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS), outward.y));
@@ -632,6 +635,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const radial = tree.turn(unit.xz);
     const across = radial.mul(shape.y).mul(fill).mul(tree.spread).mul(HAZE_SPREAD).mul(inCrown).add(tree.growing.zw.mul(rise).mul(rise)).mul(tree.height);
     const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    material.name = far ? "forest-haze-far" : "forest-haze";
     material.positionNode = vec3(tree.place.x.add(across.x), tree.standing.y.add(rise.mul(tree.height)), tree.place.y.add(across.y));
     const rounded = varying(vec3(radial.x, shape.z.sub(CROWN_MIDDLE).mul(ROUNDNESS), radial.y));
     const natural = mix(colour("tree-twig"), colour("tree-snow"), varying(tree.snowHeld.mul(HAZE_SNOW)));

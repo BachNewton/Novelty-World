@@ -150,6 +150,7 @@ function placing(isNear: boolean) {
 function placedMaterial(inputs: RoadsideInputs, isNear: boolean): MeshBasicNodeMaterial {
   const { position, mask, foot } = placing(isNear);
   const material = new MeshBasicNodeMaterial();
+  material.name = isNear ? "roadside-near" : "roadside-far";
   material.positionNode = position;
   material.maskNode = mask.and(outsideCar());
   material.colorNode = inputs.hazed(paintOf(inputs, foot));
@@ -271,6 +272,7 @@ export function wireMaterial({ colour, hazed }: Pick<RoadsideInputs, "colour" | 
   const width = metresPerPixel.mul(WIRE_MIN_PIXELS / 2).max(float(WIRE_RADIUS_M));
 
   const material = new MeshBasicNodeMaterial();
+  material.name = "wires";
   // A span goes as one, so a long one can't fan out to a point from half inside the reach, and it dissolves as the poles do.
   const away = middle.sub(cameraPosition).length();
   material.positionNode = select(away.lessThan(WIRE_REACH_M), point.add(side.mul(positionGeometry.y).mul(width)), middle);
