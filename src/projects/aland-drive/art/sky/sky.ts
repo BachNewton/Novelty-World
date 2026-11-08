@@ -4,8 +4,8 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { cloudPixels } from "./cloud-noise";
 
 /*
- * The sky: one coarse dome round the eye, drawn after everything opaque so the ground and the trees spare it every pixel
- * they cover. The gradient and the sun are plain sums. The clouds are five reads of one tiling texture, on a plane that
+ * The sky: one coarse dome round the eye, drawn after everything opaque (`render/draw-order.ts`) so the ground and the
+ * trees spare it every pixel they cover. The gradient and the sun are plain sums. The clouds are five reads of one tiling texture, on a plane that
  * curves down to the horizon, so there is no noise to work out per pixel and no ray to march.
  *
  * Everything a look says is a uniform, so changing the hour rebuilds nothing. Colours are mixes of the game's tokens.
@@ -17,9 +17,6 @@ import { cloudPixels } from "./cloud-noise";
 const CLOUD_PIXELS = 512;
 const DOME_WIDTH_SEGMENTS = 16;
 const DOME_HEIGHT_SEGMENTS = 8;
-/** After every opaque thing, so the depth test spares whatever they cover. */
-const DRAWN_LAST = 1000;
-
 /** How the cloud plane curves down: the larger, the less the clouds crowd towards the horizon. */
 const PLANE_CURVE = 0.14;
 const SHAPE_SCALE = 0.17;
@@ -325,7 +322,6 @@ export function createSky({ reach, look }: SkyOptions): Sky {
   material.fog = false;
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
-  mesh.renderOrder = DRAWN_LAST;
 
   const advance = (shift: { value: Vector2 }, by: number) => {
     shift.value.addScaledVector(wind, -by);

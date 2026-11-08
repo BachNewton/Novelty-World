@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
 import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fwidth, greaterThanEqual, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import { orderScene } from "./draw-order";
 import { startFreeCamera, type View } from "./free-camera";
 import { createLaneOverlay } from "./lane-overlay";
 import { LaneNet } from "../traffic/lane-net";
@@ -739,8 +740,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
   container.appendChild(renderer.domElement);
+  // The scene's children are drawn in their own order (`render/draw-order.ts`), sorted again before the next frame
+  // whenever one joins: three's own sort is off, since under a reversed depth buffer it turns `renderOrder` upside down.
+  renderer.sortObjects = false;
 
   const scene = new Scene();
+  let sceneOrdered = false;
+  scene.addEventListener("childadded", () => {
+    sceneOrdered = false;
+  });
   const camera = new PerspectiveCamera(CAMERA_FIELD_OF_VIEW, 1, CAMERA_NEAR, CAMERA_FAR);
 
   const world = new World(manifest);
@@ -2502,6 +2510,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     aurora.setStrength(auroraHeld === null ? (weatherShown?.aurora ?? 0) : auroraHeld * clearForAurora(weatherShown?.cloudCover ?? 0));
     aurora.update(camera.position);
     tiledFollows(camera.position.x, camera.position.z);
+    if (!sceneOrdered) {
+      orderScene(scene);
+      sceneOrdered = true;
+    }
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {

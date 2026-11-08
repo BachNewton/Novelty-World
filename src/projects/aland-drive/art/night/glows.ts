@@ -161,7 +161,6 @@ export function createGlows(night: Night, glows: readonly GlowInstance[], rhythm
 
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
-  mesh.renderOrder = 1010;
 
   return {
     mesh,

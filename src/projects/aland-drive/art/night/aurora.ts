@@ -71,7 +71,6 @@ export function createAurora(night: Night, reach: number): Aurora {
 
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
-  mesh.renderOrder = 1002;
   return {
     mesh,
     update(eye) {

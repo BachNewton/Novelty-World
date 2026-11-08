@@ -68,7 +68,6 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
   if (art.glass && glassLook) {
     const glass = new Mesh(art.glass, glassLook);
     glass.position.y = -ride.massUpM;
-    glass.renderOrder = 1;
     pivot.add(glass);
   }
   root.add(pivot);
