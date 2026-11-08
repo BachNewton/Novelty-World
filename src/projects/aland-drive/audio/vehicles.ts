@@ -6,6 +6,7 @@ import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
 import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
+import { gnista } from "./voices/gnista";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
 import { ljus } from "./voices/ljus";
@@ -98,6 +99,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   ljus,
   // B1
   grus,
+  gnista,
   // B2
   fjard,
   // B3
