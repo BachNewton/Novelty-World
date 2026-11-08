@@ -44,15 +44,15 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 
 /** The works livery: twin stripes over the bonnet and the roof, and a band down each flank. Lifted clear of the curved panels they lie on. */
 const livery = (): Decal[] => [
-  { on: "top", at: [0.13, -1.42], size: [0.15, 1.18], surface: "stripe", mirror: true, cells: [1, 10], liftM: 0.012 },
-  { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 10], liftM: 0.012 },
-  { on: "side", at: [0.02, 0.62], size: [2.15, 0.15], surface: "stripe", mirror: true, cells: [14, 1], liftM: 0.01 },
+  { on: "top", at: [0.13, -1.42], size: [0.15, 1.18], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
+  { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
+  { on: "side", at: [0.02, 0.62], size: [2.15, 0.15], surface: "stripe", mirror: true, cells: [6, 1], liftM: 0.01 },
 ];
 
 /** The roof scoop: a shaped intake standing out of the roof, its mouth dark. */
 const scoop: Block[] = [
   { at: [0, 1.352, 0.2], size: [0.36, 0.085, 0.44], surface: "paint", taper: [0.8, 0.3] },
-  { at: [0, 1.36, -0.015], size: [0.3, 0.05, 0.03], surface: "grille" },
+  { at: [0, 1.36, -0.015], size: [0.3, 0.05, 0.03], surface: "grille", fine: true },
 ];
 
 /** A mud flap behind each wheel, in the stripe colour, hung from under the body to a hand's width off the road. */
@@ -123,25 +123,25 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 0.95,
   decals: [
-    ...plates(0.71, 0.37),
+    ...plates(0.71, 0.355),
     ...handles([0.2], 0.9),
     ...livery(),
     reversing(0.24, 0.6),
     // The bonnet's exit vent between the stripes, and louvres over each front arch.
-    { on: "top", at: [0, -1.2], size: [0.13, 0.3], surface: "grille", cells: [2, 4], liftM: 0.012 },
+    { on: "top", at: [0, -1.2], size: [0.13, 0.3], surface: "grille", cells: [2, 4], liftM: 0.012, fine: true },
     ...louvres({ x: 0.66, z: -1.6, long: 0.42, wide: 0.15, count: 5 }),
-    sideIntake({ z: -0.8, h: 0.6, long: 0.12, tall: 0.24 }),
+    { ...sideIntake({ z: -0.8, h: 0.6, long: 0.12, tall: 0.24 }), cells: [1, 3] },
   ],
   blocks: [
     // Ödmark's square driving lamps, low in the mouth.
-    { at: [0.52, 0.372, -2.07], size: [0.13, 0.11, 0.05], surface: "trim", mirror: true },
-    { at: [0.52, 0.372, -2.085], size: [0.1, 0.08, 0.04], surface: "lensHead", mirror: true },
+    { at: [0.52, 0.357, -2.07], size: [0.13, 0.11, 0.05], surface: "trim", mirror: true, fine: true },
+    { at: [0.52, 0.357, -2.085], size: [0.1, 0.08, 0.04], surface: "lensHead", mirror: true },
     // The rain light in the middle of the tail's dark bar, square as the lamps either side of it.
-    { at: [0, 0.89, 1.905], size: [0.07, 0.06, 0.04], surface: "lensTail" },
+    { at: [0, 0.89, 1.905], size: [0.07, 0.06, 0.04], surface: "lensTail", fine: true },
     // Dive planes at the bumper's corners.
     { at: [0.8, 0.42, -1.97], size: [0.16, 0.014, 0.2], surface: "trim", mirror: true, taper: [0.6, 1], fine: true },
     splitter({ z: -2.13, h: 0.255, halfWidth: 0.78, long: 0.2 }),
-    ...diffuser({ z: 1.78, tailZ: 2.05, h: 0.34, x: [0.18, 0.4, 0.62] }),
+    ...diffuser({ z: 1.78, tailZ: 2.05, h: 0.34, x: [0.24, 0.56] }),
     ...scoop,
     flaps(-0.87),
     flaps(1.73),
@@ -154,9 +154,9 @@ const shape: Shape = {
       { z: -2.062, h: 0.25, band: "bumper" },
       { z: -2.06, h: 0.3, band: "mouth" },
       // A bar of the body's colour across the mouth, so the nose is two openings and not one dark slab.
-      { z: -2.057, h: 0.42 },
-      { z: -2.055, h: 0.48, band: "mouth" },
-      { z: -2.052, h: 0.575, band: "gap" },
+      { z: -2.057, h: 0.41, fine: true },
+      { z: -2.055, h: 0.49, band: "mouth" },
+      { z: -2.052, h: 0.575, band: "gap", fine: true },
       { z: -2.05, h: 0.58, band: "headDark" },
       { z: -2.042, h: 0.59, band: "headLamp" },
       { z: -2.032, h: 0.665, band: "headDark" },
@@ -186,10 +186,10 @@ const shape: Shape = {
       ),
       { z: 1.42, h: 1.3, band: "rearGlass" },
       { z: 1.76, h: 0.99 },
-      { z: 1.86, h: 0.96, band: "gap" },
+      { z: 1.86, h: 0.96, band: "gap", fine: true },
       { z: 1.87, h: 0.955, band: "tailDark" },
       { z: 1.885, h: 0.935, band: "tailLamp" },
-      { z: 1.9, h: 0.84, band: "tailDark" },
+      { z: 1.9, h: 0.84, band: "tailDark", fine: true },
       { z: 1.91, h: 0.82 },
       { z: 1.97, h: 0.62, band: "bumper" },
       { z: 2.03, h: 0.46, band: "diffuser" },
