@@ -219,8 +219,9 @@ export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMater
     geometry.setAttribute("tint", new BufferAttribute(tints, 4, true));
     geometry.setIndex(new BufferAttribute(indices, 1));
     standAsBuilt(geometry);
+    // Its own sphere, over the cell's own vertices, so three culls the cell when it's out of view.
+    geometry.computeBoundingSphere();
     const mesh = new Mesh(geometry, material);
-    mesh.frustumCulled = false;
     mesh.visible = false;
     group.add(mesh);
     return { mesh, x, z };

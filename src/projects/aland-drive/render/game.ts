@@ -692,7 +692,7 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
   const group = new Group();
   const cells = ribbon.cells.map(({ indices, x, z, bounds: [centreX, centreY, centreZ, radius] }) => {
     const geometry = new BufferGeometry();
-    // three sorts a mesh by its geometry's sphere, which it would otherwise measure over every vertex of the tile's
+    // three culls a mesh by its geometry's sphere, which it would otherwise measure over every vertex of the tile's
     // ribbon on the frame the cell is first drawn: a town tile's cells read 26 million vertices in one frame.
     geometry.boundingSphere = new Sphere(new Vector3(centreX, centreY, centreZ), radius);
     geometry.setAttribute("position", position);
@@ -705,7 +705,6 @@ function ribbonMeshes(detail: TileDetail, dress: RoadAttributes, townRibbons: Ui
     geometry.setAttribute("townRun", townRun);
     geometry.setIndex(new BufferAttribute(indices, 1));
     const mesh = new Mesh(geometry, material);
-    mesh.frustumCulled = false;
     mesh.visible = false;
     group.add(mesh);
     return { mesh, x, z };
@@ -2471,6 +2470,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     drive.condition = weatherNow.condition();
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
+    outbuildings.follow(camera.position);
+    docks.follow(camera.position);
     // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
     // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
     const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;

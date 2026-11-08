@@ -1,5 +1,5 @@
 import type { Mesh, MeshBasicNodeMaterial, Scene } from "three/webgpu";
-import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, placeVersion, placeWires, SWAP_SPREAD, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
+import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, farRangeM, nearRangeM, placeVersion, placeWires, type Placement, type RoadsideMaterials, type RoadsideModel, type SignKit, type WireSpan } from "../art/roadside/index";
 import { buildPicnicTable, buildViewingTower, buildViewpointPlatform } from "../art/identity/index";
 import { buildBench, buildBikeRack, buildBin, buildCafeSet, buildFlagpole, buildGuardRail, buildGuardRailEnd, buildBareLinden, buildLinden, buildLindenHaze, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, LINDEN_SEEDS, type StreetMaterials } from "../art/street/index";
 import { ROADSIDE_FLOATS, roadsidePlaces, SEAT_FLOATS, SIGN_FLOATS, WIRE_FLOATS, type TileRoadside } from "./tile-models";
@@ -67,9 +67,8 @@ const LAMPS: Record<string, LampKind> = { lamp: "road", "town-lamp": "town" };
 
 /** How far the camera moves before the near lists are written again, and how far past its range each holds its places. */
 const NEAR_MARGIN_M = 60;
-/** A place swaps up to `SWAP_SPREAD` past its model's swap, and the two versions trade pixels up to a tenth past that. */
-const PAST_SWAP = (1 + SWAP_SPREAD) * 1.1;
-const nearRangeM = (model: RoadsideModel) => (model.far === null ? model.reachM : model.swapM * PAST_SWAP) + NEAR_MARGIN_M;
+/** The same for the far lists, which hold more places and whose versions reach further. */
+const FAR_MARGIN_M = 250;
 
 /** A list with no places keeps one folded to nothing, so its meshes always exist to be compiled before the drive. */
 const NOWHERE: Placement = { x: 0, y: 0, z: 0, scale: 0 };
@@ -132,7 +131,7 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
   const leafedNow = () => (looks.season === undefined ? 1 : dialsNow(looks.season).leafed);
   const seasonKey = () => models.map(({ when }) => (when === undefined ? "" : when(leafedNow()) ? "1" : "0")).join("");
   let seasonShown = seasonKey();
-  let centre: { x: number; z: number } | null = null;
+  const centres: Record<"near" | "far", { x: number; z: number } | null> = { near: null, far: null };
   const wireModel = buildWireSpan();
   const tiles = new Map<string, TileRoadside>();
   // Every mesh, and whether it has a place to show: one with none stands folded away, there to be compiled.
@@ -159,19 +158,20 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
     return next;
   };
 
-  const refillNear = (entry: (typeof models)[number]) => {
-    const range = nearRangeM(entry.model);
-    const near = centre === null ? [] : entry.places.filter(({ x, z }) => Math.hypot(x - (centre?.x ?? 0), z - (centre?.z ?? 0)) < range);
-    entry.near = swap(entry.near, markInSeason(placeVersion(entry.model, "near", near.length > 0 ? near : [NOWHERE], entry.materials), entry.inSeason), near.length > 0);
+  /** A list holds only the places within its version's range of the camera: the rest fold to nothing in the shader anyway. */
+  const refill = (entry: (typeof models)[number], version: "near" | "far") => {
+    const centre = centres[version];
+    const range = version === "near" ? nearRangeM(entry.model, NEAR_MARGIN_M) : farRangeM(entry.model, FAR_MARGIN_M);
+    const within = centre === null ? (version === "near" ? [] : entry.places) : entry.places.filter(({ x, z }) => Math.hypot(x - centre.x, z - centre.z) < range);
+    entry[version] = swap(entry[version], markInSeason(placeVersion(entry.model, version, within.length > 0 ? within : [NOWHERE], entry.materials), entry.inSeason), within.length > 0);
   };
 
   const rebuildModels = (names: ReadonlySet<string>) => {
     for (const entry of models.filter(({ name, from }) => names.has(name) || from?.some((each) => names.has(each)))) {
       const listed = entry.from ?? [entry.name];
       entry.places = entry.when !== undefined && !entry.when(leafedNow()) ? [] : [...tiles.values()].flatMap((tile) => listed.flatMap((name) => (name in tile.models ? placesOf(tile.models[name], tile.scales[name]) : [])));
-      const shown = entry.places.length > 0;
-      entry.far = swap(entry.far, markInSeason(placeVersion(entry.model, "far", shown ? entry.places : [NOWHERE], entry.materials), entry.inSeason), shown);
-      refillNear(entry);
+      refill(entry, "far");
+      refill(entry, "near");
     }
   };
 
@@ -218,15 +218,18 @@ export function createRoadside(scene: Scene, looks: RoadsideLooks) {
       tiles.delete(tile);
       rebuild(lists);
     },
-    /** Each frame, before drawing: the near lists follow the camera. */
+    /** Each frame, before drawing: the lists follow the camera. */
     update(camera: { x: number; z: number }) {
       if (seasonKey() !== seasonShown) {
         seasonShown = seasonKey();
         rebuildModels(new Set(LINDENS));
       }
-      if (centre !== null && Math.hypot(camera.x - centre.x, camera.z - centre.z) <= NEAR_MARGIN_M) return;
-      centre = { x: camera.x, z: camera.z };
-      for (const entry of models) refillNear(entry);
+      for (const version of ["near", "far"] as const) {
+        const centre = centres[version];
+        if (centre !== null && Math.hypot(camera.x - centre.x, camera.z - centre.z) <= (version === "near" ? NEAR_MARGIN_M : FAR_MARGIN_M)) continue;
+        centres[version] = { x: camera.x, z: camera.z };
+        for (const entry of models) refill(entry, version);
+      }
     },
     /** Every mesh shown, for compiling before the drive; `false` puts back what has places. */
     showAll(all: boolean) {

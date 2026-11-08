@@ -81,6 +81,15 @@ export const KIT_LIGHT = { ambient: 0.68, sunShare: 0.5, footShade: 0.72, footM:
 export const SWAP_SPREAD = 0.2;
 /** The band two versions trade pixels over, as a share either side of the swap. */
 const SWAP_BAND = 0.1;
+/**
+ * How far from the camera a list of a model's near version has to hold places, with a margin: a place swaps up to
+ * `SWAP_SPREAD` past its model's swap and the two versions trade pixels up to the band past that, and a model with no
+ * far version shows its near one to its reach. A list that holds only these draws exactly what one holding every place
+ * would, since `placing` folds the rest to nothing anyway.
+ */
+export const nearRangeM = (model: Pick<RoadsideModel, "far" | "swapM" | "reachM">, marginM: number) => (model.far === null ? model.reachM : model.swapM * (1 + SWAP_SPREAD) * (1 + SWAP_BAND)) + marginM;
+/** The same for a list of the far version, which goes at its reach. */
+export const farRangeM = (model: Pick<RoadsideModel, "reachM">, marginM: number) => model.reachM + marginM;
 /** The share of its reach over which the last version dissolves. */
 const LEAVE_SHARE = 0.15;
 
