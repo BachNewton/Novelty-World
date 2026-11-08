@@ -26,7 +26,7 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 };
 
 /** A stripe along the top, lifted clear of a curved panel. */
-const topStripe = (z: number, long: number): Decal => ({ on: "top", at: [0.115, z], size: [0.14, long], surface: "stripe", mirror: true, cells: [1, Math.max(2, Math.round(long / 0.12))], liftM: 0.012 });
+const topStripe = (z: number, long: number): Decal => ({ on: "top", at: [0.115, z], size: [0.14, long], surface: "stripe", mirror: true, cells: [1, Math.max(2, Math.round(long / 0.26))], liftM: 0.012 });
 
 /** A front-engined muscle supercar: a long hood with a power bulge, the cabin set far back, a short tail under a wing. */
 const shape: Shape = {
@@ -43,8 +43,8 @@ const shape: Shape = {
   grilleH: 0.5,
   lampH: [0.51, 0.6],
   hoodLipH: 0.65,
-  hoodH: 0.88,
-  cowl: [-0.3, 0.915],
+  hoodH: 0.86,
+  cowl: [-0.3, 0.895],
   header: [0.3, 1.18],
   roof: [0.62, 1.24],
   roofEnd: [0.9, 1.22],
@@ -102,28 +102,33 @@ const shape: Shape = {
   decals: [
     ...plates(0.62, 0.24),
     ...handles([0.6], 0.84),
+    // Two slats of dark metal across each half of the intake.
+    { on: "front", at: [0.4, 0.345], size: [0.6, 0.014], surface: "rimDark", mirror: true, cells: [6, 1], liftM: 0.01, fine: true },
+    { on: "front", at: [0.4, 0.4], size: [0.6, 0.014], surface: "rimDark", mirror: true, cells: [6, 1], liftM: 0.01, fine: true },
     // Each lamp's two bars in a dark housing, which stands just off the nose so the bars can stand off it in turn.
-    { on: "front", at: [0.67, 0.551], size: [0.44, 0.088], surface: "trim", mirror: true, cells: [6, 2], liftM: 0.006 },
-    lightLine({ x: 0.66, h: 0.571, wide: 0.4, thick: 0.034 }),
-    lightLine({ x: 0.7, h: 0.528, wide: 0.3, thick: 0.026 }),
-    { on: "rear", at: [0.67, 0.94], size: [0.44, 0.092], surface: "trim", mirror: true, cells: [6, 2], liftM: 0.006 },
-    { on: "rear", at: [0.66, 0.959], size: [0.4, 0.032], surface: "lensTail", mirror: true, cells: [8, 1], liftM: 0.012 },
-    { on: "rear", at: [0.7, 0.919], size: [0.3, 0.026], surface: "lensTail", mirror: true, cells: [6, 1], liftM: 0.012 },
-    reversing(0.36, 0.84),
-    reflector(0.72, 0.5),
-    sideIntake({ z: -0.98, h: 0.64, long: 0.24, tall: 0.08 }),
-    sideIntake({ z: 0.82, h: 0.44, long: 0.2, tall: 0.12 }),
+    { on: "front", at: [0.67, 0.551], size: [0.44, 0.088], surface: "trim", mirror: true, cells: [4, 1], liftM: 0.006 },
+    { ...lightLine({ x: 0.66, h: 0.571, wide: 0.4, thick: 0.034 }), cells: [5, 1] },
+    { ...lightLine({ x: 0.7, h: 0.528, wide: 0.3, thick: 0.026 }), cells: [4, 1] },
+    { on: "rear", at: [0.67, 0.94], size: [0.44, 0.092], surface: "trim", mirror: true, cells: [4, 1], liftM: 0.006 },
+    { on: "rear", at: [0.66, 0.959], size: [0.4, 0.032], surface: "lensTail", mirror: true, cells: [5, 1], liftM: 0.012 },
+    { on: "rear", at: [0.7, 0.919], size: [0.3, 0.026], surface: "lensTail", mirror: true, cells: [4, 1], liftM: 0.012 },
+    // The reversing lamp at the inner end of each tail lamp's lower bar, in the same housing.
+    { ...reversing(0.5, 0.919), size: [0.075, 0.026] },
+    reflector(0.7, 0.45),
+    { ...sideIntake({ z: -0.98, h: 0.64, long: 0.24, tall: 0.08 }), cells: [3, 1] },
+    { ...sideIntake({ z: 0.82, h: 0.44, long: 0.2, tall: 0.12 }), cells: [3, 1] },
     ...louvres({ x: 0.5, z: -1.25, long: 0.42, wide: 0.22, count: 5 }),
     topStripe(-1.35, 1.85),
     topStripe(0.6, 0.56),
-    topStripe(1.87, 0.56),
+    topStripe(1.89, 0.6),
   ],
   blocks: [splitter({ z: -2.355, h: 0.19, halfWidth: 0.55, long: 0.2 }),
     // A lip of the body's colour over the fender's vent and over the brake duct ahead of the rear wheel, so each reads as a duct.
     { at: [0.955, 0.688, -0.98], size: [0.05, 0.014, 0.28], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.985, 0.508, 0.82], size: [0.06, 0.016, 0.24], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
     // The spine of the body's colour down the middle of the face, splitting the intake.
-    { at: [0, 0.37, -2.34], size: [0.13, 0.16, 0.08], surface: "paint", taper: [0.85, 1] }, ...diffuser({ z: 1.95, tailZ: 2.34, h: 0.3, x: [0, 0.3] })],
+    { at: [0, 0.37, -2.34], size: [0.13, 0.16, 0.08], surface: "paint", taper: [0.85, 1] }, // The diffuser's strakes stand under the tail, out of sight from 100 m: near only.
+    ...diffuser({ z: 1.95, tailZ: 2.34, h: 0.3, x: [0, 0.3] }).map((strake) => ({ ...strake, fine: true }))],
   extra: {
     bands: BANDS,
     silhouette: [
@@ -139,15 +144,15 @@ const shape: Shape = {
           [-2.31, 0.65],
           [-2.0, 0.745],
           [-1.4, 0.83],
-          [-0.8, 0.88],
-          [-0.36, 0.908],
+          [-0.8, 0.873],
+          [-0.36, 0.888],
         ],
         [[-2.31, undefined]],
       ),
-      { z: -0.36, h: 0.908, band: "cowl" },
+      { z: -0.36, h: 0.888, band: "cowl" },
       ...faired(
         [
-          [-0.3, 0.915],
+          [-0.3, 0.895],
           [0.05, 1.1],
           [0.35, 1.2],
           [0.65, 1.235],
@@ -168,7 +173,8 @@ const shape: Shape = {
       { z: 2.21, h: 1.005 },
       { z: 2.245, h: 0.88 },
       { z: 2.29, h: 0.7 },
-      { z: 2.33, h: 0.48, band: "diffuser" },
+      { z: 2.325, h: 0.5 },
+      { z: 2.335, h: 0.42, band: "diffuser" },
       { z: 2.37, h: 0.22 },
     ],
     crown: [
@@ -202,8 +208,8 @@ const shape: Shape = {
       [-0.1, 0.935],
       [0.7, 0.99],
       [1.32, 1.01],
-      [1.95, 1.0],
-      [2.37, 0.95],
+      [1.95, 0.99],
+      [2.37, 0.91],
     ],
     scoop: [
       [-1.05, 0],
@@ -211,11 +217,11 @@ const shape: Shape = {
       [0.4, 0.022],
       [0.95, 0],
     ],
-    cornerPullM: [0.26, 0.1],
+    cornerPullM: [0.26, 0.2],
     hoodSeamZ: [-2.25, -0.42],
     cleanEnds: true,
-    wing: { z: 2.0, h: 1.1, halfWidth: 0.82, chord: 0.16, rise: 0.045 },
-    exhausts: { x: [-0.68, -0.57, 0.57, 0.68], h: 0.32, z: 2.36, radius: 0.042 },
+    wing: { z: 2.0, h: 1.1, halfWidth: 0.8, chord: 0.16, rise: 0.045, endplates: true },
+    exhausts: { x: [-0.66, -0.54, 0.54, 0.66], h: 0.3, z: 2.36, radius: 0.05 },
   },
 };
 
