@@ -279,8 +279,8 @@ play reuses the boundary-queue + intermission machinery a human uses.
   `bots/CLAUDE.md`.
 
 The pacer's drive paths are covered in `pacing.test.ts` (with both injected mock
-policies and the real default resolver); the `claude` decision logic in
-`bots/policy.test.ts`. The browser-only playback pump is **not** unit-tested —
+policies and the real default resolver); every archived version is held frozen by
+`bots/versions/frozen.test.ts` (see `bots/CLAUDE.md` "Testing"). The browser-only playback pump is **not** unit-tested —
 verify the end-to-end proactive flow (off-turn trades, raise-to-buy) by running
 the app.
 
@@ -641,7 +641,8 @@ bots/docs/EVOLUTION.md     the RECORD — append-only: every version's hypothesi
 bots/versions/        version archive: self-contained frozen bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage (claude-vN, jane-vN, fable-vN, …) — a prefix names an authoring machine OR a paradigm
 bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (unrated → deprecated) + RATING_PANEL (the anchor panel: the rater's graph AND the crown gate's field)
 bots/versions/conformance.test.ts  the archive-wide Bot contract, table-driven over VERSIONS: determinism + legality at every decision phase. A new snapshot is covered the moment it's registered
-bots/versions/<label>/  one frozen snapshot + its own tests. Which exist is `VERSIONS`, not a list here — read the registry. Culled snapshots are recoverable at the `bot-archive-full` tag
+bots/versions/frozen.test.ts  every version's play over two seeded tables pinned by a fingerprint, so shared code can't alter a frozen bot
+bots/versions/<label>/  one frozen snapshot. Which exist is `VERSIONS`, not a list here — read the registry. Culled snapshots are recoverable at the `bot-archive-full` tag
 (which version is "best" is whatever tops the Elo ladder in bots/ratings.ts — measured, not a product call)
 components/           React board + lobby/seat UI
 ```

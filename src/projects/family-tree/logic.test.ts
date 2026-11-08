@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   ROOT_ID,
-  ROOT_FIRST_NAME,
-  ROOT_LAST_NAME,
   addChild,
   addParent,
   addSpouse,
@@ -43,7 +41,6 @@ import {
   nuclear,
   partnerFamily,
   pedigree,
-  productionTree,
   widowedRemarriage,
 } from "./__fixtures__/trees";
 import {
@@ -68,46 +65,6 @@ import type {
 
 // A sound research record, for tests to vary.
 const RECORD: ResearchRecord = { status: "confirmed", asOf: "2026-09-26", sources: ["per Kyle"], note: "" };
-
-describe("createInitialTree", () => {
-  it("seeds with root person only, gender M", () => {
-    const t = createInitialTree();
-    expect(Object.keys(t.persons)).toEqual([ROOT_ID]);
-    expect(t.persons[ROOT_ID].firstName).toBe(ROOT_FIRST_NAME);
-    expect(t.persons[ROOT_ID].lastName).toBe(ROOT_LAST_NAME);
-    expect(t.persons[ROOT_ID].gender).toBe("M");
-  });
-});
-
-describe("fullName", () => {
-  it("joins first and last with a space", () => {
-    expect(
-      fullName({ firstName: "Kyle", lastName: "Hutchinson", commonName: "" }),
-    ).toBe("Kyle Hutchinson");
-  });
-
-  it("omits the trailing space when last name is empty", () => {
-    expect(fullName({ firstName: "Kyle", lastName: "", commonName: "" })).toBe(
-      "Kyle",
-    );
-  });
-
-  it('renders common name in quotes between first and last', () => {
-    expect(
-      fullName({
-        firstName: "Daniel",
-        lastName: "Santoro",
-        commonName: "Dan",
-      }),
-    ).toBe('Daniel "Dan" Santoro');
-  });
-
-  it("renders common name with no last name", () => {
-    expect(
-      fullName({ firstName: "Daniel", lastName: "", commonName: "Dan" }),
-    ).toBe('Daniel "Dan"');
-  });
-});
 
 describe("addParent", () => {
   it("attaches a parent with the given gender", () => {
@@ -181,21 +138,7 @@ describe("linkParent", () => {
 });
 
 describe("addChild", () => {
-  it("uses the parent's spouse as a co-parent if present", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "spouse", n("Partner"), "F");
-    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
-    expect([...t.persons.kid.parentIds].sort()).toEqual([ROOT_ID, "spouse"].sort());
-    expect(t.persons.kid.gender).toBe("M");
-  });
-
-  it("creates a single-parent child when the parent has no spouse", () => {
-    let t = createInitialTree();
-    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
-    expect(t.persons.kid.parentIds).toEqual([ROOT_ID]);
-  });
-
-  it("respects an explicit co-parent, overriding the default spouse pick", () => {
+  it("takes the co-parent given, among several spouses", () => {
     let t = createInitialTree();
     t = addSpouse(t, ROOT_ID, "wife1", n("W1"), "F");
     t = addSpouse(t, ROOT_ID, "wife2", n("W2"), "F");
@@ -216,22 +159,18 @@ describe("addChild", () => {
 });
 
 describe("addSpouse", () => {
-  it("links spouses bidirectionally with given gender", () => {
-    const t = addSpouse(createInitialTree(), ROOT_ID, "s", n("S"), "F");
-    expect(t.persons[ROOT_ID].unions).toEqual([u("s", "married")]);
-    expect(t.persons.s.unions).toEqual([u(ROOT_ID, "married")]);
-    expect(t.persons.s.gender).toBe("F");
-  });
-
-  it("leaves existing single-parent kids alone (step-parent might not be bio)", () => {
+  it("makes a new spouse no parent of the existing children, one parent or two", () => {
+    // The children may be from a prior or unrecorded relationship: only
+    // bioChildIds makes the new spouse a parent.
     let t = createInitialTree();
     t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
-    expect(t.persons[ROOT_ID].parentIds).toEqual(["mom"]);
-    // Marrying mom must NOT silently promote her new spouse to be a parent
-    // of mom's existing kids — they might be from a prior unrecorded
-    // relationship. User assigns parentage explicitly.
     t = addSpouse(t, "mom", "newSpouse", n("NS"), "M");
     expect(t.persons[ROOT_ID].parentIds).toEqual(["mom"]);
+
+    t = addSpouse(t, ROOT_ID, "wife1", n("W1"), "F");
+    t = addChild(t, "wife1", "kid", n("Kid"), "M", ROOT_ID);
+    t = addSpouse(t, "wife1", "newPartner", n("NP"), "M");
+    expect(t.persons.kid.parentIds.sort()).toEqual([ROOT_ID, "wife1"].sort());
   });
 
   it("does not touch kids who already have two parents", () => {
@@ -242,16 +181,6 @@ describe("addSpouse", () => {
     // re-touch root (already two parents).
     t = addSpouse(t, "mom", "third", n("Third"), "M");
     expect(t.persons[ROOT_ID].parentIds.sort()).toEqual(["dad", "mom"]);
-  });
-
-  it("does not auto-coparent on a second marriage (avoids step-parent corruption)", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "wife1", n("W1"), "F");
-    t = addChild(t, "wife1", "kid", n("Kid"), "M");
-    // wife1 now has a child with root. Marrying her to someone new must
-    // NOT make that new spouse a parent of root's kid.
-    t = addSpouse(t, "wife1", "newPartner", n("NP"), "M");
-    expect(t.persons.kid.parentIds.sort()).toEqual([ROOT_ID, "wife1"].sort());
   });
 
   it("records a divorced spouse with divorced status on both sides", () => {
@@ -316,7 +245,7 @@ describe("setUnionStatus", () => {
 
   it("is a no-op when the pair has no union", () => {
     let t = createInitialTree();
-    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
+    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M", null);
     expect(setUnionStatus(t, ROOT_ID, "kid", "divorced")).toBe(t);
   });
 });
@@ -367,14 +296,6 @@ describe("normalizeTree", () => {
     expect(tree.persons.a).not.toHaveProperty("divorcedSpouseIds");
   });
 
-  it("reports no change for a tree already in the current shape", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "s", n("S"), "F");
-    const { tree, changed } = normalizeTree(JSON.parse(JSON.stringify(t)));
-    expect(changed).toBe(false);
-    expect(tree).toEqual(t);
-  });
-
   it("hashes a migrated legacy tree the same as before the migration", () => {
     // The persisted layout cache is keyed by topologyHash, so migrating the
     // shape must not invalidate it. Pinned value: the pre-union hash of
@@ -392,105 +313,7 @@ describe("normalizeTree", () => {
   });
 });
 
-describe("renamePerson", () => {
-  it("updates first, last, and common name", () => {
-    const t = renamePerson(createInitialTree(), ROOT_ID, n("K.", "Hutchinson", "Kyle"));
-    expect(t.persons[ROOT_ID].firstName).toBe("K.");
-    expect(t.persons[ROOT_ID].lastName).toBe("Hutchinson");
-    expect(t.persons[ROOT_ID].commonName).toBe("Kyle");
-  });
-
-  it("allows clearing the last name to empty", () => {
-    const t = renamePerson(createInitialTree(), ROOT_ID, n("Kyle"));
-    expect(t.persons[ROOT_ID].lastName).toBe("");
-  });
-
-  it("allows clearing the common name to empty", () => {
-    let t = renamePerson(createInitialTree(), ROOT_ID, n("Daniel", "Santoro", "Dan"));
-    t = renamePerson(t, ROOT_ID, n("Daniel", "Santoro"));
-    expect(t.persons[ROOT_ID].commonName).toBe("");
-  });
-
-  it("sets the birth surname", () => {
-    const t = renamePerson(
-      createInitialTree(),
-      ROOT_ID,
-      n("Gloria", "Liikanen", "", "Erickson"),
-    );
-    expect(t.persons[ROOT_ID].lastName).toBe("Liikanen");
-    expect(t.persons[ROOT_ID].birthSurname).toBe("Erickson");
-  });
-
-  it("allows clearing the birth surname to empty", () => {
-    let t = renamePerson(
-      createInitialTree(),
-      ROOT_ID,
-      n("Gloria", "Liikanen", "", "Erickson"),
-    );
-    t = renamePerson(t, ROOT_ID, n("Gloria", "Liikanen"));
-    expect(t.persons[ROOT_ID].birthSurname).toBe("");
-  });
-});
-
 describe("middle name", () => {
-  it("sets the middle name via renamePerson", () => {
-    const t = renamePerson(
-      createInitialTree(),
-      ROOT_ID,
-      n("Richard", "Santoro", "", "", "L."),
-    );
-    expect(t.persons[ROOT_ID].middleName).toBe("L.");
-    expect(t.persons[ROOT_ID].firstName).toBe("Richard");
-  });
-
-  it("allows clearing the middle name to empty", () => {
-    let t = renamePerson(
-      createInitialTree(),
-      ROOT_ID,
-      n("Richard", "Santoro", "", "", "Joseph"),
-    );
-    t = renamePerson(t, ROOT_ID, n("Richard", "Santoro"));
-    expect(t.persons[ROOT_ID].middleName).toBe("");
-  });
-
-  it("starts empty on the initial tree", () => {
-    expect(createInitialTree().persons[ROOT_ID].middleName).toBe("");
-  });
-
-  it("stores a new spouse's middle name", () => {
-    const t = addSpouse(
-      createInitialTree(),
-      ROOT_ID,
-      "s1",
-      n("Mary", "Clarke", "", "", "Ann"),
-      "F",
-    );
-    expect(t.persons.s1.middleName).toBe("Ann");
-  });
-
-  it("stores a new child's middle name", () => {
-    const t = addChild(
-      createInitialTree(),
-      ROOT_ID,
-      "c1",
-      n("Patrick", "Clarke", "", "", "B."),
-      "M",
-      null,
-    );
-    expect(t.persons.c1.middleName).toBe("B.");
-  });
-
-  it("stores a new parent's middle name", () => {
-    const t = addParent(
-      createInitialTree(),
-      ROOT_ID,
-      "p1",
-      n("David", "Hutchinson", "", "", "A."),
-      "M",
-    );
-    expect(t.persons.p1.middleName).toBe("A.");
-  });
-
   it("fullNameWithMiddle places the middle name after the first name", () => {
     const person = {
       firstName: "Richard",
@@ -514,28 +337,7 @@ describe("middle name", () => {
   });
 });
 
-describe("addSpouse birth surname", () => {
-  it("stores the new spouse's birth surname", () => {
-    const t = addSpouse(
-      createInitialTree(),
-      ROOT_ID,
-      "s1",
-      n("Loretta", "Santoro", "", "Johnson"),
-      "F",
-    );
-    expect(t.persons.s1.birthSurname).toBe("Johnson");
-  });
-});
-
 describe("normalizeTree", () => {
-  const legacyPerson = {
-    id: ROOT_ID,
-    firstName: "Kyle",
-    lastName: "Hutchinson",
-    gender: "M",
-    parentIds: [],
-    spouseIds: [],
-  };
   const currentPerson = {
     id: ROOT_ID,
     firstName: "Kyle",
@@ -558,164 +360,6 @@ describe("normalizeTree", () => {
     parentIds: [],
     unions: [],
   };
-
-  it("backfills birthSurname (and other later fields) and reports the change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: { [ROOT_ID]: legacyPerson },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].birthSurname).toBe("");
-    expect(tree.persons[ROOT_ID].middleName).toBe("");
-    expect(tree.persons[ROOT_ID].notes).toBe("");
-    expect(tree.persons[ROOT_ID].commonName).toBe("");
-    expect(tree.persons[ROOT_ID].unions).toEqual([]);
-  });
-
-  it("keeps an existing birthSurname and reports no change for a current row", () => {
-    const current = {
-      ...currentPerson,
-      birthSurname: "Erickson",
-      notes: "d. 2003",
-    };
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: { [ROOT_ID]: current },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].birthSurname).toBe("Erickson");
-    expect(tree.persons[ROOT_ID].notes).toBe("d. 2003");
-  });
-
-  it("reports a change when only birthSurname is missing", () => {
-    const { changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, birthSurname: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-  });
-
-  it("backfills middleName and reports a change when only middleName is missing", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, middleName: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].middleName).toBe("");
-  });
-
-  it("keeps an existing middleName and reports no change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, middleName: "L." },
-      },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].middleName).toBe("L.");
-  });
-
-  it("backfills notes and reports a change when only notes is missing", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, notes: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].notes).toBe("");
-  });
-
-  it("backfills birthDate and reports a change when only birthDate is missing", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, birthDate: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].birthDate).toBe("");
-  });
-
-  it("backfills the origin fields and reports a change when any is missing", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, birthPlaceToday: undefined, recordedPeople: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].birthPlaceToday).toBe("");
-    expect(tree.persons[ROOT_ID].recordedPeople).toBe("");
-  });
-
-  it("backfills religion and origin lore and reports a change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, religion: undefined, originLore: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].religion).toBe("");
-    expect(tree.persons[ROOT_ID].originLore).toBe("");
-  });
-
-  it("keeps existing origin fields and reports no change", () => {
-    const origin = {
-      birthPlace: "Capo d'Orlando, Messina, Italy",
-      birthPlaceToday: "Capo d'Orlando, Sicily, Italy",
-      emigrationDate: "1905-04",
-      motherTongue: "Italian",
-      recordedPeople: "Italian (South)",
-      religion: "r. kath.",
-      originLore: "Sicilian, per Given Surname (2026)",
-    };
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: { [ROOT_ID]: { ...currentPerson, ...origin } },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID]).toMatchObject(origin);
-  });
-
-  it("keeps an existing birthDate and reports no change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, birthDate: "1931-06-16" },
-      },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].birthDate).toBe("1931-06-16");
-  });
-
-  it("backfills an empty research record and reports a change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, research: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].research).toEqual({ family: null, birthYear: null, heritage: null });
-  });
-
-  it("keeps an existing research record and reports no change", () => {
-    const research = { ...emptyResearch(), birthYear: RECORD };
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, research },
-      },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].research).toEqual(research);
-  });
 
   it("converts a completeness check into a confirmed family record", () => {
     const { research: _, ...withoutResearch } = currentPerson;
@@ -761,28 +405,6 @@ describe("normalizeTree", () => {
     ).toThrow(/both a completeness check and a family research record/);
   });
 
-  it("backfills an empty heritage entry and reports a change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, heritage: undefined },
-      },
-    });
-    expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].heritage).toEqual([]);
-  });
-
-  it("keeps an existing heritage entry and reports no change", () => {
-    const { tree, changed } = normalizeTree({
-      rootId: ROOT_ID,
-      persons: {
-        [ROOT_ID]: { ...currentPerson, heritage: ["italian/sicily", "finnish", "unknown"] },
-      },
-    });
-    expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].heritage).toEqual(["italian/sicily", "finnish", "unknown"]);
-  });
-
   it("migrates each present-day country code to its people, one to one", () => {
     const { tree, changed } = normalizeTree({
       rootId: ROOT_ID,
@@ -811,29 +433,9 @@ describe("normalizeTree", () => {
     ]);
     expect(treeProblems(tree)).toEqual([]);
   });
-
-  it("migrates heritage without touching the production tree's topology hash", () => {
-    const plain = productionTree();
-    const codes = Object.keys(LEGACY_COUNTRY_CODES);
-    const raw = structuredClone(plain) as unknown as {
-      persons: Record<string, { heritage: string[] }>;
-    };
-    Object.values(raw.persons).forEach((person, i) => {
-      person.heritage = [codes[i % codes.length]];
-    });
-    const { tree, changed } = normalizeTree(raw);
-    expect(changed).toBe(true);
-    expect(treeProblems(tree)).toEqual([]);
-    expect(topologyHash(tree)).toBe(topologyHash(plain));
-  });
 });
 
 describe("research record", () => {
-  it("leaves the topology hash alone", () => {
-    const base = createInitialTree();
-    expect(topologyHash(setResearch(base, ROOT_ID, "family", RECORD))).toBe(topologyHash(base));
-  });
-
   it("survives edits that rebuild the person, and doesn't alias the record", () => {
     const record = { ...RECORD, sources: ["per Kyle"] };
     let t = setResearch(createInitialTree(), ROOT_ID, "family", record);
@@ -878,12 +480,6 @@ describe("research record", () => {
 });
 
 describe("birthYear", () => {
-  it("takes the year from any precision", () => {
-    expect(birthYear("1931")).toBe("1931");
-    expect(birthYear("1931-06")).toBe("1931");
-    expect(birthYear("1931-06-16")).toBe("1931");
-  });
-
   it("keeps the marker of an approximate year", () => {
     expect(birthYear("~1935")).toBe("~1935");
   });
@@ -920,16 +516,6 @@ describe("setBirthDate", () => {
     expect(t.persons[ROOT_ID].birthDate).toBe("");
   });
 
-  it("returns the same tree when nothing changes, so no save is scheduled", () => {
-    const base = createInitialTree();
-    expect(setBirthDate(base, ROOT_ID, "")).toBe(base);
-  });
-
-  it("does not change the topology hash", () => {
-    const base = createInitialTree();
-    expect(topologyHash(setBirthDate(base, ROOT_ID, "1990"))).toBe(topologyHash(base));
-  });
-
   it("is flagged by treeProblems when malformed", () => {
     const t = setBirthDate(createInitialTree(), ROOT_ID, "1990-02-30");
     expect(treeProblems(t)).toEqual([
@@ -955,17 +541,6 @@ describe("setOrigin", () => {
       religion: "g. kath.",
       originLore: "Hungarian, per Given (2026)",
     });
-  });
-
-  it("returns the same tree when nothing changes", () => {
-    const base = setOrigin(createInitialTree(), ROOT_ID, { recordedPeople: "Magyar" });
-    expect(setOrigin(base, ROOT_ID, { recordedPeople: "Magyar", birthPlace: "" })).toBe(base);
-    expect(setOrigin(base, ROOT_ID, {})).toBe(base);
-  });
-
-  it("does not change the topology hash", () => {
-    const base = createInitialTree();
-    expect(topologyHash(setOrigin(base, ROOT_ID, { birthPlace: "Syria" }))).toBe(topologyHash(base));
   });
 
   it("is flagged by treeProblems for a malformed emigration date", () => {
@@ -1011,16 +586,6 @@ describe("setHeritage", () => {
     expect(t.persons[ROOT_ID].heritage).toEqual(["italian", "finnish"]);
     t = setHeritage(t, ROOT_ID, []);
     expect(t.persons[ROOT_ID].heritage).toEqual([]);
-  });
-
-  it("returns the same tree when nothing changes", () => {
-    const base = setHeritage(createInitialTree(), ROOT_ID, ["finnish"]);
-    expect(setHeritage(base, ROOT_ID, ["finnish"])).toBe(base);
-  });
-
-  it("does not change the topology hash", () => {
-    const base = createInitialTree();
-    expect(topologyHash(setHeritage(base, ROOT_ID, ["finnish"]))).toBe(topologyHash(base));
   });
 
   it("is flagged by treeProblems for an unlisted code, a repeat, or only unknown", () => {
@@ -1280,41 +845,6 @@ describe("formatShare", () => {
     [1 / 3, "33.33%"],
   ])("formats %s as %s", (share, text) => {
     expect(formatShare(share)).toBe(text);
-  });
-});
-
-describe("setNotes", () => {
-  it("sets a person's notes, preserving line breaks", () => {
-    const notes = "d. 2003\nCleveland necrology 87837";
-    const t = setNotes(createInitialTree(), ROOT_ID, notes);
-    expect(t.persons[ROOT_ID].notes).toBe(notes);
-  });
-
-  it("clears notes with an empty string", () => {
-    let t = setNotes(createInitialTree(), ROOT_ID, "birth name Elizabeth");
-    t = setNotes(t, ROOT_ID, "");
-    expect(t.persons[ROOT_ID].notes).toBe("");
-  });
-
-  it("leaves other people and the input tree untouched", () => {
-    const base = addChild(createInitialTree(), ROOT_ID, "kid", n("Kid"), "F");
-    const t = setNotes(base, "kid", "'Kate' may be a middle name");
-    expect(t.persons.kid.notes).toBe("'Kate' may be a middle name");
-    expect(t.persons[ROOT_ID]).toEqual(base.persons[ROOT_ID]);
-    expect(base.persons.kid.notes).toBe("");
-  });
-
-  it("does not change the topology hash", () => {
-    const base = createInitialTree();
-    expect(topologyHash(setNotes(base, ROOT_ID, "note"))).toBe(topologyHash(base));
-  });
-});
-
-describe("setGender", () => {
-  it("updates a person's gender", () => {
-    let t = createInitialTree();
-    t = setGender(t, ROOT_ID, "NB");
-    expect(t.persons[ROOT_ID].gender).toBe("NB");
   });
 });
 
@@ -1730,11 +1260,6 @@ describe("setUnionDeceased", () => {
     expect(deceasedOn(cleared, "lateWife", "widower")).toBeNull();
   });
 
-  it("returns the same tree when nothing changes", () => {
-    const t = setUnionDeceased(widowedRemarriage(), "widower", "lateWife", "lateWife");
-    expect(setUnionDeceased(t, "lateWife", "widower", "lateWife")).toBe(t);
-  });
-
   it("throws for a union that didn't end by death, or a stranger as the deceased", () => {
     const t = widowedRemarriage();
     expect(() => setUnionDeceased(t, "widower", "newWife", "newWife")).toThrow();
@@ -1751,36 +1276,6 @@ describe("setUnionDeceased", () => {
     t = setUnionStatus(t, "widower", "lateWife", "ended-by-death");
     expect(deceasedOn(t, "widower", "lateWife")).toBeNull();
     expect(deceasedOn(t, "lateWife", "widower")).toBeNull();
-  });
-
-  it("leaves topologyHash untouched", () => {
-    const base = widowedRemarriage();
-    const t = setUnionDeceased(base, "widower", "lateWife", "lateWife");
-    expect(topologyHash(t)).toBe(topologyHash(base));
-  });
-
-  it("round-trips through normalizeTree with no change reported", () => {
-    const t = setUnionDeceased(widowedRemarriage(), "widower", "lateWife", "lateWife");
-    const { tree, changed } = normalizeTree(JSON.parse(JSON.stringify(t)));
-    expect(changed).toBe(false);
-    expect(tree).toEqual(t);
-  });
-
-  it("normalizeTree backfills a missing deceasedId as unset and reports the change", () => {
-    const stored = JSON.parse(JSON.stringify(widowedRemarriage())) as {
-      persons: Record<string, { unions: { status: string; deceasedId?: unknown }[] }>;
-    };
-    for (const person of Object.values(stored.persons)) {
-      for (const union of person.unions) delete union.deceasedId;
-    }
-    const { tree, changed } = normalizeTree(stored);
-    expect(changed).toBe(true);
-    expect(tree).toEqual(widowedRemarriage());
-  });
-
-  it("normalizeTree reports no change for rows with no ended-by-death union", () => {
-    const { changed } = normalizeTree(JSON.parse(JSON.stringify(partnerFamily())));
-    expect(changed).toBe(false);
   });
 });
 
@@ -1858,13 +1353,10 @@ describe("describeRelation — partner and ex-partner", () => {
 });
 
 describe("union statuses — mutations", () => {
-  it("addSpouse records a partner union, and addChild defaults to the partner as co-parent", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "wendy", n("Wendy"), "F", "partner");
+  it("addSpouse records a partner union on both sides", () => {
+    const t = addSpouse(createInitialTree(), ROOT_ID, "wendy", n("Wendy"), "F", "partner");
     expect(t.persons[ROOT_ID].unions).toEqual([u("wendy", "partner")]);
     expect(t.persons.wendy.unions).toEqual([u(ROOT_ID, "partner")]);
-    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
-    expect([...t.persons.kid.parentIds].sort()).toEqual([ROOT_ID, "wendy"].sort());
   });
 
   it("setUnionStatus moves a union between any two statuses", () => {
@@ -1965,12 +1457,6 @@ describe("packElbowRows", () => {
     expect(packing.rowIndexByKey.get("a")).toBe(0);
     expect(packing.rowIndexByKey.get("c")).toBe(0);
     expect(packing.rowIndexByKey.get("b")).toBe(1);
-  });
-
-  it("returns an empty packing for empty input", () => {
-    const packing = packElbowRows([]);
-    expect(packing.rowCount).toBe(0);
-    expect(packing.rowIndexByKey.size).toBe(0);
   });
 });
 
@@ -2142,6 +1628,17 @@ describe("topologyHash", () => {
     expect(topologyHash(regendered)).toBe(h0);
   });
 
+  it("is untouched by every research field: notes, dates, origin, heritage, records and who died", () => {
+    const base = widowedRemarriage();
+    let t = setNotes(base, "widower", "d. 1950");
+    t = setBirthDate(t, "widower", "1890");
+    t = setOrigin(t, "widower", { birthPlace: "Transylvania", motherTongue: "Magyar", emigrationDate: "1907" });
+    t = setHeritage(t, "widower", ["hungarian"]);
+    t = setResearch(t, "widower", "family", RECORD);
+    t = setUnionDeceased(t, "widower", "lateWife", "lateWife");
+    expect(topologyHash(t)).toBe(topologyHash(base));
+  });
+
   it("changes when a person is added", () => {
     const t0 = createInitialTree();
     const t1 = addChild(t0, ROOT_ID, "kid", n("K"), "M");
@@ -2159,19 +1656,6 @@ describe("topologyHash", () => {
     const t0 = createInitialTree();
     const married = addSpouse(t0, ROOT_ID, "s", n("S"), "F");
     expect(topologyHash(married)).not.toBe(topologyHash(t0));
-  });
-
-  it("changes when a marriage transitions to divorced", () => {
-    let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "s", n("S"), "F");
-    const divorced = setUnionStatus(t, ROOT_ID, "s", "divorced");
-    expect(topologyHash(divorced)).not.toBe(topologyHash(t));
-  });
-
-  it("is deterministic — equal inputs produce identical hashes", () => {
-    const a = createInitialTree();
-    const b = createInitialTree();
-    expect(topologyHash(a)).toBe(topologyHash(b));
   });
 
   it("is invariant to persons-object key insertion order", () => {

@@ -471,8 +471,8 @@ production pointer any more — no `live.ts`, no `LIVE_VERSION`, no
 - **the player default is automatic and ungated.** Register a version + run
   `npm run sim:ratings`; the regenerated Elo ladder (`bots/ratings.ts`) re-ranks
   the field, and whoever tops it becomes the lobby's **Strongest/default**. No code
-  copy, no pointer to bump, no test churn (each version owns its tests under
-  `versions/`). **This is NOT the crown** — crowning needs SPRT (above);
+  copy, no pointer to bump, no test churn (the archive-wide conformance and
+  frozen-play tests cover a new version the moment it is registered). **This is NOT the crown** — crowning needs SPRT (above);
 - **measurement and the anchor are orthogonal.** The Elo anchor (`claude-v2 = 0`)
   only fixes the scale; it never has to be the best or the floor. Adding a version
   can't move the anchor, so saved numbers stay comparable across regenerations;

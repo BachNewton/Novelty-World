@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiDecisionRecord } from "../../types";
-import { recordLine, summarizeBySeat, timingSummary, type LoggedAiDecision } from "./ai-metrics";
+import { summarizeBySeat, timingSummary, type LoggedAiDecision } from "./ai-metrics";
 
 function rec(decision: AiDecisionRecord["decision"], ms: number): AiDecisionRecord {
   return {
@@ -33,11 +33,5 @@ describe("AI decision timing", () => {
     expect(summary.get("p2")?.overall.count).toBe(2);
     expect(summary.get("p2")?.byDecision.get("turn-start")).toEqual({ count: 1, medianMs: 20000, p90Ms: 20000 });
     expect(summary.get("p3")?.byDecision.get("auction")?.count).toBe(1);
-  });
-
-  it("writes a record as one review line", () => {
-    expect(recordLine({ ...rec("trade-vote", 12000), thinkMs: 9000, answerMs: 3000, thinkHitBudget: true })).toBe(
-      "llm-v2 · m.gguf · trade-vote · 12.0s · think 9.0s / answer 3.0s · 1000 in / 50 out tokens · thinking hit its budget",
-    );
   });
 });

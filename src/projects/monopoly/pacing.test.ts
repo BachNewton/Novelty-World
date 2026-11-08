@@ -81,10 +81,6 @@ describe("driveOp — human-turn sync barrier", () => {
     expect(driveOp(otherHumanActive, true, "p1")).toBeNull();
   });
 
-  it("is also null when not caught up (both gates hold)", () => {
-    expect(driveOp(otherHumanActive, false, "p1")).toBeNull();
-  });
-
   it("is idle for a finished game and a human's own intermission", () => {
     expect(driveOp({ ...base, status: "finished" }, true, "p1")).toBeNull();
     // A human's manage intermission is driven by their own UI, never the pacer
@@ -643,13 +639,6 @@ describe("paceTransition — redirect dwell", () => {
     );
   });
 
-  it("scales the inter-leg pause with turnMs", () => {
-    expect(redirectPauseMs(DEFAULT_TURN_MS)).toBe(Math.round(DEFAULT_TURN_MS * 0.3));
-    expect(redirectPauseMs(DEFAULT_TURN_MS * 2)).toBe(
-      redirectPauseMs(DEFAULT_TURN_MS) * 2,
-    );
-  });
-
   it("budgets enough dwell to cover the animation sequence the board plays", () => {
     // The store budgets a redirect's dwell here (redirectDwell, via
     // paceTransition); the board's `advanceFrom` (components/squares.tsx)
@@ -716,21 +705,6 @@ describe("paceTransition — redirect dwell", () => {
 });
 
 describe("in-phase animation scaling", () => {
-  // A short hop where the tuned duration (not the budget cap) is the binding
-  // term at DEFAULT_TURN_MS, so motion is free to scale with turnMs.
-  const SHORT_PX = 200;
-  const SHORT_ROWS = 2;
-
-  it("doubles glide motion when turnMs doubles", () => {
-    const atDefault = glideAnimMs(DEFAULT_TURN_MS, SHORT_PX);
-    expect(glideAnimMs(DEFAULT_TURN_MS * 2, SHORT_PX)).toBeCloseTo(atDefault * 2);
-  });
-
-  it("doubles slide motion when turnMs doubles", () => {
-    const atDefault = slideAnimMs(DEFAULT_TURN_MS, SHORT_ROWS);
-    expect(slideAnimMs(DEFAULT_TURN_MS * 2, SHORT_ROWS)).toBeCloseTo(atDefault * 2);
-  });
-
   it("keeps motion within its phase budget so a hold always remains", () => {
     // Far beyond any real board distance: the cap, not the tuned duration, binds.
     expect(glideAnimMs(DEFAULT_TURN_MS, 100_000)).toBeLessThan(

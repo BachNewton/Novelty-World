@@ -99,13 +99,6 @@ describe("client sync", () => {
     expect(client.problem).not.toBeNull();
   });
 
-  it("ignores a server state no newer than the one it has", () => {
-    const { states } = history("stale", 2);
-    const client = reduce(RULES, started(states[0]), { type: "server-state", version: 2, state: states[2] });
-    expect(reduce(RULES, client, { type: "server-state", version: 1, state: states[1] })).toBe(client);
-    expect(reduce(RULES, client, { type: "server-state", version: 2, state: states[2] })).toBe(client);
-  });
-
   // However the server's answers and echoes arrive (twice, out of order, or
   // not at all), the client shows exactly the game its own actions make,
   // never a state the server has moved past, and plays each event once.

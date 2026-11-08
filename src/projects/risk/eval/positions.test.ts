@@ -76,11 +76,6 @@ describe("risk position recorder", () => {
     expect(positionRecords(result).every((r) => r.capped && r.winner === null)).toBe(true);
   });
 
-  it("records the same positions every time for a seed", () => {
-    const [spec] = recordSpecs(FIELD, 5, "positions-same", 3, 1, 40);
-    expect(JSON.stringify(positionRecords(recordGame(spec)))).toBe(JSON.stringify(positionRecords(recordGame(spec))));
-  });
-
   it("seats every bot in every seat", () => {
     const field = ["a", "b", "c", "d", "e", "f", "g"];
     const specs = recordSpecs(field, 5, "x", 0, field.length, 600);

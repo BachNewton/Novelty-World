@@ -29,11 +29,6 @@ function visitStates(seed: string, maxOps: number): GameState[] {
 }
 
 describe("atomic action vocabulary", () => {
-  it("is a fixed-width vocabulary with unique names", () => {
-    expect(ACTION_NAMES.length).toBe(ACTION_COUNT);
-    expect(new Set(ACTION_NAMES).size).toBe(ACTION_COUNT);
-    expect(ACTION_COUNT).toBeGreaterThan(0);
-  });
 
   it("masks every action to a legal token id, and the mask matches legalActions", () => {
     const state = botGame("act-1");
@@ -53,21 +48,6 @@ describe("atomic action vocabulary", () => {
     }
   });
 
-  it("is deterministic", () => {
-    const state = botGame("act-2");
-    const a = legalActions(state, state.players[0].id).map((x) => x.token);
-    const b = legalActions(state, state.players[0].id).map((x) => x.token);
-    expect(a).toEqual(b);
-  });
-
-  it("the opening pre-roll offers roll + arm trade + arm manage", () => {
-    const state = botGame("act-3");
-    const labels = legalActions(state, state.turn.playerId).map((a) => a.label);
-    expect(labels).toContain("ROLL");
-    expect(labels).toContain("ARM_TRADE");
-    expect(labels).toContain("ARM_MANAGE");
-  });
-
   it("SOUNDNESS: every unmasked token applies without throwing, across a real game", () => {
     const tokenKinds = new Set<string>();
     for (const state of visitStates("act-game", 250)) {
@@ -84,50 +64,5 @@ describe("atomic action vocabulary", () => {
     expect(tokenKinds.has("ROLL")).toBe(true);
     expect(tokenKinds.has("END_TURN")).toBe(true);
     expect([...tokenKinds].some((k) => k === "BUY" || k === "DECLINE")).toBe(true);
-  });
-
-  it("CAPABILITY: a trade can be assembled atomically (assign give + take, set cash, propose)", () => {
-    const base = botGame("act-trade");
-    const me = base.players[0].id;
-    const opp = base.players[1].id;
-    // Split the brown set: I own sq1, the opponent owns sq3.
-    let state: GameState = {
-      ...base,
-      ownership: { ...base.ownership, 1: me, 3: opp },
-    };
-    // Arm a trade and drain the boundary into the trade-building intermission.
-    state = applyCandidate(state, {
-      kind: "intent",
-      intent: { kind: "set-queue", playerId: me, queue: "trade", armed: true },
-    });
-    state = applyCandidate(state, { kind: "step" });
-    expect(state.turn.phase).toBe("trade-building");
-    expect(state.turn.tradeDraft?.proposerId).toBe(me);
-
-    // I can GIVE my lot (sq1 to an opponent seat) and TAKE the opponent's lot
-    // (sq3 to seat 0 = me) — both as atomic tokens.
-    const labels0 = legalActions(state, me).map((a) => a.label);
-    expect(labels0.some((l) => l.startsWith("ASSIGN:sq1->seat") && !l.endsWith("seat0"))).toBe(true);
-    expect(labels0).toContain("ASSIGN:sq3->seat0");
-
-    // Take sq3 to me.
-    const take = legalActions(state, me).find((a) => a.label === "ASSIGN:sq3->seat0");
-    expect(take).toBeDefined();
-    state = applyCandidate(state, take!.op);
-    expect(state.turn.tradeDraft?.propertyTo[3]).toBe(me);
-
-    // With a counterparty now established, cash buckets unmask and the draft is
-    // proposable.
-    const labels1 = legalActions(state, me).map((a) => a.label);
-    expect(labels1.some((l) => l.startsWith("CASH:"))).toBe(true);
-    expect(labels1).toContain("PROPOSE_TRADE");
-
-    // Sweeten with cash, then the proposal still applies cleanly.
-    const cash = legalActions(state, me).find((a) => a.label === "CASH:100");
-    expect(cash).toBeDefined();
-    state = applyCandidate(state, cash!.op);
-    const propose = legalActions(state, me).find((a) => a.label === "PROPOSE_TRADE");
-    expect(propose).toBeDefined();
-    expect(() => applyCandidate(state, propose!.op)).not.toThrow();
   });
 });

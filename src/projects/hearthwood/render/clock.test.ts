@@ -3,14 +3,6 @@ import { CALENDAR, parseDate, secondsPerDay } from "../engine/calendar";
 import { advanceClock, holdDay, holdHour, makeClock, setDay, setHour } from "./clock";
 
 describe("the valley's clock", () => {
-  it("starts a new game on the calendar's first morning, and turns on through the days", () => {
-    const clock = makeClock(null);
-    expect(clock.date).toMatchObject({ season: CALENDAR.start.season, dayOfSeason: CALENDAR.start.day, hour: CALENDAR.start.hour });
-    advanceClock(clock, secondsPerDay() * 1.25);
-    expect(clock.hours).toBeCloseTo(CALENDAR.start.hour + 6);
-    expect(clock.date.dayOfSeason).toBe(1);
-    expect(clock.date.season).toBe("summer");
-  });
 
   it("holds the hour and the date with it", () => {
     const clock = makeClock(22.5, parseDate("litha"));

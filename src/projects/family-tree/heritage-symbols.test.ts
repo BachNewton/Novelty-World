@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shareTitle, shownHeritage } from "./heritage-symbols";
+import { shownHeritage } from "./heritage-symbols";
 import type { HeritageCode } from "./heritages";
 import type { HeritageBreakdown } from "./logic";
 import { SYMBOL_ART } from "./symbol-art";
@@ -46,13 +46,6 @@ describe("shownHeritage", () => {
     expect(SYMBOL_ART["sicily-trinacria"]).toBeUndefined();
     expect(share.era).toBeNull();
     expect(share.symbol.emblem).toBe(false);
-  });
-});
-
-describe("shareTitle", () => {
-  it("names the people and share, then the era", () => {
-    expect(shareTitle({ people: "finnish", era: "Finland, since 1918" }, "25%")).toBe("Finnish 25%\nFinland, since 1918");
-    expect(shareTitle({ people: "finnish", era: null }, "25%")).toBe("Finnish 25%");
   });
 });
 

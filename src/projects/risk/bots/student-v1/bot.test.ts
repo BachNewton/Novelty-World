@@ -7,18 +7,14 @@ import { candidateRows, decisionOf, teacherParams, teacherSearch } from "../../e
 import type { Bot, BotInput } from "../bot";
 import { gdAggressiveBot, gdStackerBot } from "../gd";
 import { greedyBot } from "../greedy";
-import { riskBot } from "..";
-import { IDS } from "../rule-v1/board";
 import { ruleV6Bot } from "../rule-v6";
 import { V7_PARAMS } from "../rule-v7/params";
-import { nextPlacement, searchPoint } from "../rule-v7/replies";
-import { CANDIDATE_WIDTH } from "./candidates";
-import { decisionRows, DEFAULT_WEIGHTS, studentBot, studentV1 } from "./index";
-import { GOLDEN_TOLERANCE, pick, scorer, type Scorer } from "./network";
+import { searchPoint } from "../rule-v7/replies";
+import { decisionRows } from "./index";
+import { GOLDEN_TOLERANCE, scorer } from "./network";
 import { WEIGHT_SETS } from "./weights";
 
-// student-v1: its network reproduces the trained one's scores, its rows are the training rows,
-// it is v6 wherever the network ranks v6's own choice first, and a function of its input alone.
+// student-v1: its network reproduces the trained one's scores, and its rows are the training rows.
 
 const FIELD: Bot[] = [greedyBot, gdStackerBot, gdAggressiveBot, greedyBot];
 
@@ -50,18 +46,6 @@ function walk(seed: string, bots: readonly Bot[], visit: (input: BotInput, move:
   throw new Error("the walk ran out of steps");
 }
 
-/** A scorer that counts its calls and scores each candidate by `each(candidates)`. */
-function counting(each: (k: number) => number[]): { score: Scorer; calls: () => number } {
-  let calls = 0;
-  return {
-    score: (rows) => {
-      calls++;
-      return each(rows.length / CANDIDATE_WIDTH);
-    },
-    calls: () => calls,
-  };
-}
-
 /** A phase's first placement, where the student ranks the candidates. */
 const ranks = (input: BotInput) => input.seat === 0 && input.options.kind === "reinforce" && searchPoint(input.view, input.history)?.placed.size === 0;
 
@@ -81,12 +65,6 @@ describe("student-v1's network", () => {
       }
     });
   }
-
-  it("picks the first of the highest scores", () => {
-    expect(pick([0, 0, 0])).toBe(0);
-    expect(pick([0.1, 0.3, 0.3, 0.2])).toBe(1);
-    expect(pick([-1, -2])).toBe(0);
-  });
 });
 
 describe("student-v1", () => {
@@ -108,53 +86,5 @@ describe("student-v1", () => {
     });
     expect(seen).toBe(3);
     expect(captures).toBeGreaterThan(0);
-  });
-
-  it("plays v6's moves when every candidate scores the same", () => {
-    const flat = counting((k) => new Array<number>(k).fill(0.5));
-    const student = studentBot(V7_PARAMS, flat.score);
-    let asked = 0;
-    walk("student-ties", [student, ...FIELD], (input, move) => {
-      if (input.seat !== 0) return;
-      expect(move).toEqual(ruleV6Bot(input));
-      asked++;
-      return flat.calls() >= 3 && input.options.kind !== "reinforce";
-    });
-    expect(flat.calls()).toBeGreaterThanOrEqual(3);
-    expect(asked).toBeGreaterThan(flat.calls());
-  });
-
-  it("places for the candidate the network scores highest", () => {
-    const last = counting((k) => Array.from({ length: k }, (_, i) => i));
-    const student = studentBot(V7_PARAMS, last.score);
-    let checked = 0;
-    walk("student-pick", [student, ...FIELD], (input, move) => {
-      if (!ranks(input)) return;
-      const point = searchPoint(input.view, input.history);
-      if (point === null) throw new Error("a ranking is made at a search point");
-      const { plans } = decisionRows(point, 0, V7_PARAMS);
-      if (plans.length < 2) return;
-      const next = nextPlacement(plans[plans.length - 1].place, point.placed);
-      if (next === null) throw new Error("a plan places something");
-      expect(move).toEqual({ kind: "place", territory: IDS[next.territory], armies: next.armies });
-      return ++checked >= 2;
-    });
-    expect(checked).toBe(2);
-  });
-
-  it("gives the same move for the same input, from any copy and its weights' label", () => {
-    const student = studentV1(DEFAULT_WEIGHTS);
-    const labelled = riskBot(`student-v1~{"weights":"${DEFAULT_WEIGHTS}"}`);
-    let ranked = 0;
-    walk("student-same", [student, ...FIELD], (input, move) => {
-      if (input.seat !== 0) return;
-      if (ranks(input)) ranked++;
-      expect(student(input)).toEqual(move);
-      expect(studentV1(DEFAULT_WEIGHTS)(input)).toEqual(move);
-      expect(labelled(input)).toEqual(move);
-      return ranked >= 2 && input.options.kind !== "reinforce";
-    });
-    expect(ranked).toBe(2);
-    expect(() => riskBot('student-v1~{"weights":"no-such-set"}')).toThrow();
   });
 });

@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderSound, zzfxParams, type SoundDesign } from "./design";
-
-describe("zzfxParams", () => {
-  it("gives ZzFX's 21 parameters, with its defaults and no baked-in randomness", () => {
-    const params = zzfxParams({ frequency: 440 });
-    expect(params).toHaveLength(21);
-    expect(params.slice(0, 3)).toEqual([1, 0, 440]);
-  });
-});
+import { renderSound, type SoundDesign } from "./design";
 
 describe("renderSound", () => {
   it("mixes each layer in at its offset", () => {

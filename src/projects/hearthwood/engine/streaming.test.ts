@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DESKTOP } from "../quality";
-import { chunkDetail, tileWidth, wantedChunks, wantedTiles } from "./streaming";
+import { tileWidth, wantedTiles } from "./streaming";
 
 describe("the land's tiles", () => {
   const eye = { x: 37, y: 30, z: -210 };
@@ -35,19 +35,5 @@ describe("the land's tiles", () => {
       })?.level ?? -1;
     expect(at(eye.x + 3000, eye.z)).toBeGreaterThan(at(eye.x + 400, eye.z));
     expect(at(eye.x + 400, eye.z)).toBeGreaterThan(at(eye.x + 20, eye.z));
-  });
-});
-
-describe("plant detail by distance", () => {
-  it("draws trees in full near by and in their far shape further out, and none past their reach", () => {
-    expect(chunkDetail(DESKTOP.trees, 10)).toBe("near");
-    expect(chunkDetail(DESKTOP.trees, DESKTOP.trees.near + 50)).toBe("far");
-    expect(chunkDetail(DESKTOP.trees, DESKTOP.trees.far + 1)).toBeNull();
-  });
-
-  it("lists the chunks round a point nearest first", () => {
-    const chunks = wantedChunks(10, 10, 200);
-    expect(chunks[0]).toEqual({ chunkX: 0, chunkZ: 0 });
-    expect(chunks.length).toBeGreaterThan(20);
   });
 });

@@ -221,7 +221,7 @@ The Monopoly lesson ("Dual-use parameters" in `monopoly/bots/CLAUDE.md`): **a pa
 
 ## 5. Test scenarios
 
-Positions where expert play is clear, as unit tests of the bot's judgement (`bots/rule-v1/scenarios.test.ts`, numbered as here). Odds are exact. Unless stated, the game has 5 players.
+Positions where expert play is clear, as unit tests of the bot's judgement while it was built (numbered as here; once v1 was seated its frozen fingerprint, `bots/frozen.test.ts`, held its play, and they were deleted). Odds are exact. Unless stated, the game has 5 players.
 
 1. **A kill whose cards force a trade.** B holds 4 cards and only Venezuela 2, Peru 1, Argentina 1, Brazil 3. I hold 1 card, Central America 10, Africa (6 to place). My 1 and B's 4 make 5: a trade the moment B falls. Expected: the run from Central America, made near-sure by placement, and B eliminated.
 2. **No trade to take: kill only when nobody can then kill me.** As 1 with B on 3 cards and me on none. Quiet: the run is taken. With two big stacks over my thin Africa: no kill.

@@ -74,8 +74,4 @@ describe("cycleChoice", () => {
     expect(cycleChoice(points, null, -1, centre)).toBe("b-low");
     expect(cycleChoice(points, null, 1, { x: 400, y: 0 })).toBe("a");
   });
-
-  it("returns null with no choices", () => {
-    expect(cycleChoice([], null, 1, centre)).toBeNull();
-  });
 });

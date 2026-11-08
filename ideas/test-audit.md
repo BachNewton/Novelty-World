@@ -23,7 +23,7 @@ Selection (`scripts/affected-tests.mjs`) took most of the pain away: a typical c
 Low risk, 1–4s each unless noted:
 
 - Frogmino: `online.test.ts` one seed per link, `medals.test.ts` one replay, `rollback.test.ts` one seed, and `courses.test.ts` dropping the reachability repeats the slow test covers.
-- Risk: `rule-v7` and `rule-v7.1` parity down to one game (about 8s), `net-v1/parity.test.ts` sampling decisions (about 8s), and sizing `gd/legal.slow` and `engine/fuzz.slow` by the seeds that reach their rare paths.
+- Risk: `net-v1/parity.test.ts` sampling decisions (about 8s).
 - Betrayal: `exploration.test.ts` two games instead of five (about 10s), `ghost.test.ts` two seeds (about 5s), and one or two rooms in the `house-build` and `wall-markings` freeze loops.
 - Elsewhere: `bot-lab/elo.test.ts`'s ladder test to the slow suite, `map-camera` steps, the `people` wardrobe, and `stream.test.ts`'s jump count.
 
