@@ -56,6 +56,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     panel: finish("car-cabin-panel", 0.01, 0.2),
     piano: finish("car-trim", 0.07, 0.85),
     accent: finish(colours.accent, 0.3, 0.6, { metal: 0.6 }),
+    webbing: finish(colours.accent, 0.006, 0.08),
     chrome: finish("car-rim", 0.55, 0.9, { metal: 0.85 }),
     seat: finish(seat, 0.008, 0.12),
     seatSide: finish(seat, 0.006, 0.1, { shade: 0.78 }),
@@ -476,6 +477,20 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   }
 }
 
+/** A four-point harness over a seat at x: two shoulder straps down the back, a lap belt across and its buckle. */
+function addHarness(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number) {
+  const g = f.ground;
+  // The seat's own recline (`addSeat`), so the straps lie on its back.
+  const recline = (16 * Math.PI) / 180;
+  const up: Point = [0, Math.cos(recline), Math.sin(recline)];
+  const back: Point = [0, -Math.sin(recline), Math.cos(recline)];
+  const hip: Point = [x, cushionH - 0.02 + g, z + 0.1];
+  const strap = smooth(paints.webbing);
+  for (const s of [-1, 1]) pillow(b, axes(add(add(add(hip, up, 0.44), RIGHT, s * 0.075), back, -0.078), RIGHT, up, back), [0.024, 0.3, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.04], RIGHT, [0, 1, 0], [0, 0, 1]), [0.2, 0.024, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.05], RIGHT, [0, 1, 0], [0, 0, 1]), [0.035, 0.032, 0.008], 0.3, smooth(paints.chrome), 6);
+}
+
 /** The door cards along each side, below the glass: a kick panel, an armrest, an insert and a cap where the glass starts. */
 function addDoors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const { ground: g, floorH, cushionH, style, dash } = f;
@@ -623,6 +638,7 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   addWheel(b, frame, paints);
   const seatKind = style.seats;
   for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24);
+  if (style.harness) for (const side of [-1, 1]) addHarness(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH);
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
   addFloor(b, frame, paints);

@@ -31,6 +31,8 @@ export interface InteriorStyle {
   screen: boolean;
   /** A roll cage, with bare painted metal for door cards. */
   cage: boolean;
+  /** A race car's harness over each seat, in the accent colour, in place of a belt. */
+  harness: boolean;
   /** A band of the car's own paint across the dash, as older cars had. */
   paintedDash: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
@@ -69,6 +71,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     seats: rally ? "bucket" : sports ? "sport" : "comfort",
     screen: !rally,
     cage: rally,
+    harness: false,
     paintedDash: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
