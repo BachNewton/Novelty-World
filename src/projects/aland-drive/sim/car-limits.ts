@@ -15,6 +15,7 @@ import skerryGt from "./limits/skerry-gt.json";
 import sten from "./limits/sten.json";
 import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
+import varg from "./limits/varg.json";
 import vik from "./limits/vik.json";
 
 /*
@@ -76,6 +77,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A1
   aska,
   // A2
+  varg,
   // A3
   // A4
   sund,

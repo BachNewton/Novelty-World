@@ -14,6 +14,7 @@ import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
 import { strom } from "./voices/strom";
 import { sund } from "./voices/sund";
+import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
 
 /*
@@ -84,6 +85,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
   aska,
   // A2
+  varg,
   // A3
   // A4
   sund,

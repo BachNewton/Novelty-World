@@ -15,6 +15,7 @@ import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
 import { strom } from "./cars/strom";
 import { sund } from "./cars/sund";
+import { varg } from "./cars/varg";
 import { vik } from "./cars/vik";
 
 /*
@@ -36,6 +37,7 @@ const ENTRIES = {
   // A1
   aska,
   // A2
+  varg,
   // A3
   // A4
   sund,

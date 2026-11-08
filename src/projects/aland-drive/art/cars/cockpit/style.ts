@@ -13,8 +13,10 @@ import type { CarSpec } from "../build";
  * "analogue": two big dials, speed and revs, with a gear window between. "digital": one screen, the speed in figures
  * and the revs (or an electric car's power) as an arc of segments. "classic": two chrome-ringed dials and a row of
  * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
+ * "muscle": a big rev counter in front of the driver with a smaller speed dial beside it, and fuel, water and oil as
+ * small dials on the centre stack, where a screen would be.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "muscle";
 /** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
 export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
 /** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
@@ -45,6 +47,8 @@ export interface InteriorStyle {
     accent: string;
     /** What the dials, figures and switches light in after dark. */
     glow: string;
+    /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
+    seat?: string;
   };
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;

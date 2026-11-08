@@ -254,6 +254,10 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     big(SLOT.speed, SOURCE.speed, -apart, radius);
     big(SLOT.revs, SOURCE.revs, apart, radius);
     if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+  } else if (style.gauges === "muscle") {
+    big(SLOT.revs, SOURCE.revs, 0.035, 0.069);
+    big(SLOT.speed, SOURCE.speed, -0.105, 0.046);
+    readout(SOURCE.gear, 1, 0.035, -0.04, 0.026);
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
@@ -363,11 +367,11 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     plate(b, at, [0, screenY], [0.2, 0.115], front + 0.003, flat(paints.screen, KIND.screen));
     plate(b, at, [-0.035, screenY + 0.022], [0.016 * GLYPH_ASPECT * 4, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.clock, 4)));
     plate(b, at, [0.05, screenY + 0.022], [0.016 * GLYPH_ASPECT * 3, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.outside, 3)));
-  } else if (style.gauges === "classic") {
+  } else if (style.gauges === "classic" || style.gauges === "muscle") {
     ([SLOT.fuel, SLOT.water, SLOT.oil] as const).forEach((slot, index) => {
       const x = (index - 1) * 0.074;
       disc(b, at, [x, screenY], 0.031, front, flat(paints.dial, KIND.dial, slot), slot);
-      bezel(b, at, [x, screenY], 0.033, 0.0035, front + 0.001, smooth(paints.chrome));
+      bezel(b, at, [x, screenY], 0.033, 0.0035, front + 0.001, smooth(style.gauges === "classic" ? paints.chrome : paints.accent));
       dials.push({ slot, source: slot === SLOT.fuel ? SOURCE.fuel : slot === SLOT.water ? SOURCE.water : SOURCE.oil, startDeg: 135, sweepDeg: -90 });
     });
   } else {
@@ -614,7 +618,7 @@ function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 export function buildCockpit(spec: CarSpec): CockpitParts {
   const frame = cockpitFrame(spec);
   const { style, cabin, cushionH } = frame;
-  const paints = paintsOf(style, cabin.seatSurface === "seatTan" && !style.cage ? "car-cabin-seat-tan" : "car-cabin-seat");
+  const paints = paintsOf(style, style.colours.seat ?? (cabin.seatSurface === "seatTan" && !style.cage ? "car-cabin-seat-tan" : "car-cabin-seat"));
   const b = new CockpitBuilder();
   const shell = buildBareShell(spec);
   addInnerSkin(b, frame, shell, paints);

@@ -14,6 +14,7 @@ import { skerryGt } from "./models/skerry-gt";
 import { sten } from "./models/sten";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
+import { varg } from "./models/varg";
 import { vik } from "./models/vik";
 import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 
@@ -29,6 +30,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
   aska,
   // A2
+  varg,
   // A3
   // A4
   sund,
