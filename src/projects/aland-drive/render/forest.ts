@@ -10,6 +10,7 @@ import { CLEARING_SLACK_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, LEAF
 import { CONE_FILL, CROWN_REACH, CROWN_SPREAD, FAR_RINGS, FAR_TABLE, GNARL, LEAN, NEAR_RINGS, NEAR_TABLE, RING_VALUES, ROCK_LEAN, ROCK_REACH, ROCK_ROW, SPECIES, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, WIND_WAY, type TreeKind } from "./tree-shapes";
 import { foliageLight } from "./foliage-light";
 import { towardsSun } from "../art/sun";
+import { spiralCell, spiralPlaces } from "./spiral";
 import { viewSides } from "./view-sides";
 import { type Sun } from "../art/sun";
 
@@ -24,7 +25,9 @@ import { type Sun } from "../art/sun";
  * camera and keeps those where a tree stands, clear of roads and in the view, writing
  * them into one list for each model with all a vertex needs. Only the lists are drawn,
  * so a place with no tree and a tree behind the camera cost no vertices, and every
- * tree can stay to the forest's reach.
+ * tree can stay to the forest's reach. The pass walks the places in a spiral from the
+ * camera's cell outwards (`spiral.ts`), so each list comes out near to far and the
+ * depth test spares the crowns behind those drawn first.
  *
  * Near a building a tree is no taller than lets its crown, at the widest any tree's
  * spreads, clear the building's outline, as the tile's clearing image measures it
@@ -282,8 +285,8 @@ export interface Forest {
 
 export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, clearanceAt, colour, hazed, sun, season, paint }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
-  const anchor = uniform(new Vector2());
-  const placesAcross = uniform(1, "uint");
+  /** The lattice cell under the camera, which the spiral of places winds out from. */
+  const centre = uniform(new Vector2());
   const view = viewSides(WORLD_HEIGHTS_M, WIDEST_CROWN_M);
   const { sides } = view;
   const toSun = towardsSun(sun);
@@ -377,7 +380,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     farHaze: storage(lists.farHaze, "vec4", farRows),
   };
   const cull = Fn(() => {
-    const cell = vec2(instanceIndex.mod(placesAcross), instanceIndex.div(placesAcross)).add(anchor).toVar();
+    const cell = spiralCell(instanceIndex).add(centre).toVar();
     const jitter = vec2(roll(cell, JITTER_ROLLS[0]), roll(cell, JITTER_ROLLS[1])).sub(0.5).mul(JITTER * NEAR_STEP_M);
     const place = cell.mul(NEAR_STEP_M).add(jitter).toVar();
     const distance = place.sub(cameraSpot).length().toVar();
@@ -658,11 +661,10 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   hazeModel(farHazeShape, lists.farHaze, farRows, FAR_HAZE_DRAW, farShapes, FAR_RINGS, true);
 
   const aim = (spot: Vector3) => {
-    const across = Math.ceil((2 * knobs.get().forestReachM) / NEAR_STEP_M) + 2;
-    placesAcross.value = across;
-    anchor.value.set(Math.floor(spot.x / NEAR_STEP_M) - across / 2, Math.floor(spot.z / NEAR_STEP_M) - across / 2);
+    const rings = Math.ceil(knobs.get().forestReachM / NEAR_STEP_M) + 1;
+    centre.value.set(Math.floor(spot.x / NEAR_STEP_M), Math.floor(spot.z / NEAR_STEP_M));
     cameraSpot.value.set(spot.x, spot.z);
-    cull.dispatchSize = [Math.ceil((across * across) / PLACES_A_GROUP), 1, 1];
+    cull.dispatchSize = [Math.ceil(spiralPlaces(rings) / PLACES_A_GROUP), 1, 1];
   };
 
   aim(new Vector3());

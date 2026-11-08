@@ -2,6 +2,7 @@ import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle,
 import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, If, instanceIndex, mix, select, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
 import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M } from "./tree-place";
+import { spiralCell, spiralPlaces } from "./spiral";
 import { viewSides } from "./view-sides";
 
 /*
@@ -14,6 +15,9 @@ import { viewSides } from "./view-sides";
  *
  * Each lattice ends by its plants dissolving one at a time, each at a distance of its
  * own (`left`), so nothing ever shrinks or grows in: the forest's rule for detail.
+ *
+ * A pass walks a lattice's places in a spiral from the camera's cell outwards (`spiral.ts`),
+ * so a list comes out near to far and the depth test spares what stands behind what's drawn.
  *
  * A list holds what a planting says it can, not every place in reach, so a planting
  * that's rare on the ground reserves memory for what it can really draw. A list that
@@ -158,8 +162,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
   // lattice's numbers picked per place: a kernel is a pipeline, and two lattices' kernels with only their numbers apart
   // would compile the planting's whole rule twice.
   const pass = (given: Lattice[], lattice?: Lattice) => {
-    const anchors = given.map(() => uniform(new Vector2()));
-    const acrosses = given.map(() => uniform(1, "uint"));
+    const centres = given.map(() => uniform(new Vector2()));
     const starts = given.map(() => uniform(0, "uint"));
     const cull = Fn(() => {
       const which = starts.slice(1).reduce<Node<"uint">>((sum, start) => sum.add(select(instanceIndex.greaterThanEqual(start), uint(1), uint(0))), uint(0)).toVar();
@@ -167,8 +170,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
       const number = (of: (lattice: Lattice) => number) => pick(given.map((each) => float(of(each))));
       const stepM = number((each) => each.stepM).toVar();
       const index = instanceIndex.sub(pick(starts)).toVar();
-      const across = pick(acrosses).toVar();
-      const cell = vec2(index.mod(across), index.div(across)).add(pick(anchors)).toVar();
+      const cell = spiralCell(index).add(pick(centres)).toVar();
       const seed = cell.add(number((each) => each.salt)).toVar();
       const jitter = vec2(roll(seed, 1), roll(seed, 2)).sub(0.5).mul(stepM.mul(JITTER));
       const place = cell.mul(stepM).add(jitter).toVar();
@@ -200,11 +202,10 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
     const aim = (spot: Vector3) => {
       let places = 0;
       given.forEach((each, at) => {
-        const across = Math.ceil((2 * reachOf(each)) / each.stepM) + 2;
-        acrosses[at].value = across;
-        anchors[at].value.set(Math.floor(spot.x / each.stepM) - across / 2, Math.floor(spot.z / each.stepM) - across / 2);
+        const rings = Math.ceil(reachOf(each) / each.stepM) + 1;
+        centres[at].value.set(Math.floor(spot.x / each.stepM), Math.floor(spot.z / each.stepM));
         starts[at].value = places;
-        places += across * across;
+        places += spiralPlaces(rings);
       });
       cull.dispatchSize = [Math.ceil(places / PLACES_A_GROUP), 1, 1];
     };

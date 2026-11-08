@@ -90,9 +90,11 @@ for (const { name, go } of views) {
       const whole = await meter.measure({ indirect: true, fragments: true, image });
       const picture = whole.picture ? await meter.heatMap(whole.picture) : null;
       const histogram = whole.picture ? meter.histogram(whole.picture) : null;
-      const perDraw = draws ? await meter.measureDraws() : null;
+      const attributed = draws ? await meter.measureDraws() : null;
+      const perDraw = attributed?.draws ?? null;
+      const gpuLists = attributed?.gpuLists ?? null;
       const { triangles: probeTriangles, drawCalls: probeDraws } = probe.counts();
-      return { frame: whole.frame, picture, histogram, perDraw, probe: { triangles: probeTriangles, draws: probeDraws, gpuMsMedian: gpuMs.length > 0 ? gpuMs[Math.floor(gpuMs.length / 2)] : null }, car: probe.car().position.map(Math.round), loaded: probe.stream().loaded.length };
+      return { frame: whole.frame, picture, histogram, perDraw, gpuLists, probe: { triangles: probeTriangles, draws: probeDraws, gpuMsMedian: gpuMs.length > 0 ? gpuMs[Math.floor(gpuMs.length / 2)] : null }, car: probe.car().position.map(Math.round), loaded: probe.stream().loaded.length };
     }, { samples: GPU_SAMPLES, draws: DRAWS, image: Boolean(IMAGES) });
     if (IMAGES) {
       await page.screenshot({ path: join(IMAGES, `${name}.png`) });
@@ -111,6 +113,7 @@ for (const { name, go } of views) {
     car: result.car,
     loaded: result.loaded,
     pipelines: byPipeline(result.perDraw ?? scenePass?.draws ?? []),
+    gpuLists: result.gpuLists,
     draws: LIST ? (result.perDraw ?? scenePass?.draws ?? []) : undefined,
   };
   run.views[name] = view;
@@ -136,14 +139,15 @@ ${name}: car at ${view.car.join(", ")}, ${view.loaded} tiles at detail, scene dr
   console.log(line("bind group sets", totals.bindGroupSets));
   for (const other of totals.otherPasses) console.log(`  other pass ${other.index}${other.canvas ? " (canvas)" : ""}: ${other.draws} draws, ${count(other.fragments)} fragments, ${other.width}x${other.height} at ${other.sampleCount} samples, ${count(other.attachmentBytes)} attachment bytes`);
   if (view.histogram) console.log(`  overdraw histogram   ${view.histogram.map((pixelsAt, depth) => `${depth}:${((pixelsAt / totals.pixels) * 100).toFixed(1)}%`).join(" ")}`);
-  const top = [...view.pipelines].sort((a, b) => (DRAWS ? b.fragments - a.fragments : b.vertices - a.vertices)).slice(0, TOP);
+  const top = [...view.pipelines].sort((a, b) => (DRAWS ? (b.fragments ?? -1) - (a.fragments ?? -1) : b.vertices - a.vertices)).slice(0, TOP);
   if (top.length > 0) {
     console.log(`  ${DRAWS ? "by fragments" : "by vertices"}: ${"draws".padStart(5)} ${"triangles".padStart(11)} ${"vertices".padStart(11)}${DRAWS ? ` ${"fragments".padStart(11)}` : ""}  pipeline`);
     for (const group of top) {
       const previous = was?.pipelines?.find((entry) => entry.label === group.label && entry.inputs === group.inputs);
       const delta = previous ? `  ${DRAWS ? change(previous.fragments, group.fragments) : change(previous.vertices, group.vertices)}` : "";
-      console.log(`  ${"".padEnd(12)}  ${String(group.draws).padStart(5)} ${count(group.triangles).padStart(11)} ${count(group.vertices).padStart(11)}${DRAWS ? ` ${count(group.fragments).padStart(11)}` : ""}  ${group.label || "(unnamed)"} [${group.inputs}]${delta}`);
+      console.log(`  ${"".padEnd(12)}  ${String(group.draws).padStart(5)} ${count(group.triangles).padStart(11)} ${count(group.vertices).padStart(11)}${DRAWS ? ` ${(group.fragments === null ? "(GPU list)" : count(group.fragments)).padStart(11)}` : ""}  ${group.label || "(unnamed)"} [${group.inputs}]${delta}`);
     }
+    if (DRAWS && view.gpuLists !== null && view.gpuLists !== undefined) console.log(`  ${"".padEnd(12)}  the GPU-ordered lists together (forest, plantings): ${count(view.gpuLists)} fragments${was?.gpuLists !== undefined && was.gpuLists !== null ? `  ${change(was.gpuLists, view.gpuLists)}` : ""}`);
   }
   if (LIST) {
     console.log(`  every draw: ${"index".padStart(5)} ${"count".padStart(9)} ${"inst".padStart(6)} ${"triangles".padStart(10)} ${"vertices".padStart(10)}${DRAWS ? ` ${"fragments".padStart(10)}` : ""}  pipeline`);

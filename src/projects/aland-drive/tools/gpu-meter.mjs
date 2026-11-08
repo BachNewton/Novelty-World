@@ -50,6 +50,8 @@ export function installGpuMeter(options) {
     scenePassIndex: -1,
     /** Draws from this index on in the scene pass aren't issued: how a draw's own fragments are told apart. */
     skipFrom: Number.POSITIVE_INFINITY,
+    /** Indirect draws in the scene pass aren't issued: the GPU-ordered lists, set aside while the rest are told apart. */
+    skipIndirect: false,
     pending: null,
     own: false,
     resolvers: new Map(),
@@ -288,7 +290,7 @@ export function installGpuMeter(options) {
         entry.indirect = { buffer: args[0], offset: args[1] };
       }
       record.draws.push(entry);
-      if (record.scene && entry.index >= meter.skipFrom) {
+      if (record.scene && (entry.index >= meter.skipFrom || (meter.skipIndirect && entry.indirect !== null))) {
         entry.skipped = true;
         record.skipped++;
         return undefined;
@@ -404,6 +406,7 @@ export function installGpuMeter(options) {
         meter.lastClosed = null;
         meter.pending = null;
         meter.skipFrom = Number.POSITIVE_INFINITY;
+        meter.skipIndirect = false;
         readBack(frame, request.options).then(request.resolve, request.reject);
       }
       return result;
@@ -567,28 +570,42 @@ export function installGpuMeter(options) {
     return { index: frame.index, passes, computes, writes: { ...frame.writes }, copies: { ...frame.copies }, submits: frame.submits };
   };
 
-  /** Resolves with the next frame's counts once the GPU has answered. `skipFrom` leaves the scene pass's draws from that index on undrawn. */
+  /**
+   * Resolves with the next frame's counts once the GPU has answered. `skipFrom` leaves the scene pass's draws from that
+   * index on undrawn, and `skipIndirect` its indirect draws.
+   */
   meter.measure = (options = {}) =>
     new Promise((resolve, reject) => {
       meter.skipFrom = options.skipFrom ?? Number.POSITIVE_INFINITY;
+      meter.skipIndirect = options.skipIndirect ?? false;
       meter.pending = { options: { indirect: options.indirect ?? true, fragments: options.fragments ?? true, image: options.image ?? false }, resolve, reject };
     });
 
   /**
    * The fragments each draw of the scene pass wrote with everything before it in place: the frame redrawn once per
    * draw, each time with the draws after it skipped, so the differences between one frame's total and the next's are each
-   * draw's own. The frame must hold still meanwhile.
+   * draw's own. The frame must hold still meanwhile. Counting what's written, the indirect draws are set aside: a list a
+   * compute pass fills comes out in an order that changes by the frame, and what's written changes with it, so those are
+   * told apart from the rest as one group (`gpuLists`) and the others are exact; counting what's rasterized, order doesn't
+   * matter and every draw is exact.
    */
   meter.measureDraws = async () => {
     const whole = await meter.measure({ indirect: true, fragments: true });
     const scene = whole.frame.passes.find((pass) => pass.scene);
     if (!scene?.stencil) return null;
+    const setAside = STENCIL === "written";
+    const sceneFragments = (measured) => measured.frame.passes.find((pass) => pass.scene)?.stencil?.fragments ?? 0;
     const totals = [0];
     for (let drawn = 1; drawn <= scene.draws.length; drawn++) {
-      const partial = await meter.measure({ indirect: false, fragments: true, skipFrom: drawn });
-      totals.push(partial.frame.passes.find((pass) => pass.scene)?.stencil?.fragments ?? totals[totals.length - 1]);
+      const entry = scene.draws[drawn - 1];
+      if (setAside && entry.indirect) {
+        totals.push(totals[totals.length - 1]);
+        continue;
+      }
+      totals.push(sceneFragments(await meter.measure({ indirect: false, fragments: true, skipFrom: drawn, skipIndirect: setAside })));
     }
-    return scene.draws.map((entry, at) => ({ ...entry, fragments: totals[at + 1] - totals[at] }));
+    const drawn = scene.draws.map((entry, at) => ({ ...entry, fragments: setAside && entry.indirect ? null : totals[at + 1] - totals[at] }));
+    return { draws: drawn, gpuLists: setAside ? scene.stencil.fragments - totals[totals.length - 1] : 0 };
   };
 
   /** A PNG of the scene pass's overdraw, from the picture a measurement with `image` read: how many fragments each pixel saw. */
@@ -675,11 +692,11 @@ export function byPipeline(draws) {
   for (const entry of draws) {
     if (entry.skipped) continue;
     const key = entry.pipeline;
-    const group = groups.get(key) ?? { pipeline: key, label: entry.label, inputs: entry.inputs, draws: 0, triangles: 0, vertices: 0, fragments: 0 };
+    const group = groups.get(key) ?? { pipeline: key, label: entry.label, inputs: entry.inputs, draws: 0, triangles: 0, vertices: 0, fragments: 0, indirect: entry.indirect };
     group.draws++;
     group.triangles += entry.triangles ?? 0;
     group.vertices += entry.vertices ?? 0;
-    group.fragments += entry.fragments ?? 0;
+    group.fragments = entry.fragments === null || entry.fragments === undefined ? group.fragments : (group.fragments ?? 0) + entry.fragments;
     groups.set(key, group);
   }
   return [...groups.values()];

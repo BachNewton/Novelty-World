@@ -1,5 +1,5 @@
 import { AdditiveBlending, Box3, Color, HalfFloatType, InstancedBufferAttribute, Mesh, MeshBasicNodeMaterial, OrthographicCamera, RenderTarget, Scene, Vector2, Vector3, type BufferGeometry, type WebGPURenderer } from "three/webgpu";
-import { attribute, float, positionGeometry, positionWorld, smoothstep, texture, uniform, varying, vec3 } from "three/tsl";
+import { attribute, float, positionGeometry, positionWorld, select, smoothstep, texture, uniform, varying, vec3 } from "three/tsl";
 import { quadGeometry, type GlowInstance } from "./glows";
 import { PARTS } from "../roadside/mesh";
 import { buildStreetLamp } from "../roadside/models";
@@ -153,7 +153,8 @@ export function createLampLight(night: Night, capacity: number) {
     const at = positionWorld.xz.sub(centre).div(LIGHT_SPAN_M);
     const inside = float(1).sub(smoothstep(float(0.5 - LIGHT_EDGE), float(0.5), at.x.abs().max(at.y.abs())));
     const cast = texture(target.texture, at.add(0.5)).rgb;
-    return albedo.mul(cast).mul(inside.mul(night.lampsOn).mul(LIGHT_GAIN));
+    // By day the lamps are off, and the image isn't read: a branch every pixel takes alike, on the night's dial.
+    return select(night.lampsOn.greaterThan(0), albedo.mul(cast).mul(inside.mul(night.lampsOn).mul(LIGHT_GAIN)), vec3(0));
   };
 
   return {
