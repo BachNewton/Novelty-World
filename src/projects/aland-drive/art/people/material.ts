@@ -1,5 +1,5 @@
 import { DoubleSide, Mesh, MeshBasicNodeMaterial, type Node, type StorageBufferAttribute } from "three/webgpu";
-import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, storage, uniformArray, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cameraPosition, cos, dot, float, fract, int, max, mix, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, storage, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { outsideCar } from "../car-volume";
 import type { RoadsideInputs } from "../roadside/material";
 import type { Crowd } from "./crowd";
@@ -78,9 +78,14 @@ interface FigureSource {
 
 const baked = (): FigureSource => ({ place: attribute<"vec4">("place", "vec4"), gait: attribute<"vec3">("gait", "vec3") });
 
+// A figure's pixels read its place too, for how far it stands, so its slot is made whole in the vertex stage, where the
+// attribute is exact: blended across a triangle it reached some pixels a hair under on Nvidia, which cut to the slot
+// before, and a walker's pixels each took another's distance and dissolved into dots.
+const slotOf = () => varying(int(round(attribute<"float">("slot", "float"))));
+
 /** A walking crowd's figures, by their slot in its lists of places and gaits. */
 function listed(places: StorageBufferAttribute, gaits: StorageBufferAttribute): FigureSource {
-  const slot = int(attribute<"float">("slot", "float"));
+  const slot = slotOf();
   return { place: storage(places, "vec4", places.count).toReadOnly().element(slot), gait: storage(gaits, "vec4", gaits.count).toReadOnly().element(slot).xyz };
 }
 
@@ -157,7 +162,7 @@ const bakedShadow = (): ShadowSource => ({ middle: positionGeometry, spread: att
 
 /** A walking crowd's shadows: each corner's slot, and its patch's offset from the feet and size, turned by where the figure faces now. */
 function listedShadow(places: StorageBufferAttribute): ShadowSource {
-  const place = storage(places, "vec4", places.count).toReadOnly().element(int(attribute<"float">("slot", "float")));
+  const place = storage(places, "vec4", places.count).toReadOnly().element(slotOf());
   const shape = attribute<"vec4">("shape", "vec4");
   const [c, s] = [cos(place.w), sin(place.w)];
   const middle = place.xyz.add(vec3(shape.x.mul(c).add(shape.y.mul(s)), 0, shape.y.mul(c).sub(shape.x.mul(s))));
