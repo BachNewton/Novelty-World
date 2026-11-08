@@ -17,6 +17,18 @@ export function usesReticle(kind: InputKind): boolean {
   return kind === "pad";
 }
 
+/**
+ * What the mouse moving (or leaving the house) does to the focus: from over
+ * `was` to over `now`, with `focused` the focus as it stands. Over a target it
+ * focuses it. Off every target it clears only the focus it gave itself: one a
+ * tap, a key or the pad gave since stays, even when the mouse's own boundary
+ * events (the browser's, as a finger takes over) say it left.
+ */
+export function hoverAction(was: string | null, now: string | null, focused: string | null): { focus: string } | "blur" | null {
+  if (now !== null) return now === focused ? null : { focus: now };
+  return was !== null && was === focused ? "blur" : null;
+}
+
 /** Where the choices are on the screen right now, in CSS pixels from the
  *  element's top-left corner. */
 export interface ChoiceLayout {
@@ -197,13 +209,14 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
     else handlers.focus(id);
   };
-  /** The choice the mouse was over as it last moved: leaving it clears the focus. */
+  /** The choice the mouse was over as it last moved: leaving it clears the focus it gave. */
   let hovered: string | null = null;
   const hover = (point: Point | null) => {
     const { targets, focused } = handlers.layout();
     const id = point && (handlers.pick ? handlers.pick(point) : pointAt(targets, point));
-    if (id === null && hovered !== null) handlers.blur();
-    if (id !== null && id !== focused) handlers.focus(id);
+    const action = hoverAction(hovered, id, focused);
+    if (action === "blur") handlers.blur();
+    else if (action) handlers.focus(action.focus);
     hovered = id;
   };
   const twoSpan = (): Span => {

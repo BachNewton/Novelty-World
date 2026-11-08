@@ -1,6 +1,7 @@
 import { Worker } from "node:worker_threads";
 import * as THREE from "three";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { stubCanvas } from "./headless";
 import { ROOMS } from "../data/rooms";
 import type { Layout } from "../engine/board";
@@ -248,10 +249,7 @@ describe("a polygonal floor opening", () => {
   });
 });
 
-describe("room overlaps", () => {
-  const checker = roomChecker();
-  afterAll(() => checker.stop());
-
+describe("declared contacts", () => {
   it("accepts a declared contact, and reports one that no longer happens", () => {
     const block = () => {
       const stone = batch();
@@ -268,6 +266,13 @@ describe("room overlaps", () => {
     expect(touching.unusedContacts).toEqual([]);
     expect(declared([{ with: "right", because: "nothing" }]).unusedContacts).toEqual(["shoved at (0.30, -1.00) with right"]);
   });
+});
+
+// Each room's own checks are art checks, opt-in (`art-checks.ts`): a room's art changes only while it is being made,
+// and the room-art skill runs them then. The checks above hold the check itself and the stage every room stands on.
+artChecks("room overlaps", () => {
+  const checker = roomChecker();
+  afterAll(() => checker.stop());
 
   for (const room of BENCH_ROOMS) {
     it(`${room.id}: a prime place, clear and in reach; no piece passes into another, and no faces fight, however the walls are cut`, async () => {
@@ -280,7 +285,7 @@ describe("room overlaps", () => {
   }
 });
 
-describe("room for the explorers", () => {
+artChecks("room for the explorers", () => {
   const people = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, size: "person" as const }));
   for (const room of BENCH_ROOMS) {
     it(`${room.id}: three explorers stand apart, and six with their rings overlapping at worst, on each side`, () => {

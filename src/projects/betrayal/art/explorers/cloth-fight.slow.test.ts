@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { beforeAll, expect } from "vitest";
-import { artCheck } from "./art-checks";
+import { artCheck } from "../art-checks";
 import { animationOf, type Animation } from "../animate";
 import { solidOf } from "../forms";
 import { stubCanvas } from "../headless";

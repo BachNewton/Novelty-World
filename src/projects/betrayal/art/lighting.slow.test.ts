@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { inlineScheduler } from "./bake-schedule";
 import { freezeRoom } from "./freeze";
+import { artCheck } from "./art-checks";
 import { stubCanvas } from "./headless";
 import { buildHouse, shellRoom } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
@@ -53,8 +54,9 @@ describe("the house's draw budget", () => {
     expect(new Set(rebake.rooms)).toEqual(new Set(["foyer", "grand-staircase", "entrance-hall", "dining-room", "library"]));
   }, 60_000);
 
+  // Each room's own budget is an art check, opt-in (`art-checks.ts`): the room-art skill runs it while the room is made.
   for (const room of BENCH_ROOMS) {
-    it(`${room.id} on the bench: within the budget`, async () => {
+    artCheck(`${room.id} on the bench: within the budget`, async () => {
       const floor = createLitFloor(inlineScheduler(), "bench");
       await floor.place([{ id: room.id, room: freezeRoom(room.id, buildRoom(room), TEST_TEXELS_PER_METRE), matrix: new THREE.Matrix4() }]);
       expect(drawCalls(floor.root)).toBeLessThanOrEqual(MAX_DRAW_CALLS / 4);

@@ -431,7 +431,13 @@ Staircase; `stair-links.test.ts` walks every drawn stair both ways). The Foyer's
 path but no drawn door yet.
 
 **Run the overlap check** after every change to the props:
-`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/overlap.slow.test.ts` (headless). It
+`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/overlap.slow.test.ts`
+(headless; in PowerShell, `$env:BETRAYAL_ART_CHECKS=1` first). Each room's
+own checks (its overlaps, room for the explorers, and its draw budget in
+`lighting.slow.test.ts`) are opt-in art checks (`art/art-checks.ts`), run
+while the room is made: a room's looks are a build check, never a test in
+the suite. The suite keeps the check's own cases and the stage every room
+stands on. It
 builds each room in a worker with a time limit, so a build that loops
 forever fails alone instead of hanging the run. It fails when a solid
 passes into another piece, a wall's body or the floor by more than 2 cm (or
@@ -850,7 +856,7 @@ fails:
    room's, colour clashes.
 
 Then `npm run lint` and `npm run typecheck`, both clean, and the overlap
-check passing.
+check and the room's draw budget passing (`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/overlap.slow.test.ts src/projects/betrayal/art/lighting.slow.test.ts`).
 
 ### A review pass over many rooms
 
