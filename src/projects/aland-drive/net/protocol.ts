@@ -160,6 +160,7 @@ export function wireState(state: CarState): CarState {
     suspension: [fine(state.suspension[0]), fine(state.suspension[1]), fine(state.suspension[2]), fine(state.suspension[3])],
     roll: state.roll.map(metres) as CarState["roll"],
     lamps: state.lamps,
+    ...(state.paint === undefined ? {} : { paint: state.paint }),
   };
 }
 
@@ -202,7 +203,16 @@ function parseState(value: unknown): CarState | null {
     suspension: suspension as CarState["suspension"],
     roll: roll as CarState["roll"],
     lamps: parseLamps(value.lamps),
+    ...parsePaint(value.paint),
   };
+}
+
+/** More paints than any car has, so an index off the wire stays a small whole number; the car's art judges the rest. */
+const MOST_PAINTS = 64;
+
+/** A paint is an index into the car's own list; anything else draws the car's default, as one from before paints did. */
+function parsePaint(value: unknown): { paint?: number } {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < MOST_PAINTS ? { paint: value } : {};
 }
 
 /** A version of the game from before lamps were sent sends none: its car shows them off. */

@@ -1,9 +1,10 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, type Color, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, varying, vec2, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, Vector4, type Color, type Node } from "three/webgpu";
+import { attribute, cameraPosition, cos, float, floor, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, varying, vec2, vec3 } from "three/tsl";
 import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { seedOf, unitOf } from "../hash";
 import { INDICATOR_OPTION } from "./indicators";
+import { DEFAULT_STRIPE, type CarPaint, type PaintFinish } from "./paints";
 import { SURFACES, type Soup, type Surface } from "./mesh";
 import { towardsSun, type Sun } from "../sun";
 import type { SeasonLook } from "../season";
@@ -81,8 +82,36 @@ const FINISHES: Record<Surface, Finish> = {
   lensIndicator: { token: "car-lens-indicator", mirror: 0.05, gloss: 0.5, metal: 0, lamp: 0 },
 };
 
-/** A hero's paint: a deeper coat, smooth enough now to carry the horizon along its doors. */
-const HERO_PAINT: Finish = { token: null, mirror: 0.07, gloss: 0.8, metal: 0, lamp: 0 };
+/**
+ * How each paint's coat takes the light, on a drivable car's paint and stripes: how much it mirrors straight on, the gloss
+ * at a glancing angle, how much its reflection takes the paint's colour (a metal's), the sun's highlight (how tight, how
+ * bright), the flakes and how far a pearl turns to its flip colour. Solid is the deep coat every drivable car had before
+ * paints were the player's, smooth enough to carry the horizon along its doors.
+ */
+interface CoatLook {
+  mirror: number;
+  gloss: number;
+  metal: number;
+  power: number;
+  share: number;
+  flake: number;
+  flip: number;
+}
+
+export const COAT_LOOKS: Record<PaintFinish, CoatLook> = {
+  solid: { mirror: 0.07, gloss: 0.8, metal: 0, power: SPECULAR_POWER, share: SPECULAR_SHARE, flake: 0, flip: 0 },
+  metallic: { mirror: 0.06, gloss: 0.85, metal: 0.24, power: 1100, share: 1.7, flake: 1, flip: 0 },
+  matte: { mirror: 0, gloss: 0.06, metal: 0, power: 3, share: 0.8, flake: 0, flip: 0 },
+  pearl: { mirror: 0.07, gloss: 0.85, metal: 0.05, power: 520, share: 1.1, flake: 0.25, flip: 0.6 },
+};
+
+/** A metallic's flakes: cells this size in the car's own metres, a glint seen only while its cell is a few pixels across. */
+const FLAKE_M = 0.012;
+/** The roll past which a cell glints, how bright a glint is, and how bright the flakes' glow in the paint's colour. */
+const FLAKE_GLINTING = 0.93;
+const FLAKE_BRIGHT = 0.35;
+const FLAKE_GLOW = 0.55;
+const FLAKE_SALT = 7;
 
 const carToken = (name: string): Color => themeColor(`--color-aland-drive-${name}`);
 
@@ -91,8 +120,11 @@ const tokenRgb = (name: string) => {
   return new Vector3(r, g, b);
 };
 
-/** A soup as a geometry: colours and finishes on the vertices, so instances can share it. */
-export function geometryOf(soup: Soup, hero = false): BufferGeometry {
+/**
+ * A soup as a geometry: colours and finishes on the vertices, so instances can share it. A finish's first number is the
+ * mirror, raised by 1 on paint and by 2 on a stripe, which a drivable car's coat recolours and refinishes.
+ */
+export function geometryOf(soup: Soup): BufferGeometry {
   const colours = new Float32Array(soup.triangles * 9);
   const finishes = new Float32Array(soup.triangles * 12);
   const colourOf = new Map<number, Color | null>();
@@ -101,10 +133,11 @@ export function geometryOf(soup: Soup, hero = false): BufferGeometry {
     colourOf.set(index, token === null ? null : carToken(token));
   });
   soup.surfaces.forEach((surface, vertex) => {
-    const finish = hero && SURFACES[surface] === "paint" ? HERO_PAINT : FINISHES[SURFACES[surface]];
+    const finish = FINISHES[SURFACES[surface]];
     const colour = colourOf.get(surface);
     if (colour) colours.set([colour.r, colour.g, colour.b], vertex * 3);
-    finishes.set([colour ? finish.mirror : finish.mirror + 1, finish.gloss, finish.metal, finish.lamp], vertex * 4);
+    const raised = colour ? (SURFACES[surface] === "stripe" ? 2 : 0) : 1;
+    finishes.set([finish.mirror + raised, finish.gloss, finish.metal, finish.lamp], vertex * 4);
   });
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(soup.positions, 3));
@@ -116,7 +149,7 @@ export function geometryOf(soup: Soup, hero = false): BufferGeometry {
 
 export interface CarMaterialOptions {
   sun: Sun;
-  paint: string;
+  paint: CarPaint;
   /** The car's origin above its lowest shaded point. */
   groundY: number;
   /** The world's haze, for a car seen far off. */
@@ -149,28 +182,94 @@ function skyOf(sun: CarMaterialOptions["sun"]): Sky {
   };
 }
 
-/** A surface under the world's light, from the attributes a car's geometry carries. Every tier of car goes through this one sum. */
-function carSurface(sky: Sky, paint: Node<"vec3">, normal: Node<"vec3">, heightShare: Node<"float">) {
+/** A drivable car's coat, as uniforms one car's material sets: its finish's numbers, its stripes' colour and a pearl's flip. */
+interface Coat {
+  /** Mirror, gloss, metal, flakes. */
+  finish: Node<"vec4">;
+  /** The highlight's power and share, and how far a pearl turns to its flip. */
+  highlight: Node<"vec4">;
+  stripe: Node<"vec3">;
+  flip: Node<"vec3">;
+}
+
+/**
+ * A surface under the world's light, from the attributes a car's geometry carries. Every tier of car goes through this
+ * one sum. A world car's paint and stripes are as its geometry says; a drivable car's are its coat's.
+ */
+function carSurface(sky: Sky, paint: Node<"vec3">, normal: Node<"vec3">, heightShare: Node<"float">, coat?: Coat) {
   const finish = attribute<"vec4">("carFinish", "vec4");
-  const isPaint = finish.x.greaterThan(0.999);
-  const mirror = select(isPaint, finish.x.sub(1), finish.x);
-  const gloss = finish.y;
-  const metal = finish.z;
-  const base = mix(attribute<"vec3">("carColour", "vec3"), paint, select(isPaint, float(1), float(0)));
+  // Paint and stripes both lie under the coat: the mirror is raised by 1 on paint, 2 on a stripe.
+  const isCoated = finish.x.greaterThan(0.999);
+  const isStripe = finish.x.greaterThan(1.999);
+  const isPaint = isCoated.and(isStripe.not());
+  const ownMirror = finish.x.sub(select(isStripe, float(2), select(isCoated, float(1), float(0))));
+  const coated = (own: Node<"float">, ofCoat: (coat: Coat) => Node<"float">) => (coat ? select(isCoated, ofCoat(coat), own) : own);
+  const mirror = coated(ownMirror, (c) => c.finish.x);
+  const gloss = coated(finish.y, (c) => c.finish.y);
+  const metal = coated(finish.z, (c) => c.finish.z);
+  const power = coated(float(SPECULAR_POWER), (c) => c.highlight.x);
+  const share = coated(float(SPECULAR_SHARE), (c) => c.highlight.y);
+  const own = attribute<"vec3">("carColour", "vec3");
+  const painted = mix(coat ? mix(own, coat.stripe, select(isStripe, float(1), float(0))) : own, paint, select(isPaint, float(1), float(0)));
 
   const toCamera = cameraPosition.sub(positionWorld).normalize();
   const facing = normal.dot(toCamera).max(0);
+  const grazing = float(1).sub(facing);
   const ray = reflect(toCamera.negate(), normal);
   const reflected = sky.reflectedBy(ray);
+  // A pearl's colour turns to its flip at a glancing angle.
+  const base = coat ? mix(painted, coat.flip, select(isPaint, coat.highlight.z, float(0)).mul(grazing.mul(grazing))) : painted;
 
   const lowShade = mix(float(LOW_SHADE), float(1), heightShare);
   const lit = float(AMBIENT).mul(lowShade).add(normal.dot(sky.toSun).max(0).mul(SUN_SHARE));
-  const fresnel = mirror.add(float(1).sub(mirror).mul(float(1).sub(facing).pow(5)).mul(gloss));
+  const fresnel = mirror.add(float(1).sub(mirror).mul(grazing.pow(5)).mul(gloss));
   const diffuse = base.mul(lit);
   const dielectric = mix(diffuse, reflected.mul(lowShade), fresnel);
   const surface = mix(dielectric, base.mul(reflected).mul(1.5), metal);
-  const specular = sky.sunColour.mul(ray.dot(sky.toSun).max(0).pow(SPECULAR_POWER)).mul(gloss.mul(SPECULAR_SHARE));
-  return { colour: surface.add(specular), lamp: finish.w };
+  const towardsSun = ray.dot(sky.toSun).max(0);
+  const specular = sky.sunColour.mul(towardsSun.pow(power)).mul(gloss.mul(share));
+  if (!coat) return { colour: surface.add(specular), lamp: finish.w };
+  const sparkle = flakes(sky, coat, base, towardsSun).mul(select(isCoated, float(1), float(0)));
+  return { colour: surface.add(specular).add(sparkle), lamp: finish.w };
+}
+
+/**
+ * A metallic's flakes: a broad glow in the paint's own colour round the sun's highlight, where the flakes all catch
+ * the sun, and inside it a few cells in the car's own metres that glint. A cell's roll is the integer hash of whole
+ * cells, never a world place, and the glints fade out before a cell is smaller than a few pixels, so far off and at
+ * night only the glow is left, and it goes with the sun.
+ */
+function flakes(sky: Sky, coat: Coat, base: Node<"vec3">, towardsSun: Node<"float">): Node<"vec3"> {
+  const cell = floor(positionGeometry.div(FLAKE_M));
+  const roll = unitOf(seedOf(cell.x, cell.y, cell.z), FLAKE_SALT);
+  // A cell's size on screen from its distance, for the game's view of about 60 degrees over 1440 rows.
+  const away = cameraPosition.sub(positionWorld).length();
+  const cellPixels = float(FLAKE_M * 1250).div(away);
+  const seen = smoothstep(float(2.5), float(5), cellPixels);
+  const near = towardsSun.pow(6);
+  const glow = base.mul(sky.sunColour).mul(near.mul(FLAKE_GLOW));
+  const glint = smoothstep(float(FLAKE_GLINTING), float(1), roll).mul(near.mul(near)).mul(seen);
+  return glow.add(mix(base, sky.sunColour, float(0.6)).mul(glint.mul(FLAKE_BRIGHT))).mul(coat.finish.w);
+}
+
+/** A coat's uniforms, set from a paint. */
+function coatOf(paint: CarPaint) {
+  const finish = sharedUniform(new Vector4());
+  const highlight = sharedUniform(new Vector4());
+  const stripe = sharedUniform(new Vector3());
+  const flip = sharedUniform(new Vector3());
+  const colour = sharedUniform(new Vector3());
+  const set = (next: CarPaint) => {
+    const look = COAT_LOOKS[next.finish];
+    finish.value.set(look.mirror, look.gloss, look.metal, look.flake);
+    highlight.value.set(look.power, look.share, look.flip, 0);
+    colour.value.copy(tokenRgb(next.colour));
+    stripe.value.copy(tokenRgb(next.stripe ?? DEFAULT_STRIPE));
+    flip.value.copy(tokenRgb(next.flip ?? next.colour));
+  };
+  set(paint);
+  const coat: Coat = { finish, highlight, stripe, flip };
+  return { coat, colour, set };
 }
 
 export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOptions) {
@@ -178,13 +277,13 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
   const tail = sharedUniform(0);
   const reverse = sharedUniform(0);
   const head = sharedUniform(0);
-  const paintColour = sharedUniform(tokenRgb(paint));
+  const { coat, colour: paintColour, set: setCoat } = coatOf(paint);
   const tailGlow = sharedUniform(tokenRgb("car-glow-tail"));
   const headGlow = sharedUniform(tokenRgb("car-glow-head"));
 
   const heightShare = smoothstep(float(groundY + 0.25), float(groundY + 0.85), positionGeometry.y);
   const normal = normalWorld.normalize();
-  const { colour, lamp } = carSurface(sky, paintColour, normal, heightShare);
+  const { colour, lamp } = carSurface(sky, paintColour, normal, heightShare, coat);
   const isLamp = (kind: number) => select(lamp.sub(kind).abs().lessThan(0.5), float(1), float(0));
   const glow = tailGlow
     .mul(isLamp(1).mul(tail))
@@ -211,9 +310,8 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
       reverse.value = reversing ? 1 : 0;
       head.value = headlights ? 1 : 0;
     },
-    setPaint(token: string) {
-      paintColour.value.copy(tokenRgb(token));
-    },
+    /** The car's colour and finish: uniforms, so one shader draws every paint. */
+    setPaint: setCoat,
   };
 }
 

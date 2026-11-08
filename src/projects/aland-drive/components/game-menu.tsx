@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type RefObject } from "react";
-import { ArrowLeft, Car, Check, CircleDot, Disc, Footprints, Navigation, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, Play, Plus, Repeat, Route, Ruler, RotateCcw, Snowflake, Sun, ToggleLeft, ToggleRight, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, Car, Check, CircleDot, Disc, Droplet, Footprints, Gem, Navigation, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, PaintBucket, Play, Plus, Repeat, Route, Ruler, RotateCcw, Snowflake, Sparkles, Square, Sun, ToggleLeft, ToggleRight, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
 import { useDriveSoundSettings } from "../audio/settings";
@@ -9,7 +9,8 @@ import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
-import { tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
+import { isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
+import { paintName, type CarPaint, type PaintFinish } from "../art/cars/paints";
 import { useUnits, type Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
 
@@ -62,6 +63,10 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
   const muted = useDriveSoundSettings((state) => state.settings.muted);
   const shownUnits = useUnits((state) => state.units);
   return (id) => {
+    if (isPaintItem(id)) {
+      const paint = menu.paints?.paints[paintOfItem(id)];
+      return { icon: PaintBucket, label: paint ? paintName(paint) : "Paint" };
+    }
     switch (id) {
       case "resume":
         return { icon: Play, label: "Resume" };
@@ -86,6 +91,8 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
         return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
       case "graphics":
         return { icon: MonitorCog, label: "Graphics" };
+      case "paint":
+        return { icon: PaintBucket, label: "Paint" };
       case "back":
         return { icon: ArrowLeft, label: "Back" };
       case "start-solo":
@@ -290,7 +297,85 @@ function GraphicsSettings({ view, first }: { view: { width: number; height: numb
   );
 }
 
-const DIALOG_NAMES = { menu: "Game menu", graphics: "Graphics", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
+const carColour = (token: string) => `var(--color-aland-drive-${token})`;
+const SHINE = "var(--color-aland-drive-ui-swatch-shine)";
+const DARK = "var(--color-aland-drive-ui-swatch-shade)";
+/** A share of the shine or the dark over a colour, for a swatch's light. */
+const lit = (colour: string, by: string, share: number) => `color-mix(in oklab, ${colour}, ${by} ${share}%)`;
+const clear = (by: string, share: number) => `color-mix(in oklab, ${by} ${share}%, transparent)`;
+
+const FINISH_GLYPHS: Record<PaintFinish, ItemLook["icon"]> = { solid: Droplet, metallic: Sparkles, matte: Square, pearl: Gem };
+
+/**
+ * A paint as a chip of the coat itself, its finish shown in how the chip takes the light: a gloss carries a hard line of
+ * the horizon across it, a metallic a tight, bright highlight and a scatter of flakes, a matte only a soft fall of light,
+ * a pearl its colour turning to its flip. A car's stripes run down it.
+ */
+function swatchBackground({ colour, finish, stripe, flip }: CarPaint): string {
+  const base = carColour(colour);
+  const stripes = stripe === undefined ? [] : [`linear-gradient(90deg, transparent 26%, ${carColour(stripe)} 26% 40%, transparent 40% 60%, ${carColour(stripe)} 60% 74%, transparent 74%)`];
+  const layers: Record<PaintFinish, string[]> = {
+    solid: [`linear-gradient(180deg, ${clear(SHINE, 28)} 0 46%, ${clear(DARK, 18)} 46% 52%, transparent 52%)`, `linear-gradient(180deg, ${lit(base, SHINE, 12)}, ${lit(base, DARK, 18)})`],
+    metallic: [
+      `radial-gradient(circle at 30% 26%, ${clear(SHINE, 80)} 0 4%, transparent 14%)`,
+      ...[[38, 22], [24, 38], [44, 40]].map(([x, y]) => `radial-gradient(circle at ${x}% ${y}%, ${clear(SHINE, 55)} 0 1px, transparent 1.5px)`),
+      `radial-gradient(ellipse at 30% 26%, ${lit(base, SHINE, 45)}, ${base} 55%, ${lit(base, DARK, 35)})`,
+    ],
+    matte: [`linear-gradient(180deg, ${lit(base, SHINE, 6)}, ${lit(base, DARK, 8)})`],
+    pearl: [`radial-gradient(circle at 30% 26%, ${clear(SHINE, 55)} 0 8%, transparent 30%)`, `linear-gradient(150deg, ${base} 30%, ${carColour(flip ?? colour)} 70%, ${lit(carColour(flip ?? colour), DARK, 12)})`],
+  };
+  return [...stripes, ...layers[finish]].join(", ");
+}
+
+/** The Paint page: the car's paints as swatches, the one it's in marked, each painting the car at once when picked. */
+function PaintSwatches({ menu, first, onPick }: { menu: GameMenuState; first: RefObject<HTMLButtonElement | null>; onPick: (id: MenuItemId) => void }) {
+  if (!menu.paints) throw new Error("a Paint page with no paints");
+  const { car, paints, chosen } = menu.paints;
+  return (
+    <div className="mb-1 flex flex-col gap-3">
+      <div className="flex items-center gap-2 text-lg font-semibold">
+        <PaintBucket aria-hidden className="size-5 shrink-0" />
+        <span>{car}</span>
+      </div>
+      <div role="radiogroup" aria-label="Paint" className="grid grid-cols-3 gap-2">
+        {menu.items.filter(isPaintItem).map((id) => {
+          const index = paintOfItem(id);
+          const paint = paints[index];
+          const on = index === chosen;
+          const Glyph = FINISH_GLYPHS[paint.finish];
+          const name = paintName(paint);
+          return (
+            <button
+              key={id}
+              ref={on ? first : undefined}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={name}
+              title={name}
+              data-pad-start={on || undefined}
+              className="relative h-16 cursor-pointer rounded border-2 p-1"
+              style={{ borderColor: on ? ACCENT : "transparent" }}
+              onClick={() => { onPick(id); }}
+            >
+              <span aria-hidden className="block size-full rounded-sm" style={{ background: swatchBackground(paint) }} />
+              <span aria-hidden className="absolute bottom-1.5 left-1.5 flex size-5 items-center justify-center rounded-full" style={{ background: SHADE }}>
+                <Glyph className="size-3" />
+              </span>
+              {on && (
+                <span aria-hidden className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full" style={{ background: SHADE, color: ACCENT }}>
+                  <Check className="size-3.5" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const DIALOG_NAMES = { menu: "Game menu", graphics: "Graphics", paint: "Paint", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
 function ChoiceHeader({ title, from, ground }: { title: string; from?: string; ground?: RaceGround }) {
@@ -328,9 +413,11 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
         {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
         {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} />}
         {menu.kind === "graphics" && <GraphicsSettings view={view} first={first} />}
+        {menu.kind === "paint" && <PaintSwatches menu={menu} first={first} onPick={onPick} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} ground={menu.ground} />}
         {menu.items.map((id, index) => {
+          if (isPaintItem(id)) return null;
           if (isTyreItem(id)) {
             if (id !== menu.items.find(isTyreItem)) return null;
             const choices = menu.items.filter(isTyreItem).map((item) => {
@@ -349,8 +436,8 @@ export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState
           }
           const { icon: Icon, label, on } = look(id);
           const back = id === menu.back;
-          // A page of settings opens on its first setting rather than its first item.
-          const opensHere = index === 0 && menu.kind !== "graphics";
+          // A page of settings opens on its first setting rather than its first item, and the Paint page on the paint the car is in.
+          const opensHere = index === 0 && menu.kind !== "graphics" && menu.kind !== "paint";
           return (
             <button
               key={id}

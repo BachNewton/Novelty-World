@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, plates } from "../recipe";
 
 const pickup = driven("holm");
@@ -8,6 +9,14 @@ export const holm: CarSpec = {
   name: pickup.name,
   ride: pickup.ride,
   paint: "car-paint-forest",
+  paints: [
+    paint("car-paint-forest"),
+    paint("car-paint-white"),
+    paint("car-paint-sand"),
+    paint("car-paint-oxblood"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-black"),
+  ],
   wheel: { radiusM: pickup.wheelRadiusM, widthM: 0.25, rimShare: 0.62, spokes: 6, twinSpokes: false },
   shadowHalf: [1.0, 2.62],
   body: bodyOf({

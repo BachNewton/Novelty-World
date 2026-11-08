@@ -91,6 +91,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   /** Send on the next frame whatever the count: someone new hasn't seen this car yet. */
   let owed = true;
   let sentStill = false;
+  /** The paint last sent: a new one goes out at once, even from a paused player choosing it in the menu. */
+  let sentPaint: number | undefined;
   /** The time the last frame's step stood for. */
   let steppedAt = 0;
   /** Challenge messages wait out a reconnect, rather than being lost and leaving two clients on different attempts. */
@@ -239,6 +241,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   }
 
   function transmit(carState: CarState): void {
+    sentPaint = carState.paint;
     const wire = wireState(carState);
     const at = wireTime(steppedAt);
     if (state.role === "host" && state.selfId !== null) room.broadcast({ kind: "car", from: state.selfId, state: wire, at });
@@ -253,6 +256,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       if (state.status !== "connected") return;
       // A car put somewhere while paused (a retry's load, a test's hold) is somewhere else now for everyone.
       if (placed) owed = true;
+      if (carState.paint !== sentPaint) owed = true;
       if (steps === 0) {
         if (sentStill && !owed) return;
         transmit(still(carState));

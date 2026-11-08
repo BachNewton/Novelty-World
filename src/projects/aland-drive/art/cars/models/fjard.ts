@@ -1,4 +1,5 @@
 import type { CarSpec } from "../build";
+import { paint } from "../paints";
 import { bodyOf, driven, handles, plates } from "../recipe";
 
 const estate = driven("fjard");
@@ -8,6 +9,14 @@ export const fjard: CarSpec = {
   name: estate.name,
   ride: estate.ride,
   paint: "car-paint-navy",
+  paints: [
+    paint("car-paint-navy"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-glacier", "metallic"),
+    paint("car-paint-bronze", "metallic"),
+    paint("car-paint-white"),
+  ],
   wheel: { radiusM: estate.wheelRadiusM, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
   shadowHalf: [0.92, 2.38],
   body: bodyOf({
