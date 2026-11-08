@@ -23,8 +23,9 @@ const PLACED = "(placed)";
 const ORDER: readonly string[] = [
   "car-hero",
   "car",
+  "walls-depth",
   "walls",
-  "landmarks-far",
+  "landmarks",
   "bridge",
   "underpass",
   "road",

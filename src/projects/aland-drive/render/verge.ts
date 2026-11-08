@@ -9,7 +9,7 @@ import { buildGrassTuft, buildSeedGrass, buildWildflowers } from "../art/street/
 import type { RoadsideModel } from "../art/roadside/models";
 import { groundFloor, groundKinds } from "../art/surfaces";
 import type { LandAt } from "./tile-reads";
-import { clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice, type ListFill } from "./planting";
 import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
 import type { WallDistance } from "./wall-clearing";
 
@@ -141,6 +141,8 @@ export interface VergeDrawn {
   near: number;
   far: number;
   triangles: number;
+  /** Each kind's far list, then each kind's near list. */
+  lists: ListFill[];
 }
 
 export interface Verge {
@@ -280,7 +282,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
     drawn() {
       const tufts = planting.counts();
       const sum = (counts: number[]) => counts.reduce((total, count) => total + count, 0);
-      return { far: sum(tufts.slice(0, kinds.length)), near: sum(tufts.slice(kinds.length)), triangles: planting.triangles(tufts) };
+      return { far: sum(tufts.slice(0, kinds.length)), near: sum(tufts.slice(kinds.length)), triangles: planting.triangles(tufts), lists: planting.lists() };
     },
     dispose: planting.dispose,
   };

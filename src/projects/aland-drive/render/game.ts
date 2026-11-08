@@ -18,7 +18,7 @@ import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
 import { BAKED_SKY_SHARE, BAKED_SUN_SHARE, FLAT_LIGHT, RING_POINTS, SHADE_SHARE, type WorldManifest } from "./tile";
 import { startChaseCamera } from "./chase-camera";
-import { buildingMaterial, buildingMeshes } from "./buildings";
+import { buildingMaterial, buildingMeshes, wallDepthMaterial } from "./buildings";
 import { createDocks } from "./docks";
 import { createBoatsUnderWay, type UnderWay } from "./boats-under-way";
 import { createSeaMarks } from "./sea-marks";
@@ -1034,7 +1034,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   compiledBridge.frustumCulled = false;
   scene.add(compiledBridge);
 
-  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night, season, addOnReachM: BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2 });
+  const wallMaterial = buildingMaterial({ colour: colorOf, linear, hazed }, sun, { detail, sheet: signSheet, night, season, addOnReachM: BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2, depthFirst: true });
+  const wallDepth = wallDepthMaterial(BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2);
   const outbuildingMaterials = ruralMaterials({ colour: colorOf, linear, hazed, sun }, season);
   // A placed model leaves where its own place passes the buildings' reach, as the cell round it does.
   const outbuildings = createRuralBuildings(scene, outbuildingMaterials, BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2, season);
@@ -1101,7 +1102,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return eyeOf(camera.position, viewProjection.elements);
   };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
-  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`);
+  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, wallDepth, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`);
   const challengeBoard = new ChallengeBoard([...CHALLENGES, ...RACES], { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);
@@ -1142,8 +1143,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           scene.add(mesh);
           cutGrounds.set(detail.name, mesh);
         }
-        const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial);
-        scene.add(solids.group);
+        const solids = buildingMeshes(buildingAddOns.withShops(cells, addOns), wallMaterial, wallDepth);
+        scene.add(solids.depthGroup, solids.group);
         buildings.set(detail.name, solids);
         outbuildings.add(detail.name, models);
         docks.add(detail.name, moored);
@@ -1191,7 +1192,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         }
         const solids = buildings.get(detail.name);
         if (!solids) throw new Error(`${detail.name} has no buildings to release`);
-        scene.remove(solids.group);
+        scene.remove(solids.group, solids.depthGroup);
         for (const { mesh } of solids.cells) mesh.geometry.dispose();
         buildings.delete(detail.name);
         outbuildings.remove(detail.name);
@@ -1957,7 +1958,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     const buildingReach = BUILDINGS_REACH_M + RIBBON_CELL_M / Math.SQRT2;
     for (const { cells } of buildings.values()) {
-      for (const cell of cells) cell.mesh.visible = Math.hypot(cell.x - x, cell.z - z) < buildingReach;
+      for (const cell of cells) cell.mesh.visible = cell.twin.visible = Math.hypot(cell.x - x, cell.z - z) < buildingReach;
     }
   };
 

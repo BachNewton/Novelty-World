@@ -94,7 +94,9 @@ for (const { name, go } of views) {
       const perDraw = attributed?.draws ?? null;
       const gpuLists = attributed?.gpuLists ?? null;
       const { triangles: probeTriangles, drawCalls: probeDraws } = probe.counts();
-      return { frame: whole.frame, picture, histogram, perDraw, gpuLists, probe: { triangles: probeTriangles, draws: probeDraws, gpuMsMedian: gpuMs.length > 0 ? gpuMs[Math.floor(gpuMs.length / 2)] : null }, car: probe.car().position.map(Math.round), loaded: probe.stream().loaded.length };
+      // Each planting's lists against their room: a list at its capacity drew its first plants and dropped the rest.
+      const fills = Object.fromEntries(Object.entries({ verge: probe.vergeDrawn(), reeds: probe.reedsDrawn(), shrubs: probe.shrubsDrawn() }).map(([name, drawnOf]) => [name, drawnOf.lists ?? []]));
+      return { frame: whole.frame, picture, histogram, perDraw, gpuLists, fills, probe: { triangles: probeTriangles, draws: probeDraws, gpuMsMedian: gpuMs.length > 0 ? gpuMs[Math.floor(gpuMs.length / 2)] : null }, car: probe.car().position.map(Math.round), loaded: probe.stream().loaded.length };
     }, { samples: GPU_SAMPLES, draws: DRAWS, image: Boolean(IMAGES) });
     if (IMAGES) {
       await page.screenshot({ path: join(IMAGES, `${name}.png`) });
@@ -138,6 +140,10 @@ ${name}: car at ${view.car.join(", ")}, ${view.loaded} tiles at detail, scene dr
   console.log(line("pipeline sets", totals.pipelineSets));
   console.log(line("bind group sets", totals.bindGroupSets));
   for (const other of totals.otherPasses) console.log(`  other pass ${other.index}${other.canvas ? " (canvas)" : ""}: ${other.draws} draws, ${count(other.fragments)} fragments, ${other.width}x${other.height} at ${other.sampleCount} samples, ${count(other.attachmentBytes)} attachment bytes`);
+  for (const [name, lists] of Object.entries(result.fills)) {
+    const full = lists.filter((list) => list.drawn >= list.capacity);
+    console.log(`  ${name.padEnd(20)} ${lists.map((list) => `${count(list.drawn)}/${count(list.capacity)}`).join(" ")}${full.length > 0 ? `  (${full.length} list${full.length > 1 ? "s" : ""} full)` : ""}`);
+  }
   if (view.histogram) console.log(`  overdraw histogram   ${view.histogram.map((pixelsAt, depth) => `${depth}:${((pixelsAt / totals.pixels) * 100).toFixed(1)}%`).join(" ")}`);
   const top = [...view.pipelines].sort((a, b) => (DRAWS ? (b.fragments ?? -1) - (a.fragments ?? -1) : b.vertices - a.vertices)).slice(0, TOP);
   if (top.length > 0) {

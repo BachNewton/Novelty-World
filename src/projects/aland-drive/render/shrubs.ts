@@ -12,7 +12,7 @@ import type { RoadsideInputs, RoadsideModel } from "../art/roadside";
 import { groundKinds } from "../art/surfaces";
 import { foliageLight } from "./foliage-light";
 import { towardsSun } from "../art/sun";
-import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice, type ListFill } from "./planting";
 import { STONE_WALL_HALF_WIDE_M } from "./tile-walls";
 import { FAR_CLEARING, onLineReading, type WallDistance } from "./wall-clearing";
 import type { LandAt } from "./tile-reads";
@@ -197,6 +197,8 @@ export interface ShrubsDrawn {
   near: number;
   far: number;
   triangles: number;
+  /** Each kind's far list, then each kind's near list, then the bare forms' and the hazes'. */
+  lists: ListFill[];
 }
 
 export interface Shrubs {
@@ -449,7 +451,7 @@ export function createShrubs(scene: Scene, renderer: WebGPURenderer, { canopyAt,
     show: planting.show,
     drawn() {
       const counts = planting.counts();
-      return { far: counts.slice(0, kinds.length).reduce((sum, count) => sum + count, 0), near: counts.slice(kinds.length).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(counts) };
+      return { far: counts.slice(0, kinds.length).reduce((sum, count) => sum + count, 0), near: counts.slice(kinds.length).reduce((sum, count) => sum + count, 0), triangles: planting.triangles(counts), lists: planting.lists() };
     },
     dispose: planting.dispose,
   };

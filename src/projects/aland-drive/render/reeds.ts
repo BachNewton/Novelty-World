@@ -5,7 +5,7 @@ import { buildReedClump, RURAL_PARTS, ruralColours, ruralPaint } from "../art/ru
 import { placeSeed, unitOf } from "../art/hash";
 import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
 import type { RoadsideModel } from "../art/roadside/index";
-import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice } from "./planting";
+import { bandColours, clearOfBuildings, createPlanting, placesWithin, reachOf, roll, spreadOf, type Lattice, type ListFill } from "./planting";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -115,6 +115,8 @@ export interface ReedsDrawn {
   near: number;
   far: number;
   triangles: number;
+  /** Each clump's far list, then each clump's near list. */
+  lists: ListFill[];
 }
 
 export interface Reeds {
@@ -230,7 +232,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
     drawn() {
       const counts = planting.counts();
       const sum = (each: number[]) => each.reduce((total, count) => total + count, 0);
-      return { far: sum(counts.slice(0, clumps.length)), near: sum(counts.slice(clumps.length)), triangles: planting.triangles(counts) };
+      return { far: sum(counts.slice(0, clumps.length)), near: sum(counts.slice(clumps.length)), triangles: planting.triangles(counts), lists: planting.lists() };
     },
     dispose: planting.dispose,
   };

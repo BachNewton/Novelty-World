@@ -127,6 +127,12 @@ export interface PlantingSpec {
   materialOf: (family: number, rows: Node<"vec4">[], camera: Node<"vec2">) => Material;
 }
 
+/** How full a list is: what it drew, of what it can hold. */
+export interface ListFill {
+  drawn: number;
+  capacity: number;
+}
+
 export interface Planting {
   update: (spot: Vector3, camera: PerspectiveCamera) => void;
   /** Builds the compute pipelines, which would otherwise stall the first frame that uses them. */
@@ -134,6 +140,8 @@ export interface Planting {
   show: (shown: boolean) => void;
   /** How many plants each shape drew, read back from the GPU without holding a frame up. */
   counts: () => number[];
+  /** Each shape's list: how many it drew against how many it can hold. A list at its capacity drew its first plants and no more. */
+  lists: () => ListFill[];
   triangles: (counts: number[]) => number;
   dispose: () => void;
 }
@@ -275,6 +283,7 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
       }
       return counts;
     },
+    lists: () => counts.map((drawn, shape) => ({ drawn, capacity: capacities[shape] })),
     triangles: (drawn) => drawn.reduce((sum, count, shape) => sum + (count * indicesOf(shapes[shape])) / 3, 0),
     dispose() {
       for (const mesh of meshes) {

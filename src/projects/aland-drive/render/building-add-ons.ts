@@ -8,6 +8,7 @@ import type { LandmarkMesh } from "../art/landmarks/kit";
 import { FUEL_SITE_PREFIX, FUEL_STATIONS, TERMINAL_SITE } from "../art/landmarks/sites";
 import { placeModel, type Placement } from "../art/roadside/material";
 import { buildTerminal, type TownMaterials } from "../art/town-kit/index";
+import { depthTwin } from "./buildings";
 import type { SolidsCell } from "./solids";
 import type { TileAddOns } from "./tile-add-ons";
 
@@ -57,12 +58,14 @@ function shopCells(cells: SolidsCell[], shops: { mesh: LandmarkMesh; x: number; 
   });
 }
 
-export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMaterial, town: TownMaterials, inks: Inks) {
+export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMaterial, wallDepth: MeshBasicNodeMaterial, town: TownMaterials, inks: Inks) {
   const paint = painter(inks);
   const terminal = buildTerminal();
   const tiles = new Map<string, TileAddOns>();
   const villas = addOnLists(paint, wallMaterial);
-  scene.add(...villas.meshes);
+  // The wall material shades only where its depth twin wrote depth first (`render/buildings.ts`).
+  const villaTwins = villas.meshes.map((mesh) => depthTwin(mesh, wallDepth));
+  scene.add(...villaTwins, ...villas.meshes);
   let terminalMeshes: Mesh[] = [];
   let compiling = false;
 
@@ -82,7 +85,7 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
   const rebuild = () => {
     const placed: AddOn[] = [...tiles.values()].flatMap((tile) => tile.villas);
     villas.place(placed);
-    for (const mesh of villas.meshes) {
+    for (const mesh of [...villas.meshes, ...villaTwins]) {
       mesh.visible = compiling || placed.length > 0;
       mesh.userData.placed = placed.length > 0;
     }
@@ -118,7 +121,7 @@ export function createBuildingAddOns(scene: Scene, wallMaterial: MeshBasicNodeMa
     /** Every mesh shown, for compiling before the drive; `false` puts back what has places. */
     showAll(all: boolean) {
       compiling = all;
-      for (const mesh of [...villas.meshes, ...terminalMeshes]) mesh.visible = all || (mesh.userData.placed as boolean);
+      for (const mesh of [...villas.meshes, ...villaTwins, ...terminalMeshes]) mesh.visible = all || (mesh.userData.placed as boolean);
     },
     counts() {
       const loaded = [...tiles.values()];

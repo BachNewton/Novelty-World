@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Texture } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, NotEqualDepth, Vector3, type Node, type Texture } from "three/webgpu";
 import { abs, attribute, dFdx, float, floor, Fn, fract, fwidth, If, int, max, mix, positionWorld, round, select, smoothstep, step, uniformArray, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
 import { flatNormal } from "../art/flat-normal";
@@ -145,7 +145,7 @@ function plainWall({ along, up, width, eaves, tint, wide, tall, colour, linear, 
   return WallLight(mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall)), glow);
 }
 
-export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night; season?: SeasonLook; addOnReachM?: number }): MeshBasicNodeMaterial {
+export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun: Sun, art: { detail: Texture; sheet: SignSheet; night: Night; season?: SeasonLook; addOnReachM?: number; depthFirst?: boolean }): MeshBasicNodeMaterial {
   const { night } = art;
   const season = seasonNodes(art.season);
   const toSun = towardsSun(sun);
@@ -206,12 +206,41 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   material.colorNode = shaded;
   material.positionNode = addOnPosition(art.addOnReachM);
   material.side = 2;
+  // The wall shader is the biggest the game has, and a town's walls stand two and three deep from any street. So in the
+  // game every mesh it draws is drawn first through `wallDepthMaterial`, which writes only depth, and this material then
+  // shades only the pixels whose depth is its own: each wall pixel seen is shaded once, whatever stands behind it. A
+  // gallery draws its few walls the plain way.
+  if (art.depthFirst === true) {
+    material.depthWrite = false;
+    // Under a reversed depth buffer three turns every depth function round (`ReversedDepthFuncs`), Equal to NotEqual
+    // among them, so NotEqual here is what reaches the GPU as equal: the test this material needs.
+    material.depthFunc = NotEqualDepth;
+  }
   return material;
 }
 
-/** One tile's cells as meshes, each shown or not on its own. */
-export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMaterial) {
+/** What the walls' depth is written with, ahead of their colour: the same vertices, no colour, nothing else. */
+export function wallDepthMaterial(addOnReachM?: number): MeshBasicNodeMaterial {
+  const material = new MeshBasicNodeMaterial();
+  material.name = "walls-depth";
+  material.positionNode = addOnPosition(addOnReachM);
+  material.side = 2;
+  material.colorWrite = false;
+  return material;
+}
+
+/** A mesh's depth twin: the same geometry, drawn first through the walls' depth material, culled with it. */
+export function depthTwin(mesh: Mesh, depth: MeshBasicNodeMaterial): Mesh {
+  const twin = new Mesh(mesh.geometry, depth);
+  twin.frustumCulled = mesh.frustumCulled;
+  twin.visible = mesh.visible;
+  return twin;
+}
+
+/** One tile's cells as meshes, each shown or not on its own, and, given the walls' depth material, each one's depth twin in a group of their own. */
+export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMaterial, depth?: MeshBasicNodeMaterial) {
   const group = new Group();
+  const depthGroup = new Group();
   const shown = cells.map(({ x, z, positions, facades, tints, indices }) => {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(positions, 3));
@@ -224,7 +253,9 @@ export function buildingMeshes(cells: SolidsCell[], material: MeshBasicNodeMater
     const mesh = new Mesh(geometry, material);
     mesh.visible = false;
     group.add(mesh);
-    return { mesh, x, z };
+    const twin = depth ? depthTwin(mesh, depth) : mesh;
+    if (depth) depthGroup.add(twin);
+    return { mesh, twin, x, z };
   });
-  return { group, cells: shown };
+  return { group, depthGroup, cells: shown };
 }
