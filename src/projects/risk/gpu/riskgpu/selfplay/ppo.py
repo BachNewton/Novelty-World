@@ -260,15 +260,16 @@ def luce_elo(pick: torch.Tensor, winner: torch.Tensor, n: int) -> tuple[list[flo
 class PairEval:
     """The head-to-head test against one fixed network (the progress metric, `ideas/gpu-engine.md`):
     the learner alone among copies of it (one-in) on half the fixed 5-player deals, the reverse
-    (one-out) on the rest, the lone seat rotated, every seat sampling. Strength among networks is
-    not the strength the GD evals measure (m2a-50 crushed a net that beat GD harder), so both are
-    watched."""
+    (one-out) on the rest, the lone seat rotated, every seat sampling (`greedy`: the learner plays its
+    most likely move). Strength among networks is not the strength the GD evals measure (m2a-50
+    crushed a net that beat GD harder), so both are watched."""
 
     def __init__(self, board, tables, net, anchor_label: str, anchor_path: str, games: int, device: str,
-                 players: int = 5):
+                 players: int = 5, greedy: bool = False):
         from .ladder import load_net
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
-                        snapshots=0, record=False, reset=False, cap_learner=0.85, cap_snapshot=0.85, cap_greedy=0.01)
+                        snapshots=0, record=False, reset=False, cap_learner=0.85, cap_snapshot=0.85, cap_greedy=0.01,
+                        learner_greedy=greedy)
         env = self.env = Env(cfg, board, tables, net, device, seed_prefix="pair")
         env.snapshots = [load_net(anchor_path, board, device)]
         env.active_snapshots = 1

@@ -3,7 +3,7 @@
 //! the recorded one.
 
 use crate::bots::bot;
-use crate::engine::{Move, Options};
+use crate::engine::{Move, Options, Phase};
 use crate::record::{encode_move, read_records, recorded_move, RecordedGame};
 use crate::runner::drive;
 use std::collections::BTreeMap;
@@ -82,10 +82,16 @@ pub fn check_file(path: &Path) -> Result<Tally, String> {
     Ok(tally)
 }
 
+/// The tally of turn-start placements (a turn's first placement, before any attack), counted again
+/// apart from the kinds: the search's own decision, where every other is the base planner's.
+pub const TURN_START: &str = "of which turn-start placement";
+
 /// How often `label` decides as a record's own seats did, by decision kind: at every decision of a
 /// seat whose recorded bot is `seats` (every seat when None), `label` is asked on the exact input
-/// the runner builds, and the game goes on with the recorded move. Returns per kind the decisions
-/// agreed and asked.
+/// the runner builds, and the game goes on with the recorded move. As in `online_agreement`, once
+/// the bot answers one of a reinforce phase's decisions otherwise than the move recorded, the
+/// phase's later decisions are off its path and it isn't asked them. Returns per kind the
+/// decisions agreed and asked, and `TURN_START` beside them.
 pub fn agreement(
     path: &Path,
     label: &str,
@@ -94,6 +100,10 @@ pub fn agreement(
     let mine = bot(label).ok_or_else(|| format!("no native bot \"{label}\""))?;
     let mut tally = BTreeMap::new();
     for record in read_records(path)? {
+        // The turn under way: its seat, and whether it has placed or attacked yet.
+        let mut turn = (u8::MAX, false, false);
+        // The turn whose reinforce phase the bot has left the recorded path in.
+        let mut off_path: Option<u32> = None;
         drive(
             &record.seed,
             record.players,
@@ -103,7 +113,16 @@ pub fn agreement(
                     format!("{}: the record ends and the game goes on", record.seed)
                 })?;
                 let (seat, mv) = recorded_move(recorded)?;
-                if seats.is_none_or(|l| record.bots[seat as usize] == l) {
+                if seat != turn.0 {
+                    turn = (seat, false, false);
+                }
+                let turn_start = matches!(mv, Move::Place { .. }) && !turn.1 && !turn.2;
+                if off_path
+                    .is_some_and(|t| t != input.view.turn || input.view.phase != Phase::Reinforce)
+                {
+                    off_path = None;
+                }
+                if off_path.is_none() && seats.is_none_or(|l| record.bots[seat as usize] == l) {
                     let kind = match input.options {
                         Options::Reinforce(r) if !r.sets.is_empty() => "trade",
                         Options::Reinforce(_) => "placement",
@@ -111,9 +130,23 @@ pub fn agreement(
                         Options::Occupy { .. } => "move-in",
                         Options::Fortify(_) => "fortify",
                     };
+                    let agreed = mine.decide(input) == mv;
                     let e: &mut (u32, u32) = tally.entry(kind).or_default();
                     e.1 += 1;
-                    e.0 += u32::from(mine.decide(input) == mv);
+                    e.0 += u32::from(agreed);
+                    if turn_start {
+                        let e = tally.entry(TURN_START).or_default();
+                        e.1 += 1;
+                        e.0 += u32::from(agreed);
+                    }
+                    if !agreed && matches!(input.options, Options::Reinforce(_)) {
+                        off_path = Some(input.view.turn);
+                    }
+                }
+                match mv {
+                    Move::Place { .. } => turn.1 = true,
+                    Move::Attack { .. } | Move::Blitz { .. } => turn.2 = true,
+                    _ => {}
                 }
                 Ok(mv)
             },
@@ -175,7 +208,7 @@ pub fn online_agreement(
     label: &str,
     seats: &[crate::engine::Seat],
 ) -> Result<OnlineAgreement, String> {
-    use crate::engine::{EventKind, Phase};
+    use crate::engine::EventKind;
     let mine = bot(label).ok_or_else(|| format!("no native bot \"{label}\""))?;
     let humans: Vec<bool> = log.labels.iter().map(|l| !is_bot_label(l)).collect();
     let mut out = OnlineAgreement::default();
