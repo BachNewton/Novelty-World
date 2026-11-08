@@ -11,6 +11,7 @@ import { kobb } from "./models/kobb";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
+import { span } from "./models/span";
 import { sten } from "./models/sten";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
@@ -30,6 +31,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   // A2
   // A3
+  span,
   // A4
   sund,
   // A5
