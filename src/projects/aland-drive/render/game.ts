@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RGBAFormat, Scene, Sphere, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, Fn, fwidth, greaterThanEqual, If, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, Fn, fwidth, greaterThanEqual, If, int, ivec2, lessThan, max, mix, positionGeometry, positionWorld, select, smoothstep, texture, textureLoad, varying, vec2, vec3 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { orderScene } from "./draw-order";
 import { startFreeCamera, type View } from "./free-camera";
@@ -804,8 +805,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const sampled = (map: Texture, layer: Node<"int">) => texture(map, imageUv).depth(layer).grad(...gradients());
 
   // Detail is worked out from here, not from the camera, so a camera lifted to the world map changes nothing it stands on.
-  const detailSpot = uniform(new Vector3());
-  const hazeM = uniform(HAZE_M);
+  const detailSpot = sharedUniform(new Vector3());
+  const hazeM = sharedUniform(HAZE_M);
   const toCamera = positionWorld.sub(detailSpot).length();
   const nearShare = float(1).sub(smoothstep(float(DETAIL_SEEN_M - DETAIL_FADE_M), float(DETAIL_SEEN_M), toCamera)).mul(select(nearSlot.greaterThan(0.5), float(1), float(0)));
   const shade = mix(sampled(layers.shadeFar, farLayer).r, sampled(layers.shadeNear, nearLayer).r, nearShare);
@@ -893,7 +894,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   });
 
   // From high up the mask's mips blur a road into a wide band, so the paint goes as the camera lifts: the map draws its own roads.
-  const paintedShare = uniform(1);
+  const paintedShare = sharedUniform(1);
   const paintedRoads = smoothstep(float(PAINTED_ROADS_FROM_M), float(PAINTED_ROADS_FULL_M), toCamera).mul(paintedShare);
   const roadEdge = (coverage: Node<"float">) => smoothstep(float(0.08), float(0.35), coverage).mul(paintedRoads);
   // The season's snow over the ground, before the roads are painted on it (`art/surfaces/snow.ts`).
@@ -911,7 +912,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const inOverview = select(all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1)))), float(1), float(0));
   // The world's clock for what moves on its own whatever the car does, the ripples and the traffic lights: the game's,
   // moved a frame at a time and held by the probe's hold, never the renderer's, so a held frame is the same frame.
-  const worldClock = uniform(0);
+  const worldClock = sharedUniform(0);
   // Two of the water, one for the tiles' and one for the open sea past them: the terrain's shader reads them in branches
   // a pixel takes one of (`terrainColour`), and a node two branches share is written in the first and read unset in the
   // second. The ice is looked up twice for the same reason.
@@ -956,7 +957,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     })();
 
   const { canopyAt, clearanceAt, standsAt, roadsAt, pavedAt, openToReedsAt, landAt, waterAt, rockAt, fieldsAt, closeLandAt } = tileReads(layers, tileM, manifest.canopy.unitM, manifest.clearing);
-  const cameraSpot = uniform(new Vector2());
+  const cameraSpot = sharedUniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColour, (depth) => seaHazed(waterColour(depth)), canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   // The ground the paving cuts through, coloured and lit as the terrain is, drawn where the innermost ring leaves its cells out.
@@ -1078,9 +1079,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     seaMarks.show(false);
   }
   const people = createPeople(scene, { colour: colorOf, linear, hazed, sun }, season);
-  const viewHeight = uniform(1);
+  const viewHeight = sharedUniform(1);
   // Leaves, flags and ribbons move on the roadside's own clock, held when the game is.
-  const streetClock = uniform(0);
+  const streetClock = sharedUniform(0);
   const identityKit = identityMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock });
   // Båtskär's turbines turn on the same clock as the roadside's flags.
   const windTurbines = createWindTurbines(scene, identityKit, { height: (x, z) => world.height(x, z), revision: () => world.revision });
@@ -1099,7 +1100,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const winterLights = createWinterLights(scene, night, season, {
     origin: manifest.worldOrigin,
     ground: { height: (x, z) => world.height(x, z), revision: () => world.revision },
-    materials: townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }),
+    materials: townMaterials({ colour: colorOf, linear, hazed, sun, time: sharedUniform(0) }),
   });
   let lampRevision = -1;
   const laneNet = new LaneNet();
@@ -1127,7 +1128,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return eyeOf(camera.position, viewProjection.elements);
   };
   const landmarks = createLandmarks(scene, wallMaterial, manifest.tiles, (name) => `#${token(name).getHexString()}`, (x, z) => world.height(x, z), manifest.worldOrigin);
-  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, wallDepth, townMaterials({ colour: colorOf, linear, hazed, sun, time: uniform(0) }), (name) => `#${token(name).getHexString()}`);
+  const buildingAddOns = createBuildingAddOns(scene, wallMaterial, wallDepth, townMaterials({ colour: colorOf, linear, hazed, sun, time: sharedUniform(0) }), (name) => `#${token(name).getHexString()}`);
   const challengeBoard = new ChallengeBoard([...CHALLENGES, ...RACES], { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);

@@ -1,5 +1,6 @@
 import { type Node, type UniformNode } from "three/webgpu";
-import { float, uniform } from "three/tsl";
+import { float } from "three/tsl";
+import { sharedUniform } from "./shared-uniform";
 import type { Season } from "../climate/season";
 
 /*
@@ -106,7 +107,7 @@ const isLive = (season: SeasonLook): season is LiveSeason => "uniforms" in seaso
 
 export function createLiveSeason(start: SeasonDials): LiveSeason {
   let current = { ...start };
-  const uniforms = Object.fromEntries(DIAL_NAMES.map((name) => [name, uniform(start[name])])) as LiveSeason["uniforms"];
+  const uniforms = Object.fromEntries(DIAL_NAMES.map((name) => [name, sharedUniform(start[name])])) as LiveSeason["uniforms"];
   return {
     uniforms,
     current: () => current,

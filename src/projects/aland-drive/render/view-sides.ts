@@ -1,5 +1,5 @@
 import { Frustum, Matrix4, Vector4, type PerspectiveCamera } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 
 /*
  * The four sides of the camera's view as a compute pass reads them, for what's picked
@@ -9,7 +9,7 @@ import { uniform } from "three/tsl";
  */
 
 export function viewSides(worldHeightsM: readonly [low: number, high: number], marginM: number) {
-  const sides = [0, 1, 2, 3].map(() => ({ plane: uniform(new Vector4()), rough: uniform(0) }));
+  const sides = [0, 1, 2, 3].map(() => ({ plane: sharedUniform(new Vector4()), rough: sharedUniform(0) }));
   const frustum = new Frustum();
   const viewProjection = new Matrix4();
   return {

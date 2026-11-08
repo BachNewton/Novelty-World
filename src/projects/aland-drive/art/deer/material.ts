@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, Vector4, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cos, float, floor, fract, fwidth, int, max, mix, positionGeometry, positionWorld, round, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, attribute, cameraPosition, cos, float, floor, fract, fwidth, int, max, mix, positionGeometry, positionWorld, round, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { outsideCar } from "../car-volume";
 import { seedOf, unitOf } from "../hash";
 import { facetLight, footShade, screenPattern, type RoadsideInputs } from "../roadside/material";
@@ -136,7 +137,7 @@ export function deerMaterial(inputs: DeerInputs, kind: DeerKind, detail: Detail,
   const place = attribute<"vec4">("deerPlace", "vec4");
   const look = attribute<"vec4">("deerLook", "vec4");
   const paint = attribute<"vec4">("paint", "vec4");
-  const swap = uniform(swapM);
+  const swap = sharedUniform(swapM);
   const distance = place.xz.sub(cameraPosition.xz).length();
   const shown = isNear ? distance.lessThan(swap.mul(1 + SWAP_BAND)) : distance.greaterThanEqual(swap.mul(1 - SWAP_BAND)).and(distance.lessThan(reachM));
 

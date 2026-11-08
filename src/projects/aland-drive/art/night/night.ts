@@ -1,5 +1,6 @@
 import { Vector3, type Node, type UniformNode } from "three/webgpu";
-import { dot, float, mix, smoothstep, uniform, vec3 } from "three/tsl";
+import { dot, float, mix, smoothstep, vec3 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { skyLooks, type SkyLook } from "../sky/sky";
 import "./tokens.css";
@@ -55,14 +56,14 @@ export const nightColour = (name: string): V3 => {
 };
 
 export function createNight(start = 0): Night {
-  const amount = uniform(start);
+  const amount = sharedUniform(start);
   const across = (day: V3, golden: V3, dusk: V3, night: V3): V3 => {
     const toGolden = smoothstep(float(NIGHT_STOPS.day), float(NIGHT_STOPS.golden), amount);
     const toDusk = smoothstep(float(NIGHT_STOPS.golden), float(NIGHT_STOPS.dusk), amount);
     const toNight = smoothstep(float(NIGHT_STOPS.dusk), float(NIGHT_STOPS.night), amount);
     return mix(mix(mix(day, golden, toGolden), dusk, toDusk), night, toNight);
   };
-  return { amount, seconds: uniform(0), dark: uniform(0), late: uniform(0), lampsOn: smoothstep(float(LAMPS_ON_FROM), float(LAMPS_ON_FULL), amount), across };
+  return { amount, seconds: sharedUniform(0), dark: sharedUniform(0), late: sharedUniform(0), lampsOn: smoothstep(float(LAMPS_ON_FROM), float(LAMPS_ON_FULL), amount), across };
 }
 
 /** What the light does to a surface at this hour. The golden hour's is `art/sky`'s own, so land and sky agree there. */

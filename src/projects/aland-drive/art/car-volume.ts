@@ -1,5 +1,6 @@
 import { Box3, Matrix4, Quaternion, Vector3, type Node } from "three/webgpu";
-import { positionWorld, uniform, varying, vec4 } from "three/tsl";
+import { positionWorld, varying, vec4 } from "three/tsl";
+import { sharedUniform } from "./shared-uniform";
 import type { CarState } from "../sim/car-state";
 import type { CarArt } from "./cars/model";
 
@@ -21,8 +22,8 @@ import type { CarArt } from "./cars/model";
  * boxes are empty, so a kit's gallery draws everything.
  */
 
-const empty = () => ({ low: uniform(new Vector3(1, 1, 1)), high: uniform(new Vector3(-1, -1, -1)) });
-const toCar = uniform(new Matrix4());
+const empty = () => ({ low: sharedUniform(new Vector3(1, 1, 1)), high: sharedUniform(new Vector3(-1, -1, -1)) });
+const toCar = sharedUniform(new Matrix4());
 const body = empty();
 const cabin = empty();
 

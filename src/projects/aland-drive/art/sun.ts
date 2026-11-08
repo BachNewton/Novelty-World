@@ -1,5 +1,6 @@
 import { Vector3, type Node, type UniformNode } from "three/webgpu";
-import { uniform, vec3 } from "three/tsl";
+import { vec3 } from "three/tsl";
+import { sharedUniform } from "./shared-uniform";
 
 /*
  * The sun every material is lit by. A gallery hands a kit a fixed place in the sky; the game hands it the live sun,
@@ -52,7 +53,7 @@ export function sunStrength(elevationDeg: number) {
 
 /** A sun for the game, starting at a place, which `setSun` moves; `through` is the share of it the clouds let through. */
 export function createLiveSun(place: SunPlace): LiveSun & { setSun: (place: SunPlace, through?: number) => void } {
-  const toSun = uniform(new Vector3());
+  const toSun = sharedUniform(new Vector3());
   const setSun = (next: SunPlace, through = 1) => {
     towardsPlace(next, toSun.value).multiplyScalar(sunStrength(next.elevationDeg) * through);
   };

@@ -1,5 +1,6 @@
 import { BackSide, DataTexture, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, RepeatWrapping, RGBAFormat, SphereGeometry, Vector2, Vector3, type Node } from "three/webgpu";
-import { dot, float, fract, max, mix, modelViewProjection, normalize, positionLocal, screenCoordinate, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4 } from "three/tsl";
+import { dot, float, fract, max, mix, modelViewProjection, normalize, positionLocal, screenCoordinate, smoothstep, sqrt, texture, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { cloudPixels } from "./cloud-noise";
 
@@ -200,25 +201,25 @@ export interface SkyOptions {
 
 export function createSky({ reach, look }: SkyOptions): Sky {
   const uniforms = {
-    toSun: uniform(new Vector3()),
-    sunFlat: uniform(new Vector3()),
-    cover: uniform(0),
-    bandTop: uniform(0),
-    zenith: uniform(new Vector3()),
-    horizon: uniform(new Vector3()),
-    horizonSun: uniform(new Vector3()),
-    band: uniform(new Vector3()),
-    bandSun: uniform(new Vector3()),
-    glow: uniform(new Vector3()),
-    sunDisc: uniform(new Vector3()),
-    cloudLit: uniform(new Vector3()),
-    cloudShade: uniform(new Vector3()),
-    cloudRim: uniform(new Vector3()),
-    shapeShift: uniform(new Vector2()),
-    detailShift: uniform(new Vector2()),
-    slowShift: uniform(new Vector2()),
-    cirrusShift: uniform(new Vector2()),
-    cirrusAlong: uniform(new Vector2(1, 0)),
+    toSun: sharedUniform(new Vector3()),
+    sunFlat: sharedUniform(new Vector3()),
+    cover: sharedUniform(0),
+    bandTop: sharedUniform(0),
+    zenith: sharedUniform(new Vector3()),
+    horizon: sharedUniform(new Vector3()),
+    horizonSun: sharedUniform(new Vector3()),
+    band: sharedUniform(new Vector3()),
+    bandSun: sharedUniform(new Vector3()),
+    glow: sharedUniform(new Vector3()),
+    sunDisc: sharedUniform(new Vector3()),
+    cloudLit: sharedUniform(new Vector3()),
+    cloudShade: sharedUniform(new Vector3()),
+    cloudRim: sharedUniform(new Vector3()),
+    shapeShift: sharedUniform(new Vector2()),
+    detailShift: sharedUniform(new Vector2()),
+    slowShift: sharedUniform(new Vector2()),
+    cirrusShift: sharedUniform(new Vector2()),
+    cirrusAlong: sharedUniform(new Vector2(1, 0)),
   };
   const landLight = new Vector3(1, 1, 1);
   const wind = new Vector2();

@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, MeshBasicNodeMaterial, Vector3, type Color, type Node } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, uniform, varying, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, cos, float, fract, frontFacing, mix, normalGeometry, normalize, normalWorld, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, varying, vec2, vec3 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { seedOf, unitOf } from "../hash";
 import { INDICATOR_OPTION } from "./indicators";
@@ -41,7 +42,7 @@ const INDICATOR_LIT_SHARE = 0.55;
 const INDICATOR_GLOW = 1.25;
 
 /** Seconds, for every world car's indicators: the game moves it on each frame and holds it while paused. */
-export const indicatorClock = uniform(0);
+export const indicatorClock = sharedUniform(0);
 
 interface Finish {
   /** A token name, or null for the car's own paint. */
@@ -132,13 +133,13 @@ interface Sky {
 
 function skyOf(sun: CarMaterialOptions["sun"]): Sky {
   const toSun = towardsSun(sun);
-  const sky = uniform(tokenRgb("sky"));
-  const zenith = uniform(tokenRgb("water"));
-  const road = uniform(tokenRgb("car-reflect-ground"));
-  const treeline = uniform(tokenRgb("tree-spruce"));
+  const sky = sharedUniform(tokenRgb("sky"));
+  const zenith = sharedUniform(tokenRgb("water"));
+  const road = sharedUniform(tokenRgb("car-reflect-ground"));
+  const treeline = sharedUniform(tokenRgb("tree-spruce"));
   return {
     toSun,
-    sunColour: uniform(tokenRgb("sun")),
+    sunColour: sharedUniform(tokenRgb("sun")),
     reflectedBy: (ray) => {
       const up = ray.y;
       const skyward = mix(sky, zenith, smoothstep(float(0.05), float(0.7), up));
@@ -174,12 +175,12 @@ function carSurface(sky: Sky, paint: Node<"vec3">, normal: Node<"vec3">, heightS
 
 export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOptions) {
   const sky = skyOf(sun);
-  const tail = uniform(0);
-  const reverse = uniform(0);
-  const head = uniform(0);
-  const paintColour = uniform(tokenRgb(paint));
-  const tailGlow = uniform(tokenRgb("car-glow-tail"));
-  const headGlow = uniform(tokenRgb("car-glow-head"));
+  const tail = sharedUniform(0);
+  const reverse = sharedUniform(0);
+  const head = sharedUniform(0);
+  const paintColour = sharedUniform(tokenRgb(paint));
+  const tailGlow = sharedUniform(tokenRgb("car-glow-tail"));
+  const headGlow = sharedUniform(tokenRgb("car-glow-head"));
 
   const heightShare = smoothstep(float(groundY + 0.25), float(groundY + 0.85), positionGeometry.y);
   const normal = normalWorld.normalize();
@@ -197,7 +198,7 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
   if (hero) {
     // Seen through the glass the shell's inside is the cabin's lining, for no extra faces.
     material.side = DoubleSide;
-    const lining = uniform(tokenRgb("car-interior"));
+    const lining = sharedUniform(tokenRgb("car-interior"));
     material.colorNode = select(frontFacing, lit(colour).add(glow), lit(lining.mul(heightShare.mul(0.5).add(0.7))));
   } else {
     material.colorNode = lit(colour).add(glow);
@@ -219,7 +220,7 @@ export function carMaterial({ sun, paint, groundY, hazed, hero }: CarMaterialOpt
 /** A hero's see-through glass: a tint over what's behind it, turning to a mirror at a glancing angle. */
 export function glassMaterial({ sun, hazed }: Pick<CarMaterialOptions, "sun" | "hazed">) {
   const sky = skyOf(sun);
-  const tint = uniform(tokenRgb("car-glass"));
+  const tint = sharedUniform(tokenRgb("car-glass"));
   const toCamera = cameraPosition.sub(positionWorld).normalize();
   const normal = normalWorld.normalize();
   const fresnel = float(GLASS_MIRROR).add(float(1 - GLASS_MIRROR).mul(float(1).sub(normal.dot(toCamera).abs()).pow(4)));
@@ -264,7 +265,7 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM, season, snow
   const [yawCos, yawSin] = [cos(place.w), sin(place.w)];
   const distance = place.xz.sub(cameraPosition.xz).length();
   // A uniform rather than a constant, so every model's materials, each at its own swap, are one shader program.
-  const swap = uniform(swapM);
+  const swap = sharedUniform(swapM);
   const dissolveFrom = swap.mul(1 - DISSOLVE_SHARE);
   const fade = smoothstep(dissolveFrom, swap, distance);
   const gone = smoothstep(float(reachM * (1 - DISSOLVE_SHARE)), float(reachM), distance);
@@ -281,8 +282,8 @@ export function worldCarMaterial({ sun, hazed, tier, swapM, reachM, season, snow
   const { colour } = carSurface(sky, paint, normal, smoothstep(float(0.25), float(0.85), y));
   // Each car keeps its own snow: a threshold rolled in the vertex stage, where its paint and height are exact.
   const snowFrom = varying(mix(float(SNOW_FROM[0]), float(SNOW_FROM[1]), unitOf(seedOf(look.x.mul(1e6), paint.x.mul(1023), paint.y.mul(1023), paint.z.mul(1023)), SNOW_SALT)).div(snowKept));
-  const snowed = season === undefined ? colour : snowOnTop(colour, snowfall(season, (name) => uniform(tokenRgb(name))), normal.y, snowFrom);
-  const finished: Node<"vec3"> = vec3(mix(snowed, uniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
+  const snowed = season === undefined ? colour : snowOnTop(colour, snowfall(season, (name) => sharedUniform(tokenRgb(name))), normal.y, snowFrom);
+  const finished: Node<"vec3"> = vec3(mix(snowed, sharedUniform(tokenRgb("car-glow-indicator")).mul(INDICATOR_GLOW), indicatorLit(option, look, paint)));
 
   const material = new MeshBasicNodeMaterial();
   material.name = `cars-${tier}`;

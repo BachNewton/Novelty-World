@@ -27,6 +27,13 @@ three sorts its opaque list and then, under a reversed depth buffer, reverses th
 
 `tools/frame-cost.mjs` counts what each draw shaded, and `tools/frame-diff.mjs` holds a change to the order pixel-identical (`tools/CLAUDE.md`).
 
+## What the main thread does for a frame
+
+`tools/frame-cpu.mjs` counts it, by function and by module (`tools/CLAUDE.md`); nearly all of it is three preparing each render object, so what the game does is keep that preparation to what changed. The rules it found:
+
+- **A uniform the frame shares is `sharedUniform`** (`art/shared-uniform.ts`), never `uniform`: three puts a uniform in its per-object group unless told otherwise and compares it against its buffer for every object drawn, every frame, so a dozen uniforms a material over a few hundred render objects was the single biggest thing the main thread did. In the render group each is checked once a frame. Only a uniform whose value is the object's own, set by `onObjectUpdate` (a clipmap ring's level, a placed kit's season kind), is made with `uniform`.
+- **A check is re-done when what it reads has changed, not every frame.** The challenge marks re-read the ground under their posts only when the world's heights do (its revisions), the placed lists refill when the camera has moved their margin. A loop over every cell or every challenge every frame makes nothing: no pair or point returned, squared distances and `Math.sqrt` rather than `Math.hypot`, a slow builtin that boxes its result (the walls' cells, the ribbons, the start rings). A list with nothing in it uploads nothing.
+
 ## Terrain, roads and ground
 
 - **The terrain is one mesh** (`render/clipmap.ts`), a clipmap: seven square rings of 192 cells following the camera, each ring's cells twice the last's, out to 25 km. Each ring's heights are a layer of a small array texture, copied from the world when it moves, and one material reads its own ring's layer, so the terrain is one pipeline. A vertex is only a place in that texture, so tiles don't exist for the mesh and a seam can't show. Each ring's vertices fold on to the next ring's lattice with distance, so rings meet without a crack, and the innermost ring is exactly the 4 m mesh the car collides with. Chosen over per-tile chunks with skirts, which need geometry per tile and hide seams rather than having none.

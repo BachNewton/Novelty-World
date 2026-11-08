@@ -1,5 +1,6 @@
 import { BufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Scene } from "three/webgpu";
-import { cameraPosition, cameraProjectionMatrix, cameraViewMatrix, cross, float, instanceIndex, max, mod, normalize, positionGeometry, sin, smoothstep, uniform, uv, varying, vec3, vec4 } from "three/tsl";
+import { cameraPosition, cameraProjectionMatrix, cameraViewMatrix, cross, float, instanceIndex, max, mod, normalize, positionGeometry, sin, smoothstep, uv, varying, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { outsideCar } from "../art/car-volume";
 import { seedOf, unitOf } from "../art/hash";
 import type { Weather } from "../climate/weather";
@@ -43,9 +44,9 @@ export interface PrecipitationLook {
 }
 
 function fall(kind: "rain" | "snow", colour: Vector3, hazed: PrecipitationLook["hazed"]) {
-  const offset = uniform(new Vector3());
-  const velocity = uniform(new Vector3(0, -1, 0));
-  const clock = uniform(0);
+  const offset = sharedUniform(new Vector3());
+  const velocity = sharedUniform(new Vector3(0, -1, 0));
+  const clock = sharedUniform(0);
   const box = vec3(BOX.x, BOX.y, BOX.z);
 
   const geometry = new InstancedBufferGeometry();

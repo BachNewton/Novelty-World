@@ -1,5 +1,5 @@
 import { Vector3, type Mesh, type Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { buildKummel, buildLighthouse, identityMaterials } from "../art/identity/index";
 import { buildFixedMark, buildLeadingMark, buildPillarBuoy, buildRadarMark, buildSkerryLight, buildSpar, LEADING_PATTERNS, marinaMaterials, RADAR_BANDS, radarMarkScale, SEA_MARKS } from "../art/marina/index";
 import { IDENTITY_PARTS } from "../art/identity/mesh";
@@ -90,8 +90,8 @@ export const lampOnMark =
 
 export function createSeaMarks(scene: Scene, inputs: RoadsideInputs, groundAt: (x: number, z: number) => number) {
   const materials: Record<Kit, RoadsideMaterials> = {
-    marina: marinaMaterials({ ...inputs, time: uniform(0) }),
-    identity: identityMaterials({ ...inputs, time: uniform(0) }),
+    marina: marinaMaterials({ ...inputs, time: sharedUniform(0) }),
+    identity: identityMaterials({ ...inputs, time: sharedUniform(0) }),
   };
   const known = seaMarkKinds();
   /** Where each model stands: on the drawn ground, or at the water's level (a floating mark, or a landmark on a rock of its own). */

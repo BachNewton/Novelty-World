@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
-import { abs, atomicAdd, atomicStore, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, normalize, positionWorld, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, atomicAdd, atomicStore, attribute, cameraPosition, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, normalize, positionWorld, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, varying, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, seedOf, unitOf } from "../art/hash";
 import { clumpSizeOf, crownLeftOf, CROWN_GONE, FALL_SPAN, FRESH_SHARE, HAZE_EDGE, HAZE_LIGHT, hazeByDistance, leavesOf, snowHeldOf, snowOnFace } from "../art/leaves";
@@ -201,9 +202,9 @@ export interface ForestKnobs {
 }
 
 export function forestKnobs(settings: ForestSettings): ForestKnobs {
-  const fullReach = uniform(0);
-  const forestReach = uniform(0);
-  const farDensity = uniform(0);
+  const fullReach = sharedUniform(0);
+  const forestReach = sharedUniform(0);
+  const farDensity = sharedUniform(0);
   const knobs: ForestKnobs = {
     fullReach,
     forestReach,
@@ -284,9 +285,9 @@ export interface Forest {
 }
 
 export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, clearanceAt, colour, hazed, sun, season, paint }: ForestInputs): Forest {
-  const cameraSpot = uniform(new Vector2());
+  const cameraSpot = sharedUniform(new Vector2());
   /** The lattice cell under the camera, which the spiral of places winds out from. */
-  const centre = uniform(new Vector2());
+  const centre = sharedUniform(new Vector2());
   const view = viewSides(WORLD_HEIGHTS_M, WIDEST_CROWN_M);
   const { sides } = view;
   const toSun = towardsSun(sun);

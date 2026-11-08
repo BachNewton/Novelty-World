@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, DataArrayTexture, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Object3D, type Scene, type Vector3 } from "three/webgpu";
 import { abs, float, floor, If, int, ivec2, max, min, mix, mod, positionGeometry, positionWorld, round, select, smoothstep, step, textureLoad, uniform, varying, vec2, vec3 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -143,7 +144,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, groundC
   const solid = new BufferAttribute(patchIndices(CELLS), 1);
   const geometries: BufferGeometry[] = [];
 
-  const cameraSpot = uniform(new Vector2());
+  const cameraSpot = sharedUniform(new Vector2());
   const materials: MeshBasicNodeMaterial[] = [];
   // The innermost ring's cells the paving's cut ground replaces, by their north-west node.
   const cuts = new Float32Array(across * across);

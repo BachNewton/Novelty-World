@@ -1,5 +1,6 @@
 import { BufferAttribute, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, type Node, type Scene } from "three/webgpu";
-import { attribute, cameraProjectionMatrix, cameraViewMatrix, cameraWorldMatrix, cos, exp, float, max, min, positionGeometry, select, sin, smoothstep, uniform, uv, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cameraProjectionMatrix, cameraViewMatrix, cameraWorldMatrix, cos, exp, float, max, min, positionGeometry, select, sin, smoothstep, uv, varying, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { outsideCar } from "../art/car-volume";
 import type { CarState, Rotation, Vector3 } from "../sim/car-state";
 import type { Tread } from "../sim/car";
@@ -231,7 +232,7 @@ function pool(capacity: number, solid: boolean, clock: Node<"float">, hazed: (co
 
 /** `hazed` is the world's light and haze at this hour, which every colour drawn goes through. */
 export function createTyreParticles(scene: Scene, colour: (token: string) => Linear, hazed: (color: Node<"vec3">) => Node<"vec3">) {
-  const clock = uniform(0);
+  const clock = sharedUniform(0);
   const puffs = pool(PUFF_POOL, false, clock, hazed);
   const chips = pool(CHIP_POOL, true, clock, hazed);
   scene.add(puffs.mesh, chips.mesh);

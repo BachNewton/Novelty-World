@@ -1,5 +1,6 @@
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3 } from "three/webgpu";
-import { float, mix, positionGeometry, sin, smoothstep, uniform, varying } from "three/tsl";
+import { float, mix, positionGeometry, sin, smoothstep, varying } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { nightColour, type F, type Night } from "./night";
 
 /*
@@ -49,7 +50,7 @@ export interface Aurora {
 }
 
 export function createAurora(night: Night, reach: number): Aurora {
-  const strength = uniform(0);
+  const strength = sharedUniform(0);
   const geometry = stripGeometry(reach);
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, side: 2 });
   material.name = "aurora";

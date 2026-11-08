@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { abs, attribute, float, floor, Fn, fract, If, int, mix, positionGeometry, round, sin, smoothstep, step, uniform, uniformArray, vec2 } from "three/tsl";
+import { abs, attribute, float, floor, Fn, fract, If, int, mix, positionGeometry, round, sin, smoothstep, step, uniformArray, vec2 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { seedOf, unitOf } from "../hash";
 import type { RoadsideInputs } from "../roadside/index";
 import { INTERIOR_PARTS, paintOf, SURFACES, type Surface } from "./paint";
@@ -130,7 +131,7 @@ export function interiorMaterial(inputs: Inputs) {
     const { from, to = from, share = 0, gain = 1 } = paintOf(part);
     return linear(from).lerp(linear(to), share).multiplyScalar(gain);
   }));
-  const [ambient, windowLight, lamp] = [uniform(1), uniform(1), uniform(1)];
+  const [ambient, windowLight, lamp] = [sharedUniform(1), sharedUniform(1), sharedUniform(1)];
   const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
   const kind = round(tint.b.mul(255));
   const at = positionGeometry;

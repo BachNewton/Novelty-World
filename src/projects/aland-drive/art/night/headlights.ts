@@ -1,5 +1,6 @@
 import { Vector3 } from "three/webgpu";
-import { dot, float, Fn, If, max, positionWorld, smoothstep, uniform, vec3 } from "three/tsl";
+import { dot, float, Fn, If, max, positionWorld, smoothstep, vec3 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { createGlows, type GlowInstance } from "./glows";
 import { nightColour, nightRgb, type Night, type V3 } from "./night";
 
@@ -46,10 +47,10 @@ export interface Headlights {
 }
 
 function createPool(night: Night, head: V3) {
-  const lamps = uniform(new Vector3());
-  const forward = uniform(new Vector3(0, 0, -1));
-  const right = uniform(new Vector3(1, 0, 0));
-  const on = uniform(0);
+  const lamps = sharedUniform(new Vector3());
+  const forward = sharedUniform(new Vector3(0, 0, -1));
+  const right = sharedUniform(new Vector3(1, 0, 0));
+  const on = sharedUniform(0);
   // Most of the time most beams are off, and a branch on a uniform is taken alike by every pixel, so an off beam costs
   // a pixel one comparison rather than the pool's sums.
   const poolOn = (albedo: V3): V3 =>

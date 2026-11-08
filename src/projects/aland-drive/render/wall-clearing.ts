@@ -1,5 +1,6 @@
 import { DataTexture, NearestFilter, RedFormat, UnsignedByteType, Vector2, type Node } from "three/webgpu";
-import { all, float, floor, greaterThanEqual, ivec2, lessThan, mix, select, textureLoad, uniform, vec2 } from "three/tsl";
+import { all, float, floor, greaterThanEqual, ivec2, lessThan, mix, select, textureLoad, vec2 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { ROADSIDE_FLOATS } from "./tile-models";
 import { SECTION_FLOATS, STONE_WALL_HALF_WIDE_M, type WallSections } from "./tile-walls";
 
@@ -110,7 +111,7 @@ export function createWallClearing(spec: ClearingSpec) {
   const texture = new DataTexture(field, across, across, RedFormat, UnsignedByteType);
   texture.minFilter = texture.magFilter = NearestFilter;
   texture.needsUpdate = true;
-  const corner = uniform(new Vector2(-1e9, -1e9));
+  const corner = sharedUniform(new Vector2(-1e9, -1e9));
   const tiles = new Map<string, Clearance[]>();
   let middle: { x: number; z: number } | null = null;
   let stale = false;

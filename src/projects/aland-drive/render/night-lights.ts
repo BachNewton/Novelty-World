@@ -1,6 +1,6 @@
 import type { Scene, WebGPURenderer } from "three/webgpu";
 import { createCarGlows, createGlows, createLampLight, lampGlow, LAMPS_ON_FROM, POOL_REACH_M, seaLightGlows, type CarAtNight, type LampSpot, type Night, type V3 } from "../art/night";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { lampAt } from "./lighthouses";
 import { LIGHTS_ON_MARKS } from "./lights-on-marks";
 import { lampOnMark } from "./sea-marks";
@@ -62,7 +62,7 @@ export function createNightLights(scene: Scene, night: Night, { onAland, ground 
   scene.add(...meshes);
   let compiling = false;
   let hidden = false;
-  const shownLight = uniform(1);
+  const shownLight = sharedUniform(1);
   // Every lamp has its glow, but its light only falls near, so the cast list holds only the lamps within their reach.
   let lamps: readonly LampSpot[] = [];
   let poolsAround: { x: number; z: number } | null = null;

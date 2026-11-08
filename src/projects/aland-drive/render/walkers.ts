@@ -1,5 +1,5 @@
 import type { Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { rollFigure } from "../art/people/figure";
 import type { CrowdArrays } from "../art/people/crowd";
 import { createWalkingCrowd, type Walker } from "../art/people/walking";
@@ -28,7 +28,7 @@ export function standingPlaces({ shadow }: CrowdArrays): Float32Array {
 }
 
 export function createWalkersView(scene: Scene, inputs: RoadsideInputs, room: number) {
-  const time = uniform(0);
+  const time = sharedUniform(0);
   const crowd = createWalkingCrowd({ ...inputs, time }, room);
   scene.add(...crowd.meshes);
 

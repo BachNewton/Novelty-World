@@ -1,5 +1,6 @@
 import { IndirectStorageBufferAttribute, Mesh, StorageBufferAttribute, Triangle, Vector2, Vector3 as Colour, type BufferGeometry, type Material, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicMin, atomicStore, dot, float, Fn, If, instanceIndex, mix, select, smoothstep, storage, uint, uniform, vec2, vec3 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { seedOf, unitOf } from "../art/hash";
 import { CLEARING_SLACK_M } from "./tree-place";
 import { spiralCell, spiralPlaces } from "./spiral";
@@ -147,7 +148,7 @@ export interface Planting {
 }
 
 export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattices, byLattice = false, widestM, shapes, capacities, rows, visit, familyOf = () => 0, materialOf }: PlantingSpec): Planting {
-  const camera2d = uniform(new Vector2());
+  const camera2d = sharedUniform(new Vector2());
   const view = viewSides(WORLD_HEIGHTS_M, widestM);
 
   const indicesOf = (shape: BufferGeometry) => shape.getIndex()?.count ?? 0;
@@ -170,8 +171,8 @@ export function createPlanting(scene: Scene, renderer: WebGPURenderer, { lattice
   // lattice's numbers picked per place: a kernel is a pipeline, and two lattices' kernels with only their numbers apart
   // would compile the planting's whole rule twice.
   const pass = (given: Lattice[], lattice?: Lattice) => {
-    const centres = given.map(() => uniform(new Vector2()));
-    const starts = given.map(() => uniform(0, "uint"));
+    const centres = given.map(() => sharedUniform(new Vector2()));
+    const starts = given.map(() => sharedUniform(0, "uint"));
     const cull = Fn(() => {
       const which = starts.slice(1).reduce<Node<"uint">>((sum, start) => sum.add(select(instanceIndex.greaterThanEqual(start), uint(1), uint(0))), uint(0)).toVar();
       const pick = <Type extends "float" | "uint" | "vec2">(nodes: Node<Type>[]) => nodes.slice(1).reduce((chosen, node, at) => select(which.equal(at + 1), node, chosen), nodes[0]);

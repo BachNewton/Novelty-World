@@ -1,5 +1,6 @@
 import { Vector2 } from "three";
-import { positionWorld, uniform, varying } from "three/tsl";
+import { positionWorld, varying } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import type { Node } from "three/webgpu";
 
 /** Where a pixel is on a pattern that repeats every `periodM` metres across the ground, in repeats. */
@@ -18,11 +19,11 @@ const repeats = (metres: number, periodM: number) => (((metres / periodM) % 1) +
  * anchor's own share of a repeat, worked out on the CPU, so moving the anchor moves no pattern.
  */
 export function tiledGround(): { tiled: Tiled; follow: (x: number, z: number) => void } {
-  const anchor = uniform(new Vector2());
+  const anchor = sharedUniform(new Vector2());
   const local = varying(positionWorld.xz.sub(anchor));
   const patterns: { periodM: number; offset: Vector2 }[] = [];
   const tiled: Tiled = (periodM) => {
-    const offset = uniform(new Vector2(repeats(anchor.value.x, periodM), repeats(anchor.value.y, periodM)));
+    const offset = sharedUniform(new Vector2(repeats(anchor.value.x, periodM), repeats(anchor.value.y, periodM)));
     patterns.push({ periodM, offset: offset.value });
     return local.div(periodM).add(offset);
   };

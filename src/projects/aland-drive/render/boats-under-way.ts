@@ -1,5 +1,5 @@
 import type { InstancedBufferAttribute, Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { boatMaterials, buildAllmogebat, buildCruiser, buildDoubleEnder, buildFishingBoat, buildFolkboat, buildLargeCruiser, buildLaunch, buildPassengerBoat, buildRib } from "../art/boats/index";
 import { placeModel, type Placement, type RoadsideInputs, type RoadsideMaterials, type RoadsideModel } from "../art/roadside/index";
 import { buildCableFerry, identityMaterials } from "../art/identity/index";
@@ -76,11 +76,11 @@ export interface SeaSeason {
 }
 
 export function createBoatsUnderWay(scene: Scene, inputs: RoadsideInputs, sea?: SeaSeason) {
-  const time = uniform(0);
+  const time = sharedUniform(0);
   const materials: Record<Kit, RoadsideMaterials> = {
-    town: townMaterials({ ...inputs, time: uniform(0) }),
+    town: townMaterials({ ...inputs, time: sharedUniform(0) }),
     boats: boatMaterials({ ...inputs, time }, { underWay: true }),
-    identity: identityMaterials({ ...inputs, time: uniform(0) }),
+    identity: identityMaterials({ ...inputs, time: sharedUniform(0) }),
   };
   const fleet = sailings(LANES);
   const groups = new Map<BoatModel, { index: number; scale: number }[]>();

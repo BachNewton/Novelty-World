@@ -1,5 +1,6 @@
 import { AdditiveBlending, Box3, Color, HalfFloatType, InstancedBufferAttribute, Mesh, MeshBasicNodeMaterial, OrthographicCamera, RenderTarget, Scene, Vector2, Vector3, type BufferGeometry, type WebGPURenderer } from "three/webgpu";
-import { attribute, float, positionGeometry, positionWorld, select, smoothstep, texture, uniform, varying, vec3 } from "three/tsl";
+import { attribute, float, positionGeometry, positionWorld, select, smoothstep, texture, varying, vec3 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { quadGeometry, type GlowInstance } from "./glows";
 import { PARTS } from "../roadside/mesh";
 import { buildStreetLamp } from "../roadside/models";
@@ -144,7 +145,7 @@ export function createLampLight(night: Night, capacity: number) {
   // Looking straight down with north up the image, so its rows run with the scene's z.
   const above = new OrthographicCamera(-half, half, half, -half, 1, LIGHT_HEIGHT_M * 2);
   above.up.set(0, 0, -1);
-  const centre = uniform(new Vector2());
+  const centre = sharedUniform(new Vector2());
   const cleared = new Color();
   const step = LIGHT_SPAN_M / LIGHT_PIXELS;
 

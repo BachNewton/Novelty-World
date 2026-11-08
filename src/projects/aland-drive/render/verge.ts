@@ -1,5 +1,6 @@
 import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
-import { attribute, cos, dot, float, floor, fract, If, int, min, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cos, dot, float, floor, fract, If, int, min, mix, positionGeometry, round, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { outsideCar } from "../art/car-volume";
 import { placeSeed, unitOf } from "../art/hash";
 import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
@@ -162,7 +163,7 @@ export function createVerge(scene: Scene, renderer: WebGPURenderer, { landAt, pa
     return far;
   };
 
-  const seconds = uniform(0);
+  const seconds = sharedUniform(0);
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
   const far = LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0);

@@ -1,5 +1,5 @@
 import type { Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { boatMaterials, buildAllmogebat, buildCruiser, buildDoubleEnder, buildFolkboat, buildLargeCruiser, buildLaunch, buildRib } from "../art/boats/index";
 import type { Placement, RoadsideInputs, RoadsideMaterials } from "../art/roadside/index";
 import { buildJettyHead, buildJettySection, buildPierSection, buildPontoonSection, buildRowingBoat, buildSailboat, JETTY_SECTION, PIER_SECTION, PONTOON_SECTION } from "../art/rural/index";
@@ -44,7 +44,7 @@ function asPlaced(places: Float32Array): Placement[] {
 }
 
 export function createDocks(scene: Scene, rural: RoadsideMaterials, inputs: RoadsideInputs, reachM: number, season?: SeasonLook) {
-  const time = uniform(0);
+  const time = sharedUniform(0);
   const boats = boatMaterials({ ...inputs, time });
   const run = (build: PlacedKind["build"], section: Section): PlacedKind => ({ build, materials: rural, fit: sections(section) });
   const at = (build: PlacedKind["build"], materials: RoadsideMaterials): PlacedKind => ({ build, materials, fit: asPlaced, inSeason: BOATS_AFLOAT });

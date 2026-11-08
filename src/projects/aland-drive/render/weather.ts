@@ -1,5 +1,5 @@
 import { Vector3 } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { SkyLook } from "../art/sky/sky";
 import type { Weather } from "../climate/weather";
@@ -125,9 +125,9 @@ export function weatheredLook(look: SkyLook, weather: Weather | null, amount: nu
 
 /** The road's state for its material, eased with the rest. */
 export function createRoadWeather() {
-  const wet = uniform(0);
-  const snow = uniform(0);
-  const ice = uniform(0);
+  const wet = sharedUniform(0);
+  const snow = sharedUniform(0);
+  const ice = sharedUniform(0);
   return {
     wet,
     snow,

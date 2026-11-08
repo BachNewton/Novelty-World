@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, Matrix4, MeshBasicNodeMaterial, type Node, type StorageBufferAttribute } from "three/webgpu";
-import { attribute, cameraPosition, cos, float, fract, instanceIndex, int, mix, modelWorldMatrix, normalGeometry, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, storage, uint, uniform, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { attribute, cameraPosition, cos, float, fract, instanceIndex, int, mix, modelWorldMatrix, normalGeometry, positionGeometry, positionWorld, reflect, screenCoordinate, select, sin, smoothstep, storage, uint, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { sharedUniform } from "../shared-uniform";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { BikeMesh } from "./build";
 import type { RiderLook } from "./look";
@@ -70,8 +71,8 @@ interface Surface {
 /** The light on a bike and its rider: one sum for a single cyclist and a crowd, so the two look the same. */
 function shaded({ sun, hazed }: BikeMaterialOptions, { normal: unnormalised, base, gloss, height }: Surface): Node<"vec3"> {
   const toSun = towardsSun(sun);
-  const sky = uniform(token("sky"));
-  const sunColour = uniform(token("sun"));
+  const sky = sharedUniform(token("sky"));
+  const sunColour = sharedUniform(token("sun"));
 
   const normal = unnormalised.normalize();
   const toCamera = cameraPosition.sub(positionWorld).normalize();
@@ -186,7 +187,7 @@ export function crowdBikeMaterial(options: CrowdTierOptions) {
 
   const distance = varying(place.xz.sub(cameraPosition.xz).length());
   // A uniform rather than a constant, so every bike's lists, each at its own swap, are one shader program.
-  const swap = uniform(swapM);
+  const swap = sharedUniform(swapM);
   const fade = smoothstep(swap.mul(1 - DISSOLVE_SHARE), swap, distance);
   const gone = smoothstep(float(reachM * (1 - DISSOLVE_SHARE)), float(reachM), distance);
   const noise = fract(fract(screenCoordinate.xy.dot(vec2(0.06711056, 0.00583715))).mul(52.9829189));

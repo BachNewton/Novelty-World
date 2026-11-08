@@ -1,5 +1,5 @@
 import type { Scene } from "three/webgpu";
-import { uniform } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { buildRegatta, type RegattaCourse, type RegattaInputs } from "../art/boats/index";
 import { seaSeconds } from "../sea/clock";
 import type { SeaSeason } from "./boats-under-way";
@@ -35,7 +35,7 @@ export const COURSES: readonly RegattaCourse[] = [
 
 
 export function createRegattas(scene: Scene, inputs: Omit<RegattaInputs, "time">, courses: readonly RegattaCourse[] = COURSES, sea?: SeaSeason) {
-  const time = uniform(seaSeconds() % DAY_S);
+  const time = sharedUniform(seaSeconds() % DAY_S);
   const fleets = courses.map((course) => buildRegatta({ ...inputs, time }, course));
   for (const fleet of fleets) scene.add(fleet);
   return {

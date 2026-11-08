@@ -1,5 +1,6 @@
 import type { Mesh, MeshBasicNodeMaterial, Node, Scene } from "three/webgpu";
-import { attribute, float, select, uniform } from "three/tsl";
+import { attribute, float, select } from "three/tsl";
+import { sharedUniform } from "../art/shared-uniform";
 import { crowdMeshes, crowdOf, peopleMaterials, type CrowdArrays } from "../art/people/index";
 import type { RoadsideInputs } from "../art/roadside/index";
 import { changeOf, seasonNodes, type SeasonLook } from "../art/season";
@@ -29,7 +30,7 @@ function seasonal(material: MeshBasicNodeMaterial, season: SeasonLook): MeshBasi
 }
 
 export function createPeople(scene: Scene, inputs: RoadsideInputs, season?: SeasonLook) {
-  const time = uniform(0);
+  const time = sharedUniform(0);
   const kit = peopleMaterials({ ...inputs, time });
   const materials = season === undefined ? kit : { near: seasonal(kit.near, season), far: seasonal(kit.far, season), shadow: seasonal(kit.shadow, season) };
   const crowds = new Map<string, { meshes: Mesh[]; figures: number; triangles: number }>();
