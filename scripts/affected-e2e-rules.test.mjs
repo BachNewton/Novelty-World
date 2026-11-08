@@ -42,4 +42,22 @@ describe("select", () => {
     expect(select(["e2e/aland-drive.spec.ts"], specs, projects).runs[0]).toMatchObject({ lines: null });
     expect(select(["src/shared/lib/peer/room.ts"], specs, projects)).toEqual({ all: "src/shared/lib/peer/room.ts changed" });
   });
+
+  it("runs only the specs that import a changed helper, and everything for the run's own machinery", () => {
+    const helpers = {
+      "e2e/test.ts": 'import { relay } from "./relay";\n',
+      "e2e/relay.ts": "",
+      "e2e/webgpu.ts": "",
+      "e2e/next-server.ts": "",
+    };
+    const withHelpers = {
+      "e2e/aland-drive.spec.ts": `import { WEBGPU_BROWSER } from "./webgpu";\nimport { test } from "./test";\n${SPEC}`,
+      "e2e/frogmino-local.spec.ts": 'import { test } from "./test";\ntest("plays", async () => {});\n',
+    };
+    expect(select(["e2e/webgpu.ts"], withHelpers, projects, helpers)).toEqual({
+      runs: [{ spec: "e2e/aland-drive.spec.ts", lines: null, why: "e2e/webgpu.ts changed" }],
+    });
+    expect(select(["e2e/relay.ts"], withHelpers, projects, helpers).runs.map((run) => run.spec)).toEqual(["e2e/aland-drive.spec.ts", "e2e/frogmino-local.spec.ts"]);
+    expect(select(["e2e/next-server.ts"], withHelpers, projects, helpers)).toEqual({ all: "e2e/next-server.ts changed" });
+  });
 });

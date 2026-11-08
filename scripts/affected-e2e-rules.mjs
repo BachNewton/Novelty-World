@@ -15,7 +15,6 @@ export const EVERYTHING = [
   "src/app/**",
   "src/shared/**",
   "relay/**",
-  "e2e/*.ts",
   "scripts/affected-e2e*.mjs",
 ];
 
@@ -72,23 +71,52 @@ export function projectOfSpec(specName, projects) {
   return [...projects].filter((slug) => base === slug || base.startsWith(`${slug}-`)).sort((a, b) => b.length - a.length)[0];
 }
 
-/**
- * What to run for a change: `{ all: reason }`, or `{ runs: [{ spec, lines: number[] | null, why }] }` where null lines
- * is the whole spec. `specs` maps each spec's repo path to its text; `changed` lists repo paths.
- */
 /** What no page serves: unit tests, notes and docs. A change to these alone runs no e2e test. */
 export const NOT_SERVED = ["**/*.test.{ts,tsx,mjs}", "**/*.md", "**/docs/**", "**/ideas/**"];
 
-export function select(changedPaths, specs, projects) {
+const LOCAL_IMPORT = /(?:from\s+|import\s*\(\s*|import\s+)["']\.\/([^"']+?)(?:\.ts)?["']/g;
+
+/** The e2e helpers a file imports, directly or through another helper, as repo paths. */
+export function helpersReached(text, helpers) {
+  const reached = new Set();
+  const visit = (source) => {
+    for (const [, name] of source.matchAll(LOCAL_IMPORT)) {
+      const file = `e2e/${name}.ts`;
+      if (reached.has(file) || !(file in helpers)) continue;
+      reached.add(file);
+      visit(helpers[file]);
+    }
+  };
+  visit(text);
+  return reached;
+}
+
+/**
+ * What to run for a change: `{ all: reason }`, or `{ runs: [{ spec, lines: number[] | null, why }] }` where null lines
+ * is the whole spec. `specs` maps each spec's repo path to its text, `helpers` each other `e2e/*.ts` file's; `changed`
+ * lists repo paths. A changed helper runs the specs that import it; one no spec imports is the run's own machinery
+ * (its server, its reporter), which every spec stands on.
+ */
+export function select(changedPaths, specs, projects, helpers = {}) {
   const matches = (globs, file) => globs.some((glob) => globToRegExp(glob).test(file));
   const changed = changedPaths.filter((file) => /\.spec\.ts$/.test(file) || !matches(NOT_SERVED, file));
   const trigger = changed.find((file) => matches(EVERYTHING, file) && !/\.spec\.ts$/.test(file));
   if (trigger) return { all: `${trigger} changed` };
 
+  const reaches = Object.fromEntries(Object.entries(specs).map(([spec, text]) => [spec, helpersReached(text, helpers)]));
+  const changedHelpers = changed.filter((file) => /^e2e\/[^/]+\.ts$/.test(file) && !/\.spec\.ts$/.test(file));
+  const machinery = changedHelpers.find((helper) => !Object.values(reaches).some((reached) => reached.has(helper)));
+  if (machinery) return { all: `${machinery} changed` };
+
   const runs = [];
   for (const [spec, text] of Object.entries(specs)) {
     if (changed.includes(spec)) {
       runs.push({ spec, lines: null, why: "the spec changed" });
+      continue;
+    }
+    const helper = changedHelpers.find((file) => reaches[spec].has(file));
+    if (helper) {
+      runs.push({ spec, lines: null, why: `${helper} changed` });
       continue;
     }
     const project = projectOfSpec(spec, projects);

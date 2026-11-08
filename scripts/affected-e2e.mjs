@@ -44,13 +44,13 @@ const changed = [
     ...list(["ls-files", "--others", "--modified", "--exclude-standard"]),
   ]),
 ];
-const specs = Object.fromEntries(
-  readdirSync(path.join(root, "e2e"))
-    .filter((name) => name.endsWith(".spec.ts"))
-    .map((name) => [`e2e/${name}`, readFileSync(path.join(root, "e2e", name), "utf8")]),
-);
+const e2eFiles = readdirSync(path.join(root, "e2e"))
+  .filter((name) => name.endsWith(".ts"))
+  .map((name) => [`e2e/${name}`, readFileSync(path.join(root, "e2e", name), "utf8")]);
+const specs = Object.fromEntries(e2eFiles.filter(([file]) => file.endsWith(".spec.ts")));
+const helpers = Object.fromEntries(e2eFiles.filter(([file]) => !file.endsWith(".spec.ts")));
 const projects = new Set(readdirSync(path.join(root, "src", "projects")));
-const choice = select(changed, specs, projects);
+const choice = select(changed, specs, projects, helpers);
 
 if ("all" in choice) {
   console.log(`e2e: every spec (${choice.all}, measured from ${base.ref})`);
