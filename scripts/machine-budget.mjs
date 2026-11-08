@@ -19,15 +19,27 @@ import os from "node:os";
 import path from "node:path";
 
 /**
+ * The pages the GPU holds: the integrated Radeon's four. It shares the laptop's memory,
+ * and six pages at 3440x1440 at once bugchecked its driver (0x119, a video scheduler
+ * fault, the whole machine down) while this budget, counting the plugged-in RTX 4070's
+ * eight, allowed them: the e2e specs force the eGPU (`e2e/webgpu.ts`), but the headless
+ * tools draw on the Radeon whatever is plugged in, and one pool can't tell them apart.
+ * The eGPU (12 GB) passed 8 pages at once and failed at 12; a budget with a pool per
+ * GPU could give an e2e run on it its third worker back.
+ */
+const GPU_PAGES = 4;
+
+/**
  * What each kind of run takes. `cores` is what the run is held to (its workers),
  * `gpu` the game pages it may have open at once on the one GPU. A page holds about
  * 1.15 GB of video memory while it draws, and running out of it is what fails a
- * test: busy only slows one. An e2e worker plays a two-player test at most.
+ * test: busy only slows one. An e2e worker plays a two-player test at most, so an
+ * e2e run has as many workers as the pages allow.
  */
 export const KINDS = {
   unit: { cores: 4, gpu: 0, workers: 4 },
   slow: { cores: 6, gpu: 0, workers: 6 },
-  e2e: { cores: 5, gpu: 6, workers: 3 },
+  e2e: { cores: 5, gpu: Math.min(6, GPU_PAGES), workers: Math.min(3, Math.floor(GPU_PAGES / 2)) },
   browser: { cores: 2, gpu: 2 },
   check: { cores: 2, gpu: 0 },
   build: { cores: 4, gpu: 0 },
@@ -35,21 +47,8 @@ export const KINDS = {
   all: { cores: 1000, gpu: 1000 },
 };
 
-/**
- * The pages the GPU holds. The RTX 4070 eGPU (12 GB) passed 8 pages of two-player
- * tests at once and failed at 12 with its memory full. The integrated Radeon shares
- * the laptop's memory and isn't measured, so it is held to one e2e run's worth.
- */
-const gpuPages = () => {
-  try {
-    return execFileSync("nvidia-smi", ["-L"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).includes("RTX 4070") ? 8 : 6;
-  } catch {
-    return 6;
-  }
-};
-
 /** Two cores are left for the owner, the editors and the agents themselves. */
-export const BUDGET = { cores: Math.max(2, os.availableParallelism() - 2), gpu: gpuPages() };
+export const BUDGET = { cores: Math.max(2, os.availableParallelism() - 2), gpu: GPU_PAGES };
 
 /** What a kind asks for: a name from `KINDS`, or `cores:N` for other heavy work. */
 export function demand(kind) {
