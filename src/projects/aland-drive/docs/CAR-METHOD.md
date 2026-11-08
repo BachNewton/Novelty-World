@@ -65,12 +65,13 @@ The order of work, each step checked in the gallery before the next:
 4. **Glass.** `windowZ`, `windowTop`, `pillars`, and the screen and rear glass as bands. A teardrop canopy is a `windowTop` that rises from the cowl, peaks over the seats and tapers behind them.
 5. **Face and tail.** The silhouette's points at each end, each with a band: the mouth, the lamp, the housing, the gap, the tail bar, the mesh, the diffuser. The maker's signature goes here (Tärna's is a bracket of light, a full-width line turned down at its ends).
 6. **Parts** (`art/cars/parts.ts`): `splitter`, `diffuser`, `sideIntake`, `lightLine`, `projectors`, `tailLine`, `louvres`; the recipe's own `plates`, `handles`, `reversing`, `reflector`, `thirdBrake`, `lampUnits`, `roundLamps`, `stripe`; the body's `wing` (with `endplates`), `exhausts`, `roofBars` and `blocks`.
-7. **Wheels** (`art/cars/wheel.ts`): a rim `style` (`blade`, `split`, `turbine`, `mesh`, `aero`) and spoke count, `rimShare` (how big the rim is in the tyre: 0.6 a utility car, 0.76 a hypercar's low profile), tyre width. Every hero wheel has a brake disc and a caliper (`car-caliper`).
+7. **Wheels** (`art/cars/wheel.ts`, or `style` on a sketch): a rim `style` (`blade`, `split`, `turbine`, `mesh`, `aero`) and spoke count, `rimShare` (how big the rim is in the tyre: 0.6 a utility car, 0.76 a hypercar's low profile), tyre width. Every hero wheel has a brake disc and a caliper (`car-caliper`).
 8. **Paint and finish.** The paint is a token; trim, cladding and grille are shared tokens; the material is `art/cars/material.ts`.
 
 Rules the recipe holds you to:
 
-- **No coplanar faces** (`art/faces.slow.test.ts`). A part stuck on another stands 1–2 cm off it, or one cuts through the other's inside. A decal lifts itself (`liftM`).
+- **No coplanar faces** (`art/faces.slow.test.ts`). A part stuck on another stands 1–2 cm off it, or one cuts through the other's inside. A decal lifts itself (`liftM`); on a sloped or curved panel a few millimetres isn't enough, so a decal there lifts 12 mm or is left off. Set `cleanEnds` in the body (`extra`), so the rows across a nose or a tail run one way and no strip of the end folds over another; run each end's silhouette one way along the car (no foot tucked back under), start the nose's foot above the sill rows, and end the tail's at the bumper rather than a centimetre over the sill. The older cars' overlaps are listed in `art/known-overlaps.json`; a new car has none, and a change that lowers an old car's count lowers its line.
+- **Bands start and end on rows the far model has** (`build.ts`, `FAR`: sill, sillTop, belt, windowBase, windowTop, rail, roofInner, centre), or the far model's dark shapes differ from the near one's.
 - **A part either goes to the far model or is fine.** A decal or block marked `fine` is near-only; anything that changes the outline or the colour seen from 100 m (a splitter, an intake, a lamp) is not fine.
 - **Mid-silhouette points marked `fine`** smooth the near hood and deck; the far model uses only the firm points, so the firm points alone must still give the outline.
 
@@ -106,6 +107,8 @@ Then in the game, by day and by night, with local tiles: `node src/projects/alan
 Redraw until it clears the bar. Several rounds is normal.
 
 ## Far version and cost
+
+The world cars share the recipe and their swaps are measured against a fingerprint of their geometry (`art/lod-swaps.ts`), so a change to the recipe must leave a world car's far body and far wheel byte-identical, or be followed by the LOD check with `--write` (`art/CLAUDE.md`). A new body feature is therefore opt-in on the spec, and a wheel's detail goes in the hero branch.
 
 The far model is the near one built with fewer rows and stations (`build.ts`, `FAR`) and the stand-in is its silhouette's firm points simplified (`buildDistant`). Both come from the same spec, so there is nothing to draw twice, but check them: the gallery's `far` view, and `art/cars/cars.test.ts`, which holds every car under 25,000 triangles near, 2,000 far and 160 for the stand-in, its faces outward, its collision box matching what's drawn and its lamps at its ends.
 

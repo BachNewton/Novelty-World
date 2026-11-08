@@ -116,6 +116,12 @@ export interface BodySpec {
   shelf?: readonly Key[];
   /** How far the lower flank is scooped in, along the car: a sculpted side that leads the eye, and the air, into an intake. */
   scoop?: readonly Key[];
+  /**
+   * Where the silhouette drops below the flank, as at a nose or a tail, the rows above it run across the end in one
+   * direction, so no strip of the end folds back over another in one plane. Every new car sets it; the older cars
+   * keep their ends as their measured swaps and known overlaps have them, until they're redrawn.
+   */
+  cleanEnds?: boolean;
   halfWidth: readonly Key[];
   railWidth: readonly Key[];
   /** How far the corners of the nose and tail pull back from the ends, and over what length. */
@@ -294,7 +300,13 @@ function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boole
   }
   if (sideWall) return rib;
   const cap = top + Math.max(0, -curves.crown(z));
-  return rib.map(([x, h]) => [x, Math.min(h, cap)]);
+  const capped = rib.map(([x, h]): [number, number] => [x, Math.min(h, cap)]);
+  if (spec.cleanEnds) {
+    for (let row = 1; row < capped.length; row++) {
+      if (capped[row][1] >= cap) capped[row][0] = Math.min(capped[row][0], capped[row - 1][0]);
+    }
+  }
+  return capped;
 }
 
 function pulledZ(spec: BodySpec, z: number, x: number, width: number, zFront: number, zRear: number) {
@@ -385,7 +397,8 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: 
       [side * out, y - 0.04, z + 0.03],
     ];
     builder.rings(ordered([stalk(x - 0.09), stalk(x + 0.02)]), "trim");
-    const glassZ = z + 0.037;
+    // Behind the shell's back by a few millimetres on a hero, whose shell reaches further back than a far model's.
+    const glassZ = z + (fine ? 0.042 : 0.037);
     const [a, b, c, d]: Point[] = [
       [side * (x + 0.012), y - 0.04, glassZ],
       [side * (x + 0.012), y + 0.046, glassZ],

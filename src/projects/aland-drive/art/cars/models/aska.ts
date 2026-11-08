@@ -112,18 +112,18 @@ const shape: Shape = {
     ...projectors({ x: [0.6, 0.7], h: 0.405, size: 0.03 }),
     sideIntake({ z: 0.75, h: 0.5, long: 0.42, tall: 0.28 }),
     ...louvres({ x: 0.74, z: -1.08, long: 0.32, wide: 0.2, count: 5 }),
-    ...louvres({ x: 0.33, z: 1.05, long: 0.75, wide: 0.16, count: 8, surface: "paint" }),
   ],
   blocks: [
     // A blade of the body's colour across each intake, so it reads as a shaped duct and not a hole.
     { at: [0.955, 0.52, 0.76], size: [0.05, 0.03, 0.46], surface: "paint", mirror: true, taper: [1, 0.7] },
-    splitter({ z: -2.34, h: 0.15, halfWidth: 0.62, long: 0.12 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] }),
+    splitter({ z: -2.34, h: 0.19, halfWidth: 0.62, long: 0.12 }), ...diffuser({ z: 1.9, tailZ: 2.28, h: 0.2, x: [0, 0.26, 0.52] }),
   ],
   extra: {
     bands: BANDS,
     silhouette: [
-      { z: -2.2, h: 0.15, band: "bumper" },
-      { z: -2.31, h: 0.22, band: "mouth" },
+      // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
+      { z: -2.315, h: 0.25, band: "bumper" },
+      { z: -2.31, h: 0.27, band: "mouth" },
       { z: -2.31, h: 0.37, band: "gap" },
       { z: -2.3, h: 0.38, band: "headDark" },
       { z: -2.285, h: 0.43, band: "headLamp" },
@@ -150,9 +150,8 @@ const shape: Shape = {
       { z: 2.235, h: 0.825, band: "tailDark" },
       { z: 2.245, h: 0.79, band: "mesh" },
       { z: 2.28, h: 0.56 },
-      { z: 2.31, h: 0.4, band: "diffuser" },
-      { z: 2.3, h: 0.2, band: "bumper" },
-      { z: 2.18, h: 0.13 },
+      { z: 2.305, h: 0.4, band: "diffuser" },
+      { z: 2.31, h: 0.22 },
     ],
     crown: [
       [-2.31, 0.02],
@@ -187,6 +186,7 @@ const shape: Shape = {
       [2.31, 0.9],
     ],
     hoodSeamZ: [-2.1, -1.0],
+    cleanEnds: true,
     scoop: [
       [-1.0, 0],
       [-0.4, 0.025],

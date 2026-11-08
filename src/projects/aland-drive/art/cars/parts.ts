@@ -69,5 +69,5 @@ export const louvres = ({ x, z, long, wide, count, surface = "grille" }: { x: nu
     mirror: x !== 0,
     cells: [4, 1],
     fine: true,
-    liftM: 0.006,
+    liftM: 0.012,
   }));
