@@ -4,8 +4,10 @@
  * much of its car's limit it plans on. A level is a share of the car's measured
  * cornering grip, a share of its braking, the second a little higher, since a
  * driver who corners cautiously still brakes firmly, and how much of the
- * throttle it uses out of a bend and down a straight, which is where a
- * cautious driver gives up most of the time. Each level's time on every track
+ * throttle it uses once rolling, out of a bend and down a straight, which is
+ * where a cautious driver gives up most of the time; off the line every level
+ * launches with all of it, since a racer that dawdles away from the grid reads
+ * as broken, not cautious. Each level's time on every track
  * is a count the vetting tool makes, so the spread between levels is measured,
  * never guessed; the shares here are the first to be measured.
  */

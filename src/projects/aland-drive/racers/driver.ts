@@ -32,6 +32,8 @@ const SEARCH_STEP_M = 2;
  */
 const CLOSE_PER_M = 0.15;
 const CLOSE_SOFT_MS = 5;
+/** Below this a cautious driver still uses the whole throttle: it launches like anyone, and gives its time up once rolling. */
+const LAUNCH_MS = 15;
 
 export class LineDriver {
   /** How far along the line the car has got. */
@@ -78,7 +80,7 @@ export class LineDriver {
     const wheels = pursuit({ x: car.position[0], z: car.position[2] }, headingOf(car.rotation), ahead, wheelBaseOf(tuning)) - Math.atan((CLOSE_PER_M * rightOfLine) / (speed + CLOSE_SOFT_MS));
     const error = this.plannedSpeed(speed) - speed;
     return {
-      throttle: Math.max(0, Math.min(this.throttleShare, error * GAIN_PER_MS)),
+      throttle: Math.max(0, Math.min(speed < LAUNCH_MS ? 1 : this.throttleShare, error * GAIN_PER_MS)),
       brake: Math.max(0, Math.min(1, -error * GAIN_PER_MS)),
       steer: Math.max(-1, Math.min(1, wheels / steerLimit(tuning, speed, false))),
       handbrake: false,
