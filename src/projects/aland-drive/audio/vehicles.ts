@@ -5,8 +5,10 @@ import { aska } from "./voices/aska";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
+import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
+import { gnista } from "./voices/gnista";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
 import { orkan } from "./voices/orkan";
@@ -140,6 +142,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A2
   orkan,
   // A3
+  dyning,
   // A4
   sund,
   // A5
@@ -153,6 +156,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   ljus,
   // B1
   grus,
+  gnista,
   // B2
   fjard,
   // B3
