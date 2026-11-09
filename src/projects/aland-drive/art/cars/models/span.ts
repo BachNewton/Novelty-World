@@ -30,10 +30,12 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
  * Fjäder's signature: each lamp a stack of three short bars of light, stepped out and down like a feather's barbs,
  * in a dark housing; the same at the tail in red.
  */
-function feather(on: "front" | "rear", x: number, h: number, surface: Decal["surface"]): Decal[] {
+function feather(on: "front" | "rear", x: number, h: number, surface: Decal["surface"], scale = 1): Decal[] {
   return [
-    { on, at: [x + 0.02, h], size: [0.17, 0.1], surface: "trim", mirror: true, cells: [4, 2], liftM: 0.008 },
-    ...[0, 1, 2].map((barb): Decal => ({ on, at: [x - 0.015 + barb * 0.025, h + 0.03 - barb * 0.03], size: [0.12 - barb * 0.015, 0.016], surface, mirror: true, cells: [4, 1], liftM: 0.016 })),
+    { on, at: [x + 0.02 * scale, h], size: [0.17 * scale, 0.1 * scale], surface: "trim", mirror: true, cells: [4, 2], liftM: 0.008 },
+    ...[0, 1, 2].map(
+      (barb): Decal => ({ on, at: [x + (barb * 0.025 - 0.015) * scale, h + (0.03 - barb * 0.03) * scale], size: [(0.12 - barb * 0.015) * scale, 0.016 * scale], surface, mirror: true, cells: [4, 1], liftM: 0.016 }),
+    ),
   ];
 }
 
@@ -76,22 +78,22 @@ const fender = (axle: number, from: number, to: number, wide: number): Fender =>
 const STRUCTURE: Strut[] = [
   {
     path: [
-      [0.55, 0.62, 0.56],
-      [0.53, 0.9, 0.55],
-      [0.47, 1.03, 0.54],
-      [0.3, 1.09, 0.53],
-      [0, 1.1, 0.53],
-      [-0.3, 1.09, 0.53],
-      [-0.47, 1.03, 0.54],
-      [-0.53, 0.9, 0.55],
-      [-0.55, 0.62, 0.56],
+      [0.54, 0.62, 0.66],
+      [0.52, 0.9, 0.65],
+      [0.46, 1.03, 0.64],
+      [0.3, 1.09, 0.63],
+      [0, 1.1, 0.63],
+      [-0.3, 1.09, 0.63],
+      [-0.46, 1.03, 0.64],
+      [-0.52, 0.9, 0.65],
+      [-0.54, 0.62, 0.66],
     ],
     radius: 0.024,
     surface: "rimDark",
   },
-  { path: [[0.38, 1.07, 0.55], [0.2, 0.82, 1.05]], radius: 0.017, surface: "rimDark", mirror: true },
+  { path: [[0.38, 1.07, 0.65], [0.2, 0.83, 1.12]], radius: 0.017, surface: "rimDark", mirror: true },
   // The frame's top rail, bare along each edge of the cockpit from the screen to the hoop.
-  { path: [[0.555, 0.712, -0.4], [0.6, 0.716, -0.1], [0.605, 0.716, 0.3], [0.56, 0.7, 0.56]], radius: 0.016, surface: "rimDark", mirror: true },
+  { path: [[0.555, 0.712, -0.4], [0.6, 0.716, -0.1], [0.605, 0.716, 0.3], [0.575, 0.705, 0.64]], radius: 0.016, surface: "rimDark", mirror: true },
   { path: [[HUB_X + 0.02, 0.68, FRONT - 0.06], [HUB_X, 0.48, FRONT]], radius: 0.012, surface: "trim", mirror: true, fine: true },
   ...corner(FRONT, 0.3, true),
   ...corner(REAR, 0.42, false),
@@ -115,7 +117,7 @@ const shape: Shape = {
   cowl: [-0.68, 0.62],
   header: [-0.47, 0.82],
   roof: [-0.43, 0.7],
-  roofEnd: [0.5, 0.7],
+  roofEnd: [0.6, 0.7],
   shoulder: [
     [-1.89, 0.27],
     [-1.38, 0.36],
@@ -145,8 +147,8 @@ const shape: Shape = {
     [-0.9, 0.3],
     [-0.68, 0.4],
     [-0.47, 0.46],
-    [0.5, 0.46],
-    [0.62, 0.22],
+    [0.6, 0.46],
+    [0.72, 0.22],
     [1.2, 0.2],
     [1.89, 0.3],
   ],
@@ -160,15 +162,17 @@ const shape: Shape = {
     { on: "rear", at: [0, 0.45], size: [0.46, 0.11], surface: "plate", cells: [4, 1], fine: true },
     ...handles([-0.1], 0.6),
     ...feather("front", 0.24, 0.31, "lensHead"),
-    ...feather("rear", 0.3, 0.56, "lensTail"),
+    ...feather("rear", 0.3, 0.57, "lensTail", 1.2),
     // The rain light, in the middle of the tail between the lamps.
     { on: "rear", at: [0, 0.57], size: [0.06, 0.06], surface: "lensTail", cells: [1, 1], liftM: 0.012 },
     sideIntake({ z: 0.22, h: 0.42, long: 0.3, tall: 0.13 }),
+    // The tub's bare carbon lower half, under the painted top: the structure showing through the body.
+    { on: "side", at: [-0.2, 0.255], size: [1.64, 0.15], surface: "trim", mirror: true, cells: [16, 2], liftM: 0.012 },
   ],
   blocks: [
-    splitter({ z: -1.97, h: 0.17, halfWidth: 0.5, long: 0.18 }),
+    splitter({ z: -1.96, h: 0.17, halfWidth: 0.46, long: 0.13 }),
     // The front wing's endplates, standing at the splitter's tips.
-    { at: [0.505, 0.205, -1.88], size: [0.012, 0.08, 0.18], surface: "trim", mirror: true },
+    { at: [0.465, 0.205, -1.895], size: [0.012, 0.08, 0.13], surface: "trim", mirror: true },
     // The diffuser's strakes under the tail.
     ...[0.16, 0.34].map((x) => ({ at: [x, 0.19, 1.62] as const, size: [0.012, 0.1, 0.5] as const, surface: "trim" as const, mirror: true, taper: [1, 1.4] as const })),
   ],
@@ -198,14 +202,14 @@ const shape: Shape = {
       { z: -0.43, h: 0.7, bed: true },
       ...faired(
         [
-          [0.5, 0.7],
-          [0.62, 0.86],
-          [0.85, 0.93],
-          [1.25, 0.84],
+          [0.6, 0.7],
+          [0.72, 0.86],
+          [0.92, 0.93],
+          [1.3, 0.84],
           [1.62, 0.73],
           [1.8, 0.68],
         ],
-        [[0.5, undefined]],
+        [[0.6, undefined]],
       ),
       { z: 1.8, h: 0.68, band: "tailDark" },
       { z: 1.82, h: 0.5, band: "mesh" },
@@ -218,8 +222,8 @@ const shape: Shape = {
       [-0.9, 0.06],
       [-0.68, 0.05],
       [-0.47, 0.02],
-      [0.5, 0.02],
-      [0.65, 0.12],
+      [0.6, 0.02],
+      [0.75, 0.12],
       [1.0, 0.16],
       [1.5, 0.1],
       [1.89, 0.03],
@@ -228,8 +232,8 @@ const shape: Shape = {
       [-1.89, 0.3],
       [-1.75, 0.34],
       [-1.38, 0.36],
-      [-1.0, 0.44],
-      [-0.7, 0.56],
+      [-1.0, 0.46],
+      [-0.75, 0.6],
       [-0.3, 0.64],
       [0.3, 0.64],
       [0.62, 0.58],
@@ -243,7 +247,7 @@ const shape: Shape = {
     struts: STRUCTURE,
     wing: { z: 1.6, h: 1.08, halfWidth: 0.76, chord: 0.22, rise: 0.06, endplates: true, stayM: 0.45 },
     exhausts: { x: [-0.11, 0.11], h: 0.31, z: 1.875, radius: 0.04 },
-    cabin: { dashZ: -0.62, dashH: 0.56, floorH: 0.18, seatZ: 0.2, endZ: 0.5, seatX: 0.3, seatSurface: "seat", wideM: 1.1 },
+    cabin: { dashZ: -0.62, dashH: 0.56, floorH: 0.18, seatZ: 0.2, endZ: 0.6, seatX: 0.3, seatSurface: "seat", wideM: 1.1 },
   },
 };
 
@@ -251,9 +255,29 @@ export const span: CarSpec = {
   id: SPAN.id,
   name: SPAN.name,
   ride: SPAN.ride,
-  paint: "car-paint-signal-red",
-  paints: [paint("car-paint-signal-red")],
+  paint: "car-paint-fjader",
+  paints: [
+    paint("car-paint-fjader"),
+    paint("car-paint-carbon-weave", "metallic"),
+    paint("car-paint-lime"),
+    paint("car-paint-white"),
+    paint("car-paint-lemon"),
+    paint("car-paint-ultramarine", "metallic"),
+    paint("car-paint-graphite", "matte"),
+  ],
   body: bodyOf(shape),
+  /** A track car's cockpit: one race display with shift lights, a small flat wheel, buckets in harnesses, bare carbon, Fjäder orange. */
+  interior: {
+    gauges: "race",
+    wheel: "flat",
+    shifter: "sequential",
+    seats: "bucket",
+    screen: false,
+    harness: true,
+    colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-carbon", accent: "car-cabin-fjader", glow: "car-cabin-glow-red" },
+    turnsToLock: 0.9,
+    eye: [0, 0.15, 0],
+  },
   wheel: { radiusM: SPAN.wheelRadiusM, widthM: 0.24, rimShare: 0.72, spokes: 6, twinSpokes: false, style: "blade" },
   shadowHalf: [0.92, 1.89],
 };
