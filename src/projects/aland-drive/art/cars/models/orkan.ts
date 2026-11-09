@@ -56,7 +56,7 @@ const shape: Shape = {
   lampH: [0.485, 0.533],
   hoodLipH: 0.56,
   hoodH: 0.76,
-  cowl: [-0.26, 0.885],
+  cowl: [-0.26, 0.862],
   header: [0.3, 1.2],
   roof: [0.62, 1.275],
   roofEnd: [1.08, 1.25],
@@ -151,15 +151,15 @@ const shape: Shape = {
           [-2.29, 0.56],
           [-2.0, 0.645],
           [-1.3, 0.765],
-          [-0.55, 0.852],
-          [-0.32, 0.874],
+          [-0.55, 0.835],
+          [-0.32, 0.852],
         ],
         [[-2.29, undefined]],
       ),
-      { z: -0.32, h: 0.874, band: "cowl" },
+      { z: -0.32, h: 0.852, band: "cowl" },
       // The screen as one straight run from the cowl to the header: the cockpit hangs its mirror and visors from the
       // point after the screen's start, so that point has to be the header.
-      { z: -0.26, h: 0.885, band: "screen" },
+      { z: -0.26, h: 0.862, band: "screen" },
       ...faired(
         [
           [0.3, 1.2],
@@ -256,7 +256,7 @@ export const orkan: CarSpec = {
     screen: true,
     // Sat a little lower than the recipe's sitting height, as a grand tourer's driver is: the fastback's roof stays a
     // band over the screen rather than a slab, and the eye's line through the wheel meets the cluster above its hub.
-    eye: [0, -0.08, 0.04],
+    eye: [0, -0.07, 0.04],
     clusterSight: 0.8,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
