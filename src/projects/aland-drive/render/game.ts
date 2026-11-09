@@ -101,7 +101,6 @@ import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
 import { medalForPlace, type Standing } from "../challenge/standings";
-import { isDifficulty, type Difficulty } from "../racers/difficulty";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
 import { RaceGrid } from "../racers/grid";
 import { LaidRoad } from "../racers/laid-road";
@@ -644,14 +643,12 @@ const targetOf = (challenge: Challenge) => (challenge.kind === "route" ? challen
 /** The car on the start line and through the countdown: the handbrake, since the brake held at a standstill is reverse. */
 const HELD: DriveInput = { ...NO_INPUT, handbrake: true };
 
-/** How many racers a race gets and how well they drive: one rival at medium until the owner has raced it, `?racers=` and `?difficulty=` for others. */
-function racersAskedIn(search: string): { count: number; difficulty: Difficulty } {
-  const params = new URLSearchParams(search);
-  const count = params.get("racers");
-  const difficulty = params.get("difficulty") ?? "medium";
-  if (count !== null && !/^\d+$/.test(count)) throw new Error(`?racers= takes a count, not ${count}`);
-  if (!isDifficulty(difficulty)) throw new Error(`?difficulty= takes easy, medium, hard, expert or legend, not ${difficulty}`);
-  return { count: count === null ? 1 : Number(count), difficulty };
+/** How many racers a race gets: the whole grid, or `?racers=<count>` for fewer, 0 for none. */
+function racersAskedIn(search: string): number {
+  const count = new URLSearchParams(search).get("racers");
+  if (count === null) return Infinity;
+  if (!/^\d+$/.test(count)) throw new Error(`?racers= takes a count, not ${count}`);
+  return Number(count);
 }
 
 export const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
@@ -1661,7 +1658,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // The challenge being played, if any (`challenge/session.ts`): the run, the car from before, and the way back to the line.
   let session: ChallengeSession | null = null;
-  // The racers of the race being played (`racers/grid.ts`), put on the grid once the player's car is, and how many a race gets at what difficulty.
+  // The racers of the race being played (`racers/grid.ts`), put on the grid once the player's car is, and how many a race gets.
   let grid: RaceGrid | null = null;
   const racersAsked = racersAskedIn(window.location.search);
   // A race's line and the surface under it, fetched once per race, or drawn here from the loaded roads for a race of the page's own.
@@ -1688,11 +1685,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const putRacersOnGrid = async (challenge: Challenge, players: number) => {
     grid?.dispose();
     grid = null;
-    if (challenge.kind !== "race" || racersAsked.count === 0) return;
+    if (challenge.kind !== "race" || racersAsked === 0) return;
     const { line, pavedAt } = await raceLineOf(challenge);
     // The racers drive the other cars of the race's kind.
     const field = raceFieldOf(challenge.car, challenge.ground).slice(1);
-    grid = new RaceGrid(challenge, line, pavedAt, field, racersAsked.difficulty, racersAsked.count, players, {
+    grid = new RaceGrid(challenge, line, pavedAt, field, racersAsked, players, {
       addCar: (place, car, condition) => {
         const road = world.roads.nearest(place.x, place.z);
         if (!road) throw new Error(`no road at a race's grid place, ${place.x}, ${place.z}`);

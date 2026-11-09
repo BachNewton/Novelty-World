@@ -27,7 +27,7 @@ Three problems, none of them learning:
 
 - **The racing line is an optimisation with a closed form.** The line a racer drives is the minimum-curvature path through the carriageway as laid, the textbook answer, solved by projected gradient descent on the lateral offset at every few metres with the laid edges as bounds, coarse to fine. Its speed plan is the measured limits applied along it: the fastest speed each metre's curvature allows on the ground there, a backward pass for braking and a forward pass for the car's pull. Nothing is learned; the car's limits were measured once.
 - **Following and racecraft are rules.** Pure pursuit steering and a speed controller on the plan, recovery by the player's own reset, and passing and defending by the rules the owner decided (pass on the inside into a bend or along a straight, hold the inside once, a car's width side by side, brake for a crash). A learned policy would have to rediscover rules that are already written down, and would be judged by the same tool.
-- **Difficulty is a calibration of a few numbers**: the share of the limit the plan uses, how late it brakes, how cleanly it holds the line, how fast it reacts, how often it slips, which car it drives. Each setting is one point of those, and its time on every track is counted. If the spread of settings ever needs fitting (a setting that lands near the owner's own pace), that is black-box tuning on a deterministic objective, the cheapest kind there is.
+- **The racer's pace is a calibration of two numbers**: the share of its car's cornering grip the plan uses and the share of its braking, set as high as the vetting tool finds clean. Raising them is not tuning but making the plan see what catches it out, read track by track from the tool's traces.
 
 So the skill's decision procedure ends at its first branch: a hand-written baseline, measured on the ruler, and no learner behind it. A learned racer (imitation of the owner's play, or policy gradient on the simulation) would be a later line, taken only if the rule-based racer fails a reading the owner cares about and the brief for it says what it would add.
 
@@ -35,17 +35,17 @@ So the skill's decision procedure ends at its first branch: a hand-written basel
 
 `tools/race-vet.ts` is the ruler, built first (step 2 of `ideas/races.md`'s order). Its first readings, the race's own car, dry, from the pole, on the par driver's plan at shares of the flat-pad grip, said more about the driver than the tracks: at 0.9 of the grip the plain driver, which follows the GPS's line and reads a bend's sharpness over 24 m, ran wide at junction corners and into what stood past the verge on most tracks, and the GPS's line itself leaves the laid road on several. Those readings were the floor; the findings about tracks are in `ideas/races.md`, section 7.
 
-The racer on the racing line, read the same way (the race's own car, dry, from the pole, every race), at the five difficulty levels:
+The racer on the racing line, read the same way (the race's own car, dry, from the pole, every race), at shares of its car's grip from 0.6 to 0.9 of the cornering grip (braking 0.7 to 0.98):
 
-| Level | Races every run is clean on, of 32 |
+| Share of the grip | Races every run is clean on, of 32 |
 |---|---|
-| easy | 27 |
-| medium | 23 |
-| hard | 11 |
-| expert | 3 |
-| legend | 2 |
+| 0.60 | 27 |
+| 0.68 | 23 |
+| 0.76 | 11 |
+| 0.83 | 3 |
+| 0.90 | 2 |
 
-The spread between levels is real: a medium racer is about 10% slower than a hard one over a race and an easy one about 10% slower again (Painters' Loop 5:31, 6:01 and 6:44 at hard, medium and easy; Kastelholm 6:16, 6:50 and 7:36), and the racing line at any level is faster than the laid middle wherever both are clean (Kastelholm's lap 2:00 against 2:27). Expert and legend are not yet levels a racer can be trusted at: they finish most races but with a reset or a hit, and a reset costs more than the extra pace earns, so on a third of the tracks hard beats them. The next step this reading asks for is at the top, not the bottom: what the plan doesn't see on the tracks where expert runs wide (camber, a crest it reads too gently, a bend the line's smoothing softens), read track by track from the vetting tool's traces, before anyone tunes the shares.
+Each step of share is worth about 10% of a race's time (Painters' Loop 5:31, 6:01 and 6:44 at 0.76, 0.68 and 0.60; Kastelholm 6:16, 6:50 and 7:36), and the racing line at any share is faster than the laid middle wherever both are clean (Kastelholm's lap 2:00 against 2:27). At the top shares the racer finishes most races but with a reset or a hit, and a reset costs more than the extra pace earns, so on a third of the tracks 0.76 beats 0.9. What this reading asks for is at the top: what the plan doesn't see on the tracks where it runs wide (camber, a crest it reads too gently, a bend the line's smoothing softens), read track by track from the vetting tool's traces.
 
 What a reading can't tell: whether the racer looks like a driver. That is the owner's, at the checkpoint, and the films.
 
@@ -55,4 +55,5 @@ Each step's "done" is in `ideas/races.md`, section 8. The line is done when ever
 
 ## The owner's rulings
 
-None yet beyond those in `ideas/traffic-and-racers.md` and `ideas/races.md`.
+- **One kind of racer, as fast as it legally can be; no difficulty levels.** Put to the owner as five levels, each a share of the car's limit, with their spread measured; raced, and ruled against: every racer on the grid is to be as hard as possible while obeying the simulation, never cheating, and the work goes into their pace and their racecraft, not into grading them down. What they lacked when raced was what the levels couldn't give: they saw neither each other, nor the player, nor the traffic, and a spun car struggled to recover.
+- Beyond that, those in `ideas/traffic-and-racers.md` and `ideas/races.md`.

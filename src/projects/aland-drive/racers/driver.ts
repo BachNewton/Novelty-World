@@ -12,7 +12,7 @@ import { slowestAhead, type PacePlan } from "./speed-plan";
  * throttle and brake that hold the car at the plan's speed, looking a moment
  * ahead so the brakes are on by the time the plan falls. It is a pure function
  * of the car's state and its place along the line, so the same drive comes out
- * every time. The racer grows out of it: recovery, difficulty and racecraft are
+ * every time. The racer grows out of it: recovery and racecraft are
  * its own, and this is what every one of them drives with underneath.
  */
 
@@ -32,8 +32,6 @@ const SEARCH_STEP_M = 2;
  */
 const CLOSE_PER_M = 0.15;
 const CLOSE_SOFT_MS = 5;
-/** Below this a cautious driver still uses the whole throttle: it launches like anyone, and gives its time up once rolling. */
-const LAUNCH_MS = 15;
 
 export class LineDriver {
   /** How far along the line the car has got. */
@@ -43,8 +41,6 @@ export class LineDriver {
     readonly line: RoadLine,
     readonly plan: PacePlan,
     from: number,
-    /** The most of the throttle it uses: a cautious driver's is well short of the floor. */
-    private readonly throttleShare = 1,
     private readonly shortestLookM = SHORTEST_LOOK_M,
   ) {
     this.along = from;
@@ -80,7 +76,7 @@ export class LineDriver {
     const wheels = pursuit({ x: car.position[0], z: car.position[2] }, headingOf(car.rotation), ahead, wheelBaseOf(tuning)) - Math.atan((CLOSE_PER_M * rightOfLine) / (speed + CLOSE_SOFT_MS));
     const error = this.plannedSpeed(speed) - speed;
     return {
-      throttle: Math.max(0, Math.min(speed < LAUNCH_MS ? 1 : this.throttleShare, error * GAIN_PER_MS)),
+      throttle: Math.max(0, Math.min(1, error * GAIN_PER_MS)),
       brake: Math.max(0, Math.min(1, -error * GAIN_PER_MS)),
       steer: Math.max(-1, Math.min(1, wheels / steerLimit(tuning, speed, false))),
       handbrake: false,

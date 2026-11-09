@@ -47,10 +47,9 @@ export interface VetSpec extends Indexed {
   tyres: Tyre;
   /** The place on the grid it starts from, pole first. */
   slot: number;
-  /** The shares of the car's measured cornering grip and braking the driver plans on, of the throttle it uses, and the name they go by. */
+  /** The shares of the car's measured cornering grip and braking the driver plans on, and the name they go by. */
   gripShare: number;
   brakeShare: number;
-  throttleShare: number;
   skill: string;
   line: LineKind;
   /** The tile folder the run reads. */
@@ -231,22 +230,15 @@ function pilotFor(spec: VetSpec, loaded: LoadedRace, line: RoadLine, from: numbe
     tightestRadiusAt: (speed) => (STEERING_ROOM * wheelBaseOf(tuning)) / Math.tan(steerLimit(tuning, speed, false)),
     fromM: from,
   });
-  const racer = new Racer(
-    race,
-    line,
-    plan,
-    from,
-    {
-      reset: (point) => {
-        const road = world.roads.nearest(point.x, point.z);
-        if (!road) throw new Error(`${race.id}: no road to reset to at ${point.x}, ${point.z}`);
-        drive.placeAt({ ...road, x: point.x, z: point.z, heading: point.heading });
-      },
-      // Water a car sinks in, as the simulation reads it: a road along the shore or over it isn't.
-      inWater: (x, z) => world.isWater(x, z) && !world.bearsCar(x, z) && (world.roads.nearest(x, z)?.distance ?? Infinity) > 6,
+  const racer = new Racer(race, line, plan, from, {
+    reset: (point) => {
+      const road = world.roads.nearest(point.x, point.z);
+      if (!road) throw new Error(`${race.id}: no road to reset to at ${point.x}, ${point.z}`);
+      drive.placeAt({ ...road, x: point.x, z: point.z, heading: point.heading });
     },
-    spec.throttleShare,
-  );
+    // Water a car sinks in, as the simulation reads it: a road along the shore or over it isn't.
+    inWater: (x, z) => world.isWater(x, z) && !world.bearsCar(x, z) && (world.roads.nearest(x, z)?.distance ?? Infinity) > 6,
+  });
   return {
     get along() {
       return racer.record.along;

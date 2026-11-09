@@ -7,13 +7,14 @@
 // spread over the machine's cores through the shared worker pool (`src/shared/lib/bot-lab/pool.ts`).
 //
 //   npx tsx src/projects/aland-drive/tools/race-vet.ts [--folder=<tiles>] [--only=<id>,<id>] [--cars=own|field]
-//     [--conditions=dry,wet,snow,ice] [--slots=pole|all] [--line=racing[,middle,gps]] [--grip=0.9[,0.75,...]] [--workers=N]
+//     [--conditions=dry,wet,snow,ice] [--slots=pole|all] [--line=racing[,middle,gps]] [--grip=racer[,0.9,0.75,...]] [--workers=N]
 //     [--out=<file.json>] [--trace]
 //
 // The default is the whole list: every race, its field, every condition, every grid place, which is tens of minutes on
 // all cores (ask the owner first, as the root CLAUDE.md says of the machine's CPU). --cars=own, --conditions=dry and
-// --slots=pole cut it to one run a race, seconds each. --grip is the share of its measured grip the driver plans on, or
-// several, a run each: the highest a race is clean at says how hard it is, and a race clean at none has a fault in it.
+// --slots=pole cut it to one run a race, seconds each. --grip is the racer's own skill (`racers/skill.ts`), or shares of
+// its measured grip, several a run each: the highest a race is clean at says how hard it is, and a race clean at none
+// has a fault in it.
 // --line is the line driven, or several, a run each: the racing line (`racers/racing-line.ts`), the laid road's middle,
 // or the GPS's own line on the par driver's plan, which is what the challenges were measured with. --trace, with
 // --workers=1, prints what each run does every second, for diagnosing one.
@@ -26,8 +27,8 @@ import { dirname } from "node:path";
 import { inlineRunner, WorkerPool, type GameRunner } from "@/shared/lib/bot-lab/pool";
 import { timeText } from "../challenge/format";
 import { RACES } from "../challenge/list";
-import { isDifficulty, SKILLS } from "../racers/difficulty";
 import { fieldOf, tyresFor } from "../racers/field";
+import { RACER_SKILL } from "../racers/skill";
 import { LINE_KINDS, loadRace, vetRun, type LineKind, type VetResult, type VetSpec } from "../racers/vet";
 import { initPhysics } from "../sim/drive";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
@@ -38,14 +39,14 @@ const ONLY = option("only", "");
 const CARS_ASKED = option("cars", "field");
 const CONDITIONS_ASKED = option("conditions", CONDITIONS.join(","));
 const SLOTS = option("slots", "all");
-/** The shares of its measured grip the driver plans on, one run each, as a number or a difficulty's name: the highest a race is clean at says how hard it is. */
-const GRIPS = option("grip", "0.9")
+/** The shares of its measured grip the driver plans on, one run each: the racer's own (`racer`), or numbers, to find the highest a race is clean at. */
+const GRIPS = option("grip", "racer")
   .split(",")
   .map((token) => {
-    if (isDifficulty(token)) return { skill: token, ...SKILLS[token] };
+    if (token === "racer") return { skill: token, ...RACER_SKILL };
     const share = Number(token);
-    if (!(share > 0 && share <= 1)) throw new Error(`--grip takes shares of the grip, 0 to 1, or a difficulty's name, not ${token}`);
-    return { skill: share.toFixed(2), cornerShare: share, brakeShare: share, throttleShare: 1 };
+    if (!(share > 0 && share <= 1)) throw new Error(`--grip takes shares of the grip, 0 to 1, or "racer" for the racer's own, not ${token}`);
+    return { skill: share.toFixed(2), cornerShare: share, brakeShare: share };
   });
 const WORKERS = Number(option("workers", "0"));
 const OUT = option("out", "");
@@ -76,7 +77,7 @@ const specsOf = (raceId: string, from: number): VetSpec[] => {
   const cars = CARS_ASKED === "own" ? [race.car] : fieldOf(race.car, race.ground);
   const slots = SLOTS === "pole" ? [0] : race.grid.map((_, slot) => slot);
   const specs: VetSpec[] = [];
-  for (const car of cars) for (const condition of conditions) for (const slot of slots) for (const line of LINES) for (const { skill, cornerShare, brakeShare, throttleShare } of GRIPS) specs.push({ index: from + specs.length, race: raceId, car, condition, tyres: tyresFor(condition), slot, gripShare: cornerShare, brakeShare, throttleShare, skill, line, folder: FOLDER });
+  for (const car of cars) for (const condition of conditions) for (const slot of slots) for (const line of LINES) for (const { skill, cornerShare, brakeShare } of GRIPS) specs.push({ index: from + specs.length, race: raceId, car, condition, tyres: tyresFor(condition), slot, gripShare: cornerShare, brakeShare, skill, line, folder: FOLDER });
   return specs;
 };
 
@@ -143,7 +144,7 @@ if (GRIPS.length > 1 || LINES.length > 1) {
   for (const line of LINES) for (const { skill } of shares) console.log(`${pad(line, 6)} ${pad(skill, 6)} ${races.filter(({ id }) => cleanAt(id, line, skill)).length} of ${races.length}`);
   console.log(`\n${pad("race", 28)} ${LINES.map((line) => pad(`${line}: clean at`, 16)).join(" ")}`);
   for (const { id } of races) console.log(`${pad(id, 28)} ${LINES.map((line) => pad(shares.find(({ skill }) => cleanAt(id, line, skill))?.skill ?? "none", 16)).join(" ")}`);
-  // The spread between the shares: what difficulty is worth on each race, by count; a dash where a run didn't finish.
+  // The spread between the shares: what each share of the grip is worth on each race, by count; a dash where a run did not finish.
   console.log(`\n${pad("race", 28)} ${pad("line", 6)} ${shares.map(({ skill }) => pad(skill, 8)).join(" ")}`);
   for (const { id } of races) {
     for (const line of LINES) {

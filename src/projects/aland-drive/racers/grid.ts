@@ -7,18 +7,18 @@ import type { SimulatedCar } from "../sim/drive";
 import type { RoadLine, RoadPoint } from "../sim/road-net";
 import type { Condition } from "../sim/surfaces";
 import { wheelBaseOf } from "../sim/tuning";
-import { SKILLS, type Difficulty } from "./difficulty";
 import { tyresFor } from "./field";
 import { Racer, type RacerHost } from "./racer";
 import { crestOf, curvatureOf } from "./racing-line";
 import { ROUTE_STEP_M } from "./route-plan";
+import { RACER_SKILL } from "./skill";
 import { planSpeeds } from "./speed-plan";
 
 /*
  * The racers of one race being played: each a simulated car of its own in the
  * player's world (`sim/drive.ts`), put on a place of the grid the players
- * don't take, driven by a `Racer` on the race's line at a difficulty, stepped
- * before the world each step, and read for the places. It owns no renderer:
+ * don't take, driven by a `Racer` on the race's line, stepped before the world
+ * each step, and read for the places. It owns no renderer:
  * the game draws each racer's car as it draws another player's, and asks here
  * where everyone stands.
  */
@@ -39,7 +39,6 @@ export interface GridRacer {
   id: string;
   car: SimulatedCar;
   racer: Racer;
-  difficulty: Difficulty;
   /** Put somewhere since the last step, so it crosses no line on the way. */
   placed: boolean;
 }
@@ -60,14 +59,13 @@ export class RaceGrid {
 
   /**
    * Racers on the grid's places from `firstSlot` on, each in a car of the field in turn, on the race's line and its
-   * surface, at a difficulty, in the world's condition: as many as asked and the grid has room for.
+   * surface, in the world's condition: as many as asked and the grid has room for.
    */
   constructor(
     readonly race: RaceChallenge,
     line: RoadLine,
     pavedAt: (alongM: number) => boolean,
     field: readonly CarId[],
-    difficulty: Difficulty,
     count: number,
     firstSlot: number,
     private readonly host: GridHost,
@@ -75,7 +73,7 @@ export class RaceGrid {
     const condition = host.condition();
     const curvature = curvatureOf(line, ROUTE_STEP_M);
     const crest = crestOf(line, ROUTE_STEP_M);
-    const skill = SKILLS[difficulty];
+    const skill = RACER_SKILL;
     for (let slot = firstSlot, made = 0; slot < race.grid.length && made < count; slot++, made++) {
       const carId = field[made % field.length];
       const tuning = CARS[carId];
@@ -97,22 +95,14 @@ export class RaceGrid {
       const entry: GridRacer = {
         id: `racer-${slot}`,
         car,
-        difficulty,
         placed: false,
-        racer: new Racer(
-          race,
-          line,
-          plan,
-          from,
-          {
-            reset: (road) => {
-              host.resetCar(car, road);
-              entry.placed = true;
-            },
-            inWater: host.inWater,
+        racer: new Racer(race, line, plan, from, {
+          reset: (road) => {
+            host.resetCar(car, road);
+            entry.placed = true;
           },
-          skill.throttleShare,
-        ),
+          inWater: host.inWater,
+        }),
       };
       this.racers.push(entry);
     }

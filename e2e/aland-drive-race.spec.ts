@@ -98,7 +98,7 @@ test("a solo race: its card from its ring, the grid, and a finish in first for g
 });
 
 test("a race against one racer: it takes a grid place, drives, and the player's place counts it", async ({ page }) => {
-  await page.goto(`${PAGE}?tiles=local:${tilesPort}&racers=1&difficulty=easy`);
+  await page.goto(`${PAGE}?tiles=local:${tilesPort}&racers=1`);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const { race } = await layRace(page, { id: "fixture-race-with-racer", title: TITLE });
   await page.evaluate((added: RaceChallenge) => {

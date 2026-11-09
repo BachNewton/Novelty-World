@@ -70,10 +70,8 @@ export class Racer {
     plan: PacePlan,
     from: number,
     private readonly host: RacerHost,
-    /** The most of the throttle it uses (`difficulty.ts`). */
-    throttleShare = 1,
   ) {
-    this.driver = new LineDriver(line, plan, from, throttleShare);
+    this.driver = new LineDriver(line, plan, from);
     this.run = startRun(race, 1);
     this.record = { phase: "driving", along: from, phaseS: 0, tries: 0, furthest: from, stuckS: 0, resets: 0 };
   }
