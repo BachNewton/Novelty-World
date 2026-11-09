@@ -97,8 +97,7 @@ function spokesOf(style: RimStyle, count: number, hub: number, rimInner: number,
 
 /**
  * A pressed steel wheel's face: a disc in the body's paint, dished from the rim to a raised ring and down again under a
- * chrome hubcap's dome, with `vents` small dark slots round the dish. Its profile runs from the middle out, so it faces
- * out of the wheel.
+ * chrome hubcap's dome, with `vents` small dark slots round the dish.
  */
 function steelFace(builder: SoupBuilder, rim: number, faceX: number, vents: number, sides: number, fine: boolean) {
   const disc: [number, number][] = [
@@ -110,7 +109,8 @@ function steelFace(builder: SoupBuilder, rim: number, faceX: number, vents: numb
     [faceX - 0.03, rim * 0.9],
     [faceX - 0.016, rim - 0.031],
   ];
-  turned(builder, disc, sides, "paint");
+  // Turned from the rim in, as the hubcap's dome is, so the disc faces out of the wheel.
+  turned(builder, [...disc].reverse(), sides, "paint");
   const dome: [number, number][] = [
     [faceX - 0.046, rim * 0.47],
     [faceX - 0.012, rim * 0.46],

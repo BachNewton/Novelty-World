@@ -1,4 +1,4 @@
-import { ROWS, type Band, type Block, type Decal, type Strut } from "../body";
+import { ROWS, type Band, type Decal, type Strut } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { louvres } from "../parts";
@@ -38,7 +38,7 @@ const face = (): Decal[] => [
   { on: "front", at: [0.5, 0.64], size: [0.2, 0.2], surface: "rim", mirror: true, round: true, liftM: 0.012 },
   { on: "front", at: [0.5, 0.64], size: [0.165, 0.165], surface: "lensHead", mirror: true, round: true, liftM: 0.018 },
   { on: "front", at: [0.54, 0.47], size: [0.075, 0.05], surface: "rim", mirror: true, round: true, liftM: 0.012, fine: true },
-  { on: "front", at: [0.54, 0.47], size: [0.06, 0.038], surface: "lensAmber", mirror: true, round: true, liftM: 0.016 },
+  { on: "front", at: [0.54, 0.47], size: [0.06, 0.038], surface: "lensAmber", mirror: true, round: true, liftM: 0.016, fine: true },
   // The moustache: a chrome bar across the nose between the eyes, its tips turned up.
   { on: "front", at: [0, 0.505], size: [0.46, 0.022], surface: "rim", cells: [8, 1], liftM: 0.014 },
   { on: "front", at: [0.225, 0.52], size: [0.05, 0.024], surface: "rim", mirror: true, cells: [2, 1], liftM: 0.016, fine: true },
@@ -62,7 +62,7 @@ const tail = (): Decal[] => [
 const flanks = (): Decal[] => [
   { on: "side", at: [-0.22, 0.64], size: [1.45, 0.016], surface: "rim", mirror: true, cells: [12, 1], liftM: 0.012, fine: true },
   ...handles([0.08], 0.8),
-  ...[0, 1, 2].map((slot): Decal => ({ on: "side", at: [1.36 - slot * 0.025, 0.885 - slot * 0.04], size: [0.26, 0.018], surface: "grille", mirror: true, cells: [6, 1], liftM: 0.014 })),
+  ...[0, 1, 2].map((slot): Decal => ({ on: "side", at: [1.36 - slot * 0.025, 0.885 - slot * 0.04], size: [0.26, 0.018], surface: "grille", mirror: true, cells: [6, 1], liftM: 0.014, fine: true })),
 ];
 
 /** The front lid's chrome spine, from its front edge back to the handle, and the engine lid's vents. */
@@ -75,7 +75,7 @@ const lids = (): Decal[] => [
  * A chrome bumper bar following the end's curve round its corners, on two small dark irons, with an overrider standing
  * up from it either side of the plate. `plan` is the bar's path across the car, from its middle out to one corner.
  */
-const bumper = (plan: readonly (readonly [x: number, z: number])[], end: "front" | "rear"): { struts: Strut[]; blocks: Block[] } => {
+const bumper = (plan: readonly (readonly [x: number, z: number])[], end: "front" | "rear"): Strut[] => {
   const h = 0.33;
   const out = end === "front" ? -1 : 1;
   const half = plan.map(([x, z]) => [x, h, z] as const);
@@ -85,38 +85,35 @@ const bumper = (plan: readonly (readonly [x: number, z: number])[], end: "front"
     const [[x0, z0], [x1, z1]] = [plan[next - 1], plan[next]];
     return z0 + ((z1 - z0) * (x - x0)) / (x1 - x0);
   };
-  return {
-    struts: [
-      { path: across, radius: 0.034, surface: "rim", sides: 12 },
-      { path: [[0.38, h - 0.01, zAt(0.38) - out * 0.02], [0.38, h - 0.01, zAt(0.38) - out * 0.13]], radius: 0.014, surface: "trim", mirror: true, fine: true },
-    ],
-    blocks: [{ at: [0.27, h + 0.045, zAt(0.27) + out * 0.012], size: [0.04, 0.15, 0.05], surface: "rim", mirror: true, taper: [0.8, 0.85], fine: true }],
-  };
+  return [
+    { path: across, radius: 0.034, surface: "rim", sides: 12 },
+    { path: [[0.38, h - 0.01, zAt(0.38) - out * 0.02], [0.38, h - 0.01, zAt(0.38) - out * 0.13]], radius: 0.014, surface: "trim", mirror: true, fine: true },
+    // The overriders: short chrome posts standing up out of the bar, leaning a little back at the top.
+    { path: [[0.27, h - 0.04, zAt(0.27) + out * 0.012], [0.27, h + 0.07, zAt(0.27) + out * 0.004], [0.27, h + 0.11, zAt(0.27) - out * 0.012]], radius: 0.022, surface: "rim", mirror: true, sides: 10, fine: true },
+  ];
 };
 
 const FRONT_BUMPER = bumper(
   [
     [0, -2.145],
-    [0.15, -2.13],
-    [0.3, -2.075],
-    [0.42, -2.01],
-    [0.52, -1.94],
-    [0.6, -1.87],
-    [0.65, -1.8],
-    [0.67, -1.74],
+    [0.25, -2.105],
+    [0.42, -2.015],
+    [0.54, -1.925],
+    [0.62, -1.85],
+    [0.66, -1.78],
+    [0.67, -1.73],
   ],
   "front",
 );
 const REAR_BUMPER = bumper(
   [
     [0, 1.93],
-    [0.15, 1.92],
-    [0.3, 1.88],
+    [0.25, 1.9],
     [0.42, 1.835],
-    [0.52, 1.78],
-    [0.6, 1.72],
-    [0.65, 1.665],
-    [0.68, 1.6],
+    [0.54, 1.765],
+    [0.62, 1.7],
+    [0.66, 1.645],
+    [0.68, 1.59],
   ],
   "rear",
 );
@@ -189,7 +186,6 @@ const shape: Shape = {
   mirror: { z: -0.83, h: 0.99, x: 0.74 },
   rearPlateH: 0.5,
   decals: [...face(), ...tail(), ...flanks(), ...lids()],
-  blocks: [...FRONT_BUMPER.blocks, ...REAR_BUMPER.blocks],
   extra: {
     bands: BANDS,
     silhouette: [
@@ -242,10 +238,9 @@ const shape: Shape = {
     ],
     crown: [
       [-2.09, 0.0],
-      [-1.8, -0.035],
-      [-1.38, -0.05],
-      [-1.1, -0.02],
-      [-0.9, 0.04],
+      [-1.75, 0.025],
+      [-1.1, 0.035],
+      [-0.85, 0.045],
       [-0.1, 0.075],
       [0.6, 0.06],
       [1.0, 0.02],
@@ -267,7 +262,7 @@ const shape: Shape = {
     hoodSeamZ: [-1.97, -1.1],
     cleanEnds: true,
     cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.15, rearSeatZ: 0.52, endZ: 0.88, seatX: 0.3, seatSurface: "seatTan" },
-    struts: [...FRONT_BUMPER.struts, ...REAR_BUMPER.struts],
+    struts: [...FRONT_BUMPER, ...REAR_BUMPER],
     exhausts: { x: [-0.24, 0.24], h: 0.24, z: TAIL_Z - 0.02, radius: 0.022 },
   },
 };
