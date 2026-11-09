@@ -15,6 +15,7 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
+import kraft from "./limits/kraft.json";
 import kobb from "./limits/kobb.json";
 import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
@@ -122,6 +123,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // C2
   // C3
   vik,
+  kraft,
   // C4
   salta,
   // Outside the tiers

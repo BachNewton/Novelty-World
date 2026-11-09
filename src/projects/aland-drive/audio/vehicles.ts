@@ -15,6 +15,7 @@ import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
+import { kraft } from "./voices/kraft";
 import { kobb } from "./voices/kobb";
 import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
@@ -183,6 +184,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // C2
   // C3
   vik,
+  kraft,
   // C4
   salta,
   // Outside the tiers

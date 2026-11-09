@@ -14,6 +14,7 @@ import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
+import { kraft } from "./models/kraft";
 import { kobb } from "./models/kobb";
 import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
@@ -75,6 +76,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // C2
   // C3
   vik,
+  kraft,
   // C4
   salta,
   // Outside the tiers

@@ -16,6 +16,7 @@ import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
+import { kraft } from "./cars/kraft";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
@@ -82,6 +83,7 @@ const ENTRIES = {
   // C2
   // C3
   vik,
+  kraft,
   // C4
   salta,
   // Outside the tiers

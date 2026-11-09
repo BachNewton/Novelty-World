@@ -172,9 +172,9 @@ const shape: Shape = {
     ...stripes,
     // Each lamp's two bars in a dark housing at the face's upper corners, which stands just off the face so the bars
     // can stand off it in turn.
-    { on: "front", at: [0.66, 1.11], size: [0.42, 0.12], surface: "trim", mirror: true, cells: [5, 1], liftM: 0.006 },
-    { on: "front", at: [0.65, 1.137], size: [0.38, 0.042], surface: "lensHead", mirror: true, cells: [8, 1], liftM: 0.012 },
-    { on: "front", at: [0.69, 1.083], size: [0.3, 0.032], surface: "lensHead", mirror: true, cells: [5, 1], liftM: 0.012 },
+    { on: "front", at: [0.66, 1.1], size: [0.42, 0.11], surface: "trim", mirror: true, cells: [5, 1], liftM: 0.006 },
+    { on: "front", at: [0.65, 1.124], size: [0.38, 0.04], surface: "lensHead", mirror: true, cells: [8, 1], liftM: 0.012 },
+    { on: "front", at: [0.69, 1.074], size: [0.3, 0.03], surface: "lensHead", mirror: true, cells: [5, 1], liftM: 0.012 },
     // The tailgate's corners: the same two bars, red.
     { on: "rear", at: [0.74, 1.22], size: [0.4, 0.12], surface: "trim", mirror: true, cells: [4, 1], liftM: 0.006 },
     { on: "rear", at: [0.73, 1.245], size: [0.36, 0.038], surface: "lensTail", mirror: true, cells: [5, 1], liftM: 0.012 },
