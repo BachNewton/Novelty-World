@@ -1,5 +1,6 @@
 import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
+import { altura } from "./models/altura";
 import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
 import { blixt } from "./models/blixt";
@@ -15,6 +16,7 @@ import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { kula } from "./models/kula";
+import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
@@ -66,11 +68,13 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4
   berg,
   // C1
+  altura,
   // C2
   // C3
   vik,

@@ -1,6 +1,7 @@
 import type { Gearbox } from "../sim/gearbox";
 import type { Firing } from "./firing";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
+import { altura } from "./voices/altura";
 import { aska } from "./voices/aska";
 import { blixt } from "./voices/blixt";
 import { ankar } from "./voices/ankar";
@@ -15,6 +16,7 @@ import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
+import { lera } from "./voices/lera";
 import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
 import { kula } from "./voices/kula";
@@ -174,11 +176,13 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4
   berg,
   // C1
+  altura,
   // C2
   // C3
   vik,

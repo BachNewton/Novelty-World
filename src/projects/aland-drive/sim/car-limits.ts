@@ -1,6 +1,7 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
+import altura from "./limits/altura.json";
 import aska from "./limits/aska.json";
 import blixt from "./limits/blixt.json";
 import ankar from "./limits/ankar.json";
@@ -16,6 +17,7 @@ import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import kula from "./limits/kula.json";
+import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
@@ -113,11 +115,13 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4
   berg,
   // C1
+  altura,
   // C2
   // C3
   vik,
