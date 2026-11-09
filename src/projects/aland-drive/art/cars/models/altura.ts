@@ -46,9 +46,11 @@ const pair = (on: "front" | "rear", x: readonly [number, number], h: number, siz
   ]);
 
 /**
- * A 1990s mid-engined supercar: a low wedge of a nose, a glass canopy set in the middle of a wide body over a central
- * driving seat, a short steep window between the roof's sails, a long slatted engine cover and a squared tail under a
- * lip. Its flanks are scooped from the door into an intake ahead of the rear wheels.
+ * A 1990s mid-engined supercar, drawn with a ruler where Tärna's hypercar is drawn with a French curve: a straight
+ * wedge of a hood, a short flat-roofed glasshouse over a central driving seat, a steep window dropping between the
+ * roof's buttresses to a long, flat, slatted engine deck that kicks up into a spoiler of its own, and a tall square
+ * tail. The belt runs level from the nose to the tail; the flanks are scooped from the door into an intake ahead of
+ * the rear wheels.
  */
 const shape: Shape = {
   trackM: ALTURA.trackM,
@@ -64,41 +66,41 @@ const shape: Shape = {
   grilleH: 0.33,
   lampH: [0.37, 0.45],
   hoodLipH: 0.47,
-  hoodH: 0.64,
-  cowl: [-1.1, 0.76],
-  header: [-0.5, 1.095],
-  roof: [-0.15, 1.13],
-  roofEnd: [0.25, 1.095],
+  hoodH: 0.62,
+  cowl: [-1.1, 0.74],
+  header: [-0.48, 1.08],
+  roof: [-0.15, 1.1],
+  roofEnd: [0.2, 1.095],
   shoulder: [
     [-2.26, 0.42],
-    [-1.9, 0.6],
-    [-1.5, 0.72],
-    [-0.95, 0.7],
+    [-1.9, 0.57],
+    [-1.5, 0.67],
+    [-1.0, 0.7],
     [-0.3, 0.705],
-    [0.4, 0.74],
-    [1.21, 0.8],
-    [2.1, 0.8],
+    [0.4, 0.71],
+    [1.21, 0.72],
+    [2.1, 0.725],
   ],
   belt: [
     [-2.26, 0.455],
-    [-1.9, 0.635],
-    [-1.5, 0.755],
-    [-0.95, 0.735],
-    [-0.3, 0.74],
-    [0.4, 0.775],
-    [1.21, 0.835],
-    [2.1, 0.835],
+    [-1.9, 0.6],
+    [-1.5, 0.7],
+    [-1.0, 0.73],
+    [-0.3, 0.735],
+    [0.4, 0.74],
+    [1.21, 0.75],
+    [2.1, 0.755],
   ],
   windowTop: [
-    [-1.07, 0.78],
-    [-0.8, 0.925],
-    [-0.45, 1.05],
-    [-0.15, 1.085],
+    [-1.05, 0.77],
+    [-0.78, 0.93],
+    [-0.48, 1.04],
+    [-0.15, 1.06],
     [0.15, 1.055],
-    [0.42, 0.975],
-    [0.62, 0.905],
+    [0.3, 1.0],
+    [0.4, 0.94],
   ],
-  windowZ: [-1.07, 0.62],
+  windowZ: [-1.05, 0.4],
   railWidth: [
     [-2.26, 0.58],
     [-1.5, 0.84],
@@ -110,18 +112,18 @@ const shape: Shape = {
     [2.1, 0.8],
   ],
   tail: [],
-  seams: [-1.0, 0.2],
-  pillars: [[0.22, 0.3]],
+  seams: [-0.96, 0.2],
+  pillars: [[0.14, 0.2]],
   mirror: { z: -0.78, h: 0.85, x: 0.82 },
   rearPlateH: 0.45,
   rearSeats: false,
   centreSeat: true,
   seat: "seatTan",
-  cabinEndZ: 0.55,
+  cabinEndZ: 0.38,
   decals: [
     ...plates(0.45, 0.29, { recessed: true }),
     ...handles([0.08], 0.71),
-    ...pair("front", [0.45, 0.595], 0.41, [0.125, 0.055], "lensHead"),
+    ...pair("front", [0.45, 0.595], 0.41, [0.125, 0.07], "lensHead"),
     // An amber indicator at each corner, under the visor.
     { on: "front", at: [0.66, 0.345], size: [0.09, 0.022], surface: "lensAmber", mirror: true, cells: [2, 1], liftM: 0.012 },
     ...pair("rear", [0.5, 0.675], 0.75, [0.135, 0.1], "lensTail"),
@@ -152,39 +154,44 @@ const shape: Shape = {
       { z: -2.248, h: 0.36, band: "visor" },
       { z: -2.222, h: 0.46 },
       // The hood, then the screen, roof, rear glass and engine cover, each as one fair line.
+      // The hood as one straight wedge, from the nose's lip to the screen's foot.
       ...faired(
         [
           [-2.21, 0.47],
-          [-1.9, 0.55],
-          [-1.5, 0.63],
-          [-1.15, 0.745],
+          [-1.9, 0.53],
+          [-1.5, 0.61],
+          [-1.15, 0.725],
         ],
         [[-2.21, undefined]],
       ),
-      { z: -1.15, h: 0.745, band: "cowl" },
+      { z: -1.15, h: 0.725, band: "cowl" },
+      // A flat screen and a flat roof, the corner between them only just rounded.
       ...faired(
         [
-          [-1.1, 0.76],
-          [-0.8, 0.93],
-          [-0.5, 1.095],
-          [-0.15, 1.13],
-          [0.25, 1.095],
-          [0.6, 1.0],
-          [1.0, 0.935],
-          [1.5, 0.895],
-          [2.0, 0.89],
+          [-1.1, 0.74],
+          [-0.8, 0.915],
+          [-0.5, 1.075],
+          [-0.3, 1.098],
+          [0.0, 1.102],
+          [0.22, 1.095],
         ],
         [
           [-1.1, "screen"],
           [-0.5, undefined],
-          [0.25, "rearGlass"],
-          [0.62, "deck"],
-          [1.35, undefined],
         ],
       ),
-      // The lip over the tail, then the dark panel the lamps sit on.
-      { z: 2.0, h: 0.89, band: "gap" },
-      { z: 2.012, h: 0.87, band: "tailPanel" },
+      // A steep rear window, then the engine deck long and level back to its spoiler.
+      { z: 0.24, h: 1.088, band: "rearGlass" },
+      { z: 0.42, h: 0.985, band: "rearGlass" },
+      { z: 0.6, h: 0.93, band: "deck" },
+      { z: 1.0, h: 0.925, band: "deck", fine: true },
+      { z: 1.4, h: 0.925 },
+      { z: 1.75, h: 0.935 },
+      { z: 1.9, h: 0.965 },
+      { z: 1.985, h: 1.0 },
+      // The spoiler's lip over the tail, then the dark panel the lamps sit on.
+      { z: 2.0, h: 0.99, band: "gap" },
+      { z: 2.012, h: 0.955, band: "tailPanel" },
       { z: 2.045, h: 0.64, band: "mesh" },
       { z: 2.052, h: 0.58 },
       { z: 2.075, h: 0.37, band: "diffuser" },

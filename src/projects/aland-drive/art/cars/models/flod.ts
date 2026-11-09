@@ -1,7 +1,7 @@
 import { ROWS, type Band } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { louvres, sideIntake, splitter } from "../parts";
+import { louvres, projectors, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const FLOD = driven("flod");
@@ -112,6 +112,8 @@ const shape: Shape = {
   cabinEndZ: 2.2,
   seat: "seatTan",
   decals: [
+    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
+    ...projectors({ x: [0.67, 0.78], h: 0.578, size: 0.05, lensLiftM: 0.03, ring: false }),
     ...plates(0.66, 0.34),
     ...handles([0.22, 0.88], 0.9),
     reversing(0.32, 0.46),

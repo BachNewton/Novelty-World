@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser, splitter, tailLine } from "../parts";
+import { diffuser, projectors, splitter, tailLine } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const GNISTA = driven("gnista");
@@ -120,6 +120,8 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 1.0,
   decals: [
+    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
+    ...projectors({ x: [0.565, 0.655], h: 0.56, size: 0.05, lensLiftM: 0.03, ring: false }),
     ...plates(0.5, 0.39, { recessed: true }),
     ...handles([0.2], 0.86),
     ...streaks,

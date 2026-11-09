@@ -821,7 +821,23 @@ function addSpare(builder: SoupBuilder, { at, radiusM: r, widthM, axis }: Spare,
   }
 }
 
-/** Enough of an inside for a window to look into: floor, dash, seats and a wheel, on the driver's side as in Finland. */
+/** A superellipse's coordinate: a cosine or sine raised to a power that keeps its sign, near 0 a square, 1 a circle. */
+const roundPow = (value: number, power: number) => Math.sign(value) * Math.abs(value) ** power;
+
+/** Points round a rounded section, in its own across and up, `bolster` lifting its sides as a seat's wings do. */
+function roundedSection(halfAcross: number, halfUp: number, round: number, bolster = 0, points = 12): [number, number][] {
+  return Array.from({ length: points }, (_, at) => {
+    const angle = (at / points) * Math.PI * 2;
+    const across = halfAcross * roundPow(Math.cos(angle), round);
+    return [across, halfUp * roundPow(Math.sin(angle), round) + bolster * (across / halfAcross) ** 4];
+  });
+}
+
+/**
+ * Enough of an inside for a window to look into, on the driver's side as in Finland: a floor and bulkheads, a dash
+ * with a lip over its face, seats with bolstered cushions, shaped backs and headrests, and a round wheel on spokes.
+ * Rounded, so through the glass at chase distance it reads as a cabin and not as boxes.
+ */
 function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
   const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
   const block = (at: Block["at"], size: Block["size"], surface: Surface, mirror = false, taper?: Block["taper"]) => {
@@ -832,38 +848,114 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([0, floorH - 0.02, dashZ + length / 2], [wide, 0.04, length], "interior");
   block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
   block([0, (floorH + dashH) / 2 + 0.05, endZ], [wide, dashH - floorH + 0.1, 0.04], "interior");
-  block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
+  // The dash: one section lofted across the cabin, its top crowned, a lip over its face.
+  const dashSection: [z: number, h: number][] = [
+    [dashZ, dashH - 0.2],
+    [dashZ, dashH - 0.035],
+    [dashZ + 0.18, dashH - 0.02],
+    [dashZ + 0.35, dashH - 0.03],
+    [dashZ + 0.405, dashH - 0.065],
+    [dashZ + 0.385, dashH - 0.15],
+    [dashZ + 0.24, dashH - 0.2],
+  ];
+  const dashHalf = (wide * 0.96) / 2;
+  addTube(
+    builder,
+    [-1, -0.6, 0, 0.6, 1].map((across) => dashSection.map(([z, h], at): Point => [across * dashHalf, h + ground + (at >= 1 && at <= 3 ? 0.012 * (1 - across * across) : 0), z])),
+    "interior",
+  );
   const { passengers } = cabin;
-  if (!passengers) block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
+  if (!passengers) block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior", false, [0.9, 1.05]);
+
+  const recline = (16 * Math.PI) / 180;
+  const up: Point = [0, Math.cos(recline), Math.sin(recline)];
+  const back: Point = [0, -Math.sin(recline), Math.cos(recline)];
   const seat = (x: number, z: number, seatWide: number, mirror = true) => {
     const seatH = Math.min(floorH + 0.28, dashH - 0.25);
     const backTall = dashH + 0.2 - seatH;
-    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, mirror);
-    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, mirror, [0.92, 0.95]);
-    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, mirror);
+    for (const side of mirror ? [1, -1] : [1]) {
+      const middle = side * x;
+      // The cushion, from the back of the seat to its front edge, the front a little lower.
+      const cushion = roundedSection(seatWide / 2, 0.05, 0.35, 0.025);
+      addTube(
+        builder,
+        ([[z + 0.08, 0], [z - 0.13, 0.005], [z - 0.34, -0.015]] as const).map(([along, drop]) => cushion.map(([a, h]): Point => [middle + a, seatH - 0.05 + h + drop + ground, along])),
+        seatSurface,
+      );
+      // The back, leaning back from the hip, narrowing to the shoulders, its wings standing forward.
+      const hip: Point = [middle, seatH + ground, z + 0.08];
+      addTube(
+        builder,
+        [0, 0.4, 0.8, 1].map((share) => {
+          const narrow = 1 - 0.14 * share;
+          const centre = add(hip, up, share * backTall);
+          return roundedSection((seatWide * 0.46 * narrow), 0.05, 0.35, 0.03).map(([a, d]) => add(add(centre, RIGHT_AXIS, a), back, -d));
+        }),
+        seatSurface,
+      );
+      // The headrest, standing on the back's top.
+      const head = add(hip, up, backTall - 0.015);
+      addTube(
+        builder,
+        [0, 0.55, 1].map((share) => {
+          const centre = add(head, up, share * 0.15);
+          return roundedSection(0.12 * (1 - 0.1 * share), 0.045, 0.45).map(([a, d]) => add(add(centre, RIGHT_AXIS, a), back, -d));
+        }),
+        seatSurface,
+      );
+    }
   };
   if (passengers) {
     seat(seatX, seatZ, 0.44, false);
     seat(passengers[0], passengers[1], 0.38);
   } else seat(seatX, seatZ, 0.46);
   if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);
-  // The steering wheel, a ring leaning back towards the driver.
-  const wheelR = 0.17;
-  const wheelZ = dashZ + 0.46;
-  const wheelY = dashH + 0.08 + ground;
-  const tube = 0.014;
-  const lean = 0.42;
-  const segments = 10;
-  const point = (angle: number, grow: number, push: number): Point => {
-    const up = Math.sin(angle) * (wheelR + grow);
-    return [-seatX + Math.cos(angle) * (wheelR + grow), wheelY + up * Math.cos(lean), wheelZ + push - up * Math.sin(lean)];
-  };
+  addCabinWheel(builder, [-seatX, dashH + 0.08 + ground, dashZ + 0.46]);
+  block([-seatX, dashH + 0.06, dashZ + 0.36], [0.07, 0.07, 0.34], "interior");
+}
+
+const RIGHT_AXIS: Point = [1, 0, 0];
+const add = (a: Point, b: Point, scale = 1): Point => [a[0] + b[0] * scale, a[1] + b[1] * scale, a[2] + b[2] * scale];
+
+/** The chase view's steering wheel: a round rim leaning back towards the driver, three spokes and a hub. */
+function addCabinWheel(builder: SoupBuilder, centre: Point) {
+  const [radius, tube, lean] = [0.17, 0.014, 0.42];
+  const wheelUp: Point = [0, Math.cos(lean), -Math.sin(lean)];
+  const wheelBack: Point = [0, Math.sin(lean), Math.cos(lean)];
+  const inPlane = (angle: number, out: number, towards: number): Point => add(add(add(centre, RIGHT_AXIS, Math.cos(angle) * out), wheelUp, Math.sin(angle) * out), wheelBack, towards);
+  const [segments, sides] = [16, 6];
+  const ring = (step: number) =>
+    Array.from({ length: sides }, (_, side): Point => {
+      const [angle, turn] = [(step / segments) * Math.PI * 2, (side / sides) * Math.PI * 2];
+      return inPlane(angle, radius + Math.cos(turn) * tube, Math.sin(turn) * tube);
+    });
+  // A torus joined face by face, with no caps where it closes on itself.
+  const group = builder.newGroup();
   for (let step = 0; step < segments; step++) {
-    const [from, to] = [(step / segments) * Math.PI * 2, ((step + 1) / segments) * Math.PI * 2];
-    const section = (angle: number): Point[] => [point(angle, -tube, -tube), point(angle, -tube, tube), point(angle, tube, tube), point(angle, tube, -tube)];
-    builder.rings([section(from), section(to)], "seat");
+    const [here, next] = [ring(step), ring(step + 1)];
+    for (let side = 0; side < sides; side++) {
+      const after = (side + 1) % sides;
+      builder.quad(here[side], here[after], next[after], next[side], "seat", group);
+    }
   }
-  block([-seatX, dashH + 0.06, wheelZ - 0.1], [0.07, 0.07, 0.34], "interior");
+  const hubRadius = 0.05;
+  addTube(
+    builder,
+    [-0.03, 0.012].map((towards) => Array.from({ length: 8 }, (_, at) => inPlane((at / 8) * Math.PI * 2, hubRadius, towards))),
+    "seat",
+  );
+  for (const angle of [Math.PI, 0, Math.PI * 1.5]) {
+    const wide = angle === Math.PI * 1.5 ? 0.024 : 0.016;
+    const across = angle + Math.PI / 2;
+    const section = (out: number): Point[] =>
+      [
+        [-wide, -0.006],
+        [-wide, 0.006],
+        [wide, 0.006],
+        [wide, -0.006],
+      ].map(([a, t]) => add(add(inPlane(angle, out, t - 0.004), RIGHT_AXIS, Math.cos(across) * a), wheelUp, Math.sin(across) * a));
+    addTube(builder, [section(hubRadius - 0.01), section(radius - 0.004)], "seat");
+  }
 }
 
 /** Two segments of a row or a station turning by more than this meet at a crease, which a normal doesn't smooth across. */

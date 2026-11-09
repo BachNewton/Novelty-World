@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { louvres, splitter } from "../parts";
+import { louvres, projectors, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, thirdBrake, type Shape } from "../recipe";
 
 const BRUS = driven("brus");
@@ -133,6 +133,8 @@ const shape: Shape = {
   rearSeats: true,
   cabinEndZ: 1.7,
   decals: [
+    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
+    ...projectors({ x: [0.6, 0.71], h: 0.508, size: 0.052, lensLiftM: 0.03, ring: false }),
     ...plates(0.6, 0.355),
     ...handles([0.72], 0.765),
     ...grilleFrame(),

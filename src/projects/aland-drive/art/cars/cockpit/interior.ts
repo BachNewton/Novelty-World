@@ -52,6 +52,9 @@ function paintsOf(style: InteriorStyle, seat: string) {
     insert: finish(colours.insert, 0.004, 0.06),
     headliner: finish(colours.headliner, 0, 0.02),
     pillar: finish(colours.headliner, 0, 0.03, { shade: 0.86 }),
+    visor: finish(colours.headliner, 0.004, 0.08, { shade: 0.94 }),
+    piping: finish(colours.headliner, 0.004, 0.06, { shade: 0.7 }),
+    lens: finish("car-cabin-ivory", 0.08, 0.9, { shade: 0.85 }),
     carpet: finish("car-cabin-carpet", 0, 0),
     panel: finish("car-cabin-panel", 0.01, 0.2),
     piano: finish("car-trim", 0.07, 0.85),
@@ -271,8 +274,9 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     }
   } else if (style.gauges === "single") {
     big(SLOT.speed, SOURCE.speed, 0, 0.074);
-    // The gear over the needle's pivot, under the figures, where the wheel's hub below the dial can't cover it.
-    readout(SOURCE.gear, 1, 0, 0.026, 0.02);
+    // The gear just over the needle's pivot, clear of the figures round the rim above it, where the wheel's hub below
+    // the dial can't cover it.
+    readout(SOURCE.gear, 1, 0, 0.0175, 0.014);
   } else if (style.gauges === "tacho") {
     // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
     big(SLOT.revs, SOURCE.revs, 0, 0.066);
@@ -698,13 +702,91 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
   pillow(b, at, [halfWide, halfTall, halfDeep], 0.5, smooth(paints.piano), 8);
   plate(b, at, [0, 0], [halfWide * 1.6, halfTall * 1.2], halfDeep + 0.0015, flat(paints.mirrorGlass));
   if (open) return;
-  for (const side of [-1, 1]) {
-    const visorZ = header.z + 0.13;
-    const visorX = side * 0.29;
-    const visorY = Math.min(f.roofAt(visorX - 0.16, visorZ), f.roofAt(visorX + 0.16, visorZ)) - SKIN_M - 0.022 + g;
-    const slope = (f.top(visorZ + 0.05) - f.top(visorZ - 0.05)) / 0.1;
-    const forward = normalize([0, slope, 1]);
-    pillow(b, axes([visorX, visorY, visorZ], RIGHT, cross(forward, RIGHT), forward), [0.16, 0.01, 0.085], 0.3, smooth(paints.pillar), 6);
+  for (const side of [-1, 1]) addVisor(b, f, paints, side);
+  addRoofLining(b, f, paints);
+}
+
+/** The visor's half width across, half thickness, and half depth along the roof. */
+const VISOR_HALF_M = [0.165, 0.011, 0.088] as const;
+
+/**
+ * A visor folded up under the roof: a padded board, square in plan with rounded corners and soft edges, piped round
+ * its edge, on a rod into a bracket by the pillar and held in a clip at its inner end, with a vanity mirror's flap on
+ * the face that hangs down.
+ */
+function addVisor(b: CockpitBuilder, f: CockpitFrame, paints: Paints, side: number) {
+  const { ground: g, header } = f;
+  const [halfWide, halfThick, halfDeep] = VISOR_HALF_M;
+  const z = header.z + 0.13;
+  const x = side * 0.29;
+  const y = Math.min(f.roofAt(x - halfWide, z), f.roofAt(x + halfWide, z)) - SKIN_M - 0.022 + g;
+  const slope = (f.top(z + 0.05) - f.top(z - 0.05)) / 0.1;
+  const forward = normalize([0, slope, 1]);
+  const up = cross(forward, RIGHT);
+  const at = axes([x, y, z], RIGHT, up, forward);
+  pillow(b, at, VISOR_HALF_M, 0.22, smooth(paints.visor), 8, 0.6);
+  // The piping round its edge, half proud of it.
+  const plan = Array.from({ length: 32 }, (_, step) => {
+    const u = (step / 32) * Math.PI * 2;
+    return at(halfWide * spow(Math.cos(u), 0.22), 0, halfDeep * spow(Math.sin(u), 0.22));
+  });
+  b.tube(plan, 0.003, 6, smooth(paints.piping), true);
+  // The vanity mirror's flap on the face that hangs down, towards the inner end.
+  pillow(b, axes(at(-side * 0.03, -halfThick + 0.0005, 0.012), RIGHT, up, forward), [0.07, 0.003, 0.042], 0.3, smooth(paints.piping), 4, 0.5);
+  // The rod from inside its front edge out of the outer end, into a bracket under the roof by the pillar.
+  const outer = side * (halfWide + 0.03);
+  b.tube([at(side * halfWide * 0.7, 0.003, -halfDeep + 0.01), at(outer, 0.003, -halfDeep + 0.01)], 0.0045, 8, smooth(paints.piano));
+  const fixed = (across: number, half: readonly [number, number, number]) => {
+    const roofY = f.roofAt(x + across, z - halfDeep) - SKIN_M + g;
+    const middle = at(across, 0, -halfDeep + 0.01);
+    middle[1] = roofY - half[1] + 0.004;
+    pillow(b, axes(middle, RIGHT, up, forward), half, 0.35, smooth(paints.piano), 5);
+  };
+  fixed(outer, [0.018, 0.014, 0.02]);
+  fixed(-side * (halfWide + 0.012), [0.012, 0.012, 0.014]);
+}
+
+/** What breaks up the headliner: an overhead console with its map lights behind the mirror, a dome light, and grab handles over the doors. */
+function addRoofLining(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
+  const { ground: g, header, eye, style, roofZ } = f;
+  if (style.cage || !roofZ) return;
+  const down: Point = [0, -1, 0];
+  const along: Point = [0, 0, 1];
+  // The console: a pod under the roof between the visors, its lenses and switches on its underside.
+  const consoleZ = header.z + 0.17;
+  const consoleHalf = [0.085, 0.02, 0.06] as const;
+  const consoleY = f.roofAt(0, consoleZ) - SKIN_M - consoleHalf[1] + 0.006 + g;
+  pillow(b, axes([0, consoleY, consoleZ], RIGHT, [0, 1, 0], along), consoleHalf, 0.3, smooth(paints.trim), 6, 0.5);
+  const under = axes([0, consoleY, consoleZ], RIGHT, along, down);
+  for (const x of [-0.045, 0.045]) disc(b, under, [x, 0.005], 0.017, consoleHalf[1] + 0.0015, flat(paints.lens), null, 16);
+  plate(b, under, [0, -0.025], [0.05, 0.012], consoleHalf[1] + 0.0015, flat(paints.piano));
+  // The dome light over the seats' middle.
+  const domeZ = eye.z + 0.12;
+  if (domeZ > roofZ[0] + 0.3 && domeZ < roofZ[1] - 0.1) {
+    const domeY = f.roofAt(0, domeZ) - SKIN_M - 0.002 + g;
+    pillow(b, axes([0, domeY, domeZ], RIGHT, [0, 1, 0], along), [0.065, 0.008, 0.04], 0.35, smooth(paints.lens), 6, 0.5);
+  }
+  // A grab handle over the passenger's door, and over the rear doors where there are rear seats.
+  const handles = [f.seatZ - 0.12, ...(f.rearSeatZ === undefined ? [] : [f.rearSeatZ - 0.1])];
+  for (const z of handles) {
+    if (z < roofZ[0] + 0.1 || z > roofZ[1] - 0.1) continue;
+    for (const side of f.rearSeatZ !== undefined && z !== handles[0] ? [-1, 1] : [1]) {
+      const x = side * (f.glassX(z) - 0.07);
+      const roofY = (zAt: number) => f.roofAt(x, zAt) - SKIN_M + g;
+      const inward = -side * 0.025;
+      b.tube(
+        [
+          [x, roofY(z - 0.11) + 0.004, z - 0.11],
+          [x + inward * 0.6, roofY(z - 0.1) - 0.035, z - 0.09],
+          [x + inward, roofY(z) - 0.045, z],
+          [x + inward * 0.6, roofY(z + 0.1) - 0.035, z + 0.09],
+          [x, roofY(z + 0.11) + 0.004, z + 0.11],
+        ],
+        0.009,
+        8,
+        smooth(paints.trim),
+      );
+    }
   }
 }
 

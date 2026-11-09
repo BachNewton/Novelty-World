@@ -1,7 +1,7 @@
 import { ROWS, type Band } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser, louvres, sideIntake, splitter } from "../parts";
+import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const ORKAN = driven("orkan");
@@ -108,6 +108,8 @@ const shape: Shape = {
   cabinEndZ: 1.72,
   seat: "seatTan",
   decals: [
+    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
+    ...projectors({ x: [0.6, 0.71], h: 0.528, size: 0.05, lensLiftM: 0.03, ring: false }),
     ...plates(0.62, 0.3),
     ...handles([0.55], 0.82),
     reversing(0.3, 0.405),

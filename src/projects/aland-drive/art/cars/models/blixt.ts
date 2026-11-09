@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Block, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { sideIntake, splitter, tailLine } from "../parts";
+import { projectors, sideIntake, splitter, tailLine } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const BLIXT = driven("blixt");
@@ -113,6 +113,8 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 0.75,
   decals: [
+    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
+    ...projectors({ x: [0.55, 0.66], h: 0.39, size: 0.052, lensLiftM: 0.03, ring: false }),
     ...plates(0.61, 0.275, { recessed: true }),
     ...handles([0.05], 0.69),
     ...streaks,
