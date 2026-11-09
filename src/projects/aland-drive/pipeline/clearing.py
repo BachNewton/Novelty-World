@@ -8,7 +8,8 @@ foot, where a mask of what's built would blur by a whole pixel.
 What counts as a building is what the game draws or stops the car at, read off the built tiles: every triangle of
 `solids.bin.gz` seen from above (modelled, generated and raised buildings, whose roofs cover their footprints) and
 its walls (every outline, a raised building's posts and a landmark's plan among them), and the rural kit's sheds,
-boathouses and windmills, which stand in `models.json` and `tile.json` rather than as shapes, and every sea mark
+boathouses and windmills, which stand in `models.json` and `tile.json` rather than as shapes, every dealership's whole plot
+(`art/dealers/sites.json`), its forecourt and yard too, since the car may drive on to them but nothing grows there, and every sea mark
 that stands ashore (`sea/marks.json`: leading marks, cairns, skerry lights, lighthouses, radar and fixed marks, as
 discs their foot's size), which a tree would otherwise stand through. A neighbour's buildings are read too, so a
 building over a tile's edge clears its trees on both sides.
@@ -50,6 +51,7 @@ RASTER_M = 1
 BUILDING_MODELS = ("shed-", "boathouse-")
 SOLIDS_COLUMNS = 7
 SEA_MARKS = Path(__file__).resolve().parent.parent / "sea" / "marks.json"
+DEALER_SITES = Path(__file__).resolve().parent.parent / "art" / "dealers" / "sites.json"
 # How far out from its middle each kind of sea mark ashore stands on the ground, by its model's name's start: a
 # lighthouse's tower, a skerry light's, a cairn's or a leading mark's frame. A tree keeps its crown clear of that.
 SEA_MARK_FOOT_M = {"lighthouse": 4.0, "skerry-light": 2.5, "cairn": 1.5, "leading-": 1.5, "radar-": 1.5, "fixed-": 1.0}
@@ -88,6 +90,16 @@ def model_boxes(folder: Path) -> list[np.ndarray]:
         across, along = np.array([np.cos(yaw), -np.sin(yaw)]) * wide / 2, np.array([np.sin(yaw), np.cos(yaw)]) * long / 2
         boxes.append(np.array([x, z]) + np.array([across + along, along - across, -across - along, across - along]))
     return boxes
+
+
+def dealer_plots() -> list[np.ndarray]:
+    """Every dealership's plot, as its corners in the scene's x and z."""
+    plots = []
+    for record in json.loads(DEALER_SITES.read_text(encoding="utf-8")):
+        corners = np.array(record["plan"]["corners"], dtype=float)
+        x, north = to_local(corners[:, 0], corners[:, 1])
+        plots.append(np.column_stack((x, -north)))
+    return plots
 
 
 def sea_mark_outlines(marks: list[list] | None = None) -> list[np.ndarray]:
@@ -179,7 +191,7 @@ def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
     tile = tile_from_name(name)
     west, north = to_local(tile.west, tile.north)
     outlines, walls = drawn(around(name, tiles))
-    signed = distances(outlines + sea_mark_outlines(), walls, west, -north)
+    signed = distances(outlines + sea_mark_outlines() + dealer_plots(), walls, west, -north)
     encode(signed).save(tiles / name / FILE, optimize=True)
     return f"{name} ({float((signed < REACH_M).mean()):.1%} near a building)", MANIFEST
 

@@ -5,10 +5,13 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { PAINTS, PATTERNS, SURFACE_STRIDE, type Paint, type Pattern, type Soup } from "./shell";
 import "./tokens.css";
 import { towardsSun, type Sun } from "../sun";
+import type { SeasonLook } from "../season";
+import { snowfall, snowOnTop } from "../surfaces/snow";
 
 /*
  * One material for a dealership, outside or in. A building's colours sit on its vertices, so a dealership is one mesh
- * and one draw call. Outside it is the world's light, the same sum as the cars'. Inside there is no sun: a handful of
+ * and one draw call. Outside it is the world's light, the same sum as the cars', the season's snow on what faces up,
+ * and once the lamps are lit its signs and the rooms seen through its glass shine through the night. Inside there is no sun: a handful of
  * point lights, fixed when the room is built and summed in the fragment shader, and what a glossy floor or a window
  * mirrors is worked out from the reflected ray, with no environment map and no second pass.
  */
@@ -19,6 +22,11 @@ const ROOM_AMBIENT = 0.5;
 const ROOM_SKY_SHARE = 0.1;
 const HIGHLIGHT_POWER = 180;
 const HIGHLIGHT_SHARE = 1.4;
+
+/** Where a dealership's roofs and yards whiten as the land round them does (`art/surfaces/snow.ts`). */
+const SNOW_THRESHOLD = 0.3;
+/** How bright a lit room reads through glass at night, against its light's own colour. */
+const NIGHT_ROOM = 0.85;
 
 /** Metres a pixel covers, per metre away, at the game's lens and size. */
 const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
@@ -32,30 +40,43 @@ export interface RoomLight {
   reachM: number;
 }
 
+/** What the world gives a dealership outside: the hour's lamps, and the season's snow. A gallery may give neither. */
+export interface Outdoors {
+  /** 0 by day, 1 once the lamps are lit. */
+  lampsOn?: Node<"float">;
+  /** A colour that comes out as itself once `hazed` has given it the hour's light, for what shines by itself. */
+  inLand?: (colour: Node<"vec3">) => Node<"vec3">;
+  season?: SeasonLook;
+}
+
 export type Lighting =
-  | { kind: "sun"; sun: Sun }
+  | ({ kind: "sun"; sun: Sun } & Outdoors)
   | { kind: "room"; lights: readonly RoomLight[]; /** What the floor mirrors: low then high. */ mirrors: readonly [Paint, Paint] };
 
 const tokenOf = (paint: Paint) => themeColor(`--color-aland-drive-${paint}`);
+const linearToken = (name: string): Node<"vec3"> => {
+  const { r, g, b } = themeColor(`--color-aland-drive-${name}`);
+  return vec3(r, g, b);
+};
 
 /** A soup as a geometry: browser only, since the colours come from the stylesheet. */
 export function geometryOf(soup: Soup): BufferGeometry {
   const vertices = soup.triangles * 3;
   const colours = new Float32Array(vertices * 3);
-  const finishes = new Float32Array(vertices * 3);
+  const finishes = new Float32Array(vertices * 4);
   const palette = PAINTS.map(tokenOf);
   for (let vertex = 0; vertex < vertices; vertex++) {
     const at = vertex * SURFACE_STRIDE;
     const { r, g, b } = palette[soup.surface[at]];
     const shade = soup.surface[at + 1];
     colours.set([r * shade, g * shade, b * shade], vertex * 3);
-    finishes.set([soup.surface[at + 2], soup.surface[at + 3], soup.surface[at + 4]], vertex * 3);
+    finishes.set([soup.surface[at + 2], soup.surface[at + 3], soup.surface[at + 4], soup.surface[at + 5]], vertex * 4);
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(soup.positions, 3));
   geometry.setAttribute("normal", new BufferAttribute(soup.normals, 3));
   geometry.setAttribute("dealerColour", new BufferAttribute(colours, 3));
-  geometry.setAttribute("dealerFinish", new BufferAttribute(finishes, 3));
+  geometry.setAttribute("dealerFinish", new BufferAttribute(finishes, 4));
   return geometry;
 }
 
@@ -73,7 +94,7 @@ const clear = (widthM: number, away: Node<"float">) => float(1).sub(smoothstep(f
 const lineAt = (along: Node<"float">, share: number) => float(1).sub(smoothstep(float(share * 0.5), float(share), abs(fract(along).sub(0.5)).sub(0.5).abs()));
 
 export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) => Node<"vec3"> = (color) => color): MeshBasicNodeMaterial {
-  const finish = attribute<"vec3">("dealerFinish", "vec3");
+  const finish = attribute<"vec4">("dealerFinish", "vec4");
   const glow = finish.x;
   const gloss = finish.y;
   const base = attribute<"vec3">("dealerColour", "vec3");
@@ -116,9 +137,13 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
 
     if (lighting.kind === "sun") {
       const toSun = towardsSun(lighting.sun);
-      const lit = painted.mul(float(SUN_AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
+      const { lampsOn = float(0), inLand = (colour: Node<"vec3">) => colour, season } = lighting;
+      const snowed = snowOnTop(painted, snowfall(season, (name) => linearToken(name)), normal.y.mul(float(1).sub(glow)), float(SNOW_THRESHOLD));
+      const lit = snowed.mul(float(SUN_AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
       const world = mix(linear("tree-spruce"), mix(linear("sky"), linear("water"), smoothstep(float(0.2), float(0.8), mirrored.y)), smoothstep(float(-0.02), float(0.06), mirrored.y));
-      return hazed(mix(mix(lit, world, shine), painted, glow));
+      const byDay = mix(mix(lit, world, shine), inLand(painted), glow);
+      const lamplit = mix(linear("dealer-light-warm"), linear("dealer-light-cool"), select(finish.w.lessThan(0), float(1), float(0))).mul(NIGHT_ROOM);
+      return hazed(mix(byDay, inLand(lamplit), abs(finish.w).mul(lampsOn)));
     }
 
     let sum: Node<"vec3"> = vec3(0, 0, 0);

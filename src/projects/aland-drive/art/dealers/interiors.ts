@@ -1,3 +1,4 @@
+import { CAR_ENTRIES, type CarId } from "../../sim/cars";
 import { BRANDS, type Brand } from "./brands";
 import type { CarSlot } from "./exteriors";
 import { carLift, ceilingBanner, ceilingPanel, chair, coffeeTable, lightHalo, pendantLamp, planter, priceStand, salesDesk, sofa, turntableDeck, tyreRack, tyreStack, workbench, barrel } from "./kit";
@@ -12,7 +13,7 @@ import { Shell, type Paint, type Soup, type V3 } from "./shell";
  * The turntable's deck is its own mesh, centred on its axis, so a page spins it and the car on it together.
  */
 
-export const INTERIOR_IDS = ["village-garage", "town-dealer", "waterfront-showroom"] as const;
+export const INTERIOR_IDS = ["village-garage", "town-dealer", "premium-showroom"] as const;
 export type InteriorId = (typeof INTERIOR_IDS)[number];
 
 export type CameraKind = "floor" | "desk" | "turntable";
@@ -57,6 +58,8 @@ function backdrop(s: Shell, a: V3, b: V3, low: Paint, high: Paint, shades: reado
   s.tri(a, b, [b[0], b[1] === a[1] ? b[1] + 1 : b[1], b[2]], low, { glow: 1, shade: shades[0] });
   s.tri(a, [a[0], a[1] + 1, a[2]], [b[0], b[1] + 1, b[2]], high, { glow: 1, shade: shades[1] });
 }
+
+const nameOf = (car: CarId) => CAR_ENTRIES[car].tuning.name;
 
 const WALL_SHADE: readonly number[] = [0.78, 0.78, 1, 1];
 
@@ -155,9 +158,9 @@ function villageGarage(): Interior {
   const deck = new Shell();
   turntableDeck(deck, radius, 0.08, "dealer-steel-dark", "dealer-steel", "dealer-hazard");
 
-  const near = (slotX: number, slotZ: number, car: string, price: string) => s.within({ x: slotX, z: slotZ, yaw: 0.2 }, () => priceStand(s, brand, car, price, "wall-trim"));
-  near(-3.2, -1.7, "Kobb", "27 400 €");
-  near(centre[0] + 3.4, centre[2] - 3.7, "Holm", "34 900 €");
+  const near = (slotX: number, slotZ: number, car: CarId, price: string) => s.within({ x: slotX, z: slotZ, yaw: 0.2 }, () => priceStand(s, brand, nameOf(car), price, "wall-trim"));
+  near(-3.2, -1.7, "kobb", "27 400 €");
+  near(centre[0] + 3.4, centre[2] - 3.7, "holm", "34 900 €");
 
   const lights: RoomLight[] = [
     { at: [centre[0], 3.4, centre[2]], paint: "dealer-light-warm", power: 0.8, reachM: 5 },
@@ -172,10 +175,10 @@ function villageGarage(): Interior {
     brand,
     soup: s.build(),
     turntable: { soup: deck.build(), centre, deckY: 0.08, radiusM: radius, turnSeconds: 28 },
-    onTurntable: { car: "Holm" },
+    onTurntable: { car: "holm" },
     displays: [
-      { car: "Kobb", at: [-4.9, 0, -4.4], yaw: 0, paint: "car-paint-white" },
-      { car: "Holm", at: [-1.4, 1.46, -4.2], yaw: Math.PI, paint: "car-paint-graphite" },
+      { car: "kobb", at: [-4.9, 0, -4.4], yaw: 0, paint: "car-paint-white" },
+      { car: "holm", at: [-1.4, 1.46, -4.2], yaw: Math.PI, paint: "car-paint-graphite" },
     ],
     lighting: { kind: "room", lights, mirrors: ["dealer-concrete", "dealer-timber"] },
     cameras: [
@@ -235,15 +238,15 @@ function townDealer(): Interior {
   turntableDeck(deck, radius, 0.1, "dealer-polish", "dealer-steel-dark", "dealer-vastan");
 
   // Cars, stands, banners.
-  const slot = (x: number, z: number, yaw: number, car: string, paint: string | undefined, price: string): CarSlot => {
-    s.within({ x: x + (x < 0 ? 2.1 : -2.1), z: z + 2.5 * Math.sign(z + 7.5), yaw: x < 0 ? 0.4 : -0.4 }, () => priceStand(s, brand, car, price, "wall-trim"));
+  const slot = (x: number, z: number, yaw: number, car: CarId, paint: string | undefined, price: string): CarSlot => {
+    s.within({ x: x + (x < 0 ? 2.1 : -2.1), z: z + 2.5 * Math.sign(z + 7.5), yaw: x < 0 ? 0.4 : -0.4 }, () => priceStand(s, brand, nameOf(car), price, "wall-trim"));
     return { car, paint, at: [x, 0, z], yaw };
   };
   const displays = [
-    slot(-12, -3.8, 0.55, "Ljus", "car-paint-teal", "21 900 €"),
-    slot(-12, -10.8, 2.5, "Fjärd", "car-paint-navy", "32 500 €"),
-    slot(12, -3.8, -0.55, "Fjärd", "car-paint-silver", "32 500 €"),
-    slot(12, -10.8, -2.5, "Ljus", "car-paint-mustard", "21 900 €"),
+    slot(-12, -3.8, 0.55, "ljus", "car-paint-teal", "21 900 €"),
+    slot(-12, -10.8, 2.5, "fjard", "car-paint-navy", "32 500 €"),
+    slot(12, -3.8, -0.55, "fjard", "car-paint-silver", "32 500 €"),
+    slot(12, -10.8, -2.5, "ljus", "car-paint-mustard", "21 900 €"),
   ];
   for (const x of [-6.4, 6.4]) s.within({ x, y: height, z: -2 }, () => ceilingBanner(s, brand, 1.8, 2.2, 0.4));
 
@@ -268,7 +271,7 @@ function townDealer(): Interior {
     brand,
     soup: s.build(),
     turntable: { soup: deck.build(), centre, deckY: 0.1, radiusM: radius, turnSeconds: 24 },
-    onTurntable: { car: "Fjärd", paint: "car-paint-teal" },
+    onTurntable: { car: "fjard", paint: "car-paint-teal" },
     displays,
     lighting: { kind: "room", lights, mirrors: ["dealer-tile", "dealer-light-cool"] },
     cameras: [
@@ -281,7 +284,7 @@ function townDealer(): Interior {
   };
 }
 
-function waterfrontShowroom(): Interior {
+function premiumShowroom(): Interior {
   const s = new Shell();
   const brand = BRANDS.tarna;
   const [x0, x1, z0, z1] = [-14, 14, -8, 8];
@@ -347,16 +350,16 @@ function waterfrontShowroom(): Interior {
   });
 
   // Discs of pale stone under the cars on show, a ring of light on each.
-  const slots: { x: number; z: number; yaw: number; car: string; paint?: string; price: string }[] = [
-    { x: -9.6, z: -3.4, yaw: 0.75, car: "Sund", paint: "car-paint-mustard", price: "68 900 €" },
-    { x: 9.6, z: -3.4, yaw: -0.75, car: "Skerry GT", paint: "car-paint-silver", price: "74 500 €" },
+  const slots: { x: number; z: number; yaw: number; car: CarId; paint?: string; price: string }[] = [
+    { x: -9.6, z: -3.4, yaw: 0.75, car: "sund", paint: "car-paint-mustard", price: "68 900 €" },
+    { x: 9.6, z: -3.4, yaw: -0.75, car: "skerry-gt", paint: "car-paint-silver", price: "74 500 €" },
   ];
   const plinth = 0.16;
   for (const { x, z, car, price } of slots) {
     s.within({ x, z }, () => {
       s.lathe([[3.05, 0], [3.05, plinth], [2.98, plinth + 0.015], [0, plinth + 0.015]], 28, "dealer-stone", { gloss: 0.35 });
     });
-    s.within({ x: x + (x < 0 ? 3.1 : -3.1), z: z + 2.8, yaw: x < 0 ? -0.5 : 0.5 }, () => priceStand(s, brand, car, price, "wall-trim"));
+    s.within({ x: x + (x < 0 ? 3.1 : -3.1), z: z + 2.8, yaw: x < 0 ? -0.5 : 0.5 }, () => priceStand(s, brand, nameOf(car), price, "wall-trim"));
   }
 
   // The turntable, in the middle of the sea window, under a hoop of warm light.
@@ -385,11 +388,11 @@ function waterfrontShowroom(): Interior {
   ];
 
   return {
-    id: "waterfront-showroom",
+    id: "premium-showroom",
     brand,
     soup: s.build(),
     turntable: { soup: deck.build(), centre, deckY: 0.11, radiusM: radius, turnSeconds: 32 },
-    onTurntable: { car: "Skerry GT" },
+    onTurntable: { car: "skerry-gt" },
     displays: slots.map(({ x, z, yaw, car, paint }) => ({ car, paint, at: [x, plinth + 0.015, z], yaw })),
     lighting: { kind: "room", lights, mirrors: ["dealer-polish", "sky"] },
     cameras: [
@@ -408,7 +411,7 @@ export function buildInterior(id: InteriorId): Interior {
       return villageGarage();
     case "town-dealer":
       return townDealer();
-    case "waterfront-showroom":
-      return waterfrontShowroom();
+    case "premium-showroom":
+      return premiumShowroom();
   }
 }

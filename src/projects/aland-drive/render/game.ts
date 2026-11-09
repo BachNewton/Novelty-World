@@ -41,6 +41,7 @@ import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createWindmills } from "./windmills";
 import { createWindTurbines } from "./wind-turbines";
+import { createDealers } from "./dealers";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
@@ -1110,6 +1111,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Båtskär's turbines turn on the same clock as the roadside's flags.
   const windTurbines = createWindTurbines(scene, identityKit, { height: (x, z) => world.height(x, z), revision: () => world.revision });
   if (inPlayground) windTurbines.show(false);
+  const dealers = createDealers(scene, { sun, hazed, season, lampsOn: night.lampsOn, inLand: (colour) => colour.div(landAtHour(night, vec3(1, 1, 1))) }, { height: (x, z) => world.height(x, z), revision: () => world.revision }, manifest.worldOrigin);
+  if (inPlayground) dealers.show(false);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
     street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }),
@@ -1335,6 +1338,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(true);
   windmills.showAll(true);
   windTurbines.showAll(true);
+  dealers.showAll(true);
   docks.showAll(true);
   seaMarks.showAll(true);
   people.showAll(true);
@@ -1364,6 +1368,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(false);
   windmills.showAll(false);
   windTurbines.showAll(false);
+  dealers.showAll(false);
   docks.showAll(false);
   seaMarks.showAll(false);
   people.showAll(false);
@@ -2600,6 +2605,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, camera.position);
       seaMarks.update(spot.x, spot.z, camera.position);
       windTurbines.update();
+      dealers.update(camera.position);
     }
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
     if (!(lifted || held || jumping || menuHolds)) {
@@ -3031,6 +3037,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       outbuildings.dispose();
       windmills.dispose();
       windTurbines.dispose();
+      dealers.dispose();
       docks.dispose();
       boatsUnderWay.dispose();
       seaMarks.dispose();
