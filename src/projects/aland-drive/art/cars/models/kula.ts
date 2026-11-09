@@ -53,7 +53,7 @@ const tail = (): Decal[] => [
   { on: "rear", at: [0.55, 0.545], size: [0.065, 0.048], surface: "lensAmber", mirror: true, round: true, liftM: 0.014, fine: true },
   // The engine lid's chrome handle, at the top of the tail.
   { on: "rear", at: [0, 0.79], size: [0.14, 0.024], surface: "rim", cells: [4, 1], liftM: 0.014, fine: true },
-  { on: "rear", at: [0, 0.5], size: [0.44, 0.11], surface: "plate", cells: [4, 1], liftM: 0.014, fine: true },
+  { on: "rear", at: [0, 0.5], size: [0.38, 0.09], surface: "plate", cells: [8, 2], liftM: 0.014, fine: true },
   { on: "rear", at: [0, 0.578], size: [0.16, 0.026], surface: "rim", cells: [4, 1], liftM: 0.018, fine: true },
   { on: "rear", at: [0.12, 0.26], size: [0.08, 0.04], surface: "lensReverse", cells: [2, 1], liftM: 0.012, fine: true },
 ];
