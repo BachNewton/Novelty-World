@@ -20,57 +20,6 @@
   "boats: pilot": {
     "near": 65
   },
-  "cars: Skerry GT hero": {
-    "body": 66
-  },
-  "cars: Ljus hero": {
-    "body": 46
-  },
-  "cars: Fjärd hero": {
-    "body": 41
-  },
-  "cars: Sund hero": {
-    "body": 118
-  },
-  "cars: Holm hero": {
-    "body": 4
-  },
-  "cars: Holm far": {
-    "body": 4
-  },
-  "cars: Kobb hero": {
-    "body": 59
-  },
-  "cars: Sälta hero": {
-    "body": 14
-  },
-  "cars: Sälta far": {
-    "body": 2
-  },
-  "cars: Vik hero": {
-    "body": 16
-  },
-  "cars: Sten hero": {
-    "body": 23
-  },
-  "cars: Berg hero": {
-    "body": 11
-  },
-  "cars: Ström hero": {
-    "body": 10
-  },
-  "cars: Ankar hero": {
-    "body": 6
-  },
-  "cars: Bris hero": {
-    "body": 6
-  },
-  "cars: Bris far": {
-    "body": 2
-  },
-  "cars: Grus hero": {
-    "body": 22
-  },
   "cars: world Raggare": {
     "near": 2
   },
