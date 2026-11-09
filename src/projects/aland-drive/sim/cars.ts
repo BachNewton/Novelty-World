@@ -6,6 +6,7 @@ import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
+import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { grus } from "./cars/grus";
@@ -49,6 +50,7 @@ const ENTRIES = {
   span,
   strimma,
   // A4
+  brus,
   sund,
   // A5
   "skerry-gt": skerryGt,
