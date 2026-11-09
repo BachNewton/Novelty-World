@@ -139,7 +139,7 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const denominator = sight.z * faceH - sight.h * faceZ;
   const down = Math.abs(denominator) < 1e-9 ? 0.5 : ((lip.h - eyeH) * sight.z - (lip.z - eyeZ) * sight.h) / -denominator;
   const width = style.gauges === "race" ? 0.27 : style.gauges === "digital" ? 0.36 : 0.34;
-  const height = style.gauges === "digital" ? 0.12 : 0.13;
+  const height = style.gauges === "digital" ? 0.12 : style.gauges === "muscle" ? 0.15 : 0.13;
   const faceLength = Math.hypot(faceZ, faceH);
   const share = Math.min(Math.max(down, (height * 0.3) / faceLength), 1 - (height * 0.3) / faceLength);
   const facing = [-faceH / faceLength, faceZ / faceLength] as const;
