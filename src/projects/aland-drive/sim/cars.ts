@@ -10,6 +10,7 @@ import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
+import { flod } from "./cars/flod";
 import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
@@ -55,6 +56,7 @@ const ENTRIES = {
   // A4
   brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
