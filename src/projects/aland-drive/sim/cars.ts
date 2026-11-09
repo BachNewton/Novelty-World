@@ -1,6 +1,7 @@
 import type { Tier } from "./tiers";
 import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
+import { altura } from "./cars/altura";
 import { aska } from "./cars/aska";
 import { blixt } from "./cars/blixt";
 import { orkan } from "./cars/orkan";
@@ -16,6 +17,7 @@ import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
+import { lera } from "./cars/lera";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
@@ -72,11 +74,13 @@ const ENTRIES = {
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4
   berg,
   // C1
+  altura,
   // C2
   // C3
   vik,

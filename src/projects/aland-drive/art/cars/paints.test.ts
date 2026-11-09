@@ -10,6 +10,11 @@ const globals = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
 const isToken = (name: string) => globals.includes(`--color-aland-drive-${name}:`);
 
 describe("a drivable car's paints", () => {
+  it("each have a colour token of their own: one defined twice silently repaints every car that named it first", () => {
+    const names = [...globals.matchAll(/(--color-aland-drive-car-[a-z-]+):/g)].map(([, name]) => name);
+    expect(names.filter((name, at) => names.indexOf(name) !== at)).toEqual([]);
+  });
+
   it.each(CARS.map((car) => [car.name, car] as const))("%s has 4 to 8, the first its default, each a real token and told apart by name", (_, car) => {
     const paints = car.paints ?? [];
     expect(paints.length).toBeGreaterThanOrEqual(4);
