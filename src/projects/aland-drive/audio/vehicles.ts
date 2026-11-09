@@ -2,23 +2,30 @@ import type { Gearbox } from "../sim/gearbox";
 import type { Firing } from "./firing";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
 import { aska } from "./voices/aska";
+import { blixt } from "./voices/blixt";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
+import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
+import { flod } from "./voices/flod";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
+import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
+import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
 import { pil } from "./voices/pil";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
+import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
+import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
 
 /*
@@ -144,12 +151,18 @@ export type EngineSpec = Gearbox & Voice;
 const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
   aska,
+  blixt,
   // A2
+  orkan,
+  varg,
   // A3
   dyning,
   span,
+  strimma,
   // A4
+  brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
@@ -163,6 +176,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3

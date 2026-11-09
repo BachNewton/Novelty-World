@@ -152,6 +152,12 @@ export interface BodySpec {
    * keep their ends as their measured swaps and known overlaps have them, until they're redrawn.
    */
   cleanEnds?: boolean;
+  /**
+   * The blocks stuck on the car face out of themselves, so a block is lit as the box it is. Without it a block's faces
+   * point into it, and a block bigger than a blade reads as a dark hole by day. Every new car sets it; the older cars
+   * keep their blocks as their measured swaps have them, until they're redrawn.
+   */
+  outwardBlocks?: boolean;
   halfWidth: readonly Key[];
   railWidth: readonly Key[];
   /** How far the corners of the nose and tail pull back from the ends, and over what length. */
@@ -177,11 +183,7 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  /**
-   * Tailpipes, each a tube ending at `z`. `open` draws a tip that stands clear of the body: a rolled lip and a dark
-   * bore sunk inside it, where the plain pipe's dark disc sits a millimetre off its cap and is only for a tip set inside
-   * the body.
-   */
+  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
   exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
@@ -197,6 +199,11 @@ export interface BodySpec {
   openWheels?: boolean;
   fenders?: readonly Fender[];
   struts?: readonly Strut[];
+  /**
+   * Where the windscreen meets the roof, for a silhouette faired through it, whose point after the screen's start is
+   * only the next sample up the glass. None, and that point is the screen's top, as a hand-placed silhouette has it.
+   */
+  screenTop?: readonly [z: number, h: number];
 }
 
 export interface BodyDetail {
@@ -544,29 +551,21 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
 
 function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   if (!spec.exhausts) return;
-  const { x, h, z, radius, open = false } = spec.exhausts;
-  const sides = open ? 12 : 8;
+  const { x, h, z, radius } = spec.exhausts;
   const round = (at: number, zAt: number, r: number): Point[] =>
-    Array.from({ length: sides }, (_, step) => {
-      const angle = (-step / sides) * Math.PI * 2;
+    Array.from({ length: 8 }, (_, step) => {
+      const angle = (-step / 8) * Math.PI * 2;
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
-    if (!open) {
-      builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
-      builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
+    if (spec.exhausts.open) {
+      // The pipe's wall, its rolled end and its bore, closed a few centimetres in by a dark disc standing clear of the bore's floor.
+      builder.rings([round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, z - 0.03, radius * 0.78)], "gap");
       continue;
     }
-    // The outer wall, the lip rolled in at the tip, the bore's wall facing in, and the dark bore across its end.
-    const group = builder.newGroup();
-    const [back, tip, lip, bore] = [round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)];
-    for (let step = 0; step < sides; step++) {
-      const next = (step + 1) % sides;
-      builder.quad(back[step], back[next], tip[next], tip[step], "rim", group);
-      builder.quad(tip[step], tip[next], lip[next], lip[step], "rim", group);
-      builder.quad(lip[step], bore[step], bore[next], lip[next], "rimDark", group);
-    }
-    for (let step = 1; step + 1 < sides; step++) builder.triangle(bore[0], bore[step], bore[step + 1], "gap", group);
+    builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
+    builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
   }
 }
 
@@ -598,7 +597,7 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
-function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number, outward = false) {
   const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
     [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
     [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
@@ -606,7 +605,8 @@ function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1,
     [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
   ];
   for (const side of mirror ? [1, -1] : [1]) {
-    builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
+    const ends = [ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)];
+    builder.rings(outward ? ends.reverse() : ends, surface);
   }
 }
 
@@ -839,7 +839,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, spec.outwardBlocks);
   for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
