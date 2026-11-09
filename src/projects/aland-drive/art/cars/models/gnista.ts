@@ -35,11 +35,11 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 /** One headlamp's three streaks, each a little further out than the one under it. */
 const streaks: Decal[] = [0, 1, 2].map((step) => ({
   on: "front",
-  at: [0.6 + step * 0.04, 0.535 + step * 0.03],
-  size: [0.17, 0.014],
+  at: [0.58 + step * 0.03, 0.525 + step * 0.035],
+  size: [0.13, 0.016],
   surface: "lensHead",
   mirror: true,
-  cells: [4, 1],
+  cells: [2, 1],
   liftM: 0.012,
 }));
 
@@ -49,11 +49,11 @@ const streaks: Decal[] = [0, 1, 2].map((step) => ({
  * board would sit.
  */
 const livery: Decal[] = [
-  { on: "side", at: [-0.02, 0.47], size: [1.72, 0.085], surface: "stripe", mirror: true, cells: [8, 1], liftM: 0.012 },
-  { on: "side", at: [0.12, 0.585], size: [1.46, 0.05], surface: "stripe", mirror: true, cells: [8, 1], liftM: 0.012 },
-  { on: "side", at: [0.26, 0.67], size: [1.2, 0.03], surface: "stripe", mirror: true, cells: [8, 1], liftM: 0.012 },
-  { on: "top", at: [0.26, -1.36], size: [0.14, 0.92], surface: "stripe", cells: [1, 8], liftM: 0.012 },
-  { on: "top", at: [0.26, 0.62], size: [0.14, 1.2], surface: "stripe", cells: [1, 8], liftM: 0.012 },
+  { on: "side", at: [-0.02, 0.47], size: [1.72, 0.085], surface: "stripe", mirror: true, cells: [4, 1], liftM: 0.012 },
+  { on: "side", at: [0.12, 0.585], size: [1.46, 0.05], surface: "stripe", mirror: true, cells: [4, 1], liftM: 0.012 },
+  { on: "side", at: [0.26, 0.67], size: [1.2, 0.03], surface: "stripe", mirror: true, cells: [4, 1], liftM: 0.012 },
+  { on: "top", at: [0.26, -1.36], size: [0.14, 0.92], surface: "stripe", cells: [1, 4], liftM: 0.012 },
+  { on: "top", at: [0.26, 0.62], size: [0.14, 1.2], surface: "stripe", cells: [1, 4], liftM: 0.012 },
 ];
 
 /** An electric rallycross car on a short three-door hatch: wide box arches over a narrow cabin, a sealed nose, a wing off the roof. */
@@ -69,7 +69,7 @@ const shape: Shape = {
   flareM: 0.08,
   archClearM: 0.03,
   grilleH: 0.44,
-  lampH: [0.5, 0.64],
+  lampH: [0.48, 0.65],
   hoodLipH: 0.68,
   hoodH: 0.86,
   cowl: [-0.8, 0.975],
@@ -123,22 +123,26 @@ const shape: Shape = {
     ...plates(0.5, 0.39, { recessed: true }),
     ...handles([0.2], 0.86),
     ...streaks,
-    tailLine({ h: 0.955, wide: 1.5, thick: 0.018 }),
-    tailLine({ h: 0.925, wide: 1.32, thick: 0.018 }),
-    tailLine({ h: 0.895, wide: 1.14, thick: 0.018 }),
+    { ...tailLine({ h: 0.955, wide: 1.5, thick: 0.018 }), cells: [8, 1] },
+    { ...tailLine({ h: 0.925, wide: 1.32, thick: 0.018 }), cells: [8, 1] },
+    { ...tailLine({ h: 0.895, wide: 1.14, thick: 0.018 }), cells: [8, 1] },
     reversing(0.5, 0.66),
+    // The rain light: a race car's square fog lamp in the middle of the tail.
+    { on: "rear", at: [0, 0.6], size: [0.1, 0.05], surface: "lensTail", cells: [2, 1], liftM: 0.012, fine: true },
     ...livery,
+    // The roof's vent, air for a cabin with no air conditioning.
+    { on: "top", at: [0, -0.02], size: [0.26, 0.12], surface: "grille", cells: [3, 1], liftM: 0.012 },
     // The hood's duct, as Blixt's: air in at the nose's slot and out here, over the car.
     { on: "top", at: [0, -1.78], size: [0.3, 0.1], surface: "grille", cells: [4, 1], liftM: 0.012 },
   ],
   blocks: [
     splitter({ z: -2.11, h: 0.26, halfWidth: 0.78, long: 0.2 }),
     ...diffuser({ z: 1.8, tailZ: 2.05, h: 0.3, x: [0, 0.3, 0.56] }),
+    // A tow strap in the livery's colour, off centre in the nose's slot.
+    { at: [0.3, 0.3, -2.085], size: [0.045, 0.06, 0.05], surface: "stripe", fine: true },
     // Mud flaps behind each wheel, hanging under the sills.
     { at: [0.8, 0.2, -0.9], size: [0.26, 0.26, 0.012], surface: "cladding", mirror: true, fine: true },
     { at: [0.8, 0.2, 1.67], size: [0.26, 0.26, 0.012], surface: "cladding", mirror: true, fine: true },
-    // The roof's scoop, air for the cabin: high at its mouth, faired into the roof behind.
-    { at: [0, 1.39, 0.02], size: [0.34, 0.05, 0.3], surface: "paint", taper: [0.85, 0.3] },
   ],
   extra: {
     bands: BANDS,
@@ -147,8 +151,8 @@ const shape: Shape = {
       { z: -2.075, h: 0.26, band: "bumper" },
       { z: -2.07, h: 0.34, band: "mouth" },
       { z: -2.068, h: 0.44 },
-      { z: -2.062, h: 0.5, band: "headDark" },
-      { z: -2.05, h: 0.64 },
+      { z: -2.063, h: 0.48, band: "headDark" },
+      { z: -2.05, h: 0.65 },
       // The hood, then the screen, roof and tailgate's glass, each as one fair line.
       ...faired(
         [
@@ -197,20 +201,18 @@ const shape: Shape = {
     shelf: [
       [-2.06, 0],
       [-1.3, 0.04],
-      [-0.8, 0.06],
-      [0, 0.07],
-      [0.8, 0.1],
-      [1.26, 0.14],
-      [1.8, 0.1],
-      [2.06, 0.05],
+      [-0.5, 0.06],
+      [0.5, 0.08],
+      [1.3, 0.11],
+      [2.06, 0.06],
     ],
     halfWidth: [
       [-2.06, 0.78],
       [-1.85, 0.9],
       [-1.3, 0.95],
-      [-0.85, 0.91],
-      [0, 0.9],
-      [0.75, 0.91],
+      [-0.85, 0.92],
+      [0, 0.912],
+      [0.75, 0.92],
       [1.26, 0.95],
       [1.8, 0.93],
       [2.06, 0.84],

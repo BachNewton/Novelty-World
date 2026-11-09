@@ -1,33 +1,31 @@
 import type { Voice } from "../vehicles";
 
 /**
- * Two motors, one on each axle, through straight-cut gears and no engine: the motors' whine climbing fast with the
- * speed, the pair a few cents apart so they beat, the gears' own harder whine a step above them, and the inverters'
- * thin high tone over it all. Rawer and louder than a road car's, as a race car's drive is. Near silent at rest.
- * Provisional, until the sound's own work redoes the voices.
+ * Two motors, one on each axle, and no engine: their whine in its orders climbing hard with the speed, a race
+ * inverter's high tones loud under full current, a straight-cut reduction gear whining over both, strong regeneration
+ * on the lift, and a stripped cabin that lets it all in. Near silent at rest.
  */
 export const gnista: Voice = {
   seed: 2213,
-  firesPerRev: 4,
-  pulseOrders: [1, 2, 3],
-  pulseDecay: 2,
-  unevenness: 0,
-  harmonics: [
-    { order: 1, wave: "sine", level: 0.3, cents: 0 },
-    { order: 1, wave: "sine", level: 0.14, cents: 12 },
-    { order: 0.5, wave: "triangle", level: 0.18, cents: -5 },
-    { order: 2.5, wave: "triangle", level: 0.13, cents: 0 },
-    { order: 5, wave: "sine", level: 0.04, cents: 3 },
-  ],
-  cycleLevel: 0.08,
-  exhaustHz: [1800, 5000, 2600],
-  bodyHz: 1100,
-  bodyDb: 4,
-  drive: 1.1,
-  intakeHz: [3200, 9000],
-  intakeQ: 7,
-  intakeLevel: 0.04,
-  firingBeat: 0,
-  level: 0.3,
+  combustion: null,
+  electric: {
+    rpmPerMS: null,
+    orders: [
+      [8, 1],
+      [24, 0.5],
+      [48, 0.22],
+    ],
+    level: 0.6,
+    carrierHz: 4400,
+    polePairs: 4,
+    inverter: 0.2,
+    regen: 0.6,
+  },
+  turbo: null,
+  supercharger: null,
+  overrun: { crackle: 0, antiLag: 0 },
+  gearWhine: { teeth: 19, level: 0.1 },
+  cabin: 0.3,
+  level: 0.36,
   idleLevel: 0,
 };
