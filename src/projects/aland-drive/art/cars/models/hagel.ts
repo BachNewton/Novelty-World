@@ -161,7 +161,6 @@ const shape: Shape = {
   extra: {
     bands: BANDS,
     cleanEnds: true,
-    outwardBlocks: true,
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
       { z: -2.062, h: 0.25, band: "bumper" },
