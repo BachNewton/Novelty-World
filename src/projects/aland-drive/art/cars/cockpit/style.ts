@@ -82,6 +82,8 @@ export interface InteriorStyle {
    * wheel's hub along its column, which crosses the middle of the screen.
    */
   speedAside: boolean;
+  /** How far left of the middle a speed set aside sits, metres: further for a wheel whose hub covers more of the screen. */
+  speedAsideM: number;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -113,6 +115,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     eye: [0, 0, 0],
     clusterSight: 0.45,
     speedAside: false,
+    speedAsideM: 0.064,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };

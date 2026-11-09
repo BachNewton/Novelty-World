@@ -287,7 +287,7 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const cell = [cellUv(SLOT.digital), cellUv(SLOT.digital + 1)];
     plate(b, at, [0, 0], [w - 0.014, h - 0.014], 0.003, flat(paints.dial, KIND.dial, SLOT.digital), [cell[0].u, cell[0].v, cell[1].u + cell[1].width, cell[0].v + cell[0].height]);
     dials.push({ slot: SLOT.digital, source: SOURCE.none, startDeg: 0, sweepDeg: 0 });
-    if (style.speedAside) readout(SOURCE.speed, 3, -0.064, -0.022, 0.034);
+    if (style.speedAside) readout(SOURCE.speed, 3, -style.speedAsideM, -0.022, 0.034);
     else readout(SOURCE.speed, 3, 0, -0.004, 0.04);
     readout(SOURCE.gear, 1, w / 2 - 0.045, -0.025, 0.028);
     // The revs, or an electric car's power, as segments round an arc over the figures.

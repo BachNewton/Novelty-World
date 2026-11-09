@@ -251,8 +251,9 @@ export const pil: CarSpec = {
     seats: "sport",
     screen: true,
     seatCheck: ["car-cabin-hot-red", "car-cabin-vastan"],
-    // The cluster seen high through the wheel's opening, over its hub and column.
-    clusterSight: 0.72,
+    // The speed set well aside in the cluster, left of the wheel's hub, which covers the screen's middle from the seat.
+    speedAside: true,
+    speedAsideM: 0.11,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner-dark", accent: "car-cabin-hot-red", glow: "car-cabin-glow-red" },
   },
 };
