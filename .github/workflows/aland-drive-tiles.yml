@@ -132,3 +132,24 @@ jobs:
           cd "$PIPELINE"
           .venv/bin/python upload.py | tee upload.log
           echo "Published: $(tail -n 1 upload.log)" >> "$GITHUB_STEP_SUMMARY"
+
+  # TEMPORARY, removed before landing: where a build here and one in WSL part, on three machines.
+  diag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        machine: [0, 1, 2]
+    env:
+      NPY_DISABLE_CPU_FEATURES: X86_V4 AVX512_ICL AVX512_SPR
+      OPENBLAS_CORETYPE: Haswell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ env.PIPELINE }}/requirements.txt
+      - run: python3 "$PIPELINE/inputs.py" fetch
+      - run: python3 "$PIPELINE/run.py" --help > /dev/null
+      - run: cd "$PIPELINE" && .venv/bin/python diag_temp.py
