@@ -236,6 +236,12 @@ export interface GameProbe {
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
   hold: (held: boolean) => void;
+  /**
+   * Stops the frame loop, drawing and all, and starts it again. Several game pages in one browser share its one GPU
+   * process, and a page starting up compiles its pipelines there behind every frame the others draw: a fourth page's
+   * compile never finished with three drawing. So a test starts each page while the others are still.
+   */
+  holdDrawing: (held: boolean) => Promise<void>;
   /** Steps the simulation with fixed inputs, or the scripted driver when given none. */
   advance: (steps: number, input?: DriveInput) => void;
   /** Starts the scripted driver along one of the start tile's chains, from a distance along it, resetting the log. */
@@ -2989,6 +2995,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         held = next;
         seaHeldAt = next ? (seaHeldAt ?? seaNow()) : null;
       },
+      // Steps owed while it stood are dropped when it starts again, as for a tab that was away.
+      holdDrawing: (still) => renderer.setAnimationLoop(still ? null : frame),
       advance: (steps, input) => {
         drive.remotes.setClock(performance.now() - steps * STEP_S * 1000);
         for (let step = 0; step < steps; step++) simStep(input ?? nextInput());
