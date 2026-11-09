@@ -34,6 +34,15 @@ export const BINDINGS = {
   challenge: binding("X", "E"),
   /** Sound on or off has no prompt: it's in the game menu too. */
   mute: binding(null, "N"),
+  /** Walking round a dealership: forward, left, back and right, on WASD or the left stick. */
+  walkForward: binding("L3", "W"),
+  walkLeft: binding("L3", "A"),
+  walkBack: binding("L3", "S"),
+  walkRight: binding("L3", "D"),
+  /** Looking round on foot: a drag of the mouse, the arrows, or the right stick. */
+  walkLook: binding("R3", "Drag"),
+  /** Held, at a dealership's car or in its seat: revs its engine. In the seat, W does too. */
+  rev: binding("RT", "R"),
   mapPick: binding("A", "Click"),
   mapClear: binding("X", "X"),
   mapClose: binding("B", "Esc"),
@@ -57,6 +66,18 @@ const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "Arrow
 
 /** `~` is a dead key on some layouts, sent as "Dead" until it's pressed twice, so the key under Esc counts by where it is. */
 const isDevMenuKey = ({ key, code }: KeyboardEvent) => key === "~" || code === "Backquote";
+
+/** What walking reads each frame: see `walk()`. */
+export interface WalkInput {
+  forward: number;
+  right: number;
+  turn: number;
+  tilt: number;
+  rev: number;
+}
+
+/** The left stick's own deadzone is radial and small; walking ignores a little more, so a resting thumb doesn't drift the eye. */
+const WALK_DEADZONE = 0.12;
 
 export interface ControlsListener {
   onAction: (action: GameAction) => void;
@@ -192,6 +213,21 @@ export function startControls({ onAction, onMapAction, onDevMenu, onGameMenu, on
     },
     setGameMenuOpen(open: boolean) {
       gameMenuOpen = open;
+    },
+    /** On foot in a dealership: walking (forward and right, -1 to 1), turning and tilting the head (the arrows and the right stick, -1 to 1), and the throttle a car is revved with. */
+    walk(): WalkInput {
+      const controls = pad?.controls;
+      const stick = (value: number) => (Math.abs(value) < WALK_DEADZONE ? 0 : value);
+      const keys = { forward: axis(["KeyS"], ["KeyW"]), right: axis(["KeyA"], ["KeyD"]), turn: axis(["ArrowRight"], ["ArrowLeft"]), tilt: axis(["ArrowDown"], ["ArrowUp"]) };
+      const rev = held.has("KeyR") ? 1 : 0;
+      if (!controls) return { ...keys, rev };
+      return {
+        forward: keys.forward !== 0 ? keys.forward : -stick(controls.leftStick.y),
+        right: keys.right !== 0 ? keys.right : stick(controls.leftStick.x),
+        turn: keys.turn !== 0 ? keys.turn : -stick(controls.rightStick.x),
+        tilt: keys.tilt !== 0 ? keys.tilt : -stick(controls.rightStick.y),
+        rev: Math.max(rev, controls.rightTrigger),
+      };
     },
     /** The steady inputs on the world map: a pad's, and WASD's panning. */
     mapSteer() {

@@ -17,6 +17,8 @@ import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, 
 import { resultText, timeText } from "../challenge/format";
 import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
+import { DealershipHud } from "../dealership/hud";
+import type { DealershipReading } from "../dealership/walk-in";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -145,6 +147,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
   const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
+  const [dealership, setDealership] = useState<DealershipReading | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
   const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
@@ -249,6 +252,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onProgress: setProgress,
           onTimeJump: (jump) => { setTimeJump({ jump }); },
+          onDealership: setDealership,
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -277,6 +281,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   }, [solo, onStarted]);
 
   const stillLoading = !started && !noWebGpu && failure === null;
+  // Inside a dealership, and on the way in, the drive's own HUD is put away.
+  const walking = dealership !== null && dealership.kind !== "door";
 
   return (
     <div className="fixed inset-0" style={{ background: SHADE, ["--prompt-body" as string]: SHADE, ["--prompt-ink" as string]: INK }}>
@@ -291,7 +297,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       )}
       <canvas ref={worldMap} className="absolute inset-0 size-full cursor-crosshair transition-opacity" style={{ display: mapOpen ? "block" : "none", opacity: 0 }} aria-label="Island map" />
       {/* The time over the mini map, at least as wide as it: the month, the hour with the sun or the moon, and the air's temperature. */}
-      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" ? "flex" : "none" }} aria-label="Month, time and temperature">
+      <div className="pointer-events-none absolute bottom-[16.75rem] left-4 flex w-max min-w-60 items-center justify-center gap-3 text-lg font-semibold tabular-nums" style={{ color: INK, textShadow: `0 0 6px ${SHADE}`, display: mapReady && !mapOpen && camera !== "free" && !walking ? "flex" : "none" }} aria-label="Month, time and temperature">
         <span ref={monthShown} title="Month" aria-label="Month" />
         <span className="flex items-center gap-1" title="Time">
           <Sun ref={sunIcon} className="size-5 shrink-0" style={{ color: ACCENT }} aria-hidden />
@@ -303,10 +309,10 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           <span ref={temperatureShown} aria-label="Temperature" />
         </span>
       </div>
-      <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
+      <canvas ref={miniMap} width={240} height={240} className="pointer-events-none absolute bottom-4 left-4 rounded-full" style={{ display: mapReady && !mapOpen && camera !== "free" && !walking ? "block" : "none", border: `2px solid ${INK}` }} aria-label="Mini map" />
       {started && !noWebGpu && (
         <>
-          {!mapOpen && camera !== "free" && (
+          {!mapOpen && camera !== "free" && !walking && (
             // One column at the top middle: the GPS and, in a run, the challenge with it, then the road and a find under them, clear of the frame meter at the top right.
             <div className="pointer-events-none absolute top-3 left-1/2 flex w-max max-w-[90vw] -translate-x-1/2 flex-col items-center gap-3">
               <div className={playing === null ? "flex flex-col items-center" : "flex min-w-64 flex-col gap-1 rounded-lg px-4 py-3"} style={playing === null ? undefined : { color: INK, background: SHADE, border: `2px solid ${playing.colour}` }} aria-label={playing === null ? undefined : playing.kind === "race" ? "Race" : "Challenge"}>
@@ -402,7 +408,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             </div>
           )}
           {/* In the driver's seat the car's own instruments show the speed and revs. */}
-          {camera === "chase" && (
+          {camera === "chase" && !walking && (
             <div className="pointer-events-none absolute right-5 bottom-3 size-48" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }}>
               <svg viewBox="0 0 100 100" className="absolute inset-0 rotate-[135deg]" aria-hidden fill="none" strokeWidth={5}>
                 <circle cx={50} cy={50} r={44} pathLength={1} stroke={SHADE} strokeDasharray={`${DIAL_SWEEP} 1`} />
@@ -421,7 +427,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
               </span>
             </div>
           )}
-          {offer !== null && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
+          <DealershipHud reading={dealership} input={input} />
+          {offer !== null && !walking && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
             <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.players === 0 ? "Start" : "Solo or co-op"}>
               <Prompt binding={BINDINGS.challenge} input={input} />
               {offer.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(offer.ground) }} aria-hidden /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-hidden />}

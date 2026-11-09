@@ -55,6 +55,8 @@ export interface DealerSite {
   place: string;
   road: string;
   why: string;
+  /** On the water, as a yacht is: its exterior's origin is at the sea's surface rather than on the ground. */
+  afloat?: boolean;
 }
 
 /**

@@ -32,9 +32,18 @@ export interface RoomLight {
   reachM: number;
 }
 
+/** A room's light as nodes the walk-in writes on entering (`dealership/room-light.ts`), so every room is one shader. */
+export interface LampLight {
+  ambient: Node<"vec3">;
+  mirrors: readonly [Node<"vec3">, Node<"vec3">];
+  /** The lamps' light reaching a point: on a face turned to `normal` (or all of it, for null), and the highlight along `mirrored`. */
+  at(position: Node<"vec3">, normal: Node<"vec3"> | null, mirrored: Node<"vec3"> | null): { sum: Node<"vec3">; highlight: Node<"vec3"> };
+}
+
 export type Lighting =
   | { kind: "sun"; sun: Sun }
-  | { kind: "room"; lights: readonly RoomLight[]; /** What the floor mirrors: low then high. */ mirrors: readonly [Paint, Paint] };
+  | { kind: "room"; lights: readonly RoomLight[]; /** What the floor mirrors: low then high. */ mirrors: readonly [Paint, Paint] }
+  | { kind: "lamps"; light: LampLight };
 
 const tokenOf = (paint: Paint) => themeColor(`--color-aland-drive-${paint}`);
 
@@ -119,6 +128,14 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
       const lit = painted.mul(float(SUN_AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
       const world = mix(linear("tree-spruce"), mix(linear("sky"), linear("water"), smoothstep(float(0.2), float(0.8), mirrored.y)), smoothstep(float(-0.02), float(0.06), mirrored.y));
       return hazed(mix(mix(lit, world, shine), painted, glow));
+    }
+
+    if (lighting.kind === "lamps") {
+      const { ambient, mirrors, at } = lighting.light;
+      const { sum, highlight } = at(positionWorld, normal, mirrored);
+      const lit = painted.mul(ambient.add(normal.y.max(0).mul(ROOM_SKY_SHARE)).add(sum));
+      const room = mix(mirrors[0], mirrors[1], smoothstep(float(0.05), float(0.5), mirrored.y));
+      return mix(mix(lit, room, shine).add(highlight.mul(gloss).mul(HIGHLIGHT_SHARE)), painted, glow);
     }
 
     let sum: Node<"vec3"> = vec3(0, 0, 0);

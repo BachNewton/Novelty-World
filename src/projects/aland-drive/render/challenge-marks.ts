@@ -26,10 +26,10 @@ export interface ChallengeMarksInputs {
   groundAt: (x: number, z: number) => number;
 }
 
-/** How a start ring is painted: a challenge's, passed or not, or a race's by what's under its wheels. */
-export type StartTone = "challenge" | "passed" | RaceGround;
+/** How a start ring is painted: a challenge's, passed or not, a race's by what's under its wheels, or a dealership's door. */
+export type StartTone = "challenge" | "passed" | RaceGround | "dealer";
 
-const TONES: readonly StartTone[] = ["challenge", "passed", "road", "cross-country", "off-road"];
+const TONES: readonly StartTone[] = ["challenge", "passed", "road", "cross-country", "off-road", "dealer"];
 
 /** A start ring on the ground, and how it's painted. */
 export interface StartMark extends ScenePoint {
@@ -130,7 +130,7 @@ export function createChallengeMarks(scene: Scene, { colour, hazed, sunAzimuthDe
   const sun = { x: Math.sin(sunRadians), z: -Math.cos(sunRadians) };
   const shade = attribute<"float">("shade", "float");
   const tone = attribute<"float">("tone", "float");
-  const toneColours = [colour("challenge-mark"), colour("challenge-passed"), colour("race-road"), colour("race-cross-country"), colour("race-off-road")];
+  const toneColours = [colour("challenge-mark"), colour("challenge-passed"), colour("race-road"), colour("race-cross-country"), colour("race-off-road"), colour("dealer-mark")];
   const mark = toneColours.slice(1).reduce((chosen, each, index) => select(tone.greaterThan(index + 0.5), each, chosen), toneColours[0]);
 
   const postFaces = new Faces(sun);
