@@ -257,8 +257,8 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
   } else if (style.gauges === "muscle") {
     big(SLOT.revs, SOURCE.revs, 0.035, 0.069);
     big(SLOT.speed, SOURCE.speed, -0.105, 0.046);
-    // The gear in the rev counter's upper half, where the wheel's hub can't cover it.
-    readout(SOURCE.gear, 1, 0.035, 0.03, 0.024);
+    // The gear just over the rev counter's middle, under its figures and where the wheel's hub can't cover it.
+    readout(SOURCE.gear, 1, 0.035, 0.017, 0.021);
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
