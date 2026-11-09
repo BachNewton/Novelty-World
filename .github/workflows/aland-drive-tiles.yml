@@ -22,9 +22,6 @@ on:
         description: Publish the tiles to Supabase as a new version, once their seams meet
         type: boolean
         default: false
-  # TEMPORARY, removed before landing: the three tiles compared against a local build, on every push to this branch.
-  push:
-    branches: [claude/xenodochial-heyrovsky-14f608]
 
 permissions:
   contents: read
@@ -50,7 +47,7 @@ jobs:
       - uses: actions/checkout@v7
       - id: plan
         env:
-          TILES: ${{ github.event_name == 'push' && 'L2343A L2343C L2343D' || inputs.tiles }}
+          TILES: ${{ inputs.tiles }}
         # Dealt round the machines in turn, the slow road tiles first, so each machine gets a fair share of both.
         run: |
           python3 - <<'EOF'
