@@ -11,6 +11,7 @@ import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
+import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
@@ -140,6 +141,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
   aska,
   // A2
+  orkan,
   // A3
   dyning,
   span,
