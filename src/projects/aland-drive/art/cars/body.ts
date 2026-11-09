@@ -177,7 +177,11 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number };
+  /**
+   * `boreM` is how far the pipe's dark bore stands off its end, 1 mm when not given: a pipe that stands out in the open
+   * past the tail needs a few, or its end and its bore share a plane where a camera sees them.
+   */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; boreM?: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -539,7 +543,7 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
 
 function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   if (!spec.exhausts) return;
-  const { x, h, z, radius } = spec.exhausts;
+  const { x, h, z, radius, boreM = 0.001 } = spec.exhausts;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
       const angle = (-step / 8) * Math.PI * 2;
@@ -547,7 +551,7 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
     });
   for (const at of x) {
     builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
-    builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
+    builder.rings([round(at, z + boreM, radius * 0.72)], "gap");
   }
 }
 

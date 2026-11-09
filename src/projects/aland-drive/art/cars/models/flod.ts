@@ -87,7 +87,7 @@ const shape: Shape = {
     [0.8, 1.375],
     [1.5, 1.37],
     [1.9, 1.34],
-    [2.08, 1.25],
+    [2.08, 1.28],
   ],
   windowZ: [-0.42, 2.08],
   railWidth: [
@@ -119,9 +119,9 @@ const shape: Shape = {
     { on: "rear", at: [0, 0.755], size: [0.62, 0.022], surface: "trim", cells: [4, 1], fine: true, liftM: 0.012 },
     // A reflector low in each corner.
     reflector(0.72, 0.42),
-    { ...thirdBrake(2.12, 0.34), liftM: 0.012 },
+    { ...thirdBrake(2.07, 0.34), liftM: 0.012 },
     // The fender vents, Valtor's mark behind each front wheel, in fewer cells than the shared intake's for the far model.
-    { ...sideIntake({ z: -0.84, h: 0.66, long: 0.32, tall: 0.085 }), cells: [3, 1] },
+    { ...sideIntake({ z: -0.84, h: 0.66, long: 0.32, tall: 0.085 }), cells: [3, 1], liftM: 0.014 },
     ...louvres({ x: 0.36, z: -1.36, long: 0.34, wide: 0.14, count: 4 }),
     // A brake-cooling inlet at each outer corner of the nose, under the visor.
     { on: "front", at: [0.74, 0.34], size: [0.17, 0.1], surface: "grille", mirror: true, cells: [2, 1], liftM: 0.012 },
@@ -132,7 +132,7 @@ const shape: Shape = {
     // Tucked under the nose's foot, it adds nothing to the far model's outline.
     { ...splitter({ z: -2.52, h: 0.225, halfWidth: 0.58, long: 0.12 }), fine: true },
     // Each fender vent as a duct: a blade of the body's colour along it and a lip over it, tapering back.
-    { at: [0.968, 0.66, -0.84], size: [0.04, 0.02, 0.3], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
+    { at: [0.975, 0.66, -0.84], size: [0.04, 0.02, 0.3], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.964, 0.708, -0.84], size: [0.05, 0.014, 0.32], surface: "paint", mirror: true, taper: [0.8, 0.6], fine: true },
     // A roof spoiler over the tailgate's glass, in the body's colour, its lip standing proud of the glass.
     { at: [0, 1.402, 2.19], size: [1.2, 0.024, 0.1], surface: "paint", taper: [0.96, 0.6] },
@@ -179,7 +179,6 @@ const shape: Shape = {
       ),
       // The tailgate's glass, raked as a fast estate's is.
       { z: 2.16, h: 1.395, band: "rearGlass" },
-      { z: 2.27, h: 1.236, band: "rearGlass", fine: true },
       { z: 2.38, h: 1.06 },
       { z: 2.4, h: 1.035, band: "gap" },
       { z: 2.41, h: 1.02, band: "visor" },
@@ -230,7 +229,7 @@ const shape: Shape = {
       [1.1, 0],
     ],
     roofBars: { from: 0.55, to: 2.05, x: 0.57, rise: 0.06 },
-    exhausts: { x: [-0.66, -0.54, 0.54, 0.66], h: 0.3, z: 2.49, radius: 0.042 },
+    exhausts: { x: [-0.66, -0.54, 0.54, 0.66], h: 0.3, z: 2.515, radius: 0.042, boreM: 0.004 },
   },
 };
 
@@ -258,8 +257,10 @@ export const flod: CarSpec = {
     shifter: "lever",
     seats: "sport",
     screen: true,
-    // The cluster's readouts sit in the wheel's opening over its hub, where the eye's line through the wheel meets them.
-    clusterSight: 0.8,
+    // Sat a little lower and further back than the recipe's sitting height, as in Orkan, so the cluster's readouts sit in
+    // the wheel's opening over its hub, where the eye's line through the wheel meets them, and clear of the screen's foot.
+    eye: [0, -0.06, 0.03],
+    clusterSight: 0.85,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
