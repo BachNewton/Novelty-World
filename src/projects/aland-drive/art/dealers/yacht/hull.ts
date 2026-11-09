@@ -131,8 +131,8 @@ function stern(into: BoatMesh, near: boolean) {
     const shares = NEAR_STATIONS.filter((share) => share <= BULWARK_FROM);
     for (let at = 0; at + 1 < shares.length; at++) into.line(edge(shares[at]), edge(shares[at + 1]), "alu");
     for (const share of shares) {
-      const [x, , z] = edge(share);
-      into.line([x, railY, z], [x, MAIN_DECK_Y, z], "alu");
+      const [x, y, z] = edge(share);
+      into.line([x, y - 1 + RAIL_POST_M, z], [x, y - 1, z], "alu");
     }
   }
   const [x, , z] = hullPoint(deck, 0, 1, 0.08);
@@ -143,12 +143,17 @@ function stern(into: BoatMesh, near: boolean) {
 function hullHalfAt(x: number, y: number): number {
   const level = LEVELS.findIndex((candidate) => candidate.y >= y);
   const [low, high] = [LEVELS[Math.max(level - 1, 0)], LEVELS[Math.max(level, 0)]];
-  const halfOf = (lv: Level) => HALF_BEAM * lv.beam * fullness(Math.min(1, Math.max(0, (x - sternOf(lv)) / (lv.to - sternOf(lv)))));
-  const share = high.y === low.y ? 0 : (y - low.y) / (high.y - low.y);
+  const shareOf = (lv: Level) => Math.min(1, Math.max(0, (x - sternOf(lv)) / (lv.to - sternOf(lv))));
+  const halfOf = (lv: Level) => HALF_BEAM * lv.beam * fullness(shareOf(lv));
+  const heightOf = (lv: Level) => hullPoint(lv, shareOf(lv), 1)[1];
+  const [lowY, highY] = [heightOf(low), heightOf(high)];
+  const share = highY === lowY ? 0 : (y - lowY) / (highY - lowY);
   return halfOf(low) + (halfOf(high) - halfOf(low)) * share;
 }
 
 const LIFT = 0.03;
+/** A rail post stops this far up a metre-high rail, just under it. */
+const RAIL_POST_M = 0.97;
 
 /** A flat patch laid on the hull's side, both sides unless `side` is given: a pane, a seam, a door. */
 function onHull(into: BoatMesh, fromX: number, toX: number, lowY: number, highY: number, part: BoatPart, lift = LIFT, sides: readonly number[] = [-1, 1]) {
@@ -169,8 +174,8 @@ function hullDetail(into: BoatMesh, near: boolean) {
     onHull(into, to, to + frame, low, high, "alu", LIFT * 2);
   }
   // The guest cabins' windows forward, a row of small panes that gives the hull its size.
-  if (near) for (let x = 10; x + 1.4 < 27; x += 2.3) onHull(into, x, x + 1.4, 2.35, 2.95, "glass");
-  else onHull(into, 10, 26.7, 2.4, 2.9, "glass");
+  if (near) for (let x = 10; x + 1.4 < 27; x += 2.3) onHull(into, x, x + 1.4, 2.35, 2.95, "glass", LIFT * 1.5);
+  else onHull(into, 10, 26.7, 2.4, 2.9, "glass", LIFT * 1.5);
   // A polished steel cove line along the hull, under the deck's edge.
   onHull(into, STERN_X + 0.4, 33.6, 3.55, 3.7, "alu", LIFT);
   // The shell door on the quay side, open: the dark of the car deck behind its frame.
@@ -196,8 +201,9 @@ function passerelle(into: BoatMesh, near: boolean) {
   into.face([[x0, startY - thick, startZ], [x1, startY - thick, startZ], [x1, endY - thick, endZ], [x0, endY - thick, endZ]], "alu", 0.7);
   into.box([x0 - 0.15, endY - 0.8, endZ - 0.3], [x1 + 0.15, endY - thick, endZ + 0.35], "alu", { open: true, shade: 0.85 });
   if (!near) return;
-  for (const x of [x0, x1]) {
-    for (const [z, y] of [[startZ + 0.4, startY], [(startZ + endZ) / 2, (startY + endY) / 2], [endZ - 0.3, endY]] as const) into.line([x, y, z], [x, y + 1, z], "alu");
+  // Each rail's posts stop just under it and stand in from the plank's edge, so no two ribbons meet in one plane.
+  for (const x of [x0 + 0.06, x1 - 0.06]) {
+    for (const [z, y] of [[startZ + 0.4, startY], [(startZ + endZ) / 2, (startY + endY) / 2], [endZ - 0.3, endY]] as const) into.line([x, y, z], [x, y + RAIL_POST_M, z], "alu");
     into.line([x, startY + 1, startZ + 0.4], [x, endY + 1, endZ - 0.3], "alu");
   }
 }
@@ -322,7 +328,7 @@ function rails(into: BoatMesh) {
       });
     const path: V3[] = [[end, top, -inner], ...corner(-1), ...corner(1).reverse(), [end, top, inner]];
     for (let at = 0; at + 1 < path.length; at++) into.line(path[at], path[at + 1], "alu");
-    for (const side of [-1, 1]) for (let x = from + round + 0.1; x < end; x += 3) into.line([x, top, side * inner], [x, top - 1, side * inner], "alu");
+    for (const side of [-1, 1]) for (let x = from + round + 0.1; x < end; x += 3) into.line([x, top - 1 + RAIL_POST_M, side * inner], [x, top - 1, side * inner], "alu");
   }
 }
 

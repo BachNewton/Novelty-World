@@ -2615,6 +2615,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     parkedCars.update(camera.position);
     outbuildings.follow(camera.position);
     docks.follow(camera.position);
+    yacht?.follow(camera.position);
     // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
     // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
     const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;

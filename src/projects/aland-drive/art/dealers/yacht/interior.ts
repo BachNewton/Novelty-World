@@ -30,6 +30,9 @@ const FORWARD = -Math.PI / 2;
 const SOFA = { from: AFT + 0.2, to: AFT + 1.1, nearZ: -2.3, farZ: -WALL + 0.15 } as const;
 const COFFEE = { x: -19.4, z: -3.8, radiusM: 0.55 } as const;
 const DOOR = { x: (SHELL_DOOR.fromX + SHELL_DOOR.toX) / 2, z: 4.75 } as const;
+/** The teak tray over the middle of the deckhead, a little higher than the rest. */
+const TRAY = { from: AFT + 3, to: FORE - 1.2, half: 2.2 } as const;
+const ceilingAt = (x: number, z: number) => (x > TRAY.from && x < TRAY.to && Math.abs(z) < TRAY.half ? HEIGHT - 0.1 : HEIGHT - 0.22);
 
 const TEAK: Finish = { pattern: "boards", gloss: 0.3 };
 const LAMP_GLOW: Finish = { glow: 1 };
@@ -88,15 +91,30 @@ function bulkheads(s: Shell) {
   // Forward, teak panels round a lit niche.
   s.quad([FORE, 0, -WALL], [FORE, 0, WALL], [FORE, HEIGHT, WALL], [FORE, HEIGHT, -WALL], "dealer-timber", TEAK);
   s.within({ x: FORE - 0.02 }, () => {
-    s.quad([0, 0.5, -2.2], [0, 0.5, 2.2], [0, 2.25, 2.2], [0, 2.25, -2.2], "dealer-timber-dark", {});
-    s.quad([-0.015, 2.19, -2.1], [-0.015, 2.19, 2.1], [-0.015, 2.22, 2.1], [-0.015, 2.22, -2.1], "dealer-light-warm", LAMP_GLOW);
+    // A wall of stone lit from behind, glowing amber through its veins.
+    s.quad([0, 0.35, -2.4], [0, 0.35, 2.4], [0, 2.2, 2.4], [0, 2.2, -2.4], "dealer-stone", { glow: 0.6, pattern: "speckle" });
   });
 }
 
 function floorAndCeiling(s: Shell) {
   level(s, AFT, FORE, -WALL, WALL, 0, "dealer-timber", TEAK);
-  level(s, AFT, FORE, -WALL + 0.7, WALL - 0.7, HEIGHT - 0.22, "dealer-ceiling", {}, true);
-  // A ring of light in the floor round the turntable, and a polished steel strip down the middle aisle.
+  // The deckhead: cream between the coves, round a tray of teak slats over the middle, its edges lit from inside.
+  const [low, high] = [HEIGHT - 0.22, HEIGHT - 0.1];
+  const [t0, t1, half] = [TRAY.from, TRAY.to, TRAY.half];
+  level(s, AFT, FORE, -WALL + 0.7, -half, low, "dealer-ceiling", {}, true);
+  level(s, AFT, FORE, half, WALL - 0.7, low, "dealer-ceiling", {}, true);
+  level(s, AFT, t0, -half, half, low, "dealer-ceiling", {}, true);
+  level(s, t1, FORE, -half, half, low, "dealer-ceiling", {}, true);
+  level(s, t0, t1, -half, half, high, "dealer-timber", { pattern: "boards" }, true);
+  const fascia = (a: V3, b: V3) => {
+    s.quad([a[0], low, a[2]], [b[0], low, b[2]], [b[0], high - 0.04, b[2]], [a[0], high - 0.04, a[2]], "dealer-ceiling");
+    s.quad([a[0], high - 0.04, a[2]], [b[0], high - 0.04, b[2]], [b[0], high, b[2]], [a[0], high, a[2]], "dealer-light-warm", LAMP_GLOW);
+  };
+  fascia([t0, 0, -half], [t1, 0, -half]);
+  fascia([t1, 0, half], [t0, 0, half]);
+  fascia([t0, 0, half], [t0, 0, -half]);
+  fascia([t1, 0, -half], [t1, 0, half]);
+  // A ring of light in the floor round the turntable.
   s.within({ x: TABLE.x, y: 0.004 }, () => {
     const sides = 48;
     for (let side = 0; side < sides; side++) {
@@ -105,14 +123,13 @@ function floorAndCeiling(s: Shell) {
       s.quad(ring(TABLE.radiusM + 0.06, a), ring(TABLE.radiusM + 0.06, b), ring(TABLE.radiusM + 0.14, b), ring(TABLE.radiusM + 0.14, a), "dealer-light-warm", LAMP_GLOW);
     }
   });
-  level(s, AFT + 2.6, TABLE.x - TABLE.radiusM - 0.4, -0.06, 0.06, 0.004, "dealer-steel", { gloss: 0.7 });
 }
 
 /** The lamps' faces in the ceiling: a round glowing lens for each spot. */
 function lampFaces(s: Shell, lamps: readonly Lamp[]) {
   for (const lamp of lamps) {
     if (lamp.kind !== "spot") continue;
-    s.within({ x: lamp.at[0], y: HEIGHT - 0.225, z: lamp.at[2] }, () => {
+    s.within({ x: lamp.at[0], y: ceilingAt(lamp.at[0], lamp.at[2]) - 0.005, z: lamp.at[2] }, () => {
       s.lathe([[0.11, 0], [0.11, -0.03], [0.16, -0.03], [0.16, 0]], 12, "dealer-steel", { gloss: 0.5 });
       s.lathe([[0, -0.015], [0.11, -0.015]], 12, "dealer-light-warm", LAMP_GLOW);
     });
@@ -139,8 +156,7 @@ function turntable() {
   return s.build();
 }
 
-const LAMP_Y = HEIGHT - 0.26;
-const warmSpot = (x: number, z: number, power: number): Lamp => ({ kind: "spot", at: [x, LAMP_Y, z], aim: [x, 0, z], coneDeg: 34, paint: "dealer-light-warm", power, reachM: 3.2 });
+const warmSpot = (x: number, z: number, power: number): Lamp => ({ kind: "spot", at: [x, ceilingAt(x, z) - 0.04, z], aim: [x, 0, z], coneDeg: 40, paint: "dealer-light-warm", power, reachM: 3.4 });
 
 const SPOTS: readonly Spot[] = [
   { at: [TABLE.x, TABLE.deckY, 0], yaw: FORWARD, turntable: 0 },
@@ -149,11 +165,11 @@ const SPOTS: readonly Spot[] = [
 
 const LAMPS: readonly Lamp[] = [
   ...SPOTS.map(({ at }) => warmSpot(at[0], at[2], at[2] === 0 ? 1.7 : 1.4)),
-  ...[-1, 1].map((side): Lamp => ({ kind: "spot", at: [TABLE.x, LAMP_Y, side * 3.6], aim: [TABLE.x, 0.6, 0], coneDeg: 28, paint: "dealer-light-warm", power: 1.1, reachM: 3.4 })),
+  ...[-1, 1].map((side): Lamp => ({ kind: "spot", at: [TABLE.x, ceilingAt(TABLE.x, 3.6) - 0.04, side * 3.6], aim: [TABLE.x, 0.6, 0], coneDeg: 28, paint: "dealer-light-warm", power: 1.1, reachM: 3.4 })),
   ...[-1, 1].map((side): Lamp => ({ kind: "strip", from: [AFT + 0.3, COVE_Y - 0.02, side * (WALL - 0.65)], to: [FORE - 0.3, COVE_Y - 0.02, side * (WALL - 0.65)], paint: "dealer-light-warm", power: 0.35, reachM: 1.6 })),
-  { kind: "strip", from: [FORE - 0.1, 2.2, -2.1], to: [FORE - 0.1, 2.2, 2.1], paint: "dealer-light-warm", power: 0.45, reachM: 1.4 },
+  { kind: "strip", from: [FORE - 0.3, 1.3, -2.3], to: [FORE - 0.3, 1.3, 2.3], paint: "dealer-light-warm", power: 0.5, reachM: 2 },
   { kind: "point", at: [COFFEE.x, 2.2, COFFEE.z], paint: "dealer-light-warm", power: 0.8, reachM: 2.6 },
-  { kind: "spot", at: [AFT + 1.6, LAMP_Y, 1.4], aim: [AFT, 1.6, 1.4], coneDeg: 40, paint: "dealer-light-warm", power: 0.9, reachM: 2.4 },
+  { kind: "spot", at: [AFT + 1.6, ceilingAt(AFT + 1.6, 1.4) - 0.04, 1.4], aim: [AFT, 1.6, 1.4], coneDeg: 40, paint: "dealer-light-warm", power: 0.9, reachM: 2.4 },
 ];
 
 const WINDOWS: readonly Window[] = [-1, 1].flatMap((side) =>
