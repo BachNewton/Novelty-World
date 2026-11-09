@@ -128,7 +128,7 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const lowH = Math.min(Math.max(cushionH + 0.22, topH - 0.28), topH - 0.08);
 
   // The instruments sit on the dash's face where the eye sees them through the top of the wheel.
-  const through = { z: wheelCentre.z - Math.sin(tilt) * radius * 0.45, h: wheelCentre.h + Math.cos(tilt) * radius * 0.45 };
+  const through = { z: wheelCentre.z - Math.sin(tilt) * radius * style.clusterSight, h: wheelCentre.h + Math.cos(tilt) * radius * style.clusterSight };
   const lip = { z: rearZ, h: topH - 0.03 };
   const [faceZ, faceH] = [lowZ - lip.z, lowH - lip.h];
   const sight = { z: through.z - eyeZ, h: through.h - eyeH };

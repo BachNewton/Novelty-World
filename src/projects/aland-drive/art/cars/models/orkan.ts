@@ -157,10 +157,11 @@ const shape: Shape = {
         [[-2.29, undefined]],
       ),
       { z: -0.32, h: 0.874, band: "cowl" },
+      // The screen as one straight run from the cowl to the header: the cockpit hangs its mirror and visors from the
+      // point after the screen's start, so that point has to be the header.
+      { z: -0.26, h: 0.885, band: "screen" },
       ...faired(
         [
-          [-0.26, 0.885],
-          [0.05, 1.075],
           [0.3, 1.2],
           [0.62, 1.275],
           [1.08, 1.25],
@@ -169,7 +170,6 @@ const shape: Shape = {
           [2.2, 0.935],
         ],
         [
-          [-0.26, "screen"],
           [0.3, undefined],
           [1.08, "rearGlass"],
           [1.85, undefined],
@@ -180,11 +180,11 @@ const shape: Shape = {
       { z: 2.2, h: 0.935 },
       { z: 2.24, h: 0.93, band: "gap" },
       { z: 2.25, h: 0.92, band: "visor" },
-      { z: 2.258, h: 0.897, band: "tailStroke" },
-      { z: 2.263, h: 0.882, band: "visor" },
-      { z: 2.268, h: 0.867, band: "tailStroke" },
-      { z: 2.273, h: 0.851, band: "visor" },
-      { z: 2.28, h: 0.825 },
+      { z: 2.256, h: 0.9, band: "tailStroke" },
+      { z: 2.262, h: 0.877, band: "visor" },
+      { z: 2.268, h: 0.86, band: "tailStroke" },
+      { z: 2.274, h: 0.837, band: "visor" },
+      { z: 2.28, h: 0.818 },
       { z: 2.31, h: 0.45, band: "mesh" },
       { z: 2.32, h: 0.36, band: "diffuser" },
       { z: 2.33, h: 0.21 },
@@ -256,7 +256,8 @@ export const orkan: CarSpec = {
     screen: true,
     // Sat a little lower than the recipe's sitting height, as a grand tourer's driver is: the fastback's roof stays a
     // band over the screen rather than a slab, and the eye's line through the wheel meets the cluster above its hub.
-    eye: [0, -0.06, 0],
+    eye: [0, -0.08, 0.04],
+    clusterSight: 0.8,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
