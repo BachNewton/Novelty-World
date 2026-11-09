@@ -2,11 +2,13 @@ import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
 import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
+import { blixt } from "./models/blixt";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
@@ -37,6 +39,7 @@ import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
   aska,
+  blixt,
   // A2
   orkan,
   varg,
@@ -47,6 +50,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A4
   brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,

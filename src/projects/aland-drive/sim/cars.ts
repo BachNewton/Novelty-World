@@ -2,6 +2,7 @@ import type { Tier } from "./tiers";
 import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
 import { aska } from "./cars/aska";
+import { blixt } from "./cars/blixt";
 import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
@@ -9,6 +10,7 @@ import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
+import { flod } from "./cars/flod";
 import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
@@ -44,6 +46,7 @@ import { vik } from "./cars/vik";
 const ENTRIES = {
   // A1
   aska,
+  blixt,
   // A2
   orkan,
   varg,
@@ -54,6 +57,7 @@ const ENTRIES = {
   // A4
   brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,

@@ -2,12 +2,14 @@ import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
 import aska from "./limits/aska.json";
+import blixt from "./limits/blixt.json";
 import ankar from "./limits/ankar.json";
 import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
 import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
+import flod from "./limits/flod.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
@@ -84,6 +86,7 @@ export function tuningPrint(tuning: CarTuning): string {
 export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = {
   // A1
   aska,
+  blixt,
   // A2
   orkan,
   varg,
@@ -94,6 +97,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A4
   brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,

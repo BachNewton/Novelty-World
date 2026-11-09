@@ -77,6 +77,11 @@ export interface InteriorStyle {
    * its wheel.
    */
   clusterSight: number;
+  /**
+   * A digital cluster's speed set to the left of its middle, inside the arc: for a low car, whose eye looks down past the
+   * wheel's hub along its column, which crosses the middle of the screen.
+   */
+  speedAside: boolean;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -106,6 +111,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
     clusterSight: 0.45,
+    speedAside: false,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
