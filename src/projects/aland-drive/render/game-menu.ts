@@ -104,7 +104,7 @@ export interface GameMenu {
 /**
  * The menu outside a challenge leads to the Cars and Settings pages. Changing tyres is in Settings until homes and car
  * shops exist, and never in a challenge, whose car is the challenge's; the aids are the player's, so they go with
- * them into one.
+ * them into one, and its Settings page holds them.
  */
 const TYRE_ITEMS: Record<`tyres-${Tyre}`, Tyre> = { "tyres-summer": "summer", "tyres-winter": "winter", "tyres-studded": "studded" };
 
@@ -121,9 +121,17 @@ export const drivingMenu: GameMenu = { items: ["resume", "cars", "settings"], ba
 /**
  * The Settings page off the game menu, in tabs: Gameplay, Controls, Audio and Graphics. Its items are Gameplay's, the
  * settings the game holds; the page keeps the others itself (the sound, the render scale) and which tab is open. Back
- * returns to the menu.
+ * returns to the menu. In a challenge it holds everything but the tyres, the challenge's car's, and pauses as the
+ * challenge's menu does.
  */
-export const settingsMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ kind: "settings", items: ["tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "back"], back: "back", pauses: true, tyres, assists });
+export const settingsMenu = ({ assists, tyres, pauses }: { assists: Assists; tyres?: Tyre; pauses: boolean }): GameMenu => ({
+  kind: "settings",
+  items: [...(tyres === undefined ? [] : (["tyres-summer", "tyres-winter", "tyres-studded"] as const)), "abs", "traction", "stability", "units-metric", "units-imperial", "back"],
+  back: "back",
+  pauses,
+  tyres,
+  assists,
+});
 
 export const isCarItem = (id: MenuItemId): id is CarItem => id.startsWith("car-") && isCarId(id.slice("car-".length));
 

@@ -164,6 +164,7 @@ The published island is paved: every tile built from main with `build.py --islan
 7. A slab lattice breaks where one OSM way meets the next, and a piece between a street and a path can wear a crossing path's surface.
 8. Driving it: `tools/road-check.ts` and `tools/junction-check.ts` on paved tiles, and an e2e fixture that is paved, since the fixture is ribbons and the paved path has no e2e coverage.
 9. Where the ground moved most against the ribbon build, a path can stand on a bank of the embankment rule's making: across a dip in the country it runs along a tall bank like a dyke (L2343C), and by the boathouses a track's uphill side is an upright cut (L2433G). Both are paths; whether motor roads do the same is what 8 would show.
+10. A paved quay reaches a few metres further over the water than its ribbon did, and the mask counts a road over water as land, so the sea lanes read the channels along Mariehamn's quays as too narrow for a boat: on the published island they make 22 small-boat trips where the ribbon tiles made 27, losing two from each of Västerhamn and Österhamn and one by Eckerö (with roads over water read as water, all 27 come back). `sea/lanes.json` stays the ribbon tiles' until a quay's paving stops at its edge.
 
 Known and left alone: one-pixel gaps where the clipmap's cut meets the cut mesh, visible only from about 120 m up, which the owner saw no problem with live.
 

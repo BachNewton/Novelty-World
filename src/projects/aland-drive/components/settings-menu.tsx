@@ -50,11 +50,13 @@ function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: Ref
     const shown = unitsOfItem(item);
     return { id: item, icon: UNITS_LOOKS[shown].icon, label: UNITS_LOOKS[shown].name, spoken: `${UNITS_LOOKS[shown].name} units`, detail: UNITS_LOOKS[shown].detail, on: shown === shownUnits };
   });
+  // In a challenge there are no tyres to choose, the car being the challenge's, so the page opens on the aids.
+  const opensOnAids = tyres.length === 0;
   return (
     <div className="flex flex-col gap-2">
-      <SideBySide name="Tyres" choices={tyres} first={first} onPick={onPick} />
-      {ASSISTS.filter((id) => menu.items.includes(id)).map((id) => (
-        <MenuButton key={id} look={look(id)} onPress={() => { onPick(id); }} />
+      {!opensOnAids && <SideBySide name="Tyres" choices={tyres} first={first} onPick={onPick} />}
+      {ASSISTS.filter((id) => menu.items.includes(id)).map((id, index) => (
+        <MenuButton key={id} look={look(id)} start={opensOnAids && index === 0} buttonRef={opensOnAids && index === 0 ? first : undefined} onPress={() => { onPick(id); }} />
       ))}
       <SideBySide name="Units" choices={units} onPick={onPick} />
     </div>
