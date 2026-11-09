@@ -13,7 +13,7 @@ Counts below (draw calls, triangles) are context from when a feature landed, not
   - **No pipeline is compiled mid-drive.** Every mesh is built once before the drive starts. three keys an instanced mesh's shader by the mesh and bakes its count in, so an `InstancedMesh` is made once with room to spare and rewritten in place.
   - **A big shader is shared, not instanced.** Keyed by the mesh, a material on several instanced meshes compiles once for each, so a big shader's instances are placed by attributes of their own on a plain mesh: the villas' add-ons draw through the walls' own material (`standAsBuilt`), one pipeline.
   - **No big job is left to three.** It measures a new geometry's bounding sphere over its whole position buffer the frame it is first drawn, so a mesh sharing a tile's buffer is handed its sphere from the worker.
-  - **A dealership's capture draws the world into images of its own** (`dealership/CLAUDE.md`), whose pipelines aren't the screen's, so the start compiles the world for them too.
+  - **A pipeline is built for the kind of target it draws into.** A dealership's capture of the island (`dealership/CLAUDE.md`) draws the world into a target of the kind three draws the screen's scene into, so it compiles nothing; any other kind compiles the world again.
   - `tools/shader-count.mjs` counts what a cold page compiles; `tools/map-zoom.mjs` counts the programs compiled and slow frames zooming the world map into Mariehamn.
 - **First load** shows a bar counting the overview, each far tile round the start, the start's detail and the shaders. The road network comes after the drive starts, so it can't hold the start up.
 
