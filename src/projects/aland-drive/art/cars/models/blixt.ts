@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Block, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { projectors, sideIntake, splitter, tailLine } from "../parts";
+import { sideIntake, splitter, tailLine } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const BLIXT = driven("blixt");
@@ -34,11 +34,11 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
   diffuser: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
-/** One headlamp's three streaks, each 3.5 cm further out than the one under it. */
+/** One headlamp's three streaks, each 4.5 cm further out than the one under it, tall enough to read as a lamp at night. */
 const streaks: Decal[] = [0, 1, 2].map((step) => ({
   on: "front",
   at: [0.56 + step * 0.045, 0.364 + step * 0.026],
-  size: [0.2, 0.014],
+  size: [0.2, 0.02],
   surface: "lensHead",
   mirror: true,
   cells: [4, 1],
@@ -113,8 +113,6 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 0.75,
   decals: [
-    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
-    ...projectors({ x: [0.55, 0.66], h: 0.39, size: 0.052, lensLiftM: 0.03, ring: false }),
     ...plates(0.61, 0.275, { recessed: true }),
     ...handles([0.05], 0.69),
     ...streaks,

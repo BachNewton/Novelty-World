@@ -1,7 +1,7 @@
 import { ROWS, type Band } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
+import { diffuser, louvres, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const ORKAN = driven("orkan");
@@ -108,8 +108,6 @@ const shape: Shape = {
   cabinEndZ: 1.72,
   seat: "seatTan",
   decals: [
-    // The main beams: lit lenses over the lamp's slits, joining them into one headlamp at night.
-    ...projectors({ x: [0.6, 0.71], h: 0.528, size: 0.05, lensLiftM: 0.03, ring: false }),
     ...plates(0.62, 0.3),
     ...handles([0.55], 0.82),
     reversing(0.3, 0.405),
@@ -143,9 +141,10 @@ const shape: Shape = {
       { z: -2.34, h: 0.25, band: "mouth" },
       { z: -2.335, h: 0.41 },
       { z: -2.33, h: 0.465, band: "visor" },
-      { z: -2.326, h: 0.478, band: "stroke" },
-      { z: -2.32, h: 0.497, band: "visor" },
-      { z: -2.314, h: 0.511, band: "stroke" },
+      // Two strokes of light, tall enough to read as a headlamp at night, with a hairline of visor between.
+      { z: -2.328, h: 0.47, band: "stroke" },
+      { z: -2.319, h: 0.5, band: "visor" },
+      { z: -2.316, h: 0.506, band: "stroke" },
       { z: -2.306, h: 0.53, band: "visor" },
       // The hood, then the screen, roof, rear glass and deck, each as one fair line.
       ...faired(
