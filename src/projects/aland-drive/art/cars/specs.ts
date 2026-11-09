@@ -2,6 +2,7 @@ import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
 import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
+import { blixt } from "./models/blixt";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { brus } from "./models/brus";
@@ -36,6 +37,7 @@ import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
   aska,
+  blixt,
   // A2
   orkan,
   varg,

@@ -2,6 +2,7 @@ import type { Gearbox } from "../sim/gearbox";
 import type { Firing } from "./firing";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
 import { aska } from "./voices/aska";
+import { blixt } from "./voices/blixt";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
@@ -144,6 +145,7 @@ export type EngineSpec = Gearbox & Voice;
 const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A1
   aska,
+  blixt,
   // A2
   orkan,
   varg,
