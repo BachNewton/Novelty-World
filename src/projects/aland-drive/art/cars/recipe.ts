@@ -91,6 +91,8 @@ export interface Shape {
   rearSeats?: boolean;
   cabinEndZ?: number;
   seat?: Surface;
+  /** The driver in the middle, a passenger either side and set back (`Cabin.passengers`). */
+  centreSeat?: boolean;
   extra?: Partial<BodySpec>;
   rearPlateH: number;
   blocks?: readonly Block[];
@@ -200,7 +202,7 @@ function rackOf({ roof, roofEnd, railWidth, tail }: Shape): Block[] {
   return [front, rear].map((z) => ({ at: [0, Math.max(roof[1], roofEnd[1]) + 0.045, z], size: [width, 0.03, 0.05], surface: "rack" }));
 }
 
-function cabinOf({ cowl, hoodH, sillH, roof, tail, cabinEndZ, rearSeats = true, seat = "seat", trackM }: Shape): Cabin {
+function cabinOf({ cowl, hoodH, sillH, roof, tail, cabinEndZ, rearSeats = true, seat = "seat", trackM, centreSeat = false }: Shape): Cabin {
   const open = tail.some(({ bed }) => bed);
   const endZ = cabinEndZ ?? (open ? roof[0] : roof[0] + 0.9);
   const seatZ = cowl[0] + 0.98;
@@ -211,8 +213,9 @@ function cabinOf({ cowl, hoodH, sillH, roof, tail, cabinEndZ, rearSeats = true, 
     seatZ,
     rearSeatZ: rearSeats ? seatZ + 0.82 : undefined,
     endZ,
-    seatX: trackM * 0.23,
+    seatX: centreSeat ? 0 : trackM * 0.23,
     seatSurface: seat,
+    ...(centreSeat ? { passengers: [trackM * 0.29, seatZ + 0.3] as const } : {}),
   };
 }
 

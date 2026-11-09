@@ -118,6 +118,12 @@ export interface Cabin {
   endZ: number;
   seatX: number;
   seatSurface: Surface;
+  /**
+   * A central driving seat's car: the driver sits in the middle (`seatX` 0) with no console beside them, and the two
+   * passengers either side of them and set back, at `x` out from the middle and `z`, so their shoulders clear the
+   * driver's. None, and the front pair sit either side of the middle at `seatX`.
+   */
+  passengers?: readonly [x: number, z: number];
   /** How wide its floor and bulkheads are, where a narrow body doesn't reach the wheels: the track's width otherwise. */
   wideM?: number;
 }
@@ -179,12 +185,14 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
   /**
-   * `outward` winds the pipes to face out of them; without it they face in, so the hero's double-sided material draws
-   * their outsides as the cabin's lining, and the older cars keep that until they're redrawn.
+   * Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body
+   * hides the end. `outward` winds the pipes to face out of them; without it they face in, so the hero's double-sided
+   * material draws their outsides as the cabin's lining, and the older cars keep that until they're redrawn.
    */
   exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean; outward?: boolean };
+  /** Open pipes leaving the sills sideways, on both sides, one at each `z`, their ends `x` out from the car's middle. */
+  sideExhausts?: { z: readonly number[]; h: number; x: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -618,6 +626,23 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
+function addSideExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
+  if (!spec.sideExhausts) return;
+  const { z, h, x, radius } = spec.sideExhausts;
+  for (const side of [1, -1]) {
+    // A rear pipe turned a quarter round the vertical to point out of its side, so its faces wind as a rear pipe's do.
+    const round = (zAt: number, along: number, r: number): Point[] =>
+      Array.from({ length: 8 }, (_, step) => {
+        const angle = (-step / 8) * Math.PI * 2;
+        return [side * along, h + ground + Math.sin(angle) * r, zAt - side * Math.cos(angle) * r];
+      });
+    for (const at of z) {
+      builder.rings([round(at, x - 0.12, radius), round(at, x, radius), round(at, x, radius * 0.8), round(at, x - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, x - 0.03, radius * 0.78)], "gap");
+    }
+  }
+}
+
 function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, ground: number) {
   if (!spec.roofBars) return;
   const { from, to, x, rise } = spec.roofBars;
@@ -743,15 +768,19 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
   block([0, (floorH + dashH) / 2 + 0.05, endZ], [wide, dashH - floorH + 0.1, 0.04], "interior");
   block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
-  block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
-  const seat = (x: number, z: number, seatWide: number) => {
+  const { passengers } = cabin;
+  if (!passengers) block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
+  const seat = (x: number, z: number, seatWide: number, mirror = true) => {
     const seatH = Math.min(floorH + 0.28, dashH - 0.25);
     const backTall = dashH + 0.2 - seatH;
-    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, true);
-    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, true, [0.92, 0.95]);
-    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, true);
+    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, mirror);
+    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, mirror, [0.92, 0.95]);
+    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, mirror);
   };
-  seat(seatX, seatZ, 0.46);
+  if (passengers) {
+    seat(seatX, seatZ, 0.44, false);
+    seat(passengers[0], passengers[1], 0.38);
+  } else seat(seatX, seatZ, 0.46);
   if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);
   // The steering wheel, a ring leaning back towards the driver.
   const wheelR = 0.17;
@@ -890,6 +919,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
   if (detail.fine) addExhausts(builder, spec, ground);
+  if (detail.fine) addSideExhausts(builder, spec, ground);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
