@@ -381,7 +381,7 @@ function addGatedLever(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   plate(b, gate, [0, 0], [0.1, 0.17], 0.002, flat(paints.chrome));
   // Three lanes and the cross slot, the gate's dark openings.
   for (const lane of [-0.032, 0, 0.032]) plate(b, gate, [lane, 0], [0.01, 0.12], 0.004, flat(paints.piano));
-  plate(b, gate, [0, 0], [0.074, 0.01], 0.004, flat(paints.piano));
+  plate(b, gate, [0, 0], [0.074, 0.01], 0.0055, flat(paints.piano));
   const root: Point = [x + 0.032, topH + g, z - 0.045];
   const top = add(root, normalize([-0.15, 1, 0.12]), 0.17);
   b.tube([root, top], 0.0065, 8, smooth(paints.chrome));
