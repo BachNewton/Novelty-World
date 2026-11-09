@@ -501,10 +501,10 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
   if (stitched) {
-    // A seam of contrasting thread down each edge of the centre panels, standing a hair proud of them.
+    // A seam of contrasting thread down each side of the seat's face and its cushion, standing a hair proud of them.
     const thread = smooth(paints.stitch);
     for (const s of [-1, 1]) {
-      pillow(b, axes(add(add(middle, back, 0.056), RIGHT, s * wide * 0.5), RIGHT, up, back), [0.003, tall * 0.76, 0.0165], 0.3, thread, 3);
+      pillow(b, axes(add(add(middle, back, -0.062), RIGHT, s * wide * 0.5), RIGHT, up, back), [0.003, tall * 0.76, 0.008], 0.3, thread, 3);
       pillow(b, axes([x + s * wide * 0.52, cushionH + g - 0.002, z - 0.21], RIGHT, cushionUp, cushionBack), [0.003, 0.0165, 0.19], 0.3, thread, 3);
     }
   }

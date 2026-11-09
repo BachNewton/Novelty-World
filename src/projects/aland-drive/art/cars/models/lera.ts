@@ -50,22 +50,24 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 
 /** The road livery: twin stripes either side of the bonnet's scoop and over the roof, and a narrow band over a pinstripe down each door. Lifted clear of the curved panels they lie on. */
 const livery = (): Decal[] => [
-  { on: "top", at: [0.29, -1.33], size: [0.085, 1.08], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.016 },
-  { on: "top", at: [0.29, 0.58], size: [0.085, 1.42], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
+  { on: "top", at: [0.24, -1.33], size: [0.085, 1.08], surface: "stripe", mirror: true, cells: [2, 12], liftM: 0.018 },
+  { on: "top", at: [0.24, 0.58], size: [0.085, 1.42], surface: "stripe", mirror: true, cells: [1, 8], liftM: 0.012 },
   { on: "side", at: [0.07, 0.615], size: [1.56, 0.065], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
   { on: "side", at: [0.07, 0.55], size: [1.56, 0.018], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
 ];
 
 /** The bonnet's scoop: a shaped intake standing out of the bonnet over the intercooler, its mouth dark. */
 const scoop: Block[] = [
-  { at: [0, 0.808, -1.08], size: [0.36, 0.07, 0.42], surface: "paint", taper: [0.84, 0.25] },
-  { at: [0, 0.81, -1.295], size: [0.28, 0.04, 0.02], surface: "grille", fine: true },
+  { at: [0, 0.835, -1.075], size: [0.36, 0.07, 0.25], surface: "paint", taper: [0.85, 0.6] },
+  { at: [0, 0.845, -1.205], size: [0.28, 0.035, 0.02], surface: "grille", fine: true },
 ];
 
 /** The roof spoiler at the top of the tailgate, a modest lip in the body's colour, and the fins it stands on. */
 const spoiler: Block[] = [
   { at: [0, 1.402, 1.5], size: [1.08, 0.034, 0.26], surface: "paint", taper: [0.96, 0.55] },
   { at: [0.5, 1.36, 1.49], size: [0.026, 0.07, 0.2], surface: "paint", mirror: true, taper: [1, 0.5], fine: true },
+  // The third brake lamp along its trailing edge.
+  { at: [0, 1.402, 1.636], size: [0.34, 0.01, 0.016], surface: "lensTail", fine: true },
 ];
 
 /** Two square tailpipes side by side in one polished frame: Ödmark's square exhaust, made a pair for the road car's sports silencer. */
@@ -269,6 +271,7 @@ export const lera: CarSpec = {
     screen: false,
     cage: false,
     boost: true,
+    clusterSight: 0.68,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber", stitch: "car-cabin-odmark" },
   },
   wheel: { radiusM: LERA.wheelRadiusM, widthM: 0.225, rimShare: 0.64, spokes: 8, twinSpokes: false, style: "mesh" },
