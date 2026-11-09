@@ -177,11 +177,8 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  /**
-   * `boreM` is how far the pipe's dark bore stands off its end, 1 mm when not given: a pipe that stands out in the open
-   * past the tail needs a few, or its end and its bore share a plane where a camera sees them.
-   */
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; boreM?: number };
+  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -196,6 +193,11 @@ export interface BodySpec {
   openWheels?: boolean;
   fenders?: readonly Fender[];
   struts?: readonly Strut[];
+  /**
+   * Where the windscreen meets the roof, for a silhouette faired through it, whose point after the screen's start is
+   * only the next sample up the glass. None, and that point is the screen's top, as a hand-placed silhouette has it.
+   */
+  screenTop?: readonly [z: number, h: number];
 }
 
 export interface BodyDetail {
@@ -543,15 +545,21 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
 
 function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   if (!spec.exhausts) return;
-  const { x, h, z, radius, boreM = 0.001 } = spec.exhausts;
+  const { x, h, z, radius } = spec.exhausts;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
       const angle = (-step / 8) * Math.PI * 2;
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
+    if (spec.exhausts.open) {
+      // The pipe's wall, its rolled end and its bore, closed a few centimetres in by a dark disc standing clear of the bore's floor.
+      builder.rings([round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, z - 0.03, radius * 0.78)], "gap");
+      continue;
+    }
     builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
-    builder.rings([round(at, z + boreM, radius * 0.72)], "gap");
+    builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
   }
 }
 

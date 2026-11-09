@@ -229,7 +229,7 @@ const shape: Shape = {
       [1.1, 0],
     ],
     roofBars: { from: 0.55, to: 2.05, x: 0.57, rise: 0.06 },
-    exhausts: { x: [-0.66, -0.54, 0.54, 0.66], h: 0.3, z: 2.515, radius: 0.042, boreM: 0.004 },
+    exhausts: { x: [-0.66, -0.54, 0.54, 0.66], h: 0.3, z: 2.515, radius: 0.042, open: true },
   },
 };
 
