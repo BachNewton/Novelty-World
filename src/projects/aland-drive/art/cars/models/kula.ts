@@ -299,6 +299,8 @@ export const kula: CarSpec = {
     screen: false,
     paintedDash: true,
     turnsToLock: 2.2,
+    // One big dial as tall as the wheel's opening is wide: it sits high in it, so the hub doesn't cover its middle.
+    clusterSight: 0.58,
     // A little below where the roof would seat the eye, so the visors and the low header are a band over the road.
     eye: [0, -0.05, 0],
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },

@@ -2,22 +2,29 @@ import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
 import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
+import { blixt } from "./models/blixt";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
+import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
+import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { kula } from "./models/kula";
+import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
 import { sten } from "./models/sten";
+import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
+import { varg } from "./models/varg";
 import { vik } from "./models/vik";
 import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 
@@ -32,12 +39,18 @@ import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A1
   aska,
+  blixt,
   // A2
+  orkan,
+  varg,
   // A3
   dyning,
   span,
+  strimma,
   // A4
+  brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
@@ -50,6 +63,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3

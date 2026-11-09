@@ -2,23 +2,30 @@ import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
 import aska from "./limits/aska.json";
+import blixt from "./limits/blixt.json";
 import ankar from "./limits/ankar.json";
 import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
+import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
+import flod from "./limits/flod.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
+import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import kula from "./limits/kula.json";
+import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
 import sten from "./limits/sten.json";
+import strimma from "./limits/strimma.json";
 import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
+import varg from "./limits/varg.json";
 import vik from "./limits/vik.json";
 
 /*
@@ -79,12 +86,18 @@ export function tuningPrint(tuning: CarTuning): string {
 export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = {
   // A1
   aska,
+  blixt,
   // A2
+  orkan,
+  varg,
   // A3
   dyning,
   span,
+  strimma,
   // A4
+  brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
@@ -97,6 +110,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3
