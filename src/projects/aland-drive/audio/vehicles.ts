@@ -20,6 +20,7 @@ import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
+import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
 
 /*
@@ -143,6 +144,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   aska,
   // A2
   orkan,
+  varg,
   // A3
   dyning,
   span,

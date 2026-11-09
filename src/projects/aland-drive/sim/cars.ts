@@ -20,6 +20,7 @@ import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
 import { span } from "./cars/span";
 import { sund } from "./cars/sund";
+import { varg } from "./cars/varg";
 import { vik } from "./cars/vik";
 
 /*
@@ -42,6 +43,7 @@ const ENTRIES = {
   aska,
   // A2
   orkan,
+  varg,
   // A3
   dyning,
   span,
