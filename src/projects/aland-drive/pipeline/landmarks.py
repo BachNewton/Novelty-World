@@ -30,6 +30,8 @@ from grid import Tile, to_local
 SITES_FILE = Path(__file__).resolve().parent.parent / "art" / "landmarks" / "sites.json"
 # The landmark lighthouses on a tile, drawn with the sea marks, whose plans take away any building under them as a mill's do.
 LIGHTHOUSE_SITES_FILE = Path(__file__).resolve().parent.parent / "art" / "lighthouses" / "sites.json"
+# The dealerships, drawn by a list of their own (`render/dealers.ts`), which stand on their plots as a landmark does.
+DEALER_SITES_FILE = Path(__file__).resolve().parent.parent / "art" / "dealers" / "sites.json"
 # How far past a tile's edge a site can still reach the tile's buildings: Bomarsund's arc is the widest, at 260 m.
 REACH_M = 400.0
 # Each of the plan's triangles grows by this, so they join as one shape and a wall, a line from above, is as thick as one.
@@ -56,9 +58,11 @@ class Site:
     walls: list[Polygon] | None = None
     # Drawn only with its tile's detail.
     near_only: bool = False
+    # Drawn by a list of its own, not listed with the landmarks; what it replaces goes whole, leaving only its own walls.
+    own_list: bool = False
 
 
-def read_sites(path: Path = SITES_FILE) -> list[Site]:
+def read_sites(path: Path = SITES_FILE, own_list: bool = False) -> list[Site]:
     sites = []
     for record in json.loads(path.read_text(encoding="utf-8")):
         corners = np.array(record["plan"]["corners"])
@@ -66,13 +70,18 @@ def read_sites(path: Path = SITES_FILE) -> list[Site]:
         replaces = record["replaces"]
         solids = frozenset(replaces["solids"]) if isinstance(replaces, dict) else frozenset()
         walls = [Polygon(outline) for outline in record["walls"]] if "walls" in record else None
-        sites.append(Site(record["id"], record["east"], record["north"], record["baseM"], solids, replaces == "inside", plan, walls, record.get("nearOnly", False)))
+        sites.append(Site(record["id"], record["east"], record["north"], record["baseM"], solids, replaces == "inside", plan, walls, record.get("nearOnly", False), own_list))
     return sites
 
 
 def lighthouse_sites(tile: Tile) -> list[Site]:
     """The landmark lighthouses in or just past the tile, as sites that replace every building under them."""
     return [site for site in read_sites(LIGHTHOUSE_SITES_FILE) if tile.west - REACH_M <= site.east < tile.east + REACH_M and tile.south - REACH_M <= site.north < tile.north + REACH_M]
+
+
+def dealer_sites(tile: Tile) -> list[Site]:
+    """The dealerships in or just past the tile: each replaces every building under its plot and stops the car at its own walls."""
+    return [site for site in read_sites(DEALER_SITES_FILE, own_list=True) if tile.west - REACH_M <= site.east < tile.east + REACH_M and tile.south - REACH_M <= site.north < tile.north + REACH_M]
 
 
 def _under(shape: Polygon, site: Site) -> bool:
@@ -94,6 +103,17 @@ class Landmarks:
         """Sites drawn by a list of their own, not as landmarks, that still replace what stands under them: the windmills."""
         self.near += sites
         self.replaced |= {site.id: [] for site in sites}
+
+    def stand_also(self, sites: list[Site]) -> None:
+        """Sites drawn by a list of their own that stand in the tile as a landmark does: the dealerships. They replace what's
+        under them and stop the car at the walls they name, and the tile doesn't list them."""
+        self.near += sites
+        self.own += [site for site in sites if self.tile.west <= site.east < self.tile.east and self.tile.south <= site.north < self.tile.north]
+        self.replaced |= {site.id: [] for site in sites}
+
+    def leaves_no_wall(self, name: str) -> bool:
+        """What a site drawn by its own list replaced goes whole: its outline is no wall, since the site's own walls are."""
+        return any(name in self.replaced[site.id] for site in self.near if site.own_list)
 
     def replaces_solid(self, name: str, footprint: Polygon) -> bool:
         for site in self.near:
@@ -150,7 +170,7 @@ class Landmarks:
         The churches and landmarks, or with `near_only` the sites drawn only with the tile's detail."""
         places = []
         for site in self.own:
-            if site.near_only != near_only:
+            if site.near_only != near_only or site.own_list:
                 continue
             x, north = to_local(site.east, site.north)
             y = site.base if site.base is not None else float(ground.at(np.array([x]), np.array([north]))[0])

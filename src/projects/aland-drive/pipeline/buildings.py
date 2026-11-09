@@ -722,7 +722,8 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     looks: dict[str, int] = {}
     for (faces, local, kind, name, base, lift), point in zip(found, middles):
         if faces is None:
-            collide(local)
+            if landmarks is None or not landmarks.leaves_no_wall(name):
+                collide(local)
             continue
         seed = _seed(name)
         middle = np.array(point.coords[0])
