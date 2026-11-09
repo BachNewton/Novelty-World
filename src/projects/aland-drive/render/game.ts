@@ -1672,8 +1672,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!session) return drivingMenu;
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
     const { challenge } = session;
-    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
+    return { items: ["resume", "retry", "settings", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
   };
+  /** The Settings page: everything a player may change, which in a challenge is all but the tyres, the challenge's car's. */
+  const settingsNow = () => (session ? settingsMenu({ assists: drive.assists, pauses: !session.coop }) : settingsMenu({ assists: drive.assists, tyres: drive.tyres, pauses: true }));
   const showMenu = (menu: GameMenu | null) => {
     gameMenu = menu;
     controls.setGameMenuOpen(menu !== null);
@@ -1895,9 +1897,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "tyres-summer":
       case "tyres-winter":
       case "tyres-studded": {
-        const fitted = tyreOfItem(id);
-        setTyres(fitted);
-        showMenu(settingsMenu(fitted, drive.assists));
+        if (session) throw new Error("Tyres picked in a challenge, whose car is the challenge's");
+        setTyres(tyreOfItem(id));
+        showMenu(settingsNow());
         break;
       }
       case "abs":
@@ -1906,7 +1908,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const assists = { ...drive.assists, [id]: !drive.assists[id] };
         keepAssists(assists);
         drive.assists = assists;
-        showMenu(settingsMenu(drive.tyres, assists));
+        showMenu(settingsNow());
         break;
       }
       case "units-metric":
@@ -1914,7 +1916,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         useUnits.getState().setUnits(unitsOfItem(id));
         break;
       case "settings":
-        showMenu(settingsMenu(drive.tyres, drive.assists));
+        showMenu(settingsNow());
         break;
       case "cars":
         showMenu(carsMenuNow());
