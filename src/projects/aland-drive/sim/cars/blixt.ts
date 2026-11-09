@@ -47,7 +47,7 @@ export const blixt: CarEntry = {
     rearShare: 0.5,
     brakeMS2: 15,
     dragPerMS2: 0.6,
-    aero: 3.0,
+    aero: 0.84,
     lock: 0.55,
     turnPerS: 2.6,
   }),

@@ -45,7 +45,7 @@ export const span: CarEntry = {
     rearShare: 1,
     brakeMS2: 16,
     dragPerMS2: 0.6,
-    aero: 2.8,
+    aero: 1.6,
     lock: 0.6,
     turnPerS: 3.8,
   }),

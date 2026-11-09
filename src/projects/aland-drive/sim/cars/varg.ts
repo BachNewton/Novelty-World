@@ -45,7 +45,7 @@ export const varg: CarEntry = {
     rearShare: 1,
     brakeMS2: 12.5,
     dragPerMS2: 0.76,
-    aero: 1.4,
+    aero: 0.7,
     lock: 0.55,
     turnPerS: 2.7,
   }),

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { limitsOn } from "./car-limits";
-import { CAR_IDS, CAR_TIERS, type CarId } from "./cars";
+import { CAR_IDS, CAR_TIERS, CARS, type CarId } from "./cars";
 import { sprintSurface, TIER_BANDS, TIERS, type Tier } from "./tiers";
+import { WORLD } from "./tuning";
 
 /** Cars measured outside their tier's band, still to be retuned into it. A car's retune deletes its line. */
 const RETUNE_PENDING: ReadonlySet<CarId> = new Set<CarId>([]);
@@ -30,6 +31,14 @@ describe("each car's tier", () => {
     const { to100S, topKmh } = figures(id, tier);
     const band = TIER_BANDS[tier];
     expect(within(to100S, band.to100S) && within(topKmh, band.topKmh)).toBe(false);
+  });
+
+  // A road car's downforce at its top speed is about its weight at most: past it the car rides on its bump stops, its
+  // wheels rise through the body, and it corners at speed like a racing car.
+  it.each(CAR_IDS)("holds %s's downforce at its top speed to about its weight", (id) => {
+    const { car, power } = CARS[id];
+    const top = limitsOn(id, "dry", "asphalt").reachedKmh / 3.6;
+    expect((power.downforcePerMS2 * top * top) / (car.massKg * WORLD.gravity)).toBeLessThanOrEqual(1.05);
   });
 
   it("lists the cars by tier, fastest first, and those outside the tiers last", () => {

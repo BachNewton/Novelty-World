@@ -44,7 +44,7 @@ export const dyning: CarEntry = {
     rearShare: 1,
     brakeMS2: 12.5,
     dragPerMS2: 0.71,
-    aero: 1.3,
+    aero: 0.7,
     lock: 0.56,
     turnPerS: 2.6,
   }),

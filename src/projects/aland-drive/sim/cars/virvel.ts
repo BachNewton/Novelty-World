@@ -44,7 +44,7 @@ export const virvel: CarEntry = {
     rearShare: 1,
     brakeMS2: 14.5,
     dragPerMS2: 0.705,
-    aero: 1.9,
+    aero: 0.91,
     lock: 0.57,
     turnPerS: 3.2,
   }),
