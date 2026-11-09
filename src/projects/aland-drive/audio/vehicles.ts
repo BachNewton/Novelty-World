@@ -17,6 +17,7 @@ import { ljus } from "./voices/ljus";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
+import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
@@ -146,6 +147,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // A3
   dyning,
   span,
+  strimma,
   // A4
   brus,
   sund,
