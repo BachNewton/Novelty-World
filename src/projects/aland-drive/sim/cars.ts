@@ -25,6 +25,7 @@ import { kobb } from "./cars/kobb";
 import { knott } from "./cars/knott";
 import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
+import { myr } from "./cars/myr";
 import { lontano } from "./cars/lontano";
 import { ljus } from "./cars/ljus";
 import { pil } from "./cars/pil";
@@ -92,6 +93,7 @@ const ENTRIES = {
   // B3
   holm,
   borg,
+  myr,
   // B4
   berg,
   stubbe,

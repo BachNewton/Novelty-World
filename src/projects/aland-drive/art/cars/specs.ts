@@ -22,6 +22,7 @@ import { kobb } from "./models/kobb";
 import { knott } from "./models/knott";
 import { kula } from "./models/kula";
 import { lera } from "./models/lera";
+import { myr } from "./models/myr";
 import { orkan } from "./models/orkan";
 import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
@@ -85,6 +86,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // B3
   holm,
   borg,
+  myr,
   // B4
   berg,
   stubbe,

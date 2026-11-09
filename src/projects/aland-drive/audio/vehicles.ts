@@ -22,6 +22,7 @@ import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
 import { knott } from "./voices/knott";
 import { lera } from "./voices/lera";
+import { myr } from "./voices/myr";
 import { orkan } from "./voices/orkan";
 import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
@@ -197,6 +198,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B3
   holm,
   borg,
+  myr,
   // B4
   berg,
   stubbe,

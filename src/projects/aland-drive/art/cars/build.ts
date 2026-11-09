@@ -63,7 +63,7 @@ const HERO: BodyDetail = {
   fine: true,
   creaseDeg: 42,
   cabin: true,
-  outwardBlocks: true,
+  outward: true,
 };
 
 const FAR: BodyDetail = {
@@ -74,7 +74,7 @@ const FAR: BodyDetail = {
   fine: false,
   creaseDeg: 40,
   cabin: false,
-  outwardBlocks: false,
+  outward: false,
 };
 
 /** Where a wheel's centre sits in the car at rest. */
@@ -198,8 +198,8 @@ function fritOf(glass: Soup): Soup {
 
 export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false): CarParts {
   const hero = detail === "hero";
-  // A drivable car's blocks face out at both details; a world car's keep the winding its measured swaps were taken on.
-  const shell = buildBody(spec.body, groundY(spec), hero ? HERO : { ...FAR, outwardBlocks: spec.id !== undefined });
+  // A drivable car's blocks and pipes face out at both details; a world car's keep the winding its measured swaps were taken on.
+  const shell = buildBody(spec.body, groundY(spec), hero ? HERO : { ...FAR, outward: spec.id !== undefined });
   const glass = pick(shell, (surface) => surface === "glass");
   return {
     body: hero ? joined(pick(shell, (surface) => (options || !isOption(surface)) && surface !== "glass"), fritOf(glass)) : pick(shell, (surface) => options || !isOption(surface)),

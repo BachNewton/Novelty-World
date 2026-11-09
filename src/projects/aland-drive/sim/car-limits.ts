@@ -23,6 +23,7 @@ import kobb from "./limits/kobb.json";
 import knott from "./limits/knott.json";
 import kula from "./limits/kula.json";
 import lera from "./limits/lera.json";
+import myr from "./limits/myr.json";
 import orkan from "./limits/orkan.json";
 import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
@@ -132,6 +133,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // B3
   holm,
   borg,
+  myr,
   // B4
   berg,
   stubbe,

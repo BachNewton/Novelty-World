@@ -67,6 +67,8 @@ export interface CarTuning {
   power: {
     /** What traction control lets the engine pull with, whatever first gear could do: what the tyres put down off the line. */
     launchN: number;
+    /** Traction control's pull off the line on loose ground (gravel, grass), where it is more cautious; `launchN` without it. */
+    looseLaunchN?: number;
     /** The share of drive to the rear wheels; the rest goes to the front. */
     rearShare: number;
     reverseSpeedMS: number;

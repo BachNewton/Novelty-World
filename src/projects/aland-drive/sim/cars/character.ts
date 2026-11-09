@@ -42,6 +42,12 @@ export interface Character {
   gearbox: CarTuning["gearbox"];
   /** What the tyres will put down off the line, as an acceleration. */
   launchMS2: number;
+  /**
+   * What traction control lets it put down off the line on loose ground (gravel, grass), as an acceleration, where it
+   * holds back more than on a firm road: a heavy car with instant torque that would dig in and spray stones. None, and
+   * it is `launchMS2` on every surface.
+   */
+  looseLaunchMS2?: number;
   rearShare: number;
   /** How hard the brakes can stop it, as an acceleration, before the tyres give up. */
   brakeMS2: number;
@@ -105,6 +111,7 @@ export function tuned(c: Character): CarTuning {
     gearbox: c.gearbox,
     power: {
       launchN: mass * c.launchMS2,
+      ...(c.looseLaunchMS2 === undefined ? {} : { looseLaunchN: mass * c.looseLaunchMS2 }),
       rearShare: c.rearShare,
       reverseSpeedMS: 13,
       reverseN: mass * 3.6,
