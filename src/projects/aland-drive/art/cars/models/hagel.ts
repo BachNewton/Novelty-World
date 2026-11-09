@@ -42,11 +42,12 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
   diffuser: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
-/** The works livery: twin stripes over the bonnet and the roof, and a band down each flank. Lifted clear of the curved panels they lie on. */
+/** The works livery: twin stripes over the bonnet and the roof, and down each flank a broad band over a thin one. Lifted clear of the curved panels they lie on. */
 const livery = (): Decal[] => [
   { on: "top", at: [0.13, -1.42], size: [0.15, 1.18], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
   { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
-  { on: "side", at: [0.12, 0.62], size: [1.42, 0.15], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
+  { on: "side", at: [0.115, 0.625], size: [1.66, 0.15], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
+  { on: "side", at: [0.115, 0.525], size: [1.66, 0.035], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
 ];
 
 /** The roof scoop: a shaped intake standing out of the roof, its mouth dark. */
