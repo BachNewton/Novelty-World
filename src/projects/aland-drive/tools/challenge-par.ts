@@ -31,7 +31,7 @@ import { ROUTE_STEP_M, RoutePlan, tilesNear } from "../racers/route-plan";
 import { alongOfPlace, racerFor, racingLineFor, type LoadedRace } from "../racers/vet";
 import { tuningPrint } from "../sim/car-limits";
 import { headingOf, speedOf } from "../sim/car-state";
-import { CARS } from "../sim/cars";
+import { CAR_TIERS, CARS } from "../sim/cars";
 import { Drive, initPhysics } from "../sim/drive";
 import { readWorld } from "../sim/read-tile";
 import { STEP_S } from "../sim/tuning";
@@ -54,9 +54,12 @@ const RUN_ON_M = 150;
 
 /** A challenge as the racer knows how to drive one: a sprint of one lap whose lines are its gates, or its camera. */
 function asRace(challenge: BucketChallenge): RaceChallenge {
+  const tier = CAR_TIERS[challenge.car];
+  if (tier === null) throw new Error(`${challenge.id}'s car, ${challenge.car}, has no tier for a race to be for`);
   return {
     ...challenge,
     kind: "race",
+    tier,
     number: "",
     shape: "sprint",
     ground: "road",
