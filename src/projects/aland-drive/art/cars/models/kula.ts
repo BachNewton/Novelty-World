@@ -62,13 +62,14 @@ const tail = (): Decal[] => [
 const flanks = (): Decal[] => [
   { on: "side", at: [-0.22, 0.64], size: [1.45, 0.016], surface: "rim", mirror: true, cells: [12, 1], liftM: 0.012, fine: true },
   ...handles([0.08], 0.8),
-  ...[0, 1, 2].map((slot): Decal => ({ on: "side", at: [1.36 - slot * 0.025, 0.885 - slot * 0.04], size: [0.26, 0.018], surface: "grille", mirror: true, cells: [6, 1], liftM: 0.014, fine: true })),
+  ...[0, 1, 2].map((slot): Decal => ({ on: "side", at: [1.36 - slot * 0.025, 0.79 - slot * 0.036], size: [0.26, 0.018], surface: "grille", mirror: true, cells: [12, 1], liftM: 0.022, fine: true })),
 ];
 
 /** The front lid's chrome spine, from its front edge back to the handle, and the engine lid's vents. */
 const lids = (): Decal[] => [
   { on: "top", at: [0, -1.72], size: [0.025, 0.42], surface: "rim", cells: [1, 6], liftM: 0.012, fine: true },
-  ...louvres({ x: 0, z: 1.08, long: 0.34, wide: 0.46, count: 6 }),
+  // The engine lid's vents: slats across the deck, standing well off its curve.
+  ...louvres({ x: 0, z: 1.08, long: 0.34, wide: 0.46, count: 6 }).map((slat): Decal => ({ ...slat, liftM: 0.018 })),
 ];
 
 /**
@@ -118,6 +119,15 @@ const REAR_BUMPER = bumper(
   "rear",
 );
 
+/**
+ * Two thin tailpipes under the rear bumper, each a chrome tube with a dark plug standing just out of its end for its
+ * bore, a few millimetres apart so the two ends never share a plane.
+ */
+const PIPES: Strut[] = [
+  { path: [[0.24, 0.24, TAIL_Z - 0.2], [0.24, 0.24, TAIL_Z - 0.01]], radius: 0.022, surface: "rim", mirror: true, sides: 10 },
+  { path: [[0.24, 0.24, TAIL_Z - 0.08], [0.24, 0.24, TAIL_Z - 0.004]], radius: 0.015, surface: "gap", mirror: true, sides: 10, fine: true },
+];
+
 /** A small rounded two-door people's car with its engine in the tail: a short smooth nose, a tall round cabin, a short lid of vents behind. */
 const shape: Shape = {
   trackM: KULA.trackM,
@@ -164,9 +174,9 @@ const shape: Shape = {
     [-0.75, 1.17],
     [-0.55, 1.32],
     [-0.15, 1.385],
-    [0.3, 1.37],
-    [0.6, 1.27],
-    [0.78, 1.1],
+    [0.3, 1.345],
+    [0.55, 1.25],
+    [0.75, 1.1],
     [0.88, 0.97],
   ],
   windowZ: [-0.96, 0.88],
@@ -261,8 +271,7 @@ const shape: Shape = {
     hoodSeamZ: [-1.97, -1.1],
     cleanEnds: true,
     cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.08, rearSeatZ: 0.58, endZ: 0.88, seatX: 0.3, seatSurface: "seatTan" },
-    struts: [...FRONT_BUMPER, ...REAR_BUMPER],
-    exhausts: { x: [-0.24, 0.24], h: 0.24, z: TAIL_Z - 0.02, radius: 0.022 },
+    struts: [...FRONT_BUMPER, ...REAR_BUMPER, ...PIPES],
   },
 };
 

@@ -20,9 +20,9 @@ export const kula: CarEntry = {
     rideHz: 1.15,
     damping: 0.27,
     rollStiffness: 0.18,
-    grip: [0.93, 0.99],
+    grip: [0.93, 0.955],
     peakSlip: 0.17,
-    slideShare: 0.78,
+    slideShare: 0.74,
     handbrakeRearShare: 0.46,
     engine: {
       peakTorqueNm: 66,
