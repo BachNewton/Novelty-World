@@ -19,6 +19,7 @@ import { span } from "./models/span";
 import { sten } from "./models/sten";
 import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
+import { stubbe } from "./models/stubbe";
 import { sund } from "./models/sund";
 import { varg } from "./models/varg";
 import { vik } from "./models/vik";
@@ -63,6 +64,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   holm,
   // B4
   berg,
+  stubbe,
   // C1
   // C2
   // C3

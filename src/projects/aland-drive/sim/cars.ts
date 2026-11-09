@@ -19,6 +19,7 @@ import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
 import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
+import { stubbe } from "./cars/stubbe";
 import { span } from "./cars/span";
 import { sund } from "./cars/sund";
 import { varg } from "./cars/varg";
@@ -70,6 +71,7 @@ const ENTRIES = {
   holm,
   // B4
   berg,
+  stubbe,
   // C1
   // C2
   // C3

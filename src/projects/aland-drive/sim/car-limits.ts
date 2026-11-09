@@ -20,6 +20,7 @@ import span from "./limits/span.json";
 import sten from "./limits/sten.json";
 import strimma from "./limits/strimma.json";
 import strom from "./limits/strom.json";
+import stubbe from "./limits/stubbe.json";
 import sund from "./limits/sund.json";
 import varg from "./limits/varg.json";
 import vik from "./limits/vik.json";
@@ -110,6 +111,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   holm,
   // B4
   berg,
+  stubbe,
   // C1
   // C2
   // C3

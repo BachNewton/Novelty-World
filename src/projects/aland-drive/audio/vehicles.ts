@@ -19,6 +19,7 @@ import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
 import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
+import { stubbe } from "./voices/stubbe";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
 import { varg } from "./voices/varg";
@@ -171,6 +172,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   holm,
   // B4
   berg,
+  stubbe,
   // C1
   // C2
   // C3

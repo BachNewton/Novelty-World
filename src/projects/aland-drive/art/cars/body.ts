@@ -180,6 +180,12 @@ export interface BodySpec {
   /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
   exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   roofBars?: { from: number; to: number; x: number; rise: number };
+  /**
+   * A spare wheel hung on the tail, its face to the rear: its back `z` standing off the tailgate, its middle `x` across
+   * and `h` up, `radius` and `wide` its tyre's, its steel wheel's face slotted round a hub. None, and the car carries
+   * its spare out of sight.
+   */
+  spare?: { x: number; h: number; z: number; radius: number; wide: number };
   bedFloorH?: number;
   bedSurface?: Surface;
   blocks?: readonly Block[];
@@ -563,6 +569,52 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
+function addSpare(builder: SoupBuilder, spec: BodySpec, ground: number, fine: boolean) {
+  if (!spec.spare) return;
+  const { x, h, z, radius, wide } = spec.spare;
+  const y = h + ground;
+  const sides = fine ? 24 : 10;
+  const round = (along: number, r: number, count = sides, at: readonly [number, number] = [x, y]): Point[] =>
+    Array.from({ length: count }, (_, step) => {
+      const angle = (-step / count) * Math.PI * 2;
+      return [at[0] + Math.cos(angle) * r, at[1] + Math.sin(angle) * r, along];
+    });
+  const rim = radius * 0.6;
+  // The tyre from its back to its face, its sidewalls rolling over rounded shoulders into the tread.
+  const tyre: (readonly [along: number, r: number])[] = fine
+    ? [
+        [0, rim],
+        [0.012, radius * 0.86],
+        [0.035, radius * 0.97],
+        [0.07, radius],
+        [wide - 0.07, radius],
+        [wide - 0.035, radius * 0.97],
+        [wide - 0.012, radius * 0.86],
+        [wide - 0.03, rim],
+      ]
+    : [
+        [0, rim],
+        [0.03, radius],
+        [wide - 0.03, radius],
+        [wide - 0.03, rim],
+      ];
+  builder.rings(
+    tyre.map(([along, r]) => round(z + along, r)),
+    "tyre",
+  );
+  // The steel wheel's face, dished in from its lip, standing proud of the tyre's own face.
+  const face = z + wide - 0.015;
+  builder.rings([round(z + wide - 0.04, rim * 1.01), round(face, rim * 0.98), round(face - 0.012, rim * 0.8)], "rim");
+  if (!fine) return;
+  builder.rings([round(face - 0.008, rim * 0.34, 12), round(face + 0.012, rim * 0.3, 12)], "rim");
+  // Slots round the hub, dark, a few millimetres off the dished face.
+  for (let slot = 0; slot < 6; slot++) {
+    const angle = (slot / 6) * Math.PI * 2 + Math.PI / 6;
+    const centre: [number, number] = [x + Math.cos(angle) * rim * 0.58, y + Math.sin(angle) * rim * 0.58];
+    builder.rings([round(face - 0.01, rim * 0.11, 8, centre), round(face - 0.006, rim * 0.11, 8, centre)], "rimDark");
+  }
+}
+
 function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, ground: number) {
   if (!spec.roofBars) return;
   const { from, to, x, rise } = spec.roofBars;
@@ -829,6 +881,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
   if (detail.fine) addExhausts(builder, spec, ground);
+  addSpare(builder, spec, ground, detail.fine);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
