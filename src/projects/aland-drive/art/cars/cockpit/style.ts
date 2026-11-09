@@ -13,8 +13,10 @@ import type { CarSpec } from "../build";
  * "analogue": two big dials, speed and revs, with a gear window between. "digital": one screen, the speed in figures
  * and the revs (or an electric car's power) as an arc of segments. "classic": two chrome-ringed dials and a row of
  * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
+ * "tacho": one big rev counter front and centre with the gear under its hub, a smaller speedometer to its left and
+ * the water's dial to its right, a sports car's.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho";
 /** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
 export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
 /** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
@@ -61,6 +63,12 @@ export interface InteriorStyle {
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
   eye: readonly [x: number, y: number, z: number];
+  /**
+   * How far up the wheel, as a share of its radius from the hub, the eye's line to the instruments passes. Higher puts
+   * the cluster's readouts in the wheel's opening over the hub and column, for a car whose dash stands close behind
+   * its wheel.
+   */
+  clusterSight: number;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -88,6 +96,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
+    clusterSight: 0.45,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
