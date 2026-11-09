@@ -257,7 +257,7 @@ export const brus: CarSpec = {
   paints: [
     paint("car-paint-garnet", "metallic"),
     paint("car-paint-racing-green", "metallic"),
-    paint("car-paint-storm", "metallic"),
+    paint("car-paint-storm-grey", "metallic"),
     paint("car-paint-midnight", "metallic"),
     paint("car-paint-bronze", "metallic"),
     paint("car-paint-orange"),
