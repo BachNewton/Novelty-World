@@ -484,8 +484,8 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
-  if (paints.check.length > 0) {
-    // The check: thin lines a few millimetres proud of the insert, each way across it, in its colours by turns.
+  if (paints.check.length > 0 && kind !== "bench") {
+    // The check: thin lines a few millimetres proud of the front seats' inserts, each way across, in its colours by turns.
     const lineM = 0.0025;
     const colour = (at: number) => smooth(paints.check[at % paints.check.length]);
     const backAt = (a: number, h: number) => axes(add(add(add(middle, back, 0.056 + 0.014 + lineM * 0.5), RIGHT, a), up, h), RIGHT, up, back);

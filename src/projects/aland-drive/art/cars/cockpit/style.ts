@@ -57,7 +57,7 @@ export interface InteriorStyle {
     /** What the dials, figures and switches light in after dark. */
     glow: string;
   };
-  /** Thin lines across the seats' inserts, in these colours by turns, so the inserts read as a check cloth; none, plain. */
+  /** Thin lines across the front seats' inserts, in these colours by turns, so the inserts read as a check cloth; none, plain. */
   seatCheck: readonly string[];
   /** The gear lever's knob: "plain", a leather cap, or "ball", a round knob with a band round its middle. */
   knob: "plain" | "ball";
