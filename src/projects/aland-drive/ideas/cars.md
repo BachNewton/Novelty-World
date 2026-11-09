@@ -144,7 +144,21 @@ The makers are a separate decision from the buildings. TDU2 had 32 car makers ac
 
 TDU2 sold through 11 dealerships, most of them grouping makers: three single-brand (Audi, Ferrari, Mercedes-Benz), five by country (Italian, British, European, U.S. and Asian cars) and three of classics; some cars came only as wrecks, prizes or club rewards. Åland's count comes from the island's scale instead, as above.
 
-`art/dealers/` has five sites drawn, each at a real car business on the map: the strip on Mariehamn's north edge with a used lot and a tyre shop, a village garage in Sund and a showroom on Västerhamn's waterfront. The owner hasn't reviewed that art: the sites, exteriors and interiors are a first draft, kept or redrawn as the plan above needs.
+**Five places sell cars**, grouped by maker as most of TDU2's were. Four stand on sites `art/dealers/` has already drawn, each at a real car business on the map; the harbour office is a new site:
+
+| Place | Where | Sells | Cars |
+|---|---|---|---|
+| **Town dealer** | Mariehamn's north edge, on Nya Godbyvägen among the town's car businesses | The everyday makers' new cars: Västan, Ödmark's road cars and Norrsken's pickup | 7: Ström, the hot hatch, Ljus, Fjärd, Sten, the rally hatch, the electric pickup |
+| **Premium showroom** | Västerhamn's waterfront, on Sjöpromenaden | Tärna and Aurelle, the dealer tiers' finest | 3: the Skerry GT, Ankar, Bris |
+| **Harbour office** | Mariehamn's ferry terminal, a new site | An order desk for every car brought in by ship, collected at the quay when it arrives | 13: every A1–A4 car, the desert pickup and the luxury four-by-four |
+| **Village garage** | Sund, on Sundsvägen east past Kastelholm | Klippa's workhorses; it also restores the barn finds | 5: Holm, Berg, the utility, the tiny four-by-four, Kobb |
+| **Used lot** | Mariehamn's north edge, on Dalvägen | Trade: buys the player's cars, and sells used ones | What it pays and asks comes with the economy |
+
+The other places a car comes from aren't shops: the **motor club** at Vessingsboda (the three B1 rally cars) and the **barns and boathouses** (the eight classics). The **tyre shop** on the north edge is a service, not a seller.
+
+Most of it is in Mariehamn, as it would be: it is the island's only town, and the harbour is where its ships come in. The village garage, the club and the barns take the player out to the country.
+
+The dealer art is still a first draft the owner hasn't reviewed: the sites above are decided, their exteriors and interiors aren't.
 
 ## The owner's decisions
 
@@ -154,6 +168,7 @@ TDU2 sold through 11 dealerships, most of them grouping makers: three single-bra
 - **8 to 10 barn finds**, in barns and boathouses, searched for from a rumour and restored at the village garage.
 - **About 25 bucket-list challenges, a car each** (`ideas/bucket-list.md`), each choosing its car, road, hour, date and weather.
 - **Makers follow TDU2's pattern** of a few big ones and a long tail, all invented; their number comes with the car list.
+- **Five places sell cars**: the town dealer, the premium showroom and the harbour office (an order desk of its own at the ferry terminal, apart from the showroom), the village garage, and the used lot for trade. The tyre shop is a service, and the motor club and the barns aren't shops.
 
 ## Sources
 
