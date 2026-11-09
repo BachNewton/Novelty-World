@@ -1,13 +1,14 @@
 import { BRANDS } from "./brands";
 import { bannerFlag, barrel, bayLines, bollard, fuelPump, lampPost, planter, postSign, pylon, rollerDoor, tyre, tyreStack, windowFrame } from "./kit";
 import { Shell, type Soup, type V3 } from "./shell";
+import { yachtExterior } from "./yacht/exterior";
 
 /*
  * The buildings from the road. Each stands on a slab of its own that runs down below the ground, so it sits on real
  * ground that isn't flat, and faces +z, the street. A car slot is a place for a real car, drawn by the caller.
  */
 
-export const EXTERIOR_IDS = ["village-garage", "town-dealer", "waterfront-showroom", "used-lot", "tyre-shop"] as const;
+export const EXTERIOR_IDS = ["village-garage", "town-dealer", "waterfront-showroom", "used-lot", "tyre-shop", "yacht"] as const;
 export type ExteriorId = (typeof EXTERIOR_IDS)[number];
 
 export interface CarSlot {
@@ -22,6 +23,7 @@ export interface CarSlot {
 
 export interface Exterior {
   id: ExteriorId;
+  /** The yacht's is empty: its hull is a boat (`yacht/hull.ts`), drawn with the boats in the harbour. */
   soup: Soup;
   slots: readonly CarSlot[];
   /** Half the plot, x and z, about the origin. Nothing in the model leaves it, by much. */
@@ -377,5 +379,7 @@ export function buildExterior(id: ExteriorId): Exterior {
       return usedLot();
     case "tyre-shop":
       return tyreShop();
+    case "yacht":
+      return yachtExterior();
   }
 }

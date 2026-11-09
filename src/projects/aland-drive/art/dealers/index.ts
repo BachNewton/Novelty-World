@@ -55,6 +55,8 @@ export interface DealerSite {
   place: string;
   road: string;
   why: string;
+  /** On the water, as a yacht is: its exterior's origin is at the sea's surface rather than on the ground. */
+  afloat?: boolean;
 }
 
 /**
@@ -68,4 +70,8 @@ export const DEALER_SITES: readonly DealerSite[] = [
   { id: "waterfront-showroom", x: -3025, z: 6093, yaw: -2.21, place: "Mariehamn, Västerhamn side", road: "Sjöpromenaden", why: "open shore 19 m from the water with no building for 200 m; the back of the pier needs checking against the real shore" },
   { id: "used-lot", x: -1727, z: 2583, yaw: -0.38, place: "Mariehamn's north edge", road: "Dalvägen", why: "a shop=car node among the industrial plots" },
   { id: "tyre-shop", x: -1905, z: 2878, yaw: -0.07, place: "Mariehamn's north edge", road: "Michaelsvägen", why: "a shop=tyres node on the secondary road" },
+  // The quay's edge is measured on the drawn shore (a straight 100 m running 7° west of north), the hull 0.8 m off it on
+  // its fenders, its bow towards Pommern. Mooring buoys lie 25 m out and the marina's piers start 25 m beyond the bow;
+  // no sea lane comes within 150 m.
+  { id: "yacht", x: -2918.3, z: 6836.9, yaw: 1.6904, place: "Mariehamn, Västerhamn", road: "the quay's service road off Sjöpromenaden, south of Pommern", why: "Västerhamn's straight quay between Pommern and the ferry terminal, the one berth that fits 72 m", afloat: true },
 ];
