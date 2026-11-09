@@ -150,10 +150,10 @@ TDU2 sold through 11 dealerships, most of them grouping makers: three single-bra
 |---|---|---|---|---|
 | **The yacht** | A visiting superyacht moored at Västerhamn, near the premium showroom | A private showroom on its car deck | 5: the A1 and A2 cars, both hypercars and the three supercars | Teak, glass and soft spotlights, the sea through its windows |
 | **Delivery hall** | Mariehamn's ferry terminal | The importer's hall, where cars brought in by ship are handed over | 8: the A3 and A4 cars, the desert pickup and the luxury four-by-four | Clean and bright: white walls, a polished floor, each car under its own light |
-| **Premium showroom** | Västerhamn's waterfront, on Sjöpromenaden | Tärna and Aurelle, the dealer tiers' finest | 3: the Skerry GT, Ankar, Bris | A showroom's warm spotlights |
-| **Town dealer** | Mariehamn's north edge, on Nya Godbyvägen among the town's car businesses | The everyday makers' new cars: Västan, Ödmark's road cars and Norrsken's pickup | 7: Ström, the hot hatch, Ljus, Fjärd, Sten, the rally hatch, the electric pickup | Even, bright retail light |
+| **Premium showroom** | Västerhamn's waterfront, on Sjöpromenaden by the marina's northernmost pier, its sea half on a deck over the water | Tärna and Aurelle, the dealer tiers' finest | 3: the Skerry GT, Ankar, Bris | A showroom's warm spotlights |
+| **Town dealer** | Mariehamn's north edge, on Nya Godbyvägen among the town's car businesses, a dealer of its own name (Norrvind) with the three makers' badges | The everyday makers' new cars: Västan, Ödmark's road cars and Norrsken's pickup | 7: Ström, the hot hatch, Ljus, Fjärd, Sten, the rally hatch, the electric pickup | Even, bright retail light |
 | **Village garage** | Sund, on Sundsvägen east past Kastelholm | Klippa's workhorses; it also restores the barn finds | 5: Holm, Berg, the utility, the tiny four-by-four, Kobb | A workshop's strip lights |
-| **Used lot** | Mariehamn's north edge, on Dalvägen | Trade: buys the player's cars, and sells used ones, as TDU2's used dealers did | Its stock and prices come with the economy | Outdoors, with a small office |
+| **Used lot** | Mariehamn's north edge, by Godbyvägen and Dalvägen, on the open ground beside a car trade's hall | Trade: buys the player's cars, and sells used ones, as TDU2's used dealers did | Its stock and prices come with the economy | Outdoors, with a small office |
 
 The yacht is the one place the game leans into TDU's glamour, and it is less far-fetched than it sounds: superyachts call at Mariehamn in summer, some carry cars on a garage deck, and makers hold sales on yachts. A yacht's car deck holds about five cars, which keeps it exclusive. It stays moored all year for now; visiting only in summer, as a real one would, is for later, since it would hide the A1 and A2 cars all winter. Its hull is a large model of its own in the marina, beside the boats the game already has.
 
@@ -161,7 +161,7 @@ The other places a car comes from aren't shops: the **motor club** at Vessingsbo
 
 Most of it is in Mariehamn, as it would be: it is the island's only town, and the harbour is where its ships come in. The village garage, the club and the barns take the player out to the country.
 
-The dealer art is still a first draft the owner hasn't reviewed: the sites above are decided, their exteriors and interiors aren't, and the yacht and delivery hall have none yet.
+The owner has reviewed the dealer art: the four places' exteriors are kept and reworked to this plan, each on its real plot in the game (`art/dealers/sites.ts`), and the village garage is a working garage inside, not a showroom.
 
 ## Inside a dealership
 

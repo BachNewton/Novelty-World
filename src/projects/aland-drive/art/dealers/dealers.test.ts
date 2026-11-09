@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARS } from "../cars/specs";
-import { BRANDS, BRAND_IDS, buildExterior, carNamed, DEALER_SITES, EXTERIOR_IDS, restingCar } from "./index";
+import { CAR_ENTRIES, CAR_IDS, type CarId } from "../../sim/cars";
+import { brandOf, buildExterior, carSpecOf, DEALER_SITES, EXTERIOR_IDS, restingCar, SELLER_IDS, stockOf } from "./index";
 import { buildInterior, INTERIOR_IDS, type Interior } from "./interiors";
 import { groundY } from "../cars/build";
 
@@ -8,20 +9,20 @@ const EXTERIOR_BUDGET = 2500;
 const INTERIOR_BUDGET = 12000;
 const CLEARANCE_M = 0.1;
 
-const carReach = (name: string) => {
-  const { noseZ, tailZ, wide } = lengthOf(name);
+const carReach = (car: CarId) => {
+  const { noseZ, tailZ, wide } = lengthOf(car);
   return Math.hypot(Math.max(-noseZ, tailZ), wide);
 };
 
-function lengthOf(name: string) {
-  const { body, shadowHalf } = carNamed(name);
+function lengthOf(car: CarId) {
+  const { body, shadowHalf } = carSpecOf(car);
   const zs = body.silhouette.map(({ z }) => z);
   return { noseZ: Math.min(...zs), tailZ: Math.max(...zs), wide: shadowHalf[0] };
 }
 
 /** A car's four corners in the room, from its slot. */
-function corners(name: string, at: readonly number[], yaw: number) {
-  const { noseZ, tailZ, wide } = lengthOf(name);
+function corners(car: CarId, at: readonly number[], yaw: number) {
+  const { noseZ, tailZ, wide } = lengthOf(car);
   return [[-wide, noseZ], [wide, noseZ], [wide, tailZ], [-wide, tailZ]].map(([x, z]) => [at[0] + x * Math.cos(yaw) + z * Math.sin(yaw), at[2] + z * Math.cos(yaw) - x * Math.sin(yaw)]);
 }
 
@@ -41,7 +42,7 @@ describe("budgets", () => {
 describe("real cars fit", () => {
   it.each(INTERIOR_IDS)("every car turns on the %s turntable", (id) => {
     const { turntable } = buildInterior(id);
-    for (const { name } of CARS) expect(carReach(name) + CLEARANCE_M).toBeLessThan(turntable.radiusM);
+    for (const { id } of CARS) if (id !== undefined) expect(carReach(id) + CLEARANCE_M).toBeLessThan(turntable.radiusM);
   });
 
   it.each(INTERIOR_IDS)("the %s displays stand in the room, clear of the turntable and each other", (id) => {
@@ -80,14 +81,34 @@ describe("rooms", () => {
 });
 
 describe("the data", () => {
-  it("a brand sells real cars, and no two sell the same one", () => {
-    const sold = BRAND_IDS.flatMap((id) => BRANDS[id].cars);
+  it("every car a dealer sells is sold at one place, under its maker's badge", () => {
+    const sold = SELLER_IDS.flatMap(stockOf);
     expect(new Set(sold).size).toBe(sold.length);
-    for (const name of sold) expect(() => carNamed(name)).not.toThrow();
+    expect([...sold].sort()).toEqual(CAR_IDS.filter((id) => CAR_ENTRIES[id].from === "dealer").sort());
+    for (const id of sold) expect(() => brandOf(CAR_ENTRIES[id].maker)).not.toThrow();
   });
 
-  it("every slot names a real car", () => {
-    for (const id of EXTERIOR_IDS) for (const { car } of buildExterior(id).slots) expect(() => carNamed(car)).not.toThrow();
+  it("the town dealer's forecourt and the garage's yard show every car they sell", () => {
+    expect(buildExterior("town-dealer").slots.map(({ car }) => car)).toEqual(stockOf("town-dealer"));
+    expect(buildExterior("village-garage").slots.map(({ car }) => car)).toEqual(stockOf("village-garage"));
+  });
+
+  // A stock that grows by a longer car is the mistake: it would stand in a wall or another car.
+  it.each(EXTERIOR_IDS)("the %s cars stand on the plot, clear of its walls and each other", (id) => {
+    const { slots, plot, walls } = buildExterior(id);
+    const footprints = slots.map(({ car, at, yaw }) => corners(car, at, yaw));
+    for (const footprint of footprints) {
+      for (const [x, z] of footprint) {
+        expect(x > plot[0] && x < plot[2] && z > plot[1] && z < plot[3]).toBe(true);
+        for (const [x0, z0, x1, z1] of walls) expect(x > x0 && x < x1 && z > z0 && z < z1).toBe(false);
+      }
+    }
+    slots.forEach((a, first) => {
+      slots.forEach((b, second) => {
+        if (first >= second) return;
+        expect(Math.hypot(a.at[0] - b.at[0], a.at[2] - b.at[2])).toBeGreaterThan(2 * (lengthOf(a.car).wide + CLEARANCE_M));
+      });
+    });
   });
 
   it("every exterior has a site", () => {
@@ -95,7 +116,7 @@ describe("the data", () => {
   });
 
   it("a resting car's wheels stand on the floor it's given", () => {
-    const spec = carNamed("Holm");
+    const spec = carSpecOf("holm");
     const state = restingCar(spec, [1, 0.5, 2], 0);
     expect(state.position[1] + groundY(spec)).toBeCloseTo(0.5);
   });
