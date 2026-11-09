@@ -270,7 +270,7 @@ export const hagel: CarSpec = {
     paint("car-paint-signal-red", "solid", { stripe: "car-paint-white" }),
   ],
   body: bodyOf(shape),
-  /** A works rally car's cockpit: a cage, buckets, one digital display, a dished wheel, a sequential lever and a hydraulic handbrake. */
+  /** A works rally car's cockpit: a cage, buckets, one digital display, a dished wheel, a sequential lever and a hydraulic handbrake, the driver seated low, so the display reads over the wheel's boss. */
   interior: {
     gauges: "digital",
     wheel: "rally",
@@ -278,7 +278,7 @@ export const hagel: CarSpec = {
     seats: "bucket",
     screen: false,
     cage: true,
-    instrumentsThrough: 0.66,
+    eye: [0, -0.045, 0],
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-panel", headliner: "car-cabin-headliner-dark", accent: "car-cabin-odmark", glow: "car-cabin-glow-red" },
   },
   wheel: { radiusM: HAGEL.wheelRadiusM, widthM: 0.235, rimShare: 0.6, spokes: 6, twinSpokes: true, style: "split" },
