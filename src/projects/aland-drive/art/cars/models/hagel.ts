@@ -47,7 +47,7 @@ const livery = (): Decal[] => [
   { on: "top", at: [0.13, -1.385], size: [0.15, 1.11], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.016 },
   { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
   { on: "side", at: [0.115, 0.625], size: [1.66, 0.15], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
-  { on: "side", at: [0.115, 0.525], size: [1.66, 0.035], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
+  { on: "side", at: [0.115, 0.5], size: [1.66, 0.03], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
 ];
 
 /** The roof scoop: a shaped intake standing out of the roof, its mouth dark. */
@@ -278,6 +278,7 @@ export const hagel: CarSpec = {
     seats: "bucket",
     screen: false,
     cage: true,
+    instrumentsThrough: 0.66,
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-panel", headliner: "car-cabin-headliner-dark", accent: "car-cabin-odmark", glow: "car-cabin-glow-red" },
   },
   wheel: { radiusM: HAGEL.wheelRadiusM, widthM: 0.235, rimShare: 0.6, spokes: 6, twinSpokes: true, style: "split" },

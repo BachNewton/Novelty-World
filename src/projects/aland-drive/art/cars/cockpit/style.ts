@@ -50,6 +50,11 @@ export interface InteriorStyle {
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
   eye: readonly [x: number, y: number, z: number];
+  /**
+   * How far above the wheel's centre, as a share of its radius, the eye looks through it to the instruments: higher
+   * for a wheel whose deep dish or big boss would otherwise sit over the figures.
+   */
+  instrumentsThrough: number;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -73,6 +78,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
+    instrumentsThrough: 0.45,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };

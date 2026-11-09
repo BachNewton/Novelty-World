@@ -126,7 +126,7 @@ A car's cockpit is built from its cabin and a style (`art/cars/cockpit/`, and `a
 
 - `gauges`: `analogue` (two dials), `digital` (one screen of figures and an arc), `classic` (chrome-ringed dials and a row of small ones), `race` (one big rev counter with shift lights).
 - `wheel`: `round`, `flat` (flat-bottomed), `rally` (dished, top marker), `classic` (big, thin rim), `yoke`.
-- `shifter`, `seats` (`comfort`, `sport`, `bucket`), `screen`, `cage`, `paintedDash` (a band in whatever paint the player chose), `turnsToLock`, `eye` (a nudge to where the driver sits).
+- `shifter`, `seats` (`comfort`, `sport`, `bucket`), `screen`, `cage`, `paintedDash` (a band in whatever paint the player chose), `turnsToLock`, `eye` (a nudge to where the driver sits), `instrumentsThrough` (how high in the wheel's opening the eye sees the instruments: raised for a dished wheel whose boss would sit over the figures).
 - `colours`: the dash, trim, inserts, headliner, accent (rings round dials, vents' edges) and the glow after dark, each a token in `cockpit/tokens.css`. A new cabin colour is a token there.
 
 Choose it the way the exterior is chosen: what the car is and when it was made. Åska is the example: `digital`, `flat`, `selector`, `bucket`, a carbon dash and trim with Tärna-blue inserts and accents, an ice-blue glow. An old car takes `classic` dials and wheel, no screen, perhaps a painted dash or wood.
