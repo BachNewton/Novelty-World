@@ -66,6 +66,7 @@ const shape: Shape = {
   sillH: 0.2,
   flareM: 0.035,
   archClearM: 0.035,
+  cornerPullM: [0.14, 0.12],
   grilleH: 0.46,
   lampH: [0.565, 0.665],
   hoodLipH: 0.69,
@@ -108,7 +109,7 @@ const shape: Shape = {
     [0.06, 0.68],
     [0.8, 0.66],
     [1.45, 0.64],
-    [1.9, 0.56],
+    [1.9, 0.55],
     [2.14, 0.5],
   ],
   tail: [],
@@ -122,7 +123,7 @@ const shape: Shape = {
     ...handles([-0.12, 0.84], 0.93),
     pinstripe,
     // A vent at each corner of the bumper, either side of the intake.
-    { on: "front", at: [0.63, 0.4], size: [0.15, 0.07], surface: "grille", mirror: true, cells: [3, 2], liftM: 0.012 },
+    { on: "front", at: [0.6, 0.4], size: [0.13, 0.07], surface: "grille", mirror: true, cells: [3, 2], liftM: 0.012 },
     ...daylights,
     ...projectors({ x: [0.48, 0.56], h: 0.61, size: 0.036 }),
     // The light bar across the tailgate's dark band, joining the lamps at its ends: lit with them, by day a red line.
@@ -138,8 +139,8 @@ const shape: Shape = {
     bands: BANDS,
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
-      { z: -2.105, h: 0.27, band: "bumper" },
-      { z: -2.13, h: 0.3, band: "intake" },
+      { z: -2.1, h: 0.3, band: "bumper" },
+      { z: -2.13, h: 0.33, band: "intake" },
       { z: -2.14, h: 0.46 },
       { z: -2.138, h: 0.545, band: "gap" },
       { z: -2.136, h: 0.55, band: "headDark" },
@@ -210,7 +211,15 @@ const shape: Shape = {
     ],
     hoodSeamZ: [-2.0, -0.85],
     cleanEnds: true,
-    exhausts: { x: [-0.08, 0.08], h: 0.35, z: 2.135, radius: 0.04 },
+    // The chin lifts towards the nose, so the bumper's foot stays clear of the sill where the corners turn.
+    sill: [
+      [-2.14, 0.29],
+      [-1.74, 0.21],
+      [0, 0.2],
+      [1.74, 0.22],
+      [2.14, 0.27],
+    ],
+    exhausts: { x: [-0.08, 0.08], h: 0.35, z: 2.16, radius: 0.042, open: true },
   },
 };
 
