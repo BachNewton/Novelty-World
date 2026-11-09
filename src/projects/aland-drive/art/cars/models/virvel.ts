@@ -230,7 +230,7 @@ const shape: Shape = {
       [0.92, 0.03],
       [1.05, 0],
     ],
-    exhausts: { x: [-0.32, -0.21, 0.21, 0.32], h: 0.45, z: 2.3, radius: 0.048, open: true, outward: true },
+    exhausts: { x: [-0.32, -0.21, 0.21, 0.32], h: 0.45, z: 2.3, radius: 0.048, open: true },
   },
 };
 

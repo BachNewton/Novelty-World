@@ -189,10 +189,9 @@ export interface BodySpec {
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
   /**
    * Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body
-   * hides the end. `outward` winds the pipes to face out of them; without it they face in, so the hero's double-sided
-   * material draws their outsides as the cabin's lining, and the older cars keep that until they're redrawn.
+   * hides the end.
    */
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean; outward?: boolean };
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   /** Open pipes leaving the sills sideways, on both sides, one at each `z`, their ends `x` out from the car's middle. */
   sideExhausts?: { z: readonly number[]; h: number; x: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
@@ -220,8 +219,8 @@ export interface BodyDetail {
   creaseDeg: number;
   /** A cabin to see through the glass to. */
   cabin: boolean;
-  /** Blocks' faces wound outward: a drivable car's, at either detail. */
-  outwardBlocks: boolean;
+  /** Blocks' and tailpipes' faces wound outward: a drivable car's, at either detail. */
+  outward: boolean;
 }
 
 interface Station extends SilhouettePoint {
@@ -607,10 +606,11 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
-function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
+/** Tailpipes wound to face out of them when `outward`; a world car's would face in, as its blocks do. */
+function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number, outward: boolean) {
   if (!spec.exhausts) return;
   const { x, h, z, radius } = spec.exhausts;
-  const turn = spec.exhausts.outward === true ? 1 : -1;
+  const turn = outward ? 1 : -1;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
       const angle = ((turn * step) / 8) * Math.PI * 2;
@@ -628,14 +628,15 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
-function addSideExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
+function addSideExhausts(builder: SoupBuilder, spec: BodySpec, ground: number, outward: boolean) {
   if (!spec.sideExhausts) return;
   const { z, h, x, radius } = spec.sideExhausts;
+  const turn = outward ? 1 : -1;
   for (const side of [1, -1]) {
     // A rear pipe turned a quarter round the vertical to point out of its side, so its faces wind as a rear pipe's do.
     const round = (zAt: number, along: number, r: number): Point[] =>
       Array.from({ length: 8 }, (_, step) => {
-        const angle = (-step / 8) * Math.PI * 2;
+        const angle = ((turn * step) / 8) * Math.PI * 2;
         return [side * along, h + ground + Math.sin(angle) * r, zAt - side * Math.cos(angle) * r];
       });
     for (const at of z) {
@@ -920,12 +921,12 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   // Fenders before the decals, so a lamp can sit on one.
   for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
-  if (detail.fine) addExhausts(builder, spec, ground);
-  if (detail.fine) addSideExhausts(builder, spec, ground);
+  if (detail.fine) addExhausts(builder, spec, ground, detail.outward);
+  if (detail.fine) addSideExhausts(builder, spec, ground, detail.outward);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, detail.outwardBlocks);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, detail.outward);
   for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
