@@ -2,7 +2,7 @@ import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
-import { bodyOf, driven, faired, handles, plates, thirdBrake, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, type Shape } from "../recipe";
 
 const VIRVEL = driven("virvel");
 const { sill, sillTop, belt, windowBase, rail, roofInner, centre } = ROWS;
@@ -117,10 +117,9 @@ const shape: Shape = {
     ...plates(0.56, 0.31),
     ...handles([-0.04], 0.75),
     ...fangs("front", 0.44, "lensHead"),
-    ...fangs("rear", 0.86, "lensTail"),
+    ...fangs("rear", 0.83, "lensTail"),
     ...projectors({ x: [0.54, 0.66], h: 0.462, size: 0.036 }),
     sideIntake({ z: 0.53, h: 0.52, long: 0.5, tall: 0.36 }),
-    thirdBrake(1.98, 0.42),
     // The radiators' outlets in the hood.
     ...louvres({ x: 0.27, z: -1.98, long: 0.3, wide: 0.3, count: 4 }),
   ],
@@ -135,7 +134,7 @@ const shape: Shape = {
     splitter({ z: -2.3, h: 0.26, halfWidth: 0.56, long: 0.16 }),
     ...diffuser({ z: 1.92, tailZ: 2.24, h: 0.22, x: [0.16, 0.48] }),
     // The V8's two banks under the engine cover, in the body's colour, standing out of its dark vent.
-    { at: [0.15, 0.985, 1.16], size: [0.1, 0.06, 0.66], surface: "paint", mirror: true, taper: [0.7, 0.55] },
+    { at: [0.15, 0.955, 1.16], size: [0.13, 0.05, 0.66], surface: "paint", mirror: true, taper: [0.75, 0.4] },
   ],
   extra: {
     bands: BANDS,
@@ -167,10 +166,10 @@ const shape: Shape = {
           [-0.3, 1.12],
           [0.05, 1.17],
           [0.4, 1.13],
-          [0.78, 0.965],
-          [1.3, 0.94],
-          [1.8, 0.94],
-          [2.1, 0.955],
+          [0.78, 0.955],
+          [1.3, 0.92],
+          [1.8, 0.91],
+          [2.1, 0.925],
         ],
         [
           [-0.92, "screen"],
@@ -180,14 +179,14 @@ const shape: Shape = {
           [1.55, undefined],
         ],
       ),
-      { z: 2.1, h: 0.955, band: "gap" },
-      { z: 2.11, h: 0.94, band: "tailDark" },
-      { z: 2.122, h: 0.92, band: "tailBar" },
-      { z: 2.136, h: 0.882, band: "tailDark" },
-      { z: 2.148, h: 0.852, band: "panel" },
+      { z: 2.1, h: 0.925, band: "gap" },
+      { z: 2.11, h: 0.91, band: "tailDark" },
+      { z: 2.122, h: 0.89, band: "tailBar" },
+      { z: 2.136, h: 0.852, band: "tailDark" },
+      { z: 2.148, h: 0.822, band: "panel" },
       { z: 2.19, h: 0.64, band: "diffuser" },
       { z: 2.245, h: 0.42, band: "diffuser" },
-      { z: 2.26, h: 0.23 },
+      { z: 2.26, h: 0.29 },
     ],
     crown: [
       [-2.26, 0.02],
@@ -222,7 +221,6 @@ const shape: Shape = {
       [2.26, 0.86],
     ],
     hoodSeamZ: [-2.05, -0.95],
-    cornerPullM: [0.2, 0.22],
     cleanEnds: true,
     outwardParts: true,
     scoop: [
