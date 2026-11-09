@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, ChevronsDown, ChevronsUp, CircleArrowDown, Crosshair, Eye, Flag, Fullscreen, Gamepad2, Hand, Keyboard, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ChevronsDown, ChevronsUp, CircleArrowDown, Car, Crosshair, Eye, Flag, Fullscreen, Gamepad2, Hand, Keyboard, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, Radar, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { InputKind } from "@/shared/lib/input";
 import { subscribeGamepads } from "@/shared/lib/gamepad";
 import { ControlGlyph, Prompt, type Binding, type PadGlyph } from "@/shared/components/prompts";
 import { useDriveSoundSettings } from "../audio/settings";
 import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
+import { TRAFFIC_DENSITIES, TRAFFIC_REACHES, TRAFFIC_VOICE_COUNTS, useTrafficSettings, type TrafficSettings } from "../traffic/settings";
 import { tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import { useUnits, type Units } from "../units";
@@ -190,9 +191,42 @@ function AudioTab({ first }: { first: RefObject<HTMLButtonElement | null> }) {
         </button>
         <span className="w-12 text-center text-lg font-semibold tabular-nums" role="status" aria-label="Volume level">{percent}%</span>
       </div>
+      <TrafficRow setting="voiced" steps={TRAFFIC_VOICE_COUNTS} icon={Car} name="Cars heard" title="How many of the nearest traffic cars are heard" shown={String} />
     </div>
   );
 }
+
+/**
+ * A setting stepped by whole steps with a minus and a plus, its value between them. aria-disabled rather than disabled,
+ * so a pad's focus stays on a button pressed to its end.
+ */
+function StepRow({ icon: Icon, name, title, detail, value, lowest, highest, first, onStep }: { icon: Icon; name: string; title: string; detail?: { label: string; text: string }; value: string; lowest: boolean; highest: boolean; first?: RefObject<HTMLButtonElement | null>; onStep: (way: number) => void }) {
+  return (
+    <div role="group" aria-label={name} className="flex items-center gap-2">
+      <Icon aria-hidden className="size-5 shrink-0" />
+      <div className="flex grow flex-col leading-tight" title={title}>
+        <span className="text-lg font-semibold">{name}</span>
+        {detail && <span className="text-xs tabular-nums opacity-75" aria-label={detail.label}>{detail.text}</span>}
+      </div>
+      <button ref={first} type="button" data-pad-start={first ? true : undefined} aria-label={`Lower ${name.toLowerCase()}`} aria-disabled={lowest} className={STEPPER} style={{ borderColor: INK }} onClick={() => { onStep(-1); }}>
+        <Minus aria-hidden className="size-4" />
+      </button>
+      <span className="w-12 text-center text-lg font-semibold tabular-nums" role="status" aria-label={name}>{value}</span>
+      <button type="button" aria-label={`Raise ${name.toLowerCase()}`} aria-disabled={highest} className={STEPPER} style={{ borderColor: INK }} onClick={() => { onStep(1); }}>
+        <Plus aria-hidden className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** A traffic setting's row: its value among its steps, kept by the page and followed by the game live. */
+function TrafficRow<Key extends keyof TrafficSettings>({ setting, steps, icon, name, title, shown }: { setting: Key; steps: readonly number[]; icon: Icon; name: string; title: string; shown: (value: number) => string }) {
+  const value = useTrafficSettings((state) => state.settings[setting]);
+  const step = useTrafficSettings((state) => state.step);
+  return <StepRow icon={icon} name={name} title={title} value={shown(value)} lowest={value === steps[0]} highest={value === steps[steps.length - 1]} onStep={(way) => { step(setting, way); }} />;
+}
+
+const percent = (share: number) => `${Math.round(share * 100)}%`;
 
 /** The graphics settings, which the page keeps and the game follows live. The menu covers the game, so its size is the game's. */
 function GraphicsTab({ view, first }: { view: { width: number; height: number }; first: RefObject<HTMLButtonElement | null> }) {
@@ -201,22 +235,11 @@ function GraphicsTab({ view, first }: { view: { width: number; height: number };
   // As three sizes the canvas: CSS pixels times the pixel ratio, rounded down.
   const ratio = window.devicePixelRatio * scale;
   const resolution = `${Math.floor(view.width * ratio)}×${Math.floor(view.height * ratio)}`;
-  const lowest = scale === RENDER_SCALES[0];
-  const highest = scale === RENDER_SCALES[RENDER_SCALES.length - 1];
   return (
-    <div role="group" aria-label="Render scale" className="flex items-center gap-2">
-      <Fullscreen aria-hidden className="size-5 shrink-0" />
-      <div className="flex grow flex-col leading-tight" title="Share of the screen's physical pixels the world is drawn at">
-        <span className="text-lg font-semibold">Render scale</span>
-        <span className="text-xs tabular-nums opacity-75" aria-label="Resolution">{resolution}</span>
-      </div>
-      <button ref={first} type="button" data-pad-start aria-label="Lower render scale" aria-disabled={lowest} className={STEPPER} style={{ borderColor: INK }} onClick={() => { step(-1); }}>
-        <Minus aria-hidden className="size-4" />
-      </button>
-      <span className="w-12 text-center text-lg font-semibold tabular-nums" role="status" aria-label="Render scale">{Math.round(scale * 100)}%</span>
-      <button type="button" aria-label="Raise render scale" aria-disabled={highest} className={STEPPER} style={{ borderColor: INK }} onClick={() => { step(1); }}>
-        <Plus aria-hidden className="size-4" />
-      </button>
+    <div className="flex flex-col gap-3">
+      <StepRow icon={Fullscreen} name="Render scale" title="Share of the screen's physical pixels the world is drawn at" detail={{ label: "Resolution", text: resolution }} value={percent(scale)} lowest={scale === RENDER_SCALES[0]} highest={scale === RENDER_SCALES[RENDER_SCALES.length - 1]} first={first} onStep={step} />
+      <TrafficRow setting="density" steps={TRAFFIC_DENSITIES} icon={Car} name="Traffic" title="How many cars, cyclists and walkers are out, against Åland's own" shown={percent} />
+      <TrafficRow setting="reach" steps={TRAFFIC_REACHES} icon={Radar} name="Traffic reach" title="How far round you traffic is kept moving" shown={percent} />
     </div>
   );
 }
