@@ -249,6 +249,7 @@ export const blixt: CarSpec = {
     screen: true,
     // Low in the car, as its battery floor allows: the roof's edge clears the view and the figures show over the wheel's hub.
     eye: [0, -0.04, 0],
+    speedAside: true,
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-norrsken", headliner: "car-cabin-headliner-dark", accent: "car-cabin-norrsken", glow: "car-cabin-glow-aurora" },
   },
 };
