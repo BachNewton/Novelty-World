@@ -3,8 +3,9 @@
     pipeline/.venv/Scripts/python pipeline/upload.py [--dry-run]
     pipeline/.venv/Scripts/python pipeline/upload.py --clear-old [--dry-run]
 
-Reads the project's URL and service-role key from the repo's .env.local, and
-never prints the key. Tiles go in a public-read bucket, under a folder named by
+Reads the project's URL and service-role key from the environment where both
+are set (a workflow's secrets), else from the repo's .env.local, and never
+prints the key. Tiles go in a public-read bucket, under a folder named by
 the build's version, so a rebuild is a new folder beside the old one and a page
 only ever sees the files it was deployed with. They are immutable, so they carry
 a year's cache. Then set TILES_VERSION in render/tile-address.ts to the version
@@ -17,6 +18,7 @@ other version in the bucket: all but the one TILES_VERSION names.
 import argparse
 import json
 import mimetypes
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -38,11 +40,14 @@ TYPES = {".gz": "application/gzip", ".webp": "image/webp", ".png": "image/png", 
 
 
 def environment() -> tuple[str, str]:
-    values = {}
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if "=" in line and not line.lstrip().startswith("#"):
-            name, value = line.split("=", 1)
-            values[name.strip()] = value.strip().strip('"')
+    """From the process's environment where both are set (a workflow's secrets), else from .env.local."""
+    names = ("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+    values = {name: os.environ.get(name, "") for name in names}
+    if not all(values.values()):
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                name, value = line.split("=", 1)
+                values[name.strip()] = value.strip().strip('"')
     return values["NEXT_PUBLIC_SUPABASE_URL"].rstrip("/"), values["SUPABASE_SERVICE_ROLE_KEY"]
 
 

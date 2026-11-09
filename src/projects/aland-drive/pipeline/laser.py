@@ -42,8 +42,10 @@ def above_ground(tile: Tile) -> np.ndarray:
     height = np.clip(np.where(np.isfinite(highest), highest - ground, 0), 0, TALLEST_M)
     height[(highest - ground) > TALLEST_M] = 0
     KEPT.mkdir(parents=True, exist_ok=True)
-    np.save(path, np.round(height * 10).astype(np.uint16))
-    return height
+    kept = np.round(height * 10).astype(np.uint16)
+    np.save(path, kept)
+    # What a later build reads back, so a tile comes out the same whether this was kept already or not.
+    return kept.astype(np.float32) / 10
 
 
 def _make(name: str) -> str:

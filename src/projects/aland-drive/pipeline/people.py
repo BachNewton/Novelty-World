@@ -15,10 +15,11 @@ What's fixed is `art/people`'s `FigureSpec` in part (`age`, `outfit`, ...), and 
 """
 
 import json
-import os
 import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from tile_steps import record_in, replace_text
 
 POSES = ("stand", "walk", "chat", "sit-bench", "sit-cafe", "fish", "sit-edge", "sunbathe", "field", "tend-boat", "wave")
 CHILD_POSES = ("stand", "walk", "wave")
@@ -55,22 +56,22 @@ def roll(*key) -> float:
     return zlib.crc32(":".join(map(str, ("roll", *key))).encode()) / 2**32
 
 
-def write(folder: Path, source: str, figures: list[Figure], licence: dict) -> dict:
-    """Writes a source's people in the tile and lists the file in its `tile.json`; returns the entry."""
+def write_figures(folder: Path, source: str, figures: list[Figure], licence: dict) -> dict:
+    """Writes a source's people in the tile; returns the entry `listed` puts in its `tile.json`."""
     file = f"people-{source}.json"
-    _replace(folder / file, json.dumps({**licence, "figures": [figure.row() for figure in figures]}, separators=(",", ":")))
+    replace_text(folder / file, json.dumps({**licence, "figures": [figure.row() for figure in figures]}, separators=(",", ":")))
     poses: dict[str, int] = {}
     for figure in figures:
         poses[figure.pose] = poses.get(figure.pose, 0) + 1
-    entry = {"file": file, "count": len(figures), "poses": dict(sorted(poses.items())), "figure": ["x", "y", "z", "yaw", "pose", "seed", "spec?"]}
-    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-    manifest["people"] = {**manifest.get("people", {}), source: entry}
-    _replace(folder / "tile.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+    return {"file": file, "count": len(figures), "poses": dict(sorted(poses.items())), "figure": ["x", "y", "z", "yaw", "pose", "seed", "spec?"]}
+
+
+def listed(manifest: dict, source: str, entry: dict) -> dict:
+    return {**manifest, "people": {**manifest.get("people", {}), source: entry}}
+
+
+def write(folder: Path, source: str, figures: list[Figure], licence: dict) -> dict:
+    """Writes a source's people in the tile and lists the file in its `tile.json`; returns the entry."""
+    entry = write_figures(folder, source, figures, licence)
+    record_in(folder, lambda manifest, written: listed(manifest, source, written), entry)
     return entry
-
-
-def _replace(path: Path, text: str) -> None:
-    """Writes a file anew rather than over itself, so a copy of a tile made of links to another stays apart from it."""
-    temporary = path.with_suffix(path.suffix + ".new")
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, path)

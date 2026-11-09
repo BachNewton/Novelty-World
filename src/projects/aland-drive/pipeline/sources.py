@@ -5,6 +5,7 @@ missing.
 """
 
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -34,6 +35,9 @@ REQUEST_TIMEOUT_S = 90
 OSM_MARGIN_M = 200
 # What a kept copy of a tile's OSM holds. Raising it remakes every copy from the API's answers, which stay as they came.
 OSM_KEPT_VERSION = 3
+# Set to 1 where OSM must come from the pinned inputs alone (a build on GitHub's machines): the API's policy forbids
+# read-only use, and a fresh answer would be different data from the build it should match.
+OSM_PINNED = "ALAND_OSM_PINNED"
 # Areas laid as one paved surface (see vectors.paved_areas).
 PAVED_AMENITIES = {"parking", "bus_station"}
 ORTHO_YEARS = (2025, 2024, 2023, 2022)
@@ -169,7 +173,9 @@ def _fetch_box(name: str, box: tuple[float, float, float, float]) -> list[Path]:
     west, south, east, north = box
     if (RAW / "osm-api" / f"{name}.split").exists():
         return _fetch_quarters(name, box)
-    url = f"{OSM_API}?bbox={west:.6f},{south:.6f},{east:.6f},{north:.6f}"
+    if os.environ.get(OSM_PINNED) == "1":
+        raise FileNotFoundError(f"{name}: OSM isn't in the pinned inputs, and a build that reads only them never asks the API (pipeline/inputs.py)")
+    url =f"{OSM_API}?bbox={west:.6f},{south:.6f},{east:.6f},{north:.6f}"
     for attempt in range(OSM_RETRIES):
         try:
             _download(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), path)

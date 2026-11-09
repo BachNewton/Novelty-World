@@ -72,6 +72,8 @@ MASK_PIXELS = 1500
 REEDS_KEPT_OFF = 128
 # Ground a road shaped over the water that stands this far out of it is the road's bank, and land.
 ROAD_BANK_ABOVE_WATER_M = 0.5
+# A whole build, its tile builds alone, or what follows them (the steps that read neighbours, then the world).
+PHASES = ("all", "tiles", "after")
 # The drive starts here, on this tile's main road.
 START_TILE = "L2343C"
 ATTRIBUTION = [
@@ -507,10 +509,11 @@ def main() -> None:
     parser.add_argument("tiles", nargs="*", help="NLS sheet names, such as L2343C")
     parser.add_argument("--island", action="store_true", help="every tile in island.json")
     parser.add_argument("--new-building-sheets", action="store_true", help="the built tiles a 3D sheet added since their build reaches")
-    parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each")
+    parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each, and the steps after them likewise")
     parser.add_argument("--refresh-osm", action="store_true", help="ask OSM's API again instead of reusing the kept copy")
     parser.add_argument("--town", action="store_true", help="bake the town's ground too, which is tabled and off by default")
     parser.add_argument("--paving", action="store_true", help="lay the roads as one paved surface with the ground cut round it, as the published island is (docs/ROAD-SURFACES.md)")
+    parser.add_argument("--phase", choices=PHASES, default="all", help="the tile builds alone, or only what follows them on tiles already built, so the two can run on different machines")
     arguments = parser.parse_args()
     names = list(arguments.tiles)
     if arguments.island:
@@ -520,28 +523,33 @@ def main() -> None:
         names += tiles_with_new_sheets()
         print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
     world_tiles = len({folder.name for folder in OUTPUT.glob("*") if (folder / "tile.json").exists()} | set(names))
-    build = begin({
-        **dict.fromkeys(["tiles", "roadside", "lanes", "waterfront", "seated", "parking", "farm", "clearing"], len(names)),
-        **dict.fromkeys(["overview", "road map", "version"], world_tiles),
-    })
-    build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town, arguments.paving)
+    tile_phase = ["tiles"] if arguments.phase != "after" else []
+    after_phase = ["roadside", "lanes", "waterfront", "seated", "parking", "farm", "clearing"] if arguments.phase != "tiles" else []
+    world_phase = ["overview", "road map", "version"] if arguments.phase != "tiles" else []
+    build = begin({**dict.fromkeys(tile_phase + after_phase, len(names)), **dict.fromkeys(world_phase, world_tiles)})
+    if arguments.phase != "after":
+        build_all(names, arguments.jobs, arguments.refresh_osm, arguments.town, arguments.paving)
+    if arguments.phase == "tiles":
+        return
     roadside.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     # Beside the roadside, whose sign rule its right of way reads. It needs only each tile's own surface and OSM's signs.
-    lanes.bake_tiles(names, OUTPUT)
-    waterfront.bake_tiles(names, OUTPUT)
-    seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    lanes.bake_tiles(names, OUTPUT, arguments.jobs)
+    waterfront.bake_tiles(names, OUTPUT, arguments.jobs)
+    seated.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     # After the roadside, whose lamps and signs the cars keep clear of.
-    parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    parking.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     # After the roadside too, whose poles and walls the bales, tractors and sheep keep clear of.
-    farm.bake_tiles(names, OUTPUT)
+    farm.bake_tiles(names, OUTPUT, arguments.jobs)
     # Last, once every building and model is placed, its neighbours' too.
-    clearing.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT)
+    clearing.bake_tiles(roadside.with_neighbours(names, OUTPUT), OUTPUT, arguments.jobs)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
     if arguments.island:
         # The boats' lanes are code, not tiles (`sea/lanes.json`), read off the island's water, so they're
         # committed with the TILES_VERSION that publishes it.
         sea_lanes.write_lanes(OUTPUT.parent)
+    # Only a whole build on one machine times its steps alike for the next to go by.
+    if arguments.island and arguments.phase == "all":
         build.finish(arguments.jobs)
 
 
