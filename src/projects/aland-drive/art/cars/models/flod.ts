@@ -147,9 +147,10 @@ const shape: Shape = {
       { z: -2.505, h: 0.265, band: "mouth" },
       { z: -2.5, h: 0.47 },
       { z: -2.495, h: 0.52, band: "visor" },
-      { z: -2.491, h: 0.533, band: "stroke" },
-      { z: -2.485, h: 0.552, band: "visor" },
-      { z: -2.479, h: 0.566, band: "stroke" },
+      // Two strokes of light, tall enough to read as a headlamp at night, with a hairline of visor between.
+      { z: -2.493, h: 0.525, band: "stroke" },
+      { z: -2.484, h: 0.556, band: "visor" },
+      { z: -2.481, h: 0.562, band: "stroke" },
       { z: -2.471, h: 0.585, band: "visor" },
       // The hood, then the screen, the long roof and the tailgate, each as one fair line.
       ...faired(

@@ -22,6 +22,12 @@ export const BINDINGS = {
   freeCamera: binding(null, "F"),
   /** The chase view or the driver's seat, remembered in this browser. */
   cockpit: binding("RB", "C"),
+  /** Held: the arrows look left, right or behind; the right stick looks any way round. */
+  lookLeft: binding("R3", "←"),
+  lookRight: binding("R3", "→"),
+  lookBehind: binding("R3", "↓"),
+  /** Held, in the chase view: looks down on the car. */
+  lookDown: binding(null, "↑"),
   map: binding("View", "M"),
   menu: binding("Menu", "Esc"),
   /** A challenge's start ring: start it, or choose solo or co-op; and join a co-op one you're asked to. */

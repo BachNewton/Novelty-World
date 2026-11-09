@@ -131,7 +131,7 @@ A car's cockpit is built from its cabin and a style (`art/cars/cockpit/`, and `a
 
 Choose it the way the exterior is chosen: what the car is and when it was made. Åska is the example: `digital`, `flat`, `selector`, `bucket`, a carbon dash and trim with Tärna-blue inserts and accents, an ice-blue glow. An old car takes `classic` dials and wheel, no screen, perhaps a painted dash or wood.
 
-Check it from the driver's seat: `npm run slot -- browser -- node src/projects/aland-drive/art/cars/gallery.mjs <out> --cockpit --car=<index>` (the driver's eye, the dash from behind the seats, across to the passenger's door, by day and night), and in the game with `tools/look.mjs --cockpit` on a chase look. The chase view keeps the shell's own simple cabin, so the cockpit has no far version and costs nothing outside the first-person view.
+Check it from the driver's seat: `npm run slot -- browser -- node src/projects/aland-drive/art/cars/gallery.mjs <out> --cockpit --car=<index>` (the driver's eye, the dash from behind the seats, across to the passenger's door, by day and night), and in the game with `tools/look.mjs --cockpit` on a chase look. The chase view keeps the shell's own lighter cabin, so the cockpit has no far version and costs nothing outside the first-person view.
 
 ## Paints
 

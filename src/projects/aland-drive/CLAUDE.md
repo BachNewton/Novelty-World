@@ -22,7 +22,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `audio/` | Sound |
 | `time/`, `climate/` | The calendar and clock; the shared weather |
 | `sea/` | Boats under way |
-| `components/` | The game menu, Graphics and the dev menu |
+| `components/` | The game menu, Settings and the dev menu |
 | `tools/` | The measuring tools and the labs |
 | `playground/` | `?playground`, the made-up test map |
 
@@ -44,11 +44,11 @@ This file holds what applies everywhere in the project. Each system's own detail
 | World map | M | View |
 | Game menu | Esc | Menu |
 | Start a challenge or open a race's card in its ring, or answer a co-op invite | E | X |
-| Sound on or off | N, or the game menu | The game menu |
+| Sound on or off | N, or Settings | Settings |
 
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
 
-`~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`.
+`~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`. The game shows this table to players in Settings' Controls tab, from `input/controls.ts`, so a change to a control changes it there.
 
 From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
 
@@ -86,7 +86,7 @@ The owner's laptop is the hardware floor: a Framework 13 with a Ryzen 7 7840U an
 
 The target is a steady 60 fps, drawing the 3D world at 100% of the screen's physical pixels: one rendered pixel per device pixel, the full `devicePixelRatio`. The frame meter is the shared stats.js one; a timestamp query gives the GPU time.
 
-**Render scale is never a way to cheat performance.** The game menu's Graphics page has a render scale (`render/graphics-settings.ts`), 20–100% of the physical pixels each way in steps of 10, kept in this browser and applied live. It is the player's choice and the only thing that ever draws fewer pixels: the default is 100%, and nothing in the game lowers it, caps the pixel ratio, or scales resolution by device or on the fly. A frame that costs too much is made cheaper (fewer draws, triangles, pixels shaded per pixel), never drawn at a lower resolution, and a measurement or a target is always taken at 100%.
+**Render scale is never a way to cheat performance.** The game menu's Settings page has a render scale on its Graphics tab (`render/graphics-settings.ts`), 20–100% of the physical pixels each way in steps of 10, kept in this browser and applied live. It is the player's choice and the only thing that ever draws fewer pixels: the default is 100%, and nothing in the game lowers it, caps the pixel ratio, or scales resolution by device or on the fly. A frame that costs too much is made cheaper (fewer draws, triangles, pixels shaded per pixel), never drawn at a lower resolution, and a measurement or a target is always taken at 100%.
 
 A chase view at 3440×1440 is 60–90 draw calls and 0.5–1.1 M triangles, of which about 0.4 M is the terrain, fixed wherever the car is. The forest follows what's in view: 0.05–0.15 M on open and coastal showcase views, 0.4 M in mixed forest and 0.63 M in Deep Forest.
 
@@ -111,7 +111,7 @@ Clean, stylised realism: real land colour under a low-poly forest and flat-shade
 
 ## Hosting
 
-Tiles live in the public bucket `aland-drive-tiles` on the site's Supabase project, one folder per build under its version, and `render/tile-address.ts` is the one place that says so: the base address is the Supabase URL, the bucket and `TILES_VERSION`. Moving to another host is copying a folder and changing that one function. The files never change once published and carry a year's cache, so a browser keeps them; a rebuild is a new folder and a new `TILES_VERSION`, committed with whatever needs it, so a deployed page only ever sees the tiles it was built with. `pipeline/upload.py` creates the bucket if it's missing and uploads what isn't there, reading the service-role key from `.env.local`. Only the live version stays: once a new one is deployed and checked in the live game, `pipeline/upload.py --clear-old` deletes every other.
+Tiles live in the public bucket `aland-drive-tiles` on the site's Supabase project, one folder per build under its version, and `render/tile-address.ts` is the one place that says so: the base address is the Supabase URL, the bucket and `TILES_VERSION`. Moving to another host is copying a folder and changing that one function. The files never change once published and carry a year's cache, so a browser keeps them; a rebuild is a new folder and a new `TILES_VERSION`, committed with whatever needs it, so a deployed page only ever sees the tiles it was built with. `pipeline/upload.py` creates the bucket if it's missing and uploads what isn't there, reading the service-role key from `.env.local` (or a workflow's secrets, when the island is built on GitHub: `pipeline/CLAUDE.md`). Only the live version stays: once a new one is deployed and checked in the live game, `pipeline/upload.py --clear-old` deletes every other.
 
 Nothing in the tests or tools touches that host: they serve tiles to themselves on localhost.
 

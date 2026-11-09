@@ -2,6 +2,7 @@ import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
+import { projectors } from "../parts";
 
 const ANKAR = driven("ankar");
 const { sill, belt, rail, centre } = ROWS;
@@ -124,7 +125,7 @@ const shape: Shape = {
   mirror: { z: -0.55, h: 1.0, x: 0.88 },
   rearPlateH: 0.68,
   cabinEndZ: 1.5,
-  decals: [...plates(0.68, 0.37), ...handles([-0.2, 0.78], 0.86), ...grilleFrame(), ...flank(), reversing(0.42, 0.8)],
+  decals: [...plates(0.68, 0.37), ...handles([-0.2, 0.78], 0.86), ...grilleFrame(), ...flank(), reversing(0.42, 0.8), ...projectors({ x: [0.62, 0.74], h: 0.618, size: 0.056, lensLiftM: 0.03, ring: false })],
   extra: {
     bands: BANDS,
     cleanEnds: true,

@@ -1,9 +1,12 @@
-// What traffic costs in the drive: draw calls and triangles with cars and cyclists and without them at showcase views
+// What traffic costs in the drive: draw calls and triangles with cars, cyclists and walkers and without them at showcase views
 // or looks of one's own, and how many ride round the car and how many of those the camera sees. Each view is jumped to,
 // which fills the lanes afresh, then the simulation is stepped by hand so traffic has moved off its slots. Counts
 // decide; the screenshots are only to see that nothing went wrong. Traffic needs tiles with lanes: elsewhere there is none.
 //
-// Prereq: a dev server. Usage: node src/projects/aland-drive/tools/traffic-count.mjs [--folder=<tiles>] [--size=3440x1440] [--keys=1,2] [--seconds=30] [--shots=<folder>] [name:east,north,height,yaw,pitch ...]
+// --times=<month>@<hour>,... counts each view at each of those times of the game's year and day instead of the page's own
+// (`traffic/rhythm.ts`): `--times=7@8,7@3,1@8` is a July morning's peak, a July night and a January morning.
+//
+// Prereq: a dev server. Usage: node src/projects/aland-drive/tools/traffic-count.mjs [--folder=<tiles>] [--size=3440x1440] [--keys=1,2] [--seconds=30] [--times=7@8,1@3] [--shots=<folder>] [name:east,north,height,yaw,pitch ...]
 // Positions are ETRS-TM35FIN metres, as `tools/look.mjs` takes them. ALAND_DRIVE_URL overrides the page's address.
 
 import { openGame, settleFrames } from "./game-page.mjs";
@@ -15,6 +18,10 @@ const [WIDTH, HEIGHT] = option("size", "3440x1440").split("x").map(Number);
 const KEYS = option("keys", "1,2").split(",").filter(Boolean);
 const SECONDS = Number(option("seconds", "30"));
 const SHOTS = option("shots", "");
+const TIMES = option("times", "").split(",").filter(Boolean).map((time) => {
+  const [month, hour] = time.split("@").map(Number);
+  return { name: `${month}@${hour}`, month, hour };
+});
 const LOOKS = process.argv.slice(2).filter((arg) => !arg.startsWith("--")).map((look) => {
   const [name, place] = look.split(":");
   const [east, north, height, yaw, pitch] = place.split(",").map(Number);
@@ -33,16 +40,25 @@ const settle = async () => {
     const probe = window.__alandDrive;
     const vehicles = probe.trafficCars();
     const seen = vehicles.filter((vehicle) => probe.trafficSeen(vehicle));
-    const cars = (list) => list.filter((vehicle) => vehicle.kind === "car").length;
-    return { ...probe.counts(), cars: cars(vehicles), bikes: vehicles.length - cars(vehicles), carsSeen: cars(seen), bikesSeen: seen.length - cars(seen) };
+    const of = (list, kind) => list.filter((vehicle) => vehicle.kind === kind).length;
+    return { ...probe.counts(), cars: of(vehicles, "car"), bikes: of(vehicles, "bike"), walkers: of(vehicles, "walker"), carsSeen: of(seen, "car"), bikesSeen: of(seen, "bike") };
   });
 };
 const traffic = (density) => page.evaluate((to) => {
   window.__alandDrive.traffic(to);
   window.__alandDrive.cyclists(to);
+  window.__alandDrive.walkers(to);
 }, density);
 
-const views = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.evaluate((id) => window.__alandDrive.jumpTo(id), key) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
+const places = [...KEYS.map((key) => ({ name: `view-${key}`, go: () => page.evaluate((id) => window.__alandDrive.jumpTo(id), key) })), ...LOOKS.map(({ name, at }) => ({ name, go: () => page.evaluate((place) => window.__alandDrive.look(place), at) }))];
+// The time is set before each jump, which fills the lanes afresh for it.
+const views = TIMES.length === 0 ? places : places.flatMap((place) => TIMES.map(({ name, month, hour }) => ({
+  name: `${place.name} ${name}`,
+  go: async () => {
+    await page.evaluate((change) => window.__alandDrive.setDay(change), { calendar: { month, day: 2 }, hour, held: true });
+    await place.go();
+  },
+})));
 for (const { name, go } of views) {
   const [counts, plain] = await step(name, async () => {
     await go();
@@ -60,7 +76,7 @@ for (const { name, go } of views) {
     await page.evaluate(() => window.__alandDrive.hold(false));
     return [shown, without];
   });
-  console.log(`${name}: ${counts.drawCalls} draws, ${counts.triangles} triangles; without traffic ${plain.drawCalls} draws, ${plain.triangles} triangles; ${counts.cars} cars and ${counts.bikes} cyclists round the car, ${counts.carsSeen} and ${counts.bikesSeen} in sight`);
+  console.log(`${name}: ${counts.drawCalls} draws, ${counts.triangles} triangles; without traffic ${plain.drawCalls} draws, ${plain.triangles} triangles; ${counts.cars} cars, ${counts.bikes} cyclists and ${counts.walkers} walkers round the car, ${counts.carsSeen} and ${counts.bikesSeen} in sight`);
 }
 console.log(reported() || "no errors or warnings");
 await close();

@@ -114,7 +114,8 @@ function CarGrid({ cars, driven, shown, first, onShow, onPick, onPaints }: { car
                     className="flex h-8 cursor-pointer items-center gap-1.5 rounded border-2 px-1.5 text-left text-sm font-semibold"
                     style={{ borderColor: on ? ACCENT : "transparent", background: id === shown ? faint(INK, 12) : undefined, color: on ? ACCENT : INK }}
                     onFocus={() => { onShow(id); }}
-                    onMouseEnter={() => { onShow(id); }}
+                    // A pointer that moved, not one a tile appeared under: the browser also tells a still pointer that it entered whatever the page drew under it, which would take the sheet from the driven car as the page opens.
+                    onPointerMove={(event) => { if (event.movementX !== 0 || event.movementY !== 0) onShow(id); }}
                     onClick={() => { if (on) onPaints(); else onPick(`car-${id}`); }}
                   >
                     <span aria-hidden className="size-3.5 shrink-0 rounded-full" style={{ background: swatchBackground(paints[chosen]), boxShadow: `0 0 0 1px ${faint(INK, 40)}` }} />

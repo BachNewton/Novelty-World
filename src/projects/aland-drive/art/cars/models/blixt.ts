@@ -34,11 +34,11 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
   diffuser: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
-/** One headlamp's three streaks, each 3.5 cm further out than the one under it. */
+/** One headlamp's three streaks, each 4.5 cm further out than the one under it, tall enough to read as a lamp at night. */
 const streaks: Decal[] = [0, 1, 2].map((step) => ({
   on: "front",
   at: [0.56 + step * 0.045, 0.364 + step * 0.026],
-  size: [0.2, 0.014],
+  size: [0.2, 0.02],
   surface: "lensHead",
   mirror: true,
   cells: [4, 1],

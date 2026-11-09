@@ -41,7 +41,7 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 const lampRings: Decal[] = [
   { on: "front", at: [0.69, 1.0], size: [0.2, 0.2], surface: "rim", mirror: true, round: true, liftM: 0.012, fine: true },
   { on: "front", at: [0.69, 1.0], size: [0.17, 0.17], surface: "lensHead", mirror: true, round: true, liftM: 0.016 },
-  { on: "front", at: [0.69, 1.0], size: [0.07, 0.07], surface: "lensReverse", mirror: true, round: true, liftM: 0.02, fine: true },
+  { on: "front", at: [0.69, 1.0], size: [0.07, 0.07], surface: "lensHead", mirror: true, round: true, liftM: 0.02, fine: true },
   { on: "front", at: [0.69, 1.09], size: [0.26, 0.018], surface: "lensHead", mirror: true, cells: [4, 1], liftM: 0.024 },
   // The indicator, a strip of amber under each lamp.
   { on: "front", at: [0.69, 0.865], size: [0.22, 0.03], surface: "lensIndicator", mirror: true, cells: [2, 1], liftM: 0.012 },

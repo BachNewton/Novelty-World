@@ -246,6 +246,9 @@ export const aska: CarSpec = {
     shifter: "selector",
     seats: "bucket",
     screen: true,
+    // From the low seat the wheel's hub and column cross the screen's middle: the speed sits inside the arc's left, clear of them.
+    speedAside: true,
+    speedAsideM: 0.092,
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-tarna", headliner: "car-cabin-headliner-dark", accent: "car-cabin-tarna", glow: "car-cabin-glow-ice" },
   },
   wheel: { radiusM: ASKA.wheelRadiusM, widthM: 0.3, rimShare: 0.76, spokes: 10, twinSpokes: false, style: "turbine" },

@@ -1,0 +1,15 @@
+{
+  "release": "aland-drive-inputs",
+  "asset": "aland-drive-inputs-1d5e3a5e47e7.tar.xz",
+  "sha256": "1d5e3a5e47e789e955e4f60f9b35eb10a1b25861cb3cecbaac718faff18701c0",
+  "folders": [
+    "raw/osm-api",
+    "raw/osm",
+    "raw/osm-roadside",
+    "raw/osm-furniture",
+    "raw/osm-dressing",
+    "raw/kartor-traffic",
+    "raw/buildings3d",
+    "derived/outlying"
+  ]
+}

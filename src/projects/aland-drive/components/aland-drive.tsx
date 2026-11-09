@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { controlFor, Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { Crosshair, Eye, Flag, SwitchCamera, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, Map as MapIcon, MapPin, MapPinOff, Menu as MenuIcon, Moon, Thermometer, RefreshCcw, Hand, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
+import { Crosshair, Flag, Gauge, Hourglass, Landmark, LogOut, Repeat, Timer, Trophy, MapPin, MapPinOff, Moon, Thermometer, Sun, Target, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { onlineRelay, worldCodeFromSearch } from "../net/protocol";
 import { DevMenu } from "./dev-menu";
@@ -47,15 +47,6 @@ const LIGHTS = 3;
 const DIAL_SWEEP = 0.75;
 /** Where the rev dial's red begins, as a share of the dial. */
 const REDLINE_FROM = 0.9;
-
-const HINTS = [
-  { binding: BINDINGS.handbrake, icon: Hand, label: "Handbrake" },
-  { binding: BINDINGS.respawn, icon: RefreshCcw, label: "Back to the road" },
-  { binding: BINDINGS.cockpit, icon: SwitchCamera, label: "Chase view or driver's seat" },
-  { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
-  { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
-  { binding: BINDINGS.menu, icon: MenuIcon, label: "Game menu" },
-];
 
 const MAP_HINTS = [
   { binding: BINDINGS.mapPick, icon: Crosshair, label: "Set destination" },
@@ -466,18 +457,21 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
               <span>{others.length + 1}</span>
             </div>
           )}
+          {/* The driving controls are in Settings' Controls tab; the map shows its own while it's open. */}
+          {mapOpen && (
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>
-            {(mapOpen ? MAP_HINTS : HINTS).filter(({ binding }) => controlFor(binding, input) !== null).map(({ binding, icon: Icon, label }) => (
+            {MAP_HINTS.filter(({ binding }) => controlFor(binding, input) !== null).map(({ binding, icon: Icon, label }) => (
               <li key={label} className="flex items-center gap-1" title={label}>
                 <Prompt binding={binding} input={input} />
                 <Icon aria-label={label} className="size-4" />
               </li>
             ))}
           </ul>
+          )}
         </>
       )}
       {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
-      {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
+      {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} input={input} onPick={dev.pickMenuItem} />}
       {devMenuOpen && dev !== null && <DevMenu traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">

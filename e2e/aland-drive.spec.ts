@@ -57,8 +57,8 @@ test("the drive starts on WebGPU at every physical pixel, grows its verge, and t
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
-// e2e-covers: src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
-test("Esc opens the game menu, which pauses the drive and fits the tyres picked, and Resume or Esc closes it", async ({ page }) => {
+// e2e-covers: src/projects/aland-drive/components/{game-menu,settings-menu,menu-parts}.tsx src/projects/aland-drive/render/game-menu.ts
+test("Esc opens the game menu, which pauses the drive, its Settings fit the tyres picked, and Resume or Esc closes it", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
   const menu = page.getByRole("dialog", { name: "Game menu" });
@@ -66,9 +66,17 @@ test("Esc opens the game menu, which pauses the drive and fits the tyres picked,
   await page.keyboard.press("Escape");
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("button", { name: "Resume" })).toBeFocused();
-  await menu.getByRole("radio", { name: "Studded tyres" }).click();
-  await expect(menu.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
+  await menu.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByRole("radio", { name: "Summer tyres" })).toBeFocused();
+  await settings.getByRole("radio", { name: "Studded tyres" }).click();
+  await expect(settings.getByRole("radio", { name: "Studded tyres" })).toBeChecked();
   expect(await page.evaluate(() => window.__alandDrive?.tyres())).toBe("studded");
+  // E steps to the next tab, the focus following to its first control.
+  await page.keyboard.press("KeyE");
+  await expect(settings.getByRole("tab", { name: "Controls" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeVisible();
 
   // Held throttle does nothing while it's open: the drive isn't stepped at all.
   const paused = await page.evaluate(() => window.__alandDrive?.car().position);

@@ -133,5 +133,7 @@ def check_all() -> list[str]:
 
 if __name__ == "__main__":
     found = check_all()
-    print("\n".join(found) if found else "every seam meets")
+    if found:
+        raise SystemExit("\n".join(found))
+    print("every seam meets")
     sys.exit(1 if found else 0)
