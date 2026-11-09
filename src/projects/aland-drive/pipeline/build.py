@@ -46,6 +46,7 @@ import town
 import vectors
 import raised
 import walls
+import sea_lanes
 import seated
 import waterfront
 from give_way import drawn_over_buildings, give_way
@@ -538,6 +539,9 @@ def main() -> None:
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
     if arguments.island:
+        # The boats' lanes are code, not tiles (`sea/lanes.json`), read off the island's water, so they're
+        # committed with the TILES_VERSION that publishes it.
+        sea_lanes.write_lanes(OUTPUT.parent)
         build.finish(arguments.jobs)
 
 
