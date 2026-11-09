@@ -19,10 +19,12 @@ export interface DealerSite {
   place: string;
   road: string;
   why: string;
+  /** On the water, as a yacht is: its model's y 0 is the drawn water's surface rather than the ground under its plot. */
+  afloat?: boolean;
 }
 
 /** A model's point (x, z) laid on a real point, east and north, turned by `yaw`: the site's origin. */
-function laid(id: ExteriorId, [x, z]: readonly [number, number], [east, north]: readonly [number, number], yaw: number, words: Pick<DealerSite, "place" | "road" | "why">): DealerSite {
+function laid(id: ExteriorId, [x, z]: readonly [number, number], [east, north]: readonly [number, number], yaw: number, words: Pick<DealerSite, "place" | "road" | "why" | "afloat">): DealerSite {
   const [cos, sin] = [Math.cos(yaw), Math.sin(yaw)];
   return { id, east: east - (x * cos + z * sin), north: north - (x * sin - z * cos), yaw, ...words };
 }
@@ -41,7 +43,7 @@ export const DEALER_SITES: readonly DealerSite[] = [
   laid("premium-showroom", [0, 11.5], [106995.8, 6683735], 1.5916, {
     place: "Västerhamn, by the marina's northernmost pier",
     road: "Sjöpromenaden",
-    why: "the harbour's front, where the yacht moors: the road leaves a few metres of shore, so the deck stands out over the water",
+    why: "the harbour's front by the marina: the road leaves a few metres of shore, so the deck stands out over the water",
   }),
   laid("used-lot", [0, 0], [108252.9, 6687424.8], -1.963, {
     place: "Mariehamn's north edge",

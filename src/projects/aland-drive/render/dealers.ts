@@ -14,6 +14,8 @@ import type { Sun } from "../art/sun";
  * and stop the car at the dealership's own walls (`landmarks.dealer_sites`).
  */
 
+/** The height the sea is drawn at in the harbour, which an afloat site stands on. */
+const WATER_Y = -0.05;
 /** How far apart the ground is read under a plot, for the highest of it: finer than the ground's own 4 m. */
 const FOOTING_STEP_M = 2;
 /** Where the check hasn't measured a model's swap yet. */
@@ -76,7 +78,7 @@ export function createDealers(scene: Scene, inputs: { sun: Sun; hazed: (color: N
   /** Stands each on its ground. */
   const stand = () => {
     for (const { site, place, plot } of shown) {
-      place.position.set(site.east - origin.east, footing(site, plot), origin.north - site.north);
+      place.position.set(site.east - origin.east, site.afloat === true ? WATER_Y : footing(site, plot), origin.north - site.north);
       place.rotation.set(0, site.yaw, 0);
       place.updateMatrix();
       place.traverse((child) => child.updateMatrix());
