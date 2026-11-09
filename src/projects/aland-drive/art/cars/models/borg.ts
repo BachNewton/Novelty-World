@@ -5,7 +5,7 @@ import { louvres, sideIntake } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const BORG = driven("borg");
-const { sillTop, belt, rail, centre } = ROWS;
+const { belt, rail, centre } = ROWS;
 const ALL = centre + 1;
 
 /*
@@ -34,8 +34,6 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
     { surface: "lensTail", from: belt, to: rail },
     { surface: "trim", from: rail, to: ALL },
   ],
-  /** The rear bumper's lower panel, a dark skid plate between the corners. */
-  skid: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
 /** A tall, square luxury four-by-four: a high flat hood, an upright screen, a long flat roof and a near-vertical tailgate. */
@@ -84,28 +82,28 @@ const shape: Shape = {
     [-0.5, 1.24],
     [-0.36, 1.48],
     [-0.2, 1.72],
-    [0.3, 1.78],
-    [1.5, 1.785],
-    [2.1, 1.77],
+    [0.3, 1.775],
+    [1.5, 1.775],
+    [2.1, 1.765],
     [2.24, 1.7],
   ],
   windowZ: [-0.5, 2.24],
   railWidth: [
     [-2.46, 0.7],
     [-1.47, 0.86],
-    [-0.5, 0.9],
-    [0.0, 0.885],
-    [1.5, 0.88],
-    [2.2, 0.875],
+    [-0.5, 0.86],
+    [0.0, 0.845],
+    [1.5, 0.84],
+    [2.2, 0.835],
     [2.46, 0.83],
   ],
   tail: [],
   seams: [-0.46, 0.46, 1.24],
   pillars: [
     [0.4, 0.5],
-    [1.3, 1.44],
+    [1.3, 1.78],
   ],
-  mirror: { z: -0.36, h: 1.3, x: 1.0 },
+  mirror: { z: -0.36, h: 1.3, x: 0.92 },
   rearPlateH: 0.98,
   rearSeats: true,
   cabinEndZ: 2.2,
@@ -113,8 +111,8 @@ const shape: Shape = {
   decals: [
     ...plates(0.98, 0.58, { rearRecessed: true }),
     // Each pair of strokes drawn on inward across the visor, so the signature reads at chase distance and at night.
-    ...[0.925, 0.965].map((h): Decal => ({ on: "front", at: [0.62, h], size: [0.26, 0.016], surface: "lensHead", mirror: true, cells: [3, 1], liftM: 0.012 })),
-    ...[1.37, 1.335].map((h): Decal => ({ on: "rear", at: [0.64, h], size: [0.3, 0.016], surface: "lensTail", mirror: true, cells: [3, 1], liftM: 0.012 })),
+    ...[0.925, 0.965].map((h): Decal => ({ on: "front", at: [0.62, h], size: [0.26, 0.016], surface: "lensHead", mirror: true, liftM: 0.012 })),
+    ...[1.37, 1.335].map((h): Decal => ({ on: "rear", at: [0.64, h], size: [0.3, 0.016], surface: "lensTail", mirror: true, liftM: 0.012 })),
     ...handles([0.05, 0.95], 1.13),
     reversing(0.36, 0.7),
     // The tailgate's handle, a dark strip across it over the plate.
@@ -125,35 +123,35 @@ const shape: Shape = {
     { ...sideIntake({ z: -0.85, h: 0.98, long: 0.34, tall: 0.09 }), cells: [3, 1], liftM: 0.014 },
     ...louvres({ x: 0.42, z: -1.5, long: 0.4, wide: 0.16, count: 5 }),
     // A brake duct at each outer corner of the bumper, under the intake.
-    { on: "front", at: [0.8, 0.7], size: [0.18, 0.12], surface: "grille", mirror: true, cells: [2, 1], liftM: 0.012 },
+    { on: "front", at: [0.74, 0.7], size: [0.16, 0.12], surface: "grille", mirror: true, liftM: 0.012 },
   ],
   blocks: [
     // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
     { at: [0, 0.74, -2.462], size: [1.1, 0.026, 0.05], surface: "paint", taper: [1, 1], fine: true },
     // A brushed skid plate under the nose, standing proud of the bumper's foot.
-    { at: [0, 0.55, -2.43], size: [1.0, 0.05, 0.12], surface: "rack", taper: [0.9, 1] },
+    { at: [0, 0.55, -2.43], size: [1.0, 0.05, 0.12], surface: "rack", taper: [0.9, 1], fine: true },
     // Each fender vent as a duct: a blade of the body's colour along it and a lip over it, tapering back.
     { at: [1.0, 0.98, -0.85], size: [0.04, 0.02, 0.32], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.99, 1.03, -0.85], size: [0.05, 0.014, 0.34], surface: "paint", mirror: true, taper: [0.8, 0.6], fine: true },
     // The side pipes' outlets, a dark box in each sill ahead of the rear wheel.
-    { at: [0.97, 0.5, 0.8], size: [0.08, 0.13, 0.32], surface: "trim", mirror: true },
+    { at: [0.985, 0.5, 0.8], size: [0.08, 0.13, 0.32], surface: "trim", mirror: true, fine: true },
     // A roof spoiler over the tailgate's glass, in the body's colour.
     { at: [0, 1.875, 2.27], size: [1.5, 0.026, 0.1], surface: "paint", taper: [0.96, 0.6] },
     // The rear skid plate, brushed, under the bumper.
-    { at: [0, 0.6, 2.43], size: [1.0, 0.05, 0.1], surface: "rack", taper: [0.9, 1] },
+    { at: [0, 0.6, 2.43], size: [1.0, 0.05, 0.1], surface: "rack", taper: [0.9, 1], fine: true },
   ],
   extra: {
     bands: BANDS,
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
-      { z: -2.4, h: 0.5, band: "bumper" },
-      { z: -2.455, h: 0.62, band: "mouth" },
+      { z: -2.462, h: 0.55, band: "bumper" },
+      { z: -2.461, h: 0.62, band: "mouth" },
       { z: -2.46, h: 0.86 },
-      { z: -2.458, h: 0.895, band: "visor" },
-      { z: -2.457, h: 0.915, band: "stroke" },
-      { z: -2.456, h: 0.935, band: "visor" },
-      { z: -2.455, h: 0.955, band: "stroke" },
-      { z: -2.454, h: 0.975, band: "visor" },
+      { z: -2.459, h: 0.895, band: "visor" },
+      { z: -2.458, h: 0.915, band: "stroke" },
+      { z: -2.457, h: 0.935, band: "visor" },
+      { z: -2.456, h: 0.955, band: "stroke" },
+      { z: -2.455, h: 0.975, band: "visor" },
       { z: -2.452, h: 1.0 },
       // The hood, then the screen, the long roof and the tailgate, each as one fair line.
       ...faired(
@@ -191,10 +189,8 @@ const shape: Shape = {
       { z: 2.408, h: 1.325, band: "visor" },
       { z: 2.412, h: 1.3 },
       { z: 2.44, h: 0.86, fine: true },
-      { z: 2.45, h: 0.78, band: "bumper" },
-      { z: 2.46, h: 0.72, band: "skid" },
-      { z: 2.455, h: 0.6, band: "bumper" },
-      { z: 2.42, h: 0.52 },
+      { z: 2.455, h: 0.78, band: "bumper" },
+      { z: 2.462, h: 0.52 },
     ],
     crown: [
       [-2.46, 0.0],
@@ -224,12 +220,18 @@ const shape: Shape = {
       [2.46, 0.95],
     ],
     hoodSeamZ: [-2.3, -0.65],
+    // The sills run level to each bumper, as a four-by-four's do, rather than rising into a sports car's nose.
+    sill: [
+      [-2.46, 0.44],
+      [0, 0.42],
+      [2.46, 0.46],
+    ],
     cabin: { dashZ: -0.53, dashH: 1.16, floorH: 0.58, seatZ: 0.42, rearSeatZ: 1.3, endZ: 2.2, seatX: BORG.trackM * 0.23, seatSurface: "seatTan" },
     cleanEnds: true,
     // Arch extensions in the sill's cladding: the flares of a four-by-four built to be used.
     archLipM: 0.05,
     roofBars: { from: -0.05, to: 2.1, x: 0.8, rise: 0.06 },
-    sideExhausts: { z: [0.72, 0.88], h: 0.5, x: 1.04, radius: 0.05 },
+    sideExhausts: { z: [0.72, 0.88], h: 0.5, x: 1.07, radius: 0.05 },
   },
 };
 
