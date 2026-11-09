@@ -118,6 +118,12 @@ export interface Cabin {
   endZ: number;
   seatX: number;
   seatSurface: Surface;
+  /**
+   * A central driving seat's car: the driver sits in the middle (`seatX` 0) with no console beside them, and the two
+   * passengers either side of them and set back, at `x` out from the middle and `z`, so their shoulders clear the
+   * driver's. None, and the front pair sit either side of the middle at `seatX`.
+   */
+  passengers?: readonly [x: number, z: number];
   /** How wide its floor and bulkheads are, where a narrow body doesn't reach the wheels: the track's width otherwise. */
   wideM?: number;
 }
@@ -738,15 +744,19 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
   block([0, (floorH + dashH) / 2 + 0.05, endZ], [wide, dashH - floorH + 0.1, 0.04], "interior");
   block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
-  block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
-  const seat = (x: number, z: number, seatWide: number) => {
+  const { passengers } = cabin;
+  if (!passengers) block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
+  const seat = (x: number, z: number, seatWide: number, mirror = true) => {
     const seatH = Math.min(floorH + 0.28, dashH - 0.25);
     const backTall = dashH + 0.2 - seatH;
-    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, true);
-    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, true, [0.92, 0.95]);
-    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, true);
+    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, mirror);
+    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, mirror, [0.92, 0.95]);
+    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, mirror);
   };
-  seat(seatX, seatZ, 0.46);
+  if (passengers) {
+    seat(seatX, seatZ, 0.44, false);
+    seat(passengers[0], passengers[1], 0.38);
+  } else seat(seatX, seatZ, 0.46);
   if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);
   // The steering wheel, a ring leaning back towards the driver.
   const wheelR = 0.17;
