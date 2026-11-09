@@ -1,68 +1,177 @@
 {
-  "ytterby-sprint": {
-    "tuning": "4b369df6",
-    "places": "d2eac8fe",
-    "par": 154.87,
-    "target": 154.9
+  "streetrace-hammarbo": {
+    "tuning": "b57059f1",
+    "places": "00e254fb",
+    "ground": "wet on summer",
+    "par": 241.83,
+    "target": 241
   },
-  "backrace-road": {
+  "ship-at-three": {
+    "tuning": "fb0a962b",
+    "places": "86204347",
+    "ground": "dry on summer",
+    "par": 161.57,
+    "target": 161.6
+  },
+  "godby-to-geta-fog": {
+    "tuning": "6802a631",
+    "places": "5e78e582",
+    "ground": "dry on summer",
+    "par": 151.94,
+    "target": 152
+  },
+  "eckero-boat-rain": {
+    "tuning": "fbe1970f",
+    "places": "078d4f28",
+    "ground": "wet on summer",
+    "par": 156.85,
+    "target": 156.9
+  },
+  "road-2-midnight": {
+    "tuning": "bfa33668",
+    "places": "b0236d93",
+    "ground": "dry on summer",
+    "par": 314.52,
+    "target": 314
+  },
+  "castle-to-fortress-sunset": {
+    "tuning": "f7b29790",
+    "places": "6cb0902d",
+    "ground": "dry on summer",
+    "par": 142.4,
+    "target": 142.5
+  },
+  "backrace-weekend": {
+    "tuning": "2d4ae6e7",
+    "places": "039dc965",
+    "ground": "wet on summer",
+    "par": 192.7,
+    "target": 192.8
+  },
+  "hultvagen-dawn": {
+    "tuning": "8b73c0a2",
+    "places": "d40bc9eb",
+    "ground": "dry on summer",
+    "par": 56.68,
+    "target": 56.7
+  },
+  "painters-light": {
     "tuning": "df95e8a6",
-    "places": "e137642e",
-    "par": 213.02,
-    "target": 213.1
+    "places": "d4a19e01",
+    "ground": "dry on summer",
+    "par": 141.28,
+    "target": 141.3
   },
-  "langnas-ferry": {
-    "tuning": "b0258063",
-    "places": "899d7f0f",
-    "par": 181.03,
-    "target": 181.1
+  "jarso-sunrise": {
+    "tuning": "f95010fe",
+    "places": "f5fb065f",
+    "ground": "dry on summer",
+    "par": 137.91,
+    "target": 138
   },
-  "djurvik": {
-    "tuning": "fc9fde7c",
-    "places": "7247fcb9",
-    "par": 188.91,
-    "target": 194.6
+  "geta-snowstorm": {
+    "tuning": "9bd95253",
+    "places": "ede32b4e",
+    "ground": "snow on winter",
+    "par": 238.1,
+    "target": 238.2
   },
-  "notviken": {
+  "ytterby-rallysprint": {
     "tuning": "4b369df6",
-    "places": "93a79f12",
-    "par": 194.4,
-    "target": 200.3
+    "places": "344904dd",
+    "ground": "dry on summer",
+    "par": 131.06,
+    "target": 131.1
   },
-  "eckero-skagvagen": {
-    "tuning": "81096a61",
-    "places": "3e5be37f",
-    "par": 99.08,
-    "target": 107.1
+  "notviken-night-rain": {
+    "tuning": "eeeb0758",
+    "places": "9d58a814",
+    "ground": "wet on summer",
+    "par": 168.86,
+    "target": 168.9
   },
-  "hultvagen": {
-    "tuning": "e75df841",
-    "places": "0d7884a2",
-    "par": 93.14,
-    "target": 96
+  "vessingsboda-folkrace": {
+    "tuning": "b0e53d64",
+    "places": "9b9f28bc",
+    "ground": "wet on summer",
+    "par": 139.77,
+    "target": 139.8
   },
-  "castle-to-fortress": {
-    "tuning": "81096a61",
-    "places": "8ae0adf6",
-    "par": 219.77,
-    "target": 226.4
+  "djurvik-first-snow": {
+    "tuning": "474a424a",
+    "places": "ede15c9d",
+    "ground": "snow on winter",
+    "par": 163.95,
+    "target": 164
   },
-  "post-road-west": {
-    "tuning": "ec7041ae",
-    "places": "9b762db0",
-    "par": 226.41,
-    "target": 233.3
+  "kullskar-fog": {
+    "tuning": "ecf649f5",
+    "places": "462bc897",
+    "ground": "dry on summer",
+    "par": 256.33,
+    "target": 256.4
   },
-  "lemland-speeding": {
+  "orrdalsklint-climb": {
+    "tuning": "db9d890c",
+    "places": "2368de4b",
+    "ground": "dry on summer",
+    "par": 162.8,
+    "target": 162.8
+  },
+  "mockelo-straight": {
+    "tuning": "660946f2",
+    "places": "15c25e85",
+    "ground": "dry on summer",
+    "par": 302.42,
+    "target": 302
+  },
+  "degersand-group-b": {
+    "tuning": "0b4f15e3",
+    "places": "0ee0f54a",
+    "ground": "wet on summer",
+    "par": 187.54,
+    "target": 187.6
+  },
+  "post-road-old-way": {
+    "tuning": "8e9370ed",
+    "places": "09fff730",
+    "ground": "dry on summer",
+    "par": 148.04,
+    "target": 148.1
+  },
+  "harbour-cruise": {
+    "tuning": "858a45f8",
+    "places": "3a86ff04",
+    "ground": "dry on summer",
+    "par": 67.72,
+    "target": 67.8
+  },
+  "getabergen-peoples-car": {
+    "tuning": "7252e776",
+    "places": "1e4e3b22",
+    "ground": "dry on summer",
+    "par": 75.26,
+    "target": 75.3
+  },
+  "lemland-145": {
     "tuning": "b989acff",
     "places": "1eff0087",
-    "par": 148.75,
-    "target": 147
+    "ground": "dry on summer",
+    "par": 148.6,
+    "target": 148
   },
-  "road-2-flat-out": {
-    "tuning": "8ef79a91",
-    "places": "13233115",
-    "par": 239.05,
-    "target": 236
+  "jomala-ice": {
+    "tuning": "130d7764",
+    "places": "87b4b027",
+    "ground": "ice on winter",
+    "par": 259.51,
+    "target": 259.6
+  },
+  "skagvagen-sunrise": {
+    "tuning": "e75df841",
+    "places": "7b5d11cd",
+    "ground": "dry on summer",
+    "par": 74.14,
+    "target": 74.2
   }
 }

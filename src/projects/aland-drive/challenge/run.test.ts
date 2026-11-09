@@ -7,7 +7,7 @@ import type { Gate, RouteChallenge, SpeedTrapChallenge } from "./types";
 const EAST = -Math.PI / 2;
 const gate = (x: number): Gate => ({ x, z: 0, heading: EAST, halfWidthM: 10 });
 const start = { x: 0, z: 0, heading: EAST };
-const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [], starts: [start, start] as const, lengthM: 300 };
+const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [], starts: [start, start] as const, lengthM: 300, conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" as const } };
 const route = (targetS: number): RouteChallenge => ({ ...common, id: "route", kind: "route", gates: [gate(100), gate(200), gate(300)], parS: targetS, targetS });
 const trap = (targetKmh: number): SpeedTrapChallenge => ({ ...common, id: "trap", kind: "speed-trap", camera: gate(100), parKmh: targetKmh, targetKmh });
 

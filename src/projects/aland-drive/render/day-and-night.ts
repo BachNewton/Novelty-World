@@ -75,8 +75,15 @@ export interface DayAndNight {
   clock: DayClock;
   sun: LiveSun;
   night: Night;
-  /** The hour last drawn. */
+  /** The hour last drawn: the world's, or the conditions shown over it. */
   time: () => GameTime;
+  /** The world's own time when last drawn, in game days, which the online world shares and this browser saves whatever is shown. */
+  worldGameDays: () => number;
+  /**
+   * Shows a time and weather of their own over the world's (a bucket list challenge's), or the world's again with null.
+   * The world's clock runs on beneath them.
+   */
+  show: (shown: ShownConditions | null) => void;
   /** The weather last drawn, eased towards the weather now: none on a tool's page. */
   weather: () => Weather | null;
   /**
@@ -84,6 +91,12 @@ export interface DayAndNight {
    * seconds since the last frame, which ease the weather in even while the game is held.
    */
   update: (worldSeconds: number, gameSeconds: number, realSeconds: number) => void;
+}
+
+/** A time and weather shown over the world's: the time read each frame, the weather held. */
+export interface ShownConditions {
+  time: () => GameTime;
+  weather: Weather;
 }
 
 /** The weather at a moment of the page's time. */
@@ -97,6 +110,8 @@ export function createDayAndNight(sky: Sky, start: { gameDays: number; date: Cal
   const sun = createLiveSun(time.sun);
   const night = createNight(nightAmount(time.sun.elevationDeg));
   const lookAtHour = skyAtHour();
+  let shown: ShownConditions | null = null;
+  let worldGameDays = start.gameDays;
   const show = () => {
     sun.setSun(time.sun, sunThrough(weather));
     const gloomed = gloomedNight(nightAmount(time.sun.elevationDeg), darkness(time.sun.elevationDeg, time.moon), weather);
@@ -111,10 +126,16 @@ export function createDayAndNight(sky: Sky, start: { gameDays: number; date: Cal
     sun,
     night,
     time: () => time,
+    worldGameDays: () => worldGameDays,
+    show: (conditions) => {
+      shown = conditions;
+    },
     weather: () => weather,
     update(worldSeconds, gameSeconds, realSeconds) {
-      time = clock.at(worldSeconds);
-      weather = eased(weather, weatherOf(time), realSeconds);
+      const world = clock.at(worldSeconds);
+      worldGameDays = world.gameDays;
+      time = shown ? shown.time() : world;
+      weather = eased(weather, shown ? shown.weather : weatherOf(time), realSeconds);
       night.seconds.value += gameSeconds;
       show();
     },

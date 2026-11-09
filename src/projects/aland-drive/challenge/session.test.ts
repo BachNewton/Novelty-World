@@ -9,7 +9,7 @@ import type { Gate, RouteChallenge } from "./types";
 const EAST = -Math.PI / 2;
 const finish: Gate = { x: 100, z: 0, heading: EAST, halfWidthM: 10 };
 const start = { x: 0, z: 0, heading: EAST };
-const ROUTE: RouteChallenge = { id: "route", title: "", car: "sten", where: "", waypoints: [], starts: [start, start], lengthM: 100, kind: "route", gates: [finish], parS: 60, targetS: 60 };
+const ROUTE: RouteChallenge = { id: "route", title: "", car: "sten", where: "", waypoints: [], starts: [start, start], lengthM: 100, kind: "route", gates: [finish], parS: 60, targetS: 60, conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" } };
 
 /** A host whose placing waits until the test lets it land, as a load does. */
 function host() {

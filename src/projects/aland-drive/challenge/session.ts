@@ -22,7 +22,8 @@ import type { Challenge, StartPlace } from "./types";
 
 export interface SessionHost {
   carId: () => CarId;
-  setCar: (id: CarId) => void;
+  /** Hands over a car: the challenge's, for the challenge it's handed for, or the player's own again with null. */
+  setCar: (id: CarId, handedFor: Challenge | null) => void;
   /** Puts the car still on a start place, and calls `done` once it's there: at once, or once the ground there has loaded. */
   placeAt: (place: StartPlace, done: () => void) => void;
   /** Where a seat starts, when not the challenge's own start places: a race puts its players behind the racers. */
@@ -61,7 +62,7 @@ export class ChallengeSession {
     players: 1 | 2 = 1,
   ) {
     this.previousCar = host.carId();
-    host.setCar(challenge.car);
+    host.setCar(challenge.car, challenge);
     this.run = startRun(challenge, players);
     this.toStart();
   }
@@ -159,6 +160,6 @@ export class ChallengeSession {
     if (this.left) return;
     this.left = true;
     this.host.showRoute(null);
-    this.host.setCar(this.previousCar);
+    this.host.setCar(this.previousCar, null);
   }
 }

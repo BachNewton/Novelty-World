@@ -98,6 +98,7 @@ import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-f
 import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
+import { conditionOf, timeOf, tyresOf, weatherOf } from "../challenge/conditions";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
 import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
@@ -290,6 +291,8 @@ export interface GameProbe {
   /** What the sound hears round the car: how much of it is forest, shore and town, and the levels it last mixed. */
   sound: () => { place: PlaceHeard; mix: Mix | null };
   setCondition: (condition: Condition) => void;
+  /** The ground's condition the car is driven in: the weather's, a held one's, or a challenge's own. */
+  condition: () => Condition;
   /** The tyres on the car being driven. */
   tyres: () => Tyre;
   /** The driver's aids the car is driven with. */
@@ -1838,8 +1841,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     carId: () => drive.carId,
     // In a race the racers take the grid from the pole, and the players start at the back.
     startPlaceOf: (challenge, seat, players) => (challenge.kind === "race" ? startPlaceOf(challenge, seat, players, racersAsked) : challenge.starts[seat]),
-    setCar: (id) => {
-      setCar(id);
+    // A bucket list challenge hands its car on the tyres for its conditions, as its target was measured on.
+    setCar: (id, handedFor) => {
+      setCar(id, handedFor && handedFor.kind !== "race" ? tyresOf(handedFor.conditions) : undefined);
     },
     placeAt: ({ x, z, heading }: StartPlace, done) => {
       const asked = sessionsLeft;
@@ -1930,8 +1934,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const started = new ChallengeSession(challenge, sessionHost, seat, players);
     starting = null;
     session = started;
+    showConditionsOf(challenge);
     challengeMarks.showStarts(false);
     return started;
+  };
+  /**
+   * A bucket list challenge's own date, hour and weather over the world's, for this player alone, its hour running on
+   * from the attempt's green light; the world's again with null. The sky changes behind the time cover.
+   */
+  const showConditionsOf = (challenge: Challenge | null) => {
+    const held = challenge && challenge.kind !== "race" ? challenge.conditions : null;
+    const show = () => {
+      day.show(held && { time: () => timeOf(held, session?.run.clockS ?? 0), weather: weatherOf(held) });
+      day.update(seaHeldAt ?? seaNow(), 0, Number.POSITIVE_INFINITY);
+      showDayMoved();
+    };
+    if (events.onTimeJump) events.onTimeJump(show);
+    else show();
   };
   // The challenge whose session is being made: its constructor puts the car on the line before the session exists.
   let starting: { challenge: Challenge; players: number } | null = null;
@@ -1940,6 +1959,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     session.leave();
     session = null;
     sessionsLeft++;
+    showConditionsOf(null);
     autopilot = null;
     grid?.dispose();
     grid = null;
@@ -2100,11 +2120,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     ].join("\n");
   };
 
-  const setCar = (id: CarId) => {
+  const setCar = (id: CarId, tyres = tyresOn(id)) => {
     const spec = CARS.find((car) => car.id === id);
     if (!spec) throw new Error(`no car's art for ${id}`);
+    drive.tyres = tyres;
     if (spec === carSpec) return;
-    drive.setCar(id, tyresOn(id));
+    drive.setCar(id, tyres);
     drive.paint = paintIndex(paintsOf(spec), paintOn(id));
     const wasShown = cockpit.interior.visible;
     showCockpit(false);
@@ -2408,7 +2429,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         onTime: (gameDays) => {
           adoptTime(gameDays);
         },
-        timeNow: () => day.time().gameDays,
+        timeNow: () => day.worldGameDays(),
         onDestination: hearDestination,
       })
     : null;
@@ -2729,7 +2750,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     if (!held) worldClock.value += seconds;
     regattas.update(seaHeldAt ?? seaNow());
-    drive.condition = weatherNow.condition();
+    drive.condition = session && session.challenge.kind !== "race" ? conditionOf(session.challenge.conditions) : weatherNow.condition();
     stoneWalls.update(camera.position);
     parkedCars.update(camera.position);
     outbuildings.follow(camera.position);
@@ -2749,10 +2770,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     showRibbons(spot);
     landmarks.update(spot);
     day.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, seconds);
-    const gameHour = Math.floor(day.time().gameDays * 24);
+    const gameHour = Math.floor(day.worldGameDays() * 24);
     if (savesTime && gameHour !== savedHour) {
       savedHour = gameHour;
-      storage.set(TIME_KEY, day.time().gameDays);
+      storage.set(TIME_KEY, day.worldGameDays());
     }
     const weatherShown = day.weather();
     seasonFeed.update(day.time(), weatherShown);
@@ -2945,6 +2966,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         weatherNow.holdGround(condition);
         drive.condition = condition;
       },
+      condition: () => drive.condition,
       tyres: () => drive.tyres,
       assists: () => drive.assists,
       online: () => {
