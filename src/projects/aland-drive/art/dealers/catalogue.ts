@@ -1,10 +1,12 @@
 import { Mesh } from "three/webgpu";
+import type { DealerInterior } from "../../dealership/interior";
 import type { CarId } from "../../sim/cars";
 import type { ArtModel } from "../catalogue";
 import { buildExterior, EXTERIOR_IDS } from "./exteriors";
 import { buildInterior, INTERIOR_IDS } from "./interiors";
 import { dealerMaterial, geometryOf } from "./material";
 import { standingCar } from "./standing-car";
+import { yachtInterior } from "./yacht/interior";
 
 /** Where a model swaps until the LOD check has measured it: `render/dealers.ts` reads what it measured. */
 const KIT_SWAP_M = 300;
@@ -37,9 +39,11 @@ export const artModels = (): ArtModel[] => {
     };
   });
   // A room with its turntables where they stand in it.
-  const interiors = INTERIOR_IDS.map((id): ArtModel => {
-    const { room, turntables } = buildInterior(id);
-    return { name: `interior ${id}`, geometries: { interior: [geometryOf(room), ...turntables.map(({ soup, centre }) => geometryOf(soup).translate(...centre))] }, groundY: null };
+  const roomModel = (name: string, { room, turntables }: Pick<DealerInterior, "room" | "turntables">): ArtModel => ({
+    name,
+    geometries: { interior: [geometryOf(room), ...turntables.map(({ soup, centre }) => geometryOf(soup).translate(...centre))] },
+    groundY: null,
   });
-  return [...exteriors, ...cars, ...interiors];
+  const interiors = INTERIOR_IDS.map((id) => roomModel(`interior ${id}`, buildInterior(id)));
+  return [...exteriors, ...cars, ...interiors, roomModel("interior yacht", yachtInterior())];
 };

@@ -8,10 +8,10 @@ import type { InteriorId } from "./interiors";
 
 /*
  * The places that sell cars (`ideas/cars.md`, "Dealers"): the town dealer, the premium showroom, the village garage and
- * the used lot, with the tyre shop as part of the street. An exterior stands in the world at its site (`sites.ts`),
- * drawn by `render/dealers.ts` with `dealerMaterial` in the world's light. An interior is a scene of its own, loaded by
- * `loadInterior` only on entering, as the walk-in system reads it (`dealership/interior.ts`), and lit by its own lamps
- * (`dealerMaterial({ kind: "room", light })`).
+ * the used lot, with the tyre shop as part of the street, and the visiting superyacht moored at Västerhamn. An exterior
+ * stands in the world at its site (`sites.ts`), drawn by `render/dealers.ts` with `dealerMaterial` in the world's light.
+ * An interior is a scene of its own, loaded by `loadInterior` only on entering, as the walk-in system reads it
+ * (`dealership/interior.ts`), and lit by its own lamps (`dealerMaterial({ kind: "room", light })`).
  */
 
 export { BRANDS, BRAND_IDS, brandOf, type Brand, type BrandId } from "./brands";

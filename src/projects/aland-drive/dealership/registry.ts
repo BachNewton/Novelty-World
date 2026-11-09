@@ -17,4 +17,5 @@ export const DEALERSHIPS: readonly Dealership[] = [
   { site: "town-dealer", load: () => loadInterior("town-dealer") },
   { site: "village-garage", load: () => loadInterior("village-garage") },
   { site: "used-lot", load: () => loadInterior("used-lot") },
+  { site: "yacht", load: async () => (await import("../art/dealers/yacht/interior")).yachtInterior() },
 ];

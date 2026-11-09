@@ -55,6 +55,15 @@ export const DEALER_SITES: readonly DealerSite[] = [
     road: "Michaelsvägen",
     why: "a tyre business's own building, the bays facing the road",
   }),
+  // The quay's edge is measured on the drawn shore, a straight 100 m running 7° west of north; the hull lies 0.8 m off
+  // it on its fenders, its bow towards Pommern. Mooring buoys lie 25 m out and the marina's piers start 25 m beyond the
+  // bow; no sea lane comes within 150 m.
+  laid("yacht", [0, 0], [107081.7, 6683163.1], 1.6904, {
+    place: "Västerhamn, on the quay between Pommern and the ferry terminal",
+    road: "the quay's service road off Sjöpromenaden",
+    why: "the harbour's one straight quay that fits a 72 m yacht clear of the marina's piers and boats",
+    afloat: true,
+  }),
 ];
 
 export function siteOf(id: ExteriorId): DealerSite {
