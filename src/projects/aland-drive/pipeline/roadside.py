@@ -1055,28 +1055,31 @@ def replace_text(path: Path, text: str) -> None:
     os.replace(temporary, path)
 
 
-def bake_named(job: tuple[str, Path]) -> str:
-    """Adds the roadside to one built tile, reading its neighbours' ground and writing only its own files."""
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    """Writes one built tile's roadside list, reading its neighbours' ground, and returns its manifest entry."""
     name, tiles = job
-    folder = tiles / name
-    entry = bake(tile_from_name(name), folder, tiles)
-    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-    replace_text(folder / "tile.json", json.dumps({**manifest, "roadside": entry}, ensure_ascii=False, indent=2))
-    return name
+    return name, bake(tile_from_name(name), tiles / name, tiles)
 
 
 def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds the roadside to built tiles. Run once every tile is built: a pole by an edge stands on its neighbour's ground.
-    A tile writes only its own files, so tiles go side by side, a core each."""
+    A tile writes only its own list, so tiles go side by side, a core each. Each `tile.json` is rewritten only once every
+    list is done: its neighbours read it meanwhile, and on Windows a file being replaced can't be opened."""
     progress = Progress("roadside", len(names))
     work = [(name, tiles) for name in names]
+    entries = {}
     if jobs > 1:
         with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
-            for name in pool.imap_unordered(bake_named, work):
+            for name, entry in pool.imap_unordered(bake_named, work):
+                entries[name] = entry
                 progress.finished(name)
     else:
         for job in work:
-            progress.finished(bake_named(job))
+            name, entries[name] = bake_named(job)
+            progress.finished(name)
+    for name, entry in entries.items():
+        manifest = json.loads((tiles / name / "tile.json").read_text(encoding="utf-8"))
+        replace_text(tiles / name / "tile.json", json.dumps({**manifest, "roadside": entry}, ensure_ascii=False, indent=2))
 
 
 def with_neighbours(names: list[str], tiles: Path) -> list[str]:
