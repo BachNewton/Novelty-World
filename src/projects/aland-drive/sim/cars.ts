@@ -8,6 +8,7 @@ import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
+import { dyn } from "./cars/dyn";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { flod } from "./cars/flod";
@@ -72,6 +73,7 @@ const ENTRIES = {
   hagel,
   // B2
   fjard,
+  dyn,
   // B3
   holm,
   // B4

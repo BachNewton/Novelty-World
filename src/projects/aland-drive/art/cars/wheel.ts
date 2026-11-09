@@ -24,6 +24,8 @@ export interface WheelSpec {
   /** Paired spokes read as sportier, single ones as plainer: what `style` is when it isn't given. */
   twinSpokes: boolean;
   style?: RimStyle;
+  /** A beadlock: a ring bolted over the tyre's bead round the rim's lip, an off-road wheel's. Only a hero's wheel shows it. */
+  beadlock?: boolean;
 }
 
 interface WheelDetail {
@@ -159,6 +161,29 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
       rimSides,
       "rimDark",
     );
+    if (spec.beadlock) {
+      // The ring stands proud of the lip and clamps the bead, its bolts round its face.
+      turned(
+        builder,
+        [
+          [faceX + 0.002, rim - 0.02],
+          [faceX + 0.014, rim - 0.02],
+          [faceX + 0.014, rim + 0.03],
+          [faceX - 0.006, rim + 0.03],
+        ],
+        rimSides,
+        "rimDark",
+      );
+      const bolts = 16;
+      for (let bolt = 0; bolt < bolts; bolt++) {
+        const angle = ((bolt + 0.5) / bolts) * Math.PI * 2;
+        const head = (x: number): Point[] => [0, 1, 2, 3, 4, 5].map((step) => {
+          const a = (step / 6) * Math.PI * 2;
+          return [x, Math.cos(angle) * (rim + 0.005) + Math.cos(a) * 0.008, Math.sin(angle) * (rim + 0.005) + Math.sin(a) * 0.008];
+        });
+        builder.rings([head(faceX + 0.012), head(faceX + 0.024)], "rim");
+      }
+    }
   } else {
     turned(
       builder,

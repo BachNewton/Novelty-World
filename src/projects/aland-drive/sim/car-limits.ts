@@ -8,6 +8,7 @@ import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
 import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
+import dyn from "./limits/dyn.json";
 import fjard from "./limits/fjard.json";
 import flod from "./limits/flod.json";
 import grus from "./limits/grus.json";
@@ -112,6 +113,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   hagel,
   // B2
   fjard,
+  dyn,
   // B3
   holm,
   // B4
