@@ -124,6 +124,9 @@ class Water:
     """Each tile's 4 m water, by its west and north edges."""
     depth_dm: np.ndarray | None = None
     """The chart's least depth in each cell, in decimetres to 25 m; 255 where it has none."""
+    docked: np.ndarray | None = None
+    """The sea's cells that docks and moored boats keep off, each already grown by `DOCK_CLEAR_M`: a boat threads
+    between them as it does into its berth, keeping only its half beam clear, where land it keeps its whole clearance off."""
 
     def cell(self, x: float, y: float) -> tuple[int, int]:
         return int((self.north - y) // CELL_M), int((x - self.west) // CELL_M)
@@ -198,7 +201,8 @@ def load_water(data: Path) -> Water:
         row, column = int((north - tile_north) // TILE_SIZE_M), int((tile_west - west) // TILE_SIZE_M)
         water[row * PER_TILE : (row + 1) * PER_TILE, column * PER_TILE : (column + 1) * PER_TILE] = alpha <= OUTLYING_LAND_ALPHA
     labels, _ = ndimage.label(water)
-    return Water((labels == labels[0, 0]) & ~kept_off, west, north, masks, _charted_depth(water.shape, west, north))
+    sea = labels == labels[0, 0]
+    return Water(sea & ~kept_off, west, north, masks, _charted_depth(water.shape, west, north), sea & kept_off)
 
 
 def _charted_depth(shape: tuple[int, int], west: float, north: float) -> np.ndarray:
@@ -279,8 +283,8 @@ def _along(line: np.ndarray, step_m: float) -> np.ndarray:
 
 
 def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guides: list[tuple[list[np.ndarray], float]], berths: tuple[bool, bool], frame: list[np.ndarray] | None = None, kept_off: list[np.ndarray] | None = None) -> np.ndarray | None:
-    """The cheapest line from `start` to `goal` over the water, keeping `vessel.clear_m` off land and out of water the
-    chart says is too shallow for its draft except near a berth, drawn towards each set of `guides` lines by its pull
+    """The cheapest line from `start` to `goal` over the water, keeping `vessel.clear_m` off land, its half beam and 2 m
+    off docks and moored boats (`Water.docked`), and out of water the chart says is too shallow for its draft except near a berth, drawn towards each set of `guides` lines by its pull
     (the share of its cost a cell on one saves; where sets overlap, the strongest counts), with its corners
     cut to the fewest that keep every stretch on that water; or None where the water doesn't join them. It
     looks for one within the box round its ends and `frame` and a margin. An end that
@@ -294,10 +298,15 @@ def lane(water: Water, start: np.ndarray, goal: np.ndarray, vessel: Vessel, guid
     top, left = max(top, 0), max(left, 0)
     bottom, right = min(bottom + 1, water.free.shape[0]), min(right + 1, water.free.shape[1])
     free = water.free[top:bottom, left:right]
-    clear = ndimage.distance_transform_edt(free) * CELL_M
+    if water.docked is None:
+        clear = ndimage.distance_transform_edt(free) * CELL_M
+        allowed = clear >= vessel.clear_m
+    else:
+        docked = water.docked[top:bottom, left:right]
+        clear = ndimage.distance_transform_edt(free | docked) * CELL_M
+        allowed = free & (clear >= vessel.clear_m) & (ndimage.distance_transform_edt(~docked) * CELL_M >= vessel.beam_m / 2 + 2)
     rows, columns = np.indices(free.shape)
     xs, ys = water.west + (left + columns + 0.5) * CELL_M, water.north - (top + rows + 0.5) * CELL_M
-    allowed = clear >= vessel.clear_m
     if water.depth_dm is not None and vessel.draft_m > 0:
         depth = water.depth_dm[top:bottom, left:right]
         near_ends = (np.hypot(xs - start[0], ys - start[1]) < DEPTH_FREE_NEAR_ENDS_M) | (np.hypot(xs - goal[0], ys - goal[1]) < DEPTH_FREE_NEAR_ENDS_M)

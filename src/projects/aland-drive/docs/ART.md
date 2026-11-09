@@ -115,7 +115,6 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 - A supermarket entrance's canopy sat across the big shop's name on the wall; it stands under it now, at 2.55–2.9 m.
 - At Västerhamn the water mask draws the quay's edge 6–9 m further out than the 2025 photo, so a berthed ship lies 35 m west of `FERRY_BERTH`, with its hull on the water as drawn, and about 40 m short of the terminal's boarding fingers, which stand at the photo's places. The fix is the quay's edge in the shore and mask, not the ship or the terminal.
 - The regatta's boats are the kit's distant regatta, three triangles each, which don't hold up close; it could sail better boats and fold into the small boats' routes.
-- The sea lanes were drawn before the tiles carried mooring buoys: rerun `pipeline/sea_lanes.py` once the published tiles have them, so routes steer round the moored boats.
 - Boats under way have no wake. A boat at speed reads as moving mostly by its bow wave and wake; a wake strip behind each, in one more draw, would be the next step if they look parked.
 - A sailing yacht under way heels to one side whichever way the wind is, since the kit's heel is baked into the model and the game has no wind.
 - Moorings follow the pipeline's own seabed and shelter rule, not real mooring fields, which no open data maps.
