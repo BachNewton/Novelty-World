@@ -1,6 +1,7 @@
 import { Mesh } from "three/webgpu";
 import type { CarId } from "../../sim/cars";
 import type { ArtModel } from "../catalogue";
+import { deliveryHallInterior } from "./delivery-hall-interior";
 import { buildExterior, EXTERIOR_IDS } from "./exteriors";
 import { buildInterior, INTERIOR_IDS } from "./interiors";
 import { dealerMaterial, geometryOf } from "./material";
@@ -37,5 +38,10 @@ export const artModels = (): ArtModel[] => {
     };
   });
   const interiors = INTERIOR_IDS.map((id): ArtModel => ({ name: `interior ${id}`, geometries: { interior: geometryOf(buildInterior(id).soup) }, groundY: null }));
-  return [...exteriors, ...cars, ...interiors];
+  const hall = deliveryHallInterior();
+  const hallRoom: ArtModel[] = [
+    { name: "interior delivery-hall", geometries: { room: geometryOf(hall.room) }, groundY: null },
+    { name: "interior delivery-hall turntable", geometries: { deck: geometryOf(hall.turntables[0].soup) }, groundY: null },
+  ];
+  return [...exteriors, ...cars, ...interiors, ...hallRoom];
 };

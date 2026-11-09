@@ -1,5 +1,6 @@
 import type { CarId } from "../../sim/cars";
 import { BRANDS } from "./brands";
+import { deliveryHall } from "./delivery-hall-exterior";
 import { bannerFlag, barrel, bayLines, bollard, fuelPump, lampPost, planter, postSign, pylon, rollerDoor, tyre, tyreStack, windowFrame } from "./kit";
 import { Shell, type Soup, type V3, type Version } from "./shell";
 import { stockOf } from "./stock";
@@ -11,7 +12,7 @@ import { stockOf } from "./stock";
  * or two by its swap, and everything else, the far version's shape and colour, is the same in both.
  */
 
-export const EXTERIOR_IDS = ["village-garage", "town-dealer", "premium-showroom", "used-lot", "tyre-shop"] as const;
+export const EXTERIOR_IDS = ["village-garage", "town-dealer", "premium-showroom", "used-lot", "tyre-shop", "delivery-hall"] as const;
 export type ExteriorId = (typeof EXTERIOR_IDS)[number];
 
 /** A rectangle from above in a model's own metres: x0, z0, x1, z1. */
@@ -396,6 +397,7 @@ const BUILDERS: Record<ExteriorId, (s: Shell) => Omit<Exterior, "soup">> = {
   "premium-showroom": premiumShowroom,
   "used-lot": usedLot,
   "tyre-shop": tyreShop,
+  "delivery-hall": deliveryHall,
 };
 
 export function buildExterior(id: ExteriorId, version: Version = "near"): Exterior {

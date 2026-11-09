@@ -14,12 +14,13 @@ export const WALL_M = 0.3;
 /** The back of house, a low dark block behind the hall. */
 export const BACK = { x0: -18.5, x1: 18.5, z0: -27, top: 5.8 } as const;
 /**
- * The granite podium the hall stands on, its top the terrace in front of the glass: Västerhamn's sand terrace falls to
- * the terminal's road in front and northwards, so the podium shows where the ground is low and meets it at the south.
+ * The granite podium the hall stands on, its top the terrace in front of the glass and level with the highest ground
+ * under its plot: Västerhamn's sand terrace falls to the terminal's road in front and northwards, so the podium shows
+ * where the ground is low and meets it at the south.
  */
-export const PODIUM = { x0: -25, x1: 21.5, z0: BACK.z0 - 1.2, z1: 8, sink: -5 } as const;
+export const PODIUM = { x0: -25, x1: 21.5, z0: BACK.z0 - 1.2, z1: 8, sink: -5.6 } as const;
 /** The broad stair from the terrace down to the road, either side of x 0. */
-export const STAIR = { half: 3, rise: 0.16, run: 0.32, foot: -4.6 } as const;
+export const STAIR = { half: 3, rise: 0.16, run: 0.32, foot: -5.2 } as const;
 /** The ramp from the drive-out door down to the ground north of the podium: how far it runs and how far it falls. */
 export const RAMP = { long: 11, drop: 1.9 } as const;
 /** The way cars leave: a glazed door in the hall's -x end, towards the terminal, between these z, this tall over the floor. */

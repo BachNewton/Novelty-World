@@ -54,6 +54,10 @@ export const DEALER_SITES: readonly DealerSite[] = [
     place: "Mariehamn's north edge",
     road: "Michaelsvägen",
     why: "a tyre business's own building, the bays facing the road",
+  }),  laid("delivery-hall", [0, 0], [107295, 6682586], -Math.PI / 2, {
+    place: "Mariehamn, Västerhamn's ferry terminal",
+    road: "the terminal's loop road",
+    why: "the sand terrace south of the terminal building, open in the 2025 photo; the terrace falls to the road, so the hall stands on a podium with a stair down to it, its glass to the berths 120 m west",
   }),
 ];
 
