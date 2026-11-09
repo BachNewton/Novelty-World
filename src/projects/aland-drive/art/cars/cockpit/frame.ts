@@ -61,7 +61,7 @@ const SITTING_EYE_M = 0.64;
 /** The eye above the bottom of the windscreen, at least, to see the road over the dash. */
 const OVER_COWL_M = 0.26;
 
-const WHEEL_RADIUS: Record<WheelKind, number> = { round: 0.185, flat: 0.18, rally: 0.175, classic: 0.205, yoke: 0.18 };
+const WHEEL_RADIUS: Record<WheelKind, number> = { round: 0.185, flat: 0.18, rally: 0.175, classic: 0.205, yoke: 0.18, twoSpoke: 0.2 };
 
 /** The shell's own rule for how far a wheel's flare pushes the side out (`flareAt` in `body.ts`). */
 function flareOf(spec: CarSpec["body"], z: number) {
@@ -142,8 +142,8 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   // Where the eye's line through the wheel meets the dash's face, as a share down the face.
   const denominator = sight.z * faceH - sight.h * faceZ;
   const down = Math.abs(denominator) < 1e-9 ? 0.5 : ((lip.h - eyeH) * sight.z - (lip.z - eyeZ) * sight.h) / -denominator;
-  const width = style.gauges === "race" ? 0.27 : style.gauges === "digital" ? 0.36 : 0.34;
-  const height = style.gauges === "digital" ? 0.12 : style.gauges === "muscle" ? 0.15 : 0.13;
+  const width = style.gauges === "race" ? 0.27 : style.gauges === "digital" ? 0.36 : style.gauges === "single" ? 0.19 : 0.34;
+  const height = style.gauges === "digital" ? 0.12 : style.gauges === "muscle" ? 0.15 : style.gauges === "single" ? 0.17 : 0.13;
   const faceLength = Math.hypot(faceZ, faceH);
   const share = Math.min(Math.max(down, (height * 0.3) / faceLength), 1 - (height * 0.3) / faceLength);
   const facing = [-faceH / faceLength, faceZ / faceLength] as const;

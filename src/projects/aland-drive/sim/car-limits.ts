@@ -20,10 +20,13 @@ import holm from "./limits/holm.json";
 import kraft from "./limits/kraft.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
+import kula from "./limits/kula.json";
 import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
 import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
+import pil from "./limits/pil.json";
+import lontano from "./limits/lontano.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
@@ -112,6 +115,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -131,11 +135,13 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
   kraft,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

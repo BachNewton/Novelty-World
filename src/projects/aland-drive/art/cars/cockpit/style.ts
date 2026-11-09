@@ -17,12 +17,17 @@ import type { CarSpec } from "../build";
  * the water's dial to its right, a sports car's.
  * "muscle": a big rev counter in front of the driver with a smaller speed dial beside it, and fuel, water and oil as
  * small dials on the centre stack, where a screen would be.
+ * "single": one big chrome-ringed speedometer, the gear in a small window in its face, an old economy car's.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho" | "muscle";
-/** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
-export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
-/** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
-export type ShifterKind = "lever" | "sequential" | "selector";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho" | "muscle" | "single";
+/**
+ * "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large,
+ * thin-rimmed, four slim spokes. "yoke": open at the top. "twoSpoke": large, a thin ivory rim on two slim spokes, an old
+ * economy car's.
+ */
+export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke" | "twoSpoke";
+/** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. "floor": a long, thin lever from the floor, an old car's. */
+export type ShifterKind = "lever" | "sequential" | "selector" | "floor";
 /** "comfort": broad and soft. "sport": bolstered. "bucket": a shell with the headrest in it. */
 export type SeatKind = "comfort" | "sport" | "bucket";
 
@@ -77,6 +82,8 @@ export interface InteriorStyle {
     /** Contrasting stitching along the seats' centre panels, when they have it. */
     stitch?: string;
   };
+  /** A band of contrasting cloth across the front seats' backs at the shoulders, a colour token; null, none. */
+  seatBand: string | null;
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
@@ -92,6 +99,8 @@ export interface InteriorStyle {
    * wheel's hub along its column, which crosses the middle of the screen.
    */
   speedAside: boolean;
+  /** How far left of the middle a speed set aside sits, metres: further for a wheel whose hub covers more of the screen. */
+  speedAsideM: number;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -114,6 +123,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     rearMirror: true,
     harness: false,
     paintedDash: false,
+    seatBand: null,
     quilted: false,
     grabHandles: false,
     stackBoost: 0,
@@ -125,6 +135,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     eye: [0, 0, 0],
     clusterSight: 0.45,
     speedAside: false,
+    speedAsideM: 0.064,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };

@@ -12,9 +12,12 @@ import { SoupBuilder, type Point, type Soup } from "./mesh";
 /**
  * The rim's design. "blade": single straight spokes. "split": the spokes in pairs. "turbine": many thin spokes
  * swept round, a hypercar's. "mesh": two sets of thin spokes crossing, a classic's. "aero": broad spokes with narrow
- * gaps, nearly a closed disc, an electric car's.
+ * gaps, nearly a closed disc, an electric car's. "steel": a pressed steel disc in the body's paint, dished, with a ring of
+ * small vents and a chrome hubcap over its middle, an old economy car's; `spokes` is how many vents.
+ * "wire": a 1960s wire wheel, `spokes` fine wires each way laced from a
+ * small hub to the rim, held on by a two-eared knock-off nut.
  */
-export type RimStyle = "blade" | "split" | "turbine" | "mesh" | "aero";
+export type RimStyle = "blade" | "split" | "turbine" | "mesh" | "aero" | "steel" | "wire";
 
 export interface WheelSpec {
   radiusM: number;
@@ -41,7 +44,7 @@ const ring = (x: number, radius: number, sides: number): Point[] =>
     return [x, Math.cos(angle) * radius, Math.sin(angle) * radius];
   });
 
-function turned(builder: SoupBuilder, profile: [x: number, radius: number][], sides: number, surface: "tyre" | "rim" | "rimDark") {
+function turned(builder: SoupBuilder, profile: [x: number, radius: number][], sides: number, surface: "tyre" | "rim" | "rimDark" | "paint") {
   const group = builder.newGroup();
   const rows = profile.map(([x, radius]) => ring(x, radius, sides));
   for (let row = 0; row + 1 < rows.length; row++) {
@@ -91,6 +94,63 @@ function spokesOf(style: RimStyle, count: number, hub: number, rimInner: number,
     case "aero":
       // Each as broad as it can be beside its neighbours without touching them, from the hub to the rim.
       return around(count).map((a) => ({ ...dish, angle: [a, a + 0.12], wide: [(Math.PI * hub) / count - 0.004, (Math.PI * rimInner) / count - 0.012], steps: 2 }));
+    case "wire": {
+      // Straight wires, each set a few millimetres behind the other so no two share a plane where they cross, and the
+      // knock-off's two ears standing proud of the hub.
+      const wires = around(count).flatMap((a) => [-0.62, 0.62].map((sweep, side): Spoke => ({ ...dish, face: [dish.face[0] - side * 0.007, dish.face[1] - side * 0.007], angle: [a, a + sweep], wide: [0.0032, 0.0028], depth: 0.006, steps: 1 })));
+      const ears = [0, Math.PI].map((a): Spoke => ({ angle: [a, a], wide: [0.014, 0.022], radius: [hub * 0.6, hub * 1.9], face: [faceX + 0.012, faceX - 0.004], depth: 0.012, steps: 1 }));
+      return [...wires, ...ears];
+    }
+    case "steel":
+      return [];
+  }
+}
+
+/**
+ * A pressed steel wheel's face: a disc in the body's paint, dished from the rim to a raised ring and down again under a
+ * chrome hubcap's dome, with `vents` small dark slots round the dish. Each is turned from the middle out, which faces
+ * it out of the wheel.
+ */
+function steelFace(builder: SoupBuilder, rim: number, faceX: number, vents: number, sides: number, fine: boolean) {
+  const disc: [number, number][] = [
+    [faceX - 0.05, rim * 0.4],
+    [faceX - 0.04, rim * 0.5],
+    [faceX - 0.026, rim * 0.6],
+    [faceX - 0.03, rim * 0.68],
+    [faceX - 0.04, rim * 0.78],
+    [faceX - 0.03, rim * 0.9],
+    [faceX - 0.016, rim - 0.031],
+  ];
+  turned(builder, disc, sides, "paint");
+  const dome: [number, number][] = [
+    [faceX - 0.046, rim * 0.47],
+    [faceX - 0.012, rim * 0.46],
+    [faceX + 0.008, rim * 0.4],
+    [faceX + 0.02, rim * 0.28],
+    [faceX + 0.026, rim * 0.14],
+  ];
+  turned(builder, [...dome].reverse(), sides, "rim");
+  builder.rings([ring(faceX + 0.026, rim * 0.14, sides)], "rim");
+  if (!fine) return;
+  // The vents: short slots across the dish, each standing a few millimetres off the paint where the dish is deepest.
+  // The disc's depth at a radius, along the same straight pieces it is turned from.
+  const along = (radius: number) => {
+    const next = disc.findIndex(([, r]) => r >= radius);
+    const [[x0, r0], [x1, r1]] = [disc[next - 1], disc[next]];
+    return x0 + ((x1 - x0) * (radius - r0)) / (r1 - r0);
+  };
+  for (let vent = 0; vent < vents; vent++) {
+    const angle = ((vent + 0.5) / vents) * Math.PI * 2;
+    const at = (radius: number, sideways: number): Point => {
+      const [c, s] = [Math.cos(angle), Math.sin(angle)];
+      return [along(radius) + 0.003, c * radius - s * sideways, s * radius + c * sideways];
+    };
+    const [inner, outer, wide] = [rim * 0.7, rim * 0.86, rim * 0.15];
+    const slot = Array.from({ length: 8 }, (_, step) => {
+      const turn = (step / 8) * Math.PI * 2;
+      return at((inner + outer) / 2 + (Math.cos(turn) * (outer - inner)) / 2, (Math.sin(turn) * wide) / 2);
+    });
+    builder.rings([slot], "rimDark");
   }
 }
 
@@ -200,23 +260,31 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   }
   // The dark behind the spokes, so they read against it from the road.
   builder.rings([ring(-half * 0.3, rim - 0.03, rimSides)], "rimDark");
-  if (detail.spokes) {
+  if (detail.spokes && spec.style === "steel") {
+    steelFace(builder, rim, faceX, spec.spokes, rimSides, detail.fine);
+  } else if (detail.spokes) {
     const hubRadius = radius * 0.13;
     const style = spec.style ?? (spec.twinSpokes ? "split" : "blade");
     for (const one of spokesOf(style, spec.spokes, hubRadius, rim - 0.03, faceX)) spoke(builder, one);
     builder.rings([ring(faceX - 0.026, radius * 0.15, 10), ring(faceX - 0.05, radius * 0.165, 10)], "rim");
+    // A wire wheel's hub is a polished barrel the knock-off screws onto, standing out of the wires.
+    if (style === "wire") builder.rings([ring(faceX - 0.06, radius * 0.2, 12), ring(faceX - 0.004, radius * 0.18, 12), ring(faceX + 0.006, radius * 0.11, 12), ring(faceX + 0.008, 0.004, 12)], "rim");
     if (detail.fine) {
       // The brake disc behind the spokes, with its dark hat in the middle.
       const discX = faceX - 0.085;
       builder.rings([ring(discX + 0.012, rim - 0.045, 24), ring(discX - 0.012, rim - 0.045, 24)], "disc");
       builder.rings([ring(discX + 0.03, radius * 0.24, 10), ring(discX + 0.004, radius * 0.24, 10)], "rimDark");
-      for (let nut = 0; nut < 5; nut++) {
+      for (let nut = 0; nut < (style === "wire" ? 0 : 5); nut++) {
         const angle = (nut / 5) * Math.PI * 2 + 0.3;
         const place = (r: number, a: number, x: number): Point => [x, Math.cos(angle) * radius * 0.1 + Math.cos(a) * r, Math.sin(angle) * radius * 0.1 + Math.sin(a) * r];
         const nutRing = (x: number): Point[] => [0, 1, 2, 3, 4, 5].map((step) => place(0.011, (step / 6) * Math.PI * 2, x));
         builder.rings([nutRing(faceX - 0.034), nutRing(faceX - 0.022)], "rimDark");
       }
     }
+  } else if (spec.style === "steel") {
+    // Far off, the painted disc and its hubcap.
+    builder.rings([ring(faceX - 0.02, rim - 0.03, rimSides)], "paint");
+    builder.rings([ring(faceX - 0.008, rim * 0.42, 6)], "rim");
   } else {
     // Far off, a pale disc in the dark rim says a wheel as well as spokes would.
     builder.rings([ring(faceX - 0.02, rim - 0.03, rimSides)], "rimDark");

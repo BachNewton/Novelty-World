@@ -22,8 +22,11 @@ import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kraft } from "./cars/kraft";
 import { kobb } from "./cars/kobb";
+import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
+import { lontano } from "./cars/lontano";
 import { ljus } from "./cars/ljus";
+import { pil } from "./cars/pil";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
@@ -72,6 +75,7 @@ const ENTRIES = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -91,11 +95,13 @@ const ENTRIES = {
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
   kraft,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 } satisfies Record<string, CarEntry>;

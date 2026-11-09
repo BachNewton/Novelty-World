@@ -19,10 +19,13 @@ import { holm } from "./models/holm";
 import { kraft } from "./models/kraft";
 import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
+import { kula } from "./models/kula";
 import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
 import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
+import { pil } from "./models/pil";
+import { lontano } from "./models/lontano";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
@@ -65,6 +68,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -84,11 +88,13 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
   kraft,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };
