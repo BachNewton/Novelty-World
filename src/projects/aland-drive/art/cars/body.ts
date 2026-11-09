@@ -135,6 +135,11 @@ export interface BodySpec {
   /** What the band between window top and roof edge is. */
   pillarSurface: Surface;
   sillSurface: Surface;
+  /**
+   * How tall the sill's strip stands round each wheel's arch: a lip of the sill's surface round the opening, as a rally
+   * car's arch extensions are. None, and the strip is a hairline there.
+   */
+  archLipM?: number;
   /** What the belt strip under the side glass is. */
   beltSurface: Surface;
 
@@ -255,7 +260,7 @@ function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boole
   const width = curves.halfWidth(z);
   const flare = flareAt(spec, z);
   const shoulder = Math.max(curves.shoulder(z), sill + 0.05);
-  const sillTop = Math.max(lowest + 0.08, sill + 0.012);
+  const sillTop = Math.max(lowest + 0.08, sill + (spec.archLipM ?? 0.012));
   const lower = Math.max(sillTop + (shoulder - sillTop) * 0.3, sill + 0.024);
   const mid = Math.max(sillTop + (shoulder - sillTop) * 0.68, sill + 0.036);
   const belt = Math.max(curves.belt(z), shoulder + 0.01);

@@ -6,8 +6,10 @@ import { blixt } from "./cars/blixt";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
+import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { grus } from "./cars/grus";
+import { gnista } from "./cars/gnista";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
@@ -39,6 +41,7 @@ const ENTRIES = {
   blixt,
   // A2
   // A3
+  dyning,
   // A4
   sund,
   // A5
@@ -52,6 +55,7 @@ const ENTRIES = {
   ljus,
   // B1
   grus,
+  gnista,
   // B2
   fjard,
   // B3
