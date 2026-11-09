@@ -118,11 +118,11 @@ const shape: Shape = {
   grilleH: 0.42,
   lampH: [0.46, 0.58],
   hoodLipH: 0.55,
-  hoodH: 0.76,
-  cowl: [-0.22, 0.86],
-  header: [0.3, 1.16],
-  roof: [0.62, 1.2],
-  roofEnd: [0.95, 1.16],
+  hoodH: 0.745,
+  cowl: [-0.22, 0.825],
+  header: [0.28, 1.175],
+  roof: [0.6, 1.215],
+  roofEnd: [0.95, 1.18],
   shoulder: [
     [NOSE_Z, 0.5],
     [-1.9, 0.64],
@@ -145,10 +145,10 @@ const shape: Shape = {
   ],
   windowTop: [
     [-0.2, 0.8],
-    [0.05, 0.98],
-    [0.32, 1.1],
-    [0.62, 1.14],
-    [0.95, 1.1],
+    [0.05, 0.99],
+    [0.32, 1.115],
+    [0.62, 1.155],
+    [0.95, 1.115],
     [1.25, 0.98],
     [1.45, 0.88],
   ],
@@ -172,7 +172,9 @@ const shape: Shape = {
   // The tail's corners rounded well back, as a 1960s body's are, rather than squared off under the lip.
   cornerPullM: [0.2, 0.2],
   cabinEndZ: 1.3,
-  seat: "seatTan",
+  // Dark seats in the chase view's simple cabin, so their backs don't stand out through the long rear glass; the
+  // cockpit's own seats are tan leather.
+  seat: "seat",
   decals: [
     ...plates(0.47, 0.24),
     ...handles([0.78], 0.73),
@@ -186,7 +188,7 @@ const shape: Shape = {
     // A chrome quick-release filler on the left haunch, as a racer for the road wore it.
     { on: "top", at: [-0.66, 1.62], size: [0.1, 0.1], surface: "rim", round: true, liftM: 0.014, fine: true },
     // The vents either side of the bonnet's middle, letting the heat out of the V12's bay.
-    ...louvres({ x: 0.36, z: -1.35, long: 0.36, wide: 0.13, count: 5, liftM: 0.016 }),
+    ...louvres({ x: 0.27, z: -1.35, long: 0.36, wide: 0.12, count: 5, liftM: 0.016 }),
   ],
   extra: {
     bands: BANDS,
@@ -203,26 +205,26 @@ const shape: Shape = {
           [NOSE_Z + 0.06, 0.545],
           [-1.9, 0.635],
           [-1.2, 0.755],
-          [-0.6, 0.825],
-          [-0.3, 0.848],
+          [-0.6, 0.8],
+          [-0.3, 0.815],
         ],
         [[NOSE_Z + 0.06, undefined]],
       ),
-      { z: -0.3, h: 0.848, band: "cowl" },
+      { z: -0.3, h: 0.815, band: "cowl" },
       ...faired(
         [
-          [-0.22, 0.86],
-          [0.05, 1.03],
-          [0.3, 1.16],
-          [0.62, 1.2],
-          [0.95, 1.165],
+          [-0.22, 0.825],
+          [0.05, 1.01],
+          [0.28, 1.175],
+          [0.6, 1.215],
+          [0.95, 1.18],
           [1.3, 1.075],
           [1.7, 0.975],
           [2.1, 0.93],
         ],
         [
           [-0.22, "screen"],
-          [0.3, undefined],
+          [0.28, undefined],
           [0.95, "rearGlass"],
           [1.68, undefined],
         ],
@@ -243,7 +245,7 @@ const shape: Shape = {
       [-0.15, 0.025],
       [0.6, 0.05],
       [1.22, 0.0],
-      [1.8, -0.02],
+      [1.8, -0.005],
       [TAIL_Z, 0.0],
     ],
     shelf: [
@@ -306,11 +308,11 @@ export const lontano: CarSpec = {
     screen: false,
     paintedDash: true,
     lightDials: true,
-    colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-wood", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
+    colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-wood", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber", seat: "car-cabin-seat-tan" },
     turnsToLock: 1.6,
     // The seat set low, so the headliner is a band over the road and not a slab, and the dials sighted high in the
     // wheel's opening, clear of its spokes.
-    eye: [0, -0.045, 0],
+    eye: [0, -0.04, 0],
     clusterSight: 0.75,
   },
 };
