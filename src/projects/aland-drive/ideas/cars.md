@@ -26,7 +26,7 @@ From the tiers down, not from today's cars up:
 
 1. **Slots.** Each tier's two or three places, each with target figures (0–100 km/h, top speed, weight, drive) and a role in its tier, so a tier offers different ways to drive: a front-engined grand tourer, a mid-engined sports car and a light track car in one tier, say.
 2. **The best fit for each slot.** A car of today's close to a slot is retuned into it, a slot with nothing close gets a new car, and a car that fits no slot leaves the list. Ljus and Kobb are cut unless they keep a job outside the events: a bucket-list challenge, or a first car before a player can afford anything.
-3. **Each slot's cost written beside it**, so the cheap choices show next to the dear ones. The challenges, the races, the player's start (Grus) and the tools and tests (the Skerry GT) name cars by id, so a removed car means repointing them; a retuned car's limits are measured again and the challenges' targets set again from them; reusing a car's art is cheap, a new body isn't.
+3. **Each slot's cost written beside it**, so the cheap choices show next to the dear ones. The challenges, the races, the player's start (Fjärd) and the tools and tests (the Skerry GT) name cars by id, so a removed car means repointing them; a retuned car's limits are measured again and the challenges' targets set again from them; reusing a car's art is cheap, a new body isn't.
 
 Each slot also says how its car reaches the island and who makes it.
 
