@@ -5,7 +5,7 @@ import { diffuser, louvres, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const HAGEL = driven("hagel");
-const { sill, sillTop, belt, windowBase, rail, roofInner, centre } = ROWS;
+const { sill, sillTop, belt, windowBase, rail, centre } = ROWS;
 const ALL = centre + 1;
 
 /*
