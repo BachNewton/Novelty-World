@@ -51,6 +51,8 @@ export const readings = {
   gear: sharedUniform(1),
   clock: sharedUniform(1200),
   outside: sharedUniform(12),
+  /** A turbo's boost, in bar. */
+  boost: sharedUniform(0),
   /** What the lamps and segments light by: the revs' or the power's share of full. */
   lamps: sharedUniform(0),
 };
@@ -153,7 +155,8 @@ function readingOf(source: F): F {
     .add(readings.power.mul(is(source, 5)))
     .add(readings.gear.mul(is(source, 6)))
     .add(readings.clock.mul(is(source, 7)))
-    .add(readings.outside.mul(is(source, 8)));
+    .add(readings.outside.mul(is(source, 8)))
+    .add(readings.boost.mul(is(source, 9)));
 }
 
 export interface CockpitMaterialOptions {

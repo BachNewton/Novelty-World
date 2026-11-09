@@ -50,6 +50,12 @@ export interface InteriorStyle {
   boost: boolean;
   /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
   quilted: boolean;
+  /**
+   * A turbo car's big boost gauge in the middle of the centre stack, fuel and water either side, where the screen
+   * would be: the boost it reads flat out, in bar, or 0 for none. Only without a screen, and not with `boost`: both
+   * draw in the oil gauge's cell.
+   */
+  stackBoost: number;
   /** Ivory dial faces with dark figures, as an older car's are, whatever the instruments; `classic` and `race` have them anyway. */
   lightDials: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
@@ -107,6 +113,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     harness: false,
     paintedDash: false,
     quilted: false,
+    stackBoost: 0,
     lightDials: false,
     centreDisplay: false,
     boost: false,

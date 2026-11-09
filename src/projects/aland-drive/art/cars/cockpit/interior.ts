@@ -431,6 +431,14 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     plate(b, at, [0, screenY], [0.2, 0.115], front + 0.003, flat(paints.screen, KIND.screen));
     plate(b, at, [-0.035, screenY + 0.022], [0.016 * GLYPH_ASPECT * 4, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.clock, 4)));
     plate(b, at, [0.05, screenY + 0.022], [0.016 * GLYPH_ASPECT * 3, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.outside, 3)));
+  } else if (style.stackBoost > 0) {
+    // The boost gauge big in the middle, in the oil gauge's cell, fuel and water small either side of it.
+    const ring = smooth(style.gauges === "classic" ? paints.chrome : paints.accent);
+    ([[SLOT.fuel, SOURCE.fuel, -0.092, 0.03, 135, -90], [SLOT.oil, SOURCE.boost, 0, 0.046, 225, -270], [SLOT.water, SOURCE.water, 0.092, 0.03, 135, -90]] as const).forEach(([slot, source, x, radius, startDeg, sweepDeg]) => {
+      disc(b, at, [x, screenY], radius, front, flat(paints.dial, KIND.dial, slot), slot);
+      bezel(b, at, [x, screenY], radius + 0.002, 0.0035, front + 0.001, ring);
+      dials.push({ slot, source, startDeg, sweepDeg });
+    });
   } else if (style.gauges === "classic" || style.gauges === "muscle") {
     ([SLOT.fuel, SLOT.water, SLOT.oil] as const).forEach((slot, index) => {
       const x = (index - 1) * 0.074;

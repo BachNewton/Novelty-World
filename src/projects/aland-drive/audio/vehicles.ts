@@ -10,6 +10,7 @@ import { bris } from "./voices/bris";
 import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
+import { frost } from "./voices/frost";
 import { flod } from "./voices/flod";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
@@ -19,6 +20,7 @@ import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
 import { lera } from "./voices/lera";
 import { orkan } from "./voices/orkan";
+import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
@@ -183,8 +185,10 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B4
   berg,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4

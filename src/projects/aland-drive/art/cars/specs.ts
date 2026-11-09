@@ -9,6 +9,7 @@ import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { frost } from "./models/frost";
 import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
@@ -18,6 +19,7 @@ import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
 import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
+import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
@@ -75,8 +77,10 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // B4
   berg,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
