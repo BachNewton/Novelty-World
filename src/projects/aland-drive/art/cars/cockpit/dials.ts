@@ -21,6 +21,8 @@ export interface DialFaces {
   redline: number;
   /** The panel the digital cluster is drawn on, wide for its height. */
   panelAspect: number;
+  /** The oil's small dial is a turbo's boost gauge instead, in bar, for a cluster that has one. */
+  boost: boolean;
 }
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--color-aland-drive-${name}`).trim();
@@ -242,7 +244,9 @@ export function drawDialSheet(faces: DialFaces): DataTexture {
   drawDial(pens, SLOT.revs, { max: faces.revsMax, minor: 0.5, major: 1, label: 1, shown: 1, red: faces.redline, start: 225, sweep: -270 }, face, ["RPM", "X1000"]);
   drawSmall(pens, SLOT.fuel, ["E", "F"], face);
   drawSmall(pens, SLOT.water, ["C", "H"], face);
-  drawSmall(pens, SLOT.oil, ["0", "5"], face);
+  // A boost gauge reads 0 to 2 bar round the same sweep as the big dials, its last half bar red.
+  if (faces.boost) drawDial(pens, SLOT.oil, { max: 1, minor: 0.125, major: 0.25, label: 0.5, shown: 0.5, red: 0.8, start: 225, sweep: -270 }, face, ["BAR"]);
+  else drawSmall(pens, SLOT.oil, ["0", "5"], face);
   drawPanel(pens, faces, token("car-cabin-ink"));
   drawGlyphs(pens);
 
