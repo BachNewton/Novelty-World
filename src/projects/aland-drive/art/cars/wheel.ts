@@ -24,8 +24,6 @@ export interface WheelSpec {
   /** Paired spokes read as sportier, single ones as plainer: what `style` is when it isn't given. */
   twinSpokes: boolean;
   style?: RimStyle;
-  /** A caliper painted in the car's stripe colour, which follows the player's paint, rather than the shared caliper colour. */
-  stripedCalipers?: boolean;
 }
 
 interface WheelDetail {
@@ -224,6 +222,6 @@ export function buildCaliper(spec: WheelSpec): Soup {
     const end = step === 0 || step === steps ? 0.012 : 0;
     return [at(inner + end, back), at(inner + end, front), at(outer - end, front), at(outer - end, back)];
   });
-  builder.rings(sections, spec.stripedCalipers === true ? "stripe" : "caliper");
+  builder.rings(sections, "caliper");
   return builder.finish(40);
 }

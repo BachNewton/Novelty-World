@@ -45,8 +45,8 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
   diffuser: [{ surface: "grille", from: sillTop, to: ALL }],
 };
 
-/** The classic recipe's one flourish: a thin line in the paint's stripe colour along the foot of the grille, lamp to lamp. */
-const pinstripe: Decal = { on: "front", at: [0, 0.586], size: [0.96, 0.012], surface: "stripe", cells: [8, 1], liftM: 0.014 };
+/** Västan's bar: a slim blade of the body's colour across the middle of the grille, from lamp to lamp. */
+const grilleBar: Decal = { on: "front", at: [0, 0.612], size: [0.92, 0.016], surface: "paint", cells: [8, 1], liftM: 0.014 };
 
 /** Each headlamp's daytime line: a bar of light along its top, which turns down at its outer end like an arrowhead. */
 const daylights: Decal[] = [
@@ -121,7 +121,7 @@ const shape: Shape = {
   decals: [
     ...plates(0.77, 0.36),
     ...handles([-0.12, 0.84], 0.93),
-    pinstripe,
+    grilleBar,
     // A vent at each corner of the bumper, either side of the intake.
     { on: "front", at: [0.6, 0.4], size: [0.13, 0.07], surface: "grille", mirror: true, cells: [3, 2], liftM: 0.012 },
     ...daylights,
@@ -229,28 +229,27 @@ export const pil: CarSpec = {
   ride: PIL.ride,
   paint: "car-paint-pil-red",
   paints: [
-    paint("car-paint-pil-red", "solid", { stripe: "car-paint-pil-red" }),
-    paint("car-paint-white", "solid", { stripe: "car-paint-pil-red" }),
-    paint("car-paint-grey", "metallic", { stripe: "car-paint-pil-red" }),
-    paint("car-paint-black", "pearl", { flip: "car-paint-midnight", stripe: "car-paint-pil-red" }),
-    paint("car-paint-ultramarine", "metallic", { stripe: "car-paint-pil-red" }),
+    paint("car-paint-pil-red"),
+    paint("car-paint-white"),
+    paint("car-paint-grey", "metallic"),
+    paint("car-paint-black", "pearl", { flip: "car-paint-midnight" }),
+    paint("car-paint-ultramarine", "metallic"),
   ],
   body: bodyOf(shape),
-  wheel: { radiusM: PIL.wheelRadiusM, widthM: 0.225, rimShare: 0.72, spokes: 5, twinSpokes: true, style: "split", stripedCalipers: true },
+  wheel: { radiusM: PIL.wheelRadiusM, widthM: 0.225, rimShare: 0.72, spokes: 5, twinSpokes: true, style: "split" },
   shadowHalf: [0.92, 2.14],
   /**
-   * A modern hot hatch's cockpit: one digital cluster, a flat-bottomed wheel, bolstered seats whose inserts are a check
-   * of red and Västan blue lines on dark cloth, and a round knob on the lever with a red band round it; red rings round
-   * the vents, and red light after dark.
+   * A modern hot hatch's cockpit: one digital cluster, a flat-bottomed wheel, bolstered seats in dark cloth with a band
+   * of Västan blue across their backs at the shoulders, a plain leather knob on the lever; red rings round the vents,
+   * and red light after dark.
    */
   interior: {
     gauges: "digital",
     wheel: "flat",
     shifter: "lever",
-    knob: "ball",
     seats: "sport",
     screen: true,
-    seatCheck: ["car-cabin-hot-red", "car-cabin-vastan"],
+    seatBand: "car-cabin-vastan",
     // The speed set well aside in the cluster, left of the wheel's hub, which covers the screen's middle from the seat.
     speedAside: true,
     speedAsideM: 0.11,

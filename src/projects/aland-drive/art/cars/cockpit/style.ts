@@ -65,10 +65,8 @@ export interface InteriorStyle {
     /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
     seat?: string;
   };
-  /** Thin lines across the front seats' inserts, in these colours by turns, so the inserts read as a check cloth; none, plain. */
-  seatCheck: readonly string[];
-  /** The gear lever's knob: "plain", a leather cap, or "ball", a round knob with a band round its middle. */
-  knob: "plain" | "ball";
+  /** A band of contrasting cloth across the front seats' backs at the shoulders, a colour token; null, none. */
+  seatBand: string | null;
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
@@ -108,8 +106,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     rearMirror: true,
     harness: false,
     paintedDash: false,
-    seatCheck: [],
-    knob: "plain",
+    seatBand: null,
     quilted: false,
     lightDials: false,
     centreDisplay: false,

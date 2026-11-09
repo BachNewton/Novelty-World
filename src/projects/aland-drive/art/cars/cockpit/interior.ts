@@ -76,8 +76,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     lampAmber: finish("car-cabin-lamp-amber", 0.02, 0.8),
     lampRed: finish("car-cabin-lamp-red", 0.02, 0.8),
     glowLamp: finish(style.colours.glow, 0.02, 0.8),
-    check: style.seatCheck.map((token) => finish(token, 0.004, 0.08)),
-    knobBall: finish("car-cabin-ivory", 0.04, 0.5),
+    seatBand: style.seatBand === null ? null : finish(style.seatBand, 0.004, 0.08),
   };
 }
 type Paints = ReturnType<typeof paintsOf>;
@@ -477,13 +476,7 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     const top = add(base, normalize([0, 1, 0.25]), tall);
     pillow(b, axes(add(base, [0, 1, 0], 0.01), RIGHT, [0, 0, -1], [0, 1, 0]), [0.045, 0.05, 0.022], 0.7, smooth(paints.rubber), 8);
     b.tube([add(base, [0, 1, 0], 0.01), top], style.shifter === "sequential" ? 0.009 : 0.007, 8, smooth(style.shifter === "sequential" ? paints.accent : paints.chrome));
-    if (style.knob === "ball" && style.shifter === "lever") {
-      // A round knob, a band of the cabin's accent round its middle, sunk a little into the ball so the two don't share a face.
-      pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), [0.025, 0.025, 0.025], 1, smooth(paints.knobBall), 10);
-      pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), [0.0262, 0.005, 0.0262], 0.9, smooth(paints.accent), 10);
-    } else {
-      pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), style.shifter === "sequential" ? [0.02, 0.035, 0.02] : [0.024, 0.022, 0.024], 0.8, smooth(style.shifter === "sequential" ? paints.piano : paints.leather), 8);
-    }
+    pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), style.shifter === "sequential" ? [0.02, 0.035, 0.02] : [0.024, 0.022, 0.024], 0.8, smooth(style.shifter === "sequential" ? paints.piano : paints.leather), 8);
     if (style.shifter === "sequential") {
       // A rally car's handbrake, tall beside the lever.
       const root: Point = [0.06, cushionH + 0.06 + g, lever + 0.12];
@@ -532,16 +525,10 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
-  if (paints.check.length > 0 && kind !== "bench") {
-    // The check: thin lines a few millimetres proud of the front seats' inserts, each way across, in its colours by turns.
-    const lineM = 0.0025;
-    const colour = (at: number) => smooth(paints.check[at % paints.check.length]);
-    const backAt = (a: number, h: number) => axes(add(add(add(middle, back, 0.056 + 0.014 + lineM * 0.5), RIGHT, a), up, h), RIGHT, up, back);
-    [-0.66, -0.33, 0, 0.33, 0.66].forEach((share, at) => pillow(b, backAt(share * wide * 0.5, 0), [lineM, tall * 0.74, lineM], 0.3, colour(at), 3));
-    [-0.7, -0.42, -0.14, 0.14, 0.42, 0.7].forEach((share, at) => pillow(b, backAt(0, share * tall * 0.78), [wide * 0.48, lineM, lineM * 1.5], 0.3, colour(at + 1), 3));
-    const seatAt = (a: number, along: number) => axes([x + a, cushionH + g + 0.011 + lineM * 0.5, z - 0.21 + along], RIGHT, cushionUp, cushionBack);
-    [-0.66, -0.33, 0, 0.33, 0.66].forEach((share, at) => pillow(b, seatAt(share * wide * 0.52, 0), [lineM, lineM, 0.19], 0.3, colour(at), 3));
-    [-0.66, -0.33, 0, 0.33, 0.66].forEach((share, at) => pillow(b, seatAt(0, share * 0.2), [wide * 0.5, lineM * 1.5, lineM], 0.3, colour(at + 1), 3));
+  if (paints.seatBand !== null && kind !== "bench") {
+    // One band of contrasting cloth across the front seats' backs at the shoulders, a few millimetres proud of the insert.
+    const band = smooth(paints.seatBand);
+    pillow(b, axes(add(add(middle, back, 0.056 + 0.014 + 0.003), up, tall * 0.48), RIGHT, up, back), [wide * 0.49, 0.022, 0.004], 0.3, band, 4);
   }
   if (quilted) addQuilting(b, paints, wide, middle, tall, up, back, [x, cushionH + g, z - 0.21], cushionUp, cushionBack);
   if (kind !== "comfort" && kind !== "bench") {
