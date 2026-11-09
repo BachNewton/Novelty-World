@@ -11,6 +11,7 @@ import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
+import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
@@ -64,6 +65,7 @@ const ENTRIES = {
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3

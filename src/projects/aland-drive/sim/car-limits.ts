@@ -10,6 +10,7 @@ import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
+import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import orkan from "./limits/orkan.json";
@@ -104,6 +105,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3

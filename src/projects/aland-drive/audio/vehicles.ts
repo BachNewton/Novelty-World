@@ -10,6 +10,7 @@ import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
+import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
 import { orkan } from "./voices/orkan";
@@ -165,6 +166,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B1
   grus,
   gnista,
+  hagel,
   // B2
   fjard,
   // B3

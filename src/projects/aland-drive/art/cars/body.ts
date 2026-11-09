@@ -152,6 +152,12 @@ export interface BodySpec {
    * keep their ends as their measured swaps and known overlaps have them, until they're redrawn.
    */
   cleanEnds?: boolean;
+  /**
+   * The blocks stuck on the car face out of themselves, so a block is lit as the box it is. Without it a block's faces
+   * point into it, and a block bigger than a blade reads as a dark hole by day. Every new car sets it; the older cars
+   * keep their blocks as their measured swaps have them, until they're redrawn.
+   */
+  outwardBlocks?: boolean;
   halfWidth: readonly Key[];
   railWidth: readonly Key[];
   /** How far the corners of the nose and tail pull back from the ends, and over what length. */
@@ -591,7 +597,7 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
-function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number, outward = false) {
   const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
     [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
     [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
@@ -599,7 +605,8 @@ function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1,
     [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
   ];
   for (const side of mirror ? [1, -1] : [1]) {
-    builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
+    const ends = [ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)];
+    builder.rings(outward ? ends.reverse() : ends, surface);
   }
 }
 
@@ -832,7 +839,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, spec.outwardBlocks);
   for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
