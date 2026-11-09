@@ -1,6 +1,7 @@
 import type { ChallengeBoard } from "../challenge/board";
+import type { MapDealer } from "./dealers";
 import type { Discovery } from "./discovery";
-import { drawCar, drawChallenges, drawNames, drawPlaces, drawPlayers, drawRaceRoute, drawRoads, drawRoute, placeAt, type MapChallenge, type MapInk, type MapPlayer, type MapView } from "./draw";
+import { drawCar, drawChallenges, drawDealers, drawNames, drawPlaces, drawPlayers, drawRaceRoute, drawRoads, drawRoute, placeAt, type MapChallenge, type MapInk, type MapPlayer, type MapView } from "./draw";
 import type { MapTarget } from "../render/map-camera";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -11,7 +12,7 @@ import type { RoadGraph, Route } from "./road-graph";
  * that flight things are, and takes the mouse and a pad to zoom, pan and pick once
  * it has arrived: none of that moves the flight, so zooming can't leave the map.
  * It draws the road network, route, names, the places to find and the car on a
- * clear canvas above the render, with the challenges' starts. A pick on a place routes to the place itself, and on a challenge to its start ring. Roads keep a width on screen, so they stay legible from any height, and
+ * clear canvas above the render, with the challenges' starts and the dealerships' doors. A pick on a place routes to the place itself, on a challenge to its start ring, and on a dealership to its door. Roads keep a width on screen, so they stay legible from any height, and
  * the canvas fades in with altitude as the car becomes too small to see.
  */
 
@@ -79,6 +80,7 @@ export class WorldMap {
     private readonly ink: MapInk,
     private readonly discovery: Discovery,
     private readonly challenges: ChallengeBoard,
+    private readonly dealers: readonly MapDealer[],
     private readonly onPick: (x: number, z: number) => void,
     private readonly onLeave: () => void,
     /** A race's whole route, which the map shows while the cursor is over its start. */
@@ -154,7 +156,7 @@ export class WorldMap {
 
   private pickAt(x: number, y: number): void {
     if (!this.view || this.flight < 1) return;
-    const place = placeAt(this.view, this.challenges.marks(), x, y, PLACE_PX + 4) ?? placeAt(this.view, this.discovery.places, x, y, PLACE_PX + 4);
+    const place = placeAt(this.view, this.challenges.marks(), x, y, PLACE_PX + 4) ?? placeAt(this.view, this.dealers, x, y, PLACE_PX + 4) ?? placeAt(this.view, this.discovery.places, x, y, PLACE_PX + 4);
     const [worldX, worldZ] = place ? [place.x, place.z] : this.view.toWorld(x, y);
     this.onPick(worldX, worldZ);
   }
@@ -244,6 +246,7 @@ export class WorldMap {
     const raceLine = hovered?.race ? this.raceLine(hovered.id) : null;
     if (hovered?.race && raceLine) drawRaceRoute(pen, view, raceLine, hovered.race.ground, ink);
     drawChallenges(pen, view, challenges, PLACE_PX, ink, streets);
+    drawDealers(pen, view, this.dealers, PLACE_PX, ink, streets);
     this.drawnChallenges = this.challenges.revision;
     drawPlayers(pen, view, this.players, 10, ink, { margin: PLAYER_MARGIN_PX }, true);
     this.drawnPlayers = this.players;
@@ -256,9 +259,11 @@ export class WorldMap {
       pen.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
       pen.stroke();
       const challenge = hovered;
-      const place = challenge ? null : placeAt(view, discovery.places, cursor.x, cursor.y, PLACE_PX + 4);
+      const dealer = challenge ? null : placeAt(view, this.dealers, cursor.x, cursor.y, PLACE_PX + 4);
+      const place = challenge || dealer ? null : placeAt(view, discovery.places, cursor.x, cursor.y, PLACE_PX + 4);
       if (challenge?.race) this.drawCard({ name: `${challenge.race.number} ${challenge.title}`, note: raceNote(challenge.race), colour: ink.race[challenge.race.ground] }, cursor.x, cursor.y);
       else if (challenge) this.drawCard({ name: challenge.title, note: null, colour: challenge.passed ? ink.pass : ink.challenge }, cursor.x, cursor.y);
+      else if (dealer) this.drawCard({ name: dealer.name, note: dealer.sells, colour: ink.dealer }, cursor.x, cursor.y);
       else if (place) {
         const found = discovery.isFound(place);
         this.drawCard({ name: place.name, note: found ? place.note : null, colour: found ? ink.place : ink.ink }, cursor.x, cursor.y);
