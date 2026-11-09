@@ -42,10 +42,12 @@ for (const site of sites) {
   const inside = await step(`going into ${site}`, async () => {
     await page.evaluate(async ({ x, z, site }) => {
       const probe = window.__alandDrive;
-      probe.placeNear(x, z);
+      probe.hold(true);
       probe.loadAround({ x, z });
       await new Promise(requestAnimationFrame);
       while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
+      // The car stands in the door's ring, as a player's would.
+      probe.startLine([x + 4, 0, z + 4, x + 8, 0, z + 8], 0);
       probe.loadAround(null);
       probe.dealership.enterAt(site);
       while (probe.dealership.state().phase !== "inside") await new Promise(requestAnimationFrame);

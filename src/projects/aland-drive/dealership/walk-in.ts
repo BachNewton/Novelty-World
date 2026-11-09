@@ -299,11 +299,12 @@ export function createWalkIn(host: WalkInHost) {
     at.pitch = 0;
     turnedS = 0;
     const building = room;
-    // The cars' pipelines are each car's own, built while the island is captured, so the room opens whole.
-    const compiled = renderer.compileAsync(building.scene, camera);
     captureEye = { x: eyeX, y: eyeY, z: eyeZ, yaw: site.yaw };
-    view.capture({ at: new Vector3(eyeX, eyeY, eyeZ), yaw: site.yaw, inRoom: new Vector3(...interior.viewFrom), groundY: -origin[1] }, () => {
-      void compiled.then(() => {
+    // The cars' pipelines are each car's own, built before the island is captured, so the room opens whole: the capture
+    // draws through the render context the screen shares (`view.ts`), which a compile in flight then reads.
+    void renderer.compileAsync(building.scene, camera).then(() => {
+      if (room !== building) return;
+      view.capture({ at: new Vector3(eyeX, eyeY, eyeZ), yaw: site.yaw, inRoom: new Vector3(...interior.viewFrom), groundY: -origin[1] }, () => {
         if (room === building) phase = "inside";
       });
     });
@@ -363,9 +364,8 @@ export function createWalkIn(host: WalkInHost) {
     /** Whether the drive is held for a dealership: from the moment the player goes in to the moment they leave. */
     holds: () => phase !== "outside",
     inside: () => phase === "inside",
-    /** The pipelines a dealership needs, built before the drive: the world's for the capture's format, the room's, its view's. */
+    /** The pipelines a room needs, built before the drive: its material's, its view's and its panes'. The capture needs none of its own. */
     async compile() {
-      await view.compile(host.scene, host.camera);
       const scene = new Scene();
       const shell = new Shell();
       shell.box([-1, 0, -1], [1, 1, 1], "dealer-concrete");

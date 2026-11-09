@@ -1,4 +1,4 @@
-import { BackSide, ClampToEdgeWrapping, LinearMipmapLinearFilter, Matrix4, MeshBasicNodeMaterial, Quaternion, RenderTarget, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
+import { BackSide, ClampToEdgeWrapping, HalfFloatType, LinearSRGBColorSpace, LinearFilter, Matrix4, MeshBasicNodeMaterial, Quaternion, RenderTarget, RGBAFormat, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { cameraPosition, float, Fn, mix, positionWorld, select, smoothstep, texture, vec2, vec3 } from "three/tsl";
 import { sharedUniform } from "../art/shared-uniform";
 
@@ -10,6 +10,12 @@ import { sharedUniform } from "../art/shared-uniform";
  *
  * Six plain images rather than a cube texture: a pixel finds its face and its place on it from the very camera that
  * face was drawn with (`FACES`), so the drawing and the reading can't disagree about which way is up.
+ *
+ * A pipeline is built for the target it draws into, so each face is drawn into a target alike to the one three draws
+ * the screen's scene into (its colour, depth and samples) and copied out to its image: the capture uses the world's
+ * own pipelines and compiles none. A target of any other kind compiled the whole world again at the start. three keeps
+ * one render context for every target of a kind, so this target shares the screen's: it is freed only on leaving, once
+ * the room's frames have pointed that context back at the screen's own buffers.
  *
  * The images hold directions, as if everything were far off, so the ground near the windows would slide as the player
  * walks. Looking down, each pixel finds where its ray meets the ground and looks that way from where the island was
@@ -51,17 +57,22 @@ export interface CapturePlace {
   groundY: number;
 }
 
-const faceTarget = (size: number) => {
-  const target = new RenderTarget(size, size, { generateMipmaps: true, minFilter: LinearMipmapLinearFilter });
+/** A face's image: what the drawing is copied into, and what the view reads. */
+const faceImage = (size: number) => {
+  const target = new RenderTarget(size, size, { type: HalfFloatType, format: RGBAFormat, colorSpace: LinearSRGBColorSpace, depthBuffer: false, generateMipmaps: false, minFilter: LinearFilter, magFilter: LinearFilter });
   target.texture.wrapS = target.texture.wrapT = ClampToEdgeWrapping;
   return target;
 };
 
 export function createIslandView(renderer: WebGPURenderer) {
-  // Small images to compile against and to show before the first capture, in the real faces' format: one each, since
-  // three binds texture nodes that start on one texture as one, and every face then read the same image.
-  const placeholders = FACES.map(() => faceTarget(16));
+  /** Where a face is drawn: three's own scene target's kind (`_getFrameBufferTarget`, in three's working colour space), so its pipelines are the world's. */
+  const drawingTarget = () =>
+    new RenderTarget(FACE_PX, FACE_PX, { type: HalfFloatType, format: RGBAFormat, colorSpace: LinearSRGBColorSpace, samples: renderer.samples, depthBuffer: renderer.depth, stencilBuffer: renderer.stencil, generateMipmaps: false });
+  // Small images to show before the first capture: one each, since three binds texture nodes that start on one texture
+  // as one, and every face then read the same image.
+  const placeholders = FACES.map(() => faceImage(16));
   let targets: RenderTarget[] | null = null;
+  let drawing: RenderTarget | null = null;
   const turns = FACES.map(turnOf);
   const images = placeholders.map((placeholder) => texture(placeholder.texture));
 
@@ -111,15 +122,10 @@ export function createIslandView(renderer: WebGPURenderer) {
   return {
     sky,
     glass,
-    /** Builds the pipelines the capture draws the world with: they're for the faces' format, not the screen's. */
-    async compile(scene: Scene, camera: PerspectiveCamera) {
-      renderer.setRenderTarget(placeholders[0]);
-      await renderer.compileAsync(scene, camera);
-      renderer.setRenderTarget(null);
-    },
     /** Starts capturing the island from a place over the next frames, calling `done` once every face is in. */
     capture(next: CapturePlace, done: () => void) {
-      targets ??= FACES.map(() => faceTarget(FACE_PX));
+      targets ??= FACES.map(() => faceImage(FACE_PX));
+      drawing ??= drawingTarget();
       targets.forEach((target, index) => (images[index].value = target.texture));
       place = next;
       frame = 0;
@@ -143,10 +149,11 @@ export function createIslandView(renderer: WebGPURenderer) {
     },
     /** While capturing, draws the frame into its face rather than the screen. */
     render(scene: Scene, camera: PerspectiveCamera): boolean {
-      if (!place || !targets) return false;
-      renderer.setRenderTarget(targets[Math.max(0, frame - SETTLE_FRAMES)]);
+      if (!place || !targets || !drawing) return false;
+      renderer.setRenderTarget(drawing);
       renderer.render(scene, camera);
       renderer.setRenderTarget(null);
+      renderer.copyTextureToTexture(drawing.texture, targets[Math.max(0, frame - SETTLE_FRAMES)].texture);
       frame++;
       if (frame === SETTLE_FRAMES + FACES.length) {
         place = null;
@@ -161,10 +168,13 @@ export function createIslandView(renderer: WebGPURenderer) {
     },
     /** Lets the captured view go, keeping the faces for the next. */
     release() {
+      drawing?.dispose();
+      drawing = null;
       images.forEach((image, index) => (image.value = placeholders[index].texture));
     },
     dispose() {
       for (const target of targets ?? []) target.dispose();
+      drawing?.dispose();
       for (const placeholder of placeholders) placeholder.dispose();
       sky.dispose();
       glass.dispose();
