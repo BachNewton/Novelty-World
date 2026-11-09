@@ -34,10 +34,8 @@ import argparse
 import gzip
 import json
 import math
-import os
 from dataclasses import dataclass
 from functools import cached_property
-from multiprocessing import get_context
 from pathlib import Path
 
 import numpy as np
@@ -51,7 +49,8 @@ from grid import TILE_SIZE_M, WORLD_ORIGIN, Tile, lonlat_to_grid, neighbour, til
 from roads import CLASSES, class_of
 from paving import ACROSS, CARRIAGEWAY_EDGE_ACROSS, WAY, is_crossing
 from paving_file import Paving, read_paving
-from progress import Progress
+import tile_steps
+from tile_steps import replace_text
 from built_up import built_up_of
 from sources import osm_path, osm_roadside_path
 from vectors import FOOT_OR_BIKE, NOT_A_ROAD
@@ -1048,35 +1047,19 @@ def bake(tile: Tile, folder: Path, tiles: Path) -> dict:
     return {"file": FILE, "count": dict(sorted(count.items()))}
 
 
-def replace_text(path: Path, text: str) -> None:
-    """Writes a file anew rather than over itself, so a copy of a tile made of links to another stays apart from it."""
-    temporary = path.with_suffix(path.suffix + ".new")
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, path)
-
-
-def bake_named(job: tuple[str, Path]) -> str:
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
     """Adds the roadside to one built tile, reading its neighbours' ground and writing only its own files."""
     name, tiles = job
-    folder = tiles / name
-    entry = bake(tile_from_name(name), folder, tiles)
-    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-    replace_text(folder / "tile.json", json.dumps({**manifest, "roadside": entry}, ensure_ascii=False, indent=2))
-    return name
+    return name, bake(tile_from_name(name), tiles / name, tiles)
+
+
+def recorded(manifest: dict, entry: dict) -> dict:
+    return {**manifest, "roadside": entry}
 
 
 def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
-    """Adds the roadside to built tiles. Run once every tile is built: a pole by an edge stands on its neighbour's ground.
-    A tile writes only its own files, so tiles go side by side, a core each."""
-    progress = Progress("roadside", len(names))
-    work = [(name, tiles) for name in names]
-    if jobs > 1:
-        with get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
-            for name in pool.imap_unordered(bake_named, work):
-                progress.finished(name)
-    else:
-        for job in work:
-            progress.finished(bake_named(job))
+    """Adds the roadside to built tiles. Run once every tile is built: a pole by an edge stands on its neighbour's ground."""
+    tile_steps.run("roadside", names, tiles, bake_named, recorded, jobs, fresh=True)
 
 
 def with_neighbours(names: list[str], tiles: Path) -> list[str]:

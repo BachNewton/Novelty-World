@@ -29,10 +29,11 @@ from shapely.geometry import LineString, Point, Polygon
 from furniture import FOOTPRINTS, footprint
 from grid import Tile, tile_from_name
 from paving_file import read_paving
-from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, replace_text, roll, side_name
+from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, LICENCE, RINGS, STREET_RANK, Chain, Roadside, facing, roll, side_name
 from sources import osm_path
 from vectors import tagged_paved_areas
-from progress import Progress
+import tile_steps
+from tile_steps import replace_text
 
 FILE = "parked.json"
 
@@ -303,15 +304,19 @@ def bake(tile: Tile, folder: Path, tiles: Path) -> dict:
     return {"file": FILE, "count": parking.counts}
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    name, tiles = job
+    entry = bake(tile_from_name(name), tiles / name, tiles)
+    return f"{name} ({entry['count']} cars)", entry
+
+
+def recorded(manifest: dict, entry: dict) -> dict:
+    return {**manifest, "parked": entry}
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds parked cars to built tiles, once their roadside is there to keep clear of."""
-    progress = Progress("parking", len(names))
-    for name in names:
-        folder = tiles / name
-        entry = bake(tile_from_name(name), folder, tiles)
-        manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-        replace_text(folder / "tile.json", json.dumps({**manifest, "parked": entry}, ensure_ascii=False, indent=2))
-        progress.finished(f"{name} ({entry['count']} cars)")
+    tile_steps.run("parking", names, tiles, bake_named, recorded, jobs)
 
 
 def main() -> None:

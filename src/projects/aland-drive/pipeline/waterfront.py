@@ -35,9 +35,9 @@ from shapely.geometry import Point, Polygon
 from docks import DECK_M, HULLS
 from grid import Tile, tile_from_name, to_local
 from landmarks import Landmarks
-from people import Figure, roll, seed_of, write
+import tile_steps
+from people import Figure, listed, roll, seed_of, write, write_figures
 from roadside import Heights, Paved, read_surface
-from progress import Progress
 
 SOURCE = "waterfront"
 # Placed from OSM's piers and buildings, so the list is ODbL, as the docks are.
@@ -388,13 +388,20 @@ def bake(name: str, tiles: Path) -> dict:
     return write(folder, SOURCE, figures, LICENCE)
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    name, tiles = job
+    folder = tiles / name
+    entry = write_figures(folder, SOURCE, Waterfront(tile_from_name(name), folder, tiles).bake(), LICENCE)
+    return f"{name} ({entry['count']} people)", entry
+
+
+def recorded(manifest: dict, entry: dict) -> dict:
+    return listed(manifest, SOURCE, entry)
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds the waterfront's people to built tiles: after the docks, which they stand on. A tile the mirror hasn't is sea, and has none."""
-    built = [name for name in names if (tiles / name / "tile.json").exists()]
-    progress = Progress("waterfront", len(built))
-    for name in built:
-        entry = bake(name, tiles)
-        progress.finished(f"{name} ({entry['count']} people)")
+    tile_steps.run("waterfront", [name for name in names if (tiles / name / "tile.json").exists()], tiles, bake_named, recorded, jobs)
 
 
 def main() -> None:

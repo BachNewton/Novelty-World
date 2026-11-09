@@ -31,7 +31,7 @@ from scipy import ndimage
 
 from canopy import PIXELS
 from grid import TILE_SIZE_M, neighbour, tile_from_name, to_local
-from progress import Progress
+import tile_steps
 
 FILE = "clearing.png"
 UNIT_M = 0.125
@@ -173,25 +173,24 @@ def encode(signed: np.ndarray) -> Image.Image:
     return Image.fromarray(np.clip(np.round(signed / UNIT_M) + ZERO, 0, 255).astype(np.uint8))
 
 
-def bake(name: str, tiles: Path) -> float:
-    """Writes the tile's `clearing.png` and lists it in its `tile.json`. Returns the share of the tile within a crown's reach of a building."""
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    """Writes the tile's `clearing.png`, saying the share of the tile within a crown's reach of a building."""
+    name, tiles = job
     tile = tile_from_name(name)
-    folder = tiles / name
     west, north = to_local(tile.west, tile.north)
     outlines, walls = drawn(around(name, tiles))
     signed = distances(outlines + sea_mark_outlines(), walls, west, -north)
-    encode(signed).save(folder / FILE, optimize=True)
-    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-    (folder / "tile.json").write_text(json.dumps({**manifest, "clearing": MANIFEST}, ensure_ascii=False, indent=2), encoding="utf-8")
-    return float((signed < REACH_M).mean())
+    encode(signed).save(tiles / name / FILE, optimize=True)
+    return f"{name} ({float((signed < REACH_M).mean()):.1%} near a building)", MANIFEST
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def recorded(manifest: dict, entry: dict) -> dict:
+    return {**manifest, "clearing": entry}
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds the clearing to built tiles, once their neighbours are built too."""
-    progress = Progress("clearing", len(names))
-    for name in names:
-        near = bake(name, tiles)
-        progress.finished(f"{name} ({near:.1%} near a building)")
+    tile_steps.run("clearing", names, tiles, bake_named, recorded, jobs)
 
 
 def main() -> None:

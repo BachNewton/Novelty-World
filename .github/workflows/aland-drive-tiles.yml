@@ -1,0 +1,131 @@
+# Builds Åland Drive's tiles on GitHub's machines instead of the owner's laptop, and
+# publishes them if asked. The tile builds run side by side, a few tiles to a machine;
+# then one machine runs the steps that read each tile's neighbours, and the world file.
+# Raw data comes from the public mirror as a local build's does, and what only the
+# laptop has from the pinned inputs (pipeline/inputs.py). The pipeline's CLAUDE.md
+# explains the design.
+
+name: Åland Drive tiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      tiles:
+        description: Sheets to build, separated by spaces (such as L2343C L2343D). Empty builds the whole island.
+        type: string
+        default: ""
+      paving:
+        description: Lay the roads as one paved surface with the ground cut round it (build.py --paving)
+        type: boolean
+        default: false
+      upload:
+        description: Publish the tiles to Supabase as a new version, once their seams meet
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PIPELINE: src/projects/aland-drive/pipeline
+  TILES_FOLDER: src/projects/aland-drive/.data/tiles
+  # Every tile's OSM comes from the pinned inputs, never the API.
+  ALAND_OSM_PINNED: "1"
+  # Every tile dealt among this many machines, each building as many at once as it has cores. The mirror caps
+  # connections by address (it has held one address to 10), and a machine has its own address and one download
+  # at a time per tile it builds, so at most 4; the count stays below the 20 a run could have, to go easy on it.
+  MACHINES: 16
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      groups: ${{ steps.plan.outputs.groups }}
+      tiles: ${{ steps.plan.outputs.tiles }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        env:
+          TILES: ${{ inputs.tiles }}
+        # Dealt round the machines in turn, the slow road tiles first, so each machine gets a fair share of both.
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          tiles = list(dict.fromkeys(os.environ["TILES"].split()))
+          if not tiles:
+              island = json.load(open(f"{os.environ['PIPELINE']}/island.json", encoding="utf-8"))
+              tiles = island["roadTiles"] + island["around"]
+          machines = min(int(os.environ["MACHINES"]), len(tiles))
+          groups = [" ".join(tiles[machine::machines]) for machine in range(machines)]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"groups={json.dumps(groups)}\ntiles={' '.join(tiles)}\n")
+          print(f"{len(tiles)} tiles on {len(groups)} machines")
+          EOF
+
+  tiles:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      # One tile missing is a world with a hole in it, so the rest stop too.
+      fail-fast: true
+      matrix:
+        group: ${{ fromJSON(needs.plan.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ env.PIPELINE }}/requirements.txt
+      - run: python3 "$PIPELINE/inputs.py" fetch
+      - env:
+          GROUP: ${{ matrix.group }}
+          PAVING: ${{ inputs.paving && '--paving' || '' }}
+        run: python3 "$PIPELINE/run.py" --phase tiles $GROUP --jobs "$(nproc)" $PAVING
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiles-${{ strategy.job-index }}
+          path: ${{ env.TILES_FOLDER }}
+          if-no-files-found: error
+          retention-days: 1
+
+  world:
+    needs: [plan, tiles]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ env.PIPELINE }}/requirements.txt
+      - run: python3 "$PIPELINE/inputs.py" fetch
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tiles-*
+          path: ${{ env.TILES_FOLDER }}
+          merge-multiple: true
+      - env:
+          TILES: ${{ needs.plan.outputs.tiles }}
+        run: python3 "$PIPELINE/run.py" --phase after $TILES --jobs "$(nproc)"
+      - run: |
+          cd "$PIPELINE"
+          .venv/bin/python check_seams.py
+          echo "Built world \`$(jq -r .version ../.data/tiles/world.json)\`: $(jq '.tiles | length' ../.data/tiles/world.json) tiles" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: world
+          path: ${{ env.TILES_FOLDER }}
+          if-no-files-found: error
+          retention-days: 7
+      - if: inputs.upload
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd "$PIPELINE"
+          .venv/bin/python upload.py | tee upload.log
+          echo "Published: $(tail -n 1 upload.log)" >> "$GITHUB_STEP_SUMMARY"

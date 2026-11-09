@@ -43,8 +43,8 @@ from shapely.geometry import LineString, Point
 import roadside
 from grid import WORLD_ORIGIN, neighbour, tile_from_name
 from paving_file import read_paving
-from progress import Progress
-from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, Chain, Roadside, other_than_seam, replace_text, roll
+import tile_steps
+from roadside import CENTRE, EDGE_LEFT, EDGE_RIGHT, OUTER_LEFT, OUTER_RIGHT, Chain, Roadside, other_than_seam, roll
 from roads import APRON_CORNER_M, CLASSES
 from traffic_volume import TrafficVolume
 
@@ -1089,11 +1089,28 @@ def bake(name: str, tiles: Path, volume: TrafficVolume) -> dict:
     temporary = tiles / name / (FILE + ".new")
     temporary.write_bytes(gzip.compress(json.dumps(written, separators=(",", ":")).encode(), 9, mtime=0))
     temporary.replace(tiles / name / FILE)
-    entry = {"file": FILE, "count": lanes.counts()}
-    folder = tiles / name
-    manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-    replace_text(folder / "tile.json", json.dumps({**manifest, "lanes": entry}, ensure_ascii=False, indent=2))
-    return entry
+    return {"file": FILE, "count": lanes.counts()}
+
+
+# The traffic counts on every built tile's roads, made once in each process that bakes lanes.
+_volume: TrafficVolume | None = None
+
+
+def count_volume(tiles: Path) -> None:
+    global _volume
+    _volume = TrafficVolume.counted(tiles)
+
+
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    name, tiles = job
+    if _volume is None:
+        raise RuntimeError("count_volume runs before any tile's lanes")
+    entry = bake(name, tiles, _volume)
+    return f"{name} ({entry['count']})", entry
+
+
+def recorded(manifest: dict, entry: dict) -> dict:
+    return {**manifest, "lanes": entry}
 
 
 def link(issue: dict, base: str) -> str:
@@ -1161,15 +1178,10 @@ def main() -> None:
             print(line)
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds the lane map to built tiles. It reads each tile's own files, OSM's signs and signals, and the traffic counts
     with every built tile's roads."""
-    volume = TrafficVolume.counted(tiles)
-    progress = Progress("lanes", len(names))
-    for name in names:
-        entry = bake(name, tiles, volume)
-        print(f"  {name}: {entry['count']}", flush=True)
-        progress.finished(name)
+    tile_steps.run("lanes", names, tiles, bake_named, recorded, jobs, setup=count_volume)
 
 
 if __name__ == "__main__":

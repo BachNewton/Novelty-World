@@ -23,10 +23,10 @@ from pathlib import Path
 
 import numpy as np
 
-from people import Figure, roll, seed_of, write
+import tile_steps
+from people import Figure, listed, roll, seed_of, write, write_figures
 from roadside import FILE
 from built_up import built_up_of
-from progress import Progress
 
 SOURCE = "seated"
 # Placed from OSM's benches, cafés and buildings, so the list is ODbL, as the roadside is.
@@ -68,13 +68,20 @@ def bake(name: str, tiles: Path) -> dict:
     return write(folder, SOURCE, figures_of(folder), LICENCE)
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def bake_named(job: tuple[str, Path]) -> tuple[str, dict]:
+    name, tiles = job
+    folder = tiles / name
+    entry = write_figures(folder, SOURCE, figures_of(folder), LICENCE)
+    return f"{name} ({entry['count']} seated)", entry
+
+
+def recorded(manifest: dict, entry: dict) -> dict:
+    return listed(manifest, SOURCE, entry)
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Seats people on built tiles: after the roadside, which writes the seats. A tile the mirror hasn't is sea, and has none."""
-    built = [name for name in names if (tiles / name / "tile.json").exists()]
-    progress = Progress("seated", len(built))
-    for name in built:
-        entry = bake(name, tiles)
-        progress.finished(f"{name} ({entry['count']} seated)")
+    tile_steps.run("seated", [name for name in names if (tiles / name / "tile.json").exists()], tiles, bake_named, recorded, jobs)
 
 
 def main() -> None:

@@ -59,7 +59,7 @@ from landmarks import Site
 from rocks import Heights
 from sources import osm_xml
 from walls import roll
-from progress import Progress
+import tile_steps
 
 LICENCE = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors; National Land Survey of Finland, CC BY 4.0"}
 FIELD, MEADOW = 32611, 32800
@@ -489,20 +489,25 @@ def bake(tile: Tile, folder: Path) -> tuple[dict, list[list[float]]]:
     return listed, windmills(tile, Heights.of_tile(folder, manifest))
 
 
-def bake_tiles(names: list[str], tiles: Path) -> None:
+def bake_named(job: tuple[str, Path]) -> tuple[str, tuple[dict, list[list[float]]]]:
+    name, tiles = job
+    listed, mills = bake(tile_from_name(name), tiles / name)
+    counts = {model: count for model, count in listed["count"].items() if is_farm(model)}
+    return f"{name} ({len(mills)} windmills, {json.dumps(counts)})", (listed, mills)
+
+
+def recorded(manifest: dict, baked: tuple[dict, list[list[float]]]) -> dict:
+    listed, mills = baked
+    manifest = {**manifest, "models": listed}
+    manifest.pop("windmills", None)
+    if mills:
+        manifest["windmills"] = mills
+    return manifest
+
+
+def bake_tiles(names: list[str], tiles: Path, jobs: int = 1) -> None:
     """Adds the countryside to built tiles, once their roadside is there to keep clear of."""
-    progress = Progress("farm", len(names))
-    for name in names:
-        folder = tiles / name
-        listed, mills = bake(tile_from_name(name), folder)
-        manifest = json.loads((folder / "tile.json").read_text(encoding="utf-8"))
-        manifest = {**manifest, "models": listed}
-        manifest.pop("windmills", None)
-        if mills:
-            manifest["windmills"] = mills
-        (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        counts = {model: count for model, count in listed["count"].items() if is_farm(model)}
-        progress.finished(f"{name} ({len(mills)} windmills, {json.dumps(counts)})")
+    tile_steps.run("farm", names, tiles, bake_named, recorded, jobs)
 
 
 def main() -> None:
