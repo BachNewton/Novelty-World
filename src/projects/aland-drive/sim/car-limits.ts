@@ -11,6 +11,7 @@ import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
 import flod from "./limits/flod.json";
+import frost from "./limits/frost.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
@@ -18,9 +19,12 @@ import holm from "./limits/holm.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
 import knott from "./limits/knott.json";
+import kula from "./limits/kula.json";
 import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
+import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
+import pil from "./limits/pil.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
@@ -110,6 +114,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -126,12 +131,15 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   stubbe,
   knott,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

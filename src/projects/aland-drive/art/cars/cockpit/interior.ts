@@ -59,6 +59,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     webbing: finish(colours.accent, 0.006, 0.08),
     stitch: finish(colours.stitch ?? colours.accent, 0.004, 0.1),
     chrome: finish("car-rim", 0.55, 0.9, { metal: 0.85 }),
+    ivory: finish("car-cabin-ivory", 0.05, 0.7),
     seat: finish(seat, 0.008, 0.12),
     seatSide: finish(seat, 0.006, 0.1, { shade: 0.78 }),
     seatInsert: finish(`${seat}-insert`, 0.004, 0.06),
@@ -77,6 +78,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     lampAmber: finish("car-cabin-lamp-amber", 0.02, 0.8),
     lampRed: finish("car-cabin-lamp-red", 0.02, 0.8),
     glowLamp: finish(style.colours.glow, 0.02, 0.8),
+    seatBand: style.seatBand === null ? null : finish(style.seatBand, 0.004, 0.08),
   };
 }
 type Paints = ReturnType<typeof paintsOf>;
@@ -239,10 +241,11 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
 
   const dials: DialSpec[] = [];
   const dialLook = (slot: number) => flat(paints.dial, KIND.dial, slot);
-  const ringLook = style.gauges === "classic" ? smooth(paints.chrome) : smooth(paints.accent);
+  const chromed = style.gauges === "classic" || style.gauges === "single";
+  const ringLook = chromed ? smooth(paints.chrome) : smooth(paints.accent);
   const big = (slot: number, source: Source, x: number, radius: number) => {
     disc(b, at, [x, 0], radius, 0.004, dialLook(slot), slot);
-    bezel(b, at, [x, 0], radius + 0.003, style.gauges === "classic" ? 0.0045 : 0.0025, 0.005, ringLook);
+    bezel(b, at, [x, 0], radius + 0.003, chromed ? 0.0045 : 0.0025, 0.005, ringLook);
     dials.push({ slot, source, startDeg: 225, sweepDeg: -270 });
   };
   const readout = (source: Source, glyphs: number, x: number, y: number, tall: number) => {
@@ -266,6 +269,10 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
       bezel(b, at, [0, 0.02], small + 0.0025, 0.002, 0.005, ringLook);
       dials.push({ slot: SLOT.oil, source: SOURCE.oil, startDeg: 225, sweepDeg: -270 });
     }
+  } else if (style.gauges === "single") {
+    big(SLOT.speed, SOURCE.speed, 0, 0.074);
+    // The gear over the needle's pivot, under the figures, where the wheel's hub below the dial can't cover it.
+    readout(SOURCE.gear, 1, 0, 0.026, 0.02);
   } else if (style.gauges === "tacho") {
     // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
     big(SLOT.revs, SOURCE.revs, 0, 0.066);
@@ -293,7 +300,7 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const cell = [cellUv(SLOT.digital), cellUv(SLOT.digital + 1)];
     plate(b, at, [0, 0], [w - 0.014, h - 0.014], 0.003, flat(paints.dial, KIND.dial, SLOT.digital), [cell[0].u, cell[0].v, cell[1].u + cell[1].width, cell[0].v + cell[0].height]);
     dials.push({ slot: SLOT.digital, source: SOURCE.none, startDeg: 0, sweepDeg: 0 });
-    if (style.speedAside) readout(SOURCE.speed, 3, -0.064, -0.022, 0.034);
+    if (style.speedAside) readout(SOURCE.speed, 3, -style.speedAsideM, -0.022, 0.034);
     else readout(SOURCE.speed, 3, 0, -0.004, 0.04);
     readout(SOURCE.gear, 1, w / 2 - 0.045, -0.025, 0.028);
     // The revs, or an electric car's power, as segments round an arc over the figures.
@@ -318,8 +325,9 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const middle: Point = [centre.x, centre.h + g, centre.z];
   const at = axes(middle, RIGHT, up, back);
   const turning = (paint: Paint): FaceLook => ({ paint, kind: KIND.wheel });
-  const tube = kind === "classic" ? 0.0085 : kind === "rally" ? 0.0175 : 0.016;
-  const rimPaint = kind === "classic" ? paints.wood : paints.leather;
+  const thin = kind === "classic" || kind === "twoSpoke";
+  const tube = thin ? 0.0085 : kind === "rally" ? 0.0175 : 0.016;
+  const rimPaint = kind === "classic" ? paints.wood : kind === "twoSpoke" ? paints.ivory : paints.leather;
 
   // The rim's path round the wheel's plane, from the bottom anticlockwise.
   const steps = 64;
@@ -338,9 +346,9 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const marked = (row: number) => kind === "rally" && Math.abs(Math.sin(angles[row]) - 1) < 0.006 && Math.cos(angles[row]) > -0.2;
   b.tube(path, tube, 10, turning(rimPaint), !open, (row) => turning(marked(row) || marked(Math.min(row + 1, angles.length - 1)) ? paints.marker : rimPaint));
 
-  const dish = kind === "rally" ? 0.06 : kind === "classic" ? 0.03 : 0.012;
+  const dish = kind === "rally" ? 0.06 : thin ? 0.03 : 0.012;
   const hub = (x: number, y: number) => at(x, y, -dish);
-  const spokeAngles = kind === "classic" ? [Math.PI * 0.82, Math.PI * 0.18, Math.PI * 1.2, Math.PI * 1.8] : kind === "yoke" ? [Math.PI, 0, Math.PI * 1.5] : [Math.PI, 0, Math.PI * 1.5];
+  const spokeAngles = kind === "classic" ? [Math.PI * 0.82, Math.PI * 0.18, Math.PI * 1.2, Math.PI * 1.8] : kind === "twoSpoke" ? [Math.PI * 1.08, Math.PI * 1.92] : [Math.PI, 0, Math.PI * 1.5];
   for (const angle of spokeAngles) {
     const [rx, ry] = point(angle);
     const inner = 0.045;
@@ -348,13 +356,13 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
     const direction = normalize([rx - hx, ry - hy, dish]);
     const side = normalize(cross([0, 0, 1], direction));
     const lower = angle > Math.PI * 1.3 && angle < Math.PI * 1.7;
-    const [wideHub, wideRim] = kind === "classic" ? [0.008, 0.005] : lower ? [0.03, 0.022] : [0.022, 0.014];
-    const thick = kind === "classic" ? 0.004 : 0.008;
+    const [wideHub, wideRim] = kind === "classic" ? [0.008, 0.005] : kind === "twoSpoke" ? [0.014, 0.008] : lower ? [0.03, 0.022] : [0.022, 0.014];
+    const thick = thin ? 0.004 : 0.008;
     const section = (x: number, y: number, c: number, wide: number) => [at(x - side[0] * wide, y - side[1] * wide, c - thick), at(x + side[0] * wide, y + side[1] * wide, c - thick), at(x + side[0] * wide, y + side[1] * wide, c + thick), at(x - side[0] * wide, y - side[1] * wide, c + thick)];
     const end = 0.92;
-    b.sheet([section(hx, hy, -dish, wideHub), section(rx * end, ry * end, -tube * 0.3, wideRim)], turning(kind === "classic" ? paints.chrome : paints.piano), true);
+    b.sheet([section(hx, hy, -dish, wideHub), section(rx * end, ry * end, -tube * 0.3, wideRim)], turning(kind === "classic" ? paints.chrome : kind === "twoSpoke" ? paints.ivory : paints.piano), true);
   }
-  pillow(b, axes(hub(0, -0.004), RIGHT, up, back), [kind === "classic" ? 0.04 : 0.07, kind === "classic" ? 0.04 : 0.058, 0.026], 0.35, turning(kind === "classic" ? paints.chrome : paints.leather), 8);
+  pillow(b, axes(hub(0, -0.004), RIGHT, up, back), [thin ? 0.04 : 0.07, thin ? 0.04 : 0.058, 0.026], 0.35, turning(thin ? paints.chrome : paints.leather), 8);
   disc(b, at, [0, -0.004], 0.016, -dish + 0.027, turning(paints.accent), null, 16);
 
   // The column into the dash, and the stalks either side of it.
@@ -431,6 +439,14 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     plate(b, at, [0, screenY], [0.2, 0.115], front + 0.003, flat(paints.screen, KIND.screen));
     plate(b, at, [-0.035, screenY + 0.022], [0.016 * GLYPH_ASPECT * 4, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.clock, 4)));
     plate(b, at, [0.05, screenY + 0.022], [0.016 * GLYPH_ASPECT * 3, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.outside, 3)));
+  } else if (style.stackBoost > 0) {
+    // The boost gauge big in the middle, in the oil gauge's cell, fuel and water small either side of it.
+    const ring = smooth(style.gauges === "classic" ? paints.chrome : paints.accent);
+    ([[SLOT.fuel, SOURCE.fuel, -0.092, 0.03, 135, -90], [SLOT.oil, SOURCE.boost, 0, 0.046, 225, -270], [SLOT.water, SOURCE.water, 0.092, 0.03, 135, -90]] as const).forEach(([slot, source, x, radius, startDeg, sweepDeg]) => {
+      disc(b, at, [x, screenY], radius, front, flat(paints.dial, KIND.dial, slot), slot);
+      bezel(b, at, [x, screenY], radius + 0.002, 0.0035, front + 0.001, ring);
+      dials.push({ slot, source, startDeg, sweepDeg });
+    });
   } else if (style.gauges === "classic" || style.gauges === "muscle") {
     ([SLOT.fuel, SLOT.water, SLOT.oil] as const).forEach((slot, index) => {
       const x = (index - 1) * 0.074;
@@ -479,11 +495,14 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     pillow(b, axes(add(base, [0, 1, 0], 0.012), RIGHT, [0, 0, -1], [0, 1, 0]), [0.032, 0.032, 0.014], 0.7, smooth(paints.accent), 10);
     pillow(b, axes(add(base, [0, 1, 0], 0.03), RIGHT, [0, 0, -1], [0, 1, 0]), [0.024, 0.024, 0.008], 0.6, smooth(paints.piano), 10);
   } else {
-    const tall = style.shifter === "sequential" ? 0.2 : 0.12;
-    const top = add(base, normalize([0, 1, 0.25]), tall);
+    const floor = style.shifter === "floor";
+    // An old car's lever is long and thin, leaning back towards the driver, with a ball for a knob.
+    const tall = style.shifter === "sequential" ? 0.2 : floor ? 0.3 : 0.12;
+    const top = add(base, normalize([0, 1, floor ? 0.45 : 0.25]), tall);
     pillow(b, axes(add(base, [0, 1, 0], 0.01), RIGHT, [0, 0, -1], [0, 1, 0]), [0.045, 0.05, 0.022], 0.7, smooth(paints.rubber), 8);
-    b.tube([add(base, [0, 1, 0], 0.01), top], style.shifter === "sequential" ? 0.009 : 0.007, 8, smooth(style.shifter === "sequential" ? paints.accent : paints.chrome));
-    pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), style.shifter === "sequential" ? [0.02, 0.035, 0.02] : [0.024, 0.022, 0.024], 0.8, smooth(style.shifter === "sequential" ? paints.piano : paints.leather), 8);
+    b.tube([add(base, [0, 1, 0], 0.01), top], style.shifter === "sequential" ? 0.009 : floor ? 0.005 : 0.007, 8, smooth(style.shifter === "sequential" ? paints.accent : paints.chrome));
+    const knob: Point = style.shifter === "sequential" ? [0.02, 0.035, 0.02] : floor ? [0.02, 0.02, 0.02] : [0.024, 0.022, 0.024];
+    pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), knob, 0.8, smooth(style.shifter === "sequential" ? paints.piano : floor ? paints.ivory : paints.leather), 8);
     if (style.shifter === "sequential") {
       // A rally car's handbrake, tall beside the lever.
       const root: Point = [0.06, cushionH + 0.06 + g, lever + 0.12];
@@ -532,6 +551,11 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
+  if (paints.seatBand !== null && kind !== "bench") {
+    // One band of contrasting cloth across the front seats' faces at the shoulders, standing a few millimetres proud.
+    const band = smooth(paints.seatBand);
+    pillow(b, axes(add(add(middle, back, -0.064), up, tall * 0.48), RIGHT, up, back), [wide * 0.47, 0.022, 0.006], 0.3, band, 4);
+  }
   if (stitched) {
     // A seam of contrasting thread down each side of the seat's face and its cushion, standing a hair proud of them.
     const thread = smooth(paints.stitch);

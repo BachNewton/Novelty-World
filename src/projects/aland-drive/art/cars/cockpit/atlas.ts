@@ -9,12 +9,15 @@ export const ATLAS = { columns: 4, rows: 2, cellPixels: 512 } as const;
 /** Which cell holds what. The digital cluster's face takes two cells side by side. */
 export const SLOT = { speed: 0, revs: 1, fuel: 2, water: 3, oil: 4, digital: 5, figures: 7 } as const;
 
+/** A boost gauge, which a car with one draws in the oil gauge's cell (its stack has no oil gauge): its full scale and its red, in bar. */
+export const BOOST_BAR = { max: 2.5, red: 2 } as const;
+
 /** The figures' cell is a grid of glyphs: the digits, then these. A gear reads a glyph past the digits as itself: an electric car's D. */
 export const GLYPH = { reverse: 10, neutral: 11, minus: 12, drive: 13, blank: 15 } as const;
 export const GLYPH_GRID = 4;
 
 /** What a needle, readout or lamp reads. The values are the shader's. */
-export const SOURCE = { speed: 0, revs: 1, fuel: 2, water: 3, oil: 4, power: 5, gear: 6, clock: 7, outside: 8, none: 15 } as const;
+export const SOURCE = { speed: 0, revs: 1, fuel: 2, water: 3, oil: 4, power: 5, gear: 6, clock: 7, outside: 8, boost: 9, none: 15 } as const;
 
 /** A readout's glyph is this wide for its height, and its face is built to it. */
 export const GLYPH_ASPECT = 0.62;

@@ -5,6 +5,7 @@ import { altura } from "./cars/altura";
 import { aska } from "./cars/aska";
 import { blixt } from "./cars/blixt";
 import { orkan } from "./cars/orkan";
+import { rimfrost } from "./cars/rimfrost";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { borg } from "./cars/borg";
@@ -12,6 +13,7 @@ import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
+import { frost } from "./cars/frost";
 import { flod } from "./cars/flod";
 import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
@@ -19,8 +21,10 @@ import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { knott } from "./cars/knott";
+import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
 import { ljus } from "./cars/ljus";
+import { pil } from "./cars/pil";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
@@ -70,6 +74,7 @@ const ENTRIES = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -86,12 +91,15 @@ const ENTRIES = {
   stubbe,
   knott,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 } satisfies Record<string, CarEntry>;

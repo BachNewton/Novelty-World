@@ -105,6 +105,8 @@ export interface Strut {
   /** Also on the other side of the car. */
   mirror?: boolean;
   fine?: boolean;
+  /** How many sides its section has close up: 6 when not given, more for a tube as big as a bumper bar. */
+  sides?: number;
 }
 
 /** Where the inside of the car is. */
@@ -780,8 +782,8 @@ function addFender(builder: SoupBuilder, spec: BodySpec, { axle, x, wide, clearM
   }
 }
 
-function addStrut(builder: SoupBuilder, { path, radius, surface, mirror }: Strut, ground: number, fine: boolean) {
-  const sides = fine ? 6 : 4;
+function addStrut(builder: SoupBuilder, { path, radius, surface, mirror, sides: closeSides = 6 }: Strut, ground: number, fine: boolean) {
+  const sides = fine ? closeSides : 4;
   for (const side of mirror ? [1, -1] : [1]) {
     const points = path.map(([x, h, z]): Point => [side * x, h + ground, z]);
     const rings = points.map((point, at): Point[] => {

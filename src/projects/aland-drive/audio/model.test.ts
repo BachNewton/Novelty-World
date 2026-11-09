@@ -118,6 +118,16 @@ describe("the engine", () => {
     expect(hold(sund, sund.idleRpm, 0, 2, hold(sund, sund.idleRpm, 1, 1).sound).heard.pops).toBe(0);
   });
 
+  it("pops as the box changes up on load only in a car that asks for it, and not changing up off the throttle", () => {
+    const pil = ENGINES.pil;
+    const revs = pil.redlineRpm * 0.95;
+    const onLoad = hold(pil, revs, 1, 1).sound;
+    const changeUp = (spec: EngineSpec, past: EngineSound) => stepEngineSound(spec, past, revs * 0.7, 1, STEP_S, () => 0.5, true).heard.pops;
+    expect(changeUp(pil, onLoad)).toBe(pil.overrun.upshiftPops);
+    expect(changeUp(pil, hold(pil, revs, 0, 1, onLoad).sound)).toBe(0);
+    expect(changeUp(ENGINES.sten, hold(ENGINES.sten, revs, 1, 1).sound)).toBe(0);
+  });
+
   it("bangs with anti-lag off the throttle, only in a car that has it", () => {
     const flatOut = hold(grus, high, 1, 1).sound;
     expect(hold(grus, high, 0, 1, flatOut).heard.bangs).toBeGreaterThan(0);
