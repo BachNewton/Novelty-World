@@ -48,8 +48,18 @@ export interface InteriorStyle {
   centreDisplay: boolean;
   /** A grab handle up each windscreen pillar, an off-roader's, in the accent colour. */
   grabHandles: boolean;
+  /** With analogue dials, a turbo's boost gauge, a small dial between the two big ones over the gear window. */
+  boost: boolean;
   /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
   quilted: boolean;
+  /**
+   * A turbo car's big boost gauge in the middle of the centre stack, fuel and water either side, where the screen
+   * would be: the boost it reads flat out, in bar, or 0 for none. Only without a screen, and not with `boost`: both
+   * draw in the oil gauge's cell.
+   */
+  stackBoost: number;
+  /** Ivory dial faces with dark figures, as an older car's are, whatever the instruments; `classic` and `race` have them anyway. */
+  lightDials: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
   colours: {
     dash: string;
@@ -64,6 +74,8 @@ export interface InteriorStyle {
     glow: string;
     /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
     seat?: string;
+    /** Contrasting stitching along the seats' centre panels, when they have it. */
+    stitch?: string;
   };
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
@@ -104,7 +116,10 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     paintedDash: false,
     quilted: false,
     grabHandles: false,
+    stackBoost: 0,
+    lightDials: false,
     centreDisplay: false,
+    boost: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],

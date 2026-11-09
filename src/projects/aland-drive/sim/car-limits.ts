@@ -1,6 +1,7 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
+import altura from "./limits/altura.json";
 import aska from "./limits/aska.json";
 import blixt from "./limits/blixt.json";
 import ankar from "./limits/ankar.json";
@@ -11,13 +12,17 @@ import dyning from "./limits/dyning.json";
 import dyn from "./limits/dyn.json";
 import fjard from "./limits/fjard.json";
 import flod from "./limits/flod.json";
+import frost from "./limits/frost.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kraft from "./limits/kraft.json";
+import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
+import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
+import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
@@ -115,12 +120,17 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // B2
   fjard,
   dyn,
+  lera,
   // B3
   holm,
+  borg,
   // B4
   berg,
   // C1
+  frost,
+  altura,
   // C2
+  rimfrost,
   // C3
   vik,
   kraft,

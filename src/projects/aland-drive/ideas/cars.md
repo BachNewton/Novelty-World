@@ -53,11 +53,11 @@ A draft for the owner's review: 38 slots, 13 of them today's cars and 25 new. Th
 | A4 | Super-estate: a family car with a supercar's engine | New | 3.8 s, 290 km/h | AWD | Grand sport | H | New car |
 | A5 | Sports fastback, straight six | **Skerry GT** | 4.7 s, 258 km/h | RWD | Nordic sports | D | As it is |
 | A5 | Electric saloon | **Ström** | 4.3 s, 231 km/h | AWD | Nordic family | D | As it is |
-| A5 | V12 luxury saloon | **Ankar** | 4.6 s, 292 km/h | RWD | Grand touring | D | Retune from 5.0 s; 1 challenge, 1 race |
+| A5 | V12 luxury saloon | **Ankar** | 4.6 s, 292 km/h | RWD | Grand touring | D | Retuned from 5.0 s; its challenge and race measured again |
 | A6 | Open four-seat V6 cruiser | **Bris** | 5.4 s, 242 km/h | RWD | Grand touring | D | As it is |
 | A6 | Hot hatch that revs to 8,200 | **Sten** | 5.4 s, 238 km/h | FWD | Rally | D | As it is |
 | A7 | The classic hot hatch, turbo four | New | 6.0 s, 245 km/h | FWD | Nordic family | D | New car |
-| A7 | Pocket rocket, turbo triple | **Ljus** | 6.6 s, 205 km/h | FWD | Nordic family | D | Retune from 7.8 s, a small car made hot; 1 race |
+| A7 | Pocket rocket, turbo triple | **Ljus** | 6.6 s, 205 km/h | FWD | Nordic family | D | Retuned from 7.8 s, a small car made hot; its race measured again |
 
 ### B: Gravel
 
@@ -67,7 +67,7 @@ A draft for the owner's review: 38 slots, 13 of them today's cars and 25 new. Th
 | B1 | Today's top-class rally car, hybrid boost | New | 3.2 s, 210 km/h, geared short | AWD | Rally | M | New car |
 | B1 | Electric rallycross car, instant shove on loose ground | New | 2.6 s, 200 km/h | AWD | Electric | M | New car |
 | B2 | Rally-bred road hatch, a homologation special | New | 5.3 s, 230 km/h | AWD | Rally | D | New car |
-| B2 | Fast Nordic estate, turbo five, gravel-wise | **Fjärd** | 5.6 s, 244 km/h | AWD | Nordic family | D | Re-classed to gravel grip; 5 races |
+| B2 | Fast Nordic estate, turbo five, gravel-wise | **Fjärd** | 5.6 s, 244 km/h | AWD | Nordic family | D | Re-classed to rally grip; its 5 races measured again |
 | B2 | Desert pickup, long travel, a big V6 | New | 5.8 s, 180 km/h | AWD | Muscle | H | New car |
 | B3 | V8 pickup, soft and heavy | **Holm** | 6.7 s, 203 km/h | AWD | Workhorse | D | As it is |
 | B3 | Fast luxury four-by-four, boxy and loud | New | 4.5 s, 240 km/h | AWD | Grand sport | H | New car |
