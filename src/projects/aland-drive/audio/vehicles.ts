@@ -18,6 +18,7 @@ import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
 import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
+import { lontano } from "./voices/lontano";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
@@ -181,6 +182,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // C1
   altura,
   // C2
+  lontano,
   // C3
   vik,
   // C4

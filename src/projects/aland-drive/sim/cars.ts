@@ -17,6 +17,7 @@ import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
+import { lontano } from "./cars/lontano";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
@@ -80,6 +81,7 @@ const ENTRIES = {
   // C1
   altura,
   // C2
+  lontano,
   // C3
   vik,
   // C4

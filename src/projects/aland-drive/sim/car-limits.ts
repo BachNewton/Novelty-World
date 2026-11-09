@@ -18,6 +18,7 @@ import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
+import lontano from "./limits/lontano.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
@@ -120,6 +121,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // C1
   altura,
   // C2
+  lontano,
   // C3
   vik,
   // C4

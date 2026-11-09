@@ -17,6 +17,7 @@ import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
+import { lontano } from "./models/lontano";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
@@ -73,6 +74,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // C1
   altura,
   // C2
+  lontano,
   // C3
   vik,
   // C4
