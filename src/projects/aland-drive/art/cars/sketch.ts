@@ -40,7 +40,6 @@ const COLOURS: Record<string, [number, number, number]> = {
   stripe: [31, 79, 143],
   lensIndicator: [122, 69, 18],
   caliper: [226, 169, 31],
-  rimGold: [201, 161, 74],
 };
 
 type V = [number, number, number];

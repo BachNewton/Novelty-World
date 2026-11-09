@@ -7,7 +7,7 @@
 export type Point = [x: number, y: number, z: number];
 
 /** What a face is made of. The order is the attribute's values, and the table in `material.ts` follows it. */
-export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead", "seat", "seatTan", "interior", "disc", "rack", "plateBand", "stripe", "lensIndicator", "caliper", "rimGold"] as const;
+export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead", "seat", "seatTan", "interior", "disc", "rack", "plateBand", "stripe", "lensIndicator", "caliper"] as const;
 export type Surface = (typeof SURFACES)[number];
 
 export interface Soup {

@@ -227,13 +227,13 @@ export const rimfrost: CarSpec = {
   id: RIMFROST.id,
   name: RIMFROST.name,
   ride: RIMFROST.ride,
-  paint: "car-paint-works-blue",
+  paint: "car-paint-white",
   paints: [
-    paint("car-paint-works-blue", "metallic", { stripe: "car-paint-white" }),
     paint("car-paint-white", "solid", { stripe: "car-paint-orange" }),
     paint("car-paint-signal-red", "solid", { stripe: "car-paint-white" }),
-    paint("car-paint-black", "solid", { stripe: "car-paint-mustard" }),
-    paint("car-paint-silver", "metallic", { stripe: "car-paint-works-blue" }),
+    paint("car-paint-black", "solid", { stripe: "car-paint-orange" }),
+    paint("car-paint-silver", "metallic", { stripe: "car-paint-signal-red" }),
+    paint("car-paint-racing-green", "metallic", { stripe: "car-paint-white" }),
     paint("car-paint-teal", "metallic", { stripe: "car-paint-white" }),
   ],
   body: bodyOf(shape),
@@ -250,7 +250,7 @@ export const rimfrost: CarSpec = {
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber", seat: "car-cabin-seat-cloth" },
     turnsToLock: 1.3,
   },
-  /** Gold period wheels, as the works cars wore them. */
-  wheel: { radiusM: RIMFROST.wheelRadiusM, widthM: 0.215, rimShare: 0.66, spokes: 6, twinSpokes: true, style: "split", rimSurface: "rimGold" },
+  /** The period's polished six-spoke alloys. */
+  wheel: { radiusM: RIMFROST.wheelRadiusM, widthM: 0.215, rimShare: 0.66, spokes: 6, twinSpokes: true, style: "split" },
   shadowHalf: [0.88, TAIL_Z],
 };
