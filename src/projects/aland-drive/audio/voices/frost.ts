@@ -46,6 +46,6 @@ export const frost: Voice = {
   overrun: { crackle: 5, antiLag: 4 },
   gearWhine: { teeth: 21, level: 0.09 },
   cabin: 0.35,
-  level: 0.37,
+  level: 0.35,
   idleLevel: 0.52,
 };

@@ -17,6 +17,7 @@ import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
 import { orkan } from "./voices/orkan";
+import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
@@ -181,6 +182,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // C1
   frost,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4

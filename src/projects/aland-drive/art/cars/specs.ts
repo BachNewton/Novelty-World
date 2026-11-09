@@ -16,6 +16,7 @@ import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { orkan } from "./models/orkan";
+import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
@@ -73,6 +74,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // C1
   frost,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4

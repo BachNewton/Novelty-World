@@ -17,6 +17,7 @@ import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import orkan from "./limits/orkan.json";
+import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
@@ -120,6 +121,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // C1
   frost,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4

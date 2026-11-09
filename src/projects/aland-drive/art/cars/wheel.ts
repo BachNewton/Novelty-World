@@ -24,6 +24,8 @@ export interface WheelSpec {
   /** Paired spokes read as sportier, single ones as plainer: what `style` is when it isn't given. */
   twinSpokes: boolean;
   style?: RimStyle;
+  /** What the rim's face, spokes and hub are: polished alloy, or gold for a car that wears gold wheels. */
+  rimSurface?: "rim" | "rimGold";
 }
 
 interface WheelDetail {
@@ -39,7 +41,7 @@ const ring = (x: number, radius: number, sides: number): Point[] =>
     return [x, Math.cos(angle) * radius, Math.sin(angle) * radius];
   });
 
-function turned(builder: SoupBuilder, profile: [x: number, radius: number][], sides: number, surface: "tyre" | "rim" | "rimDark") {
+function turned(builder: SoupBuilder, profile: [x: number, radius: number][], sides: number, surface: "tyre" | "rim" | "rimDark" | "rimGold") {
   const group = builder.newGroup();
   const rows = profile.map(([x, radius]) => ring(x, radius, sides));
   for (let row = 0; row + 1 < rows.length; row++) {
@@ -60,7 +62,7 @@ interface Spoke {
   steps: number;
 }
 
-function spoke(builder: SoupBuilder, { angle, wide, radius, face, depth, steps }: Spoke) {
+function spoke(builder: SoupBuilder, { angle, wide, radius, face, depth, steps }: Spoke, surface: "rim" | "rimGold") {
   const sections = Array.from({ length: steps + 1 }, (_, step) => {
     const share = step / steps;
     const along = (pair: readonly [number, number]) => pair[0] + (pair[1] - pair[0]) * share;
@@ -69,7 +71,7 @@ function spoke(builder: SoupBuilder, { angle, wide, radius, face, depth, steps }
     const at = (sideways: number, depthX: number): Point => [depthX, c * r - s * sideways, s * r + c * sideways];
     return [at(-w, x), at(-w, x - depth), at(w, x - depth), at(w, x)];
   });
-  builder.rings(sections, "rim");
+  builder.rings(sections, surface);
 }
 
 /** The spokes of each design, as `Spoke`s, between the hub and the rim's inner edge, dished: the hub sits further in than the rim. */
@@ -94,6 +96,7 @@ function spokesOf(style: RimStyle, count: number, hub: number, rimInner: number,
 
 export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   const builder = new SoupBuilder();
+  const face = spec.rimSurface ?? "rim";
   const half = spec.widthM / 2;
   const radius = spec.radiusM;
   const rim = radius * spec.rimShare;
@@ -148,7 +151,7 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
         [faceX + 0.002, rim + 0.004],
       ],
       rimSides,
-      "rim",
+      face,
     );
     turned(
       builder,
@@ -169,7 +172,7 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
         [faceX, rim + 0.004],
       ],
       rimSides,
-      "rim",
+      face,
     );
   }
   // The dark behind the spokes, so they read against it from the road.
@@ -177,8 +180,8 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   if (detail.spokes) {
     const hubRadius = radius * 0.13;
     const style = spec.style ?? (spec.twinSpokes ? "split" : "blade");
-    for (const one of spokesOf(style, spec.spokes, hubRadius, rim - 0.03, faceX)) spoke(builder, one);
-    builder.rings([ring(faceX - 0.026, radius * 0.15, 10), ring(faceX - 0.05, radius * 0.165, 10)], "rim");
+    for (const one of spokesOf(style, spec.spokes, hubRadius, rim - 0.03, faceX)) spoke(builder, one, face);
+    builder.rings([ring(faceX - 0.026, radius * 0.15, 10), ring(faceX - 0.05, radius * 0.165, 10)], face);
     if (detail.fine) {
       // The brake disc behind the spokes, with its dark hat in the middle.
       const discX = faceX - 0.085;
@@ -194,7 +197,7 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   } else {
     // Far off, a pale disc in the dark rim says a wheel as well as spokes would.
     builder.rings([ring(faceX - 0.02, rim - 0.03, rimSides)], "rimDark");
-    builder.rings([ring(faceX - 0.012, radius * 0.3, 6)], "rim");
+    builder.rings([ring(faceX - 0.012, radius * 0.3, 6)], face);
   }
   return builder.finish(30);
 }

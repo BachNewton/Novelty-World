@@ -4,6 +4,7 @@ import type { CarEntry } from "./cars/character";
 import { aska } from "./cars/aska";
 import { blixt } from "./cars/blixt";
 import { orkan } from "./cars/orkan";
+import { rimfrost } from "./cars/rimfrost";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
@@ -80,6 +81,7 @@ const ENTRIES = {
   // C1
   frost,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
