@@ -50,7 +50,7 @@ const grilleFrame = (): Decal[] => {
 
 /** The flank's line: a gill behind each front wheel and a fine bright line drawn back from it over the door to the haunch. */
 const flank = (): Decal[] => [
-  { on: "side", at: [-0.92, 0.6], size: [0.31, 0.12], surface: "rim", mirror: true, cells: [4, 1], liftM: 0.012, fine: true },
+  { on: "side", at: [-0.92, 0.6], size: [0.31, 0.12], surface: "rim", mirror: true, cells: [4, 1], liftM: 0.015, fine: true },
   ...[0.632, 0.6, 0.568].map((h, at): Decal => ({ on: "side", at: [-0.92 - at * 0.012, h], size: [0.27 - at * 0.025, 0.018], surface: "grille", mirror: true, liftM: 0.018 })),
   { on: "side", at: [0.12, 0.645], size: [1.75, 0.01], surface: "rim", mirror: true, cells: [12, 1], liftM: 0.012, fine: true },
 ];
