@@ -4,12 +4,7 @@ import { CAR_IDS, CAR_TIERS, type CarId } from "./cars";
 import { sprintSurface, TIER_BANDS, TIERS, type Tier } from "./tiers";
 
 /** Cars measured outside their tier's band, still to be retuned into it. A car's retune deletes its line. */
-const RETUNE_PENDING: ReadonlySet<CarId> = new Set<CarId>([
-  // 5.0 s to 100 km/h, where A5 asks 4.3–4.9.
-  "ankar",
-  // 7.8 s to 100 km/h and 186 km/h, where A7 asks 5.7–7.0 and 195–250.
-  "ljus",
-]);
+const RETUNE_PENDING: ReadonlySet<CarId> = new Set<CarId>([]);
 
 /** A car's two figures, as its tier's band reads them: a tenth of a second, a whole km/h. */
 function figures(id: CarId, tier: Tier): { to100S: number | null; topKmh: number } {

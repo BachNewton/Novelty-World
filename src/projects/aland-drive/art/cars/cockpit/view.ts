@@ -61,6 +61,7 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
     revsMax: Math.floor(tuning.gearbox.redlineRpm / 1000) + 1,
     redline: tuning.gearbox.redlineRpm / 1000,
     panelAspect: (frame.cluster.width - 0.014) / (frame.cluster.height - 0.014),
+    boost: frame.style.boost,
     light: frame.style.lightDials,
   });
   let sheet = drawDialSheet(faces());
@@ -113,7 +114,9 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
       readings.revs.value = electric ? 0 : engine.rpm / 1000;
       readings.power.value = electric ? engine.load : 0;
       readings.lamps.value = electric ? engine.load : engine.rpm / tuning.gearbox.redlineRpm;
-      readings.oil.value = 0.3 + 0.55 * Math.min(engine.rpm / tuning.gearbox.redlineRpm, 1);
+      const revsShare = Math.min(engine.rpm / tuning.gearbox.redlineRpm, 1);
+      // A boost gauge reads from the oil's slot: the turbo builds pressure under load once the revs are past its lag.
+      readings.oil.value = frame.style.boost ? 0.75 * engine.load * Math.min(Math.max((revsShare - 0.3) / 0.25, 0), 1) : 0.3 + 0.55 * revsShare;
       readings.gear.value = engine.reversing ? -1 : electric ? 13 : engine.gear + 1;
       const minutes = Math.floor(hour * 60) % (24 * 60);
       readings.clock.value = Math.floor(minutes / 60) * 100 + (minutes % 60);

@@ -16,6 +16,7 @@ import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
+import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import lontano from "./limits/lontano.json";
@@ -114,6 +115,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4

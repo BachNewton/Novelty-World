@@ -16,6 +16,7 @@ import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
 import { kobb } from "./voices/kobb";
+import { lera } from "./voices/lera";
 import { orkan } from "./voices/orkan";
 import { ljus } from "./voices/ljus";
 import { lontano } from "./voices/lontano";
@@ -175,6 +176,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   hagel,
   // B2
   fjard,
+  lera,
   // B3
   holm,
   // B4

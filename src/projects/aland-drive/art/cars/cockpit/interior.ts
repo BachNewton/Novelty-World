@@ -57,6 +57,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     piano: finish("car-trim", 0.07, 0.85),
     accent: finish(colours.accent, 0.3, 0.6, { metal: 0.6 }),
     webbing: finish(colours.accent, 0.006, 0.08),
+    stitch: finish(colours.stitch ?? colours.accent, 0.004, 0.1),
     chrome: finish("car-rim", 0.55, 0.9, { metal: 0.85 }),
     seat: finish(seat, 0.008, 0.12),
     seatSide: finish(seat, 0.006, 0.1, { shade: 0.78 }),
@@ -258,6 +259,13 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
       readout(SOURCE.gear, 1, 0, 0.022, 0.026);
       readout(SOURCE.speed, 3, 0, -0.008, 0.014);
     } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+    if (style.gauges === "analogue" && style.boost) {
+      // The boost gauge between the big dials, over the gear window, as far up as the dials' gap lets it be.
+      const small = Math.min(apart - radius - 0.008, 0.026);
+      disc(b, at, [0, 0.02], small, 0.004, dialLook(SLOT.oil), SLOT.oil);
+      bezel(b, at, [0, 0.02], small + 0.0025, 0.002, 0.005, ringLook);
+      dials.push({ slot: SLOT.oil, source: SOURCE.oil, startDeg: 225, sweepDeg: -270 });
+    }
   } else if (style.gauges === "tacho") {
     // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
     big(SLOT.revs, SOURCE.revs, 0, 0.066);
@@ -500,7 +508,7 @@ function addQuilting(b: CockpitBuilder, paints: Paints, wide: number, middle: Po
 }
 
 /** One seat at x, its cushion at `cushionH` and its back reclined from z. */
-function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number, quilted = false) {
+function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number, quilted = false, stitched = false) {
   const g = f.ground;
   const recline = ((kind === "bench" ? 22 : 16) * Math.PI) / 180;
   const up: Point = [0, Math.cos(recline), Math.sin(recline)];
@@ -524,6 +532,14 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
+  if (stitched) {
+    // A seam of contrasting thread down each side of the seat's face and its cushion, standing a hair proud of them.
+    const thread = smooth(paints.stitch);
+    for (const s of [-1, 1]) {
+      pillow(b, axes(add(add(middle, back, -0.062), RIGHT, s * wide * 0.5), RIGHT, up, back), [0.003, tall * 0.76, 0.008], 0.3, thread, 3);
+      pillow(b, axes([x + s * wide * 0.52, cushionH + g - 0.002, z - 0.21], RIGHT, cushionUp, cushionBack), [0.003, 0.0165, 0.19], 0.3, thread, 3);
+    }
+  }
   if (quilted) addQuilting(b, paints, wide, middle, tall, up, back, [x, cushionH + g, z - 0.21], cushionUp, cushionBack);
   if (kind !== "comfort" && kind !== "bench") {
     const bolster = kind === "bucket" ? 0.07 : 0.05;
@@ -726,7 +742,7 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   const seats: [x: number, z: number, wide: number][] = passengers
     ? [[0, frame.seatZ, 0.22], ...[-1, 1].map((side): [number, number, number] => [side * passengers[0], passengers[1] + frame.seatZ - cabin.seatZ, 0.19])]
     : [-1, 1].map((side): [number, number, number] => [side * cabin.seatX, frame.seatZ, seatKind === "comfort" ? 0.25 : 0.24]);
-  for (const [x, z, wide] of seats) addSeat(b, frame, paints, x, z, cushionH, seatKind, wide, style.quilted);
+  for (const [x, z, wide] of seats) addSeat(b, frame, paints, x, z, cushionH, seatKind, wide, style.quilted, style.colours.stitch !== undefined);
   if (style.harness) for (const [x, z] of seats) addHarness(b, frame, paints, x, z, cushionH);
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
