@@ -7,6 +7,7 @@ import { blixt } from "./cars/blixt";
 import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
+import { borg } from "./cars/borg";
 import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
@@ -77,6 +78,7 @@ const ENTRIES = {
   lera,
   // B3
   holm,
+  borg,
   // B4
   berg,
   // C1

@@ -14,6 +14,7 @@ import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
+import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
 import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
@@ -70,6 +71,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   lera,
   // B3
   holm,
+  borg,
   // B4
   berg,
   // C1
