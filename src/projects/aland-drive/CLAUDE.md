@@ -2,7 +2,7 @@
 
 A 3D open-road driving game inspired by the Test Drive Unlimited series, set on the main island of Åland at 1:1 scale, built from real public geodata.
 
-Players see it as **Åland Drive Unlimited**, a nod to that series; the code keeps the name Åland Drive. It lives at Games → 3D Games → Åland Drive Unlimited. It is the whole main island, 54 tiles of road and the 40 around them, streamed in as the car moves: invented cars to drive on real roads, on land coloured by the real aerial photos, among forest grown from the laser data and buildings from NLS's 3D data and footprints, with a mini map, a world map and a GPS, and fifty real places to find, and bucket list challenges to play solo or as co-op for two, against the clock or a speed camera, and 32 races, laps of a loop or a road from A to B, for medals. Everyone who opens it drives in one shared world, online free roam, with every other player's car on the road and on both maps.
+Players see it as **Åland Drive Unlimited**, a nod to that series; the code keeps the name Åland Drive. It lives at Games → 3D Games → Åland Drive Unlimited. It is the whole main island, 54 tiles of road and the 40 around them, streamed in as the car moves: invented cars to drive on real roads, on land coloured by the real aerial photos, among forest grown from the laser data and buildings from NLS's 3D data and footprints, with a mini map, a world map and a GPS, and fifty real places to find, and bucket list challenges to play solo or as co-op for two, against the clock or a speed camera, and 56 race events, laps of a loop or a road from A to B, each for a class and tier of car, for medals. Everyone who opens it drives in one shared world, online free roam, with every other player's car on the road and on both maps.
 
 ## Where it's written down
 
@@ -17,6 +17,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `net/` | Multiplayer: the shared world, stand-ins, the shared GPS destination, computer-driven cars, shared traffic |
 | `traffic/` | Cars, cyclists and walkers on the lanes, and `?lane-lab` |
 | `challenge/` | Challenges, co-op and races |
+| `racers/` | The AI racers: the road as laid, the racing line and speed plan, the driver, difficulty, the field, and the race vetting tool |
 | `map/` | The world map, mini map, GPS and places to find |
 | `audio/` | Sound |
 | `time/`, `climate/` | The calendar and clock; the shared weather |
@@ -71,6 +72,7 @@ A player starts in the car they last chose on the game menu's Cars page, or in G
 |---|---|
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
 | `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
+| `?racers=<count>` | How many AI racers a race gets (`racers/CLAUDE.md`); the whole grid without it, 0 for none |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |

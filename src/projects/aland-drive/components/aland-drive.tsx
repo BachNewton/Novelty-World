@@ -14,7 +14,7 @@ import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
-import { resultText, timeText } from "../challenge/format";
+import { placeText, resultText, timeText } from "../challenge/format";
 import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
 
@@ -147,12 +147,15 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
-  const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
+  // The time cover's round, while one shows, and the jumps waiting for it: one asked for while the cover is lifting gets a round of its own.
+  const [timeCover, setTimeCover] = useState<number | null>(null);
+  const timeJumps = useRef<(() => void)[]>([]);
   const needsRow = useRef<HTMLDivElement>(null);
   const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
   const gatesText = useRef<HTMLSpanElement>(null);
   const lapText = useRef<HTMLSpanElement>(null);
+  const placeShown = useRef<HTMLSpanElement>(null);
   const lights = useRef<(HTMLSpanElement | null)[]>([]);
   const lightsRow = useRef<HTMLDivElement>(null);
   useFrameStats();
@@ -194,6 +197,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
+      if (placeShown.current && challenge.race) placeShown.current.textContent = `${placeText(challenge.race.place)} of ${challenge.race.cars}`;
       // One red light a second through the countdown, then all green for a second.
       const red = challenge.phase === "countdown" ? Math.min(LIGHTS, LIGHTS + 1 - Math.ceil(challenge.countdownS)) : 0;
       const green = challenge.phase === "running" && challenge.clockS < 1;
@@ -248,7 +252,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onProgress: setProgress,
-          onTimeJump: (jump) => { setTimeJump({ jump }); },
+          onTimeJump: (jump) => { timeJumps.current.push(jump); setTimeCover((round) => round ?? 0); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -337,6 +341,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                   </div>
                   {playing.kind === "race" && (
                     <div className="flex items-center gap-5 tabular-nums">
+                      <span className="text-3xl font-bold" title="Place" aria-label="Place" ref={placeShown}>
+                        1st of 1
+                      </span>
                       <span className="flex items-center gap-2 text-3xl font-bold" title="Lap">
                         <Repeat className="size-6 shrink-0" aria-hidden />
                         <span ref={lapText} aria-label="Lap">1 / 1</span>
@@ -465,7 +472,13 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           )}
         </>
       )}
-      {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
+      {timeCover !== null && (
+        <TimeCover
+          key={timeCover}
+          jump={() => { for (const jump of timeJumps.current.splice(0)) jump(); }}
+          onDone={() => { setTimeCover((round) => (timeJumps.current.length > 0 ? (round ?? 0) + 1 : null)); }}
+        />
+      )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} input={input} onPick={dev.pickMenuItem} />}
       {devMenuOpen && dev !== null && <DevMenu traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (

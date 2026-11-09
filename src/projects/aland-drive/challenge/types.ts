@@ -1,4 +1,6 @@
 import type { CarId } from "../sim/cars";
+import type { Tier } from "../sim/tiers";
+import type { ChallengeConditions } from "./conditions";
 
 /*
  * What a bucket list challenge is (`ideas/bucket-list.md`): one car, one place on
@@ -50,26 +52,33 @@ interface ChallengeCommon {
   lengthM: number;
 }
 
-export interface RouteChallenge extends ChallengeCommon {
+/** A bucket list challenge's own date, hour and weather (`conditions.ts`); a race takes the world's. */
+interface HeldConditions {
+  conditions: ChallengeConditions;
+}
+
+export interface RouteChallenge extends ChallengeCommon, HeldConditions {
   kind: "route";
   /** In the order they must be passed. The last is the finish. */
   gates: readonly Gate[];
-  /** The scripted driver's time in this car, solo (`tools/challenge-par.ts`). */
+  /** The AI racer's best clean time in this car, solo, in the challenge's conditions (`tools/challenge-par.ts`). */
   parS: number;
   targetS: number;
 }
 
-export interface SpeedTrapChallenge extends ChallengeCommon {
+export interface SpeedTrapChallenge extends ChallengeCommon, HeldConditions {
   kind: "speed-trap";
   camera: Gate;
-  /** The speed the scripted driver reaches at the camera flat out in this car, solo. */
+  /** The AI racer's best speed at the camera in this car, solo, in the challenge's conditions. */
   parKmh: number;
   targetKmh: number;
 }
 
 export interface RaceChallenge extends ChallengeCommon {
   kind: "race";
-  /** The list's number, as R1, X1 or O1. */
+  /** The class and tier of car it's for, the car it hands the player among them. */
+  tier: Tier;
+  /** The list's number: its tier and its place among the tier's races, as A5.2. */
   number: string;
   shape: RaceShape;
   ground: RaceGround;

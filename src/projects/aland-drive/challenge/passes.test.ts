@@ -3,11 +3,11 @@ import { NO_PASSES, readPasses, withOutcome } from "./passes";
 import type { Challenge, RaceChallenge } from "./types";
 
 const place = { x: 0, z: 0, heading: 0 };
-const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [], starts: [place, place] as const, lengthM: 0 };
+const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [], starts: [place, place] as const, lengthM: 0, conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" as const } };
 const ROUTE: Challenge = { ...common, id: "route", kind: "route", gates: [], parS: 60, targetS: 60 };
 const TRAP: Challenge = { ...common, id: "trap", kind: "speed-trap", camera: { x: 0, z: 0, heading: 0, halfWidthM: 1 }, parKmh: 150, targetKmh: 150 };
 const passed = (average: number) => ({ passed: true, results: [average], average });
-const RACE: RaceChallenge = { ...common, id: "race", kind: "race", number: "R0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], lapM: 0, lineM: 0 };
+const RACE: RaceChallenge = { ...common, id: "race", kind: "race", tier: "A5", number: "A5.0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], lapM: 0, lineM: 0 };
 const finished = (time: number) => ({ passed: true, results: [time], average: time });
 
 describe("the passes kept", () => {

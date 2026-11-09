@@ -19,9 +19,10 @@ export interface PlacesEntry {
 }
 
 export interface TargetsEntry {
-  /** The car's tuning print and the places' print, as par was measured with them. */
+  /** The car's tuning print, the places' print and the ground and tyres, as par was measured with them. */
   tuning: string;
   places: string;
+  ground: string;
   par: number;
   target: number;
 }
@@ -37,7 +38,7 @@ export function placesPrint(entry: PlacesEntry | RacePlacesEntry): string {
 export function challengeFrom(spec: ChallengeSpec, places: PlacesEntry, { par, target }: { par: number; target: number }): BucketChallenge {
   if (places.starts.length !== 2) throw new Error(`${spec.id} has ${places.starts.length} start places, not two`);
   const starts = [places.starts[0], places.starts[1]] as const;
-  const common = { id: spec.id, title: spec.title, car: spec.car, where: spec.where, waypoints: spec.waypoints, starts, lengthM: places.lengthM };
+  const common = { id: spec.id, title: spec.title, car: spec.car, where: spec.where, waypoints: spec.waypoints, starts, lengthM: places.lengthM, conditions: spec.conditions };
   if (spec.kind === "route") {
     if (!places.gates) throw new Error(`${spec.id} is a Route with no gates`);
     return { ...common, kind: "route", gates: places.gates, parS: par, targetS: target };
@@ -75,6 +76,7 @@ export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, laps: number):
   return {
     id: spec.id,
     kind: "race",
+    tier: spec.tier,
     number: spec.number,
     title: spec.title,
     shape: spec.shape,

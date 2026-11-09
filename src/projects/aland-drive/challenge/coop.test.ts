@@ -26,6 +26,7 @@ const ROUTE: RouteChallenge = {
   gates: [finish],
   parS: 60,
   targetS: 60,
+  conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" },
 };
 
 interface Client {
