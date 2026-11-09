@@ -28,7 +28,7 @@ export const strimma: Voice = {
     rasp: 2.8,
     intakeHz: 300,
     intakeQ: 2.4,
-    intake: 0.9,
+    intake: 0.75,
     limiterHz: 13,
   },
   electric: null,
@@ -37,6 +37,6 @@ export const strimma: Voice = {
   overrun: { crackle: 2.5, antiLag: 0 },
   gearWhine: { teeth: 23, level: 0.02 },
   cabin: 0.12,
-  level: 0.4,
+  level: 0.32,
   idleLevel: 0.44,
 };
