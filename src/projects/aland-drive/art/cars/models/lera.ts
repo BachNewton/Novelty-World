@@ -58,8 +58,8 @@ const livery = (): Decal[] => [
 
 /** The bonnet's scoop: a shaped intake standing out of the bonnet over the intercooler, its mouth dark. */
 const scoop: Block[] = [
-  { at: [0, 0.835, -1.075], size: [0.36, 0.07, 0.25], surface: "paint", taper: [0.85, 0.6] },
-  { at: [0, 0.845, -1.205], size: [0.28, 0.035, 0.02], surface: "grille", fine: true },
+  { at: [0, 0.835, -1.075], size: [0.3, 0.064, 0.25], surface: "paint", taper: [0.85, 0.55] },
+  { at: [0, 0.843, -1.205], size: [0.23, 0.032, 0.02], surface: "grille", fine: true },
 ];
 
 /** The roof spoiler at the top of the tailgate, a modest lip in the body's colour, and the fins it stands on. */
@@ -271,7 +271,7 @@ export const lera: CarSpec = {
     screen: false,
     cage: false,
     boost: true,
-    clusterSight: 0.68,
+    eye: [0, -0.045, 0],
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber", stitch: "car-cabin-odmark" },
   },
   wheel: { radiusM: LERA.wheelRadiusM, widthM: 0.225, rimShare: 0.64, spokes: 8, twinSpokes: false, style: "mesh" },
