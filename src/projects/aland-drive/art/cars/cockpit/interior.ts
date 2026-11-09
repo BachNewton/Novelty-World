@@ -258,6 +258,15 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
       readout(SOURCE.gear, 1, 0, 0.022, 0.026);
       readout(SOURCE.speed, 3, 0, -0.008, 0.014);
     } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+  } else if (style.gauges === "tacho") {
+    // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
+    big(SLOT.revs, SOURCE.revs, 0, 0.066);
+    readout(SOURCE.gear, 1, 0, -0.024, 0.024);
+    readout(SOURCE.speed, 3, 0, -0.049, 0.013);
+    big(SLOT.speed, SOURCE.speed, -0.118, 0.044);
+    disc(b, at, [0.118, -0.006], 0.036, 0.004, dialLook(SLOT.water), SLOT.water);
+    bezel(b, at, [0.118, -0.006], 0.039, 0.0025, 0.005, ringLook);
+    dials.push({ slot: SLOT.water, source: SOURCE.water, startDeg: 135, sweepDeg: -90 });
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
@@ -336,7 +345,9 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 
   // The column into the dash, and the stalks either side of it.
   const column = (along: number) => add(middle, back, -along);
-  b.tube([column(dish + 0.02), column(0.34)], 0.034, 12, smooth(paints.under));
+  // Behind one big dial in the middle the column ends in a shroud just behind the hub, so it never crosses the dial.
+  const columnLong = f.style.gauges === "tacho" ? 0.12 : 0.34;
+  b.tube([column(dish + 0.02), column(columnLong)], 0.034, 12, smooth(paints.under));
   for (const side of [-1, 1]) {
     const root = add(column(dish + 0.07), RIGHT, side * 0.03);
     b.tube([root, add(add(root, RIGHT, side * 0.11), up, 0.015)], 0.0055, 6, smooth(paints.piano));

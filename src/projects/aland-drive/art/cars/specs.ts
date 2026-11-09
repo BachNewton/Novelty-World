@@ -16,6 +16,7 @@ import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
 import { sten } from "./models/sten";
+import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
 import { vik } from "./models/vik";
@@ -37,6 +38,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A3
   dyning,
   span,
+  strimma,
   // A4
   sund,
   // A5

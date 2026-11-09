@@ -17,6 +17,7 @@ import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
 import sten from "./limits/sten.json";
+import strimma from "./limits/strimma.json";
 import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
 import vik from "./limits/vik.json";
@@ -84,6 +85,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A3
   dyning,
   span,
+  strimma,
   // A4
   sund,
   // A5

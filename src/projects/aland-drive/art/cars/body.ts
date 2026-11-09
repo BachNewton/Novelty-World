@@ -177,7 +177,8 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number };
+  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -192,6 +193,11 @@ export interface BodySpec {
   openWheels?: boolean;
   fenders?: readonly Fender[];
   struts?: readonly Strut[];
+  /**
+   * Where the windscreen meets the roof, for a silhouette faired through it, whose point after the screen's start is
+   * only the next sample up the glass. None, and that point is the screen's top, as a hand-placed silhouette has it.
+   */
+  screenTop?: readonly [z: number, h: number];
 }
 
 export interface BodyDetail {
@@ -546,6 +552,12 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
+    if (spec.exhausts.open) {
+      // The pipe's wall, its rolled end and its bore, closed a few centimetres in by a dark disc standing clear of the bore's floor.
+      builder.rings([round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, z - 0.03, radius * 0.78)], "gap");
+      continue;
+    }
     builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
     builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
   }
