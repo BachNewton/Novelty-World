@@ -341,7 +341,7 @@ export interface GameProbe {
   /** Starts a challenge solo, wherever the car is, resolving once the car is on its start line. */
   startChallenge: (id: string) => Promise<void>;
   /** Walking round a dealership: going in at one by its site, standing, sitting, leaving, and where things stand. */
-  dealership: Pick<WalkIn, "enterAt" | "standAt" | "sitAt" | "leave" | "state" | "peek" | "doors">;
+  dealership: Pick<WalkIn, "enterAt" | "standAt" | "sitAt" | "leave" | "state" | "peek" | "doors" | "leaveOut">;
   /** The challenge being played, as its run stands, or null. */
   challenge: () => ChallengeProbe | null;
   /** The scripted driver along the challenge's route, from where the car is on it. */

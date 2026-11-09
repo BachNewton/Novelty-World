@@ -575,6 +575,8 @@ export function createWalkIn(host: WalkInHost) {
     peek(on: boolean) {
       peeking = on;
     },
+    /** For the tools: leaves a dealership's own model out of the world, to look at the island from inside it, or none with null. */
+    leaveOut: (site: ExteriorId | null) => host.leaveOut(site),
     /** For the tools: every door on the island, in the scene's metres. */
     doors: () => doors.map(({ dealership, x, z }) => ({ site: dealership.site, x, z })),
     state: () => ({

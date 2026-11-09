@@ -84,11 +84,13 @@ for (const site of sites) {
   await stand(viewX, viewZ, yaw, 0);
   await page.evaluate(() => window.__alandDrive.dealership.peek(true));
   await shoot(`${site}-view-captured`);
-  await page.evaluate(() => {
+  await page.evaluate((id) => {
     const probe = window.__alandDrive;
     probe.dealership.peek(false);
     probe.dealership.leave();
-  });
+    // The world from inside the dealership's own model, as the capture saw it.
+    probe.dealership.leaveOut(id);
+  }, site);
   await settle();
   await page.evaluate((at) => window.__alandDrive.look(at), {
     east: capture.x + worldOrigin.east,
@@ -99,6 +101,7 @@ for (const site of sites) {
     pitch: 0,
   });
   await shoot(`${site}-view-world`);
+  await page.evaluate(() => window.__alandDrive.dealership.leaveOut(null));
   await page.evaluate(() => window.__alandDrive.setCamera("chase"));
   console.log(site, JSON.stringify({ cars: inside.cars, capture, draws: counts.drawCalls, triangles: counts.triangles, gpuMs: counts.gpuMs }));
 }
