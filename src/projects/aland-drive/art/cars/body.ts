@@ -74,6 +74,8 @@ export interface Block {
   mirror?: boolean;
   /** The far end's width and height as a share of the near end's. */
   taper?: readonly [wide: number, tall: number];
+  /** The taper keeps the block's foot level, `at`'s height its near end's middle, so it grows or shrinks upwards only. */
+  footLevel?: boolean;
   fine?: boolean;
 }
 
@@ -187,6 +189,8 @@ interface Curves {
 const SEAM_ROWS = { door: 1, hood: 7.93 } as const;
 const SEAM_HALF_M = 0.006;
 const MERGE_M = 0.012;
+/** How near a hero's arch station may come to another station it must have before it gives way. */
+const SLIVER_M = 0.025;
 
 function archTop(spec: BodySpec, z: number): number {
   const radius = spec.wheelRadiusM + spec.archClearM;
@@ -202,19 +206,32 @@ function flareAt(spec: BodySpec, z: number) {
 function stationsOf(spec: BodySpec, curves: Curves, detail: BodyDetail): Station[] {
   const wanted: { z: number; gapTo?: number }[] = [];
   const radius = spec.wheelRadiusM + spec.archClearM;
+  // A hero with clean ends has its arches' stations laid without slivers; the older cars keep theirs as their known
+  // overlaps were counted on, until they're redrawn.
+  const clean = detail.fine && spec.cleanEnds === true;
+  const arches: number[] = [];
   for (const axle of spec.axleZ) {
     const low = curves.sill(axle);
-    const startAngle = Math.asin(Math.max(-1, (low - spec.wheelRadiusM) / radius));
+    const lowest = Math.asin(Math.max(-1, (low - spec.wheelRadiusM) / radius));
+    // An arch is drawn over its wheel's top half (`archTop`), so a hero's stations go round that half alone: below the
+    // axle a step's z would land a millimetre or two from one above it, a sliver whose normals crumpled the light.
+    const startAngle = clean ? Math.max(lowest, 0) : lowest;
     for (let step = 0; step <= detail.archSteps; step++) {
       const angle = startAngle + ((Math.PI - 2 * startAngle) * step) / detail.archSteps;
-      wanted.push({ z: axle + Math.cos(angle) * radius });
+      arches.push(axle + Math.cos(angle) * radius);
     }
   }
-  if (detail.seams) for (const seam of spec.seams) wanted.push({ z: seam - SEAM_HALF_M, gapTo: seam + SEAM_HALF_M }, { z: seam + SEAM_HALF_M });
-  for (const [from, to] of spec.pillars) wanted.push({ z: from }, { z: to });
+  const marks: { z: number; gapTo?: number }[] = [];
+  if (detail.seams) for (const seam of spec.seams) marks.push({ z: seam - SEAM_HALF_M, gapTo: seam + SEAM_HALF_M }, { z: seam + SEAM_HALF_M });
+  for (const [from, to] of spec.pillars) marks.push({ z: from }, { z: to });
+  const path = spec.silhouette.filter((point) => detail.fine || !point.fine);
+  // A hero's arch station that falls by a seam, a pillar or a point of the silhouette gives way to it, rather than leave
+  // a sliver between them: its normals crumple the light, and a pane's frit folds across one into the next.
+  const fixed = [...marks.map(({ z }) => z), ...path.map(({ z }) => z)];
+  const clear = (z: number) => !clean || fixed.every((at) => Math.abs(at - z) >= SLIVER_M);
+  wanted.push(...arches.filter(clear).map((z) => ({ z })), ...marks);
 
   const stations: Station[] = [];
-  const path = spec.silhouette.filter((point) => detail.fine || !point.fine);
   for (let at = 0; at + 1 < path.length; at++) {
     const [from, to] = [path[at], path[at + 1]];
     const [low, high] = from.z < to.z ? [from.z, to.z] : [to.z, from.z];
@@ -253,16 +270,45 @@ function rowAt(rib: readonly (readonly [number, number])[], row: number): [numbe
   return [along(0), along(1)];
 }
 
-function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boolean): [x: number, h: number][] {
+/** The larger of two heights, rounded over `round` where they cross, and exactly the larger beyond it. */
+function smoothMax(a: number, b: number, round: number) {
+  const near = Math.max(round - Math.abs(a - b), 0) / round;
+  return Math.max(a, b) + (near * near * round) / 4;
+}
+
+/** How far a hero's flank rows round off where the arch's edge lifts them. */
+const ARCH_ROUND_M = 0.06;
+
+/**
+ * A hero's lower and mid rows: the flank's own lines, as if there were no arch, lifted over the arch's lip only where
+ * it reaches them. Spread between the lip and the shoulder instead, they'd follow the arch's circle, which stands
+ * straight up at the arch's ends, and squeeze the panel over it into a few centimetres, so the light crumpled there.
+ */
+function heroFlank(lowest: number, sill: number, sillTop: number, shoulder: number, lip: number) {
+  const flankTop = Math.max(lowest + 0.08, lowest + lip);
+  const lower = Math.max(flankTop + (shoulder - flankTop) * 0.3, lowest + 0.024);
+  const mid = Math.max(flankTop + (shoulder - flankTop) * 0.68, lowest + 0.036);
+  if (sill <= lowest) return { lower, mid };
+  const gap = shoulder - sillTop;
+  return {
+    lower: smoothMax(lower, sillTop + Math.min(0.015, gap * 0.3), ARCH_ROUND_M),
+    mid: smoothMax(mid, sillTop + Math.min(0.03, gap * 0.68), ARCH_ROUND_M),
+  };
+}
+
+function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boolean, fine: boolean): [x: number, h: number][] {
   const { z, h: top } = station;
   const lowest = curves.sill(z);
   const sill = Math.max(lowest, archTop(spec, z));
   const width = curves.halfWidth(z);
   const flare = flareAt(spec, z);
   const shoulder = Math.max(curves.shoulder(z), sill + 0.05);
-  const sillTop = Math.max(lowest + 0.08, sill + (spec.archLipM ?? 0.012));
-  const lower = Math.max(sillTop + (shoulder - sillTop) * 0.3, sill + 0.024);
-  const mid = Math.max(sillTop + (shoulder - sillTop) * 0.68, sill + 0.036);
+  const lip = spec.archLipM ?? 0.012;
+  const sillTop = Math.max(lowest + 0.08, sill + lip);
+  // Only a car with clean ends: the older cars keep their flanks as their known overlaps were counted on.
+  const { lower, mid } = fine && spec.cleanEnds === true
+    ? heroFlank(lowest, sill, sillTop, shoulder, lip)
+    : { lower: Math.max(sillTop + (shoulder - sillTop) * 0.3, sill + 0.024), mid: Math.max(sillTop + (shoulder - sillTop) * 0.68, sill + 0.036) };
   const belt = Math.max(curves.belt(z), shoulder + 0.01);
 
   const beltX = width - 0.018 + flare * 0.35;
@@ -384,6 +430,9 @@ function addDecal(builder: SoupBuilder, ground: number, decal: Decal) {
  * A hero's mirror: a housing that swells out of a slim arm and tapers to its tip, round in front and flat behind, in
  * the body's colour, with its dark glass on the flat back.
  */
+/** How far in from the housing's edge a hero mirror's glass stops. */
+const MIRROR_RIM_M = 0.009;
+
 function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
   const { z, h, x } = spec.mirror;
   const y = h + ground;
@@ -408,16 +457,20 @@ function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
       [side * out, y + up - 0.007, z + along + 0.018],
     ];
     builder.rings(ordered([arm(x - 0.02, -0.06, 0.02), arm(x + 0.01, -0.038, 0.01), arm(x + 0.04, -0.012, 0)]), "paint");
-    // The glass on its flat back, standing off it.
+    // The glass on its flat back, standing off it: the housing's own outline drawn in by a rim of paint, silvered as a
+    // mirror is, so from behind or from the driver's seat it reads as a mirror and not as a dark box.
     const glassZ = z + back + 0.006;
-    const [a, b, c, d]: Point[] = [
-      [side * (x + 0.055), y - 0.03, glassZ],
-      [side * (x + 0.055), y + 0.036, glassZ],
-      [side * (x + 0.155), y + 0.042, glassZ],
-      [side * (x + 0.155), y - 0.028, glassZ],
+    const edge = (out: number, tall: number, lift: number): [Point, Point] => [
+      [side * out, y + lift - tall + MIRROR_RIM_M, glassZ],
+      [side * out, y + lift + tall - MIRROR_RIM_M, glassZ],
     ];
-    if (side > 0) builder.quad(d, c, b, a, "trim");
-    else builder.quad(a, b, c, d, "trim");
+    const outline = [edge(x + 0.05, 0.04, 0), edge(x + 0.1, 0.048, 0.004), edge(x + 0.145, 0.044, 0.006), edge(x + 0.168, 0.033, 0.006)];
+    const group = builder.newGroup();
+    outline.slice(1).forEach(([low, high], at) => {
+      const [lowBefore, highBefore] = outline[at];
+      if (side > 0) builder.quad(low, high, highBefore, lowBefore, "rim", group);
+      else builder.quad(lowBefore, highBefore, high, low, "rim", group);
+    });
   }
 }
 
@@ -539,12 +592,16 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
-function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+/** How far up a block's ring at this height stands: its middle, raised where the taper keeps its foot level. */
+const blockMiddle = ({ at, size, footLevel }: Block, tall: number) => at[1] + (footLevel ? (tall - size[1]) / 2 : 0);
+
+function addBlock(builder: SoupBuilder, block: Block, ground: number) {
+  const { at, size, surface, mirror, taper = [1, 1] } = block;
   const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
-    [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
-    [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
-    [side * at[0] + wide / 2, at[1] + ground + tall / 2, z],
-    [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
+    [side * at[0] - wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
+    [side * at[0] - wide / 2, blockMiddle(block, tall) + ground + tall / 2, z],
+    [side * at[0] + wide / 2, blockMiddle(block, tall) + ground + tall / 2, z],
+    [side * at[0] + wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
   ];
   for (const side of mirror ? [1, -1] : [1]) {
     builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
@@ -643,7 +700,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   const builder = new SoupBuilder();
   const under = builder.newGroup();
   const rows = detail.rows;
-  const ribs = stations.map((station) => ribOf(spec, curves, station, false));
+  const ribs = stations.map((station) => ribOf(spec, curves, station, false, detail.fine));
   const grid: Point[][] = ribs.map((rib, index) => {
     const station = stations[index];
     const width = curves.halfWidth(station.z);
@@ -914,15 +971,19 @@ export function buildDistant(spec: BodySpec, ground: number, near: Soup): Soup {
 }
 
 /** A block on the stand-in: a box with no floor, and none of its faces too small to see from where it stands in. */
-function addDistantBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+function addDistantBlock(builder: SoupBuilder, block: Block, ground: number) {
+  const { at, size, surface, mirror, taper = [1, 1] } = block;
   for (const side of mirror ? [1, -1] : [1]) {
-    const [x, y] = [side * at[0], at[1] + ground];
-    const ring = (z: number, wide: number, tall: number): Point[] => [
-      [x - wide / 2, y - tall / 2, z],
-      [x + wide / 2, y - tall / 2, z],
-      [x + wide / 2, y + tall / 2, z],
-      [x - wide / 2, y + tall / 2, z],
-    ];
+    const x = side * at[0];
+    const ring = (z: number, wide: number, tall: number): Point[] => {
+      const y = blockMiddle(block, tall) + ground;
+      return [
+        [x - wide / 2, y - tall / 2, z],
+        [x + wide / 2, y - tall / 2, z],
+        [x + wide / 2, y + tall / 2, z],
+        [x - wide / 2, y + tall / 2, z],
+      ];
+    };
     const [front, back] = [ring(at[2] - size[2] / 2, size[0], size[1]), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1])];
     const faces: [readonly [Point, Point, Point, Point], Point][] = [
       [[front[0], front[1], front[2], front[3]], [0, 0, -1]],

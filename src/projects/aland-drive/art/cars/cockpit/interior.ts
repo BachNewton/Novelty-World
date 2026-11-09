@@ -67,7 +67,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     dial: finish("car-cabin-screen", 0.04, 0.9),
     vent: finish("car-grille", 0.01, 0.2),
     paint: finish(null, 0.05, 0.6),
-    cage: finish("car-cabin-cage", 0.03, 0.35),
+    cage: finish("car-cabin-cage", 0.06, 0.5, { metal: 0.3 }),
     wood: finish("car-cabin-wood", 0.05, 0.6),
     mirror: finish("car-cabin-mirror", 0.85, 1, { metal: 1 }),
     switchLit: finish("car-cabin-panel", 0.01, 0.3, { glow: 0.9 }),
@@ -578,17 +578,26 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
   }
 }
 
+/** A cage tube's sides: 30 degrees apart, under the cockpit's 38 degree crease. */
+const CAGE_SIDES = 12;
+/** How far under the belt the door bars' top ends sit. */
+const DOOR_BAR_DROP_M = 0.07;
+
 /** A rally car's cage: hoops behind the seats and up the pillars, bars along the roof and an X in each door. */
 function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const { ground: g, floorH, header, dash } = f;
   const look = smooth(paints.cage);
   const radius = 0.019;
+  // Enough sides that neighbouring faces meet under the builder's crease, so each tube shades round, not as flat bands.
+  const tube = (path: Point[], r: number) => b.tube(path, r, CAGE_SIDES, look);
   const main = f.seatZ + 0.33;
   const sideAt = (z: number) => f.cardX(z) - 0.06;
   const railAt = (z: number) => f.glassX(z) - 0.18;
   const roofAt = (z: number) => f.roofAt(railAt(z), z) - SKIN_M - 0.026 + g;
   const floor = floorH + 0.02 + g;
   const beltAt = (z: number) => f.belt(z) + g;
+  // The door bars' top ends sit down the door card, under the window line, as a real cage's do, and not across the view.
+  const doorTopAt = (z: number) => beltAt(z) - DOOR_BAR_DROP_M;
   const hoop: Point[] = [
     [-sideAt(main), floor, main],
     [-sideAt(main), beltAt(main), main],
@@ -597,18 +606,18 @@ function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
     [sideAt(main), beltAt(main), main],
     [sideAt(main), floor, main],
   ];
-  b.tube(hoop, radius, 8, look);
-  b.tube([[-sideAt(main), floor + 0.05, main], [railAt(main), roofAt(main) - 0.02, main]], radius * 0.9, 8, look);
+  tube(hoop, radius);
+  tube([[-sideAt(main), floor + 0.05, main], [railAt(main), roofAt(main) - 0.02, main]], radius * 0.9);
   const frontZ = header.z + 0.06;
   for (const s of [-1, 1]) {
     const foot: Point = [s * sideAt(dash.rearZ), floor, dash.rearZ];
     const corner: Point = [s * railAt(frontZ), roofAt(frontZ), frontZ];
-    b.tube([foot, [s * sideAt(dash.rearZ), beltAt(dash.rearZ) + 0.05, dash.rearZ + 0.02], corner, [s * railAt(main), roofAt(main), main]], radius, 8, look);
-    b.tube([[s * sideAt(dash.rearZ), floor + 0.1, dash.rearZ + 0.03], [s * sideAt(main), beltAt(main) - 0.02, main]], radius * 0.9, 8, look);
-    b.tube([[s * sideAt(dash.rearZ), beltAt(dash.rearZ) - 0.02, dash.rearZ + 0.03], [s * sideAt(main), floor + 0.12, main]], radius * 0.9, 8, look);
-    b.tube([[s * railAt(main), roofAt(main), main], [s * sideAt(f.endZ) * 0.8, floor + 0.2, Math.max(f.endZ, main + 0.4)]], radius * 0.9, 8, look);
+    tube([foot, [s * sideAt(dash.rearZ), beltAt(dash.rearZ) + 0.05, dash.rearZ + 0.02], corner, [s * railAt(main), roofAt(main), main]], radius);
+    tube([[s * sideAt(dash.rearZ), floor + 0.1, dash.rearZ + 0.03], [s * sideAt(main), doorTopAt(main), main]], radius * 0.85);
+    tube([[s * sideAt(dash.rearZ), doorTopAt(dash.rearZ), dash.rearZ + 0.03], [s * sideAt(main), floor + 0.12, main]], radius * 0.85);
+    tube([[s * railAt(main), roofAt(main), main], [s * sideAt(f.endZ) * 0.8, floor + 0.2, Math.max(f.endZ, main + 0.4)]], radius * 0.9);
   }
-  b.tube([[-railAt(frontZ), roofAt(frontZ), frontZ], [railAt(frontZ), roofAt(frontZ), frontZ]], radius * 0.9, 8, look);
+  tube([[-railAt(frontZ), roofAt(frontZ), frontZ], [railAt(frontZ), roofAt(frontZ), frontZ]], radius * 0.9);
 }
 
 export function buildCockpit(spec: CarSpec): CockpitParts {
