@@ -256,6 +256,8 @@ export const flod: CarSpec = {
     shifter: "lever",
     seats: "sport",
     screen: true,
+    // The cluster's readouts sit in the wheel's opening over its hub, where the eye's line through the wheel meets them.
+    clusterSight: 0.8,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
