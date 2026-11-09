@@ -103,7 +103,7 @@ import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type
 import { medalForPlace, type Standing } from "../challenge/standings";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
 import type { SeenCar } from "../racers/awareness";
-import { RaceGrid, seenCarOf } from "../racers/grid";
+import { RaceGrid, racersOn, startPlaceOf, seenCarOf } from "../racers/grid";
 import { LaidRoad } from "../racers/laid-road";
 import { progressOf } from "../racers/racer";
 import { raceLineUrl, readRaceLine, type RaceLine, type RaceLineFile } from "../racers/race-line-file";
@@ -1702,7 +1702,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const raceLine = await raceLineOf(challenge);
     // The racers drive the other cars of the race's kind.
     const field = raceFieldOf(challenge.car, challenge.ground).slice(1);
-    grid = new RaceGrid(challenge, raceLine, field, racersAsked, players, {
+    grid = new RaceGrid(challenge, raceLine, field, racersOn(challenge, players, racersAsked), {
       addCar: (place, car, condition) => {
         const road = world.roads.nearest(place.x, place.z);
         if (!road) throw new Error(`no road at a race's grid place, ${place.x}, ${place.z}`);
@@ -1831,6 +1831,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let placedWaiters: (() => void)[] = [];
   const sessionHost: SessionHost = {
     carId: () => drive.carId,
+    // In a race the racers take the grid from the pole, and the players start at the back.
+    startPlaceOf: (challenge, seat, players) => (challenge.kind === "race" ? startPlaceOf(challenge, seat, players, racersAsked) : challenge.starts[seat]),
     setCar: (id) => {
       setCar(id);
     },

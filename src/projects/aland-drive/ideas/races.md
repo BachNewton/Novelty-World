@@ -403,6 +403,7 @@ A draft for the owner's review: a route for each of the 56 events, chosen from t
 - **Races are run in the world as it is: traffic on, as TDU's are, and the world's hour, season and weather.** The AI racers must handle every track in every condition. Bucket-list challenges set their own conditions instead, as Forza's do.
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
 - **A race shows no time**, only places: the time is the bucket list's. Until the racers exist, a finish is first, rather than timed stand-in rivals.
+- **The player starts at the back of the grid**, the racers ahead from the pole. Raced from the pole against the first racers that fought, the owner took the lead at once and held it without trouble; having to pass the whole field is the challenge. A co-op partner starts beside or behind the player, behind every racer.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
 - **Once cars are bought, events ask for a class and tier** (`ideas/cars.md`).
 - **56 events**, weighted to Åland's roads as section 9 sets out. Any of the 32 tracks may be kept, changed or dropped to fit.
