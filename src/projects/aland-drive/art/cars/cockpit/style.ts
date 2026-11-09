@@ -65,6 +65,11 @@ export interface InteriorStyle {
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
   eye: readonly [x: number, y: number, z: number];
+  /**
+   * A digital cluster's speed set to the left of its middle, inside the arc: for a low car, whose eye looks down past the
+   * wheel's hub along its column, which crosses the middle of the screen.
+   */
+  speedAside: boolean;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -94,6 +99,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
+    speedAside: false,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
