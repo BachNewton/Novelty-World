@@ -18,6 +18,7 @@ import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { lera } from "./cars/lera";
+import { myr } from "./cars/myr";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
@@ -77,6 +78,7 @@ const ENTRIES = {
   lera,
   // B3
   holm,
+  myr,
   // B4
   berg,
   // C1
