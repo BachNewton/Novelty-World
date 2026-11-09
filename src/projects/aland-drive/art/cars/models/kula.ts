@@ -207,10 +207,10 @@ const shape: Shape = {
         [[NOSE_Z + 0.27, undefined]],
       ),
       { z: -1.05, h: 0.92, band: "cowl" },
+      // The windscreen is one flat pane from the cowl to the header, where the cockpit hangs its mirror and visors.
+      { z: -1.0, h: 0.93, band: "screen" },
       ...faired(
         [
-          [-1.0, 0.93],
-          [-0.8, 1.17],
           [-0.6, 1.37],
           [-0.1, 1.468],
           [0.35, 1.45],
@@ -221,7 +221,6 @@ const shape: Shape = {
           [1.66, 0.92],
         ],
         [
-          [-1.0, "screen"],
           [-0.6, "roof"],
           [0.52, "rearGlass"],
           [0.9, "gap"],
@@ -261,7 +260,7 @@ const shape: Shape = {
     cornerReachM: 0.75,
     hoodSeamZ: [-1.97, -1.1],
     cleanEnds: true,
-    cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.15, rearSeatZ: 0.52, endZ: 0.88, seatX: 0.3, seatSurface: "seatTan" },
+    cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.08, rearSeatZ: 0.58, endZ: 0.88, seatX: 0.3, seatSurface: "seatTan" },
     struts: [...FRONT_BUMPER, ...REAR_BUMPER],
     exhausts: { x: [-0.24, 0.24], h: 0.24, z: TAIL_Z - 0.02, radius: 0.022 },
   },
@@ -291,6 +290,8 @@ export const kula: CarSpec = {
     screen: false,
     paintedDash: true,
     turnsToLock: 2.2,
+    // A little below where the roof would seat the eye, so the visors and the low header are a band over the road.
+    eye: [0, -0.05, 0],
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
   },
   wheel: { radiusM: KULA.wheelRadiusM, widthM: 0.155, rimShare: 0.62, spokes: 6, twinSpokes: false, style: "steel" },
