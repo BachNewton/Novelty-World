@@ -63,7 +63,11 @@ test("a solo Route: started from its ring by its button, in its own conditions, 
 
   // Its own date, hour and rain show over the tool page's dry day, behind the time cover, and the car drives on a wet road.
   await page.waitForFunction(() => window.__alandDrive?.day().date === "2026-10-14");
-  expect(await page.evaluate(() => ({ hour: window.__alandDrive?.day().hour, rain: window.__alandDrive?.weather()?.state, ground: window.__alandDrive?.condition() }))).toEqual({ hour: 17.5, rain: "rain", ground: "wet" });
+  const held = await page.evaluate(() => ({ hour: window.__alandDrive?.day().hour, rain: window.__alandDrive?.weather()?.state, ground: window.__alandDrive?.condition() }));
+  expect(held).toMatchObject({ rain: "rain", ground: "wet" });
+  // The hour is read back out of the clock's one number of game days since 2000, as every hour in the game is, so it is
+  // 17.5 to the last few bits of a float near a thousand game days: well within a game second.
+  expect(held.hour).toBeCloseTo(17.5, 4);
 
   // The run's Settings hold all but the tyres, which are the challenge's car's, and Esc steps back out to the run.
   await page.keyboard.press("Escape");
