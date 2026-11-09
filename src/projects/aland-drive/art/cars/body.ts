@@ -122,6 +122,12 @@ export interface BodySpec {
    * keep their ends as their measured swaps and known overlaps have them, until they're redrawn.
    */
   cleanEnds?: boolean;
+  /**
+   * Its blocks and exhaust tubes are wound to face out. Without it they are wound inside out, so the hero's double-sided
+   * material draws their outsides as the cabin's lining, dark whatever their surface; the older cars keep that, as their
+   * measured swaps and fingerprints hold their bytes, until they're redrawn. Every new car sets it.
+   */
+  outwardParts?: boolean;
   halfWidth: readonly Key[];
   railWidth: readonly Key[];
   /** How far the corners of the nose and tail pull back from the ends, and over what length. */
@@ -495,9 +501,10 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
 function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   if (!spec.exhausts) return;
   const { x, h, z, radius } = spec.exhausts;
+  const turn = spec.outwardParts === true ? 1 : -1;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
-      const angle = (-step / 8) * Math.PI * 2;
+      const angle = ((turn * step) / 8) * Math.PI * 2;
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
@@ -534,13 +541,14 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
-function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
-  const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
+function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number, outward = false) {
+  const corners = (z: number, wide: number, tall: number, side: number): Point[] => [
     [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
     [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
     [side * at[0] + wide / 2, at[1] + ground + tall / 2, z],
     [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
   ];
+  const ring = (z: number, wide: number, tall: number, side: number) => (outward ? corners(z, wide, tall, side).reverse() : corners(z, wide, tall, side));
   for (const side of mirror ? [1, -1] : [1]) {
     builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
   }
@@ -706,7 +714,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, spec.outwardParts === true);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
 }

@@ -256,8 +256,13 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
-    readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
-    readout(SOURCE.gear, 1, 0.09, 0.005, 0.05);
+    if (style.figuresBeside) {
+      readout(SOURCE.speed, 3, 0.09, 0.04, 0.026);
+      readout(SOURCE.gear, 1, 0.09, -0.012, 0.05);
+    } else {
+      readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
+      readout(SOURCE.gear, 1, 0.09, 0.005, 0.05);
+    }
     const lamps = [paints.lampGreen, paints.lampGreen, paints.lampAmber, paints.lampAmber, paints.lampRed, paints.lampRed, paints.lampRed];
     lamps.forEach((paint, index) => {
       const x = -0.02 + (index - 3) * 0.022;

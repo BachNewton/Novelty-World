@@ -224,6 +224,7 @@ const shape: Shape = {
     hoodSeamZ: [-2.05, -0.95],
     cornerPullM: [0.2, 0.22],
     cleanEnds: true,
+    outwardParts: true,
     scoop: [
       [-0.6, 0],
       [-0.1, 0.02],
@@ -253,11 +254,12 @@ export const virvel: CarSpec = {
   body: bodyOf(shape),
   wheel: { radiusM: VIRVEL.wheelRadiusM, widthM: 0.29, rimShare: 0.75, spokes: 5, twinSpokes: true, style: "split" },
   shadowHalf: [1.0, 2.26],
-  // Tärna's sporting cabin: one big analogue rev counter with the speed and gear in figures beside it (clear of the
-  // column, which hid the analogue pair's gear window), a flat-bottomed wheel, carbon with tan leather and Tärna blue
+  // Tärna's sporting cabin: one big analogue rev counter with the speed and gear in figures beside it, where the
+  // wheel's hub can't hide them, a flat-bottomed wheel, carbon with tan leather and Tärna blue
   // round the dials and vents, a dark headliner, and the eye a little lower so the low roof is a band, not a lid.
   interior: {
     gauges: "race",
+    figuresBeside: true,
     wheel: "flat",
     seats: "bucket",
     screen: true,
