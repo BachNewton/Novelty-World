@@ -12,10 +12,13 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
+import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
+import span from "./limits/span.json";
 import sten from "./limits/sten.json";
+import strimma from "./limits/strimma.json";
 import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
 import vik from "./limits/vik.json";
@@ -80,8 +83,11 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   aska,
   blixt,
   // A2
+  orkan,
   // A3
   dyning,
+  span,
+  strimma,
   // A4
   sund,
   // A5

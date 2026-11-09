@@ -11,10 +11,13 @@ import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
+import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
+import { span } from "./models/span";
 import { sten } from "./models/sten";
+import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
 import { vik } from "./models/vik";
@@ -33,8 +36,11 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   blixt,
   // A2
+  orkan,
   // A3
   dyning,
+  span,
+  strimma,
   // A4
   sund,
   // A5

@@ -3,6 +3,7 @@ import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
 import { aska } from "./cars/aska";
 import { blixt } from "./cars/blixt";
+import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
@@ -16,7 +17,9 @@ import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
+import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
+import { span } from "./cars/span";
 import { sund } from "./cars/sund";
 import { vik } from "./cars/vik";
 
@@ -40,8 +43,11 @@ const ENTRIES = {
   aska,
   blixt,
   // A2
+  orkan,
   // A3
   dyning,
+  span,
+  strimma,
   // A4
   sund,
   // A5
