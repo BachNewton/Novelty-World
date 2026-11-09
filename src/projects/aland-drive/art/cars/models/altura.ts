@@ -41,7 +41,7 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 /** The pairs of lamps: each lens in a thin dark frame of its own, standing off the visor or the tail panel. */
 const pair = (on: "front" | "rear", x: readonly [number, number], h: number, size: readonly [number, number], surface: Decal["surface"]): Decal[] =>
   x.flatMap((across): Decal[] => [
-    { on, at: [across, h], size: [size[0] + 0.016, size[1] + 0.016], surface: "rimDark", mirror: true, cells: [2, 1], liftM: 0.01 },
+    { on, at: [across, h], size: [size[0] + 0.016, size[1] + 0.016], surface: "rimDark", mirror: true, cells: [2, 1], liftM: 0.01, fine: true },
     { on, at: [across, h], size, surface, mirror: true, cells: [3, 2], liftM: 0.018 },
   ]);
 
@@ -96,9 +96,9 @@ const shape: Shape = {
     [-0.15, 1.085],
     [0.15, 1.055],
     [0.42, 0.975],
-    [0.65, 0.9],
+    [0.62, 0.905],
   ],
-  windowZ: [-1.07, 0.65],
+  windowZ: [-1.07, 0.62],
   railWidth: [
     [-2.26, 0.58],
     [-1.5, 0.84],
@@ -121,24 +121,26 @@ const shape: Shape = {
   decals: [
     ...plates(0.45, 0.29, { recessed: true }),
     ...handles([0.08], 0.71),
-    ...pair("front", [0.47, 0.63], 0.41, [0.13, 0.055], "lensHead"),
+    ...pair("front", [0.45, 0.595], 0.41, [0.125, 0.055], "lensHead"),
     // An amber indicator at each corner, under the visor.
-    { on: "front", at: [0.7, 0.345], size: [0.1, 0.022], surface: "lensAmber", mirror: true, cells: [2, 1], liftM: 0.012 },
+    { on: "front", at: [0.66, 0.345], size: [0.09, 0.022], surface: "lensAmber", mirror: true, cells: [2, 1], liftM: 0.012 },
     ...pair("rear", [0.5, 0.675], 0.75, [0.135, 0.1], "lensTail"),
-    reversing(0.4, 0.45),
+    reversing(0.585, 0.665),
     sideIntake({ z: 0.62, h: 0.5, long: 0.36, tall: 0.26 }),
     // The radiators' outlets either side of the hood's middle.
-    ...louvres({ x: 0.26, z: -1.95, long: 0.26, wide: 0.2, count: 4 }),
+    ...louvres({ x: 0.26, z: -1.95, long: 0.26, wide: 0.2, count: 4, liftM: 0.022 }),
     // Slats of the body's colour across the engine cover's vents.
-    ...louvres({ x: 0.42, z: 0.68, long: 0.98, wide: 0.3, count: 10, surface: "paint" }),
+    ...louvres({ x: 0.42, z: 0.66, long: 0.66, wide: 0.3, count: 7, surface: "paint", liftM: 0.022 }),
   ],
   blocks: [
     // The intake's lip over it and its walls at each end, standing out of the scooped flank, so it reads as a duct.
     { at: [0.9, 0.645, 0.62], size: [0.07, 0.018, 0.42], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.885, 0.5, 0.43], size: [0.06, 0.28, 0.016], surface: "paint", mirror: true, fine: true },
     { at: [0.875, 0.5, 0.81], size: [0.06, 0.28, 0.016], surface: "paint", mirror: true, fine: true },
+    // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
+    { at: [0.895, 0.5, 0.62], size: [0.05, 0.026, 0.38], surface: "paint", mirror: true, taper: [1, 0.8], fine: true },
     splitter({ z: -2.3, h: 0.235, halfWidth: 0.6, long: 0.12 }),
-    ...diffuser({ z: 1.86, tailZ: 2.08, h: 0.27, x: [0, 0.44] }),
+    ...diffuser({ z: 1.9, tailZ: 2.07, h: 0.33, x: [0, 0.44] }),
   ],
   extra: {
     bands: BANDS,
@@ -178,7 +180,7 @@ const shape: Shape = {
           [-0.5, undefined],
           [0.25, "rearGlass"],
           [0.62, "deck"],
-          [1.7, undefined],
+          [1.35, undefined],
         ],
       ),
       // The lip over the tail, then the dark panel the lamps sit on.
@@ -255,18 +257,18 @@ export const altura: CarSpec = {
   wheel: { radiusM: ALTURA.wheelRadiusM, widthM: 0.27, rimShare: 0.68, spokes: 10, twinSpokes: false, style: "mesh" },
   shadowHalf: [0.93, 2.15],
   /**
-   * A 1990s analogue cockpit round a central seat: one big rev counter in a binnacle with white faces, a thin-rimmed
-   * wheel, a gated lever, leather and bare metal with a gold accent, and no screen.
+   * A 1990s analogue cockpit round a central seat: one big rev counter in a binnacle with white faces, a three-spoke
+   * leather wheel, a gated lever, tan leather and bare metal with a gold accent, and no screen.
    */
   interior: {
     gauges: "tacho",
-    wheel: "classic",
+    wheel: "round",
     shifter: "lever",
     seats: "bucket",
     screen: false,
     lightDials: true,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", accent: "car-cabin-gold", glow: "car-cabin-glow-amber" },
     turnsToLock: 1.25,
-    eye: [0, -0.03, 0],
+    eye: [0, 0, 0],
   },
 };

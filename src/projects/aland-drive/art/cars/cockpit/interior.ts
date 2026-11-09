@@ -635,14 +635,17 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
   const { ground: g, header, open } = f;
   const z = header.z + 0.07;
   const roofY = (open ? header.h - 0.035 : f.roofAt(0, z) - SKIN_M) + g;
+  // Over a central seat the mirror hangs straight ahead of the eye, so it is smaller and tucked up under the roof.
+  const central = f.cabin.passengers !== undefined;
+  const scale = central ? 0.72 : 1;
   const mount: Point = [0, roofY - 0.004, header.z + 0.035];
-  const body: Point = [0, roofY - 0.07, z];
-  b.tube([mount, add(body, [0, 1, 0], 0.02)], 0.007, 6, smooth(paints.piano));
-  const facing = normalize([0.18, -0.08, 1]);
+  const body: Point = [0, roofY - (central ? 0.048 : 0.07), z];
+  b.tube([mount, add(body, [0, 1, 0], 0.02 * scale)], 0.007, 6, smooth(paints.piano));
+  const facing = normalize([central ? 0 : 0.18, -0.08, 1]);
   const across = normalize(cross([0, 1, 0], facing));
   const at = axes(body, across, normalize(cross(facing, across)), facing);
-  pillow(b, at, [0.12, 0.034, 0.018], 0.3, smooth(paints.piano), 8);
-  plate(b, at, [0, 0], [0.22, 0.054], 0.0185, flat(paints.mirror));
+  pillow(b, at, [0.12 * scale, 0.034 * scale, 0.018], 0.3, smooth(paints.piano), 8);
+  plate(b, at, [0, 0], [0.22 * scale, 0.054 * scale], 0.0185, flat(paints.mirror));
   if (open) return;
   for (const side of [-1, 1]) {
     const visorZ = header.z + 0.13;
