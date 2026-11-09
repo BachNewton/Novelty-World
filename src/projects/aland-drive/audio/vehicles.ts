@@ -9,6 +9,7 @@ import { bris } from "./voices/bris";
 import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
+import { frost } from "./voices/frost";
 import { flod } from "./voices/flod";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
@@ -178,6 +179,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B4
   berg,
   // C1
+  frost,
   // C2
   // C3
   vik,

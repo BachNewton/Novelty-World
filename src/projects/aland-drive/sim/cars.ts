@@ -10,6 +10,7 @@ import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
+import { frost } from "./cars/frost";
 import { flod } from "./cars/flod";
 import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
@@ -77,6 +78,7 @@ const ENTRIES = {
   // B4
   berg,
   // C1
+  frost,
   // C2
   // C3
   vik,

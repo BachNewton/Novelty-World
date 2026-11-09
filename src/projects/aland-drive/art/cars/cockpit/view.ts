@@ -8,7 +8,7 @@ import { geometryOf, insideGlassMaterial } from "../material";
 import type { CarSpec } from "../build";
 import { paintAt, paintsOf } from "../paints";
 import type { Sun } from "../../sun";
-import { SOURCE } from "./atlas";
+import { BOOST_BAR, SOURCE } from "./atlas";
 import { drawDialSheet, type DialFaces } from "./dials";
 import { buildCockpit } from "./interior";
 import { cockpitGeometry, cockpitMaterial, fitCockpit, readings, setCockpitPaint, wheelTurn } from "./material";
@@ -19,6 +19,12 @@ import { cockpitGeometry, cockpitMaterial, fitCockpit, readings, setCockpitPaint
  * simple cabin, and the eye. `read` moves the needles, figures and wheel from the
  * player's car each frame; only the player's own car ever has one.
  */
+
+/** What a turbo's gauge reads, in bar: nothing off the throttle, and on it rising from a third of the revs to its full boost past half of them. */
+function boostBar(full: number, load: number, revsShare: number): number {
+  const spooled = Math.min(1, Math.max(0, (revsShare - 0.33) / 0.27));
+  return full * load * spooled * spooled * (3 - 2 * spooled);
+}
 
 export interface CockpitOptions {
   sun: Sun;
@@ -61,6 +67,7 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
     revsMax: Math.floor(tuning.gearbox.redlineRpm / 1000) + 1,
     redline: tuning.gearbox.redlineRpm / 1000,
     panelAspect: (frame.cluster.width - 0.014) / (frame.cluster.height - 0.014),
+    boost: frame.style.boost > 0,
   });
   let sheet = drawDialSheet(faces());
   const { material, setSheet } = cockpitMaterial({ sun, sheet, hazed, glowing });
@@ -81,7 +88,8 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
 
   const dialsOf = () => {
     const scale = faces();
-    return parts.dials.map((dial) => ({ ...dial, max: dial.source === SOURCE.speed ? scale.speedMax : dial.source === SOURCE.revs ? scale.revsMax : 1 }));
+    const fullScale = (source: number) => (source === SOURCE.speed ? scale.speedMax : source === SOURCE.revs ? scale.revsMax : source === SOURCE.boost ? BOOST_BAR.max : 1);
+    return parts.dials.map((dial) => ({ ...dial, max: fullScale(dial.source) }));
   };
   const cluster = frame.cluster.centre;
   const paints = paintsOf(spec);
@@ -113,6 +121,7 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
       readings.power.value = electric ? engine.load : 0;
       readings.lamps.value = electric ? engine.load : engine.rpm / tuning.gearbox.redlineRpm;
       readings.oil.value = 0.3 + 0.55 * Math.min(engine.rpm / tuning.gearbox.redlineRpm, 1);
+      readings.boost.value = boostBar(frame.style.boost, engine.load, engine.rpm / tuning.gearbox.redlineRpm);
       readings.gear.value = engine.reversing ? -1 : electric ? 13 : engine.gear + 1;
       const minutes = Math.floor(hour * 60) % (24 * 60);
       readings.clock.value = Math.floor(minutes / 60) * 100 + (minutes % 60);

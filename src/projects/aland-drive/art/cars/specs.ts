@@ -8,6 +8,7 @@ import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { frost } from "./models/frost";
 import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
@@ -70,6 +71,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // B4
   berg,
   // C1
+  frost,
   // C2
   // C3
   vik,

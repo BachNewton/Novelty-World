@@ -1,6 +1,6 @@
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, RGBAFormat, SRGBColorSpace } from "three/webgpu";
 import { GLYPHS } from "../../surfaces/sign-art";
-import { ATLAS, GLYPH, GLYPH_GRID, SLOT } from "./atlas";
+import { ATLAS, BOOST_BAR, GLYPH, GLYPH_GRID, SLOT } from "./atlas";
 import type { GaugeKind } from "./style";
 
 /*
@@ -21,6 +21,8 @@ export interface DialFaces {
   redline: number;
   /** The panel the digital cluster is drawn on, wide for its height. */
   panelAspect: number;
+  /** A boost gauge in the oil gauge's cell. */
+  boost: boolean;
 }
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--color-aland-drive-${name}`).trim();
@@ -242,7 +244,8 @@ export function drawDialSheet(faces: DialFaces): DataTexture {
   drawDial(pens, SLOT.revs, { max: faces.revsMax, minor: 0.5, major: 1, label: 1, shown: 1, red: faces.redline, start: 225, sweep: -270 }, face, ["RPM", "X1000"]);
   drawSmall(pens, SLOT.fuel, ["E", "F"], face);
   drawSmall(pens, SLOT.water, ["C", "H"], face);
-  drawSmall(pens, SLOT.oil, ["0", "5"], face);
+  if (faces.boost) drawDial(pens, SLOT.oil, { max: BOOST_BAR.max, minor: 0.1, major: 0.5, label: 1, shown: 1, red: BOOST_BAR.red, start: 225, sweep: -270 }, face, ["BOOST", "BAR"]);
+  else drawSmall(pens, SLOT.oil, ["0", "5"], face);
   drawPanel(pens, faces, token("car-cabin-ink"));
   drawGlyphs(pens);
 
