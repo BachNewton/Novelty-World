@@ -5,6 +5,7 @@ import type { CarId } from "../../sim/cars";
 import type { CarDetail } from "../cars/build";
 import { buildCarArt, createCarModel, type CarArt } from "../cars/model";
 import { BRANDS, BRAND_IDS, buildExterior, carSpecOf, dealerMaterial, EXTERIOR_IDS, geometryOf, loadInterior, restingCar, SELLER_IDS, SELLER_MAKERS, type ExteriorId, type InteriorId } from "./index";
+import { matching } from "./stock";
 import { INTERIOR_IDS } from "./interiors";
 import { Shell } from "./shell";
 
@@ -67,9 +68,9 @@ const artOf = (car: CarId, detail: CarDetail): CarArt => {
   arts.set(key, art);
   return art;
 };
-const placeCar = (parent: Group | Scene, car: CarId, at: readonly [number, number, number], yaw: number, paint: string | undefined, detail: CarDetail) => {
+const placeCar = (parent: Group | Scene, car: CarId, at: readonly [number, number, number], yaw: number, paint: string | undefined, detail: CarDetail, carHazed = hazed) => {
   const art = artOf(car, detail);
-  const model = createCarModel(art, CAR_SUN, { hazed, ...(paint === undefined ? {} : { paint: { colour: paint, finish: "solid" } }) });
+  const model = createCarModel(art, CAR_SUN, { hazed: carHazed, ...(paint === undefined ? {} : { paint: { colour: paint, finish: "solid" } }) });
   model.draw(restingCar(art.spec, at, yaw));
   parent.add(model.root);
   return model;
@@ -166,22 +167,55 @@ scenes.set("brands", brandScene);
 
 const tables: { scene: string; spin: Group }[] = [];
 
+/** Where the gallery looks at each room from: in at its door, and from two of its corners. */
+const ROOM_VIEWS: Readonly<Record<InteriorId, readonly { name: string; position: Shot["camera"]; target: Shot["target"]; fovDeg: number }[]>> = {
+  "village-garage": [
+    { name: "door", position: [3.4, 1.6, -1.0], target: [-6, 1.3, -5.5], fovDeg: 64 },
+    { name: "bay", position: [-12.4, 1.7, -0.6], target: [-1, 1.4, -5.5], fovDeg: 62 },
+    { name: "office", position: [8.4, 1.6, -8.4], target: [-4, 1.4, -2.5], fovDeg: 60 },
+  ],
+  "town-dealer": [
+    { name: "door", position: [-3, 1.6, -3.2], target: [2, 1.2, -10], fovDeg: 64 },
+    { name: "corner", position: [15.8, 1.7, -3.6], target: [-6, 1.2, -9], fovDeg: 60 },
+    { name: "back", position: [-15.8, 1.8, -12.3], target: [4, 1.2, -4], fovDeg: 60 },
+  ],
+  "premium-showroom": [
+    { name: "door", position: [0, 1.6, 7.0], target: [0, 1.0, -4], fovDeg: 64 },
+    { name: "corner", position: [-13.2, 1.7, 6.8], target: [5, 1.0, -3], fovDeg: 60 },
+    { name: "sea", position: [12.8, 1.7, -7.2], target: [-4, 1.0, 2], fovDeg: 60 },
+  ],
+};
+
+const roomHazed = (colour: Node<"vec3">) => colour;
 for (const id of INTERIOR_IDS as readonly InteriorId[]) {
   const interior = await loadInterior(id);
   const scene = new Scene();
-  scene.background = new Color(token(interior.background));
+  // What the windows look on to is the island the walk-in captures; here it is the sky's colour.
+  scene.background = new Color(token("sky"));
   scenes.set(id, scene);
-  const material = dealerMaterial(interior.lighting);
-  scene.add(new Mesh(geometryOf(interior.soup), material));
-  const spin = new Group();
-  spin.position.set(...interior.turntable.centre);
-  spin.add(new Mesh(geometryOf(interior.turntable.soup), material));
-  placeCar(spin, interior.onTurntable.car, [0, interior.turntable.deckY, 0], 0, interior.onTurntable.paint, "hero");
-  scene.add(spin);
-  tables.push({ scene: id, spin });
-  for (const { car, at, yaw, paint } of interior.displays) placeCar(scene, car, at, yaw, paint, "hero");
-  counts[`interior ${id}`] = interior.soup.triangles + interior.turntable.soup.triangles;
-  for (const { name, position, target, fovDeg } of interior.cameras) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, ${name} camera`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 3.75 });
+  const material = dealerMaterial({ kind: "room", light: interior.light });
+  scene.add(new Mesh(geometryOf(interior.room), material));
+  const spins = interior.turntables.map(({ soup, centre }) => {
+    const spin = new Group();
+    spin.position.set(...centre);
+    spin.add(new Mesh(geometryOf(soup), material));
+    scene.add(spin);
+    tables.push({ scene: id, spin });
+    return spin;
+  });
+  const stock = matching(interior.stock);
+  interior.spots.forEach(({ at, yaw, turntable }, index) => {
+    const car = stock.at(index);
+    if (car === undefined) return;
+    if (turntable === undefined) {
+      placeCar(scene, car, at, yaw, undefined, "hero", roomHazed);
+      return;
+    }
+    const centre = interior.turntables[turntable].centre;
+    placeCar(spins[turntable], car, [at[0] - centre[0], at[1] - centre[1], at[2] - centre[2]], yaw, undefined, "hero", roomHazed);
+  });
+  counts[`interior ${id}`] = interior.room.triangles + interior.turntables.reduce((sum, { soup }) => sum + soup.triangles, 0);
+  for (const { name, position, target, fovDeg } of ROOM_VIEWS[id]) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, from the ${name}`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 0 });
 }
 
 async function frame(name: string) {

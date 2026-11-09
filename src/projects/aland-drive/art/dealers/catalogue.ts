@@ -36,6 +36,10 @@ export const artModels = (): ArtModel[] => {
       drawn: { model: { near, far, swapM: KIT_CAR_SWAP_M, reachM: CAR_REACH_M }, place: (version, _swapM, { sun, hazed }) => standingCar(car, version === "near" ? "hero" : "far", sun, hazed) },
     };
   });
-  const interiors = INTERIOR_IDS.map((id): ArtModel => ({ name: `interior ${id}`, geometries: { interior: geometryOf(buildInterior(id).soup) }, groundY: null }));
+  // A room with its turntables where they stand in it.
+  const interiors = INTERIOR_IDS.map((id): ArtModel => {
+    const { room, turntables } = buildInterior(id);
+    return { name: `interior ${id}`, geometries: { interior: [geometryOf(room), ...turntables.map(({ soup, centre }) => geometryOf(soup).translate(...centre))] }, groundY: null };
+  });
   return [...exteriors, ...cars, ...interiors];
 };

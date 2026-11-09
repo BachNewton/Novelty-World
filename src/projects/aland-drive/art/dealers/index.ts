@@ -3,25 +3,27 @@ import { groundY, type CarSpec } from "../cars/build";
 import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import type { CarId } from "../../sim/cars";
 import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId, type Rectangle } from "./exteriors";
-import type { Interior, InteriorId } from "./interiors";
+import type { DealerInterior } from "../../dealership/interior";
+import type { InteriorId } from "./interiors";
 
 /*
  * The places that sell cars (`ideas/cars.md`, "Dealers"): the town dealer, the premium showroom, the village garage and
  * the used lot, with the tyre shop as part of the street. An exterior stands in the world at its site (`sites.ts`),
  * drawn by `render/dealers.ts` with `dealerMaterial` in the world's light. An interior is a scene of its own, loaded by
- * `loadInterior` only on entering, drawn with `dealerMaterial(interior.lighting)`.
+ * `loadInterior` only on entering, as the walk-in system reads it (`dealership/interior.ts`), and lit by its own lamps
+ * (`dealerMaterial({ kind: "room", light })`).
  */
 
 export { BRANDS, BRAND_IDS, brandOf, type Brand, type BrandId } from "./brands";
 export { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId, type Rectangle };
-export { dealerMaterial, geometryOf, type Lighting, type Outdoors, type RoomLight } from "./material";
-export type { CameraKind, FixedCamera, Interior, InteriorId, Turntable } from "./interiors";
+export { dealerMaterial, geometryOf, type Lighting, type Outdoors } from "./material";
+export type { InteriorId } from "./interiors";
 export type { Soup, Version } from "./shell";
 export { DEALER_SITES, onSite, siteOf, type DealerSite } from "./sites";
 export { SELLER_IDS, SELLER_MAKERS, stockOf, type SellerId } from "./stock";
 
 /** Interiors stay out of the first download: this is the only way in. */
-export async function loadInterior(id: InteriorId): Promise<Interior> {
+export async function loadInterior(id: InteriorId): Promise<DealerInterior> {
   const { buildInterior } = await import("./interiors");
   return buildInterior(id);
 }

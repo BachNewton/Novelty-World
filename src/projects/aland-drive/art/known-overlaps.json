@@ -38,15 +38,6 @@
   "dealers: exterior village-garage": {
     "near": 24
   },
-  "dealers: interior village-garage": {
-    "interior": 182
-  },
-  "dealers: interior town-dealer": {
-    "interior": 98
-  },
-  "dealers: interior premium-showroom": {
-    "interior": 115
-  },
   "homes: cottage living": {
     "room": 486
   },

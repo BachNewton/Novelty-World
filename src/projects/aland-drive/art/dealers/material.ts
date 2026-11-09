@@ -5,6 +5,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { PAINTS, PATTERNS, SURFACE_STRIDE, type Paint, type Pattern, type Soup } from "./shell";
 import "./tokens.css";
 import { towardsSun, type Sun } from "../sun";
+import type { Lamp, RoomLight } from "../../dealership/interior";
 import type { SeasonLook } from "../season";
 import { snowfall, snowOnTop } from "../surfaces/snow";
 
@@ -18,7 +19,8 @@ import { snowfall, snowOnTop } from "../surfaces/snow";
 
 const SUN_AMBIENT = 0.66;
 const SUN_SHARE = 0.5;
-const ROOM_AMBIENT = 0.5;
+/** Where a spot's edge starts to soften, as a share of its half-angle. */
+const SPOT_SOFT_EDGE = 0.7;
 const ROOM_SKY_SHARE = 0.1;
 const HIGHLIGHT_POWER = 180;
 const HIGHLIGHT_SHARE = 1.4;
@@ -31,15 +33,6 @@ const NIGHT_ROOM = 0.85;
 /** Metres a pixel covers, per metre away, at the game's lens and size. */
 const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
 
-export interface RoomLight {
-  at: readonly [number, number, number];
-  paint: Paint;
-  /** Brightness at the light. */
-  power: number;
-  /** Where its brightness has halved. */
-  reachM: number;
-}
-
 /** What the world gives a dealership outside: the hour's lamps, and the season's snow. A gallery may give neither. */
 export interface Outdoors {
   /** 0 by day, 1 once the lamps are lit. */
@@ -51,7 +44,7 @@ export interface Outdoors {
 
 export type Lighting =
   | ({ kind: "sun"; sun: Sun } & Outdoors)
-  | { kind: "room"; lights: readonly RoomLight[]; /** What the floor mirrors: low then high. */ mirrors: readonly [Paint, Paint] };
+  | { kind: "room"; light: RoomLight };
 
 const tokenOf = (paint: Paint) => themeColor(`--color-aland-drive-${paint}`);
 const linearToken = (name: string): Node<"vec3"> => {
@@ -92,6 +85,23 @@ const swell = (at: Node<"vec3">) => sin(at.x.add(sin(at.z.mul(1.7)).mul(1.3))).m
 const clear = (widthM: number, away: Node<"float">) => float(1).sub(smoothstep(float(0.5), float(1.6), away.mul(PIXEL_M_PER_M).div(widthM)));
 /** A dark line at each whole number of `along`, as wide as a share of a step. */
 const lineAt = (along: Node<"float">, share: number) => float(1).sub(smoothstep(float(share * 0.5), float(share), abs(fract(along).sub(0.5)).sub(0.5).abs()));
+
+/** Where a lamp's light comes from for this pixel: its point, or a strip's nearest point to it. */
+function lampSource(lamp: Lamp): Node<"vec3"> {
+  if (lamp.kind !== "strip") return vec3(...lamp.at);
+  const [from, to] = [vec3(...lamp.from), vec3(...lamp.to)];
+  const along = to.sub(from);
+  const share = positionWorld.sub(from).dot(along).div(along.dot(along)).clamp(0, 1);
+  return from.add(along.mul(share));
+}
+
+/** A spot's light falls off across the edge of its cone; a point's and a strip's shine all round. */
+function lampCone(lamp: Lamp, towardsLamp: Node<"vec3">): Node<"float"> {
+  if (lamp.kind !== "spot") return float(1);
+  const aim = vec3(lamp.aim[0] - lamp.at[0], lamp.aim[1] - lamp.at[1], lamp.aim[2] - lamp.at[2]).normalize();
+  const half = (lamp.coneDeg * Math.PI) / 360;
+  return smoothstep(float(Math.cos(half)), float(Math.cos(half * SPOT_SOFT_EDGE)), towardsLamp.negate().dot(aim));
+}
 
 export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) => Node<"vec3"> = (color) => color): MeshBasicNodeMaterial {
   const finish = attribute<"vec4">("dealerFinish", "vec4");
@@ -148,17 +158,19 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
 
     let sum: Node<"vec3"> = vec3(0, 0, 0);
     let highlight: Node<"vec3"> = vec3(0, 0, 0);
-    for (const { at, paint, power, reachM } of lighting.lights) {
-      const offset = vec3(...at).sub(positionWorld);
+    const { ambient, ambientPaint, lamps, mirrors } = lighting.light;
+    for (const lamp of lamps) {
+      const source = lampSource(lamp);
+      const offset = source.sub(positionWorld);
       const distance = offset.length();
       const direction = offset.div(distance);
-      const falloff = float(1).div(float(1).add(distance.div(reachM).pow(2)));
-      const colour = linear(paint).mul(power).mul(falloff);
+      const falloff = float(1).div(float(1).add(distance.div(lamp.reachM).pow(2)));
+      const colour = linear(lamp.paint).mul(lamp.power).mul(falloff).mul(lampCone(lamp, direction));
       sum = sum.add(colour.mul(normal.dot(direction).max(0)));
       highlight = highlight.add(colour.mul(mirrored.dot(direction).max(0).pow(HIGHLIGHT_POWER)));
     }
-    const lit = painted.mul(vec3(ROOM_AMBIENT, ROOM_AMBIENT, ROOM_AMBIENT).add(normal.y.max(0).mul(ROOM_SKY_SHARE)).add(sum));
-    const room = mix(linear(lighting.mirrors[0]), linear(lighting.mirrors[1]), smoothstep(float(0.05), float(0.5), mirrored.y));
+    const lit = painted.mul(linear(ambientPaint).mul(ambient).add(normal.y.max(0).mul(ROOM_SKY_SHARE)).add(sum));
+    const room = mix(linear(mirrors[0]), linear(mirrors[1]), smoothstep(float(0.05), float(0.5), mirrored.y));
     return mix(mix(lit, room, shine).add(highlight.mul(gloss).mul(HIGHLIGHT_SHARE)), painted, glow);
   })();
   material.side = DoubleSide;
