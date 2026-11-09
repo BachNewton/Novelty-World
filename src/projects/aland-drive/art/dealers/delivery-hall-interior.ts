@@ -1,6 +1,7 @@
 import type { DealerInterior, Lamp, Solid, Spot } from "../../dealership/interior";
 import { DOOR_HALF_M, DRIVE_OUT, HALL, importMark, MULLION_EVERY_M, TRANSOM_M, WALL_M } from "./delivery-hall-plan";
 import { GLYPH_HEIGHT, lineWidth } from "./glyphs";
+import { LISTINGS } from "./listings";
 import { chair, coffeeTable, lightHalo, planter, turntableDeck } from "./kit";
 import { Shell, type Paint, type V3 } from "./shell";
 
@@ -177,11 +178,10 @@ export function deliveryHallInterior(): DealerInterior {
   const [d0, d1, tall] = [DRIVE_OUT.z0, DRIVE_OUT.z1, DRIVE_OUT.tall];
   const pane = HALL.x0 + PROUD_M;
   return {
-    name: "Västerhamn delivery hall",
+    ...LISTINGS["delivery-hall"],
     origin: [0, HALL.floorY, 0],
     room: s.build(),
     turntables: [{ soup: deck.build(), centre: TURNTABLE.centre, turnSeconds: TURNTABLE.turnSeconds }],
-    stock: { from: ["harbour"], tiers: ["A3", "A4", "B2", "B3"] },
     spots,
     floor: [[X0 + 0.1, Z0 + 0.1], [X1 - 0.1, Z0 + 0.1], [X1 - 0.1, GLASS_Z - 0.25], [X0 + 0.1, GLASS_Z - 0.25]],
     solids,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAR_IDS, CARS } from "./cars";
-import { radiansPerMetre, resistanceAt, restingEngine, stepEngine, topSpeedMS, torqueAt, type EngineRead } from "./gearbox";
+import { radiansPerMetre, resistanceAt, restingEngine, shiftGear, stepEngine, topSpeedMS, torqueAt, type EngineRead } from "./gearbox";
 import { STEP_S, WORLD } from "./tuning";
 
 /** The automatic's tests ramp the speed by a fixed amount a step, at a frame's pace. */
@@ -79,5 +79,33 @@ describe.each(CAR_IDS)("%s", (id) => {
         expect(shifts).toBe(0);
       }
     }
+  });
+});
+
+describe("manual", () => {
+  const { gearbox } = CARS["skerry-gt"];
+
+  it("never shifts by itself: flat out in first, the revs sit at the limiter", () => {
+    let read = restingEngine(gearbox);
+    for (let speed = 0; speed < gearbox.gearTopMS[0] * 1.2; speed += 0.08) {
+      const stepped = stepEngine(gearbox, read, speed, 1, SHIFT_STEP_S, speed, "manual");
+      read = stepped.read;
+      expect(stepped.shifted).toBe(false);
+    }
+    expect(read.gear).toBe(0);
+    expect(read.rpm).toBeGreaterThan(gearbox.redlineRpm * 0.99);
+    expect(read.rpm).toBeLessThanOrEqual(gearbox.redlineRpm * 1.01);
+  });
+
+  it("refuses a downshift past the redline, a shift past either end, and a shift while one is under way", () => {
+    const third = { ...restingEngine(gearbox), gear: 2 };
+    const fast = gearbox.gearTopMS[1] * 1.05;
+    expect(shiftGear(gearbox, third, -1, fast)).toBeNull();
+    expect(shiftGear(gearbox, third, -1, gearbox.gearTopMS[1] * 0.9)?.gear).toBe(1);
+    expect(shiftGear(gearbox, restingEngine(gearbox), -1, 0)).toBeNull();
+    expect(shiftGear(gearbox, { ...third, gear: gearbox.gearTopMS.length - 1 }, 1, fast)).toBeNull();
+    const shifting = shiftGear(gearbox, third, 1, fast);
+    expect(shifting?.shiftLeftS).toBe(gearbox.shiftS);
+    if (shifting) expect(shiftGear(gearbox, shifting, 1, fast)).toBeNull();
   });
 });

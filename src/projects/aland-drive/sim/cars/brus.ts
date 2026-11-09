@@ -44,7 +44,7 @@ export const brus: CarEntry = {
     rearShare: 1,
     brakeMS2: 12.8,
     dragPerMS2: 0.705,
-    aero: 1.3,
+    aero: 0.81,
     lock: 0.57,
     turnPerS: 2.85,
   }),

@@ -1,10 +1,11 @@
 "use client";
 
 import type { ComponentType, Ref } from "react";
-import { Check, CircleDot, Ruler, Snowflake, Sun, ToggleLeft, ToggleRight } from "lucide-react";
+import { Check, CircleDot, Cog, Hand, Ruler, Snowflake, Sun, ToggleLeft, ToggleRight } from "lucide-react";
 import type { MenuItemId } from "../render/game-menu";
 import type { Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
+import type { Shifting } from "../sim/gearbox";
 
 /* What the game menu and its Settings page share: the game's UI colours, a setting's choices side by side, and a menu's button. */
 
@@ -26,6 +27,11 @@ export const TYRE_LOOKS: Record<Tyre, { icon: Icon; name: string }> = {
   summer: { icon: Sun, name: "Summer" },
   winter: { icon: Snowflake, name: "Friction" },
   studded: { icon: CircleDot, name: "Studded" },
+};
+
+export const SHIFTING_LOOKS: Record<Shifting, { icon: Icon; name: string }> = {
+  auto: { icon: Cog, name: "Auto" },
+  manual: { icon: Hand, name: "Manual" },
 };
 
 export const UNITS_LOOKS: Record<Units, { icon: Icon; name: string; detail: string }> = {

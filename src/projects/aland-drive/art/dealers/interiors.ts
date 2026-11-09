@@ -2,7 +2,7 @@ import type { DealerInterior, Lamp, Solid, Spot, Window } from "../../dealership
 import { BRANDS, type Brand } from "./brands";
 import { barrel, carLift, chair, coffeeTable, lightHalo, planter, salesDesk, sofa, turntableDeck, tyre, tyreRack, workbench } from "./kit";
 import { Shell, type Finish, type Paint, type V3 } from "./shell";
-import { SELLER_MAKERS } from "./stock";
+import { LISTINGS } from "./listings";
 import { USED_HALL } from "./exteriors";
 
 /*
@@ -168,11 +168,10 @@ function villageGarage(): DealerInterior {
 
   const strip = (from: number, to: number, z: number): Lamp => ({ kind: "strip", from: [from, tubeY - 0.04, z], to: [to, tubeY - 0.04, z], paint: "dealer-light-cool", power: 0.75, reachM: 4.5 });
   return {
-    name: "Klippa Bilverkstad",
+    ...LISTINGS["village-garage"],
     origin: [0, 0.05, 0],
     room: s.build(),
     turntables: [],
-    stock: { makers: SELLER_MAKERS["village-garage"], from: ["dealer"] },
     spots,
     floor: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]],
     solids: [
@@ -256,11 +255,10 @@ function townDealer(): DealerInterior {
   ];
   const strip = (from: number, to: number, z: number): Lamp => ({ kind: "strip", from: [from, height - 0.05, z], to: [to, height - 0.05, z], paint: "dealer-light-cool", power: 0.42, reachM: 5.5 });
   return {
-    name: "Norrvind Bilar",
+    ...LISTINGS["town-dealer"],
     origin: [0, 0.05, 0],
     room: s.build(),
     turntables: [{ soup: deck.build(), centre, turnSeconds: 32 }],
-    stock: { makers: SELLER_MAKERS["town-dealer"], from: ["dealer"] },
     spots,
     floor: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]],
     solids: [box(11.6, z1 - 1.1, x1, z1), box(-6.2, z0, -3.8, z0 + 2.3), box(3.8, z0, 6.2, z0 + 2.3), box(-16.9, -11.6, -13.8, -9.2), box(15.0, -12.6, 16.6, -12.0)],
@@ -343,11 +341,10 @@ function premiumShowroom(): DealerInterior {
   for (const [x, z] of downlights) s.within({ x, y: ceilingAt(z) - 0.03, z }, () => s.lathe([[0.1, 0], [0, 0]], 8, "dealer-light-warm", { glow: 1 }));
 
   return {
-    name: "Tärna & Aurelle",
+    ...LISTINGS["premium-showroom"],
     origin: [0, floorY, 0],
     room: s.build(),
     turntables: [{ soup: deck.build(), centre, turnSeconds: 36 }],
-    stock: { makers: SELLER_MAKERS["premium-showroom"], from: ["dealer"] },
     spots: [{ at: [centre[0], 0.092, centre[2]], yaw: 0.5, turntable: 0 }, ...plinths.map(([x, z, yaw]): Spot => ({ at: [x, plinthTop, z], yaw }))],
     floor: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]],
     solids: [box(-10.8, 4.3, -8.2, 6.4), box(7.0, 3.8, 12.0, 6.5)],
@@ -413,11 +410,10 @@ function usedHall(): DealerInterior {
   const spots = [-4.0, -1.05, 1.9, 4.85, 7.8, 10.75, 13.7].map((x): Spot => ({ at: [x, 0, -6.6], yaw: Math.PI }));
   const strip = (from: number, to: number, z: number): Lamp => ({ kind: "strip", from: [from, tubeY - 0.04, z], to: [to, tubeY - 0.04, z], paint: "dealer-light-cool", power: 0.55, reachM: 4.5 });
   return {
-    name: "Begagnade bilar",
+    ...LISTINGS["used-lot"],
     origin: [0, 0.03, 0],
     room: s.build(),
     turntables: [],
-    stock: { tiers: ["A7", "B3", "B4"], from: ["dealer"] },
     spots,
     floor: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]],
     solids: [box(officeX - 0.1, z0, officeX + 0.1, -4.2), box(-10.6, -8.6, -7.6, -6.2), box(-11.9, -5.3, -10.7, -3.1)],

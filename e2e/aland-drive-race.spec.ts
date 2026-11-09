@@ -76,7 +76,7 @@ test("a solo race: its card from its ring, the grid, and a finish in first for g
 
   // In the ring, the button opens the race's card, even alone, and its Start puts the car on the pole.
   await expect(page.getByLabel("Race here")).toContainText(TITLE);
-  await page.keyboard.press("KeyE");
+  await page.keyboard.press("KeyF");
   const card = page.getByRole("dialog", { name: "Race" });
   await expect(card.getByLabel("Race card")).toContainText("T1");
   await expect(card.getByRole("button", { name: "Start" })).toBeFocused();

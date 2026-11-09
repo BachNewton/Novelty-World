@@ -3,6 +3,7 @@ import type { Medal } from "../challenge/standings";
 import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
 import type { Units } from "../units";
 import type { Assists } from "../sim/car";
+import type { Shifting } from "../sim/gearbox";
 import type { Tyre } from "../sim/surfaces";
 import type { CarPaint } from "../art/cars/paints";
 import type { CarFacts, Field } from "../garage/car-facts";
@@ -21,7 +22,7 @@ import { isCarId, type CarId } from "../sim/cars";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "cars" | "settings" | CarItem | PaintItem | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "start-team" | "withdraw-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `shifting-${Shifting}` | `units-${Units}` | "cars" | "settings" | CarItem | PaintItem | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "start-team" | "withdraw-coop" | "cancel" | "retry" | "leave";
 
 /** One player of a co-op team on a result card: their name (null for this player), their time or speed, and in a race their points. */
 export interface TeamResult {
@@ -110,6 +111,8 @@ export interface GameMenu {
   tyres?: Tyre;
   /** The driver's aids, which their items show and turn on and off. */
   assists?: Assists;
+  /** How the player shifts, which the shifting choices mark. */
+  shifting?: Shifting;
   /** The race a card is for. */
   race?: RaceCard;
   /** Set when the items are about a race, being played or over: its ground. */
@@ -133,6 +136,11 @@ const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric",
 /** The units a units choice sets. */
 export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
 
+const SHIFTING_ITEMS: Record<`shifting-${Shifting}`, Shifting> = { "shifting-auto": "auto", "shifting-manual": "manual" };
+
+/** The shifting a shifting choice sets. */
+export const shiftingOfItem = (id: `shifting-${Shifting}`): Shifting => SHIFTING_ITEMS[id];
+
 export const drivingMenu: GameMenu = { items: ["resume", "cars", "settings"], back: "resume", pauses: true };
 
 /**
@@ -141,13 +149,14 @@ export const drivingMenu: GameMenu = { items: ["resume", "cars", "settings"], ba
  * returns to the menu. In a challenge it holds everything but the tyres, the challenge's car's, and pauses as the
  * challenge's menu does.
  */
-export const settingsMenu = ({ assists, tyres, pauses }: { assists: Assists; tyres?: Tyre; pauses: boolean }): GameMenu => ({
+export const settingsMenu = ({ assists, shifting, tyres, pauses }: { assists: Assists; shifting: Shifting; tyres?: Tyre; pauses: boolean }): GameMenu => ({
   kind: "settings",
-  items: [...(tyres === undefined ? [] : (["tyres-summer", "tyres-winter", "tyres-studded"] as const)), "abs", "traction", "stability", "units-metric", "units-imperial", "back"],
+  items: [...(tyres === undefined ? [] : (["tyres-summer", "tyres-winter", "tyres-studded"] as const)), "abs", "traction", "stability", "shifting-auto", "shifting-manual", "units-metric", "units-imperial", "back"],
   back: "back",
   pauses,
   tyres,
   assists,
+  shifting,
 });
 
 export const isCarItem = (id: MenuItemId): id is CarItem => id.startsWith("car-") && isCarId(id.slice("car-".length));

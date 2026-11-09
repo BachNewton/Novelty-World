@@ -80,13 +80,13 @@ test("a co-op Route for four: asked from its ring, the room filled from down the
   const [awayX, , awayZ] = await carAt(joiners[1]);
 
   // The first's button offers Solo or Co-op; Co-op asks everyone, and each joiner's button answers it where they are.
-  await first.keyboard.press("KeyE");
+  await first.keyboard.press("KeyF");
   const choice = first.getByRole("dialog", { name: "Start challenge" });
   await choice.getByRole("button", { name: /^Co-op/ }).click();
   await expect(choice).toBeHidden();
   for (const [index, page] of joiners.entries()) {
     await expect(page.getByLabel("Co-op invite")).toContainText(TITLE);
-    await page.keyboard.press("KeyE");
+    await page.keyboard.press("KeyF");
     const invite = page.getByRole("dialog", { name: "Co-op invite" });
     await expect(invite.getByRole("button", { name: /^Join / })).toBeFocused();
     await page.keyboard.press("Enter");

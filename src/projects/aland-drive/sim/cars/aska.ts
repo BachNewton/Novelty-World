@@ -3,7 +3,7 @@ import { tuned, type CarEntry } from "./character";
 /**
  * Tärna's hybrid hypercar: a twin-turbo V8 behind the seats and an electric motor on each axle. The motors fill
  * the bottom of the rev range, so the whole of its shove is there from a standstill and only the tyres hold it
- * back: a savage, traction-limited launch on all four wheels. Downforce several times a sports car's holds it flat
+ * back: a savage, traction-limited launch on all four wheels. Downforce near its own weight at the top holds it flat
  * and calm at speeds nothing else on the island reaches.
  */
 export const aska: CarEntry = {
@@ -45,7 +45,7 @@ export const aska: CarEntry = {
     rearShare: 0.6,
     brakeMS2: 15,
     dragPerMS2: 0.64,
-    aero: 2.6,
+    aero: 0.75,
     lock: 0.55,
     turnPerS: 3.0,
   }),
