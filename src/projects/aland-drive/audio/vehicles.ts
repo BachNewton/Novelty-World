@@ -15,6 +15,7 @@ import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
+import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
 import { knott } from "./voices/knott";
 import { lera } from "./voices/lera";
@@ -180,6 +181,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   lera,
   // B3
   holm,
+  borg,
   // B4
   berg,
   stubbe,

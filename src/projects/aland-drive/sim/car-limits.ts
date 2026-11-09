@@ -15,6 +15,7 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
+import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
 import knott from "./limits/knott.json";
 import lera from "./limits/lera.json";
@@ -119,6 +120,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   lera,
   // B3
   holm,
+  borg,
   // B4
   berg,
   stubbe,
