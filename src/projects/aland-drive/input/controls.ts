@@ -19,7 +19,6 @@ export const BINDINGS = {
   right: binding("L3", "D"),
   handbrake: binding("A", "Space"),
   respawn: binding("Y", "R"),
-  freeCamera: binding(null, "F"),
   /** The chase view or the driver's seat, remembered in this browser. */
   cockpit: binding("RB", "C"),
   /** Held: the arrows look left, right or behind; the right stick looks any way round. */
@@ -30,8 +29,12 @@ export const BINDINGS = {
   lookDown: binding(null, "↑"),
   map: binding("View", "M"),
   menu: binding("Menu", "Esc"),
-  /** A challenge's start ring: start it, or choose solo or co-op; and join a co-op one you're asked to. */
-  challenge: binding("X", "E"),
+  /** A challenge's start ring: start it, or choose solo or co-op; and join a co-op one you're asked to; and a dealership's door, or a car in it. */
+  challenge: binding("DpadUp", "F"),
+  /** In manual: a gear up or down. Forza Horizon's own buttons. */
+  shiftUp: binding("B", "E"),
+  shiftDown: binding("X", "Q"),
+  freeCamera: binding(null, "V"),
   /** Sound on or off has no prompt: it's in the game menu too. */
   mute: binding(null, "N"),
   /** Walking round a dealership: forward, left, back and right, on WASD or the left stick. */
@@ -50,11 +53,11 @@ export const BINDINGS = {
   mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "freeCamera" | "cockpit" | "map" | "mute" | "challenge";
+export type GameAction = "respawn" | "freeCamera" | "cockpit" | "map" | "mute" | "challenge" | "shiftUp" | "shiftDown";
 export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyC: "cockpit", KeyM: "map", KeyN: "mute", KeyE: "challenge" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "cockpit", View: "map", X: "challenge" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyV: "freeCamera", KeyC: "cockpit", KeyM: "map", KeyN: "mute", KeyF: "challenge", KeyE: "shiftUp", KeyQ: "shiftDown" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "cockpit", View: "map", DpadUp: "challenge", B: "shiftUp", X: "shiftDown" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", View: "close" };
 const LOOK_LEFT = Math.PI / 2;

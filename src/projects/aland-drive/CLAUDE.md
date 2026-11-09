@@ -40,11 +40,13 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Look left, right or behind, while held | Left, Right, Down | Right stick, any way round; from the seat, the head turns as far as it's pushed |
 | Look down on the car, while held (chase view) | Up | |
 | Handbrake | Space | A |
+| Shift up, in manual | E | B |
+| Shift down, in manual | Q | X |
 | Back to the nearest road | R | Y |
-| Free camera | F | |
+| Free camera | V | |
 | World map | M | View |
 | Game menu | Esc | Menu |
-| Start a challenge or open a race's card in its ring, or answer a co-op invite; go into a dealership at its door | E | X |
+| Start a challenge or open a race's card in its ring, or answer a co-op invite; go into a dealership at its door | F | D-pad up |
 | Sound on or off | N, or Settings | Settings |
 
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
@@ -53,7 +55,7 @@ The world map pauses the drive and opens on the main island, north up, and zooms
 
 From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
 
-In a dealership the player is on foot (`dealership/CLAUDE.md`): WASD or the left stick walk, Shift or a click of the left stick held jogs, a mouse drag, the arrows or the right stick look, R or RT held revs the car at hand, C or RB sits in it or gets out, and E or X takes it, or leaves at the door.
+In a dealership the player is on foot (`dealership/CLAUDE.md`): WASD or the left stick walk, Shift or a click of the left stick held jogs, a mouse drag, the arrows or the right stick look, R or RT held revs the car at hand, C or RB sits in it or gets out, and F or the d-pad's up takes it, or leaves at the door.
 
 The free camera is for inspection: WASD, Q and E, Shift, drag to look, the wheel for its speed. There is no touch. Prompts come from the shared glyphs and follow the last input used.
 

@@ -70,12 +70,12 @@ test("a co-op Route for two: asked from its ring, joined from down the road over
   const [awayX, , awayZ] = await carAt(second);
 
   // The first's button offers Solo or Co-op; Co-op asks everyone, and the second's button answers it where it is.
-  await first.keyboard.press("KeyE");
+  await first.keyboard.press("KeyF");
   const choice = first.getByRole("dialog", { name: "Start challenge" });
   await choice.getByRole("button", { name: /^Co-op/ }).click();
   await expect(choice).toBeHidden();
   await expect(second.getByLabel("Co-op invite")).toContainText(TITLE);
-  await second.keyboard.press("KeyE");
+  await second.keyboard.press("KeyF");
   const invite = second.getByRole("dialog", { name: "Co-op invite" });
   await expect(invite.getByRole("button", { name: /^Join / })).toBeFocused();
   await second.keyboard.press("Enter");

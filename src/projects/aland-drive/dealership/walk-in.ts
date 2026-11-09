@@ -19,11 +19,12 @@ import type { DealerInterior, Solid, Spot } from "./interior";
 import { AT_CAR_M, BODY_RADIUS_M, carBox, carSpec, carsOnSpots } from "./rules";
 import { boxDistance, settle, type PlanBox } from "./plan";
 import { DEALERSHIPS, type Dealership } from "./registry";
+import type { GameAction } from "../input/controls";
 import { createRoomLighting } from "./room-light";
 import { createIslandView } from "./view";
 
 /*
- * Walking round a dealership. At a dealership's door on the island its ring stands as a challenge's does, and E or X
+ * Walking round a dealership. At a dealership's door on the island its ring stands as a challenge's does, and F or the d-pad's up
  * there stops the drive, captures the island from the dealership's place (`view.ts`) and opens its room, a scene of its
  * own: only the room, its cars and the captured view are drawn. The player is an eye on foot, with no body, kept off
  * the walls, the furniture and the cars (`plan.ts`). At a car its figures show, and it can be revved, sat in and taken,
@@ -66,7 +67,7 @@ export type DealershipReading =
   | {
       kind: "inside";
       name: string;
-      /** At the door: E or X leaves. */
+      /** At the door: F or the d-pad's up leaves. */
       door: boolean;
       /** The car at hand, if any: whether it's the player's already, and whether they're in its seat. */
       car: { id: CarId; yours: boolean; seated: boolean; revving: boolean } | null;
@@ -428,8 +429,8 @@ export function createWalkIn(host: WalkInHost) {
       panes.geometry.dispose();
       ring.geometry.dispose();
     },
-    /** E or X, or another game action: what it does here, if anything. True when it was this system's. */
-    onAction(action: "respawn" | "freeCamera" | "cockpit" | "map" | "mute" | "challenge"): boolean {
+    /** F or the d-pad's up, or another game action: what it does here, if anything. True when it was this system's. */
+    onAction(action: GameAction): boolean {
       if (phase === "outside") {
         if (action !== "challenge") return false;
         const door = doorInReach();

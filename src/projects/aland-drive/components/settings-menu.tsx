@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Armchair, ArrowLeft, FastForward, ChevronsDown, ChevronsUp, CircleArrowDown, Car, Crosshair, Eye, Flag, Footprints, Fullscreen, Gamepad2, Gauge, Hand, Keyboard, KeyRound, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, Radar, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Armchair, ArrowBigDown, ArrowBigUp, ArrowLeft, FastForward, ChevronsDown, ChevronsUp, CircleArrowDown, Car, Crosshair, Eye, Flag, Footprints, Fullscreen, Gamepad2, Gauge, Hand, Keyboard, KeyRound, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, Radar, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { InputKind } from "@/shared/lib/input";
 import { subscribeGamepads } from "@/shared/lib/gamepad";
 import { ControlGlyph, Prompt, type Binding, type PadGlyph } from "@/shared/components/prompts";
 import { useDriveSoundSettings } from "../audio/settings";
 import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
 import { TRAFFIC_DENSITIES, TRAFFIC_REACHES, TRAFFIC_VOICE_COUNTS, useTrafficSettings, type TrafficSettings } from "../traffic/settings";
-import { tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "../render/game-menu";
+import { shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import { useUnits, type Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
-import { ACCENT, INK, MenuButton, SideBySide, TYRE_LOOKS, UNITS_LOOKS, type Icon, type ItemLook } from "./menu-parts";
+import type { Shifting } from "../sim/gearbox";
+import { ACCENT, INK, MenuButton, SideBySide, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type Icon, type ItemLook } from "./menu-parts";
 
 /*
  * The Settings page off the game menu, in tabs. Gameplay's settings are the
@@ -35,6 +36,8 @@ const NEXT_TAB: Binding = { pad: "RB", key: "E", fills: false };
 
 type TyreItem = `tyres-${Tyre}`;
 const isTyreItem = (id: MenuItemId): id is TyreItem => id.startsWith("tyres-");
+type ShiftingItem = `shifting-${Shifting}`;
+const isShiftingItem = (id: MenuItemId): id is ShiftingItem => id.startsWith("shifting-");
 type UnitsItem = `units-${Units}`;
 const isUnitsItem = (id: MenuItemId): id is UnitsItem => id.startsWith("units-");
 const ASSISTS = ["abs", "traction", "stability"] as const;
@@ -45,6 +48,10 @@ function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: Ref
   const tyres = menu.items.filter(isTyreItem).map((item) => {
     const tyre = tyreOfItem(item);
     return { id: item, icon: TYRE_LOOKS[tyre].icon, label: TYRE_LOOKS[tyre].name, spoken: `${TYRE_LOOKS[tyre].name} tyres`, on: tyre === menu.tyres };
+  });
+  const shifting = menu.items.filter(isShiftingItem).map((item) => {
+    const way = shiftingOfItem(item);
+    return { id: item, icon: SHIFTING_LOOKS[way].icon, label: SHIFTING_LOOKS[way].name, spoken: `${SHIFTING_LOOKS[way].name} shifting`, on: way === menu.shifting };
   });
   const units = menu.items.filter(isUnitsItem).map((item) => {
     const shown = unitsOfItem(item);
@@ -58,6 +65,7 @@ function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: Ref
       {ASSISTS.filter((id) => menu.items.includes(id)).map((id, index) => (
         <MenuButton key={id} look={look(id)} start={opensOnAids && index === 0} buttonRef={opensOnAids && index === 0 ? first : undefined} onPress={() => { onPick(id); }} />
       ))}
+      <SideBySide name="Shifting" choices={shifting} onPick={onPick} />
       <SideBySide name="Units" choices={units} onPick={onPick} />
     </div>
   );
@@ -78,6 +86,8 @@ const CONTROL_SECTIONS: readonly { name: string; rows: readonly ControlRow[] }[]
       { icon: ChevronsDown, label: "Brake, then reverse", bindings: [BINDINGS.brake] },
       { icon: MoveHorizontal, label: "Steer", bindings: [BINDINGS.left, BINDINGS.right] },
       { icon: Hand, label: "Handbrake", bindings: [BINDINGS.handbrake] },
+      { icon: ArrowBigUp, label: "Shift up, in manual", bindings: [BINDINGS.shiftUp] },
+      { icon: ArrowBigDown, label: "Shift down, in manual", bindings: [BINDINGS.shiftDown] },
       { icon: RefreshCcw, label: "Back to the road", bindings: [BINDINGS.respawn] },
       { icon: Flag, label: "Challenge, race or invite", bindings: [BINDINGS.challenge] },
     ],

@@ -2,7 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { Car, NO_INPUT, type Assists, type DriveInput, type Tread } from "./car";
 import { DEFAULT_CAR, type CarId } from "./cars";
 import { blendCarStates, headingOf, speedOf, type CarState, type Vector3 } from "./car-state";
-import type { EngineRead } from "./gearbox";
+import type { EngineRead, Shifting } from "./gearbox";
 import { GroundBlocks } from "./ground";
 import { WORLD_GROUPS } from "./groups";
 import { PhysicsCentre } from "./physics-centre";
@@ -117,6 +117,20 @@ export class SimulatedCar {
 
   set assists(assists: Assists) {
     this.car.assists = assists;
+  }
+
+  /** Whether the box shifts by itself or only when the driver shifts it, which a swapped car keeps. */
+  get shifting(): Shifting {
+    return this.car.shifting;
+  }
+
+  set shifting(shifting: Shifting) {
+    this.car.shifting = shifting;
+  }
+
+  /** The driver shifts a gear up or down, in manual. */
+  shift(way: 1 | -1): void {
+    this.car.shift(way);
   }
 
   swap(rapier: RAPIER.World, centre: PhysicsCentre, ground: GroundBlocks, id: CarId, tyres: Tyre): void {
@@ -365,6 +379,20 @@ export class Drive {
 
   set assists(assists: Assists) {
     this.player.assists = assists;
+  }
+
+  /** Whether the car being driven shifts by itself or only when the player shifts it. */
+  get shifting(): Shifting {
+    return this.player.shifting;
+  }
+
+  set shifting(shifting: Shifting) {
+    this.player.shifting = shifting;
+  }
+
+  /** The player shifts a gear up or down, in manual. */
+  shift(way: 1 | -1): void {
+    this.player.shift(way);
   }
 
   /** What the weather has made of every surface, for every car: dry until something says otherwise. */
