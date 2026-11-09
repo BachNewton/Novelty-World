@@ -55,7 +55,7 @@ const RUN_ON_M = 150;
 /** A challenge as the racer knows how to drive one: a sprint of one lap whose lines are its gates, or its camera. */
 function asRace(challenge: BucketChallenge): RaceChallenge {
   const tier = CAR_TIERS[challenge.car];
-  if (!tier) throw new Error(`${challenge.id}'s car, ${challenge.car}, is in no tier`);
+  if (tier === null) throw new Error(`${challenge.car} is in no tier, so the racer can't drive its challenge`);
   return {
     ...challenge,
     kind: "race",

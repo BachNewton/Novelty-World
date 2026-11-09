@@ -26,7 +26,7 @@ From the tiers down, not from today's cars up:
 
 1. **Slots.** Each tier's two or three places, each with target figures (0–100 km/h, top speed, weight, drive) and a role in its tier, so a tier offers different ways to drive: a front-engined grand tourer, a mid-engined sports car and a light track car in one tier, say.
 2. **The best fit for each slot.** A car of today's close to a slot is retuned into it, a slot with nothing close gets a new car, and a car that fits no slot leaves the list. Ljus and Kobb are cut unless they keep a job outside the events: a bucket-list challenge, or a first car before a player can afford anything.
-3. **Each slot's cost written beside it**, so the cheap choices show next to the dear ones. The challenges, the races, the player's start (Grus) and the tools and tests (the Skerry GT) name cars by id, so a removed car means repointing them; a retuned car's limits are measured again and the challenges' targets set again from them; reusing a car's art is cheap, a new body isn't.
+3. **Each slot's cost written beside it**, so the cheap choices show next to the dear ones. The challenges, the races, the player's start (Fjärd) and the tools and tests (the Skerry GT) name cars by id, so a removed car means repointing them; a retuned car's limits are measured again and the challenges' targets set again from them; reusing a car's art is cheap, a new body isn't.
 
 Each slot also says how its car reaches the island and who makes it.
 
@@ -150,10 +150,10 @@ TDU2 sold through 11 dealerships, most of them grouping makers: three single-bra
 |---|---|---|---|---|
 | **The yacht** | A visiting superyacht moored at Västerhamn, near the premium showroom | A private showroom on its car deck | 5: the A1 and A2 cars, both hypercars and the three supercars | Teak, glass and soft spotlights, the sea through its windows |
 | **Delivery hall** | Mariehamn's ferry terminal | The importer's hall, where cars brought in by ship are handed over | 8: the A3 and A4 cars, the desert pickup and the luxury four-by-four | Clean and bright: white walls, a polished floor, each car under its own light |
-| **Premium showroom** | Västerhamn's waterfront, on Sjöpromenaden | Tärna and Aurelle, the dealer tiers' finest | 3: the Skerry GT, Ankar, Bris | A showroom's warm spotlights |
-| **Town dealer** | Mariehamn's north edge, on Nya Godbyvägen among the town's car businesses | The everyday makers' new cars: Västan, Ödmark's road cars and Norrsken's pickup | 7: Ström, the hot hatch, Ljus, Fjärd, Sten, the rally hatch, the electric pickup | Even, bright retail light |
+| **Premium showroom** | Västerhamn's waterfront, on Sjöpromenaden by the marina's northernmost pier, its sea half on a deck over the water | Tärna and Aurelle, the dealer tiers' finest | 3: the Skerry GT, Ankar, Bris | A showroom's warm spotlights |
+| **Town dealer** | Mariehamn's north edge, on Nya Godbyvägen among the town's car businesses, a dealer of its own name (Norrvind) with the three makers' badges | The everyday makers' new cars: Västan, Ödmark's road cars and Norrsken's pickup | 7: Ström, the hot hatch, Ljus, Fjärd, Sten, the rally hatch, the electric pickup | Even, bright retail light |
 | **Village garage** | Sund, on Sundsvägen east past Kastelholm | Klippa's workhorses; it also restores the barn finds | 5: Holm, Berg, the utility, the tiny four-by-four, Kobb | A workshop's strip lights |
-| **Used lot** | Mariehamn's north edge, on Dalvägen | Trade: buys the player's cars, and sells used ones, as TDU2's used dealers did | Its stock and prices come with the economy | Outdoors, with a small office |
+| **Used lot** | Mariehamn's north edge, by Godbyvägen and Dalvägen, on the open ground beside a car trade's hall, its own used-car hall at the back of the lot, walked inside like the others | Trade: buys the player's cars, and sells used ones, as TDU2's used dealers did | Its stock and prices come with the economy | A plain hall's tubes, the lot through its glass |
 
 The yacht is the one place the game leans into TDU's glamour, and it is less far-fetched than it sounds: superyachts call at Mariehamn in summer, some carry cars on a garage deck, and makers hold sales on yachts. A yacht's car deck holds about five cars, which keeps it exclusive. It stays moored all year for now; visiting only in summer, as a real one would, is for later, since it would hide the A1 and A2 cars all winter. Its hull is a large model of its own in the marina, beside the boats the game already has.
 
@@ -161,7 +161,7 @@ The other places a car comes from aren't shops: the **motor club** at Vessingsbo
 
 Most of it is in Mariehamn, as it would be: it is the island's only town, and the harbour is where its ships come in. The village garage, the club and the barns take the player out to the country.
 
-The dealer art is still a first draft the owner hasn't reviewed: the sites above are decided, their exteriors and interiors aren't, and the yacht and delivery hall have none yet.
+The owner has reviewed the dealer art: the four places' exteriors are kept and reworked to this plan, each on its real plot in the game (`art/dealers/sites.ts`), and the village garage is a working garage inside, not a showroom.
 
 ## Inside a dealership
 
@@ -174,6 +174,8 @@ As TDU2's were, a dealership is walked round in first person, among its cars.
 - **Each place is lit as its kind would be** (the table above), not by the sun.
 - **Every car is free while the game is built.** Buying and selling go through the dealerships as they will, but no money moves until the economy exists, and the Cars menu still offers every car. A bought car has nowhere to be kept yet.
 
+**What's built** (`dealership/CLAUDE.md`): the walk-in, and the rooms of the premium showroom, the town dealer, the village garage and the used lot's hall. A dealership is data, the interior definition (`dealership/interior.ts`) its art follows: its room, its stock by the table above as rules on the car list, its cars' spots, its floor and solids, its windows, where its view is captured from, its own lamps and its door. Each door is a ring on the island; E or X there captures the island all round from the dealership's place at that moment's hour, season and weather and opens the room, where the player walks among its cars, revs one, sits in its seat and reads its measured figures, and takes it as their car outside. The yacht and the delivery hall are built to the same definition; selling at the used lot waits for a garage that holds more than one car.
+
 ## The owner's decisions
 
 - **Classes and tiers are TDU2's, with today's cars in each tier**: A1–A7 asphalt, B1–B4 gravel (widened from off-road, with B1 back), C1–C4 classic.
@@ -182,7 +184,7 @@ As TDU2's were, a dealership is walked round in first person, among its cars.
 - **8 to 10 barn finds**, in barns and boathouses, searched for from a rumour and restored at the village garage.
 - **About 25 bucket-list challenges, a car each** (`ideas/bucket-list.md`), each choosing its car, road, hour, date and weather.
 - **Makers follow TDU2's pattern** of a few big ones and a long tail, all invented; their number comes with the car list.
-- **Six places sell cars**: the yacht (A1–A2), the delivery hall at the ferry terminal (A3–A4 and the two shipped B cars), the premium showroom, the town dealer, the village garage, and the used lot for trade, each lit as its kind would be. The tyre shop is a service, and the motor club and the barns aren't shops.
+- **Six places sell cars**: the yacht (A1–A2), the delivery hall at the ferry terminal (A3–A4 and the two shipped B cars), the premium showroom, the town dealer, the village garage, and the used lot for trade, an indoor used-car hall, each lit as its kind would be (an outdoor lot can't be walked in: the view captured through a dealership's windows stands in for scenery far off, and outdoors it would replace the place the player stands in). The tyre shop is a service, and the motor club and the barns aren't shops.
 - **Dealerships are walked round in first person**, as separate interiors with the real view captured through their windows; no body and no other players inside; at a car, rev it, sit in it and read its measured figures. Buying is free and the Cars menu stays until the economy exists.
 
 ## Sources

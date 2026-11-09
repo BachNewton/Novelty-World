@@ -1,5 +1,5 @@
 /*
- * The dealerships' colours that no existing token can mix: three invented brands, and the floors, cladding, light
+ * The dealerships' colours that no existing token can mix: the six makers' badges, the town dealer's own colours, and the floors, cladding, light
  * and rubber of a car trade. On integration this block joins the other --color-aland-drive-* tokens in globals.css.
  */
 :root {
@@ -9,6 +9,14 @@
   --color-aland-drive-dealer-vastan-ink: #f3f8fb;
   --color-aland-drive-dealer-tarna: #cdb785;
   --color-aland-drive-dealer-tarna-ink: #141c26;
+  --color-aland-drive-dealer-odmark: #b5302a;
+  --color-aland-drive-dealer-odmark-ink: #f5efe4;
+  --color-aland-drive-dealer-norrsken: #15233b;
+  --color-aland-drive-dealer-norrsken-ink: #6fe3ac;
+  --color-aland-drive-dealer-aurelle: #74202e;
+  --color-aland-drive-dealer-aurelle-ink: #ecdfc4;
+  --color-aland-drive-dealer-house: #2e5b4f;
+  --color-aland-drive-dealer-house-ink: #f2f5f1;
 
   --color-aland-drive-dealer-concrete: #8f8d86;
   --color-aland-drive-dealer-tile: #d9d7d0;
@@ -32,4 +40,7 @@
   --color-aland-drive-dealer-light-warm: #fff0cf;
   --color-aland-drive-dealer-light-cool: #eaf4ff;
   --color-aland-drive-dealer-ceiling: #d7d4cb;
+  --color-aland-drive-dealer-yacht-hull: #1f3148;
+  --color-aland-drive-dealer-white: #f3f5f6;
+  --color-aland-drive-dealer-import: #1d3a50;
 }

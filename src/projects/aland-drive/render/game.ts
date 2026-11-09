@@ -41,6 +41,7 @@ import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createWindmills } from "./windmills";
 import { createWindTurbines } from "./wind-turbines";
+import { createDealers } from "./dealers";
 import { createStoneWalls, type StoneWallsDrawn } from "./stone-walls";
 import { createRoadside } from "./roadside";
 import { createParkedCars } from "./parked-cars";
@@ -73,6 +74,7 @@ import { useDriveSoundSettings } from "../audio/settings";
 import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { createCockpit } from "../art/cars/cockpit/view";
+import { createWalkIn, type DealershipReading, type WalkIn } from "../dealership/walk-in";
 import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
@@ -96,7 +98,7 @@ import { startControls, type GameAction, type MapAction } from "../input/control
 import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, resultItems, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
-import { createChallengeMarks } from "./challenge-marks";
+import { createChallengeMarks, type StartMark } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { conditionOf, timeOf, tyresOf, weatherOf } from "../challenge/conditions";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
@@ -342,6 +344,8 @@ export interface GameProbe {
   addChallenge: (challenge: Challenge) => void;
   /** Starts a challenge solo, wherever the car is, resolving once the car is on its start line. */
   startChallenge: (id: string) => Promise<void>;
+  /** Walking round a dealership: going in at one by its site, standing, sitting, leaving, and where things stand. */
+  dealership: Pick<WalkIn, "enterAt" | "standAt" | "sitAt" | "leave" | "state" | "peek" | "doors" | "leaveOut">;
   /** The challenge being played, as its run stands, or null. */
   challenge: () => ChallengeProbe | null;
   /** The scripted driver along the challenge's route, from where the car is on it. */
@@ -480,6 +484,10 @@ export interface GameEvents {
   onProgress?: (progress: Progress) => void;
   /** The page takes the online world's time: cover the view, call `jump`, then uncover it. Without this it jumps at once. */
   onTimeJump?: (jump: () => void) => void;
+  /** A dealership's door is in reach, the player is going in, or what's at hand inside one (`dealership/`); null for none. */
+  onDealership?: (reading: DealershipReading | null) => void;
+  /** Going into a dealership: cover the view, then call `covered`, and the room is built under it. */
+  onDealershipCover?: (covered: () => void) => void;
 }
 
 export interface Progress {
@@ -1136,6 +1144,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Båtskär's turbines turn on the same clock as the roadside's flags.
   const windTurbines = createWindTurbines(scene, identityKit, { height: (x, z) => world.height(x, z), revision: () => world.revision });
   if (inPlayground) windTurbines.show(false);
+  const dealers = createDealers(scene, { sun, hazed, season, lampsOn: night.lampsOn, inLand: (colour) => colour.div(landAtHour(night, vec3(1, 1, 1))) }, { height: (x, z) => world.height(x, z), revision: () => world.revision }, manifest.worldOrigin);
+  if (inPlayground) dealers.show(false);
   const roadside = createRoadside(scene, {
     roadside: roadsideMaterials({ colour: colorOf, linear, hazed, sun }),
     street: streetMaterials({ colour: colorOf, linear, hazed, sun, time: streetClock, season }),
@@ -1353,6 +1363,33 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
   };
 
+  const walkIn = createWalkIn({
+    renderer,
+    scene,
+    camera,
+    worldOrigin: manifest.worldOrigin,
+    standsAt: (site) => dealers.standsAt(site),
+    leaveOut: (site) => dealers.leaveOut(site),
+    car: () => drive.stateAt(1),
+    carId: () => drive.carId,
+    takeCar: (id) => {
+      keepCar(id);
+      setCar(id);
+    },
+    audio: () => audio,
+    walk: () => controls.walk(),
+    units: () => useUnits.getState().units,
+    hour: () => day.time().hour,
+    canEnter: () => !session && cameraMode !== "free" && coop.now.kind === "free" && !mapFrom && !jumping && gameMenu === null && !devMenuOpen,
+    held: () => gameMenu !== null || devMenuOpen,
+    resumed: () => {
+      chaseCamera.snap();
+      cockpitCamera.snap();
+    },
+    onReading: (reading) => events.onDealership?.(reading),
+    cover: (covered) => (events.onDealershipCover ? events.onDealershipCover(covered) : covered()),
+  });
+
   // A pipeline first used mid-drive stalls that frame while it compiles, so every mesh is built once before the drive starts.
   for (const { cells } of [...ribbons.values(), ...buildings.values()]) {
     for (const { mesh } of cells) mesh.visible = true;
@@ -1361,6 +1398,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(true);
   windmills.showAll(true);
   windTurbines.showAll(true);
+  dealers.showAll(true);
   docks.showAll(true);
   seaMarks.showAll(true);
   people.showAll(true);
@@ -1376,6 +1414,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   nightLights.showAll(true);
   winterLights.showAll(true);
   await renderer.compileAsync(scene, camera);
+  await walkIn.compile();
   await nightLights.compile(renderer);
   await forest.compile();
   await verge.compile();
@@ -1390,6 +1429,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   outbuildings.showAll(false);
   windmills.showAll(false);
   windTurbines.showAll(false);
+  dealers.showAll(false);
   docks.showAll(false);
   seaMarks.showAll(false);
   people.showAll(false);
@@ -2206,6 +2246,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const onAction = (action: GameAction) => {
+    if (walkIn.onAction(action)) return;
     if (action === "respawn") drive.respawn();
     if (action === "freeCamera") setCamera(cameraMode === "free" ? drivingView : "free");
     if (action === "cockpit" && cameraMode !== "free" && !mapFrom && !jumping) {
@@ -2230,6 +2271,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     viewHeight.value = renderer.domElement.height;
     camera.aspect = clientWidth / Math.max(1, clientHeight);
     camera.updateProjectionMatrix();
+    walkIn.resize(camera.aspect);
   };
   const observer = new ResizeObserver(resize);
   observer.observe(container);
@@ -2512,6 +2554,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   let marksRevision = -1;
+  let dealerMarksShown = true;
   const readChallenge = (): ChallengeReading | null => {
     if (!session) return null;
     const { run, challenge, seat } = session;
@@ -2671,7 +2714,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     lastFrame = now;
     let share = 1;
     let stepped = 0;
-    const menuHolds = devMenuOpen || gameMenu?.pauses === true;
+    const menuHolds = devMenuOpen || gameMenu?.pauses === true || walkIn.holds();
     if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
     if (!held && !mapFrom && !jumping && !menuHolds) {
       owedSeconds += seconds;
@@ -2695,9 +2738,17 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     onlineWorld?.send(stepped, drive.stateAt(1), drive.placements !== sentPlacements, steppedAt);
     computerCars.step(stepped);
     sentPlacements = drive.placements;
+    // Inside a dealership only its room is drawn (`dealership/walk-in.ts`).
+    if (walkIn.inside()) {
+      walkIn.frame(seconds);
+      frames++;
+      return;
+    }
     const players = drawRemotes(share);
     worldMap?.setPlayers(players);
-    if (mapFrom && worldMap) {
+    if (walkIn.aim(camera)) {
+      // A dealership's capture of the island holds the camera.
+    } else if (mapFrom && worldMap) {
       const carNow = mapFrom.car;
       const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(worldMap), groundAt);
       camera.position.set(...pose.position);
@@ -2748,10 +2799,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const shown = day.time();
     const clock = { month: shown.calendar.month, hour: shown.hour, sunUp: shown.sun.elevationDeg > 0, temperatureC: day.weather()?.temperatureC ?? null };
     if (inCockpit) cockpit.read(car, { engine, hour: shown.hour, outsideC: clock.temperatureC ?? 12 });
+    walkIn.tellOutside();
     events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / TUNINGS[drive.carId].gearbox.redlineRpm, 1), toGoM, challenge: readChallenge(), offer, coop: readCoop(), clock });
-    if (challengeBoard.revision !== marksRevision) {
+    // A dealership's own ring is left out of the island it captures.
+    if (challengeBoard.revision !== marksRevision || walkIn.holds() === dealerMarksShown) {
       marksRevision = challengeBoard.revision;
-      challengeMarks.setStarts(challengeBoard.challenges.map((challenge) => ({ ...ringCentre(challenge), tone: challenge.kind === "race" ? challenge.ground : challengeBoard.passed(challenge) ? "passed" : "challenge" })));
+      dealerMarksShown = !walkIn.holds();
+      challengeMarks.setStarts([...challengeBoard.challenges.map((challenge): StartMark => ({ ...ringCentre(challenge), tone: challenge.kind === "race" ? challenge.ground : challengeBoard.passed(challenge) ? "passed" : "challenge" })), ...(dealerMarksShown ? walkIn.marks() : [])]);
       showProgress();
     }
     showNextLine();
@@ -2782,6 +2836,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       boatsUnderWay.update(seaHeldAt ?? seaNow(), lifted || held || jumping || menuHolds ? 0 : seconds, camera.position);
       seaMarks.update(spot.x, spot.z, camera.position);
       windTurbines.update();
+      dealers.update(camera.position);
     }
     people.update(lifted || held || jumping || menuHolds ? 0 : seconds);
     if (!(lifted || held || jumping || menuHolds)) {
@@ -2838,7 +2893,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       orderScene(scene);
       sceneOrdered = true;
     }
-    renderer.render(scene, camera);
+    if (!walkIn.renderCapture(scene, camera)) renderer.render(scene, camera);
     frames++;
     if (!resolving) {
       resolving = true;
@@ -3069,6 +3124,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       addChallenge: (challenge) => {
         challengeBoard.add(challenge);
       },
+      dealership: walkIn,
       startChallenge: (id) => {
         const onLine = new Promise<void>((resolve) => {
           placedWaiters.push(resolve);
@@ -3196,6 +3252,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       Object3D.DEFAULT_MATRIX_AUTO_UPDATE = matrixAutoUpdateBefore;
       void renderer.setAnimationLoop(null);
       document.removeEventListener("visibilitychange", hushWhenHidden);
+      walkIn.dispose();
       audio.dispose();
       observer.disconnect();
       unsubscribeGraphics();
@@ -3226,6 +3283,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       outbuildings.dispose();
       windmills.dispose();
       windTurbines.dispose();
+      dealers.dispose();
       docks.dispose();
       boatsUnderWay.dispose();
       seaMarks.dispose();
