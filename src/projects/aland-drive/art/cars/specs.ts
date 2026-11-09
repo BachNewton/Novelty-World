@@ -4,6 +4,7 @@ import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
+import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
 import { grus } from "./models/grus";
@@ -19,6 +20,7 @@ import { sten } from "./models/sten";
 import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
+import { varg } from "./models/varg";
 import { vik } from "./models/vik";
 import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 
@@ -35,11 +37,13 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   // A2
   orkan,
+  varg,
   // A3
   dyning,
   span,
   strimma,
   // A4
+  brus,
   sund,
   // A5
   "skerry-gt": skerryGt,
