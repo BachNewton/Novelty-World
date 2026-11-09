@@ -17,6 +17,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `net/` | Multiplayer: the shared world, stand-ins, the shared GPS destination, computer-driven cars, shared traffic |
 | `traffic/` | Cars, cyclists and walkers on the lanes, and `?lane-lab` |
 | `challenge/` | Challenges, co-op and races |
+| `racers/` | The AI racers: the road as laid, the racing line and speed plan, the driver, difficulty, the field, and the race vetting tool |
 | `map/` | The world map, mini map, GPS and places to find |
 | `audio/` | Sound |
 | `time/`, `climate/` | The calendar and clock; the shared weather |
@@ -71,6 +72,7 @@ A player starts in the car they last chose on the game menu's Cars page, or in G
 |---|---|
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
 | `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
+| `?racers=<count>`, `?difficulty=<level>` | How many AI racers a race gets and how well they drive (`racers/CLAUDE.md`); one at medium without them |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |

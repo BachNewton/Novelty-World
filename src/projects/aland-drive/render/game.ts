@@ -100,7 +100,15 @@ import { challengeRoute, raceRoute, runOn } from "../challenge/line";
 import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
-import { FINISHING_PLACE, medalForPlace } from "../challenge/standings";
+import { medalForPlace, type Standing } from "../challenge/standings";
+import { isDifficulty, type Difficulty } from "../racers/difficulty";
+import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
+import { RaceGrid } from "../racers/grid";
+import { LaidRoad } from "../racers/laid-road";
+import { progressOf } from "../racers/racer";
+import { raceLineUrl, readRaceLine, type RaceLineFile } from "../racers/race-line-file";
+import { corridorOf, racingLine } from "../racers/racing-line";
+import { ROUTE_STEP_M, RoutePlan } from "../racers/route-plan";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
 import type { ChallengeMessage, ChallengeType, SharedDestination } from "../net/protocol";
@@ -355,6 +363,9 @@ export interface ChallengeProbe {
   gates: { passed: number; of: number };
   /** A race's lap, from 1, and how many. */
   lap: { lap: number; of: number };
+  /** A race's place among its racers, from 1, and how many racers are in it. */
+  place: number;
+  racers: number;
   outcome: Outcome | null;
   seat: 0 | 1;
   players: number;
@@ -376,8 +387,8 @@ export interface ChallengeReading {
   /** The time to beat, or the speed to reach; a race has none. */
   target: number | null;
   gates: { passed: number; of: number };
-  /** A race's lap, null for a challenge. */
-  race: { lap: number; laps: number } | null;
+  /** A race's lap, this player's place among the racers and how many cars are in it, null for a challenge. */
+  race: { lap: number; laps: number; place: number; cars: number } | null;
   /** A race's ground, which colours its panel. */
   ground: RaceChallenge["ground"] | null;
   /** Co-op, once the partner is in and this player isn't: the time to finish by, or the speed to reach, for the team to pass. */
@@ -632,6 +643,16 @@ const CHALLENGE_RUN_ON_M = 150;
 const targetOf = (challenge: Challenge) => (challenge.kind === "route" ? challenge.targetS : challenge.kind === "race" ? null : challenge.targetKmh);
 /** The car on the start line and through the countdown: the handbrake, since the brake held at a standstill is reverse. */
 const HELD: DriveInput = { ...NO_INPUT, handbrake: true };
+
+/** How many racers a race gets and how well they drive: one rival at medium until the owner has raced it, `?racers=` and `?difficulty=` for others. */
+function racersAskedIn(search: string): { count: number; difficulty: Difficulty } {
+  const params = new URLSearchParams(search);
+  const count = params.get("racers");
+  const difficulty = params.get("difficulty") ?? "medium";
+  if (count !== null && !/^\d+$/.test(count)) throw new Error(`?racers= takes a count, not ${count}`);
+  if (!isDifficulty(difficulty)) throw new Error(`?difficulty= takes easy, medium, hard, expert or legend, not ${difficulty}`);
+  return { count: count === null ? 1 : Number(count), difficulty };
+}
 
 export const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
 export const colorOf = (name: string) => {
@@ -1640,6 +1661,69 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // The challenge being played, if any (`challenge/session.ts`): the run, the car from before, and the way back to the line.
   let session: ChallengeSession | null = null;
+  // The racers of the race being played (`racers/grid.ts`), put on the grid once the player's car is, and how many a race gets at what difficulty.
+  let grid: RaceGrid | null = null;
+  const racersAsked = racersAskedIn(window.location.search);
+  // A race's line and the surface under it, fetched once per race, or drawn here from the loaded roads for a race of the page's own.
+  const raceLines = new Map<string, Promise<{ line: RoadLine; pavedAt: (alongM: number) => boolean }>>();
+  const raceLineOf = (race: RaceChallenge) => {
+    let line = raceLines.get(race.id);
+    if (!line) {
+      line = fetchRaceLine(race);
+      raceLines.set(race.id, line);
+    }
+    return line;
+  };
+  const fetchRaceLine = async (race: RaceChallenge) => {
+    const published = RACES.some(({ id }) => id === race.id) ? await fetch(raceLineUrl(window.location.origin, race.id)) : null;
+    if (published?.ok) return readRaceLine((await published.json()) as RaceLineFile);
+    // A race of the page's own (a test's) has no file: its line is drawn from the roads loaded here, which hold its whole route.
+    const route = routeOf(race);
+    if (!route) throw new Error(`no road network to draw ${race.id}'s line on`);
+    const corridor = corridorOf(new RoutePlan(runOn(route.line, CHALLENGE_RUN_ON_M), new LaidRoad(world)));
+    const widest = raceFieldOf(race.car, race.ground).reduce((best, car) => (TUNINGS[car].car.halfSize[0] > TUNINGS[best].car.halfSize[0] ? car : best));
+    return { line: racingLine(corridor, TUNINGS[widest].car.halfSize[0]).line, pavedAt: (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved };
+  };
+  /** The racers on the grid for this attempt, in the world's condition, once the player's car is on its place; none for a challenge. */
+  const putRacersOnGrid = async (challenge: Challenge, players: number) => {
+    grid?.dispose();
+    grid = null;
+    if (challenge.kind !== "race" || racersAsked.count === 0) return;
+    const { line, pavedAt } = await raceLineOf(challenge);
+    // The racers drive the other cars of the race's kind.
+    const field = raceFieldOf(challenge.car, challenge.ground).slice(1);
+    grid = new RaceGrid(challenge, line, pavedAt, field, racersAsked.difficulty, racersAsked.count, players, {
+      addCar: (place, car, condition) => {
+        const road = world.roads.nearest(place.x, place.z);
+        if (!road) throw new Error(`no road at a race's grid place, ${place.x}, ${place.z}`);
+        return drive.addCar({ ...road, x: place.x, z: place.z, heading: place.heading }, car, tyresFor(condition));
+      },
+      removeCar: (car) => {
+        drive.removeCar(car);
+      },
+      resetCar: (car, road) => {
+        car.place(road);
+        car.land();
+      },
+      // Water a car sinks in, as the simulation reads it: a road along the shore or over it isn't.
+      inWater: (x, z) => world.isWater(x, z) && !world.bearsCar(x, z) && (world.roads.nearest(x, z)?.distance ?? Infinity) > 6,
+      condition: () => drive.condition,
+    });
+  };
+  /** Where this player stands in the race: their finish once in, and how far round they are until then. */
+  const playerStanding = (): Standing | null => {
+    if (!session || session.challenge.kind !== "race") return null;
+    const { run, seat } = session;
+    const { nextGate, result } = run.players[seat];
+    const { position } = drive.stateAt(1);
+    const next = lineAt(session.challenge, Math.min(nextGate, linesOf(session.challenge) - 1));
+    return { finishedS: result, progress: progressOf(run, Math.hypot(next.x - position[0], next.z - position[2]), seat) };
+  };
+  /** This player's place among the racers, first with none. */
+  const playerPlace = () => {
+    const standing = playerStanding();
+    return grid && standing ? grid.placeOf(standing) : 1;
+  };
   // What the open choice is about: the challenge whose ring the car was in, and how many others a co-op invite would ask.
   let offered: { challenge: Challenge; players: number } | null = null;
   // The player whose invite the open Join or Decline is about.
@@ -1752,10 +1836,18 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         cockpitCamera.snap();
         // A scripted drive belongs to the attempt it was started in.
         autopilot = null;
-        done();
-        const waiting = placedWaiters;
-        placedWaiters = [];
-        for (const resolve of waiting) resolve();
+        // The racers take their places once the player has, and the lights wait for them.
+        const placing = starting ?? (session && { challenge: session.challenge, players: session.run.players.length });
+        if (!placing) throw new Error("a car placed for no challenge");
+        void putRacersOnGrid(placing.challenge, placing.players)
+          .then(() => {
+            if (asked !== sessionsLeft) return;
+            done();
+            const waiting = placedWaiters;
+            placedWaiters = [];
+            for (const resolve of waiting) resolve();
+          })
+          .catch(fail);
       };
       // Where the start's tiles are still loaded the car goes back at once; past them, the way a jump does.
       if (stream.wanted(x, z) === 0) put();
@@ -1772,14 +1864,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
     onOver: (challenge, outcome) => {
       const mode = session?.coop ? "coop" : "solo";
-      challengeBoard.record(challenge, mode, outcome);
+      // A finished player's place is settled: no racer behind can pass them now.
+      const place = playerPlace();
+      challengeBoard.record(challenge, mode, outcome, place);
       const seat = session?.seat ?? 0;
       const best = challengeBoard.passOf(challenge, mode)?.best ?? null;
       const target = targetOf(challenge);
       const partner = coop.partner;
       const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
       const result = outcome.average ?? outcome.results[seat];
-      const race = challenge.kind === "race" ? raceResult(challenge, mode) : undefined;
+      const race = challenge.kind === "race" ? raceResult(challenge, mode, place) : undefined;
       showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
     },
     onRetry: (attempt) => {
@@ -1796,10 +1890,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
   };
   /** How a race finished, for its result card: the place, its medal, and the best medal kept in this mode. */
-  const raceResult = (race: RaceChallenge, mode: PlayMode): RaceResult => ({
+  const raceResult = (race: RaceChallenge, mode: PlayMode, place: number): RaceResult => ({
     ground: race.ground,
-    place: FINISHING_PLACE,
-    medal: medalForPlace(FINISHING_PLACE),
+    place,
+    medal: medalForPlace(place),
     bestMedal: challengeBoard.medal(race, mode),
   });
   // Counts sessions left, so a start's load that lands after its session has gone knows it.
@@ -1815,17 +1909,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const car = drive.stateAt(1);
       cameFrom = { x: car.position[0], z: car.position[2], heading: headingOf(car.rotation) };
     }
+    starting = { challenge, players };
     const started = new ChallengeSession(challenge, sessionHost, seat, players);
+    starting = null;
     session = started;
     challengeMarks.showStarts(false);
     return started;
   };
+  // The challenge whose session is being made: its constructor puts the car on the line before the session exists.
+  let starting: { challenge: Challenge; players: number } | null = null;
   const leaveChallenge = () => {
     if (!session) throw new Error("Leave with no challenge being played");
     session.leave();
     session = null;
     sessionsLeft++;
     autopilot = null;
+    grid?.dispose();
+    grid = null;
     if (gameMenu) showMenu(null);
     challengeMarks.setLine(null, "gate");
     challengeMarks.showStarts(true);
@@ -2110,6 +2210,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     lastInput = session?.holdsCar() ? HELD : input;
     trafficContact.beforeStep(trafficSteps);
     driveComputerCars();
+    // The racers' lights count down with the player's: held until the car is on its place and, in co-op, the partner's is.
+    if (grid && session && !session.placing && session.partnerReady) grid.step();
     drive.step(lastInput);
     trafficContact.afterStep();
     if (sharedTraffic) updateHitCars();
@@ -2321,6 +2423,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const state = drive.remotes.stateAt(standInOf(id), share);
       remoteViews.draw(standInOf(id), state, world.tileAt(state.position[0], state.position[2])?.detail != null);
     }
+    for (const { id, car } of grid?.racers ?? []) {
+      const state = car.stateAt(share);
+      const [x, , z] = state.position;
+      remoteViews.draw(id, state, world.tileAt(x, z)?.detail != null);
+      shown.push({ x, z, headingClockwise: headingClockwise(state), name: "" });
+      if (state.lamps.head) lamps.push(remoteViews.atNight(state));
+    }
     nightLights.setCars(lamps);
     return shown;
   };
@@ -2340,7 +2449,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       target: targetOf(challenge),
       gates: gatesPassed(run, seat),
       ground: challenge.kind === "race" ? challenge.ground : null,
-      race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps } : null,
+      race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps, place: playerPlace(), cars: (grid?.racers.length ?? 0) + run.players.length } : null,
       needs: needs?.player === seat ? needs.result : null,
       partner: partner === null ? null : nameOf(partner),
     };
@@ -2898,6 +3007,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           clockS: run.clockS,
           gates: gatesPassed(run, seat),
           lap: lapOf(run, seat),
+          place: playerPlace(),
+          racers: grid?.racers.length ?? 0,
           outcome: run.outcome,
           seat,
           players: run.players.length,
