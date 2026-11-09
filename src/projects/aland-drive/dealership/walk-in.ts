@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, Mesh, MeshBasicNodeMateria
 import { float, positionWorld, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { sharedUniform } from "../art/shared-uniform";
-import { buildExterior, DEALER_SITES, dealerMaterial, geometryOf, onSite, restingCar, type DealerSite, type ExteriorId } from "../art/dealers";
+import { dealerMaterial, geometryOf, restingCar, type DealerSite, type ExteriorId } from "../art/dealers";
 import { Shell } from "../art/dealers/shell";
 import { createCarView } from "../art/cars/model";
 import { createCockpit } from "../art/cars/cockpit/view";
@@ -19,6 +19,7 @@ import type { DealerInterior, Solid, Spot } from "./interior";
 import { AT_CAR_M, BODY_RADIUS_M, carBox, carSpec, carsOnSpots } from "./rules";
 import { boxDistance, settle, type PlanBox } from "./plan";
 import { DEALERSHIPS, type Dealership } from "./registry";
+import { dealerDoors, inScene, type DealerDoor } from "./doors";
 import { createRoomLighting } from "./room-light";
 import { createIslandView } from "./view";
 
@@ -103,13 +104,6 @@ export interface WalkInHost {
   cover: (covered: () => void) => void;
 }
 
-interface Door {
-  dealership: Dealership;
-  site: DealerSite;
-  x: number;
-  z: number;
-}
-
 interface StandingCar {
   id: CarId;
   spot: Spot;
@@ -119,7 +113,7 @@ interface StandingCar {
 }
 
 interface Room {
-  door: Door;
+  door: DealerDoor;
   interior: DealerInterior;
   scene: Scene;
   cars: StandingCar[];
@@ -154,10 +148,7 @@ function doorRingOf({ door }: DealerInterior, material: Mesh["material"]): Mesh 
 export function createWalkIn(host: WalkInHost) {
   const { renderer } = host;
   /** A point of a site's model, (x, z) in its own metres, in the scene. */
-  const turnPoint = (site: DealerSite, x: number, z: number): [number, number] => {
-    const [east, north] = onSite(site, x, z);
-    return [east - host.worldOrigin.east, host.worldOrigin.north - north];
-  };
+  const turnPoint = (site: DealerSite, x: number, z: number) => inScene(site, host.worldOrigin, x, z);
   const view = createIslandView(renderer);
   const lighting = createRoomLighting();
   const roomMaterial = dealerMaterial({ kind: "lamps", light: lighting });
@@ -177,20 +168,14 @@ export function createWalkIn(host: WalkInHost) {
   sky.matrixAutoUpdate = true;
   sky.frustumCulled = false;
 
-  const doors: Door[] = DEALERSHIPS.map((dealership) => {
-    const site = DEALER_SITES.find(({ id }) => id === dealership.site);
-    if (!site) throw new Error(`no site for ${dealership.site}`);
-    const { entrance } = buildExterior(site.id);
-    const [x, z] = turnPoint(site, entrance.at[0], entrance.at[2]);
-    return { dealership, site, x, z };
-  });
+  const doors = dealerDoors(host.worldOrigin);
   // Every room's definition, built once after the drive starts: going in then waits only for the capture.
   const interiors = new Map<Dealership, DealerInterior>();
   const ready = Promise.all(DEALERSHIPS.map(async (dealership) => interiors.set(dealership, await dealership.load())));
 
   let phase: "outside" | "entering" | "inside" = "outside";
   /** The door being gone in at, until the page's cover shows. */
-  let covering: Door | null = null;
+  let covering: DealerDoor | null = null;
   let room: Room | null = null;
   const at = { x: 0, z: 0, yaw: 0, pitch: 0 };
   let seat: { car: StandingCar; cockpit: ReturnType<typeof createCockpit>; chaseShell: BufferGeometry; look: { yaw: number; pitch: number } } | null = null;
@@ -220,7 +205,7 @@ export function createWalkIn(host: WalkInHost) {
   renderer.domElement.addEventListener("pointermove", onPointerMove);
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
-  const doorInReach = (): Door | null => {
+  const doorInReach = (): DealerDoor | null => {
     if (!host.canEnter()) return null;
     const car = host.car();
     if (speedOf(car) > DOOR_SPEED_MS) return null;
@@ -246,7 +231,7 @@ export function createWalkIn(host: WalkInHost) {
   };
   const atDoor = () => !seat && room !== null && Math.hypot(at.x - room.interior.door.at[0], at.z - room.interior.door.at[1]) < room.interior.door.reachM;
 
-  const buildRoom = (door: Door, interior: DealerInterior): Room => {
+  const buildRoom = (door: DealerDoor, interior: DealerInterior): Room => {
     const scene = new Scene();
     const roomMesh = new Mesh(geometryOf(interior.room), roomMaterial);
     roomMesh.updateMatrix();
@@ -315,7 +300,7 @@ export function createWalkIn(host: WalkInHost) {
   };
 
   /** Goes in: the drive stops and the page covers the view at once, and the room is built once the cover shows. */
-  const enter = (door: Door) => {
+  const enter = (door: DealerDoor) => {
     const interior = interiors.get(door.dealership);
     if (!interior || phase !== "outside") return;
     phase = "entering";
@@ -326,7 +311,7 @@ export function createWalkIn(host: WalkInHost) {
     });
   };
 
-  const open = (door: Door, interior: DealerInterior) => {
+  const open = (door: DealerDoor, interior: DealerInterior) => {
     covering = null;
     aspect = host.camera.aspect;
     room = buildRoom(door, interior);

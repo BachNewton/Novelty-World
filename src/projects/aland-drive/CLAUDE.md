@@ -47,7 +47,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Start a challenge or open a race's card in its ring, or answer a co-op invite; go into a dealership at its door | E | X |
 | Sound on or off | N, or Settings | Settings |
 
-The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
+The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found. A dealership is on both maps as a car on a pink house-shaped badge at its door; the cursor over it names it and what it sells, and a pick routes to its door.
 
 `~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`. The game shows this table to players in Settings' Controls tab, from `input/controls.ts`, so a change to a control changes it there.
 
