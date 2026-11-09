@@ -6,9 +6,8 @@
 // on the ground under it allows (`sim/limits/`, dry), the boldest share it gets round at.
 
 import { runOn } from "../challenge/line";
-import { advanceRun, lineAt, linesOf, startRun, type ChallengeRun } from "../challenge/run";
+import { advanceRun, lineAt, startRun, type ChallengeRun } from "../challenge/run";
 import type { Challenge } from "../challenge/types";
-import type { WorldManifest } from "../render/tile";
 import { Autopilot, type SpeedPlan } from "../sim/autopilot";
 import { NO_INPUT } from "../sim/car";
 import { limitsOn } from "../sim/car-limits";
@@ -18,6 +17,7 @@ import { Drive } from "../sim/drive";
 import type { RoadLine } from "../sim/road-net";
 import { STEP_S, WORLD } from "../sim/tuning";
 import type { World } from "../sim/world";
+import { alongsOf, inSpot, type Eased } from "../racers/route-plan";
 
 const FLAT_OUT_MS = 150;
 /**
@@ -35,8 +35,6 @@ const MOST_TRIES = 30;
 const GROUND_STEP_M = 8;
 /** Past the finish, so the driver doesn't turn for the line's last point as it gets there. */
 const RUN_ON_M = 150;
-/** The ground is loaded this far round the car, and the tiles under it must have their detail. */
-const GROUND_REACH_M = 400;
 const LOST_M = 30;
 /**
  * A driver that runs wide into something can stop short of giving up and back out the way it came, inside the road's
@@ -45,11 +43,6 @@ const LOST_M = 30;
 const BACK_M = 20;
 /** A line counts as missed once the driver is this far past it along its way. */
 const MISSED_M = 40;
-/** A line belongs to a stretch of the driver's way running within this of its heading, not one crossing it or back along it. */
-const SAME_WAY_COSINE = 0.5;
-/** A pass this near a line is the way's own past it; once the way is this much further off again, it has gone on. */
-const NEAR_LINE_M = 20;
-const PASSED_LINE_M = 50;
 /**
  * Stopped is getting no further along its way than this in that long: a car pinned against a wall rocks to and fro at
  * a walking pace, which a speed alone never calls stopped.
@@ -60,30 +53,6 @@ const GIVE_UP_STOPPED_S = 10;
 const LONGEST_S = 600;
 const SLOWEST_MS = 10;
 const PROFILE_EVERY_M = 100;
-
-/** A stretch of the route driven at a share of the grip: on a circuit, the same stretch every lap, counted along the first. */
-export interface Eased {
-  from: number;
-  to: number;
-  share: number;
-}
-
-const inSpot = ({ from, to }: Eased, along: number, lapM?: number) => {
-  if (lapM === undefined) return along >= from && along <= to;
-  const onLap = ((along % lapM) + lapM) % lapM;
-  return [onLap - lapM, onLap, onLap + lapM].some((each) => each >= from && each <= to);
-};
-
-export function tilesNear(manifest: WorldManifest, line: RoadLine): Set<string> {
-  const names = new Set<string>();
-  for (let along = 0; along <= line.length; along += GROUND_REACH_M / 2) {
-    const { x, z } = line.at(along);
-    for (const { name, west, north } of manifest.tiles) {
-      if (x >= west - GROUND_REACH_M && x < west + manifest.tileM + GROUND_REACH_M && -z <= north + GROUND_REACH_M && -z > north - manifest.tileM - GROUND_REACH_M) names.add(name);
-    }
-  }
-  return names;
-}
 
 /**
  * The grip on the ground under each stretch of the line, for this car: its carriageway's surface,
@@ -176,29 +145,6 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
   } finally {
     drive.dispose();
   }
-}
-
-/**
- * Where along the driver's way each line lies, in the order they're crossed: each the nearest place on from the last
- * running its way, on the first pass by it where a circuit passes it lap after lap.
- */
-function alongsOf(challenge: Challenge, line: RoadLine, from: number): number[] {
-  const alongs: number[] = [];
-  let after = from;
-  for (let index = 0; index < linesOf(challenge); index++) {
-    const { x, z, heading } = lineAt(challenge, index);
-    let best = { distance: Infinity, along: after };
-    for (let along = after; along <= line.length; along += 2) {
-      const point = line.at(along);
-      const distance = Math.hypot(point.x - x, point.z - z);
-      if (distance < best.distance && Math.cos(point.heading - heading) > SAME_WAY_COSINE) best = { distance, along };
-      // The first pass by it, not a later lap's, which can lie a hair nearer.
-      else if (best.distance < NEAR_LINE_M && distance > best.distance + PASSED_LINE_M) break;
-    }
-    alongs.push(best.along);
-    after = best.along + 1;
-  }
-  return alongs;
 }
 
 /**

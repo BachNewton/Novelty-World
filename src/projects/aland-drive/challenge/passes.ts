@@ -1,5 +1,5 @@
 import type { Outcome } from "./run";
-import { FINISHING_PLACE, medalForPlace, MEDALS, type Medal } from "./standings";
+import { medalForPlace, MEDALS, type Medal } from "./standings";
 import type { Challenge } from "./types";
 
 /*
@@ -55,13 +55,13 @@ const better = (challenge: Challenge, a: number, b: number) => (challenge.kind =
 
 /**
  * The passes after an attempt played in a mode: unchanged unless it passed, and that mode's best only where this beats
- * it. A race's finish is kept as its place and medal, where it betters the best.
+ * it. A race's finish is kept as its place and medal, where it betters the best; with no racers in it, a finish is first.
  */
-export function withOutcome(passes: ChallengePasses, challenge: Challenge, mode: PlayMode, outcome: Outcome): ChallengePasses {
+export function withOutcome(passes: ChallengePasses, challenge: Challenge, mode: PlayMode, outcome: Outcome, place = 1): ChallengePasses {
   const kept = passes[mode][challenge.id] as ChallengePass | undefined;
   if (challenge.kind === "race") {
-    if (outcome.average === null || (kept && kept.best <= FINISHING_PLACE)) return passes;
-    return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: FINISHING_PLACE, medal: medalForPlace(FINISHING_PLACE) } } };
+    if (outcome.average === null || (kept && kept.best <= place)) return passes;
+    return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: place, medal: medalForPlace(place) } } };
   }
   if (!outcome.passed || outcome.average === null) return passes;
   if (kept && !better(challenge, outcome.average, kept.best)) return passes;
