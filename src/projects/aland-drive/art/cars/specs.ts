@@ -9,16 +9,21 @@ import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { frost } from "./models/frost";
 import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
+import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
+import { kula } from "./models/kula";
 import { lera } from "./models/lera";
 import { myr } from "./models/myr";
 import { orkan } from "./models/orkan";
+import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
+import { pil } from "./models/pil";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
@@ -61,6 +66,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -71,16 +77,20 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   lera,
   // B3
   holm,
+  borg,
   myr,
   // B4
   berg,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

@@ -105,6 +105,8 @@ export interface Strut {
   /** Also on the other side of the car. */
   mirror?: boolean;
   fine?: boolean;
+  /** How many sides its section has close up: 6 when not given, more for a tube as big as a bumper bar. */
+  sides?: number;
 }
 
 /** Where the inside of the car is. */
@@ -187,6 +189,8 @@ export interface BodySpec {
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
   /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
   exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
+  /** Open pipes leaving the sills sideways, on both sides, one at each `z`, their ends `x` out from the car's middle. */
+  sideExhausts?: { z: readonly number[]; h: number; x: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -619,6 +623,23 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
+function addSideExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
+  if (!spec.sideExhausts) return;
+  const { z, h, x, radius } = spec.sideExhausts;
+  for (const side of [1, -1]) {
+    // A rear pipe turned a quarter round the vertical to point out of its side, so its faces wind as a rear pipe's do.
+    const round = (zAt: number, along: number, r: number): Point[] =>
+      Array.from({ length: 8 }, (_, step) => {
+        const angle = (-step / 8) * Math.PI * 2;
+        return [side * along, h + ground + Math.sin(angle) * r, zAt - side * Math.cos(angle) * r];
+      });
+    for (const at of z) {
+      builder.rings([round(at, x - 0.12, radius), round(at, x, radius), round(at, x, radius * 0.8), round(at, x - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, x - 0.03, radius * 0.78)], "gap");
+    }
+  }
+}
+
 function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, ground: number) {
   if (!spec.roofBars) return;
   const { from, to, x, rise } = spec.roofBars;
@@ -708,8 +729,8 @@ function addFender(builder: SoupBuilder, spec: BodySpec, { axle, x, wide, clearM
   }
 }
 
-function addStrut(builder: SoupBuilder, { path, radius, surface, mirror }: Strut, ground: number, fine: boolean) {
-  const sides = fine ? 6 : 4;
+function addStrut(builder: SoupBuilder, { path, radius, surface, mirror, sides: closeSides = 6 }: Strut, ground: number, fine: boolean) {
+  const sides = fine ? closeSides : 4;
   for (const side of mirror ? [1, -1] : [1]) {
     const points = path.map(([x, h, z]): Point => [side * x, h + ground, z]);
     const rings = points.map((point, at): Point[] => {
@@ -895,6 +916,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
   if (detail.fine) addExhausts(builder, spec, ground);
+  if (detail.fine) addSideExhausts(builder, spec, ground);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);

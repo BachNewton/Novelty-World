@@ -10,16 +10,21 @@ import { bris } from "./voices/bris";
 import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
+import { frost } from "./voices/frost";
 import { flod } from "./voices/flod";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
+import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
 import { lera } from "./voices/lera";
 import { myr } from "./voices/myr";
 import { orkan } from "./voices/orkan";
+import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
+import { kula } from "./voices/kula";
+import { pil } from "./voices/pil";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
@@ -132,8 +137,12 @@ export interface Voice {
   turbo: Turbo | null;
   /** A supercharger's whine, as a multiple of the crank's turns, and how loud under load. */
   supercharger: { order: number; level: number } | null;
-  /** Pops and crackles a second in the exhaust just after a lift at high revs; anti-lag's bangs a second off throttle, for a rally or Group B car. */
-  overrun: { crackle: number; antiLag: number };
+  /**
+   * Pops and crackles a second in the exhaust just after a lift at high revs; anti-lag's bangs a second off throttle, for a
+   * rally or Group B car; and, for a quick twin-clutch box that cuts the spark to shift, the pops each change up under
+   * load lets out (none when left out).
+   */
+  overrun: { crackle: number; antiLag: number; upshiftPops?: number };
   /** The gearbox's whine: its teeth meshing per turn of the engine (or motor), and how loud: a straight-cut race box is loud. */
   gearWhine: { teeth: number; level: number };
   /** How much of the outside reaches the driver's seat, 0 to 1: 0 a sealed saloon, 1 an open roadster. */
@@ -169,6 +178,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
@@ -179,16 +189,20 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   lera,
   // B3
   holm,
+  borg,
   myr,
   // B4
   berg,
   // C1
+  frost,
   altura,
   // C2
+  rimfrost,
   // C3
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

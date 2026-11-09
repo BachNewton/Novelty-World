@@ -1,6 +1,10 @@
 import { tuned, type CarEntry } from "./character";
 
-/** A small five-door with a turbo triple: light, eager, out of breath past 180, and the front tyres do everything. */
+/**
+ * A small five-door with its turbo triple made hot: light and eager, quick to turn in and a little loose on a lift,
+ * five short gears through a hand-shifted box, out of breath past 190, and the front tyres do everything. Smaller,
+ * lighter and quicker to steer than Pil, with less grip and none of its shove.
+ */
 export const ljus: CarEntry = {
   tier: "A7",
   tuning: tuned({
@@ -12,30 +16,31 @@ export const ljus: CarEntry = {
     trackM: 1.5,
     wheelRadiusM: 0.31,
     massHeightM: 0.52,
-    rideHz: 1.45,
-    damping: 0.38,
-    rollStiffness: 0.4,
-    grip: [1.175, 1.2],
+    rideHz: 1.55,
+    damping: 0.4,
+    rollStiffness: 0.5,
+    grip: [1.21, 1.19],
     peakSlip: 0.12,
     slideShare: 0.82,
     engine: {
-      peakTorqueNm: 170,
+      peakTorqueNm: 200,
       torqueCurve: [
         [0.12, 0.55],
-        [0.25, 0.95],
-        [0.45, 1],
-        [0.75, 0.92],
-        [1, 0.7],
+        [0.22, 0.9],
+        [0.32, 1],
+        [0.7, 1],
+        [0.88, 0.88],
+        [1, 0.74],
       ],
       engineBrakeNm: 22,
     },
-    gearbox: { idleRpm: 850, redlineRpm: 6300, gearTopMS: [12, 22, 33, 45, 57], shiftS: 0.16, gentleShift: 0.4 },
-    launchMS2: 5.5,
+    gearbox: { idleRpm: 850, redlineRpm: 6300, gearTopMS: [12, 21.5, 32, 44, 58], shiftS: 0.15, gentleShift: 0.4 },
+    launchMS2: 5.4,
     rearShare: 0,
-    brakeMS2: 10.5,
-    dragPerMS2: 0.5,
+    brakeMS2: 11,
+    dragPerMS2: 0.476,
     aero: 0.8,
     lock: 0.62,
-    turnPerS: 3,
+    turnPerS: 3.3,
   }),
 };
