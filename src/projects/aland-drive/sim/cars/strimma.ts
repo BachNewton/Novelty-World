@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const strimma: CarEntry = {
   tier: "A3",
+  maker: "Tärna",
+  engine: "Free-breathing flat six",
+  from: "harbour",
   tuning: tuned({
     name: "Strimma",
     class: "sports",

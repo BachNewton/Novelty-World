@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const flod: CarEntry = {
   tier: "A4",
+  maker: "Valtor",
+  engine: "Twin-turbo V8",
+  from: "harbour",
   tuning: tuned({
     name: "Flod",
     class: "sports",

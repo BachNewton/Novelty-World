@@ -120,6 +120,9 @@ export const CAR_IDS = Object.keys(ENTRIES) as readonly CarId[];
 
 export const CARS: Readonly<Record<CarId, CarTuning>> = Object.fromEntries(CAR_IDS.map((id) => [id, ENTRIES[id].tuning])) as Record<CarId, CarTuning>;
 
+/** Each car as entered: its tier, maker, engine and where it comes from, beside its tuning. */
+export const CAR_ENTRIES: Readonly<Record<CarId, CarEntry>> = ENTRIES;
+
 /** The tier each car is entered in, or none. */
 export const CAR_TIERS: Readonly<Record<CarId, Tier | null>> = Object.fromEntries(CAR_IDS.map((id) => [id, ENTRIES[id].tier])) as Record<CarId, Tier | null>;
 

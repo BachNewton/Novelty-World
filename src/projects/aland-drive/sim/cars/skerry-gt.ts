@@ -3,6 +3,9 @@ import type { CarEntry } from "./character";
 /** The sports fastback the game starts in: a straight six that loves to rev, and a tail that stays planted. Written out in full: every other car is a character. */
 export const skerryGt: CarEntry = {
   tier: "A5",
+  maker: "Tärna",
+  engine: "Straight six",
+  from: "dealer",
   tuning: {
     name: "Skerry GT",
     class: "sports",

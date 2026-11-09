@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A long Nordic estate with a turbo five: a broad shove from low revs, grip from all four wheels on tyres made for gravel, calm at 240. */
 export const fjard: CarEntry = {
   tier: "B2",
+  maker: "Västan",
+  engine: "Turbo five",
+  from: "dealer",
   tuning: tuned({
     name: "Fjärd",
     class: "rally",
