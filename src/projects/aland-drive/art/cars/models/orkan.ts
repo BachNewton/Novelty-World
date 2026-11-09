@@ -257,7 +257,7 @@ export const orkan: CarSpec = {
     // Sat a little lower than the recipe's sitting height, as a grand tourer's driver is: the fastback's roof stays a
     // band over the screen rather than a slab, and the eye's line through the wheel meets the cluster above its hub.
     eye: [0, -0.07, 0.04],
-    clusterSight: 0.65,
+    clusterSight: 0.8,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
