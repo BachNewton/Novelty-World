@@ -1,4 +1,8 @@
 {
+  "22017623": {
+    "name": "dealers: forecourt myr",
+    "swapM": 40
+  },
   "26910149": {
     "name": "marina: radar mark white-orange",
     "swapM": 57
@@ -182,6 +186,78 @@
   "1c11b10d": {
     "name": "cars: world Verk",
     "swapM": 57
+  },
+  "42f217e6": {
+    "name": "dealers: exterior premium-showroom",
+    "swapM": 240
+  },
+  "43995ba4": {
+    "name": "dealers: exterior town-dealer",
+    "swapM": 252
+  },
+  "1832299e": {
+    "name": "dealers: exterior tyre-shop",
+    "swapM": 166
+  },
+  "01e86e1b": {
+    "name": "dealers: exterior used-lot",
+    "swapM": 208
+  },
+  "fb05e5ef": {
+    "name": "dealers: exterior village-garage",
+    "swapM": 164
+  },
+  "3feef1e5": {
+    "name": "dealers: forecourt berg",
+    "swapM": 32
+  },
+  "1b6c802c": {
+    "name": "dealers: forecourt fjard",
+    "swapM": 41
+  },
+  "114d413a": {
+    "name": "dealers: forecourt holm",
+    "swapM": 35
+  },
+  "6cb26520": {
+    "name": "dealers: forecourt knott",
+    "swapM": 30
+  },
+  "9aee0171": {
+    "name": "dealers: forecourt kobb",
+    "swapM": 39
+  },
+  "294009b0": {
+    "name": "dealers: forecourt lera",
+    "swapM": 32
+  },
+  "6cf70459": {
+    "name": "dealers: forecourt ljus",
+    "swapM": 31
+  },
+  "c4807098": {
+    "name": "dealers: forecourt pil",
+    "swapM": 33
+  },
+  "ac2f5c13": {
+    "name": "dealers: forecourt salta",
+    "swapM": 27
+  },
+  "d5601bce": {
+    "name": "dealers: forecourt skerry-gt",
+    "swapM": 29
+  },
+  "ebac09d9": {
+    "name": "dealers: forecourt sten",
+    "swapM": 36
+  },
+  "bbea24cf": {
+    "name": "dealers: forecourt strom",
+    "swapM": 26
+  },
+  "4e8b8fd3": {
+    "name": "dealers: forecourt stubbe",
+    "swapM": 38
   },
   "6d7fbae1": {
     "name": "deer: buck bound",

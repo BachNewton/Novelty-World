@@ -17,7 +17,7 @@ export interface Dealership {
 const draft = (site: Parameters<typeof import("./drafts").draftInterior>[0]) => async () => (await import("./drafts")).draftInterior(site);
 
 export const DEALERSHIPS: readonly Dealership[] = [
-  { site: "waterfront-showroom", load: draft("waterfront-showroom") },
+  { site: "premium-showroom", load: draft("premium-showroom") },
   { site: "town-dealer", load: draft("town-dealer") },
   { site: "village-garage", load: draft("village-garage") },
 ];

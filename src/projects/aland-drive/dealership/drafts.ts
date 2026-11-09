@@ -13,7 +13,7 @@ const DRAFT_AMBIENT = 0.5;
 const EYE_M = 1.6;
 
 const STOCK: Readonly<Record<InteriorId, Stock>> = {
-  "waterfront-showroom": { makers: ["Tärna", "Aurelle"], from: ["dealer"] },
+  "premium-showroom": { makers: ["Tärna", "Aurelle"], from: ["dealer"] },
   "town-dealer": { makers: ["Västan", "Ödmark", "Norrsken"], from: ["dealer"] },
   "village-garage": { makers: ["Klippa"] },
 };
@@ -80,7 +80,7 @@ function extras(id: InteriorId): Extra {
         viewFrom: [0, EYE_M, -1],
         door: { at: [0, -1.1], yaw: 0, reachM: 1.4 },
       };
-    case "waterfront-showroom": {
+    case "premium-showroom": {
       const heightAt = (z: number) => 3.9 + ((8 - z) / 16) * (5.7 - 3.9);
       const side = (x: number): Window => ({ corners: [[x, 0, -8], [x, 0, 2], [x, heightAt(2), 2], [x, heightAt(-8), -8]] });
       return {

@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, DoubleSide, Mesh, MeshBasicNodeMateria
 import { float, positionWorld, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { sharedUniform } from "../art/shared-uniform";
-import { buildExterior, DEALER_SITES, dealerMaterial, geometryOf, restingCar, type DealerSite } from "../art/dealers";
+import { buildExterior, DEALER_SITES, dealerMaterial, geometryOf, onSite, restingCar, type DealerSite, type ExteriorId } from "../art/dealers";
 import { Shell } from "../art/dealers/shell";
 import { createCarView } from "../art/cars/model";
 import { createCockpit } from "../art/cars/cockpit/view";
@@ -52,7 +52,6 @@ const REV_RISE_PER_S = 5;
 const REV_FALL_PER_S = 2.5;
 /** An electric car has no idle: its motor's whine is revved from this. */
 const ELECTRIC_IDLE_RPM = 400;
-const SEA_LEVEL_M = 0;
 /** The ring on the floor round the way out: its band's width, a hand's height off the floor so no face shares its plane. */
 const DOOR_RING_M = 0.1;
 const DOOR_RING_LIFT_M = 0.015;
@@ -78,7 +77,12 @@ export interface WalkInHost {
   /** The world's scene and camera, which the capture draws through. */
   scene: Scene;
   camera: PerspectiveCamera;
-  groundAt: (x: number, z: number) => number;
+  /** Where the scene's origin is, ETRS-TM35FIN metres: the sites are written in those. */
+  worldOrigin: { east: number; north: number };
+  /** The height a dealership's model stands at in the scene, as its placement stands it (`render/dealers.ts`). */
+  standsAt: (site: ExteriorId) => number;
+  /** Leaves a dealership's own model out of the world while the island is captured from inside it, or none with null. */
+  leaveOut: (site: ExteriorId | null) => void;
   /** The player's car now, and which car it is. */
   car: () => CarState;
   carId: () => CarId;
@@ -125,10 +129,7 @@ interface Room {
   doorMesh: Mesh;
 }
 
-const turnPoint = (site: DealerSite, x: number, z: number): [number, number] => {
-  const [c, s] = [Math.cos(site.yaw), Math.sin(site.yaw)];
-  return [site.x + x * c + z * s, site.z - x * s + z * c];
-};
+
 
 /** All of a room's panes as one mesh. */
 function windowsOf(interior: DealerInterior, material: Mesh["material"]): Mesh | null {
@@ -152,6 +153,11 @@ function doorRingOf({ door }: DealerInterior, material: Mesh["material"]): Mesh 
 
 export function createWalkIn(host: WalkInHost) {
   const { renderer } = host;
+  /** A point of a site's model, (x, z) in its own metres, in the scene. */
+  const turnPoint = (site: DealerSite, x: number, z: number): [number, number] => {
+    const [east, north] = onSite(site, x, z);
+    return [east - host.worldOrigin.east, host.worldOrigin.north - north];
+  };
   const view = createIslandView(renderer);
   const lighting = createRoomLighting();
   const roomMaterial = dealerMaterial({ kind: "lamps", light: lighting });
@@ -328,21 +334,20 @@ export function createWalkIn(host: WalkInHost) {
     const { site } = door;
     const origin = interior.origin ?? [0, 0, 0];
     const [eyeX, eyeZ] = turnPoint(site, origin[0] + interior.viewFrom[0], origin[2] + interior.viewFrom[2]);
-    const [footX, footZ] = turnPoint(site, origin[0], origin[2]);
-    // A building's floor stands on its ground, and never below the sea: a site by the shore may read the seabed.
-    const ground = site.afloat ? SEA_LEVEL_M : Math.max(host.groundAt(footX, footZ), SEA_LEVEL_M);
-    const eyeY = ground + origin[1] + interior.viewFrom[1];
+    const eyeY = host.standsAt(site.id) + origin[1] + interior.viewFrom[1];
     [at.x, at.z] = interior.door.at;
     at.yaw = interior.door.yaw;
     at.pitch = 0;
     turnedS = 0;
     const building = room;
     captureEye = { x: eyeX, y: eyeY, z: eyeZ, yaw: site.yaw };
+    host.leaveOut(site.id);
     // The cars' pipelines are each car's own, built before the island is captured, so the room opens whole: the capture
     // draws through the render context the screen shares (`view.ts`), which a compile in flight then reads.
     void renderer.compileAsync(building.scene, camera).then(() => {
       if (room !== building) return;
       view.capture({ at: new Vector3(eyeX, eyeY, eyeZ), yaw: site.yaw, inRoom: new Vector3(...interior.viewFrom), groundY: -origin[1] }, () => {
+        host.leaveOut(null);
         if (room === building) phase = "inside";
       });
     });
