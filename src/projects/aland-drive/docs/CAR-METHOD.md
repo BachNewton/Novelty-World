@@ -122,12 +122,11 @@ Lint of the changed files (`npx eslint <files>`), `npm run typecheck`, `npm run 
 
 ## Cockpit
 
-A car's cockpit is built from its cabin and a style (`art/cars/cockpit/`, and `art/CLAUDE.md` for how it's made). The frame works the eye, dash, wheel and instruments out of the shell and the cabin's numbers, so a car gets a cockpit with nothing written; a car's `interior` in its model file changes only what it names (`cockpit/style.ts`, `InteriorChoice`):
+A car's cockpit is built from its cabin and a style (`art/cars/cockpit/`, and `art/CLAUDE.md` for how it's made). The frame works the eye, dash, wheel and instruments out of the shell and the cabin's numbers (the screen's top, where the mirror and visors hang, is the highest point of its band, faired or not), so a car gets a cockpit with nothing written; a car's `interior` in its model file changes only what it names (`cockpit/style.ts`, `InteriorChoice`):
 
 - `gauges`: `analogue` (two dials), `digital` (one screen of figures and an arc), `classic` (chrome-ringed dials and a row of small ones), `race` (one big rev counter with shift lights), `tacho` (one big rev counter front and centre with the gear and speed in its foot, a small speedometer and water dial beside it; the column ends just behind the hub so it never crosses the dial).
 - `wheel`: `round`, `flat` (flat-bottomed), `rally` (dished, top marker), `classic` (big, thin rim), `yoke`.
 - `shifter`, `seats` (`comfort`, `sport`, `bucket`), `screen`, `cage`, `paintedDash` (a band in whatever paint the player chose), `turnsToLock`, `eye` (a nudge to where the driver sits).
-- A body whose screen and roof are one `faired` line names where the screen meets the roof (`screenTop`, in `extra`): the frame otherwise takes the next sample up the glass for the screen's top, and hangs the mirror at the screen's foot.
 - `colours`: the dash, trim, inserts, headliner, accent (rings round dials, vents' edges) and the glow after dark, each a token in `cockpit/tokens.css`. A new cabin colour is a token there.
 
 Choose it the way the exterior is chosen: what the car is and when it was made. Åska is the example: `digital`, `flat`, `selector`, `bucket`, a carbon dash and trim with Tärna-blue inserts and accents, an ice-blue glow. An old car takes `classic` dials and wheel, no screen, perhaps a painted dash or wood.
