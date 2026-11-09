@@ -1,7 +1,7 @@
-import { ROWS, type Band, type Decal } from "../body";
+import { ROWS, type Band, type Block, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser, sideIntake, splitter, tailLine } from "../parts";
+import { sideIntake, splitter, tailLine } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const BLIXT = driven("blixt");
@@ -120,10 +120,12 @@ const shape: Shape = {
     tailLine({ h: 0.778, wide: 1.44, thick: 0.016 }),
     tailLine({ h: 0.746, wide: 1.28, thick: 0.016 }),
     reversing(0.42, 0.53),
+    // The tunnels' air leaves through a vent at each corner of the tail.
+    { on: "rear", at: [0.7, 0.6], size: [0.22, 0.1], surface: "grille", mirror: true, cells: [4, 2], liftM: 0.012 },
     // The hood's duct: air in at the nose's slot and out here, over the car.
     { on: "top", at: [0, -1.9], size: [0.62, 0.13], surface: "grille", cells: [6, 1], liftM: 0.012 },
     // The air from the front arches out behind them, and into the batteries' cooling ahead of the rear wheels.
-    sideIntake({ z: -0.83, h: 0.5, long: 0.1, tall: 0.26 }),
+    { ...sideIntake({ z: -0.77, h: 0.47, long: 0.09, tall: 0.2 }), liftM: 0.015 },
     sideIntake({ z: 0.75, h: 0.45, long: 0.34, tall: 0.3 }),
   ],
   blocks: [
@@ -133,7 +135,8 @@ const shape: Shape = {
     { at: [0.905, 0.45, 0.925], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true, fine: true },
     { at: [0.94, 0.46, 0.75], size: [0.05, 0.026, 0.36], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
     splitter({ z: -2.32, h: 0.23, halfWidth: 0.6, long: 0.2 }),
-    ...diffuser({ z: 1.95, tailZ: 2.27, h: 0.25, x: [0, 0.26, 0.52] }),
+    // The diffuser's strakes, hanging only a little below the tail.
+    ...[0, 0.26, 0.52].map((x): Block => ({ at: [x, 0.27, 2.11], size: [0.016, 0.1, 0.32], surface: "trim", mirror: x !== 0, taper: [1, 1.5] })),
   ],
   extra: {
     bands: BANDS,
