@@ -3,6 +3,7 @@ import { BRANDS, type Brand } from "./brands";
 import { barrel, carLift, chair, coffeeTable, lightHalo, planter, salesDesk, sofa, turntableDeck, tyre, tyreRack, workbench } from "./kit";
 import { Shell, type Finish, type Paint, type V3 } from "./shell";
 import { SELLER_MAKERS } from "./stock";
+import { USED_HALL } from "./exteriors";
 
 /*
  * Inside the three dealerships that are rooms, as the walk-in system reads them (`dealership/interior.ts`): the room's
@@ -13,7 +14,7 @@ import { SELLER_MAKERS } from "./stock";
  * Nothing imports this file but the dynamic import in `index.ts`, so a room stays out of the first download.
  */
 
-export const INTERIOR_IDS = ["village-garage", "town-dealer", "premium-showroom"] as const;
+export const INTERIOR_IDS = ["village-garage", "town-dealer", "premium-showroom", "used-lot"] as const;
 export type InteriorId = (typeof INTERIOR_IDS)[number];
 
 /** An opening in a wall: from `a0` to `a1` along it, `y0` to `y1` up it. */
@@ -362,6 +363,71 @@ function premiumShowroom(): DealerInterior {
   };
 }
 
+/**
+ * The used lot's hall: a plain floor under fluorescent tubes, a row of traded-in cars facing the glass, the lot's rows
+ * through it, and an office by the door. Until the economy decides what the lot buys and sells, it holds the slowest
+ * of the dealers' cars, the A7 hatches and the B3 and B4 four-by-fours.
+ */
+function usedHall(): DealerInterior {
+  const s = new Shell();
+  const { door, office, glass } = USED_HALL;
+  const [x0, x1, z0, z1, height] = [USED_HALL.x0 + 0.1, USED_HALL.x1 - 0.1, USED_HALL.z0 + 0.1, USED_HALL.z1 - 0.1, USED_HALL.eave - 0.2];
+
+  s.quad([x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0], "dealer-concrete", { gloss: 0.3, shade: 1.05 });
+  s.quad([x0, height, z0], [x1, height, z0], [x1, height, z1], [x0, height, z1], "dealer-steel", { pattern: "ribs", shade: 0.85 });
+  const front = (along: number, up: number): V3 => [along, up, z1];
+  const back = (along: number, up: number): V3 => [along, up, z0];
+  const west = (along: number, up: number): V3 => [x0, up, along];
+  const east = (along: number, up: number): V3 => [x1, up, along];
+  const doorHole: Hole = { a0: door.x0, a1: door.x1, y0: 0, y1: door.top };
+  const officeHole: Hole = { a0: office.x0, a1: office.x1, y0: office.sill, y1: office.top };
+  const glassHoles = Array.from({ length: glass.bays }, (_, bay): Hole => ({ a0: glass.x0 + bay * glass.wide + 0.05, a1: glass.x0 + (bay + 1) * glass.wide - 0.05, y0: glass.sill, y1: glass.top }));
+  const wallFinish = { pattern: "ribs", shade: [0.8, 0.8, 1, 1] } as const;
+  wall(s, front, x0, x1, height, [doorHole, officeHole, ...glassHoles], "dealer-panel", wallFinish);
+  wall(s, back, x0, x1, height, [], "dealer-panel", wallFinish);
+  wall(s, west, z0, z1, height, [], "dealer-panel", wallFinish);
+  wall(s, east, z0, z1, height, [], "dealer-panel", wallFinish);
+  for (let bay = 0; bay <= glass.bays; bay++) {
+    const x = glass.x0 + bay * glass.wide;
+    s.box([x - 0.05, glass.sill, z1 - 0.08], [x + 0.05, glass.top, z1], "dealer-steel-dark", {}, ["bottom", "top", "south"]);
+  }
+  for (const y of [glass.sill, glass.top]) s.box([glass.x0, y - 0.04, z1 - 0.1], [glass.x0 + glass.bays * glass.wide, y + 0.04, z1], "dealer-steel-dark", {}, ["south"]);
+  const windows = [pane(front, doorHole), pane(front, officeHole), ...glassHoles.map((hole) => pane(front, hole))];
+
+  // Tubes in three rows, the lot's name over the back wall.
+  const tubeY = height - 0.5;
+  const rows = [-3.3, -6.3, -9.2];
+  for (const z of rows) for (const [from, to] of [[-11.4, 1.95], [2.05, 15.4]]) tubes(s, from, to, tubeY, z, height - tubeY - 0.07);
+  s.within({ x: 5, y: 2.6, z: z0 + 0.02 }, () => {
+    s.box([-3.2, 0, 0], [3.2, 0.9, 0.04], "dealer-hazard");
+    s.within({ y: 0.25, z: 0.06 }, () => s.text("BEGAGNADE BILAR", 0.4, "dealer-klippa-ink"));
+  });
+
+  // The office: a half wall, a desk, a sofa for the wait.
+  const officeX = -6.2;
+  s.box([officeX - 0.08, 0, z0], [officeX + 0.08, 1.1, -4.2], "dealer-panel", { shade: [0.8, 0.8, 1, 1] }, ["bottom", "north"]);
+  s.within({ x: -9.2, z: -7.4, yaw: Math.PI / 2 }, () => salesDesk(s, "dealer-timber", "dealer-hazard", BRANDS.klippa));
+  s.within({ x: -11.2, z: -4.2, yaw: Math.PI / 2 }, () => sofa(s, 2, "dealer-fabric"));
+
+  // The cars face the glass.
+  const spots = [-4.0, -1.05, 1.9, 4.85, 7.8, 10.75, 13.7].map((x): Spot => ({ at: [x, 0, -6.6], yaw: Math.PI }));
+  const strip = (from: number, to: number, z: number): Lamp => ({ kind: "strip", from: [from, tubeY - 0.04, z], to: [to, tubeY - 0.04, z], paint: "dealer-light-cool", power: 0.55, reachM: 4.5 });
+  return {
+    name: "Begagnade bilar",
+    origin: [0, 0.03, 0],
+    room: s.build(),
+    turntables: [],
+    stock: { tiers: ["A7", "B3", "B4"], from: ["dealer"] },
+    spots,
+    floor: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]],
+    solids: [box(officeX - 0.1, z0, officeX + 0.1, -4.2), box(-10.6, -8.6, -7.6, -6.2), box(-11.9, -5.3, -10.7, -3.1)],
+    windows,
+    viewFrom: [3, 1.6, -2.6],
+    light: { ambient: 0.4, ambientPaint: "dealer-light-cool", lamps: rows.flatMap((z) => [strip(-11.4, 2, z), strip(2, 15.4, z)]), mirrors: ["dealer-concrete", "dealer-steel"] },
+    door: { at: [(door.x0 + door.x1) / 2, -2.4], yaw: 0, reachM: 1.5 },
+  };
+}
+
 export function buildInterior(id: InteriorId): DealerInterior {
   switch (id) {
     case "village-garage":
@@ -370,5 +436,7 @@ export function buildInterior(id: InteriorId): DealerInterior {
       return townDealer();
     case "premium-showroom":
       return premiumShowroom();
+    case "used-lot":
+      return usedHall();
   }
 }

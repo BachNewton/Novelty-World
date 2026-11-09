@@ -184,6 +184,11 @@ const ROOM_VIEWS: Readonly<Record<InteriorId, readonly { name: string; position:
     { name: "corner", position: [-13.2, 1.7, 6.8], target: [5, 1.0, -3], fovDeg: 60 },
     { name: "sea", position: [12.8, 1.7, -7.2], target: [-4, 1.0, 2], fovDeg: 60 },
   ],
+  "used-lot": [
+    { name: "door", position: [-9.9, 1.6, -2.4], target: [6, 1.2, -7], fovDeg: 64 },
+    { name: "corner", position: [15.4, 1.7, -2.2], target: [-3, 1.2, -8], fovDeg: 62 },
+    { name: "office", position: [-11.3, 1.6, -9.9], target: [8, 1.2, -3], fovDeg: 62 },
+  ],
 };
 
 const roomHazed = (colour: Node<"vec3">) => colour;

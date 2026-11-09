@@ -297,19 +297,45 @@ function premiumShowroom(s: Shell): Omit<Exterior, "soup"> {
   };
 }
 
+/**
+ * The used lot's hall, which its room (`interiors.ts`) is the inside of: a plain steel shed at the back of the lot, its
+ * front glass looking out on the rows of cars, its office and door at the west end.
+ */
+export const USED_HALL = {
+  x0: -12,
+  x1: 16,
+  z0: -10.5,
+  z1: -1.5,
+  eave: 4.8,
+  door: { x0: -10.4, x1: -9.4, top: 2.2 },
+  office: { x0: -9.0, x1: -6.6, sill: 1.0, top: 2.6 },
+  glass: { x0: -6, bays: 7, wide: 3, sill: 0.1, top: 3.3 },
+} as const;
+
 function usedLot(s: Shell): Omit<Exterior, "soup"> {
   slab(s, -17, -11, 17, 11, "dealer-asphalt", "speckle", 0.03);
 
-  // A hut by the trade hall behind it, a lit window, a sign on a tall frame.
-  s.within({ x: 11, z: -7 }, () => {
-    s.box([-3.2, SINK, -1.8], [3.2, 2.7, 1.8], "wall-trim", { pattern: "boards", shade: WALL_FOOT }, ["bottom"]);
-    s.box([-3.5, 2.7, -2.1], [3.5, 2.9, 2.2], "dealer-hazard", {}, []);
-    s.within({ x: -1, z: 1.81 }, () => windowFrame(s, 2.6, 1.2, 0.9, "wall-red", true));
-    s.within({ x: 1.9, z: 1.81 }, () => s.box([-0.5, 0, 0], [0.5, 2.1, 0.05], "wall-red"));
-  });
-  s.within({ x: -6, y: 0.03, z: 10.4 }, () => postSign(s, ["BEGAGNADE", "BILAR"], 8, 1.7, 3.5, "dealer-hazard", "dealer-klippa-ink"));
+  // The hall: corrugated steel, a yellow band with its name, glass on to the lot, lit by its tubes at night.
+  const { x0, x1, z0, z1, eave, door, office, glass } = USED_HALL;
+  s.box([x0, SINK, z0], [x1, eave, z1], "dealer-steel", { pattern: "ribs", shade: WALL_FOOT }, ["bottom"]);
+  s.box([x0 - 0.15, eave, z0 - 0.15], [x1 + 0.15, eave + 0.25, z1 + 0.15], "dealer-steel-dark", {}, ["bottom"]);
+  s.box([x0 - 0.01, 3.7, z1 + 0.01], [x1 + 0.01, eave, z1 + 0.12], "dealer-hazard");
+  s.within({ x: 4, y: 3.92, z: z1 + 0.125 }, () => s.text("BEGAGNADE BILAR", 0.66, "dealer-klippa-ink"));
+  const front = z1 + 0.02;
+  const pane = (from: number, to: number, sill: number, top: number) => s.quad([from, sill, front], [to, sill, front], [to, top, front], [from, top, front], "dealer-glass", { gloss: 0.9, shade: [0.75, 0.75, 1, 1], lit: 0.85, litTone: "cool" });
+  pane(door.x0, door.x1, 0.03, door.top);
+  pane(office.x0, office.x1, office.sill, office.top);
+  for (let bay = 0; bay < glass.bays; bay++) pane(glass.x0 + bay * glass.wide, glass.x0 + (bay + 1) * glass.wide, glass.sill, glass.top);
+  for (let bay = 0; bay <= glass.bays; bay++) {
+    const x = glass.x0 + bay * glass.wide;
+    s.box([x - 0.05, glass.sill, front], [x + 0.05, glass.top, front + 0.1], "dealer-steel-dark");
+  }
+  s.box([glass.x0, glass.top, front], [glass.x0 + glass.bays * glass.wide, glass.top + 0.1, front + 0.12], "dealer-steel-dark");
+  for (const x of [door.x0, door.x1]) s.box([x - 0.05, 0.03, front], [x + 0.05, door.top + 0.05, front + 0.1], "dealer-steel-dark");
+  s.box([office.x0 - 0.06, office.sill - 0.06, front], [office.x1 + 0.06, office.sill, front + 0.12], "dealer-steel-dark");
+  s.within({ x: -13.2, y: 0.03, z: 10.4 }, () => postSign(s, ["BEGAGNADE", "BILAR"], 6, 1.5, 3.2, "dealer-hazard", "dealer-klippa-ink"));
 
-  // Rope of bunting between tall poles.
+  // Rope of bunting between tall poles round the lot.
   const poles: V3[] = [[-16.5, 0, -10.5], [-16.5, 0, 10.5], [16.5, 0, 10.5], [16.5, 0, -10.5]];
   const poleH = 5.2;
   for (const [x, , z] of poles) s.box([x - 0.06, 0, z - 0.06], [x + 0.06, poleH, z + 0.06], "dealer-steel");
@@ -329,21 +355,17 @@ function usedLot(s: Shell): Omit<Exterior, "soup"> {
       }
     }
   });
-  // Rows along the two sides: what players have traded in, any make and any age.
-  const slots: CarSlot[] = [];
+  // Two rows in front of the hall, facing the road: what players have traded in, any make and any age.
+  const rows: [number, readonly number[]][] = [[8.2, [-5.4, -1.8, 1.8, 5.4, 9.0]], [2.6, [-1.8, 1.8, 5.4]]];
   const cars: [CarId, string?][] = [["ljus", "car-paint-mustard"], ["fjard", "car-paint-silver"], ["kobb"], ["salta"], ["holm", "car-paint-navy"], ["skerry-gt", "car-paint-graphite"], ["sten"], ["strom", "car-paint-white"]];
-  cars.forEach(([car, paint], index) => {
-    const row = index < 5 ? 0 : 1;
-    const bay = row === 0 ? index : index - 5;
-    const x = -13.4 + bay * 3.3;
-    const z = row === 0 ? -3.8 : 4.8;
-    s.detail(() => {
-      s.within({ x, y: 0.03, z: row === 0 ? -6.7 : 7.8, yaw: row === 0 ? 0 : Math.PI }, () => s.box([-0.3, 0, -0.05], [0.3, 0.14, 0.05], "dealer-hazard"));
-      s.within({ x, y: 1.42, z: z + (row === 0 ? 0.8 : -0.6) }, () => s.quad([-0.17, 0, 0], [0.17, 0, 0], [0.17, 0.05, 0], [-0.17, 0.05, 0], "dealer-hazard", { glow: 0.3 }));
-    });
-    slots.push({ car, paint, at: [x, 0.03, z], yaw: row === 0 ? 0 : Math.PI });
+  const places = rows.flatMap(([z, xs]) => xs.map((x) => [x, z] as const));
+  const slots = cars.map(([car, paint], index): CarSlot => {
+    const [x, z] = places[index];
+    // A price block on the ground at its nose.
+    s.detail(() => s.within({ x, y: 0.03, z: z + 2.75 }, () => s.box([-0.3, 0, -0.04], [0.3, 0.14, 0.04], "dealer-hazard")));
+    return { car, paint, at: [x, 0.03, z], yaw: Math.PI };
   });
-  return { id: "used-lot", slots, plot: [-17, -11, 17, 11], walls: [[7.8, -8.8, 14.2, -5.2]], entrance: { at: [11, 0, -3], radiusM: 3 } };
+  return { id: "used-lot", slots, plot: [-17, -11, 17, 11], walls: [[x0, z0, x1, z1]], entrance: { at: [(door.x0 + door.x1) / 2, 0, z1 + 1.2], radiusM: 2 } };
 }
 
 function tyreShop(s: Shell): Omit<Exterior, "soup"> {

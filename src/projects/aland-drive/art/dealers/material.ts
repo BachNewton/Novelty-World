@@ -4,6 +4,7 @@ import { seedOf, unitOf } from "../hash";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { PAINTS, PATTERNS, SURFACE_STRIDE, type Paint, type Pattern, type Soup } from "./shell";
 import "./tokens.css";
+import "../night/tokens.css";
 import { towardsSun, type Sun } from "../sun";
 import type { Lamp, RoomLight } from "../../dealership/interior";
 import type { SeasonLook } from "../season";
@@ -152,8 +153,12 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
       const lit = snowed.mul(float(SUN_AMBIENT).add(normal.dot(toSun).max(0).mul(SUN_SHARE)));
       const world = mix(linear("tree-spruce"), mix(linear("sky"), linear("water"), smoothstep(float(0.2), float(0.8), mirrored.y)), smoothstep(float(-0.02), float(0.06), mirrored.y));
       const byDay = mix(mix(lit, world, shine), inLand(painted), glow);
-      const lamplit = mix(linear("dealer-light-warm"), linear("dealer-light-cool"), select(finish.w.lessThan(0), float(1), float(0))).mul(NIGHT_ROOM);
-      return hazed(mix(byDay, inLand(lamplit), abs(finish.w).mul(lampsOn)));
+      // The tone's index rounded from a value a little blended on some GPUs, each tone two apart and its strength at most 1 over.
+      const tone = round(finish.w.div(2).sub(0.25));
+      const strength = finish.w.sub(tone.mul(2));
+      const toneIs = (index: number) => select(tone.equal(index), float(1), float(0));
+      const lamplit = linear("dealer-light-warm").mul(toneIs(0)).add(linear("dealer-light-cool").mul(toneIs(1))).add(linearToken("night-window-warm").mul(toneIs(2))).mul(NIGHT_ROOM);
+      return hazed(mix(byDay, inLand(lamplit), strength.mul(lampsOn)));
     }
 
     let sum: Node<"vec3"> = vec3(0, 0, 0);

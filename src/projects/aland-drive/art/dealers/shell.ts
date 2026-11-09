@@ -35,19 +35,23 @@ export interface Finish {
   shade?: number | readonly number[];
   /** Shines once the lamps are lit, as a lit room seen through glass, in its room's light: 1 ignores the light entirely. */
   lit?: number;
-  /** The room's light: a showroom's or workshop's warm, or a retail floor's cool. Warm unless given. */
-  litTone?: "warm" | "cool";
+  /** The room's light: a showroom's or workshop's warm, a retail floor's cool, or a home's amber, as the town's lit windows are. Warm unless given. */
+  litTone?: LitTone;
 }
 
 export interface Soup {
   positions: Float32Array;
   normals: Float32Array;
-  /** A paint index, a shade, a glow, a gloss, a pattern index and a glow by night, per vertex: by night's sign is its light's tone, cool below 0. */
+  /** A paint index, a shade, a glow, a gloss, a pattern index and a glow by night, per vertex: by night, its tone's index in `LIT_TONES` twice over plus its strength. */
   surface: Float32Array;
   triangles: number;
 }
 
 export const SURFACE_STRIDE = 6;
+
+/** The lights a room seen through glass can shine in by night, each a token. */
+export const LIT_TONES = ["warm", "cool", "amber"] as const;
+export type LitTone = (typeof LIT_TONES)[number];
 
 /** A model as it is seen near, or simplified for far off: the far version leaves out what a shell draws as `detail`. */
 export type Version = "near" | "far";
@@ -108,7 +112,7 @@ export class Shell {
     [pa, pb, pc].forEach((corner, index) => {
       this.positions.push(...corner);
       this.normals.push(...normal);
-      this.surface.push(paintIndex, shades[index], glow, gloss, patternIndex, litTone === "cool" ? -lit : lit);
+      this.surface.push(paintIndex, shades[index], glow, gloss, patternIndex, LIT_TONES.indexOf(litTone) * 2 + lit);
     });
     return this;
   }
