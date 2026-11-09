@@ -96,11 +96,11 @@ const shape: Shape = {
   ],
   windowTop: [
     [-0.76, 0.99],
-    [-0.45, 1.15],
-    [-0.12, 1.28],
-    [0.45, 1.32],
-    [1.1, 1.3],
-    [1.48, 1.22],
+    [-0.45, 1.14],
+    [-0.12, 1.255],
+    [0.45, 1.29],
+    [1.1, 1.27],
+    [1.48, 1.2],
   ],
   windowZ: [-0.76, 1.5],
   railWidth: [
@@ -131,9 +131,9 @@ const shape: Shape = {
     { on: "rear", at: [0, 0.6], size: [0.1, 0.05], surface: "lensTail", cells: [2, 1], liftM: 0.012, fine: true },
     ...livery,
     // The roof's vent, air for a cabin with no air conditioning.
-    { on: "top", at: [0, -0.02], size: [0.26, 0.12], surface: "grille", cells: [3, 1], liftM: 0.012 },
+    { on: "top", at: [0, -0.02], size: [0.26, 0.12], surface: "grille", cells: [3, 1], liftM: 0.012, fine: true },
     // The hood's duct, as Blixt's: air in at the nose's slot and out here, over the car.
-    { on: "top", at: [0, -1.78], size: [0.3, 0.1], surface: "grille", cells: [4, 1], liftM: 0.012 },
+    { on: "top", at: [0, -1.78], size: [0.3, 0.1], surface: "grille", cells: [6, 2], liftM: 0.016, fine: true },
   ],
   blocks: [
     splitter({ z: -2.11, h: 0.26, halfWidth: 0.78, long: 0.2 }),
