@@ -147,7 +147,7 @@ const shape: Shape = {
     cleanEnds: true,
     silhouette: [
       // The nose runs one way along the car from its foot up, so no strip of the face folds back over another.
-      { z: NOSE_Z + 0.07, h: 0.28, band: "valance" },
+      { z: NOSE_Z + 0.09, h: 0.3, band: "valance" },
       { z: NOSE_Z + 0.02, h: 0.36 },
       { z: NOSE_Z, h: 0.46, band: "mouth" },
       { z: NOSE_Z + 0.002, h: 0.76, band: "gap" },
@@ -214,8 +214,8 @@ const shape: Shape = {
       [TAIL_Z, 0.91],
     ],
     sill: [
-      [NOSE_Z, 0.23],
-      [NOSE_Z + 0.4, 0.21],
+      [NOSE_Z, 0.22],
+      [NOSE_Z + 0.4, 0.205],
       [0, 0.2],
       [TAIL_Z - 0.4, 0.22],
       [TAIL_Z, 0.25],

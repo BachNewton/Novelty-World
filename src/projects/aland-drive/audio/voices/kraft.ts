@@ -38,6 +38,6 @@ export const kraft: Voice = {
   overrun: { crackle: 4.5, antiLag: 0 },
   gearWhine: { teeth: 19, level: 0.012 },
   cabin: 0.16,
-  level: 0.58,
+  level: 0.48,
   idleLevel: 0.58,
 };
