@@ -113,7 +113,10 @@ function locked(dir, work) {
       writeFileSync(lock, String(process.pid));
       break;
     } catch (error) {
-      if (error.code !== "EEXIST") throw error;
+      // On Windows a file deleted while another waiter still has it open (reading the holder's pid below) lingers as
+      // "delete pending" until that handle closes, and creating it again then fails with EPERM, not EEXIST: the lock
+      // is busy either way.
+      if (error.code !== "EEXIST" && error.code !== "EPERM") throw error;
       const holder = Number(readFileOr(lock, ""));
       const old = ageMs(lock) > 10_000;
       if ((holder > 0 && !alive(holder)) || old) rmSync(lock, { force: true });
