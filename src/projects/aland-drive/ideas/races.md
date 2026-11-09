@@ -1,6 +1,6 @@
 # Races
 
-The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Step 1 of the build order, races on the map, is built (`challenge/CLAUDE.md`): with no racers yet, a finish is first. The rest isn't. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-laps.json` hold each race as laid on the road.
+The plan for races in Åland Drive: what kinds there are, what makes a track worth racing, the real tracks on the map, how a player finds and plays one, and the order to build them in, before the AI racers of `ideas/traffic-and-racers.md` and after them. Races on the map, the racers and the 56 events of section 9 are built (`challenge/CLAUDE.md`, `racers/CLAUDE.md`); sections 4 and 5 are the first list of 32 tracks they grew from. The owner has taken the main decisions (see "The owner's decisions"); the numbers here are the plan's, measured from the game's own data, and `challenge/race-places.json` and `race-laps.json` hold each race as laid on the road.
 
 The order of work is the owner's: plan, then races on the map, then the AI drivers.
 
@@ -8,9 +8,9 @@ The order of work is the owner's: plan, then races on the map, then the AI drive
 
 - **A race is a circuit or a sprint**: laps of a loop, or point to point. Every race is also one of three kinds by what's under the wheels: **road** (asphalt only), **cross country** (asphalt and gravel mixed) and **off-road** (gravel and loose ground).
 - **A race shows no time.** Only the place counts: no stopwatch, best time or time to beat, which are the bucket list's.
-- **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. Today the challenges and the places show about a third of its road; the 32 races here take that to three quarters.
-- **32 tracks**: 15 road, 12 cross country and 5 off-road, in every parish the car can reach. Six of them share roads with bucket-list challenges, the island's most storied ones, and ask something different of them.
-- **The race picks the car**, as a challenge does, so the first version needs no money and no garage, and the racers drive other cars of the same kind. How a player chooses a car comes later: then a race asks for a class and tier (`ideas/cars.md`), and the list grows to 56 events, each on a route of its own (section 9).
+- **Races are a way to explore.** A player who does every race and every bucket-list challenge and finds every place should have seen most of the island. The challenges and the places show about a third of its road; the 56 events take that to seven eighths.
+- **56 events**, each for one class and tier of car (A1–A7, B1–B4, C1–C4, `ideas/cars.md`), each on a route of its own (section 9): 24 of the first list's 32 tracks and 32 new routes.
+- **The event hands the player a car of its tier**, as a challenge does, until cars are owned; then the player brings one they own. The racers drive the tier's cars and no others.
 - **First, second and third are gold, silver and bronze**, and a solo result is kept apart from a co-op one. A co-op team is scored as Forza Horizon scores a team: on points for the racers its players beat.
 - **Races are run in the world as it is**: its traffic, as TDU's are, and its hour, season and weather, so the AI racers must race every track in every condition and through traffic. Challenges set their own conditions instead, as Forza's bucket lists do.
 - **Races reuse the challenges' machinery** (start ring, countdown, lines across the road, the panel, the result card, retry) and add laps, a grid and places.
@@ -82,7 +82,7 @@ The island was cut into squares of a kilometre, and each square with 300 m of ro
 
 ## 4. The tracks
 
-32 tracks. Positions are the game's scene metres (x east, z south of the world origin), as `docs/HISTORY.md` gives them. Each is a starting point: the map step lays it on the road as built and the vetting run drives it (section 7). A track with no story yet is there for what it shows, and gets its note when it is researched to `docs/HISTORY.md`'s standard.
+The first list, 32 tracks, numbered by kind; 24 of them are events of section 9 under a tier's number now, and the eight it dropped (R2, R3, R6, R8, R9, R15, X2, X4) are no longer in the game. Their notes stay here for their stories. Positions are the game's scene metres (x east, z south of the world origin), as `docs/HISTORY.md` gives them. Each is a starting point: the map step lays it on the road as built and the vetting run drives it (section 7). A track with no story yet is there for what it shows, and gets its note when it is researched to `docs/HISTORY.md`'s standard.
 
 ### Road: asphalt only
 
@@ -316,81 +316,93 @@ Whether the main roads can carry five A1–A2 events was measured on the game's 
 - **Flat out at a hypercar's top speed is rare**: with no bend under 800 m (about 360 km/h), 28 km in 11 stretches of 2 km or more, two of them over 3 km. A hypercar on Åland is a fast-sweeper car, never a top-speed car, as on TDU2's islands.
 - **So five events on five roads of their own is enough**: west on road 1 towards Eckerö, north on roads 2 and 4 to Geta (R6), east on road 3 to Långnäs (R14), the old and new road 2 (R13), and road 1's circuits in Hammarland (R2, R8). The A1–A2 tiers don't need to share routes.
 
-### The route list (draft)
+### The route list
 
-A draft for the owner's review: a route for each of the 56 events, chosen from the road data. 24 are tracks above, kept as they are, and 32 are new.
+The 56 events as built (`challenge/race-specs.ts`), a route for each, chosen as the draft for the owner's review chose them and then laid on the road and driven.
 
 **How it was chosen.** The road network the game lays (OSM's main roads, tertiary, unclassified and residential, and forest tracks for B4), each road paved or loose by the game's rule, gave the candidates: the shortest loop through each road under six weightings that favour main roads, tarmac, narrow tarmac, gravel, any road or tracks, 2.5–25 km long; every named or numbered road end to end as a sprint, with 8, 14 and 20 km stretches of the long ones; and the 32 tracks, routed through their waypoints. That is 272 candidates after near-copies were merged, each measured for length, share of asphalt, main and two-lane road and track, bends a kilometre by tightest radius, the share of the route a car takes at 255 km/h or more (no bend under 400 m) and its longest such stretch. Each tier has a test of those (A1–A2 at least 90% asphalt, mostly main road and a fast stretch over 2.5 km; A7 narrow twisty tarmac; B1 gravel that flows; B2 a mix; B3 tight gravel; B4 mostly track; C1–C2 open tarmac; C3–C4 slower roads, gravel allowed), and the tiers took turns picking, each the route that fits it best and shows the most new road, a track above counting half as much again for its story, and none sharing more than 30% of its road with a route already picked (50% for A1–A2).
 
 **What it shows.**
 
-- **Every event can have a road of its own**: 56 routes, not the 45–50 the plan expected, with the fast tiers on five different stretches of roads 1 to 4.
-- **The island is seen**: the challenges and the places show 34% of the 1 km squares with road in them, the 32 tracks take that to 78%, and the 56 routes to **90%**.
-- **24 of the 32 tracks keep a place.** The other eight lose theirs to a route that suits a tier better or to overlap: R2 Hammarbo, R3 the Painters' Loop, R6 Godby to Soltuna, R8 North Hammarland, R9 Jomala West, R15 the Sund Ring, X2 Kvarnbo to the Old Shore and X4 Out to Bergö. R6 and R9 are all but kept: the A1 sprint on Getavägen is R6 without its gravel climb, and the C2 circuit on Södersundavägen is R9 on the tarmac.
-- **Narrow, twisty tarmac is scarce.** Åland's narrow lanes are mostly gravel, so A7 has the fewest good candidates of any asphalt tier (14), and its picks are country circuits of 4–6 bends a kilometre rather than the hot-hatch lanes the tier wants.
-- **Forest tracks make poor routes.** Only four candidates suit B4 well, since tracks seldom join into loops; two of its five picks are half gravel lane. B4 may want fewer events, or its own kind of route (a track out and back).
-- **Mariehamn takes six of the A5–A6 events**, short circuits of its streets and the roads round it, where the island's tarmac crossroads are.
+- **Every event has a road of its own**, with the fast tiers on five different stretches of roads 1 to 4. No route shares more than a quarter of its road with another, but for one: Drygsböle laps 1.3 km of Hammarlandsvägen that A2.2 runs once on its way across Hammarland, 31% of the lap, a hair over the draft's 30%.
+- **The island is seen**: on section 3's measure (1 km squares with 300 m of road, seen from a route or a place in that square or the next), the challenges and the places show 32% of the squares, the 32 tracks took that to 75%, and the 56 events take it to **87%**. The draft counted 34%, 78% and 90% on a slightly different reading of the same roads; the gain is its twelve points.
+- **24 of the 32 tracks keep a place.** The eight the draft dropped are gone: R2 Hammarbo, R3 the Painters' Loop, R6 Godby to Soltuna, R8 North Hammarland, R9 Jomala West, R15 the Sund Ring, X2 Kvarnbo to the Old Shore and X4 Out to Bergö. R6 is all but kept as A1.2, Getavägen without its gravel climb, and R9 as C2.2, Södersunda, its own waypoints on the tarmac.
+- **Narrow, twisty tarmac is scarce, and A7 keeps the country circuits.** A search of every loop of 3–7 km on paved lanes found none narrower or twistier than Tengsöda and the three new circuits: the twisty paved lanes (Marsövägen, Söderdalsvägen, Ekvägen on Bergö, Stornäsvägen) are all dead ends, and a race can't turn back on itself. A hot-hatch lane race would be a sprint to a lane's end, a kind of route of its own.
+- **B4 is two forest-track circuits and three forest-track sprints.** Tracks seldom join into loops, so the draft's two weak fits, half tarmac lane, gave way to two sprints along forest tracks the GPS routes end to end, all gravel: Krossvägen Woods and Hammarland Forest. Two of the five finish at a track's dead end.
+- **Mariehamn's clustering is down to what it shares, not where it stands.** Five A5–A6 circuits are in and around the town, where its tarmac crossroads are, but only Dalkarby drove much of another's road (Godbyvägen, which Kalmare and Önningeby and Jomalaby drive too), so it comes back up Nya Godbyvägen, road 2, instead: 4.3 km against the draft's 3.2, sharing 14% with any other.
+- **Starts moved off their junctions.** The draft's starts were the candidates' loop ends, mostly on a junction; every one is moved along its road to a straight a grid can stand on, at least 150 m from every other start. Two routes are longer than drafted for it: Round Jomalaby, 9.6 km against 7.2, since the draft's loop turns back on itself where Godbyvägen meets Jomalaby väg, and Mörby, 6.3 km against 5.6, on Prästgårdsgatan rather than through a housing estate.
+- **Surface as laid** moved six of them: Ramsvik is 43% gravel rather than 57%, Berghamn and Bergövägen all tarmac, Norrvägen and Norrvik Woods a little tarmac (so cross country), and Round Ytternäs keeps off Skrakvägen, whose east end is laid in gravel.
+- **Two of the cars handed changed.** Vessingsboda Lanes and Södersunda were to hand Borg and Lontano, the two heaviest cars of their tiers; the racer couldn't get either round alone, so they hand Holm and Rimfrost, and Borg and Lontano race them in the field.
 
-| Tier | Route | Shape | Length | Asphalt | Bends a km | Start (x, z) |
-|---|---|---|---|---|---|---|
-| A1 | New: Getavägen, road 4 to Geta (R6 without the climb) | Sprint | 21.3 km | 100% | 1.0 | (−4068, −24554) |
-| A1 | New: road 2, Sundsvägen | Sprint | 8.4 km | 100% | 0.6 | (9442, −5809) |
-| A2 | R14 The Night Ferry, Mariehamn to Långnäs | Sprint | 28.0 km | 99% | 1.3 | (−1852, 4876) |
-| A2 | New: road 1, Hammarlandsvägen and Eckerövägen | Sprint | 21.0 km | 100% | 0.4 | (−17995, −8024) |
-| A2 | New: Torpvägen, Eckerö | Sprint | 5.5 km | 100% | 1.3 | (−21339, −9520) |
-| A3 | New: road 50, Saltviksvägen and Kvarnbovägen | Sprint | 15.3 km | 100% | 1.8 | (1008, −16183) |
-| A3 | New: Bergövägen | Sprint | 10.0 km | 100% | 3.3 | (−5553, −16818) |
-| A3 | New: Jomalaby väg, Nya Godbyvägen and Godbyvägen | Circuit | 7.2 km | 100% | 4.4 | (360, −2835) |
-| A3 | New: road 640, Mångstektavägen | Sprint | 5.7 km | 100% | 4.4 | (12055, −5895) |
-| A4 | New: Skarpnåtövägen | Sprint | 15.7 km | 100% | 2.9 | (−9624, −19771) |
-| A4 | R10 Hamnsund | Sprint | 5.6 km | 97% | 4.3 | (8590, −18449) |
-| A4 | R12 Kastelholm, Sund | Circuit | 3.7 km | 100% | 5.2 | (7799, −7154) |
-| A4 | New: road 340, Mönbackavägen | Sprint | 5.7 km | 100% | 4.9 | (9733, 16020) |
-| A5 | R1 Harbour to Harbour, Mariehamn | Circuit | 4.4 km | 100% | 3.2 | (−1903, 6780) |
-| A5 | New: Norra Svibyvägen, Flygfältsvägen and Svibyvägen | Circuit | 5.3 km | 100% | 3.2 | (−3103, 3018) |
-| A5 | New: Östernäsvägen, Västra Ytternäsvägen and Skrakvägen | Circuit | 4.8 km | 100% | 5.0 | (−1662, 7431) |
-| A5 | New: Västra Utfarten, Strandgatan and Grindmattesvägen | Circuit | 3.4 km | 100% | 3.5 | (−2073, 4882) |
-| A5 | New: Vesterkalmarevägen, Godbyvägen and Önningebyvägen | Circuit | 9.6 km | 100% | 3.5 | (−736, 4831) |
-| A6 | New: Drygsbölevägen, Hammarlandsvägen and Djeknevägen | Circuit | 4.7 km | 100% | 3.6 | (−9128, −3863) |
-| A6 | R13 The Old Road and the New, Jomala | Circuit | 7.3 km | 100% | 2.9 | (1418, −6093) |
-| A6 | New: Godbyvägen, Dalkarbyvägen and Klockargatan | Circuit | 3.2 km | 100% | 3.4 | (−1653, 2353) |
-| A6 | New: Sundblomsvägen, Godbyvägen and Önningebyvägen | Circuit | 3.0 km | 100% | 3.3 | (−1025, 431) |
-| A7 | R4 Tengsöda, Saltvik | Circuit | 5.2 km | 100% | 5.6 | (11370, −14668) |
-| A7 | New: Mörbyvägen, Bovikvägen and Hammarlandsvägen | Circuit | 5.6 km | 100% | 4.2 | (−12493, −9507) |
-| A7 | New: Hagavägen and Hjortövägen | Circuit | 6.0 km | 100% | 4.1 | (3817, −14336) |
-| A7 | New: Boda Tingsvägen, Emkarbyvägen and Djeknevägen | Circuit | 4.4 km | 100% | 3.7 | (−8814, −4905) |
-| B1 | X11 Lavö, Finström | Sprint | 4.3 km | 14% | 5.8 | (2856, −14333) |
-| B1 | O3 Småkärr, Hammarland | Sprint | 4.1 km | 0% | 7.1 | (−14451, −9480) |
-| B1 | O2 Båtvik, Sund | Circuit | 11.1 km | 0% | 6.1 | (7663, −4361) |
-| B1 | New: Gröndalsvägen | Sprint | 5.6 km | 0% | 4.8 | (−154, −27946) |
-| B1 | O5 Djurvik, Hammarland | Circuit | 9.3 km | 0% | 7.2 | (−11672, 3710) |
-| B2 | X3 Emkarby and Svartsmara, Finström | Circuit | 14.2 km | 64% | 4.8 | (−2956, −6141) |
-| B2 | X1 Degersand, Eckerö | Circuit | 7.8 km | 35% | 6.4 | (−21122, −5216) |
-| B2 | X6 Toböle, Saltvik | Sprint | 4.7 km | 38% | 6.4 | (5636, −19941) |
-| B2 | X7 Bovik, Hammarland | Circuit | 5.7 km | 75% | 4.6 | (−13037, −12438) |
-| B2 | New: Ramsvik, Glovägen and Kuggviksvägen | Circuit | 4.1 km | 57% | 6.7 | (13773, −16606) |
-| B3 | X9 Tellholm, Hammarland | Circuit | 4.5 km | 17% | 6.9 | (−13673, −112) |
-| B3 | O1 Vessingsboda Lanes, Lemland | Circuit | 6.3 km | 0% | 9.5 | (11905, 12711) |
-| B3 | O4 Kullskär, Hammarland | Circuit | 6.2 km | 0% | 8.4 | (−14136, −1801) |
-| B3 | New: Björkhemsvägen, Skepphusslätt and Fridhemsrundan | Circuit | 3.5 km | 6% | 8.6 | (14431, 6184) |
-| B3 | X12 Nötviken, Sund | Circuit | 7.1 km | 6% | 7.1 | (12749, −10801) |
-| B4 | New: Norrviksvägen, Fallvägen and Önningebyvägen | Circuit | 5.2 km | 5% | 8.4 | (2566, 5304) |
-| B4 | New: Norrvägen | Circuit | 2.6 km | 0% | 8.0 | (−18291, −11895) |
-| B4 | New: Flakabacka | Sprint | 3.6 km | 0% | 3.9 | (8582, 13776) |
-| B4 | New: Norra Norrbyvägen, Bistorpvägen and Österskogsvägen (weak fit) | Circuit | 3.5 km | 29% | 6.0 | (6502, 8595) |
-| B4 | New: Torpvägen, Östergårds and Ridstigen (weak fit) | Circuit | 8.2 km | 29% | 5.8 | (−11590, −2221) |
-| C1 | R7 Lemland to the Sea | Sprint | 14.2 km | 98% | 4.3 | (5551, 10040) |
-| C1 | New: Dånövägen | Sprint | 4.8 km | 100% | 3.6 | (−5754, −24674) |
-| C2 | R5 Round Geta | Circuit | 14.2 km | 100% | 3.9 | (−3817, −24611) |
-| C2 | New: Södersundavägen, Norra Torpvägen and Norra Svibyvägen (R9 on the tarmac) | Circuit | 12.3 km | 100% | 3.2 | (−2984, −131) |
-| C3 | R11 The Kungsö Road | Circuit | 6.9 km | 100% | 3.2 | (−7551, 2787) |
-| C3 | X10 Out to Järsö | Sprint | 8.3 km | 92% | 2.3 | (−1647, 9513) |
-| C3 | New: Bastövägen | Sprint | 8.6 km | 100% | 3.9 | (−3645, −18473) |
-| C4 | X5 Geta's Islands | Sprint | 8.0 km | 53% | 4.7 | (−5754, −24674) |
-| C4 | X8 Storby to Käringsund, Eckerö | Sprint | 8.5 km | 64% | 6.5 | (−21894, −9596) |
-| C4 | New: Berghamnsvägen | Sprint | 7.8 km | 76% | 5.5 | (−15943, −17513) |
+| # | Event | Was | Shape | Lap | Laps | Ground | Car |
+|---|---|---|---|---|---|---|---|
+| A1.1 | Road 2 Flat Out, Sund | New | Sprint | 8.7 km | – | Road | Åska |
+| A1.2 | The Apple-Orchard Road, Finström | New | Sprint | 20.3 km | – | Road | Blixt |
+| A2.1 | The Night Ferry, Mariehamn to Långnäs | R14 | Sprint | 26.7 km | – | Road | Orkan |
+| A2.2 | Road 1 Across Hammarland | New | Sprint | 20.6 km | – | Road | Virvel |
+| A2.3 | Torpvägen, Eckerö | New | Sprint | 5.1 km | – | Road | Varg |
+| A3.1 | Road 50, Saltvik to Sund | New | Sprint | 15.0 km | – | Road | Dyning |
+| A3.2 | Bergövägen, Finström | New | Sprint | 9.6 km | – | Road | Spån |
+| A3.3 | Round Jomalaby | New | Circuit | 9.6 km | 2 | Road | Strimma |
+| A3.4 | Mångstekta, Sund | New | Sprint | 5.2 km | – | Road | Dyning |
+| A4.1 | Up from Skarpnåtö, Hammarland | New | Sprint | 15.4 km | – | Road | Sund |
+| A4.2 | Hamnsund | R10 | Sprint | 5.4 km | – | Road | Brus |
+| A4.3 | Kastelholm, Sund | R12 | Circuit | 3.7 km | 4 | Road | Flod |
+| A4.4 | The Mönbacka Road, Lemland | New | Sprint | 5.5 km | – | Road | Brus |
+| A5.1 | Harbour to Harbour, Mariehamn | R1 | Circuit | 4.3 km | 3 | Road | Skerry GT |
+| A5.2 | Round the Airport, Mariehamn | New | Circuit | 5.3 km | 3 | Road | Ström |
+| A5.3 | Round Ytternäs, Mariehamn | New | Circuit | 5.4 km | 3 | Road | Ankar |
+| A5.4 | The West Way Out, Mariehamn | New | Circuit | 3.4 km | 3 | Road | Skerry GT |
+| A5.5 | Kalmare and Önningeby, Jomala | New | Circuit | 9.9 km | 2 | Road | Ström |
+| A6.1 | Drygsböle, Hammarland | New | Circuit | 4.4 km | 3 | Road | Sten |
+| A6.2 | The Old Road and the New, Jomala | R13 | Circuit | 5.6 km | 3 | Road | Bris |
+| A6.3 | Dalkarby, Jomala | New | Circuit | 4.3 km | 3 | Road | Bris |
+| A6.4 | Jomalaby, Jomala | New | Circuit | 3.0 km | 5 | Road | Sten |
+| A7.1 | Tengsöda, Saltvik | R4 | Circuit | 5.2 km | 3 | Road | Pil |
+| A7.2 | Mörby, Hammarland | New | Circuit | 6.3 km | 2 | Road | Ljus |
+| A7.3 | Haga, Finström | New | Circuit | 6.0 km | 3 | Road | Pil |
+| A7.4 | Boda, Hammarland | New | Circuit | 4.4 km | 3 | Road | Ljus |
+| B1.1 | Lavö, Finström | X11 | Sprint | 4.2 km | – | Cross country | Grus |
+| B1.2 | Småkärr, Hammarland | O3 | Sprint | 4.0 km | – | Off-road | Gnista |
+| B1.3 | Båtvik, Sund | O2 | Circuit | 3.3 km | 4 | Off-road | Hagel |
+| B1.4 | Gröndal, Geta | New | Sprint | 5.5 km | – | Off-road | Gnista |
+| B1.5 | Djurvik, Hammarland | O5 | Circuit | 9.3 km | 1 | Off-road | Grus |
+| B2.1 | Emkarby and Svartsmara, Finström | X3 | Circuit | 13.8 km | 1 | Cross country | Fjärd |
+| B2.2 | Degersand, Eckerö | X1 | Circuit | 7.4 km | 2 | Cross country | Dyn |
+| B2.3 | Toböle, Saltvik | X6 | Sprint | 4.7 km | – | Cross country | Lera |
+| B2.4 | Bovik, Hammarland | X7 | Circuit | 5.7 km | 3 | Cross country | Fjärd |
+| B2.5 | Ramsvik, Saltvik | New | Circuit | 4.1 km | 3 | Cross country | Lera |
+| B3.1 | Tellholm, Hammarland | X9 | Circuit | 4.2 km | 3 | Cross country | Holm |
+| B3.2 | Vessingsboda Lanes, Lemland | O1 | Circuit | 5.6 km | 2 | Off-road | Holm |
+| B3.3 | Kullskär, Hammarland | O4 | Circuit | 5.8 km | 2 | Off-road | Myr |
+| B3.4 | Västergatan, Saltvik | New | Circuit | 5.6 km | 2 | Off-road | Myr |
+| B3.5 | Nötviken, Sund | X12 | Circuit | 7.1 km | 2 | Cross country | Holm |
+| B4.1 | Norrvik Woods, Jomala | New | Circuit | 5.2 km | 2 | Cross country | Berg |
+| B4.2 | Norrvägen, Eckerö | New | Circuit | 2.6 km | 3 | Cross country | Stubbe |
+| B4.3 | Flakabacka, Lemland | New | Sprint | 3.4 km | – | Off-road | Knott |
+| B4.4 | Krossvägen Woods | New | Sprint | 3.7 km | – | Off-road | Stubbe |
+| B4.5 | Hammarland Forest | New | Sprint | 4.6 km | – | Off-road | Berg |
+| C1.1 | Lemland to the Sea | R7 | Sprint | 13.7 km | – | Road | Frost |
+| C1.2 | Dånö, Geta | New | Sprint | 4.4 km | – | Road | Altura |
+| C2.1 | Round Geta | R5 | Circuit | 14.2 km | 1 | Road | Rimfrost |
+| C2.2 | Södersunda, Jomala | New | Circuit | 12.3 km | 1 | Road | Rimfrost |
+| C3.1 | The Kungsö Road | R11 | Circuit | 6.9 km | 2 | Road | Vik |
+| C3.2 | Out to Järsö | X10 | Sprint | 7.8 km | – | Cross country | Kraft |
+| C3.3 | The Bastö Road, Finström | New | Sprint | 8.2 km | – | Road | Vik |
+| C4.1 | Geta's Islands | X5 | Sprint | 7.9 km | – | Cross country | Sälta |
+| C4.2 | Storby to Käringsund, Eckerö | X8 | Sprint | 8.4 km | – | Cross country | Kula |
+| C4.3 | Berghamn, Hammarland | New | Sprint | 7.5 km | – | Road | Kula |
 
-**What the draft doesn't know yet.** Height: no route was scored for its climbs and crests, which the tracks above were. Surface as laid: a road with no surface tag is judged by its class as the game does, but the game decides a whole chain by most of its length, so a route can read a little more gravel here than it drives (the Sund Ring measured 89% asphalt, though the game lays it all asphalt, and dropped out of A3–A4 on it). Stories: the new routes have none yet. And no route has been driven: the vetting run (section 7) drives each in its tier's cars once they exist.
+*Lap is a circuit's lap or a sprint's whole way; laps size a race to about seven minutes of the racer's pace (`tools/race-laps.ts`). Car is the one the event hands the player.*
+
+### Vetted
+
+Every event was raced by a full grid of its tier's racers in the vetting tool's grid mode (`tools/race-vet.ts --grid`), dry and wet; snow and ice are still to run. No event is clean by the tool's own measure, a finish with no reset and no hit for every racer, and none of the first list's tracks was either: the racers reset a few times a race wherever they race (`ideas/racer-method.md`). So a route was judged against how the kept tracks fare, and changed where the track, not the racer, was at fault: where every car of its tier fails at one place, or the grid piles up.
+
+- **The new routes race at least as well as the kept tracks.** All 32 grids finish in the dry and 30 in the wet, against 17 and 18 of the 24 kept tracks; a racer resets a median of 2 times a race on a new route, dry or wet, against 3 dry and 5 wet on a kept one; one new grid in the dry and two in the wet had a pile-up, as two kept ones did. The five forest routes of B4 are among the cleanest on the list.
+- **One route changed: B3.4.** The draft's Fridhem, Lumparland, piled its grid up 20 times dry and 56 wet, every car of the tier resetting on Skepphusslätt, a narrow residential lane that kinks between forest tracks, and it did as badly the other way round. Västergatan, Saltvik, a gravel loop below Orrdalsklint that no other event uses, took its place: Myr runs it clean in the dry and its grid has no pile-up.
+- **What still fails is the racers' known gaps, not the routes.** Borg in B3 and Lontano in C2, the heaviest, slowest-steering cars of their tiers, reset out of most of their races alone, where the other cars of the tier finish the same road clean (Rimfrost on Södersunda, Myr on Västergatan); that is why Vessingsboda Lanes and Södersunda hand the player Holm and Rimfrost. Lemland to the Sea, now C1, costs its 1990s supercars a reset every few hundred metres on a narrow farm road: a road the tier's power is too much for, kept as the draft kept it. Of the kept tracks, Kullskär's B3 grid doesn't finish in the dry, and Djurvik, Bovik, Båtvik, Småkärr, Tengsöda and the Old Road and the New each leave a racer or two unfinished when the time runs out. On Småkärr in the dry, one Grus reset tens of thousands of times without moving on, which is a fault in the racer's recovery to find, not a reading of the track.
+
 
 ## The owner's decisions
 
