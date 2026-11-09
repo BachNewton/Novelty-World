@@ -1,6 +1,7 @@
 import type { OverviewFormat } from "../render/tile";
 import type { Medal } from "../challenge/standings";
 import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
+import type { MapDealer } from "./dealers";
 import type { Place, PlaceKind } from "./places";
 import type { RoadGraph, Route } from "./road-graph";
 
@@ -55,6 +56,8 @@ export interface MapInk {
   /** A race's start, by what's under its wheels. */
   race: Record<RaceGround, string>;
   medal: Record<Medal, string>;
+  /** A dealership's door, the colour of its ring on the island. */
+  dealer: string;
 }
 
 export function mapInk(): MapInk {
@@ -71,6 +74,7 @@ export function mapInk(): MapInk {
     pass: token("ui-pass"),
     race: { road: token("ui-race-road"), "cross-country": token("ui-race-cross-country"), "off-road": token("ui-race-off-road") },
     medal: { gold: token("ui-gold"), silver: token("ui-silver"), bronze: token("ui-bronze") },
+    dealer: token("dealer-mark"),
   };
 }
 
@@ -649,5 +653,53 @@ export function drawRaceRoute(pen: CanvasRenderingContext2D, view: MapView, poin
       else pen.lineTo(x, y);
     }
     pen.stroke();
+  }
+}
+
+/** Every dealership in sight, at its door: a car on a badge shaped as a house, in the dealership colour, so it reads apart from the places' discs, the challenges' squares and the races' diamonds. Named when `named`. */
+export function drawDealers(pen: CanvasRenderingContext2D, view: MapView, dealers: readonly MapDealer[], size: number, ink: MapInk, named: boolean): void {
+  pen.font = "600 12px system-ui, sans-serif";
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  pen.lineJoin = "round";
+  for (const dealer of dealers) {
+    const [x, y] = view.toScreen(dealer.x, dealer.z);
+    if (x < -size * 1.3 || y < -size * 1.3 || x > view.width + size * 1.3 || y > view.height + size * 1.3) continue;
+    pen.save();
+    pen.translate(x, y);
+    pen.scale(size, size);
+    pen.fillStyle = ink.dealer;
+    pen.strokeStyle = ink.shade;
+    pen.lineWidth = 2 / size;
+    fill(pen, [-1, 1], [-1, -0.25], [0, -1.3], [1, -0.25], [1, 1]);
+    pen.stroke();
+    pen.translate(0, 0.2);
+    pen.scale(0.85, 0.85);
+    pen.fillStyle = ink.shade;
+    carGlyph(pen, ink.dealer);
+    pen.restore();
+    if (named) {
+      pen.strokeStyle = ink.shade;
+      pen.lineWidth = 3;
+      pen.strokeText(dealer.name, x, y + size + 3);
+      pen.fillStyle = ink.dealer;
+      pen.fillText(dealer.name, x, y + size + 3);
+    }
+  }
+}
+
+/** A car from the side, nose right, in a box from -1 to 1: its body, a cabin, and its wheels cut out of the body by a ring of the badge's colour. */
+function carGlyph(pen: CanvasRenderingContext2D, badge: string): void {
+  fill(pen, [-0.95, 0.4], [-0.95, 0], [-0.5, -0.1], [-0.25, -0.5], [0.3, -0.5], [0.6, -0.1], [0.95, 0], [0.95, 0.4]);
+  const body = pen.fillStyle;
+  for (const wheelX of [-0.5, 0.5]) {
+    pen.fillStyle = badge;
+    pen.beginPath();
+    pen.arc(wheelX, 0.42, 0.32, 0, Math.PI * 2);
+    pen.fill();
+    pen.fillStyle = body;
+    pen.beginPath();
+    pen.arc(wheelX, 0.42, 0.22, 0, Math.PI * 2);
+    pen.fill();
   }
 }

@@ -1,4 +1,5 @@
 import type { DealerInterior, Lamp, Solid, Spot, Window } from "../../../dealership/interior";
+import { LISTINGS } from "../listings";
 import { Shell, type Finish, type Paint, type V3 } from "../shell";
 import { CAR_DECK, CAR_DECK_GLASS, CAR_DECK_PANES, SHELL_DOOR } from "./plan";
 
@@ -193,11 +194,10 @@ export function yachtInterior(): DealerInterior {
   lampFaces(s, LAMPS);
   const middle = (CAR_DECK_PANES[0][0] + CAR_DECK_PANES[CAR_DECK_PANES.length - 1][1]) / 2;
   return {
-    name: "Solvind",
+    ...LISTINGS.yacht,
     origin: [0, CAR_DECK.floorY, 0],
     room: s.build(),
     turntables: [{ soup: turntable(), centre: [TABLE.x, 0, 0], turnSeconds: TABLE.turnSeconds }],
-    stock: { from: ["harbour"], tiers: ["A1", "A2"] },
     spots: SPOTS,
     floor: [[AFT + 0.1, -WALL + 0.1], [FORE - 0.1, -WALL + 0.1], [FORE - 0.1, WALL - 0.1], [AFT + 0.1, WALL - 0.1]],
     solids: SOLIDS,

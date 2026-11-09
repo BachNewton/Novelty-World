@@ -1,13 +1,14 @@
 import type { ChallengeBoard } from "../challenge/board";
 import type { Discovery } from "./discovery";
-import { drawCar, drawChallenges, drawGates, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapGate, type MapInk, type MapPlayer, type SharpLand } from "./draw";
+import type { MapDealer } from "./dealers";
+import { drawCar, drawChallenges, drawDealers, drawGates, drawLand, drawNames, drawPlaces, drawPlayers, drawRoads, drawRoute, flatView, type MapGate, type MapInk, type MapPlayer, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
 /*
  * The car's place on the road network, as the drive goes on: the road it's on,
  * the GPS route and how far it has to go, and the mini map, which turns with the
- * car, with the places to find and the challenges' starts on it. A
+ * car, with the places to find, the challenges' starts and the dealerships' doors on it. A
  * challenge's route is held as it is, never rerouted, since its gates are on
  * it. Each frame hands it the car and it works
  * out what changed; nothing here has a clock.
@@ -71,6 +72,7 @@ export class Navigator {
     private readonly ink: MapInk,
     private readonly discovery: Discovery,
     private readonly challenges: ChallengeBoard,
+    private readonly dealers: readonly MapDealer[],
     private readonly events: NavigatorEvents,
   ) {
     const pen = mini.getContext("2d");
@@ -196,6 +198,7 @@ export class Navigator {
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);
     drawPlaces(pen, view, this.discovery.places.map((place) => ({ place, found: this.discovery.isFound(place) })), MINI_PLACE_PX, ink, false);
     drawChallenges(pen, view, this.challenges.marks(), MINI_PLACE_PX, ink, false);
+    drawDealers(pen, view, this.dealers, MINI_PLACE_PX, ink, false);
     drawPlayers(pen, view, players, 8, ink, { circle: [width / 2, height / 2, width / 2 - MINI_RIM_PX] }, false);
     this.playersDrawn = players.length;
     drawCar(pen, view, x, z, headingClockwise, 9, ink);

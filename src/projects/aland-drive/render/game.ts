@@ -75,6 +75,8 @@ import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { createCockpit } from "../art/cars/cockpit/view";
 import { createWalkIn, type DealershipReading, type WalkIn } from "../dealership/walk-in";
+import { dealerDoors } from "../dealership/doors";
+import { mapDealersOf } from "../map/dealers";
 import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
@@ -1570,13 +1572,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
             load: () => storage.get<string[]>(FOUND_KEY),
             save: (ids) => { storage.set(FOUND_KEY, ids); },
           });
-      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, challengeBoard, { onRoad: (name) => events.onRoad?.(name) });
+      const mapDealers = mapDealersOf(dealerDoors(manifest.worldOrigin));
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, challengeBoard, mapDealers, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
         ink,
         found,
         challengeBoard,
+        mapDealers,
         (x, z) => {
           pickDestination(x, z);
         },
