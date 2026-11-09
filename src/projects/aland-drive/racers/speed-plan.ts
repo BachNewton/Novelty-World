@@ -112,13 +112,17 @@ export function planSpeeds({ curvature, crest, stepM, limitsAt, cornerShare, bra
     const braking = brakingG(limits, next) * g * brakeShare * room * weightOn(at + 1, next);
     speeds[at] = Math.min(speeds[at], Math.sqrt(next * next + 2 * braking * stepM));
   }
-  // Forwards: no faster than the car's pull gets it from a standstill at the start, the sample at or before it.
+  // Forwards: no faster than the car's pull gets it from a standstill at the start, the sample at or before it, with
+  // what the bend leaves of the tyres: out of a corner the throttle comes in as the steering unwinds, not before.
   const start = Math.max(0, Math.min(count - 1, Math.floor(fromM / stepM)));
   speeds[start] = 0;
   for (let at = start + 1; at < count; at++) {
     const last = speeds[at - 1];
+    const limits = limitsAt(at - 1);
+    const lateral = (last * last * curvature[at - 1]) / Math.max(cornerG(limits, last) * g * cornerShare, 1e-6);
+    const room = Math.sqrt(Math.max(0, 1 - Math.min(1, lateral) ** 2));
     // Pull is the whole engine's, not a share of it: a driver at ease still uses full throttle on a straight.
-    const pull = pullG(limitsAt(at - 1), last) * g;
+    const pull = pullG(limits, last) * g * room;
     speeds[at] = Math.min(speeds[at], Math.sqrt(last * last + 2 * pull * stepM));
   }
   let slowest = FLAT_OUT_MS;

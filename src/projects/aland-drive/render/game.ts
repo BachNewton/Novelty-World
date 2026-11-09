@@ -102,11 +102,12 @@ import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
 import { medalForPlace, type Standing } from "../challenge/standings";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
-import { RaceGrid } from "../racers/grid";
+import type { SeenCar } from "../racers/awareness";
+import { RaceGrid, seenCarOf } from "../racers/grid";
 import { LaidRoad } from "../racers/laid-road";
 import { progressOf } from "../racers/racer";
-import { raceLineUrl, readRaceLine, type RaceLineFile } from "../racers/race-line-file";
-import { corridorOf, racingLine } from "../racers/racing-line";
+import { raceLineUrl, readRaceLine, type RaceLine, type RaceLineFile } from "../racers/race-line-file";
+import { corridorOf, geometryOf, racingLine } from "../racers/racing-line";
 import { ROUTE_STEP_M, RoutePlan } from "../racers/route-plan";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
@@ -1662,7 +1663,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let grid: RaceGrid | null = null;
   const racersAsked = racersAskedIn(window.location.search);
   // A race's line and the surface under it, fetched once per race, or drawn here from the loaded roads for a race of the page's own.
-  const raceLines = new Map<string, Promise<{ line: RoadLine; pavedAt: (alongM: number) => boolean }>>();
+  const raceLines = new Map<string, Promise<RaceLine>>();
   const raceLineOf = (race: RaceChallenge) => {
     let line = raceLines.get(race.id);
     if (!line) {
@@ -1671,7 +1672,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
     return line;
   };
-  const fetchRaceLine = async (race: RaceChallenge) => {
+  const fetchRaceLine = async (race: RaceChallenge): Promise<RaceLine> => {
     const published = RACES.some(({ id }) => id === race.id) ? await fetch(raceLineUrl(window.location.origin, race.id)) : null;
     if (published?.ok) return readRaceLine((await published.json()) as RaceLineFile);
     // A race of the page's own (a test's) has no file: its line is drawn from the roads loaded here, which hold its whole route.
@@ -1679,17 +1680,29 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!route) throw new Error(`no road network to draw ${race.id}'s line on`);
     const corridor = corridorOf(new RoutePlan(runOn(route.line, CHALLENGE_RUN_ON_M), new LaidRoad(world)));
     const widest = raceFieldOf(race.car, race.ground).reduce((best, car) => (TUNINGS[car].car.halfSize[0] > TUNINGS[best].car.halfSize[0] ? car : best));
-    return { line: racingLine(corridor, TUNINGS[widest].car.halfSize[0]).line, pavedAt: (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved };
+    const { line, offsets } = racingLine(corridor, TUNINGS[widest].car.halfSize[0]);
+    return { line, pavedAt: (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved, geometry: geometryOf(corridor, offsets) };
+  };
+  /** Every car on the road the racers can see, but themselves: this player's, other players', hit traffic cars and the traffic on its lanes. */
+  const carsRacersSee = (): SeenCar[] => {
+    const seen: SeenCar[] = [seenCarOf("player", drive.stateAt(1))];
+    for (const [peerId, { heard }] of others) if (heard) seen.push(seenCarOf(peerId, drive.remotes.stateAt(peerId, 1)));
+    for (const hit of trafficContact.running()) seen.push(seenCarOf(hit.id, hit.car.stateAt(1)));
+    for (const vehicle of laneTraffic.all()) {
+      const { body, speedMS, half } = vehicle;
+      seen.push({ id: vehicle.id, x: body.x, z: body.z, heading: body.heading, vx: -Math.sin(body.heading) * speedMS, vz: -Math.cos(body.heading) * speedMS, halfWidthM: half[0], halfLengthM: half[1] });
+    }
+    return seen;
   };
   /** The racers on the grid for this attempt, in the world's condition, once the player's car is on its place; none for a challenge. */
   const putRacersOnGrid = async (challenge: Challenge, players: number) => {
     grid?.dispose();
     grid = null;
     if (challenge.kind !== "race" || racersAsked === 0) return;
-    const { line, pavedAt } = await raceLineOf(challenge);
+    const raceLine = await raceLineOf(challenge);
     // The racers drive the other cars of the race's kind.
     const field = raceFieldOf(challenge.car, challenge.ground).slice(1);
-    grid = new RaceGrid(challenge, line, pavedAt, field, racersAsked, players, {
+    grid = new RaceGrid(challenge, raceLine, field, racersAsked, players, {
       addCar: (place, car, condition) => {
         const road = world.roads.nearest(place.x, place.z);
         if (!road) throw new Error(`no road at a race's grid place, ${place.x}, ${place.z}`);
@@ -2208,7 +2221,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     trafficContact.beforeStep(trafficSteps);
     driveComputerCars();
     // The racers' lights count down with the player's: held until the car is on its place and, in co-op, the partner's is.
-    if (grid && session && !session.placing && session.partnerReady) grid.step();
+    if (grid && session && !session.placing && session.partnerReady) grid.step(carsRacersSee());
     drive.step(lastInput);
     trafficContact.afterStep();
     if (sharedTraffic) updateHitCars();

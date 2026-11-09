@@ -14,8 +14,7 @@ import { RACES } from "../challenge/list";
 import { RACE_SPECS } from "../challenge/race-specs";
 import { fieldOf } from "../racers/field";
 import { RACE_LINES_FOLDER, raceLineFile } from "../racers/race-line-file";
-import { ROUTE_STEP_M } from "../racers/route-plan";
-import { lineFor, loadRace } from "../racers/vet";
+import { loadRace, racingLineFor } from "../racers/vet";
 import { CARS } from "../sim/cars";
 import { initPhysics } from "../sim/drive";
 import { option, readRoads } from "./road-places";
@@ -35,9 +34,9 @@ for (const spec of RACE_SPECS) {
   const loaded = loadRace(FOLDER, spec.id, roads);
   // The widest car of the field: a narrower one has the more room.
   const widest = fieldOf(race.car, race.ground).reduce((best, car) => (CARS[car].car.halfSize[0] > CARS[best].car.halfSize[0] ? car : best));
-  const line = lineFor(loaded, "racing", widest);
-  const file = raceLineFile(spec, race.laps, roads.manifest.version, line, (along) => loaded.corridor[Math.max(0, Math.min(loaded.corridor.length - 1, Math.round(along / ROUTE_STEP_M)))].paved);
+  const drawn = racingLineFor(loaded, widest);
+  const file = raceLineFile(spec, race.laps, roads.manifest.version, drawn);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- the list's own folder, a file per race
   writeFileSync(join(OUT, `${spec.id}.json`), `${JSON.stringify(file)}\n`);
-  console.log(`${spec.number} ${spec.id}: ${file.points.length / 3} points over ${(line.length / 1000).toFixed(2)} km, for ${widest}`);
+  console.log(`${spec.number} ${spec.id}: ${file.points.length / 3} points over ${(drawn.line.length / 1000).toFixed(2)} km, for ${widest}`);
 }

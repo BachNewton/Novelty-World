@@ -10,8 +10,9 @@ import { limitsOn } from "../sim/car-limits";
 /*
  * A racer's recovery, on a straight line east along z = 0 with a car that is
  * moved by hand: stuck against something it backs out, stuck again it presses
- * its own R, and lost or rolled it resets at once. The driving itself is the
- * vetting tool's to judge.
+ * its own R, and lost or rolled it resets at once; over the finish it drives
+ * on and stops at its line's end. The driving itself is the vetting tool's to
+ * judge.
  */
 
 const EAST = -Math.PI / 2;
@@ -106,5 +107,36 @@ describe("a racer", () => {
     }
     expect(racer.finishedS).not.toBeNull();
     expect(racer.progress).toBe(2);
+  });
+
+  it("resets to before the line it has yet to cross, never past it", () => {
+    // Knocked off the road just past the first line at x = 400 without crossing it: its R lands it short of the line.
+    const { racer, resets } = racerAt(380);
+    racer.step(carAt(380, 20));
+    racer.step({ ...carAt(405, 20), position: [405, 0.5, 20] });
+    expect(resets).toHaveLength(1);
+    expect(resets[0].x).toBeLessThan(400);
+    expect(resets[0].x).toBeGreaterThan(380);
+    expect(racer.run.players[0].nextGate).toBe(0);
+  });
+
+  it("drives on over the finish, and stops at its line's end rather than resetting", () => {
+    const { racer, resets } = racerAt(300);
+    let x = 300;
+    for (let step = 0; step < 30 / STEP_S && racer.finishedS === null; step++) {
+      racer.step(carAt(x, 30));
+      x += 30 * STEP_S;
+    }
+    expect(racer.finishedS).not.toBeNull();
+    // Over the line it keeps driving, slower.
+    const over = racer.step(carAt(x, 30));
+    expect(over.brake).toBeGreaterThan(0);
+    expect(racer.step(carAt(x, 5)).throttle).toBeGreaterThan(0);
+    // At the line's end it brakes to a stop and holds, and never resets.
+    for (let step = 0; step < 5 / STEP_S; step++) racer.step(carAt(996, 10));
+    expect(racer.step(carAt(996, 10)).brake).toBe(1);
+    expect(racer.step(carAt(996, 0)).handbrake).toBe(true);
+    for (let step = 0; step < 10 / STEP_S; step++) racer.step(carAt(996, 0));
+    expect(resets).toHaveLength(0);
   });
 });

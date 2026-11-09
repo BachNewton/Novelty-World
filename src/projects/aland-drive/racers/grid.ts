@@ -2,14 +2,17 @@ import { placeOf, type Standing } from "../challenge/standings";
 import type { RaceChallenge, StartPlace } from "../challenge/types";
 import { steerLimit } from "../sim/car";
 import { limitsOn } from "../sim/car-limits";
+import { headingOf, type CarState } from "../sim/car-state";
 import { CARS, type CarId } from "../sim/cars";
 import type { SimulatedCar } from "../sim/drive";
 import type { RoadLine, RoadPoint } from "../sim/road-net";
 import type { Condition } from "../sim/surfaces";
 import { wheelBaseOf } from "../sim/tuning";
+import type { SeenCar } from "./awareness";
 import { tyresFor } from "./field";
 import { Racer, type RacerHost } from "./racer";
-import { crestOf, curvatureOf } from "./racing-line";
+import type { RaceLine } from "./race-line-file";
+import { crestOf, signedCurvatureOf } from "./racing-line";
 import { ROUTE_STEP_M } from "./route-plan";
 import { RACER_SKILL } from "./skill";
 import { planSpeeds } from "./speed-plan";
@@ -18,9 +21,9 @@ import { planSpeeds } from "./speed-plan";
  * The racers of one race being played: each a simulated car of its own in the
  * player's world (`sim/drive.ts`), put on a place of the grid the players
  * don't take, driven by a `Racer` on the race's line, stepped before the world
- * each step, and read for the places. It owns no renderer:
- * the game draws each racer's car as it draws another player's, and asks here
- * where everyone stands.
+ * each step with every car it can see, and read for the places. It owns no
+ * renderer: the game draws each racer's car as it draws another player's,
+ * tells it what else is on the road, and asks here where everyone stands.
  */
 
 /** The tightest turn a plan asks of the steering is this much wider than the lock's own, for the tyres' slip. */
@@ -43,6 +46,12 @@ export interface GridRacer {
   placed: boolean;
 }
 
+/** A car as racers see it, from its state and its car's box. */
+export function seenCarOf(id: string, state: CarState): SeenCar {
+  const [halfWidthM, , halfLengthM] = CARS[state.car].car.halfSize;
+  return { id, x: state.position[0], z: state.position[2], heading: headingOf(state.rotation), vx: state.velocity[0], vz: state.velocity[2], halfWidthM, halfLengthM };
+}
+
 /** Where along a line a place on the grid stands. */
 function alongOfPlace(line: RoadLine, { x, z }: StartPlace): number {
   let best = { distance: Infinity, along: 0 };
@@ -63,17 +72,16 @@ export class RaceGrid {
    */
   constructor(
     readonly race: RaceChallenge,
-    line: RoadLine,
-    pavedAt: (alongM: number) => boolean,
+    { line, pavedAt, geometry }: RaceLine,
     field: readonly CarId[],
     count: number,
     firstSlot: number,
     private readonly host: GridHost,
   ) {
     const condition = host.condition();
-    const curvature = curvatureOf(line, ROUTE_STEP_M);
+    const bends = signedCurvatureOf(line, ROUTE_STEP_M);
+    const curvature = bends.map((bend) => Math.abs(bend));
     const crest = crestOf(line, ROUTE_STEP_M);
-    const skill = RACER_SKILL;
     for (let slot = firstSlot, made = 0; slot < race.grid.length && made < count; slot++, made++) {
       const carId = field[made % field.length];
       const tuning = CARS[carId];
@@ -86,32 +94,49 @@ export class RaceGrid {
         crest,
         stepM: ROUTE_STEP_M,
         limitsAt: (sample) => (pavedAt(sample * ROUTE_STEP_M) ? limits.asphalt : limits.gravel),
-        cornerShare: skill.cornerShare,
-        brakeShare: skill.brakeShare,
+        cornerShare: RACER_SKILL.cornerShare,
+        brakeShare: RACER_SKILL.brakeShare,
         tightestRadiusAt: (speed) => (STEERING_ROOM * wheelBaseOf(tuning)) / Math.tan(steerLimit(tuning, speed, false)),
         fromM: from,
       });
       const car = host.addCar(place, carId, condition);
+      const [halfWidthM, , halfLengthM] = tuning.car.halfSize;
       const entry: GridRacer = {
         id: `racer-${slot}`,
         car,
         placed: false,
-        racer: new Racer(race, line, plan, from, {
-          reset: (road) => {
-            host.resetCar(car, road);
-            entry.placed = true;
+        racer: new Racer(
+          race,
+          line,
+          plan,
+          from,
+          {
+            reset: (road) => {
+              host.resetCar(car, road);
+              entry.placed = true;
+            },
+            inWater: host.inWater,
           },
-          inWater: host.inWater,
-        }),
+          geometry,
+          bends,
+          halfWidthM,
+          halfLengthM,
+        ),
       };
       this.racers.push(entry);
     }
   }
 
-  /** Before the world steps: every racer's input for the coming step, from where its car is now. */
-  step(): void {
+  /** The racers' cars as racers see them. */
+  seen(): SeenCar[] {
+    return this.racers.map(({ id, car }) => seenCarOf(id, car.stateAt(1)));
+  }
+
+  /** Before the world steps: every racer's input for the coming step, from where its car is now and what else is on the road. */
+  step(others: readonly SeenCar[] = []): void {
+    const seen = [...this.seen(), ...others];
     for (const entry of this.racers) {
-      entry.car.input = entry.racer.step(entry.car.stateAt(1), entry.placed);
+      entry.car.input = entry.racer.step(entry.car.stateAt(1), entry.placed, seen, entry.id);
       entry.placed = false;
     }
   }

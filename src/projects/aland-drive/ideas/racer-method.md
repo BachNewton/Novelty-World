@@ -47,6 +47,32 @@ The racer on the racing line, read the same way (the race's own car, dry, from t
 
 Each step of share is worth about 10% of a race's time (Painters' Loop 5:31, 6:01 and 6:44 at 0.76, 0.68 and 0.60; Kastelholm 6:16, 6:50 and 7:36), and the racing line at any share is faster than the laid middle wherever both are clean (Kastelholm's lap 2:00 against 2:27). At the top shares the racer finishes most races but with a reset or a hit, and a reset costs more than the extra pace earns, so on a third of the tracks 0.76 beats 0.9. What this reading asks for is at the top: what the plan doesn't see on the tracks where it runs wide (camber, a crest it reads too gently, a bend the line's smoothing softens), read track by track from the vetting tool's traces.
 
+### The racer at its skill, one change a run
+
+After the owner's ruling for one racer at its top pace (0.85 of the cornering grip, 0.92 of the braking), the same reading, the race's own car, dry, from the pole, on the racing line, every race, was the ruler for the racer itself, one change a run, each predicted first and kept only where the prediction held. The traces named the failures before anything was changed: a car knocked or run a few metres off its line at speed steering to full lock and swapping one slide for the next until it was 14 m off and reset; full throttle out of corners on what the bend left of the tyres; finishers parked on the finish line; a reset that put a car down past the line it had yet to cross, so it could never finish.
+
+| Change | Prediction | Clean | Finished | Resets | Off the surface (m) | Kept |
+|---|---|---|---|---|---|---|
+| As raced by the owner | | 2 | 22 | 82 | 14,182 | |
+| Driver rejoins its line with a bounded sideways pull, and lifts when sliding | fewer resets | 0 | 9 | 113 | 21,950 | no: on gravel the car is always sliding, and the lift undid it |
+| The plan's forward pass keeps the friction circle: throttle as the steering unwinds | resets down a fifth | 4 | 23 | 63 | 10,254 | yes |
+| Crest lightness halved (0.6 to 0.3) | airborne steps halved | 4 | 23 | 61 | 10,258 | no: the air comes from running off the road, not from crests |
+| A reset lands before the next line to cross | the missed-line finishes come back | 4 | 24 | 63 | 10,254 | yes |
+| Look-ahead 1.0 s at speed (from 0.75) | fewer high-speed swings | 0 | 16 | 100 | 18,432 | no |
+| Look-ahead 0.55 s | | 6 | 27 | 66 | 10,041 | yes |
+| Look-ahead 0.4 s | | 7 | 27 | 50 | 6,979 | yes |
+| Look-ahead 0.3 s | | 10 | 31 | 40 | 4,443 | yes |
+| Look-ahead 0.2 s | | 11 | 29 | 34 | 3,375 | no: two gravel races lost |
+| Look-ahead scaled by the car's steering lag | the slow-steering cars stop swinging | | | | | no: Lontano and Borg no better, Vik worse |
+
+The look-ahead was the lever: pure pursuit on a racing line cuts every bend's inside by about the look's square times the bend, and the car then runs wide out of it; the traffic's 0.75 s is right for traffic, which never drives at the limit. The reading stopped at 0.3 s with 31 of 32 finished (X2 Kvarnbo's start is the one, a track finding) and 10 clean. Hits were over-counted until the end of the series, since the vetting tool counted the loss of speed at a reset as a hit; it no longer does.
+
+What is left, by the traces: the heavy or slow-steering cars of a field (Lontano, Borg, and less so Kraft and Bris) run wide in S-bends at speed where the race's own car doesn't, so a field's weaker cars reset several times a race and finish last; and on the loose, a car at 150 km/h and more drifts off a gentle bend. The next reading is per car: the highest share each car is clean at, found by the tool, is what "as fast as it legally can be" means for that car.
+
+### The grid, by the vetting tool's grid mode
+
+A grid of six on Kastelholm and the Painters' Loop, each racer seeing the others, is the racecraft's ruler (`racers/vet-grid.ts`): places, passes, pile-ups, and each racer's hits and resets with their causes. Before: Kastelholm's pole car never finished (483 hits, 477 resets, lapping into the five cars parked on the finish line); the Painters' Loop had 140 pile-ups. After the finishers cool down off the line, the reset lands before the next line, a pass needs the racer to be closing (off a standing start everyone ahead is slow, and the grid is two abreast with no room), and a defence picks its side once: every racer finishes, no pile-up, 37 and 29 passes, and 22 and 38 resets across the six, almost all `lost` after a contact, Lontano's and Borg's half of them. Contact is now the thing to read: a knock at speed still ends in a reset, where a player would gather it up.
+
 What a reading can't tell: whether the racer looks like a driver. That is the owner's, at the checkpoint, and the films.
 
 ## Done, and not done

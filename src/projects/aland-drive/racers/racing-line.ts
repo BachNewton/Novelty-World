@@ -254,14 +254,9 @@ export function crestOf(line: RoadLine, stepM: number, smoothSamples = 4): Float
   return smooth;
 }
 
-/** The curvature along a line sampled at an even step, in radians a metre, smoothed over a few samples: the speed plan's input. */
-export function curvatureOf(line: RoadLine, stepM: number, smoothSamples = 2): Float64Array {
-  const count = Math.max(2, Math.floor(line.length / stepM) + 1);
-  const headings = new Float64Array(count);
-  for (let at = 0; at < count; at++) headings[at] = line.at(at * stepM).heading;
-  const turn = (a: number, b: number) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
-  const raw = new Float64Array(count);
-  for (let at = 1; at < count - 1; at++) raw[at] = Math.abs(turn(headings[at - 1], headings[at + 1])) / (2 * stepM);
+/** A sampled reading smoothed over a few samples either side. */
+function smoothed(raw: Float64Array, smoothSamples: number): Float64Array {
+  const count = raw.length;
   const smooth = new Float64Array(count);
   for (let at = 0; at < count; at++) {
     let sum = 0;
@@ -273,4 +268,38 @@ export function curvatureOf(line: RoadLine, stepM: number, smoothSamples = 2): F
     smooth[at] = sum / n;
   }
   return smooth;
+}
+
+/**
+ * The curvature along a line sampled at an even step, in radians a metre, signed (above zero turning right) and smoothed
+ * over a few samples: racecraft reads which way a bend goes from it, and the speed plan its size.
+ */
+export function signedCurvatureOf(line: RoadLine, stepM: number, smoothSamples = 2): Float64Array {
+  const count = Math.max(2, Math.floor(line.length / stepM) + 1);
+  const headings = new Float64Array(count);
+  for (let at = 0; at < count; at++) headings[at] = line.at(at * stepM).heading;
+  const turn = (a: number, b: number) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
+  const raw = new Float64Array(count);
+  // A heading runs anticlockwise, so a turn to the right is a fall in it.
+  for (let at = 1; at < count - 1; at++) raw[at] = -turn(headings[at - 1], headings[at + 1]) / (2 * stepM);
+  return smoothed(raw, smoothSamples);
+}
+
+/** The curvature along a line sampled at an even step, in radians a metre, smoothed over a few samples: the speed plan's input. */
+export function curvatureOf(line: RoadLine, stepM: number, smoothSamples = 2): Float64Array {
+  return signedCurvatureOf(line, stepM, smoothSamples).map((bend) => Math.abs(bend));
+}
+
+/** The room a line has to each side at every sample, for racecraft: where the laid middle stands right of the line, and the carriageway's reach from that middle. */
+export interface LineGeometry {
+  stepM: number;
+  middleM: Float64Array;
+  leftM: Float64Array;
+  rightM: Float64Array;
+}
+
+/** A corridor's geometry seen from a line at the given offsets from its middle. */
+export function geometryOf(corridor: readonly CorridorSample[], offsets: ArrayLike<number>, stepM = ROUTE_STEP_M): LineGeometry {
+  const count = corridor.length;
+  return { stepM, middleM: Float64Array.from({ length: count }, (_, at) => -offsets[at]), leftM: Float64Array.from(corridor, ({ leftM }) => leftM), rightM: Float64Array.from(corridor, ({ rightM }) => rightM) };
 }
