@@ -9,6 +9,7 @@ import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
 import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
+import { dyn } from "./voices/dyn";
 import { fjard } from "./voices/fjard";
 import { frost } from "./voices/frost";
 import { flod } from "./voices/flod";
@@ -16,6 +17,7 @@ import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
 import { hagel } from "./voices/hagel";
 import { holm } from "./voices/holm";
+import { kraft } from "./voices/kraft";
 import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
 import { knott } from "./voices/knott";
@@ -25,6 +27,7 @@ import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
 import { kula } from "./voices/kula";
 import { pil } from "./voices/pil";
+import { lontano } from "./voices/lontano";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
@@ -35,6 +38,7 @@ import { span } from "./voices/span";
 import { sund } from "./voices/sund";
 import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
+import { virvel } from "./voices/virvel";
 
 /*
  * What each car's engine sounds like, as numbers: its voice in a file of its
@@ -161,6 +165,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   aska,
   blixt,
   // A2
+  virvel,
   orkan,
   varg,
   // A3
@@ -187,6 +192,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -200,8 +206,10 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,
