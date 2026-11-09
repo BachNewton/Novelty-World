@@ -262,7 +262,7 @@ export const frost: CarSpec = {
   /** A 1980s works car's cockpit: a cage, buckets, a bare dash of analogue dials, a big boost gauge in the middle, a dished wheel and a tall gear lever. */
   interior: {
     gauges: "analogue",
-    boost: 2.3,
+    stackBoost: 2.3,
     // The dials up in the wheel's opening, clear of its spokes.
     clusterSight: 0.8,
     wheel: "rally",

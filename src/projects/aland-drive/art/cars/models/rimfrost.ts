@@ -245,7 +245,7 @@ export const rimfrost: CarSpec = {
     seats: "bucket",
     screen: false,
     cage: false,
-    boost: 1.2,
+    stackBoost: 1.2,
     clusterSight: 0.8,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber", seat: "car-cabin-seat-cloth" },
     turnsToLock: 1.3,

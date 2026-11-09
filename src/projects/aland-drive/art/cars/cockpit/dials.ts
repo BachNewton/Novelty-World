@@ -21,8 +21,10 @@ export interface DialFaces {
   redline: number;
   /** The panel the digital cluster is drawn on, wide for its height. */
   panelAspect: number;
-  /** A boost gauge in the oil gauge's cell. */
+  /** The oil's small dial is a turbo's boost gauge instead, in bar, for a cluster that has one. */
   boost: boolean;
+  /** The oil's cell holds the centre stack's big boost gauge instead (`InteriorStyle.stackBoost`). */
+  stackBoost: boolean;
   /** Ivory faces with dark figures (`InteriorStyle.lightDials`). */
   light: boolean;
 }
@@ -246,7 +248,10 @@ export function drawDialSheet(faces: DialFaces): DataTexture {
   drawDial(pens, SLOT.revs, { max: faces.revsMax, minor: 0.5, major: 1, label: 1, shown: 1, red: faces.redline, start: 225, sweep: -270 }, face, ["RPM", "X1000"]);
   drawSmall(pens, SLOT.fuel, ["E", "F"], face);
   drawSmall(pens, SLOT.water, ["C", "H"], face);
-  if (faces.boost) drawDial(pens, SLOT.oil, { max: BOOST_BAR.max, minor: 0.1, major: 0.5, label: 1, shown: 1, red: BOOST_BAR.red, start: 225, sweep: -270 }, face, ["BOOST", "BAR"]);
+  // A boost gauge reads round the same sweep as the big dials: the stack's big one to its full scale in bar, the
+  // cluster's small one 0 to 2 bar, its last half bar red.
+  if (faces.stackBoost) drawDial(pens, SLOT.oil, { max: BOOST_BAR.max, minor: 0.1, major: 0.5, label: 1, shown: 1, red: BOOST_BAR.red, start: 225, sweep: -270 }, face, ["BOOST", "BAR"]);
+  else if (faces.boost) drawDial(pens, SLOT.oil, { max: 1, minor: 0.125, major: 0.25, label: 0.5, shown: 0.5, red: 0.8, start: 225, sweep: -270 }, face, ["BAR"]);
   else drawSmall(pens, SLOT.oil, ["0", "5"], face);
   drawPanel(pens, faces, token("car-cabin-ink"));
   drawGlyphs(pens);
