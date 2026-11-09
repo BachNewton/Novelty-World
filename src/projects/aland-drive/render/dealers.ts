@@ -41,6 +41,8 @@ export function createDealers(scene: Scene, inputs: { sun: Sun; hazed: (color: N
   let revision = -1;
   let all = false;
   let shownAtAll = true;
+  /** A dealership the walk-in is capturing the island from inside, left out so its own walls don't fill its windows. */
+  let leftOut: DealerSite["id"] | null = null;
 
   const shown: Shown[] = DEALER_SITES.map((site) => {
     const [near, far] = (["near", "far"] as const).map((version) => buildExterior(site.id, version));
@@ -96,13 +98,14 @@ export function createDealers(scene: Scene, inputs: { sun: Sun; hazed: (color: N
       for (const { place, near, far, swapM, cars, site } of shown) {
         const { x, z } = place.position;
         const away = Math.hypot(x - eye.x, z - eye.z);
-        near.visible = shownAtAll && (all || away < swapM);
-        far.visible = shownAtAll && (all || (away >= swapM && away < REACH_M));
+        const drawn = shownAtAll && site.id !== leftOut;
+        near.visible = drawn && (all || away < swapM);
+        far.visible = drawn && (all || (away >= swapM && away < REACH_M));
         const [cos, sin] = [Math.cos(site.yaw), Math.sin(site.yaw)];
         for (const car of cars) {
           const carAway = Math.hypot(x + car.x * cos + car.z * sin - eye.x, z - car.x * sin + car.z * cos - eye.z);
-          for (const mesh of car.near) mesh.visible = shownAtAll && (all || carAway < car.swapM);
-          for (const mesh of car.far) mesh.visible = shownAtAll && (all || (carAway >= car.swapM && carAway < CAR_REACH_M));
+          for (const mesh of car.near) mesh.visible = drawn && (all || carAway < car.swapM);
+          for (const mesh of car.far) mesh.visible = drawn && (all || (carAway >= car.swapM && carAway < CAR_REACH_M));
         }
       }
     },
@@ -110,6 +113,16 @@ export function createDealers(scene: Scene, inputs: { sun: Sun; hazed: (color: N
     showAll(every: boolean) {
       all = every;
       if (every) for (const each of shown) for (const mesh of meshesOf(each)) mesh.visible = shownAtAll;
+    },
+    /** Leaves one dealership out of the world (the walk-in's capture from inside it), or none with null. */
+    leaveOut(id: DealerSite["id"] | null) {
+      leftOut = id;
+    },
+    /** The height a dealership's model's y 0 stands at in the scene: its footing, or the water's surface afloat. */
+    standsAt(id: DealerSite["id"]): number {
+      const each = shown.find(({ site }) => site.id === id);
+      if (!each) throw new Error(`no dealership ${id}`);
+      return each.place.position.y;
     },
     show(visible: boolean) {
       shownAtAll = visible;

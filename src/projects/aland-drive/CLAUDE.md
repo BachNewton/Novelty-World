@@ -17,6 +17,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `net/` | Multiplayer: the shared world, stand-ins, the shared GPS destination, computer-driven cars, shared traffic |
 | `traffic/` | Cars, cyclists and walkers on the lanes, and `?lane-lab` |
 | `challenge/` | Challenges, co-op and races |
+| `dealership/` | Walking round a dealership: the interior definition every dealership's art follows, going in, the island through its windows, and its cars |
 | `racers/` | The AI racers: the road as laid, the racing line and speed plan, the driver, difficulty, the field, and the race vetting tool |
 | `map/` | The world map, mini map, GPS and places to find |
 | `audio/` | Sound |
@@ -43,7 +44,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Free camera | F | |
 | World map | M | View |
 | Game menu | Esc | Menu |
-| Start a challenge or open a race's card in its ring, or answer a co-op invite | E | X |
+| Start a challenge or open a race's card in its ring, or answer a co-op invite; go into a dealership at its door | E | X |
 | Sound on or off | N, or Settings | Settings |
 
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
@@ -51,6 +52,8 @@ The world map pauses the drive and opens on the main island, north up, and zooms
 `~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`. The game shows this table to players in Settings' Controls tab, from `input/controls.ts`, so a change to a control changes it there.
 
 From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
+
+In a dealership the player is on foot (`dealership/CLAUDE.md`): WASD or the left stick walk, Shift or a click of the left stick held jogs, a mouse drag, the arrows or the right stick look, R or RT held revs the car at hand, C or RB sits in it or gets out, and E or X takes it, or leaves at the door.
 
 The free camera is for inspection: WASD, Q and E, Shift, drag to look, the wheel for its speed. There is no touch. Prompts come from the shared glyphs and follow the last input used.
 

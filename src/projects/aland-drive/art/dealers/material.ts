@@ -34,6 +34,14 @@ const NIGHT_ROOM = 0.85;
 /** Metres a pixel covers, per metre away, at the game's lens and size. */
 const PIXEL_M_PER_M = (2 * Math.tan((60 * Math.PI) / 360)) / 1007;
 
+/** A room's light as nodes the walk-in writes on entering (`dealership/room-light.ts`), so every room is one shader. */
+export interface LampLight {
+  ambient: Node<"vec3">;
+  mirrors: readonly [Node<"vec3">, Node<"vec3">];
+  /** The lamps' light reaching a point: on a face turned to `normal` (or all of it, for null), and the highlight along `mirrored`. */
+  at(position: Node<"vec3">, normal: Node<"vec3"> | null, mirrored: Node<"vec3"> | null): { sum: Node<"vec3">; highlight: Node<"vec3"> };
+}
+
 /** What the world gives a dealership outside: the hour's lamps, and the season's snow. A gallery may give neither. */
 export interface Outdoors {
   /** 0 by day, 1 once the lamps are lit. */
@@ -45,7 +53,8 @@ export interface Outdoors {
 
 export type Lighting =
   | ({ kind: "sun"; sun: Sun } & Outdoors)
-  | { kind: "room"; light: RoomLight };
+  | { kind: "room"; light: RoomLight }
+  | { kind: "lamps"; light: LampLight };
 
 const tokenOf = (paint: Paint) => themeColor(`--color-aland-drive-${paint}`);
 const linearToken = (name: string): Node<"vec3"> => {
@@ -159,6 +168,14 @@ export function dealerMaterial(lighting: Lighting, hazed: (color: Node<"vec3">) 
       const toneIs = (index: number) => select(tone.equal(index), float(1), float(0));
       const lamplit = linear("dealer-light-warm").mul(toneIs(0)).add(linear("dealer-light-cool").mul(toneIs(1))).add(linearToken("night-window-warm").mul(toneIs(2))).mul(NIGHT_ROOM);
       return hazed(mix(byDay, inLand(lamplit), strength.mul(lampsOn)));
+    }
+
+    if (lighting.kind === "lamps") {
+      const { ambient, mirrors, at } = lighting.light;
+      const { sum, highlight } = at(positionWorld, normal, mirrored);
+      const lit = painted.mul(ambient.add(normal.y.max(0).mul(ROOM_SKY_SHARE)).add(sum));
+      const room = mix(mirrors[0], mirrors[1], smoothstep(float(0.05), float(0.5), mirrored.y));
+      return mix(mix(lit, room, shine).add(highlight.mul(gloss).mul(HIGHLIGHT_SHARE)), painted, glow);
     }
 
     let sum: Node<"vec3"> = vec3(0, 0, 0);

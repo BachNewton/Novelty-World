@@ -174,6 +174,8 @@ As TDU2's were, a dealership is walked round in first person, among its cars.
 - **Each place is lit as its kind would be** (the table above), not by the sun.
 - **Every car is free while the game is built.** Buying and selling go through the dealerships as they will, but no money moves until the economy exists, and the Cars menu still offers every car. A bought car has nowhere to be kept yet.
 
+**What's built** (`dealership/CLAUDE.md`): the walk-in, and the rooms of the premium showroom, the town dealer, the village garage and the used lot's hall. A dealership is data, the interior definition (`dealership/interior.ts`) its art follows: its room, its stock by the table above as rules on the car list, its cars' spots, its floor and solids, its windows, where its view is captured from, its own lamps and its door. Each door is a ring on the island; E or X there captures the island all round from the dealership's place at that moment's hour, season and weather and opens the room, where the player walks among its cars, revs one, sits in its seat and reads its measured figures, and takes it as their car outside. The yacht and the delivery hall are built to the same definition; selling at the used lot waits for a garage that holds more than one car.
+
 ## The owner's decisions
 
 - **Classes and tiers are TDU2's, with today's cars in each tier**: A1–A7 asphalt, B1–B4 gravel (widened from off-road, with B1 back), C1–C4 classic.
@@ -182,7 +184,7 @@ As TDU2's were, a dealership is walked round in first person, among its cars.
 - **8 to 10 barn finds**, in barns and boathouses, searched for from a rumour and restored at the village garage.
 - **About 25 bucket-list challenges, a car each** (`ideas/bucket-list.md`), each choosing its car, road, hour, date and weather.
 - **Makers follow TDU2's pattern** of a few big ones and a long tail, all invented; their number comes with the car list.
-- **Six places sell cars**: the yacht (A1–A2), the delivery hall at the ferry terminal (A3–A4 and the two shipped B cars), the premium showroom, the town dealer, the village garage, and the used lot for trade, each lit as its kind would be. The tyre shop is a service, and the motor club and the barns aren't shops.
+- **Six places sell cars**: the yacht (A1–A2), the delivery hall at the ferry terminal (A3–A4 and the two shipped B cars), the premium showroom, the town dealer, the village garage, and the used lot for trade, an indoor used-car hall, each lit as its kind would be (an outdoor lot can't be walked in: the view captured through a dealership's windows stands in for scenery far off, and outdoors it would replace the place the player stands in). The tyre shop is a service, and the motor club and the barns aren't shops.
 - **Dealerships are walked round in first person**, as separate interiors with the real view captured through their windows; no body and no other players inside; at a car, rev it, sit in it and read its measured figures. Buying is free and the Cars menu stays until the economy exists.
 
 ## Sources

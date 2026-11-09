@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, ChevronsDown, ChevronsUp, CircleArrowDown, Car, Crosshair, Eye, Flag, Fullscreen, Gamepad2, Hand, Keyboard, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, Radar, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Armchair, ArrowLeft, FastForward, ChevronsDown, ChevronsUp, CircleArrowDown, Car, Crosshair, Eye, Flag, Footprints, Fullscreen, Gamepad2, Gauge, Hand, Keyboard, KeyRound, Map as MapIcon, MapPinOff, Menu as MenuIcon, Minus, MonitorCog, Move3d, MoveHorizontal, Plus, Radar, RefreshCcw, SlidersHorizontal, SwitchCamera, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { InputKind } from "@/shared/lib/input";
 import { subscribeGamepads } from "@/shared/lib/gamepad";
 import { ControlGlyph, Prompt, type Binding, type PadGlyph } from "@/shared/components/prompts";
@@ -89,6 +89,17 @@ const CONTROL_SECTIONS: readonly { name: string; rows: readonly ControlRow[] }[]
       { icon: Eye, label: "Look round, held", bindings: [BINDINGS.lookLeft, BINDINGS.lookRight, BINDINGS.lookBehind] },
       { icon: CircleArrowDown, label: "Look down on the car, held", bindings: [BINDINGS.lookDown] },
       { icon: Move3d, label: "Free camera", bindings: [BINDINGS.freeCamera] },
+    ],
+  },
+  {
+    name: "In a dealership",
+    rows: [
+      { icon: Footprints, label: "Walk", bindings: [BINDINGS.walkForward, BINDINGS.walkLeft, BINDINGS.walkBack, BINDINGS.walkRight] },
+      { icon: FastForward, label: "Jog, held", bindings: [BINDINGS.walkJog] },
+      { icon: Eye, label: "Look round", bindings: [BINDINGS.walkLook, BINDINGS.lookLeft, BINDINGS.lookRight] },
+      { icon: Gauge, label: "Rev a car, held", bindings: [BINDINGS.rev] },
+      { icon: Armchair, label: "Sit in a car, or get out", bindings: [BINDINGS.cockpit] },
+      { icon: KeyRound, label: "Go in, take a car, or leave", bindings: [BINDINGS.challenge] },
     ],
   },
   {
