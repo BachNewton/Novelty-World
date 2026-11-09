@@ -26,8 +26,9 @@ import { MOST_PLAYERS, type Challenge } from "./types";
  * already under way there, so retries at once are one. Each car's ready, its
  * result (with a race's team points) and a loss called on its own clock go to
  * the team, and the attempt numbers drop anything about an attempt already
- * over. A player who leaves, or drops out of the world, is dropped: the rest
- * carry on, until only one is left, whose co-op then ends. Messages between
+ * over. A player who leaves, or drops out of the world, is dropped and the rest
+ * carry on: in a challenge until only one is left, whose co-op then ends, and
+ * in a race even down to one, against the racers still there. Messages between
  * two players arrive in the order they were sent, so a start always comes
  * before the ready that follows it. Nothing here waits on time: every change
  * is a message, or this player's own press.
@@ -43,7 +44,7 @@ export interface CoopHost {
   challengeById: (id: string) => Challenge | null;
   /** Starts the challenge as a co-op session in this seat of a team this size, swapping the car, and returns it. */
   begin: (challenge: Challenge, seat: number, players: number) => ChallengeSession;
-  /** The team is down to this player alone: the game leaves its session. */
+  /** A challenge's team is down to this player alone: the game leaves its session. */
   end: (notice: CoopNotice) => void;
   /** Something the player should hear about that changed nothing else. */
   notice: (notice: CoopNotice) => void;
@@ -308,14 +309,18 @@ export class CoopLink {
     if (this.invites.delete(peer) && this.standing.kind === "free") this.host.notice({ kind: "expired", peer });
   }
 
-  /** A teammate left: the rest carry on without them, and with no one left this player's co-op ends. */
+  /**
+   * A teammate left: the rest carry on without them. A challenge ends for the last one left, whose co-op is over; a
+   * race carries on even for one, the owner's ruling, since the racers are still there to race (and the leaver's place
+   * goes to a racer once racers are shared online).
+   */
   private dropTeammate(peer: string): void {
     const { standing, playing } = this;
     if (standing.kind !== "playing" || !playing) return;
     const seat = standing.team.indexOf(peer);
     if (seat < 0 || seat === standing.seat || this.gone.has(seat)) return;
     this.gone.add(seat);
-    if (this.teammates.length === 0) {
+    if (this.teammates.length === 0 && standing.challenge.kind !== "race") {
       this.stopPlaying();
       this.host.end({ kind: "left", peer });
       return;

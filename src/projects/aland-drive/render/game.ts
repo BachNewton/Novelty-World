@@ -105,7 +105,7 @@ import { challengeRoute, raceRoute, runOn } from "../challenge/line";
 import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, teamNeeds, type Outcome } from "../challenge/run";
-import { medalForPlace, teamMedal, teamPointsOf, type Medal, type Standing } from "../challenge/standings";
+import { teamMedal, teamPointsOf, type Medal, type Standing } from "../challenge/standings";
 import { gridPlaces, racersOn, startPlaceOf } from "../challenge/grid-places";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
 import type { SeenCar } from "../racers/awareness";
@@ -1942,9 +1942,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const mode = inTeam ? "coop" : "solo";
       // A finished player's place is settled: no racer behind can pass them now.
       const place = playerPlace();
-      const points = inTeam && challenge.kind === "race" ? session.teamPoints : null;
-      // A co-op race's medal is the team's, from its points per player (`challenge/standings.ts`).
-      const medal = challenge.kind !== "race" ? null : points ? teamMedal(points.reduce((sum, each) => sum + each, 0) / points.length, grid?.racers.length ?? 0) : medalForPlace(place);
+      // A race's medal is its team's, from its points per player (`challenge/standings.ts`): solo, a team of one.
+      const medal = challenge.kind === "race" ? raceMedal(session) : null;
       challengeBoard.record(challenge, mode, outcome, place, medal);
       const best = challengeBoard.passOf(challenge, mode)?.best ?? null;
       const target = targetOf(challenge);
@@ -1975,6 +1974,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     bestMedal: challengeBoard.medal(race, mode),
     team,
   });
+  /** A race's medal, solo or co-op alike: its team's points per player against the racers, every player's points in by now. */
+  const raceMedal = (played: ChallengeSession): Medal | null => {
+    const points = played.teamPoints;
+    if (!points) throw new Error(`${played.challenge.id} over before every player's points were in`);
+    return teamMedal(points.reduce((sum, each) => sum + each, 0) / points.length, grid?.racers.length ?? 0);
+  };
   /** Each player still in a co-op team's result, this player first: their time or speed, and in a race their points. */
   const teamResults = (outcome: Outcome): TeamResult[] => {
     if (!session) throw new Error("a team's results with no session");

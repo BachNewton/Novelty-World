@@ -1,11 +1,12 @@
 /*
- * Where a race finishes (`ideas/races.md`, "What winning gets"): first,
- * second and third are gold, silver and bronze. The racers bring places: a car
- * that has finished is placed by its time, and one still racing by how far
- * round it is, behind every finisher. A race with no one in it but its players
- * is first for a finish. Co-op's team points are Forza Horizon's: each player
- * scores for every racer they beat and for a win, and the team's points per
- * player are its medal.
+ * Where a race finishes (`ideas/races.md`, "What winning gets"). The racers
+ * bring places: a car that has finished is placed by its time, and one still
+ * racing by how far round it is, behind every finisher. A race with no one in
+ * it but its players is first for a finish. Every race is scored as Forza
+ * Horizon scores a team, solo a team of one, the owner's ruling of one system:
+ * each player scores for every racer they beat and for a win, and the team's
+ * points per player are its medal. Alone that's first, second and third for
+ * gold, silver and bronze, which `medalForPlace` says.
  */
 
 export type Medal = "gold" | "silver" | "bronze";

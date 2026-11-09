@@ -4,7 +4,7 @@ import type { CarId } from "../sim/cars";
 import { CoopLink, type CoopNotice } from "./coop";
 import { COUNTDOWN_S } from "./run";
 import { ChallengeSession } from "./session";
-import type { Gate, RouteChallenge } from "./types";
+import type { Challenge, Gate, RaceChallenge, RouteChallenge } from "./types";
 
 /*
  * Up to five clients' co-op links over an in-memory world: every send queues,
@@ -28,6 +28,9 @@ const ROUTE: RouteChallenge = {
   targetS: 60,
   conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" },
 };
+
+/** A sprint on the same road, its lines the Route's finish. */
+const RACE: RaceChallenge = { ...ROUTE, id: "race", kind: "race", tier: "A5", number: "A5.0", shape: "sprint", ground: "road", laps: 1, gates: [finish], grid: ROUTE.starts, reserve: [], lapM: 100, lineM: 0 };
 
 interface Client {
   id: string;
@@ -66,7 +69,7 @@ function createWorld() {
       },
       selfId: () => id,
       free: () => session === null && !blocked,
-      challengeById: (wanted) => (wanted === ROUTE.id ? ROUTE : null),
+      challengeById: (wanted) => [ROUTE, RACE].find(({ id }) => id === wanted) ?? null,
       begin: (challenge, seat, players) => {
         session = new ChallengeSession(
           challenge,
@@ -144,11 +147,11 @@ function createWorld() {
 
 
 /** A team on the route: the first client invites, the others join in order, and the inviter starts it once they have. */
-function team(size: number, { loads = [] as string[] } = {}) {
+function team(size: number, { loads = [] as string[], challenge = ROUTE as Challenge } = {}) {
   const world = createWorld();
   const clients = ["a", "b", "c", "d"].slice(0, size).map((id) => world.add(id, { loads: loads.includes(id) }));
   const [inviter, ...joiners] = clients;
-  inviter.link.inviteAll(ROUTE);
+  inviter.link.inviteAll(challenge);
   world.flush();
   for (const joiner of joiners) joiner.link.accept(inviter.id);
   world.flush();
@@ -488,7 +491,19 @@ describe("leaving", () => {
     for (const client of [a, b]) expect(sessionOf(client).run.outcome).toMatchObject({ passed: true, average: expect.closeTo(45, 1) });
   });
 
-  it("ends it for the last one left, with their car back", () => {
+  it("leaves a race running for the last one left, against the racers still there", () => {
+    const { world, clients } = team(3, { challenge: RACE });
+    const c = clients[2];
+    green(clients);
+    world.drop("a");
+    world.drop("b");
+    expect(c.notices).toEqual([{ kind: "left", peer: "a" }, { kind: "left", peer: "b" }]);
+    expect(sessionOf(c).playing).toBe(1);
+    sessionOf(c).step(30, at(100.01));
+    expect(sessionOf(c).run.outcome?.results).toEqual([null, null, expect.closeTo(30, 1)]);
+  });
+
+  it("ends a challenge for the last one left, with their car back", () => {
     const { world, clients } = team(3);
     const [a, b, c] = clients;
     a.link.leave();
