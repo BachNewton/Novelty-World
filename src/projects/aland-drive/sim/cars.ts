@@ -11,6 +11,7 @@ import { berg } from "./cars/berg";
 import { borg } from "./cars/borg";
 import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
+import { dyn } from "./cars/dyn";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { frost } from "./cars/frost";
@@ -19,6 +20,7 @@ import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
+import { kraft } from "./cars/kraft";
 import { kobb } from "./cars/kobb";
 import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
@@ -83,6 +85,7 @@ const ENTRIES = {
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -97,6 +100,7 @@ const ENTRIES = {
   lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,

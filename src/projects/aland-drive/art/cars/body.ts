@@ -109,6 +109,18 @@ export interface Strut {
   sides?: number;
 }
 
+/**
+ * A spare wheel carried on the body, as a desert truck's in its bed: a tyre round a dark dished rim and a polished hub,
+ * its axle along z (standing, its face to the tail) or along the height (lying flat, its face up), centred at `at`.
+ */
+export interface Spare {
+  at: readonly [x: number, h: number, z: number];
+  radiusM: number;
+  widthM: number;
+  axis: "z" | "h";
+  fine?: boolean;
+}
+
 /** Where the inside of the car is. */
 export interface Cabin {
   dashZ: number;
@@ -209,6 +221,7 @@ export interface BodySpec {
   openWheels?: boolean;
   fenders?: readonly Fender[];
   struts?: readonly Strut[];
+  spares?: readonly Spare[];
 }
 
 export interface BodyDetail {
@@ -758,6 +771,55 @@ function addStrut(builder: SoupBuilder, { path, radius, surface, mirror, sides: 
   }
 }
 
+/**
+ * A spare wheel, turned from one profile across its axle (its face first, then the tread, then its back), so every
+ * face points out of it. The profile is in the wheel's own frame, `across` along its axle towards its face; it is
+ * turned onto the body's axes by a rotation, which keeps the faces' winding.
+ */
+function addSpare(builder: SoupBuilder, { at, radiusM: r, widthM, axis }: Spare, ground: number, fine: boolean) {
+  const sides = fine ? 18 : 8;
+  const [half, rim] = [widthM / 2, r * 0.56];
+  type Profile = (readonly [across: number, radius: number, surface: Surface])[];
+  // Far off, a flat face of rim in a tyre as a cone and a drum says a wheel as well as the whole profile would.
+  const profile: Profile = fine
+    ? [
+        [half - 0.02, 0, "rim"],
+        [half - 0.02, r * 0.12, "rim"],
+        [half - 0.05, r * 0.15, "rimDark"],
+        [half - 0.05, rim - 0.02, "rim"],
+        [half - 0.006, rim, "tyre"],
+        [half, rim + 0.012, "tyre"],
+        [half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [half * 0.94, r * 0.975, "tyre"],
+        [half * 0.82, r, "tyre"],
+        [-half * 0.82, r, "tyre"],
+        [-half * 0.94, r * 0.975, "tyre"],
+        [-half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [-half, rim, "tyre"],
+        [-half, 0, "tyre"],
+      ]
+    : [
+        [half - 0.03, 0, "rim"],
+        [half - 0.03, rim, "tyre"],
+        [half, r, "tyre"],
+        [-half, r, "tyre"],
+        [-half, 0, "tyre"],
+      ];
+  const place = (across: number, radius: number, angle: number): Point => {
+    const [c, s] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+    // (across, c, s) turned cyclically onto the body's axes: a rotation, so the winding holds.
+    return axis === "z" ? [at[0] + c, at[1] + ground + s, at[2] + across] : [at[0] + s, at[1] + ground + across, at[2] + c];
+  };
+  const rings = profile.map(([across, radius]) => Array.from({ length: sides }, (_, step) => place(across, radius, (step / sides) * Math.PI * 2)));
+  const group = builder.newGroup();
+  for (let row = 0; row + 1 < rings.length; row++) {
+    for (let step = 0; step < sides; step++) {
+      const next = (step + 1) % sides;
+      builder.quad(rings[row][step], rings[row + 1][step], rings[row + 1][next], rings[row][next], profile[row][2], group);
+    }
+  }
+}
+
 /** Enough of an inside for a window to look into: floor, dash, seats and a wheel, on the driver's side as in Finland. */
 function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
   const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
@@ -927,6 +989,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   addRoofBars(builder, spec, curves, ground);
   for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, detail.outwardBlocks);
   for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
+  for (const spare of spec.spares ?? []) if (detail.fine || !spare.fine) addSpare(builder, spare, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
 }

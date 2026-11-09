@@ -8,6 +8,7 @@ import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
+import { dyn } from "./models/dyn";
 import { fjard } from "./models/fjard";
 import { frost } from "./models/frost";
 import { flod } from "./models/flod";
@@ -15,6 +16,7 @@ import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
+import { kraft } from "./models/kraft";
 import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
 import { kula } from "./models/kula";
@@ -76,6 +78,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -90,6 +93,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,

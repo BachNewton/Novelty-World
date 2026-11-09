@@ -9,6 +9,7 @@ import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
 import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
+import dyn from "./limits/dyn.json";
 import fjard from "./limits/fjard.json";
 import flod from "./limits/flod.json";
 import frost from "./limits/frost.json";
@@ -16,6 +17,7 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
+import kraft from "./limits/kraft.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
 import kula from "./limits/kula.json";
@@ -123,6 +125,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -137,6 +140,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,
