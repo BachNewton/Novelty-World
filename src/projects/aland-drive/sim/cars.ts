@@ -16,6 +16,7 @@ import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
 import { strom } from "./cars/strom";
+import { span } from "./cars/span";
 import { sund } from "./cars/sund";
 import { vik } from "./cars/vik";
 
@@ -40,6 +41,7 @@ const ENTRIES = {
   // A2
   // A3
   dyning,
+  span,
   // A4
   sund,
   // A5
