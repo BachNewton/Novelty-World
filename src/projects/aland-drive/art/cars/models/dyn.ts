@@ -197,7 +197,6 @@ const shape: Shape = {
   extra: {
     bands: BANDS,
     cleanEnds: true,
-    outwardBlocks: true,
     silhouette: [
       // The nose runs one way along the truck from its foot up, so no strip of the face folds back over another.
       { z: NOSE_Z + 0.08, h: 0.62, band: "bumper" },
