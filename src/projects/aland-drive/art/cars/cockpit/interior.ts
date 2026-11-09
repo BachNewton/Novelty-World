@@ -633,6 +633,21 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
   }
 }
 
+/**
+ * A grab handle up each windscreen pillar: a bar standing a hand's width in from the pillar, along its middle, on a
+ * foot at each end.
+ */
+function addGrabHandles(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
+  const { ground: g, cowl, header } = f;
+  const look = smooth(paints.accent);
+  const along = (share: number, inward: number, side: number): Point => {
+    const z = cowl.z + (header.z - cowl.z) * share;
+    const h = cowl.h + (header.h - cowl.h) * share;
+    return [side * (f.glassX(z) - SKIN_M - inward), h + g, z];
+  };
+  for (const side of [-1, 1]) b.tube([along(0.3, 0, side), along(0.36, 0.045, side), along(0.66, 0.045, side), along(0.72, 0, side)], 0.013, 8, look);
+}
+
 /** A cage tube's sides: 30 degrees apart, under the cockpit's 38 degree crease. */
 const CAGE_SIDES = 12;
 /** How far under the belt the door bars' top ends sit. */
@@ -693,6 +708,7 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   addFloor(b, frame, paints);
   if (style.rearMirror) addMirrorAndVisors(b, frame, paints);
   if (style.cage) addCage(b, frame, paints);
+  if (style.grabHandles) addGrabHandles(b, frame, paints);
   const soup = b.finish(38);
 
   const shade = cabinShade(frame);

@@ -7,6 +7,7 @@ import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
+import { dyn } from "./models/dyn";
 import { fjard } from "./models/fjard";
 import { flod } from "./models/flod";
 import { grus } from "./models/grus";
@@ -65,6 +66,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   hagel,
   // B2
   fjard,
+  dyn,
   // B3
   holm,
   // B4

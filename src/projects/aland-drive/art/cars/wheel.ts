@@ -174,13 +174,14 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
         rimSides,
         "rimDark",
       );
-      const bolts = 16;
+      const bolts = 12;
       for (let bolt = 0; bolt < bolts; bolt++) {
         const angle = ((bolt + 0.5) / bolts) * Math.PI * 2;
-        const head = (x: number): Point[] => [0, 1, 2, 3, 4, 5].map((step) => {
-          const a = (step / 6) * Math.PI * 2;
-          return [x, Math.cos(angle) * (rim + 0.005) + Math.cos(a) * 0.008, Math.sin(angle) * (rim + 0.005) + Math.sin(a) * 0.008];
-        });
+        const head = (x: number): Point[] =>
+          [0, 1, 2, 3].map((step) => {
+            const a = angle + ((step + 0.5) / 4) * Math.PI * 2;
+            return [x, Math.cos(angle) * (rim + 0.005) + Math.cos(a) * 0.009, Math.sin(angle) * (rim + 0.005) + Math.sin(a) * 0.009];
+          });
         builder.rings([head(faceX + 0.012), head(faceX + 0.024)], "rim");
       }
     }

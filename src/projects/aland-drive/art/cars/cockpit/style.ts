@@ -46,6 +46,8 @@ export interface InteriorStyle {
    * wheel's opening shows it, in place of the gear window low between them that the wheel's hub can hide.
    */
   centreDisplay: boolean;
+  /** A grab handle up each windscreen pillar, an off-roader's, in the accent colour. */
+  grabHandles: boolean;
   /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
   quilted: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
@@ -101,6 +103,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     harness: false,
     paintedDash: false,
     quilted: false,
+    grabHandles: false,
     centreDisplay: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,

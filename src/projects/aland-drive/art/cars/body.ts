@@ -745,31 +745,34 @@ function addStrut(builder: SoupBuilder, { path, radius, surface, mirror }: Strut
  * turned onto the body's axes by a rotation, which keeps the faces' winding.
  */
 function addSpare(builder: SoupBuilder, { at, radiusM: r, widthM, axis }: Spare, ground: number, fine: boolean) {
-  const sides = fine ? 22 : 10;
+  const sides = fine ? 18 : 8;
   const [half, rim] = [widthM / 2, r * 0.56];
-  const profile: (readonly [across: number, radius: number, surface: Surface])[] = [
-    [half - 0.02, 0, "rim"],
-    [half - 0.02, r * 0.12, "rim"],
-    [half - 0.05, r * 0.15, "rimDark"],
-    [half - 0.05, rim - 0.02, "rim"],
-    [half - 0.006, rim, "tyre"],
-    [half, rim + 0.012, "tyre"],
-    ...(fine
-      ? ([
-          [half * 1.02, rim + (r - rim) * 0.6, "tyre"],
-          [half * 0.94, r * 0.975, "tyre"],
-          [half * 0.82, r, "tyre"],
-          [-half * 0.82, r, "tyre"],
-          [-half * 0.94, r * 0.975, "tyre"],
-          [-half * 1.02, rim + (r - rim) * 0.6, "tyre"],
-        ] as const)
-      : ([
-          [half, r * 0.92, "tyre"],
-          [-half, r * 0.92, "tyre"],
-        ] as const)),
-    [-half, rim, "tyre"],
-    [-half, 0, "tyre"],
-  ];
+  type Profile = (readonly [across: number, radius: number, surface: Surface])[];
+  // Far off, a flat face of rim in a tyre as a cone and a drum says a wheel as well as the whole profile would.
+  const profile: Profile = fine
+    ? [
+        [half - 0.02, 0, "rim"],
+        [half - 0.02, r * 0.12, "rim"],
+        [half - 0.05, r * 0.15, "rimDark"],
+        [half - 0.05, rim - 0.02, "rim"],
+        [half - 0.006, rim, "tyre"],
+        [half, rim + 0.012, "tyre"],
+        [half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [half * 0.94, r * 0.975, "tyre"],
+        [half * 0.82, r, "tyre"],
+        [-half * 0.82, r, "tyre"],
+        [-half * 0.94, r * 0.975, "tyre"],
+        [-half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [-half, rim, "tyre"],
+        [-half, 0, "tyre"],
+      ]
+    : [
+        [half - 0.03, 0, "rim"],
+        [half - 0.03, rim, "tyre"],
+        [half, r, "tyre"],
+        [-half, r, "tyre"],
+        [-half, 0, "tyre"],
+      ];
   const place = (across: number, radius: number, angle: number): Point => {
     const [c, s] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
     // (across, c, s) turned cyclically onto the body's axes: a rotation, so the winding holds.

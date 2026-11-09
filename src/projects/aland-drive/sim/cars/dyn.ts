@@ -13,7 +13,7 @@ export const dyn: CarEntry = {
     name: "Dyn",
     class: "offroad",
     massKg: 2290,
-    outline: [5.6, 2.2, 1.98, 0.5],
+    outline: [5.28, 2.2, 1.98, 0.5],
     axleZ: [-1.86, 1.84],
     trackM: 1.86,
     wheelRadiusM: 0.44,
