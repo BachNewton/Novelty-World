@@ -16,7 +16,7 @@ That builds the venv on first use, downloads what is missing into `.data/raw/` (
 
 **Which tiles** is worked out, not listed: `pipeline/island.py` walks OSM's motor roads out from Eckerö, fetching each tile they reach, until none leads anywhere new. Ferries aren't roads, so that's Fasta Åland and what bridges join to it, 54 tiles, plus the 40 neighbours the mirror has, so a shore has land and sea beyond it. `pipeline/island.json` holds the result. Some outer tiles take an older photo, and some have no laser and so no trees. Past those, `pipeline/outlying.py` bakes the outer islands for the overview alone: no tile streams there, and an island the overview's edge would cut goes whole.
 
-**Publishing.** `pipeline/upload.py` publishes the folder (see Hosting in the project's `CLAUDE.md`), and won't unless `pipeline/check_seams.py` passes.
+**Publishing.** `pipeline/upload.py` publishes the folder (see Hosting in the project's `CLAUDE.md`), and won't unless `pipeline/check_seams.py` passes. Once the new version is deployed and checked live, `upload.py --clear-old` deletes every other version.
 
 **OSM** comes from its own API, not Overpass, whose public servers are too often down: a tile's box at a time, in quarters past the API's 50,000-node limit, each answer kept in `.data/raw/osm-api/` so a stopped fetch resumes. What the build reads is kept in `.data/raw/osm/` and remade from the kept answers, with no fetch, whenever `OSM_KEPT_VERSION` in `pipeline/sources.py` changes. Modules with OSM objects of their own (roadside, furniture, dressing, town) keep them in their own folder under a version of their own.
 
