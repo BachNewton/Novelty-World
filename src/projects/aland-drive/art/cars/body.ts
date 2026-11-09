@@ -195,11 +195,6 @@ export interface BodySpec {
   openWheels?: boolean;
   fenders?: readonly Fender[];
   struts?: readonly Strut[];
-  /**
-   * Where the windscreen meets the roof, for a silhouette faired through it, whose point after the screen's start is
-   * only the next sample up the glass. None, and that point is the screen's top, as a hand-placed silhouette has it.
-   */
-  screenTop?: readonly [z: number, h: number];
 }
 
 export interface BodyDetail {

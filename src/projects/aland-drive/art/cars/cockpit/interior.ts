@@ -70,7 +70,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     paint: finish(null, 0.05, 0.6),
     cage: finish("car-cabin-cage", 0.06, 0.5, { metal: 0.3 }),
     wood: finish("car-cabin-wood", 0.05, 0.6),
-    mirror: finish("car-cabin-mirror", 0.85, 1, { metal: 1 }),
+    mirrorGlass: finish("car-cabin-screen", 0.4, 1, { metal: 0.4 }),
     switchLit: finish("car-cabin-panel", 0.01, 0.3, { glow: 0.9 }),
     lampGreen: finish("car-cabin-lamp-green", 0.02, 0.8),
     lampAmber: finish("car-cabin-lamp-amber", 0.02, 0.8),
@@ -599,18 +599,23 @@ function addFloor(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 }
 
 /** The mirror at the top of the windscreen and the visors folded up beside it. */
+/** The interior mirror's housing, half its width, height and depth. */
+const INTERIOR_MIRROR_HALF_M = [0.105, 0.027, 0.012] as const;
+
 function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const { ground: g, header, open } = f;
   const z = header.z + 0.07;
   const roofY = (open ? header.h - 0.035 : f.roofAt(0, z) - SKIN_M) + g;
   const mount: Point = [0, roofY - 0.004, header.z + 0.035];
-  const body: Point = [0, roofY - 0.07, z];
-  b.tube([mount, add(body, [0, 1, 0], 0.02)], 0.007, 6, smooth(paints.piano));
+  // A slim housing with soft ends on a short stem, and a dark glass face inset in it: a real mirror's size, not a box.
+  const [halfWide, halfTall, halfDeep] = INTERIOR_MIRROR_HALF_M;
+  const body: Point = [0, roofY - 0.058, z];
+  b.tube([mount, add(body, [0, 1, 0], halfTall * 0.6)], 0.006, 6, smooth(paints.piano));
   const facing = normalize([0.18, -0.08, 1]);
   const across = normalize(cross([0, 1, 0], facing));
   const at = axes(body, across, normalize(cross(facing, across)), facing);
-  pillow(b, at, [0.12, 0.034, 0.018], 0.3, smooth(paints.piano), 8);
-  plate(b, at, [0, 0], [0.22, 0.054], 0.0185, flat(paints.mirror));
+  pillow(b, at, INTERIOR_MIRROR_HALF_M, 0.5, smooth(paints.piano), 8);
+  plate(b, at, [0, 0], [halfWide * 1.6, halfTall * 1.2], halfDeep + 0.0015, flat(paints.mirrorGlass));
   if (open) return;
   for (const side of [-1, 1]) {
     const visorZ = header.z + 0.13;
