@@ -242,6 +242,8 @@ export const pil: CarSpec = {
     seats: "sport",
     screen: true,
     seatCheck: ["car-cabin-hot-red", "car-cabin-vastan"],
+    // A little higher than the cabin seats it, so the wheel's hub drops below the cluster's speed.
+    eye: [0, 0.035, 0],
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner-dark", accent: "car-cabin-hot-red", glow: "car-cabin-glow-red" },
   },
 };

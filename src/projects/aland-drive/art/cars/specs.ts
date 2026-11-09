@@ -4,6 +4,7 @@ import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
+import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
@@ -13,6 +14,7 @@ import { ljus } from "./models/ljus";
 import { pil } from "./models/pil";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
+import { span } from "./models/span";
 import { sten } from "./models/sten";
 import { strom } from "./models/strom";
 import { sund } from "./models/sund";
@@ -32,6 +34,8 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   // A2
   // A3
+  dyning,
+  span,
   // A4
   sund,
   // A5
