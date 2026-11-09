@@ -11,6 +11,7 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
+import kula from "./limits/kula.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
@@ -108,6 +109,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };
