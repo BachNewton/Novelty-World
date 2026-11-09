@@ -50,8 +50,8 @@ const grilleFrame = (): Decal[] => {
 
 /** The flank's line: a gill behind each front wheel and a fine bright line drawn back from it over the door to the haunch. */
 const flank = (): Decal[] => [
-  { on: "side", at: [-0.92, 0.6], size: [0.31, 0.12], surface: "rim", mirror: true, cells: [4, 1], liftM: 0.008, fine: true },
-  ...[0.632, 0.6, 0.568].map((h, at): Decal => ({ on: "side", at: [-0.92 - at * 0.012, h], size: [0.27 - at * 0.025, 0.018], surface: "grille", mirror: true, liftM: 0.014 })),
+  { on: "side", at: [-0.92, 0.6], size: [0.31, 0.12], surface: "rim", mirror: true, cells: [4, 1], liftM: 0.012, fine: true },
+  ...[0.632, 0.6, 0.568].map((h, at): Decal => ({ on: "side", at: [-0.92 - at * 0.012, h], size: [0.27 - at * 0.025, 0.018], surface: "grille", mirror: true, liftM: 0.018 })),
   { on: "side", at: [0.12, 0.645], size: [1.75, 0.01], surface: "rim", mirror: true, cells: [12, 1], liftM: 0.012, fine: true },
 ];
 
@@ -93,7 +93,7 @@ const shape: Shape = {
     [-0.9, 0.8],
     [-0.2, 0.795],
     [0.6, 0.835],
-    [1.33, 0.895],
+    [1.33, 0.89],
     [2.0, 0.875],
     [2.36, 0.815],
   ],
@@ -124,7 +124,7 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 1.45,
   seat: "seatTan",
-  decals: [...plates(0.64, 0.36), ...handles([0.82], 0.79), ...grilleFrame(), ...flank(), thirdBrake(2.243, 0.42)],
+  decals: [...plates(0.64, 0.36), ...handles([0.82], 0.79), ...grilleFrame(), ...flank(), { ...thirdBrake(2.243, 0.42), liftM: 0.012 }],
   extra: {
     bands: BANDS,
     silhouette: [
