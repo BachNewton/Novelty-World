@@ -18,7 +18,7 @@ import { limitsOn } from "../sim/car-limits";
 const EAST = -Math.PI / 2;
 const gate = (x: number): Gate => ({ x, z: 0, heading: EAST, halfWidthM: 10 });
 const start = { x: 0, z: 0, heading: EAST };
-const RACE: RaceChallenge = { id: "race", kind: "race", tier: "A5", number: "A5.0", title: "", car: "skerry-gt", where: "", waypoints: [], shape: "sprint", ground: "road", laps: 1, gates: [gate(400), gate(800)], grid: [start, start], starts: [start, start], lapM: 800, lineM: 0, lengthM: 800 };
+const RACE: RaceChallenge = { id: "race", kind: "race", tier: "A5", number: "A5.0", title: "", car: "skerry-gt", where: "", waypoints: [], shape: "sprint", ground: "road", laps: 1, gates: [gate(400), gate(800)], grid: [start, start], reserve: [], starts: [start, start], lapM: 800, lineM: 0, lengthM: 800 };
 const line = new RoadLine(Float32Array.from([0, 0, 0, 1000, 0, 0]));
 const plan = planSpeeds({ curvature: new Float64Array(251), stepM: 4, limitsAt: () => limitsOn("skerry-gt", "dry", "asphalt"), cornerShare: 0.8 });
 

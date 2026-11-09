@@ -1,4 +1,4 @@
-// e2e-covers: src/projects/aland-drive/challenge/{session,run,standings}.ts src/projects/aland-drive/render/challenge-marks.ts src/projects/aland-drive/components/aland-drive.tsx src/projects/aland-drive/racers/{grid,racer,driver,racing-line,speed-plan,race-line-file}.ts
+// e2e-covers: src/projects/aland-drive/challenge/{session,run,standings,grid-places}.ts src/projects/aland-drive/render/challenge-marks.ts src/projects/aland-drive/components/aland-drive.tsx src/projects/aland-drive/render/game-menu.ts src/projects/aland-drive/racers/{grid,racer,driver,racing-line,speed-plan,race-line-file}.ts
 import type { Server } from "node:http";
 import type { Page } from "@playwright/test";
 import type { RaceChallenge } from "../src/projects/aland-drive/challenge/types";
@@ -95,6 +95,8 @@ test("a solo race: its card from its ring, the grid, and a finish in first for g
   await expect(result.getByLabel("Place", { exact: true })).toHaveText("1st");
   await expect(result.getByLabel("Gold").first()).toBeVisible();
   await expect(result.getByLabel("Time")).toHaveCount(0);
+  // Won, the card opens on Leave rather than Retry.
+  await expect(result.getByRole("button", { name: "Leave race" })).toBeFocused();
 });
 
 test("a race against one racer: it takes a grid place, drives, and the player's place counts it", async ({ page }) => {
@@ -119,4 +121,6 @@ test("a race against one racer: it takes a grid place, drives, and the player's 
   const result = page.getByRole("dialog", { name: "Race result" });
   await expect(result.getByLabel("Place", { exact: true })).toHaveText("2nd");
   await expect(result.getByLabel("Silver").first()).toBeVisible();
+  // Not won: the card opens on Retry, for another go at the gold.
+  await expect(result.getByRole("button", { name: "Retry" })).toBeFocused();
 });

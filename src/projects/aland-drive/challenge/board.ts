@@ -104,8 +104,8 @@ export class ChallengeBoard {
   }
 
   /** An attempt played in a mode is over: a pass, or a better best, is kept for that mode. */
-  record(challenge: Challenge, mode: PlayMode, outcome: Outcome, place = 1): void {
-    const next = withOutcome(this.passes, challenge, mode, outcome, place);
+  record(challenge: Challenge, mode: PlayMode, outcome: Outcome, place = 1, medal?: Medal | null): void {
+    const next = withOutcome(this.passes, challenge, mode, outcome, place, medal);
     if (next === this.passes) return;
     this.passes = next;
     this.revision++;

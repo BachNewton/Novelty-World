@@ -1,6 +1,6 @@
 import type { RaceSpec } from "./race-specs";
 import type { ChallengeSpec } from "./specs";
-import type { BucketChallenge, Gate, RaceChallenge, ScenePoint, StartPlace } from "./types";
+import { MOST_PLAYERS, type BucketChallenge, type Gate, type RaceChallenge, type ScenePoint, type StartPlace } from "./types";
 
 /*
  * What is measured from a challenge on the roads, in the shapes its two files
@@ -12,8 +12,10 @@ import type { BucketChallenge, Gate, RaceChallenge, ScenePoint, StartPlace } fro
 export interface PlacesEntry {
   madeFrom: { car: string; waypoints: ScenePoint[]; lengthM: number | null };
   lengthM: number;
-  /** The first player's, then the second's. */
+  /** The first player's, then the second's, side by side. */
   starts: StartPlace[];
+  /** Co-op's third and fourth players', a row behind or ahead of the first two. */
+  moreStarts?: StartPlace[];
   gates?: Gate[];
   camera?: Gate;
 }
@@ -27,17 +29,20 @@ export interface TargetsEntry {
   target: number;
 }
 
-/** A short print of a challenge's places: any change to them changes it. */
+/**
+ * A short print of a challenge's places, as its par or laps were measured on them: any change to them changes it. Co-op's
+ * extra places aren't in it, since par and laps are driven from the first places alone.
+ */
 export function placesPrint(entry: PlacesEntry | RacePlacesEntry): string {
   let hash = 0x811c9dc5;
-  for (const character of JSON.stringify(entry)) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
+  for (const character of JSON.stringify({ ...entry, moreStarts: undefined, reserve: undefined })) hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 /** A challenge from its spec, its places and its par and target. */
 export function challengeFrom(spec: ChallengeSpec, places: PlacesEntry, { par, target }: { par: number; target: number }): BucketChallenge {
-  if (places.starts.length !== 2) throw new Error(`${spec.id} has ${places.starts.length} start places, not two`);
-  const starts = [places.starts[0], places.starts[1]] as const;
+  const starts = [...places.starts, ...(places.moreStarts ?? [])];
+  if (starts.length !== MOST_PLAYERS) throw new Error(`${spec.id} has ${starts.length} start places, not ${MOST_PLAYERS}: run tools/challenge-places.ts`);
   const common = { id: spec.id, title: spec.title, car: spec.car, where: spec.where, waypoints: spec.waypoints, starts, lengthM: places.lengthM, conditions: spec.conditions };
   if (spec.kind === "route") {
     if (!places.gates) throw new Error(`${spec.id} is a Route with no gates`);
@@ -59,6 +64,8 @@ export interface RacePlacesEntry {
   /** How much of the way is laid in gravel, the rest asphalt, which its ground has to agree with. */
   gravel: number;
   grid: StartPlace[];
+  /** A single-file grid's places for a bigger co-op field, in the order they're taken: behind its back on a circuit, ahead of its pole on a sprint. */
+  reserve?: StartPlace[];
   /** One lap's lines, the last the finish. */
   gates: Gate[];
 }
@@ -86,6 +93,7 @@ export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, laps: number):
     waypoints: spec.waypoints,
     starts: [places.grid[0], places.grid[1]],
     grid: places.grid,
+    reserve: places.reserve ?? [],
     gates: places.gates,
     laps,
     lapM: places.lapM,
