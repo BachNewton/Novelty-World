@@ -245,7 +245,7 @@ const shape: Shape = {
     ],
     // A 2+2: the rear seats drawn forward under the fastback, so their heads stay below the rear glass.
     cabin: { dashZ: -0.32, dashH: 0.77, floorH: 0.28, seatZ: 0.6, rearSeatZ: 1.2, endZ: 1.6, seatX: BRUS.trackM * 0.23, seatSurface: "seat" },
-    exhausts: { x: [-0.3, -0.2, 0.2, 0.3], h: 0.27, z: 2.33, radius: 0.042 },
+    exhausts: { x: [-0.31, -0.195, 0.195, 0.31], h: 0.3, z: 2.33, radius: 0.05 },
   },
 };
 
