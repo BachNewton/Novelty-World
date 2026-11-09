@@ -4,6 +4,7 @@ import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
 import { berg } from "./models/berg";
 import { bris } from "./models/bris";
+import { brus } from "./models/brus";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
 import { grus } from "./models/grus";
@@ -34,6 +35,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // A3
   dyning,
   // A4
+  brus,
   sund,
   // A5
   "skerry-gt": skerryGt,

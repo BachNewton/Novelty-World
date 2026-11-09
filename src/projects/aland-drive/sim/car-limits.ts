@@ -5,6 +5,7 @@ import aska from "./limits/aska.json";
 import ankar from "./limits/ankar.json";
 import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
+import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
 import grus from "./limits/grus.json";
@@ -81,6 +82,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // A3
   dyning,
   // A4
+  brus,
   sund,
   // A5
   "skerry-gt": skerryGt,
