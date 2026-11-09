@@ -20,12 +20,6 @@
   "boats: pilot": {
     "near": 65
   },
-  "cars: Holm hero": {
-    "body": 4
-  },
-  "cars: Holm far": {
-    "body": 4
-  },
   "cars: Kobb hero": {
     "body": 59
   },
