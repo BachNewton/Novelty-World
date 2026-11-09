@@ -9,6 +9,7 @@ import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
 import brus from "./limits/brus.json";
 import dyning from "./limits/dyning.json";
+import dyn from "./limits/dyn.json";
 import fjard from "./limits/fjard.json";
 import flod from "./limits/flod.json";
 import frost from "./limits/frost.json";
@@ -16,6 +17,7 @@ import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
+import kraft from "./limits/kraft.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
 import kula from "./limits/kula.json";
@@ -25,6 +27,7 @@ import orkan from "./limits/orkan.json";
 import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
 import pil from "./limits/pil.json";
+import lontano from "./limits/lontano.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
@@ -34,6 +37,7 @@ import strom from "./limits/strom.json";
 import sund from "./limits/sund.json";
 import varg from "./limits/varg.json";
 import vik from "./limits/vik.json";
+import virvel from "./limits/virvel.json";
 
 /*
  * What each car can do at the limit, measured in the simulation
@@ -95,6 +99,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   aska,
   blixt,
   // A2
+  virvel,
   orkan,
   varg,
   // A3
@@ -121,6 +126,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -133,8 +139,10 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,

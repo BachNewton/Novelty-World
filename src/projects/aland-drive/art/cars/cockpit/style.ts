@@ -51,6 +51,8 @@ export interface InteriorStyle {
    * wheel's opening shows it, in place of the gear window low between them that the wheel's hub can hide.
    */
   centreDisplay: boolean;
+  /** A grab handle up each windscreen pillar, an off-roader's, in the accent colour. */
+  grabHandles: boolean;
   /** With analogue dials, a turbo's boost gauge, a small dial between the two big ones over the gear window. */
   boost: boolean;
   /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
@@ -123,6 +125,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     paintedDash: false,
     seatBand: null,
     quilted: false,
+    grabHandles: false,
     stackBoost: 0,
     lightDials: false,
     centreDisplay: false,

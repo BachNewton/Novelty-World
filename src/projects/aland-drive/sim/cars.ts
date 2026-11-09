@@ -11,6 +11,7 @@ import { berg } from "./cars/berg";
 import { borg } from "./cars/borg";
 import { bris } from "./cars/bris";
 import { brus } from "./cars/brus";
+import { dyn } from "./cars/dyn";
 import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
 import { frost } from "./cars/frost";
@@ -19,10 +20,12 @@ import { grus } from "./cars/grus";
 import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
+import { kraft } from "./cars/kraft";
 import { kobb } from "./cars/kobb";
 import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
 import { myr } from "./cars/myr";
+import { lontano } from "./cars/lontano";
 import { ljus } from "./cars/ljus";
 import { pil } from "./cars/pil";
 import { salta } from "./cars/salta";
@@ -34,6 +37,7 @@ import { span } from "./cars/span";
 import { sund } from "./cars/sund";
 import { varg } from "./cars/varg";
 import { vik } from "./cars/vik";
+import { virvel } from "./cars/virvel";
 
 /*
  * The cars a player can drive, each its own car: its wheels where its art has
@@ -55,6 +59,7 @@ const ENTRIES = {
   aska,
   blixt,
   // A2
+  virvel,
   orkan,
   varg,
   // A3
@@ -81,6 +86,7 @@ const ENTRIES = {
   hagel,
   // B2
   fjard,
+  dyn,
   lera,
   // B3
   holm,
@@ -93,8 +99,10 @@ const ENTRIES = {
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
+  kraft,
   // C4
   salta,
   kula,
