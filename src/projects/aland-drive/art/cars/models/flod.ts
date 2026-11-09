@@ -101,10 +101,10 @@ const shape: Shape = {
     [2.51, 0.6],
   ],
   tail: [],
-  seams: [-0.4, 0.64, 1.12],
+  seams: [-0.4, 0.55, 1.12],
   pillars: [
-    [0.62, 0.7],
-    [1.2, 1.27],
+    [0.48, 0.56],
+    [1.18, 1.25],
   ],
   mirror: { z: -0.24, h: 1.02, x: 0.92 },
   rearPlateH: 0.66,
@@ -113,7 +113,7 @@ const shape: Shape = {
   seat: "seatTan",
   decals: [
     ...plates(0.66, 0.34),
-    ...handles([0.3, 0.98], 0.9),
+    ...handles([0.22, 0.88], 0.9),
     reversing(0.32, 0.46),
     // A reflector low in each corner.
     reflector(0.72, 0.42),
@@ -177,7 +177,7 @@ const shape: Shape = {
       ),
       // The tailgate's glass, raked as a fast estate's is.
       { z: 2.16, h: 1.395, band: "rearGlass" },
-      { z: 2.28, h: 1.24, band: "rearGlass", fine: true },
+      { z: 2.27, h: 1.236, band: "rearGlass", fine: true },
       { z: 2.38, h: 1.06 },
       { z: 2.4, h: 1.035, band: "gap" },
       { z: 2.41, h: 1.02, band: "visor" },
@@ -219,7 +219,7 @@ const shape: Shape = {
       [2.51, 0.88],
     ],
     hoodSeamZ: [-2.25, -0.55],
-    cabin: { dashZ: -0.42, dashH: 0.87, floorH: 0.28, seatZ: 0.5, rearSeatZ: 1.32, endZ: 2.2, seatX: FLOD.trackM * 0.23, seatSurface: "seatTan" },
+    cabin: { dashZ: -0.42, dashH: 0.87, floorH: 0.28, seatZ: 0.42, rearSeatZ: 1.26, endZ: 2.2, seatX: FLOD.trackM * 0.23, seatSurface: "seatTan" },
     cleanEnds: true,
     scoop: [
       [-1.0, 0],
