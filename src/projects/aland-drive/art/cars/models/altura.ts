@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser, louvres, sideIntake, splitter } from "../parts";
+import { louvres, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
 
 const ALTURA = driven("altura");
@@ -140,7 +140,6 @@ const shape: Shape = {
     // A blade of the body's colour across the intake, so it reads as a shaped duct and not a hole.
     { at: [0.895, 0.5, 0.62], size: [0.05, 0.026, 0.38], surface: "paint", mirror: true, taper: [1, 0.8], fine: true },
     splitter({ z: -2.3, h: 0.235, halfWidth: 0.6, long: 0.12 }),
-    ...diffuser({ z: 1.9, tailZ: 2.07, h: 0.33, x: [0, 0.44] }),
   ],
   extra: {
     bands: BANDS,
@@ -269,6 +268,7 @@ export const altura: CarSpec = {
     lightDials: true,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", accent: "car-cabin-gold", glow: "car-cabin-glow-amber" },
     turnsToLock: 1.25,
-    eye: [0, 0, 0],
+    // A seat set a little low, so the readouts in the rev counter's foot show over the wheel's hub.
+    eye: [0, -0.03, 0],
   },
 };
