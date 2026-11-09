@@ -46,7 +46,7 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 const livery = (): Decal[] => [
   { on: "top", at: [0.13, -1.42], size: [0.15, 1.18], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
   { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
-  { on: "side", at: [0.02, 0.62], size: [2.15, 0.15], surface: "stripe", mirror: true, cells: [6, 1], liftM: 0.01 },
+  { on: "side", at: [0.12, 0.62], size: [1.42, 0.15], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
 ];
 
 /** The roof scoop: a shaped intake standing out of the roof, its mouth dark. */
@@ -131,6 +131,8 @@ const shape: Shape = {
     { on: "top", at: [0, -1.2], size: [0.13, 0.3], surface: "grille", cells: [2, 4], liftM: 0.012, fine: true },
     ...louvres({ x: 0.66, z: -1.6, long: 0.42, wide: 0.15, count: 5 }),
     { ...sideIntake({ z: -0.8, h: 0.6, long: 0.12, tall: 0.24 }), cells: [1, 3] },
+    // The vent behind each rear wheel, where the air from the arch leaves.
+    { ...sideIntake({ z: 1.83, h: 0.52, long: 0.16, tall: 0.2 }), cells: [1, 3], fine: true },
   ],
   blocks: [
     // Ödmark's square driving lamps, low in the mouth.
@@ -149,6 +151,7 @@ const shape: Shape = {
   extra: {
     bands: BANDS,
     cleanEnds: true,
+    outwardBlocks: true,
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
       { z: -2.062, h: 0.25, band: "bumper" },
@@ -189,8 +192,8 @@ const shape: Shape = {
       { z: 1.86, h: 0.96, band: "gap", fine: true },
       { z: 1.87, h: 0.955, band: "tailDark" },
       { z: 1.885, h: 0.935, band: "tailLamp" },
-      { z: 1.9, h: 0.84, band: "tailDark", fine: true },
-      { z: 1.91, h: 0.82 },
+      { z: 1.9, h: 0.83, band: "tailDark", fine: true },
+      { z: 1.91, h: 0.81 },
       { z: 1.97, h: 0.62, band: "bumper" },
       { z: 2.03, h: 0.46, band: "diffuser" },
       { z: 2.05, h: 0.3 },
@@ -216,7 +219,8 @@ const shape: Shape = {
       [-1.32, 0.05],
       [-0.74, 0.07],
       [0.3, 0.09],
-      [1.3, 0.13],
+      [1.0, 0.105],
+      [1.5, 0.11],
       [2.06, 0.06],
     ],
     halfWidth: [
@@ -232,8 +236,7 @@ const shape: Shape = {
     ],
     scoop: [
       [-0.85, 0],
-      [-0.3, 0.02],
-      [0.6, 0.025],
+      [0, 0.012],
       [0.85, 0],
     ],
     hoodSeamZ: [-1.95, -0.84],

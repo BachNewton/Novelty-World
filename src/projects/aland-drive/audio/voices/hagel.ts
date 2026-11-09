@@ -1,33 +1,63 @@
+import { inline } from "../firing";
 import type { Voice } from "../vehicles";
 
 /**
- * A 1.6-litre turbo four built for rallying, on anti-lag, over a hybrid unit: an even, hard, rasping four with a
- * bright turbo whistle in its intake, a crackle of anti-lag under it, and the hybrid motor's thin whine above it.
- * Today's model has no pops on lift, so the crackle is a clatter beaten into the intake; provisional, until the sound's
- * own work redoes the voices.
+ * A 1.6-litre turbo four built for top-class rallying: hard, even and rasping on a short, open pipe, its turbo kept
+ * spinning by anti-lag so it whistles from low revs and bangs on every lift, a straight-cut sequential box whining
+ * under it, and the hybrid unit's motor singing with the speed, loudest as it harvests under braking. No deadening in a
+ * stripped shell, so the cockpit hears it nearly whole.
  */
 export const hagel: Voice = {
   seed: 2207,
-  firesPerRev: 2,
-  pulseOrders: [1, 2, 3.02, 4.1],
-  pulseDecay: 0.3,
-  unevenness: 0.1,
-  harmonics: [
-    { order: 0.5, wave: "triangle", level: 0.08, cents: 0 },
-    { order: 1, wave: "sawtooth", level: 0.36, cents: -6 },
-    { order: 2, wave: "sawtooth", level: 0.2, cents: 8 },
-    { order: 4, wave: "square", level: 0.05, cents: 14 },
-    { order: 9, wave: "sine", level: 0.05, cents: 3 },
-  ],
-  cycleLevel: 0.6,
-  exhaustHz: [1000, 3600, 2800],
-  bodyHz: 420,
-  bodyDb: 7,
-  drive: 3.4,
-  intakeHz: [2200, 6800],
-  intakeQ: 4.5,
-  intakeLevel: 0.3,
-  firingBeat: 0.28,
-  level: 0.37,
-  idleLevel: 0.45,
+  combustion: {
+    firing: inline(4),
+    lope: 0.09,
+    jitter: 0.12,
+    banks: { gain: 1, ring: 1, delayMs: 0 },
+    pulseMs: 0.95,
+    headerHz: 720,
+    roughness: 0.4,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.15,
+    fan: null,
+    pipeHz: 175,
+    pipeRing: 0.42,
+    exhaustHz: [1100, 3400, 2400],
+    silencerHz: 380,
+    silencerDb: 6,
+    rasp: 2.7,
+    intakeHz: 340,
+    intakeQ: 2.4,
+    intake: 0.8,
+    limiterHz: 16,
+  },
+  electric: {
+    rpmPerMS: 210,
+    orders: [
+      [8, 0.8],
+      [24, 0.35],
+      [48, 0.12],
+    ],
+    level: 0.18,
+    carrierHz: 3200,
+    polePairs: 4,
+    inverter: 0.07,
+    regen: 0.8,
+  },
+  turbo: {
+    boostFrom: 0.18,
+    spoolS: 0.35,
+    whistleHz: [2600, 8000],
+    whistle: 0.14,
+    hiss: 0.12,
+    blowOff: "flutter",
+    blowOffLevel: 1,
+  },
+  supercharger: null,
+  overrun: { crackle: 4, antiLag: 4 },
+  gearWhine: { teeth: 19, level: 0.08 },
+  cabin: 0.3,
+  level: 0.36,
+  idleLevel: 0.48,
 };
