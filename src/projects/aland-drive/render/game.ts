@@ -91,7 +91,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { carOfItem, carsMenu, drivingMenu, graphicsMenu, isCarItem, isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
@@ -1669,7 +1669,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
   const menuNow = (): GameMenu => {
-    if (!session) return drivingMenu(drive.tyres, drive.assists);
+    if (!session) return drivingMenu;
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
     const { challenge } = session;
     return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
@@ -1897,7 +1897,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "tyres-studded": {
         const fitted = tyreOfItem(id);
         setTyres(fitted);
-        showMenu(drivingMenu(fitted, drive.assists));
+        showMenu(settingsMenu(fitted, drive.assists));
         break;
       }
       case "abs":
@@ -1906,18 +1906,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const assists = { ...drive.assists, [id]: !drive.assists[id] };
         keepAssists(assists);
         drive.assists = assists;
-        showMenu(drivingMenu(drive.tyres, assists));
+        showMenu(settingsMenu(drive.tyres, assists));
         break;
       }
       case "units-metric":
       case "units-imperial":
         useUnits.getState().setUnits(unitsOfItem(id));
         break;
-      case "sound":
-        useDriveSoundSettings.getState().toggleMuted();
-        break;
-      case "graphics":
-        showMenu(graphicsMenu);
+      case "settings":
+        showMenu(settingsMenu(drive.tyres, drive.assists));
         break;
       case "cars":
         showMenu(carsMenuNow());

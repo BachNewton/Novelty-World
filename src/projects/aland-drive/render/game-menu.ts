@@ -20,7 +20,7 @@ import { isCarId, type CarId } from "../sim/cars";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "cars" | CarItem | PaintItem | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "cars" | "settings" | CarItem | PaintItem | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -64,8 +64,8 @@ export type CarItem = `car-${CarId}`;
 /** A paint on the Cars page, by its index in the driven car's list. */
 export type PaintItem = `paint-${number}`;
 
-/** What the dialog is: the game menu, its Graphics or Cars page, or one of a challenge's choices. */
-export type MenuKind = "menu" | "graphics" | "cars" | "start" | "invite" | "race";
+/** What the dialog is: the game menu, its Settings or Cars page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "settings" | "cars" | "start" | "invite" | "race";
 
 /** A car as the Cars page shows it: its spec sheet, its paints and the one it's in. */
 export interface CarCard {
@@ -102,7 +102,7 @@ export interface GameMenu {
 }
 
 /**
- * The menu outside a challenge, on the car's tyres and the driver's aids. Changing tyres is here until homes and car
+ * The menu outside a challenge leads to the Cars and Settings pages. Changing tyres is in Settings until homes and car
  * shops exist, and never in a challenge, whose car is the challenge's; the aids are the player's, so they go with
  * them into one.
  */
@@ -116,7 +116,14 @@ const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric",
 /** The units a units choice sets. */
 export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
 
-export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "cars", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+export const drivingMenu: GameMenu = { items: ["resume", "cars", "settings"], back: "resume", pauses: true };
+
+/**
+ * The Settings page off the game menu, in tabs: Gameplay, Controls, Audio and Graphics. Its items are Gameplay's, the
+ * settings the game holds; the page keeps the others itself (the sound, the render scale) and which tab is open. Back
+ * returns to the menu.
+ */
+export const settingsMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ kind: "settings", items: ["tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "back"], back: "back", pauses: true, tyres, assists });
 
 export const isCarItem = (id: MenuItemId): id is CarItem => id.startsWith("car-") && isCarId(id.slice("car-".length));
 
@@ -144,6 +151,3 @@ export const carsMenu = (driven: CarId, cars: readonly CarCard[], field: Field):
     garage: { driven, cars, field },
   };
 };
-
-/** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
-export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };
