@@ -12,7 +12,7 @@ export const varg: CarEntry = {
     name: "Varg",
     class: "sports",
     massKg: 1690,
-    outline: [4.74, 2.02, 1.24, 0.12],
+    outline: [4.74, 2.02, 1.25, 0.12],
     axleZ: [-1.46, 1.32],
     trackM: 1.7,
     wheelRadiusM: 0.36,

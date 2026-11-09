@@ -45,8 +45,8 @@ const shape: Shape = {
   hoodLipH: 0.65,
   hoodH: 0.86,
   cowl: [-0.3, 0.895],
-  header: [0.3, 1.18],
-  roof: [0.62, 1.24],
+  header: [0.28, 1.2],
+  roof: [0.65, 1.25],
   roofEnd: [0.9, 1.22],
   shoulder: [
     [-2.37, 0.42],
@@ -72,9 +72,9 @@ const shape: Shape = {
   windowTop: [
     [-0.27, 0.93],
     [0.0, 1.06],
-    [0.3, 1.15],
-    [0.62, 1.18],
-    [0.9, 1.14],
+    [0.3, 1.165],
+    [0.62, 1.19],
+    [0.9, 1.15],
     [1.2, 1.05],
     [1.45, 1.0],
   ],
@@ -153,10 +153,10 @@ const shape: Shape = {
       ...faired(
         [
           [-0.3, 0.895],
-          [0.05, 1.1],
-          [0.35, 1.2],
-          [0.65, 1.235],
-          [0.95, 1.2],
+          [0.0, 1.09],
+          [0.3, 1.21],
+          [0.65, 1.25],
+          [0.95, 1.215],
           [1.3, 1.09],
           [1.6, 1.025],
           [1.9, 1.008],
@@ -164,7 +164,7 @@ const shape: Shape = {
         ],
         [
           [-0.3, "screen"],
-          [0.3, undefined],
+          [0.28, undefined],
           [0.9, "rearGlass"],
           [1.56, undefined],
         ],
@@ -250,6 +250,8 @@ export const varg: CarSpec = {
     seats: "sport",
     screen: false,
     turnsToLock: 1.4,
+    // Down a little under the low roof, so the screen's header sits higher in the view and the road owns it.
+    eye: [0, -0.02, 0],
     colours: { glow: "car-cabin-glow-red", headliner: "car-cabin-headliner-dark", insert: "car-cabin-seat-oxblood", seat: "car-cabin-seat-oxblood" },
   },
 };
