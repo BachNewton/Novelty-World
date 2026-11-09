@@ -78,6 +78,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     lampAmber: finish("car-cabin-lamp-amber", 0.02, 0.8),
     lampRed: finish("car-cabin-lamp-red", 0.02, 0.8),
     glowLamp: finish(style.colours.glow, 0.02, 0.8),
+    seatBand: style.seatBand === null ? null : finish(style.seatBand, 0.004, 0.08),
   };
 }
 type Paints = ReturnType<typeof paintsOf>;
@@ -299,7 +300,7 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const cell = [cellUv(SLOT.digital), cellUv(SLOT.digital + 1)];
     plate(b, at, [0, 0], [w - 0.014, h - 0.014], 0.003, flat(paints.dial, KIND.dial, SLOT.digital), [cell[0].u, cell[0].v, cell[1].u + cell[1].width, cell[0].v + cell[0].height]);
     dials.push({ slot: SLOT.digital, source: SOURCE.none, startDeg: 0, sweepDeg: 0 });
-    if (style.speedAside) readout(SOURCE.speed, 3, -0.064, -0.022, 0.034);
+    if (style.speedAside) readout(SOURCE.speed, 3, -style.speedAsideM, -0.022, 0.034);
     else readout(SOURCE.speed, 3, 0, -0.004, 0.04);
     readout(SOURCE.gear, 1, w / 2 - 0.045, -0.025, 0.028);
     // The revs, or an electric car's power, as segments round an arc over the figures.
@@ -550,6 +551,11 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
+  if (paints.seatBand !== null && kind !== "bench") {
+    // One band of contrasting cloth across the front seats' faces at the shoulders, standing a few millimetres proud.
+    const band = smooth(paints.seatBand);
+    pillow(b, axes(add(add(middle, back, -0.064), up, tall * 0.48), RIGHT, up, back), [wide * 0.47, 0.022, 0.006], 0.3, band, 4);
+  }
   if (stitched) {
     // A seam of contrasting thread down each side of the seat's face and its cushion, standing a hair proud of them.
     const thread = smooth(paints.stitch);

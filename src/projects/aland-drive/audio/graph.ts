@@ -615,9 +615,10 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
 
       if (engine !== null && spec !== null) {
         const stepped = state.engine ? { read: state.engine, shifted: state.engine.gear !== engine.gear } : stepEngine(spec, engine, state.speedMS, state.throttle, dt);
+        const shiftedUp = stepped.shifted && stepped.read.gear > engine.gear;
         engine = stepped.read;
         if (stepped.shifted && state.paused !== true) rig.player.play("gear");
-        const sounded = stepEngineSound(spec, engineSound, state.heldRpm ?? engine.rpm, engine.load, dt, Math.random);
+        const sounded = stepEngineSound(spec, engineSound, state.heldRpm ?? engine.rpm, engine.load, dt, Math.random, shiftedUp);
         engineSound = sounded.sound;
         if (state.paused !== true) engineNodes?.hear?.(sounded.heard);
       }

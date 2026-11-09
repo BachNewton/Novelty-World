@@ -23,6 +23,7 @@ import { kobb } from "./cars/kobb";
 import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
 import { ljus } from "./cars/ljus";
+import { pil } from "./cars/pil";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
@@ -71,6 +72,7 @@ const ENTRIES = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,

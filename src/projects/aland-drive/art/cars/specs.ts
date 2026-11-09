@@ -22,6 +22,7 @@ import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
 import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
+import { pil } from "./models/pil";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
@@ -64,6 +65,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,

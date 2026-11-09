@@ -23,6 +23,7 @@ import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
 import rimfrost from "./limits/rimfrost.json";
 import ljus from "./limits/ljus.json";
+import pil from "./limits/pil.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import span from "./limits/span.json";
@@ -111,6 +112,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
