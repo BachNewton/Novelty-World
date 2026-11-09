@@ -11,6 +11,7 @@ import gnista from "./limits/gnista.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
 import ljus from "./limits/ljus.json";
+import pil from "./limits/pil.json";
 import salta from "./limits/salta.json";
 import skerryGt from "./limits/skerry-gt.json";
 import sten from "./limits/sten.json";
@@ -88,6 +89,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,

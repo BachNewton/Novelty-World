@@ -10,6 +10,7 @@ import { gnista } from "./models/gnista";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
 import { ljus } from "./models/ljus";
+import { pil } from "./models/pil";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { sten } from "./models/sten";
@@ -41,6 +42,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,

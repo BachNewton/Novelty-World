@@ -452,9 +452,10 @@ export const onLimiter = (spec: EngineSpec, rpm: number, load: number) => spec.c
 /**
  * One frame of what the engine's sound remembers: the turbo spooling with load and revs after its lag and venting on
  * a lift, and the exhaust popping as the revs fall with the throttle shut, or banging all the while off it with
- * anti-lag. `random` (0 to 1) scatters the pops, so they don't tick like a clock.
+ * anti-lag, or as the box changes up on load (`shiftedUp`, this frame). `random` (0 to 1) scatters the pops, so they
+ * don't tick like a clock.
  */
-export function stepEngineSound(spec: EngineSpec, past: EngineSound, rpm: number, load: number, dt: number, random: () => number): { sound: EngineSound; heard: EngineHeard } {
+export function stepEngineSound(spec: EngineSpec, past: EngineSound, rpm: number, load: number, dt: number, random: () => number, shiftedUp = false): { sound: EngineSound; heard: EngineHeard } {
   const revs = revsOf(spec, rpm);
   const loaded = load > LOADED_ABOVE ? true : load < LIFTED_BELOW ? false : past.loaded;
   const lifted = past.loaded && !loaded;
@@ -485,7 +486,7 @@ export function stepEngineSound(spec: EngineSpec, past: EngineSound, rpm: number
 
   return {
     sound: { boost, shaft, loaded, sinceLiftS, sinceBlowOffS, pops: pops.carry, bangs: bangs.carry },
-    heard: { blowOff, pops: pops.count, bangs: bangs.count },
+    heard: { blowOff, pops: pops.count + (shiftedUp && past.loaded && spec.combustion !== null ? (spec.overrun.upshiftPops ?? 0) : 0), bangs: bangs.count },
   };
 }
 

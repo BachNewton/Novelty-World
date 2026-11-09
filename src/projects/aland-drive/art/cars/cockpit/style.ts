@@ -46,6 +46,10 @@ export interface InteriorStyle {
     /** What the dials, figures and switches light in after dark. */
     glow: string;
   };
+  /** Thin lines across the seats' inserts, in these colours by turns, so the inserts read as a check cloth; none, plain. */
+  seatCheck: readonly string[];
+  /** The gear lever's knob: "plain", a leather cap, or "ball", a round knob with a band round its middle. */
+  knob: "plain" | "ball";
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
@@ -70,6 +74,8 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     screen: !rally,
     cage: rally,
     paintedDash: false,
+    seatCheck: [],
+    knob: "plain",
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],

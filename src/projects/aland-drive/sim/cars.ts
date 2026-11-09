@@ -11,6 +11,7 @@ import { gnista } from "./cars/gnista";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
+import { pil } from "./cars/pil";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
@@ -48,6 +49,7 @@ const ENTRIES = {
   bris,
   sten,
   // A7
+  pil,
   ljus,
   // B1
   grus,
