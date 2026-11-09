@@ -45,8 +45,8 @@ const shape: Shape = {
   hoodLipH: 0.65,
   hoodH: 0.86,
   cowl: [-0.3, 0.895],
-  header: [0.28, 1.2],
-  roof: [0.65, 1.25],
+  header: [0.26, 1.225],
+  roof: [0.62, 1.265],
   roofEnd: [0.9, 1.22],
   shoulder: [
     [-2.37, 0.42],
@@ -72,9 +72,9 @@ const shape: Shape = {
   windowTop: [
     [-0.27, 0.93],
     [0.0, 1.06],
-    [0.3, 1.165],
-    [0.62, 1.19],
-    [0.9, 1.15],
+    [0.3, 1.18],
+    [0.62, 1.2],
+    [0.9, 1.16],
     [1.2, 1.05],
     [1.45, 1.0],
   ],
@@ -116,16 +116,18 @@ const shape: Shape = {
     { ...reversing(0.5, 0.919), size: [0.075, 0.026] },
     reflector(0.7, 0.45),
     { ...sideIntake({ z: -0.98, h: 0.64, long: 0.24, tall: 0.08 }), cells: [3, 1] },
-    { ...sideIntake({ z: 0.82, h: 0.44, long: 0.2, tall: 0.12 }), cells: [3, 1] },
+    // Clear of the rear arch's flare, which would bulge up into it.
+    { ...sideIntake({ z: 0.74, h: 0.44, long: 0.2, tall: 0.12 }), cells: [3, 1], liftM: 0.014 },
     ...louvres({ x: 0.5, z: -1.25, long: 0.42, wide: 0.22, count: 5 }),
     topStripe(-1.35, 1.85),
     topStripe(0.6, 0.56),
     topStripe(1.89, 0.6),
+    // The stripes run on down the tail to the plate, so from behind they read as stripes and not two patches on the deck.
+    { on: "rear", at: [0.115, 0.84], size: [0.14, 0.3], surface: "stripe", mirror: true, cells: [1, 3], liftM: 0.012 },
   ],
   blocks: [splitter({ z: -2.355, h: 0.19, halfWidth: 0.55, long: 0.2 }),
-    // A lip of the body's colour over the fender's vent and over the brake duct ahead of the rear wheel, so each reads as a duct.
+    // A lip of the body's colour over the fender's vent, so it reads as a duct.
     { at: [0.955, 0.688, -0.98], size: [0.05, 0.014, 0.28], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
-    { at: [0.985, 0.508, 0.82], size: [0.06, 0.016, 0.24], surface: "paint", mirror: true, taper: [1, 0.7], fine: true },
     // The spine of the body's colour down the middle of the face, splitting the intake.
     { at: [0, 0.37, -2.34], size: [0.13, 0.16, 0.08], surface: "paint", taper: [0.85, 1] }, // The diffuser's strakes stand under the tail, out of sight from 100 m: near only.
     ...diffuser({ z: 1.95, tailZ: 2.34, h: 0.3, x: [0, 0.3] }).map((strake) => ({ ...strake, fine: true }))],
@@ -150,21 +152,20 @@ const shape: Shape = {
         [[-2.31, undefined]],
       ),
       { z: -0.36, h: 0.888, band: "cowl" },
+      // The screen is one straight stretch, so the cockpit finds its header where it meets the roof.
+      { z: -0.3, h: 0.895, band: "screen" },
       ...faired(
         [
-          [-0.3, 0.895],
-          [0.0, 1.09],
-          [0.3, 1.21],
-          [0.65, 1.25],
-          [0.95, 1.215],
+          [0.26, 1.225],
+          [0.62, 1.265],
+          [0.95, 1.225],
           [1.3, 1.09],
           [1.6, 1.025],
           [1.9, 1.008],
           [2.2, 1.02],
         ],
         [
-          [-0.3, "screen"],
-          [0.28, undefined],
+          [0.26, undefined],
           [0.9, "rearGlass"],
           [1.56, undefined],
         ],
@@ -251,7 +252,7 @@ export const varg: CarSpec = {
     screen: false,
     turnsToLock: 1.4,
     // Down a little under the low roof, so the screen's header sits higher in the view and the road owns it.
-    eye: [0, -0.02, 0],
+    eye: [0, -0.035, 0.03],
     colours: { glow: "car-cabin-glow-red", headliner: "car-cabin-headliner-dark", insert: "car-cabin-seat-oxblood", seat: "car-cabin-seat-oxblood" },
   },
 };
