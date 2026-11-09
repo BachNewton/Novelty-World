@@ -284,11 +284,13 @@ export function bodyOf(shape: Shape): BodySpec {
 }
 
 /**
- * The plates, rear and front. The front one is a little smaller than the rear, as a short European plate is, so it
- * doesn't read as a slab across a nose; `recessed` sets it in a dark recess, for a nose with no bumper to carry it.
+ * The plates, rear and front, each a short European plate, so neither reads as a white slab across a nose or a tail.
+ * `recessed` sets the front one in a dark recess, for a nose with no bumper to carry it; `rearRecessed` the rear one,
+ * for a tail with a recess moulded for it.
  */
-export const plates = (rearH: number, frontH: number, { recessed = false } = {}): Decal[] => [
-  { on: "rear", at: [0, rearH], size: [0.46, 0.11], surface: "plate", cells: [4, 1], fine: true },
+export const plates = (rearH: number, frontH: number, { recessed = false, rearRecessed = false } = {}): Decal[] => [
+  ...(rearRecessed ? [{ on: "rear", at: [0, rearH], size: [0.44, 0.11], surface: "grille", cells: [8, 2], liftM: 0.008, fine: true } satisfies Decal] : []),
+  { on: "rear", at: [0, rearH], size: [0.38, 0.09], surface: "plate", cells: [8, 2], liftM: rearRecessed ? 0.018 : 0.008, fine: true },
   ...(recessed ? [{ on: "front", at: [0, frontH], size: [0.42, 0.11], surface: "grille", cells: [8, 2], liftM: 0.008, fine: true } satisfies Decal] : []),
   { on: "front", at: [0, frontH], size: [0.36, 0.085], surface: "plate", cells: [8, 2], liftM: 0.018, fine: true },
 ];

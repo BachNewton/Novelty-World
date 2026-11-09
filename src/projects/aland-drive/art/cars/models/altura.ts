@@ -223,8 +223,6 @@ const shape: Shape = {
       [1.8, 0.91],
       [2.1, 0.85],
     ],
-    // The mirror hangs from where the faired screen meets the roof, not from the screen's foot.
-    screenTop: [-0.5, 1.095],
     hoodSeamZ: [-2.05, -1.17],
     cleanEnds: true,
     scoop: [

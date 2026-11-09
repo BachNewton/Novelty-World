@@ -16,9 +16,17 @@ export const splitter = ({ z, h, halfWidth, long = 0.2 }: { z: number; h: number
   taper: [1.04, 1],
 });
 
-/** Upright fins under the tail, between `x`'s pairs, from `z` back to the tail: the diffuser's strakes. */
+/** A strake's height where it starts, and how far its foot hangs under the `h` its car gives. */
+const STRAKE_M = 0.12;
+const STRAKE_HANG_M = 0.04;
+
+/**
+ * Upright fins under the tail, between `x`'s pairs, from `z` back to the tail: the diffuser's strakes. Their feet run
+ * level a few centimetres under `h`, tucked in the car's ground clearance under the bumper, and they grow taller towards
+ * the tail as the diffuser's floor rises over them, as real ones do, rather than hang down towards the road.
+ */
 export const diffuser = ({ z, tailZ, h, x }: { z: number; tailZ: number; h: number; x: readonly number[] }): Block[] =>
-  x.map((across) => ({ at: [across, h, (z + tailZ) / 2], size: [0.016, 0.16, tailZ - z], surface: "trim", mirror: across !== 0, taper: [1, 1.5] }));
+  x.map((across) => ({ at: [across, h + STRAKE_M / 2 - STRAKE_HANG_M, (z + tailZ) / 2], size: [0.016, STRAKE_M, tailZ - z], surface: "trim", mirror: across !== 0, taper: [1, 1.5], footLevel: true }));
 
 /** A dark scoop on each flank, its middle at `z` and `h`: a mid-engined car's intake ahead of its rear wheels, or a vent behind the front ones. */
 export const sideIntake = ({ z, h, long, tall }: { z: number; h: number; long: number; tall: number }): Decal => ({
