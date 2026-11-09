@@ -135,23 +135,23 @@ const shape: Shape = {
       { z: -2.425, h: 0.25 },
       { z: -2.42, h: GRILLE.h[0], band: "mouth" },
       { z: -2.418, h: GRILLE.h[1] },
-      // The lamp: two strokes of light, one over the other, in a dark housing.
-      { z: -2.412, h: 0.5, band: "headDark" },
-      { z: -2.405, h: 0.512, band: "headLamp" },
-      { z: -2.399, h: 0.532, band: "headDark" },
-      { z: -2.391, h: 0.552, band: "headLamp" },
-      { z: -2.383, h: 0.574, band: "headDark" },
-      { z: -2.372, h: 0.592 },
+      // The lamp: two strokes of light, one over the other, in a dark housing raked back into the bonnet.
+      { z: -2.405, h: 0.5, band: "headDark" },
+      { z: -2.392, h: 0.512, band: "headLamp" },
+      { z: -2.376, h: 0.532, band: "headDark" },
+      { z: -2.36, h: 0.552, band: "headLamp" },
+      { z: -2.344, h: 0.574, band: "headDark" },
+      { z: -2.325, h: 0.592 },
       // The bonnet, then the screen, roof, rear glass and deck, each as one fair line.
       ...faired(
         [
-          [-2.372, 0.592],
-          [-2.15, 0.665],
+          [-2.325, 0.592],
+          [-2.15, 0.66],
           [-1.47, 0.77],
           [-0.8, 0.83],
           [-0.28, 0.858],
         ],
-        [[-2.372, undefined]],
+        [[-2.325, undefined]],
       ),
       { z: -0.28, h: 0.858, band: "cowl" },
       ...faired(

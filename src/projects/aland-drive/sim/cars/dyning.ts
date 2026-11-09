@@ -37,7 +37,7 @@ export const dyning: CarEntry = {
       engineBrakeNm: 70,
     },
     gearbox: { idleRpm: 800, redlineRpm: 8700, gearTopMS: [22, 36, 50, 63, 76, 87, 97], shiftS: 0.07, gentleShift: 0.4 },
-    launchMS2: 8.5,
+    launchMS2: 8.65,
     rearShare: 1,
     brakeMS2: 12.5,
     dragPerMS2: 0.71,
