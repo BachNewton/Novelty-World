@@ -94,7 +94,12 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const screenAt = body.silhouette.findIndex((point) => point.band === "screen");
   if (screenAt < 0) throw new Error(`${spec.name} has no windscreen`);
   const cowl = { z: body.silhouette[screenAt].z, h: body.silhouette[screenAt].h };
-  const header = { z: body.silhouette[screenAt + 1].z, h: body.silhouette[screenAt + 1].h };
+  // The screen's top is the highest point of its run: a hand-placed screen is one stretch to the roof, a faired one is
+  // sampled up the glass, and an open car's frame turns back down behind its top.
+  let screenEnd = screenAt + 1;
+  while (screenEnd < body.silhouette.length - 1 && body.silhouette[screenEnd].band === "screen") screenEnd++;
+  const screenTop = body.silhouette.slice(screenAt + 1, screenEnd + 1).reduce((best, point) => (point.h > best.h ? point : best));
+  const header = { z: screenTop.z, h: screenTop.h };
   const open = body.silhouette.some((point) => point.bed === true && point.z > header.z && point.z < cabin.seatZ + 0.6);
   // An open car's body closes over the front of the cockpit as far as its opening, where the dash's lip has to be.
   const firstOpen = open ? body.silhouette.findIndex((point) => point.bed === true && point.z > header.z) : -1;
@@ -127,8 +132,10 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const lowZ = rearZ + 0.07;
   const lowH = Math.min(Math.max(cushionH + 0.22, topH - 0.28), topH - 0.08);
 
-  // The instruments sit on the dash's face where the eye sees them through the top of the wheel.
-  const through = { z: wheelCentre.z - Math.sin(tilt) * radius * 0.45, h: wheelCentre.h + Math.cos(tilt) * radius * 0.45 };
+  // The instruments sit on the dash's face where the eye sees them through the top of the wheel. One big rev counter
+  // sits higher in the wheel's opening, so the column under it never crosses its face.
+  const reach = style.gauges === "tacho" ? Math.max(0.62, style.clusterSight) : style.clusterSight;
+  const through = { z: wheelCentre.z - Math.sin(tilt) * radius * reach, h: wheelCentre.h + Math.cos(tilt) * radius * reach };
   const lip = { z: rearZ, h: topH - 0.03 };
   const [faceZ, faceH] = [lowZ - lip.z, lowH - lip.h];
   const sight = { z: through.z - eyeZ, h: through.h - eyeH };
@@ -136,7 +143,7 @@ export function cockpitFrame(spec: CarSpec): CockpitFrame {
   const denominator = sight.z * faceH - sight.h * faceZ;
   const down = Math.abs(denominator) < 1e-9 ? 0.5 : ((lip.h - eyeH) * sight.z - (lip.z - eyeZ) * sight.h) / -denominator;
   const width = style.gauges === "race" ? 0.27 : style.gauges === "digital" ? 0.36 : 0.34;
-  const height = style.gauges === "digital" ? 0.12 : 0.13;
+  const height = style.gauges === "digital" ? 0.12 : style.gauges === "muscle" ? 0.15 : 0.13;
   const faceLength = Math.hypot(faceZ, faceH);
   const share = Math.min(Math.max(down, (height * 0.3) / faceLength), 1 - (height * 0.3) / faceLength);
   const facing = [-faceH / faceLength, faceZ / faceLength] as const;

@@ -2,19 +2,29 @@ import type { Tier } from "./tiers";
 import type { CarTuning } from "./tuning";
 import type { CarEntry } from "./cars/character";
 import { aska } from "./cars/aska";
+import { blixt } from "./cars/blixt";
+import { orkan } from "./cars/orkan";
 import { ankar } from "./cars/ankar";
 import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
+import { brus } from "./cars/brus";
+import { dyning } from "./cars/dyning";
 import { fjard } from "./cars/fjard";
+import { flod } from "./cars/flod";
 import { grus } from "./cars/grus";
+import { gnista } from "./cars/gnista";
+import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
 import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
+import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
+import { span } from "./cars/span";
 import { sund } from "./cars/sund";
+import { varg } from "./cars/varg";
 import { vik } from "./cars/vik";
 import { virvel } from "./cars/virvel";
 
@@ -36,11 +46,19 @@ import { virvel } from "./cars/virvel";
 const ENTRIES = {
   // A1
   aska,
+  blixt,
   // A2
   virvel,
+  orkan,
+  varg,
   // A3
+  dyning,
+  span,
+  strimma,
   // A4
+  brus,
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
@@ -52,6 +70,8 @@ const ENTRIES = {
   ljus,
   // B1
   grus,
+  gnista,
+  hagel,
   // B2
   fjard,
   // B3

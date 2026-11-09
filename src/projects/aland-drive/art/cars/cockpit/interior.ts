@@ -56,6 +56,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     panel: finish("car-cabin-panel", 0.01, 0.2),
     piano: finish("car-trim", 0.07, 0.85),
     accent: finish(colours.accent, 0.3, 0.6, { metal: 0.6 }),
+    webbing: finish(colours.accent, 0.006, 0.08),
     chrome: finish("car-rim", 0.55, 0.9, { metal: 0.85 }),
     seat: finish(seat, 0.008, 0.12),
     seatSide: finish(seat, 0.006, 0.1, { shade: 0.78 }),
@@ -67,9 +68,9 @@ function paintsOf(style: InteriorStyle, seat: string) {
     dial: finish("car-cabin-screen", 0.04, 0.9),
     vent: finish("car-grille", 0.01, 0.2),
     paint: finish(null, 0.05, 0.6),
-    cage: finish("car-cabin-cage", 0.03, 0.35),
+    cage: finish("car-cabin-cage", 0.06, 0.5, { metal: 0.3 }),
     wood: finish("car-cabin-wood", 0.05, 0.6),
-    mirror: finish("car-cabin-mirror", 0.85, 1, { metal: 1 }),
+    mirrorGlass: finish("car-cabin-screen", 0.4, 1, { metal: 0.4 }),
     switchLit: finish("car-cabin-panel", 0.01, 0.3, { glow: 0.9 }),
     lampGreen: finish("car-cabin-lamp-green", 0.02, 0.8),
     lampAmber: finish("car-cabin-lamp-amber", 0.02, 0.8),
@@ -253,16 +254,28 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const apart = Math.min(w / 2 - radius - 0.006, 0.09);
     big(SLOT.speed, SOURCE.speed, -apart, radius);
     big(SLOT.revs, SOURCE.revs, apart, radius);
-    if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+    if (style.gauges === "analogue" && style.centreDisplay) {
+      readout(SOURCE.gear, 1, 0, 0.022, 0.026);
+      readout(SOURCE.speed, 3, 0, -0.008, 0.014);
+    } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+  } else if (style.gauges === "tacho") {
+    // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
+    big(SLOT.revs, SOURCE.revs, 0, 0.066);
+    readout(SOURCE.gear, 1, 0, -0.024, 0.024);
+    readout(SOURCE.speed, 3, 0, -0.049, 0.013);
+    big(SLOT.speed, SOURCE.speed, -0.118, 0.044);
+    disc(b, at, [0.118, -0.006], 0.036, 0.004, dialLook(SLOT.water), SLOT.water);
+    bezel(b, at, [0.118, -0.006], 0.039, 0.0025, 0.005, ringLook);
+    dials.push({ slot: SLOT.water, source: SOURCE.water, startDeg: 135, sweepDeg: -90 });
+  } else if (style.gauges === "muscle") {
+    big(SLOT.revs, SOURCE.revs, 0.035, 0.069);
+    big(SLOT.speed, SOURCE.speed, -0.105, 0.046);
+    // The gear just over the rev counter's middle, under its figures and where the wheel's hub can't cover it.
+    readout(SOURCE.gear, 1, 0.035, 0.017, 0.021);
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
-    if (style.figuresBeside) {
-      readout(SOURCE.speed, 3, 0.09, 0.04, 0.026);
-      readout(SOURCE.gear, 1, 0.09, -0.012, 0.05);
-    } else {
-      readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
-      readout(SOURCE.gear, 1, 0.09, 0.005, 0.05);
-    }
+    readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
+    readout(SOURCE.gear, 1, 0.09, 0.005, 0.05);
     const lamps = [paints.lampGreen, paints.lampGreen, paints.lampAmber, paints.lampAmber, paints.lampRed, paints.lampRed, paints.lampRed];
     lamps.forEach((paint, index) => {
       const x = -0.02 + (index - 3) * 0.022;
@@ -272,7 +285,8 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const cell = [cellUv(SLOT.digital), cellUv(SLOT.digital + 1)];
     plate(b, at, [0, 0], [w - 0.014, h - 0.014], 0.003, flat(paints.dial, KIND.dial, SLOT.digital), [cell[0].u, cell[0].v, cell[1].u + cell[1].width, cell[0].v + cell[0].height]);
     dials.push({ slot: SLOT.digital, source: SOURCE.none, startDeg: 0, sweepDeg: 0 });
-    readout(SOURCE.speed, 3, 0, -0.004, 0.04);
+    if (style.speedAside) readout(SOURCE.speed, 3, -0.064, -0.022, 0.034);
+    else readout(SOURCE.speed, 3, 0, -0.004, 0.04);
     readout(SOURCE.gear, 1, w / 2 - 0.045, -0.025, 0.028);
     // The revs, or an electric car's power, as segments round an arc over the figures.
     const segments = 28;
@@ -337,7 +351,9 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 
   // The column into the dash, and the stalks either side of it.
   const column = (along: number) => add(middle, back, -along);
-  b.tube([column(dish + 0.02), column(0.34)], 0.034, 12, smooth(paints.under));
+  // Behind one big dial in the middle the column ends in a shroud just behind the hub, so it never crosses the dial.
+  const columnLong = f.style.gauges === "tacho" ? 0.12 : 0.34;
+  b.tube([column(dish + 0.02), column(columnLong)], 0.034, 12, smooth(paints.under));
   for (const side of [-1, 1]) {
     const root = add(column(dish + 0.07), RIGHT, side * 0.03);
     b.tube([root, add(add(root, RIGHT, side * 0.11), up, 0.015)], 0.0055, 6, smooth(paints.piano));
@@ -368,11 +384,11 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
     plate(b, at, [0, screenY], [0.2, 0.115], front + 0.003, flat(paints.screen, KIND.screen));
     plate(b, at, [-0.035, screenY + 0.022], [0.016 * GLYPH_ASPECT * 4, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.clock, 4)));
     plate(b, at, [0.05, screenY + 0.022], [0.016 * GLYPH_ASPECT * 3, 0.016], front + 0.006, flat(paints.screen, KIND.readout, readoutParam(SOURCE.outside, 3)));
-  } else if (style.gauges === "classic") {
+  } else if (style.gauges === "classic" || style.gauges === "muscle") {
     ([SLOT.fuel, SLOT.water, SLOT.oil] as const).forEach((slot, index) => {
       const x = (index - 1) * 0.074;
       disc(b, at, [x, screenY], 0.031, front, flat(paints.dial, KIND.dial, slot), slot);
-      bezel(b, at, [x, screenY], 0.033, 0.0035, front + 0.001, smooth(paints.chrome));
+      bezel(b, at, [x, screenY], 0.033, 0.0035, front + 0.001, smooth(style.gauges === "classic" ? paints.chrome : paints.accent));
       dials.push({ slot, source: slot === SLOT.fuel ? SOURCE.fuel : slot === SLOT.water ? SOURCE.water : SOURCE.oil, startDeg: 135, sweepDeg: -90 });
     });
   } else {
@@ -437,8 +453,22 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
   return dials;
 }
 
+/**
+ * Quilted leather over a seat's face: a grid of small stitched pads standing out of the back's front and the cushion's
+ * top, the seams between them the leather under, a shade apart.
+ */
+function addQuilting(b: CockpitBuilder, paints: Paints, wide: number, middle: Point, tall: number, up: Point, back: Point, cushion: Point, cushionUp: Point, cushionBack: Point) {
+  const pad = smooth(paints.seatInsert);
+  const across = [-1, 0, 1].map((at) => at * wide * 0.27);
+  const face = add(middle, back, -0.058);
+  for (const a of across) {
+    for (const along of [-0.6, -0.2, 0.2, 0.6]) pillow(b, axes(add(add(face, RIGHT, a), up, along * tall), RIGHT, up, back), [wide * 0.12, tall * 0.18, 0.012], 0.35, pad, 3);
+    for (const along of [-0.13, 0, 0.13]) pillow(b, axes(add(add(add(cushion, RIGHT, a), cushionBack, along), cushionUp, 0.012), RIGHT, cushionUp, cushionBack), [wide * 0.12, 0.012, 0.058], 0.35, pad, 3);
+  }
+}
+
 /** One seat at x, its cushion at `cushionH` and its back reclined from z. */
-function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number) {
+function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number, quilted = false) {
   const g = f.ground;
   const recline = ((kind === "bench" ? 22 : 16) * Math.PI) / 180;
   const up: Point = [0, Math.cos(recline), Math.sin(recline)];
@@ -462,6 +492,7 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
+  if (quilted) addQuilting(b, paints, wide, middle, tall, up, back, [x, cushionH + g, z - 0.21], cushionUp, cushionBack);
   if (kind !== "comfort" && kind !== "bench") {
     const bolster = kind === "bucket" ? 0.07 : 0.05;
     for (const s of [-1, 1]) {
@@ -479,6 +510,20 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
     pillow(b, axes(top, RIGHT, up, back), [0.125, 0.085, 0.055], 0.35, look, 8);
     for (const post of [-0.06, 0.06]) b.tube([add(add(top, RIGHT, post), up, -0.07), add(add(top, RIGHT, post), up, -0.13)], 0.0055, 6, smooth(paints.chrome));
   }
+}
+
+/** A four-point harness over a seat at x: two shoulder straps down the back, a lap belt across and its buckle. */
+function addHarness(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number) {
+  const g = f.ground;
+  // The seat's own recline (`addSeat`), so the straps lie on its back.
+  const recline = (16 * Math.PI) / 180;
+  const up: Point = [0, Math.cos(recline), Math.sin(recline)];
+  const back: Point = [0, -Math.sin(recline), Math.cos(recline)];
+  const hip: Point = [x, cushionH - 0.02 + g, z + 0.1];
+  const strap = smooth(paints.webbing);
+  for (const s of [-1, 1]) pillow(b, axes(add(add(add(hip, up, 0.44), RIGHT, s * 0.075), back, -0.078), RIGHT, up, back), [0.024, 0.3, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.04], RIGHT, [0, 1, 0], [0, 0, 1]), [0.2, 0.024, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.05], RIGHT, [0, 1, 0], [0, 0, 1]), [0.035, 0.032, 0.008], 0.3, smooth(paints.chrome), 6);
 }
 
 /** The door cards along each side, below the glass: a kick panel, an armrest, an insert and a cap where the glass starts. */
@@ -560,18 +605,23 @@ function addFloor(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 }
 
 /** The mirror at the top of the windscreen and the visors folded up beside it. */
+/** The interior mirror's housing, half its width, height and depth. */
+const INTERIOR_MIRROR_HALF_M = [0.105, 0.027, 0.012] as const;
+
 function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const { ground: g, header, open } = f;
   const z = header.z + 0.07;
   const roofY = (open ? header.h - 0.035 : f.roofAt(0, z) - SKIN_M) + g;
   const mount: Point = [0, roofY - 0.004, header.z + 0.035];
-  const body: Point = [0, roofY - 0.07, z];
-  b.tube([mount, add(body, [0, 1, 0], 0.02)], 0.007, 6, smooth(paints.piano));
+  // A slim housing with soft ends on a short stem, and a dark glass face inset in it: a real mirror's size, not a box.
+  const [halfWide, halfTall, halfDeep] = INTERIOR_MIRROR_HALF_M;
+  const body: Point = [0, roofY - 0.058, z];
+  b.tube([mount, add(body, [0, 1, 0], halfTall * 0.6)], 0.006, 6, smooth(paints.piano));
   const facing = normalize([0.18, -0.08, 1]);
   const across = normalize(cross([0, 1, 0], facing));
   const at = axes(body, across, normalize(cross(facing, across)), facing);
-  pillow(b, at, [0.12, 0.034, 0.018], 0.3, smooth(paints.piano), 8);
-  plate(b, at, [0, 0], [0.22, 0.054], 0.0185, flat(paints.mirror));
+  pillow(b, at, INTERIOR_MIRROR_HALF_M, 0.5, smooth(paints.piano), 8);
+  plate(b, at, [0, 0], [halfWide * 1.6, halfTall * 1.2], halfDeep + 0.0015, flat(paints.mirrorGlass));
   if (open) return;
   for (const side of [-1, 1]) {
     const visorZ = header.z + 0.13;
@@ -583,17 +633,26 @@ function addMirrorAndVisors(b: CockpitBuilder, f: CockpitFrame, paints: Paints) 
   }
 }
 
+/** A cage tube's sides: 30 degrees apart, under the cockpit's 38 degree crease. */
+const CAGE_SIDES = 12;
+/** How far under the belt the door bars' top ends sit. */
+const DOOR_BAR_DROP_M = 0.07;
+
 /** A rally car's cage: hoops behind the seats and up the pillars, bars along the roof and an X in each door. */
 function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
   const { ground: g, floorH, header, dash } = f;
   const look = smooth(paints.cage);
   const radius = 0.019;
+  // Enough sides that neighbouring faces meet under the builder's crease, so each tube shades round, not as flat bands.
+  const tube = (path: Point[], r: number) => b.tube(path, r, CAGE_SIDES, look);
   const main = f.seatZ + 0.33;
   const sideAt = (z: number) => f.cardX(z) - 0.06;
   const railAt = (z: number) => f.glassX(z) - 0.18;
   const roofAt = (z: number) => f.roofAt(railAt(z), z) - SKIN_M - 0.026 + g;
   const floor = floorH + 0.02 + g;
   const beltAt = (z: number) => f.belt(z) + g;
+  // The door bars' top ends sit down the door card, under the window line, as a real cage's do, and not across the view.
+  const doorTopAt = (z: number) => beltAt(z) - DOOR_BAR_DROP_M;
   const hoop: Point[] = [
     [-sideAt(main), floor, main],
     [-sideAt(main), beltAt(main), main],
@@ -602,24 +661,24 @@ function addCage(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
     [sideAt(main), beltAt(main), main],
     [sideAt(main), floor, main],
   ];
-  b.tube(hoop, radius, 8, look);
-  b.tube([[-sideAt(main), floor + 0.05, main], [railAt(main), roofAt(main) - 0.02, main]], radius * 0.9, 8, look);
+  tube(hoop, radius);
+  tube([[-sideAt(main), floor + 0.05, main], [railAt(main), roofAt(main) - 0.02, main]], radius * 0.9);
   const frontZ = header.z + 0.06;
   for (const s of [-1, 1]) {
     const foot: Point = [s * sideAt(dash.rearZ), floor, dash.rearZ];
     const corner: Point = [s * railAt(frontZ), roofAt(frontZ), frontZ];
-    b.tube([foot, [s * sideAt(dash.rearZ), beltAt(dash.rearZ) + 0.05, dash.rearZ + 0.02], corner, [s * railAt(main), roofAt(main), main]], radius, 8, look);
-    b.tube([[s * sideAt(dash.rearZ), floor + 0.1, dash.rearZ + 0.03], [s * sideAt(main), beltAt(main) - 0.02, main]], radius * 0.9, 8, look);
-    b.tube([[s * sideAt(dash.rearZ), beltAt(dash.rearZ) - 0.02, dash.rearZ + 0.03], [s * sideAt(main), floor + 0.12, main]], radius * 0.9, 8, look);
-    b.tube([[s * railAt(main), roofAt(main), main], [s * sideAt(f.endZ) * 0.8, floor + 0.2, Math.max(f.endZ, main + 0.4)]], radius * 0.9, 8, look);
+    tube([foot, [s * sideAt(dash.rearZ), beltAt(dash.rearZ) + 0.05, dash.rearZ + 0.02], corner, [s * railAt(main), roofAt(main), main]], radius);
+    tube([[s * sideAt(dash.rearZ), floor + 0.1, dash.rearZ + 0.03], [s * sideAt(main), doorTopAt(main), main]], radius * 0.85);
+    tube([[s * sideAt(dash.rearZ), doorTopAt(dash.rearZ), dash.rearZ + 0.03], [s * sideAt(main), floor + 0.12, main]], radius * 0.85);
+    tube([[s * railAt(main), roofAt(main), main], [s * sideAt(f.endZ) * 0.8, floor + 0.2, Math.max(f.endZ, main + 0.4)]], radius * 0.9);
   }
-  b.tube([[-railAt(frontZ), roofAt(frontZ), frontZ], [railAt(frontZ), roofAt(frontZ), frontZ]], radius * 0.9, 8, look);
+  tube([[-railAt(frontZ), roofAt(frontZ), frontZ], [railAt(frontZ), roofAt(frontZ), frontZ]], radius * 0.9);
 }
 
 export function buildCockpit(spec: CarSpec): CockpitParts {
   const frame = cockpitFrame(spec);
   const { style, cabin, cushionH } = frame;
-  const paints = paintsOf(style, cabin.seatSurface === "seatTan" && !style.cage ? "car-cabin-seat-tan" : "car-cabin-seat");
+  const paints = paintsOf(style, style.colours.seat ?? (cabin.seatSurface === "seatTan" && !style.cage ? "car-cabin-seat-tan" : "car-cabin-seat"));
   const b = new CockpitBuilder();
   const shell = buildBareShell(spec);
   addInnerSkin(b, frame, shell, paints);
@@ -627,11 +686,12 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   const dials = [...addCluster(b, frame, paints), ...addCentre(b, frame, paints)];
   addWheel(b, frame, paints);
   const seatKind = style.seats;
-  for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24);
+  for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24, style.quilted);
+  if (style.harness) for (const side of [-1, 1]) addHarness(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH);
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
   addFloor(b, frame, paints);
-  addMirrorAndVisors(b, frame, paints);
+  if (style.rearMirror) addMirrorAndVisors(b, frame, paints);
   if (style.cage) addCage(b, frame, paints);
   const soup = b.finish(38);
 

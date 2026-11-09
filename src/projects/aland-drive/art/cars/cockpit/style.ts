@@ -13,8 +13,12 @@ import type { CarSpec } from "../build";
  * "analogue": two big dials, speed and revs, with a gear window between. "digital": one screen, the speed in figures
  * and the revs (or an electric car's power) as an arc of segments. "classic": two chrome-ringed dials and a row of
  * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
+ * "tacho": one big rev counter front and centre with the gear under its hub, a smaller speedometer to its left and
+ * the water's dial to its right, a sports car's.
+ * "muscle": a big rev counter in front of the driver with a smaller speed dial beside it, and fuel, water and oil as
+ * small dials on the centre stack, where a screen would be.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho" | "muscle";
 /** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
 export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
 /** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
@@ -31,13 +35,19 @@ export interface InteriorStyle {
   screen: boolean;
   /** A roll cage, with bare painted metal for door cards. */
   cage: boolean;
+  /** A mirror hung at the top of the windscreen: a car with only a low aero screen has none. */
+  rearMirror: boolean;
+  /** A race car's harness over each seat, in the accent colour, in place of a belt. */
+  harness: boolean;
   /** A band of the car's own paint across the dash, as older cars had. */
   paintedDash: boolean;
   /**
-   * The race cluster's speed in figures beside the dial, over the gear, rather than in the dial's foot, where a low
-   * wheel's hub hides it.
+   * With analogue dials, a fine digital display high between them, the gear over the speed in figures, where the
+   * wheel's opening shows it, in place of the gear window low between them that the wheel's hub can hide.
    */
-  figuresBeside: boolean;
+  centreDisplay: boolean;
+  /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
+  quilted: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
   colours: {
     dash: string;
@@ -50,11 +60,24 @@ export interface InteriorStyle {
     accent: string;
     /** What the dials, figures and switches light in after dark. */
     glow: string;
+    /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
+    seat?: string;
   };
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
   eye: readonly [x: number, y: number, z: number];
+  /**
+   * How far up the wheel, as a share of its radius from the hub, the eye's line to the instruments passes. Higher puts
+   * the cluster's readouts in the wheel's opening over the hub and column, for a car whose dash stands close behind
+   * its wheel.
+   */
+  clusterSight: number;
+  /**
+   * A digital cluster's speed set to the left of its middle, inside the arc: for a low car, whose eye looks down past the
+   * wheel's hub along its column, which crosses the middle of the screen.
+   */
+  speedAside: boolean;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -74,11 +97,16 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     seats: rally ? "bucket" : sports ? "sport" : "comfort",
     screen: !rally,
     cage: rally,
+    rearMirror: true,
+    harness: false,
     paintedDash: false,
-    figuresBeside: false,
+    quilted: false,
+    centreDisplay: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
+    clusterSight: 0.45,
+    speedAside: false,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
