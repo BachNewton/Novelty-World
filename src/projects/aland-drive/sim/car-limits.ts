@@ -20,6 +20,7 @@ import holm from "./limits/holm.json";
 import kraft from "./limits/kraft.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
+import knott from "./limits/knott.json";
 import kula from "./limits/kula.json";
 import lera from "./limits/lera.json";
 import myr from "./limits/myr.json";
@@ -34,6 +35,7 @@ import span from "./limits/span.json";
 import sten from "./limits/sten.json";
 import strimma from "./limits/strimma.json";
 import strom from "./limits/strom.json";
+import stubbe from "./limits/stubbe.json";
 import sund from "./limits/sund.json";
 import varg from "./limits/varg.json";
 import vik from "./limits/vik.json";
@@ -134,6 +136,8 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   myr,
   // B4
   berg,
+  stubbe,
+  knott,
   // C1
   frost,
   altura,

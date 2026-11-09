@@ -22,6 +22,7 @@ import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kraft } from "./cars/kraft";
 import { kobb } from "./cars/kobb";
+import { knott } from "./cars/knott";
 import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
 import { myr } from "./cars/myr";
@@ -33,6 +34,7 @@ import { skerryGt } from "./cars/skerry-gt";
 import { sten } from "./cars/sten";
 import { strimma } from "./cars/strimma";
 import { strom } from "./cars/strom";
+import { stubbe } from "./cars/stubbe";
 import { span } from "./cars/span";
 import { sund } from "./cars/sund";
 import { varg } from "./cars/varg";
@@ -94,6 +96,8 @@ const ENTRIES = {
   myr,
   // B4
   berg,
+  stubbe,
+  knott,
   // C1
   frost,
   altura,

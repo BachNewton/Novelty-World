@@ -19,6 +19,7 @@ import { holm } from "./models/holm";
 import { kraft } from "./models/kraft";
 import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
+import { knott } from "./models/knott";
 import { kula } from "./models/kula";
 import { lera } from "./models/lera";
 import { myr } from "./models/myr";
@@ -33,6 +34,7 @@ import { span } from "./models/span";
 import { sten } from "./models/sten";
 import { strimma } from "./models/strimma";
 import { strom } from "./models/strom";
+import { stubbe } from "./models/stubbe";
 import { sund } from "./models/sund";
 import { varg } from "./models/varg";
 import { vik } from "./models/vik";
@@ -87,6 +89,8 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   myr,
   // B4
   berg,
+  stubbe,
+  knott,
   // C1
   frost,
   altura,

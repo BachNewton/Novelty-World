@@ -20,6 +20,7 @@ import { holm } from "./voices/holm";
 import { kraft } from "./voices/kraft";
 import { borg } from "./voices/borg";
 import { kobb } from "./voices/kobb";
+import { knott } from "./voices/knott";
 import { lera } from "./voices/lera";
 import { myr } from "./voices/myr";
 import { orkan } from "./voices/orkan";
@@ -33,6 +34,7 @@ import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
 import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
+import { stubbe } from "./voices/stubbe";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
 import { varg } from "./voices/varg";
@@ -199,6 +201,8 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   myr,
   // B4
   berg,
+  stubbe,
+  knott,
   // C1
   frost,
   altura,
