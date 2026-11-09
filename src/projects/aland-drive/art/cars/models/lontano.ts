@@ -308,5 +308,9 @@ export const lontano: CarSpec = {
     lightDials: true,
     colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-wood", headliner: "car-cabin-headliner-dark", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
     turnsToLock: 1.6,
+    // The seat set low, so the headliner is a band over the road and not a slab, and the dials sighted high in the
+    // wheel's opening, clear of its spokes.
+    eye: [0, -0.045, 0],
+    clusterSight: 0.75,
   },
 };

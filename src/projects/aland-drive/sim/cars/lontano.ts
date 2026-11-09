@@ -39,7 +39,7 @@ export const lontano: CarEntry = {
       engineBrakeNm: 60,
     },
     gearbox: { idleRpm: 950, redlineRpm: 7600, gearTopMS: [18, 31, 46, 63, 81], shiftS: 0.32, gentleShift: 0.45 },
-    launchMS2: 5.7,
+    launchMS2: 5.15,
     rearShare: 1,
     brakeMS2: 9.8,
     dragPerMS2: 0.58,
