@@ -85,10 +85,10 @@ const shape: Shape = {
     [0.3, 1.17],
     [0.6, 1.21],
     [1.0, 1.17],
-    [1.4, 1.06],
-    [1.72, 0.97],
+    [1.3, 1.09],
+    [1.5, 1.04],
   ],
-  windowZ: [-0.24, 1.72],
+  windowZ: [-0.24, 1.5],
   railWidth: [
     [-2.345, 0.56],
     [-1.3, 0.76],
@@ -113,7 +113,7 @@ const shape: Shape = {
     reversing(0.3, 0.405),
     // A reflector low in each corner.
     reflector(0.7, 0.4),
-    thirdBrake(1.14, 0.42),
+    { ...thirdBrake(0.9, 0.3), liftM: 0.012 },
     // The fender vents, in fewer cells than the shared intake's, which the far model can't afford.
     { ...sideIntake({ z: -0.76, h: 0.58, long: 0.34, tall: 0.09 }), cells: [3, 1] },
     ...louvres({ x: 0.34, z: -1.2, long: 0.34, wide: 0.15, count: 4 }),
@@ -174,6 +174,8 @@ const shape: Shape = {
           [1.08, "rearGlass"],
           [1.85, undefined],
         ],
+        // A station every 10 cm, so none lands a sliver's width from the rear arch's, which would fold the side glass's frame.
+        0.1,
       ),
       { z: 2.2, h: 0.935 },
       { z: 2.24, h: 0.93, band: "gap" },
@@ -200,10 +202,9 @@ const shape: Shape = {
     ],
     shelf: [
       [-2.345, 0],
-      [-0.3, 0.03],
-      [0.5, 0.09],
-      [1.2, 0.12],
-      [1.9, 0.1],
+      [-0.6, 0.02],
+      [0.3, 0.1],
+      [1.6, 0.1],
       [2.33, 0.03],
     ],
     halfWidth: [
@@ -221,8 +222,8 @@ const shape: Shape = {
     cleanEnds: true,
     scoop: [
       [-0.9, 0],
-      [-0.3, 0.035],
-      [0.6, 0.035],
+      [-0.3, 0.025],
+      [0.6, 0.025],
       [1.05, 0],
     ],
     // The deployable spoiler, shown raised on its stalks above the deck's lip.
@@ -241,7 +242,6 @@ export const orkan: CarSpec = {
     paint("car-paint-silver", "metallic"),
     paint("car-paint-graphite", "matte"),
     paint("car-paint-concrete"),
-    paint("car-paint-glacier", "metallic"),
     paint("car-paint-black", "metallic"),
     paint("car-paint-orange"),
   ],
