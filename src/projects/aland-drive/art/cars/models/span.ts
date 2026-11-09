@@ -28,11 +28,12 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 
 /**
  * Fjäder's signature: each lamp a stack of three short bars of light, stepped out and down like a feather's barbs,
- * in a dark housing; the same at the tail in red.
+ * in a dark housing (near only: on the far model's coarser nose it would meet a bar in one plane); the same at the
+ * tail in red.
  */
 function feather(on: "front" | "rear", x: number, h: number, surface: Decal["surface"], scale = 1): Decal[] {
   return [
-    { on, at: [x + 0.02 * scale, h], size: [0.17 * scale, 0.1 * scale], surface: "trim", mirror: true, cells: [4, 2], liftM: 0.008 },
+    { on, at: [x + 0.02 * scale, h], size: [0.17 * scale, 0.1 * scale], surface: "trim", mirror: true, cells: [4, 2], liftM: 0.008, fine: true },
     ...[0, 1, 2].map(
       (barb): Decal => ({ on, at: [x + (barb * 0.025 - 0.015) * scale, h + (0.03 - barb * 0.03) * scale], size: [(0.12 - barb * 0.015) * scale, 0.016 * scale], surface, mirror: true, cells: [4, 1], liftM: 0.016 }),
     ),
@@ -114,8 +115,8 @@ const shape: Shape = {
   lampH: [0.3, 0.33],
   hoodLipH: 0.38,
   hoodH: 0.47,
-  cowl: [-0.68, 0.62],
-  header: [-0.47, 0.82],
+  cowl: [-0.68, 0.67],
+  header: [-0.47, 0.86],
   roof: [-0.43, 0.7],
   roofEnd: [0.6, 0.7],
   shoulder: [
@@ -191,15 +192,17 @@ const shape: Shape = {
           [-1.87, 0.38],
           [-1.6, 0.43],
           [-1.38, 0.47],
-          [-1.0, 0.54],
-          [-0.72, 0.6],
+          [-1.0, 0.55],
+          [-0.72, 0.645],
         ],
         [[-1.87, undefined]],
       ),
-      { z: -0.72, h: 0.6, band: "cowl" },
-      { z: -0.68, h: 0.62, band: "screen" },
-      { z: -0.47, h: 0.82, band: "screen" },
-      { z: -0.43, h: 0.7, bed: true },
+      { z: -0.72, h: 0.645, band: "cowl" },
+      { z: -0.68, h: 0.67, band: "screen" },
+      { z: -0.47, h: 0.86, band: "screen" },
+      // The scuttle over the driver's legs, falling to the cockpit's rim.
+      { z: -0.42, h: 0.79, bed: true },
+      { z: -0.12, h: 0.7, bed: true },
       ...faired(
         [
           [0.6, 0.7],
@@ -274,9 +277,10 @@ export const span: CarSpec = {
     seats: "bucket",
     screen: false,
     harness: true,
+    rearMirror: false,
     colours: { dash: "car-cabin-carbon", trim: "car-cabin-carbon", insert: "car-cabin-carbon", accent: "car-cabin-fjader", glow: "car-cabin-glow-red" },
     turnsToLock: 0.9,
-    eye: [0, 0.15, 0],
+    eye: [0, 0.16, 0],
   },
   wheel: { radiusM: SPAN.wheelRadiusM, widthM: 0.24, rimShare: 0.72, spokes: 6, twinSpokes: false, style: "blade" },
   shadowHalf: [0.92, 1.89],

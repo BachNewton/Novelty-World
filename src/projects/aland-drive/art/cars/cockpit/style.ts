@@ -31,6 +31,8 @@ export interface InteriorStyle {
   screen: boolean;
   /** A roll cage, with bare painted metal for door cards. */
   cage: boolean;
+  /** A mirror hung at the top of the windscreen: a car with only a low aero screen has none. */
+  rearMirror: boolean;
   /** A race car's harness over each seat, in the accent colour, in place of a belt. */
   harness: boolean;
   /** A band of the car's own paint across the dash, as older cars had. */
@@ -71,6 +73,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     seats: rally ? "bucket" : sports ? "sport" : "comfort",
     screen: !rally,
     cage: rally,
+    rearMirror: true,
     harness: false,
     paintedDash: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },

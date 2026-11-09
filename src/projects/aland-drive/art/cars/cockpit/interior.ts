@@ -642,7 +642,7 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
   addFloor(b, frame, paints);
-  addMirrorAndVisors(b, frame, paints);
+  if (style.rearMirror) addMirrorAndVisors(b, frame, paints);
   if (style.cage) addCage(b, frame, paints);
   const soup = b.finish(38);
 
