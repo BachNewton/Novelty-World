@@ -187,8 +187,12 @@ export interface BodySpec {
   decals: readonly Decal[];
   /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
   wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
-  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
+  /**
+   * Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body
+   * hides the end. `outward` winds the pipes to face out of them; without it they face in, so the hero's double-sided
+   * material draws their outsides as the cabin's lining, and the older cars keep that until they're redrawn.
+   */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean; outward?: boolean };
   /** Open pipes leaving the sills sideways, on both sides, one at each `z`, their ends `x` out from the car's middle. */
   sideExhausts?: { z: readonly number[]; h: number; x: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
@@ -606,9 +610,10 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
 function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
   if (!spec.exhausts) return;
   const { x, h, z, radius } = spec.exhausts;
+  const turn = spec.exhausts.outward === true ? 1 : -1;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
-      const angle = (-step / 8) * Math.PI * 2;
+      const angle = ((turn * step) / 8) * Math.PI * 2;
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {

@@ -33,6 +33,7 @@ import { strom } from "./models/strom";
 import { sund } from "./models/sund";
 import { varg } from "./models/varg";
 import { vik } from "./models/vik";
+import { virvel } from "./models/virvel";
 import { roundLamps, sketched, stripe, type Sketch } from "./recipe";
 
 /*
@@ -48,6 +49,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   aska,
   blixt,
   // A2
+  virvel,
   orkan,
   varg,
   // A3

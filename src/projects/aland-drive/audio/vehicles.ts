@@ -34,6 +34,7 @@ import { span } from "./voices/span";
 import { sund } from "./voices/sund";
 import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
+import { virvel } from "./voices/virvel";
 
 /*
  * What each car's engine sounds like, as numbers: its voice in a file of its
@@ -160,6 +161,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   aska,
   blixt,
   // A2
+  virvel,
   orkan,
   varg,
   // A3
