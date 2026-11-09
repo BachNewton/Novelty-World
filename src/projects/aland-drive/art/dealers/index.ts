@@ -2,7 +2,7 @@ import { CARS } from "../cars/specs";
 import { groundY, type CarSpec } from "../cars/build";
 import { LAMPS_OFF, type CarState } from "../../sim/car-state";
 import type { CarId } from "../../sim/cars";
-import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId } from "./exteriors";
+import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId, type Rectangle } from "./exteriors";
 import type { Interior, InteriorId } from "./interiors";
 
 /*
@@ -13,7 +13,7 @@ import type { Interior, InteriorId } from "./interiors";
  */
 
 export { BRANDS, BRAND_IDS, brandOf, type Brand, type BrandId } from "./brands";
-export { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId };
+export { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type ExteriorId, type Rectangle };
 export { dealerMaterial, geometryOf, type Lighting, type Outdoors, type RoomLight } from "./material";
 export type { CameraKind, FixedCamera, Interior, InteriorId, Turntable } from "./interiors";
 export type { Soup, Version } from "./shell";

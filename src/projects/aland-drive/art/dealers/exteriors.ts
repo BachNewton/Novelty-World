@@ -6,8 +6,7 @@ import { stockOf } from "./stock";
 
 /*
  * The buildings from the road, as the game places them on their real plots (`sites.ts`). Each stands on a slab of its
- * own that runs down below the ground, so it sits on real ground that isn't flat, and faces +z, the street; its y 0 is
- * the ground at the middle of its street edge, where it meets the road. A car slot is a place for a real car, drawn by
+ * own, its y 0 the highest ground under its plot, and the slab runs down to meet real ground that isn't flat; it faces +z, the street. A car slot is a place for a real car, drawn by
  * the caller. Each is written once for both versions: what `detail` draws is the near version's alone, gone to a pixel
  * or two by its swap, and everything else, the far version's shape and colour, is the same in both.
  */
@@ -35,25 +34,30 @@ export interface Exterior {
   plot: Rectangle;
   /** What the car can't pass: the buildings, the islands and the signs it would hit. */
   walls: readonly Rectangle[];
-  /** Where the street edge meets the road: the point on the ground the model's height is taken from. */
-  streetZ: number;
   /** Where a player walks in, on the ground. */
   entrance: { at: V3; radiusM: number };
 }
 
 const SINK = -0.7;
+/** How far a slab runs down: a model stands on the highest ground under its plot, and its slab meets the low side as a plinth. */
+const SLAB_FOOT = -3;
 const WALL_FOOT: readonly number[] = [0.82, 0.82, 1, 1];
 
 function slab(s: Shell, x0: number, z0: number, x1: number, z1: number, paint: Parameters<Shell["box"]>[2], pattern: "speckle" | "tiles" = "speckle", top = 0.05) {
-  s.box([x0, SINK, z0], [x1, top, z1], paint, { pattern });
+  s.quad([x0, top, z1], [x1, top, z1], [x1, top, z0], [x0, top, z0], paint, { pattern });
+  // Its sides are the plinth the ground's low side shows, a concrete retaining edge.
+  s.box([x0, SLAB_FOOT, z0], [x1, top, z1], "dealer-concrete", { shade: [0.86, 0.86, 1, 1] }, ["bottom", "top"]);
 }
+
+/** The garage's way in: the office door, beside the bays. */
+const OFFICE_DOOR_X = 3.4;
 
 function villageGarage(s: Shell): Omit<Exterior, "soup"> {
   const brand = BRANDS.klippa;
-  slab(s, -13, -11, 13, 12, "dealer-gravel");
+  slab(s, -14, -11, 14, 12, "dealer-gravel");
 
   // The workshop: Åland red boards, white trim, a tin roof, the ridge along the street.
-  const [wx0, wx1, wz0, wz1, eave, ridge] = [-11, 7, -9, 0, 4.3, 6.4];
+  const [wx0, wx1, wz0, wz1, eave, ridge] = [-13, 9, -9, 0, 4.3, 6.4];
   const midZ = (wz0 + wz1) / 2;
   s.box([wx0, SINK, wz0], [wx1, eave, wz1], "wall-red", { pattern: "boards", shade: WALL_FOOT }, ["bottom", "top"]);
   s.tri([wx0, eave, wz1], [wx0, ridge, midZ], [wx0, eave, wz0], "wall-red", { pattern: "boards" });
@@ -67,23 +71,23 @@ function villageGarage(s: Shell): Omit<Exterior, "soup"> {
   s.box([wx1 - 3.2, 5.2, midZ - 0.25], [wx1 - 2.7, 7.1, midZ + 0.25], "wall-plinth");
 
   // Two bays and the office door; the open bay shows the strip lights inside once the lamps are lit.
-  s.within({ x: -7.4, z: wz1 + 0.01 }, () => rollerDoor(s, 3.6, 3.3, true));
-  s.within({ x: -2.8, z: wz1 + 0.01 }, () => rollerDoor(s, 3.6, 3.3, false));
-  s.within({ x: 1.2, z: wz1 + 0.01 }, () => {
+  s.within({ x: -9.2, z: wz1 + 0.01 }, () => rollerDoor(s, 3.6, 3.3, true));
+  s.within({ x: -4.6, z: wz1 + 0.01 }, () => rollerDoor(s, 3.6, 3.3, false));
+  s.within({ x: OFFICE_DOOR_X, z: wz1 + 0.01 }, () => {
     s.box([-0.55, 0, 0], [0.55, 2.2, 0.06], "wall-trim");
     s.quad([-0.45, 0.05, 0.065], [0.45, 0.05, 0.065], [0.45, 2.1, 0.065], [-0.45, 2.1, 0.065], "wall-glass", { gloss: 0.7, lit: 0.6 });
   });
-  s.within({ x: 4.2, z: wz1 + 0.01 }, () => windowFrame(s, 2.4, 1.4, 1, "wall-trim", true));
+  s.within({ x: 6.4, z: wz1 + 0.01 }, () => windowFrame(s, 2.4, 1.4, 1, "wall-trim", true));
   s.detail(() => {
     for (const z of [-7.5, -1.5]) s.within({ x: wx1 + 0.01, z, yaw: Math.PI / 2 }, () => windowFrame(s, 1.5, 1.1, 1.4, "wall-trim"));
-    for (const x of [-8, -3, 3]) s.within({ x, z: wz0 - 0.01, yaw: Math.PI }, () => windowFrame(s, 1.4, 0.9, 2.1, "wall-trim"));
+    for (const x of [-10, -4.5, 1, 6.5]) s.within({ x, z: wz0 - 0.01, yaw: Math.PI }, () => windowFrame(s, 1.4, 0.9, 2.1, "wall-trim"));
   });
 
   // Its name along the fascia, a plain board with the old painted letters, clear of the pump's canopy.
-  s.box([-10.4, 3.55, wz1 + 0.04], [2.6, 4.12, wz1 + 0.12], "wall-trim");
+  s.box([-12.4, 3.55, wz1 + 0.04], [1.8, 4.12, wz1 + 0.12], "wall-trim");
   s.detail(() => {
-    s.within({ x: -3.4, y: 3.63, z: wz1 + 0.125 }, () => s.text("KLIPPA BILVERKSTAD", 0.4, "wall-red"));
-    s.within({ x: -9.7, y: 3.84, z: wz1 + 0.125 }, () => s.logo(brand, 0.25));
+    s.within({ x: -5.1, y: 3.63, z: wz1 + 0.125 }, () => s.text("KLIPPA BILVERKSTAD", 0.4, "wall-red"));
+    s.within({ x: -11.7, y: 3.84, z: wz1 + 0.125 }, () => s.logo(brand, 0.25));
   });
 
   // A single pump island, under a flat canopy off to the east of the yard.
@@ -104,19 +108,19 @@ function villageGarage(s: Shell): Omit<Exterior, "soup"> {
   });
 
   // The roadside: a price board at the corner, an air post, the yard's clutter.
-  s.within({ x: -12.2, z: 11.2 }, () => postSign(s, [brand.name, "95 1.79", "D 1.72"], 2, 2.3, 1.2, "wall-trim", brand.ink));
+  s.within({ x: -12.8, z: 11.2 }, () => postSign(s, [brand.name, "95 1.79", "D 1.72"], 2, 2.3, 1.2, "wall-trim", brand.ink));
   s.detail(() => {
     s.within({ x: 2.2, z: 4.6 }, () => {
       s.box([-0.1, 0, -0.08], [0.1, 1.3, 0.08], "wall-red");
       s.bar([0.1, 1.05, 0], [0.26, 0.45, 0], 0.03, "dealer-rubber");
     });
-    s.within({ x: 8.2, z: -1.2 }, () => tyreStack(s, 4));
-    s.within({ x: 8.3, z: -2.1 }, () => tyreStack(s, 3));
-    s.within({ x: 8.9, z: -0.5 }, () => tyreStack(s, 2));
-    s.within({ x: 8.4, z: -4 }, () => barrel(s, "dealer-klippa"));
-    s.within({ x: 8.5, z: -4.7 }, () => barrel(s, "wall-plinth"));
+    s.within({ x: 10.2, z: -1.2 }, () => tyreStack(s, 4));
+    s.within({ x: 10.3, z: -2.1 }, () => tyreStack(s, 3));
+    s.within({ x: 10.9, z: -0.5 }, () => tyreStack(s, 2));
+    s.within({ x: 10.4, z: -4 }, () => barrel(s, "dealer-klippa"));
+    s.within({ x: 10.5, z: -4.7 }, () => barrel(s, "wall-plinth"));
   });
-  s.within({ x: -12, z: -5 }, () => {
+  s.within({ x: 12.4, z: -7.2 }, () => {
     s.box([-0.7, 0, -1.6], [0.7, 0.9, 1.6], "wall-grey");
     s.box([-0.72, 0.9, -1.62], [0.72, 1.02, 1.62], "dealer-steel-dark", { pattern: "seams" });
   });
@@ -125,11 +129,10 @@ function villageGarage(s: Shell): Omit<Exterior, "soup"> {
   const [inBay, ...row] = stockOf("village-garage");
   return {
     id: "village-garage",
-    slots: [{ car: inBay, at: [-7.4, 0.05, 3.1], yaw: 0 }, ...row.map((car, index) => ({ car, at: [-9.8 + index * 2.75, 0.05, 8.9] as const, yaw: Math.PI }))],
-    plot: [-13, -11, 13, 12],
-    walls: [[wx0, wz0, wx1, wz1], [canopyX - 3.6, canopyZ - 0.75, canopyX + 3.6, canopyZ + 0.75], [-12.7, -6.6, -11.3, -3.4]],
-    streetZ: 12,
-    entrance: { at: [1.2, 0, 1], radiusM: 2 },
+    slots: [{ car: inBay, at: [-9.2, 0.05, 3.1], yaw: 0 }, ...row.map((car, index) => ({ car, at: [-9.8 + index * 2.75, 0.05, 8.9] as const, yaw: Math.PI }))],
+    plot: [-14, -11, 14, 12],
+    walls: [[wx0, wz0, wx1, wz1], [canopyX - 3.6, canopyZ - 0.75, canopyX + 3.6, canopyZ + 0.75], [11.7, -8.8, 13.1, -5.6]],
+    entrance: { at: [OFFICE_DOOR_X, 0, 1], radiusM: 2 },
   };
 }
 
@@ -139,7 +142,7 @@ export const TOWN_DEALER_NAME = "NORRVIND";
 function townDealer(s: Shell): Omit<Exterior, "soup"> {
   const brands = [BRANDS.vastan, BRANDS.odmark, BRANDS.norrsken];
   slab(s, -20, -23, 20, 14, "dealer-paving", "tiles");
-  s.box([-21, SINK, 14], [21, 0.14, 14.3], "dealer-concrete", {}, ["bottom"]);
+  s.box([-21, SLAB_FOOT, 14], [21, 0.14, 14.3], "dealer-concrete", {}, ["bottom"]);
 
   // The body: pale panels, the glass along the forecourt, a band of the house colour over it.
   const [x0, x1, z0, z1, top] = [-17, 17, -20, -2, 7.2];
@@ -204,7 +207,6 @@ function townDealer(s: Shell): Omit<Exterior, "soup"> {
     slots: stock.map((car, bay) => ({ car, at: [firstBay + bay * bayWide, 0.05, front - 2.7] as const, yaw: Math.PI })),
     plot: [-20, -23, 20, 14.3],
     walls: [[x0, z0, x1, z1], [11.6, z1 - 1.2, x1 + 0.3, z1 + 0.8], [-19.1, 12.18, -16.9, 12.62], ...[-11, 1].map((x): Rectangle => [x - 1.5, -0.6, x + 1.5, 0])],
-    streetZ: 14.3,
     entrance: { at: [-3, 0, 1.2], radiusM: 3.5 },
   };
 }
@@ -291,7 +293,6 @@ function premiumShowroom(s: Shell): Omit<Exterior, "soup"> {
     slots: [],
     plot: [-16, deckBack, 16, 11.5],
     walls: [[-deckX, deckBack, deckX, z1 + 0.2]],
-    streetZ: 11.5,
     entrance: { at: [0, 0, 10], radiusM: 3 },
   };
 }
@@ -342,7 +343,7 @@ function usedLot(s: Shell): Omit<Exterior, "soup"> {
     });
     slots.push({ car, paint, at: [x, 0.03, z], yaw: row === 0 ? 0 : Math.PI });
   });
-  return { id: "used-lot", slots, plot: [-17, -11, 17, 11], walls: [[7.8, -8.8, 14.2, -5.2]], streetZ: 11, entrance: { at: [11, 0, -3], radiusM: 3 } };
+  return { id: "used-lot", slots, plot: [-17, -11, 17, 11], walls: [[7.8, -8.8, 14.2, -5.2]], entrance: { at: [11, 0, -3], radiusM: 3 } };
 }
 
 function tyreShop(s: Shell): Omit<Exterior, "soup"> {
@@ -385,7 +386,6 @@ function tyreShop(s: Shell): Omit<Exterior, "soup"> {
     ],
     plot: [-13, -14, 13, 11],
     walls: [[x0, z0, x1, z1]],
-    streetZ: 11,
     entrance: { at: [-4.2, 0, 1], radiusM: 3 },
   };
 }
