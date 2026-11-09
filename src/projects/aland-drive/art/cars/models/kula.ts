@@ -40,7 +40,7 @@ const face = (): Decal[] => [
   { on: "front", at: [0.54, 0.47], size: [0.075, 0.05], surface: "rim", mirror: true, round: true, liftM: 0.012, fine: true },
   { on: "front", at: [0.54, 0.47], size: [0.06, 0.038], surface: "lensAmber", mirror: true, round: true, liftM: 0.016, fine: true },
   // The moustache: a chrome bar across the nose between the eyes, its tips turned up.
-  { on: "front", at: [0, 0.505], size: [0.46, 0.022], surface: "rim", cells: [8, 1], liftM: 0.014 },
+  { on: "front", at: [0, 0.505], size: [0.46, 0.022], surface: "rim", cells: [4, 1], liftM: 0.014 },
   { on: "front", at: [0.225, 0.52], size: [0.05, 0.024], surface: "rim", mirror: true, cells: [2, 1], liftM: 0.016, fine: true },
   // The front plate, a short one, sat low on the apron over the bumper.
   { on: "front", at: [0, 0.415], size: [0.34, 0.08], surface: "plate", cells: [8, 2], liftM: 0.018, fine: true },
@@ -101,8 +101,7 @@ const FRONT_BUMPER = bumper(
     [0.42, -2.015],
     [0.54, -1.925],
     [0.62, -1.85],
-    [0.66, -1.78],
-    [0.67, -1.73],
+    [0.67, -1.74],
   ],
   "front",
 );
@@ -113,18 +112,17 @@ const REAR_BUMPER = bumper(
     [0.42, 1.835],
     [0.54, 1.765],
     [0.62, 1.7],
-    [0.66, 1.645],
-    [0.68, 1.59],
+    [0.68, 1.6],
   ],
   "rear",
 );
 
 /**
  * Two thin tailpipes under the rear bumper, each a chrome tube with a dark plug standing just out of its end for its
- * bore, a few millimetres apart so the two ends never share a plane.
+ * bore, a few millimetres apart so the two ends never share a plane. Near only: from far off they're lost under the bumper.
  */
 const PIPES: Strut[] = [
-  { path: [[0.24, 0.24, TAIL_Z - 0.2], [0.24, 0.24, TAIL_Z - 0.01]], radius: 0.022, surface: "rim", mirror: true, sides: 10 },
+  { path: [[0.24, 0.24, TAIL_Z - 0.2], [0.24, 0.24, TAIL_Z - 0.01]], radius: 0.022, surface: "rim", mirror: true, sides: 10, fine: true },
   { path: [[0.24, 0.24, TAIL_Z - 0.08], [0.24, 0.24, TAIL_Z - 0.004]], radius: 0.015, surface: "gap", mirror: true, sides: 10, fine: true },
 ];
 
@@ -176,10 +174,10 @@ const shape: Shape = {
     [-0.15, 1.385],
     [0.3, 1.345],
     [0.55, 1.25],
-    [0.75, 1.1],
-    [0.88, 0.97],
+    [0.68, 1.16],
+    [0.8, 1.06],
   ],
-  windowZ: [-0.96, 0.88],
+  windowZ: [-0.96, 0.8],
   railWidth: [
     [-2.09, 0.42],
     [-1.38, 0.62],
@@ -192,7 +190,11 @@ const shape: Shape = {
   ],
   tail: [],
   seams: [-0.96, 0.25],
-  pillars: [[0.2, 0.27]],
+  pillars: [
+    [0.2, 0.27],
+    // The quarter window ends on an upright edge, the last of its taper painted over.
+    [0.72, 0.8],
+  ],
   mirror: { z: -0.83, h: 0.99, x: 0.74 },
   rearPlateH: 0.5,
   decals: [...face(), ...tail(), ...flanks(), ...lids()],
