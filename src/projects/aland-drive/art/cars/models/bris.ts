@@ -2,6 +2,7 @@ import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { bodyOf, driven, faired, handles, plates, reversing, type Shape } from "../recipe";
+import { projectors } from "../parts";
 
 const BRIS = driven("bris");
 const { sill, belt, windowBase, rail, centre } = ROWS;
@@ -111,7 +112,7 @@ const shape: Shape = {
   pillars: [],
   mirror: { z: -0.45, h: 0.9, x: 0.82 },
   rearPlateH: 0.63,
-  decals: [...plates(0.63, 0.36), ...handles([0.32], 0.7), ...grilleFrame(), ...flank(), reversing(0.4, 0.68)],
+  decals: [...plates(0.63, 0.36), ...handles([0.32], 0.7), ...grilleFrame(), ...flank(), reversing(0.4, 0.68), ...projectors({ x: [0.57, 0.685], h: 0.53, size: 0.055, lensLiftM: 0.03, ring: false })],
   blocks: [
     // The screen's bright frame along its top.
     { at: [0, 1.225, -0.32], size: [1.18, 0.016, 0.02], surface: "rim", fine: true },

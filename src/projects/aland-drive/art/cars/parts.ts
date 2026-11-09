@@ -50,11 +50,16 @@ export const lightLine = ({ x, h, wide, thick = 0.018 }: { x: number; h: number;
   liftM: 0.01,
 });
 
-/** Projector lenses in a row across one headlamp, mirrored, each a ring of trim round a bright lens. Fine: the far model keeps the lamp they sit in. */
-export const projectors = ({ x, h, size }: { x: readonly number[]; h: number; size: number }): Decal[] =>
+/**
+ * Projector lenses in a row across one headlamp, mirrored, each a ring of trim round a lens that lights with the
+ * headlamps: they are the lamp's main beams. Fine: the far model keeps the lamp they sit in. On a lamp laid nearly flat
+ * along the nose, the lens lifts further (`lensLiftM`), since a lift along the car is little off a face that slopes.
+ * Without its `ring`, a lens laid over a lamp of lit slits joins them into one lamp at night rather than cutting them.
+ */
+export const projectors = ({ x, h, size, lensLiftM = 0.016, ring = true }: { x: readonly number[]; h: number; size: number; lensLiftM?: number; ring?: boolean }): Decal[] =>
   x.flatMap((across): Decal[] => [
-    { on: "front", at: [across, h], size: [size * 1.4, size * 1.4], surface: "trim", mirror: true, round: true, fine: true, liftM: 0.012 },
-    { on: "front", at: [across, h], size: [size, size], surface: "lensReverse", mirror: true, round: true, fine: true, liftM: 0.016 },
+    ...(ring ? [{ on: "front", at: [across, h], size: [size * 1.4, size * 1.4], surface: "trim", mirror: true, round: true, fine: true, liftM: 0.012 } as const] : []),
+    { on: "front", at: [across, h], size: [size, size], surface: "lensHead", mirror: true, round: true, fine: true, liftM: lensLiftM },
   ]);
 
 /** A bar of tail light the whole width of the tail, at `h`, with `segments` of dark between its cells read close up. */

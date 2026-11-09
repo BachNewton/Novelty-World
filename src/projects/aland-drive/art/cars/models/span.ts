@@ -1,7 +1,7 @@
 import { ROWS, type Band, type Decal, type Fender, type Strut } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { sideIntake, splitter } from "../parts";
+import { projectors, sideIntake, splitter } from "../parts";
 import { bodyOf, driven, faired, handles, type Shape } from "../recipe";
 
 const SPAN = driven("span");
@@ -160,6 +160,8 @@ const shape: Shape = {
   rearPlateH: 0.52,
   rearSeats: false,
   decals: [
+    // The main beam: a lit lens in the lamp, so it reads as a headlamp at night.
+    ...projectors({ x: [0.245], h: 0.31, size: 0.04 }),
     { on: "rear", at: [0, 0.45], size: [0.46, 0.11], surface: "plate", cells: [4, 1], fine: true },
     ...handles([-0.1], 0.6),
     ...feather("front", 0.24, 0.31, "lensHead"),

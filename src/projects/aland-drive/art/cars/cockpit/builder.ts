@@ -244,18 +244,19 @@ const signedPow = (value: number, power: number) => Math.sign(value) * Math.abs(
 
 /**
  * A rounded box: a superellipsoid of half sizes (across, up, back) in a frame, as soft as `round` (near 0 a box,
- * 1 an ellipsoid), with `steps` round each way.
+ * 1 an ellipsoid), with `steps` round each way. `edge` rounds its section up and down apart from its plan: a pad with a
+ * squarish outline and soft edges, as a visor or a cushion is.
  */
-export function pillow(builder: CockpitBuilder, at: ReturnType<typeof axes>, half: readonly [number, number, number], round: number, look: FaceLook, steps = 10) {
+export function pillow(builder: CockpitBuilder, at: ReturnType<typeof axes>, half: readonly [number, number, number], round: number, look: FaceLook, steps = 10, edge = round) {
   const rows: Point[][] = [];
   for (let ring = 0; ring <= steps; ring++) {
     const v = -Math.PI / 2 + (ring / steps) * Math.PI;
     const row: Point[] = [];
     for (let step = 0; step < steps * 2; step++) {
       const u = (step / (steps * 2)) * Math.PI * 2;
-      const across = signedPow(Math.cos(v), round) * signedPow(Math.cos(u), round);
-      const back = signedPow(Math.cos(v), round) * signedPow(Math.sin(u), round);
-      const up = signedPow(Math.sin(v), round);
+      const across = signedPow(Math.cos(v), edge) * signedPow(Math.cos(u), round);
+      const back = signedPow(Math.cos(v), edge) * signedPow(Math.sin(u), round);
+      const up = signedPow(Math.sin(v), edge);
       row.push(at(across * half[0], up * half[1], back * half[2]));
     }
     rows.push(row);
