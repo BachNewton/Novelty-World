@@ -2,7 +2,7 @@
 
 A 3D open-road driving game inspired by the Test Drive Unlimited series, set on the main island of Åland at 1:1 scale, built from real public geodata.
 
-Players see it as **Åland Drive Unlimited**, a nod to that series; the code keeps the name Åland Drive. It lives at Games → 3D Games → Åland Drive Unlimited. It is the whole main island, 54 tiles of road and the 40 around them, streamed in as the car moves: fourteen invented cars to drive on real roads, on land coloured by the real aerial photos, among forest grown from the laser data and buildings from NLS's 3D data and footprints, with a mini map, a world map and a GPS, and fifty real places to find, and bucket list challenges to play solo or as co-op for two, against the clock or a speed camera, and 32 races, laps of a loop or a road from A to B, for medals. Everyone who opens it drives in one shared world, online free roam, with every other player's car on the road and on both maps.
+Players see it as **Åland Drive Unlimited**, a nod to that series; the code keeps the name Åland Drive. It lives at Games → 3D Games → Åland Drive Unlimited. It is the whole main island, 54 tiles of road and the 40 around them, streamed in as the car moves: invented cars to drive on real roads, on land coloured by the real aerial photos, among forest grown from the laser data and buildings from NLS's 3D data and footprints, with a mini map, a world map and a GPS, and fifty real places to find, and bucket list challenges to play solo or as co-op for two, against the clock or a speed camera, and 32 races, laps of a loop or a road from A to B, for medals. Everyone who opens it drives in one shared world, online free roam, with every other player's car on the road and on both maps.
 
 ## Where it's written down
 
@@ -25,7 +25,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `tools/` | The measuring tools and the labs |
 | `playground/` | `?playground`, the made-up test map |
 
-`docs/` holds the longer references: `DATA.md` (the sources and what was measured in them), `PLAN.md` (the phases), `ART.md` (every art kit), `TIME-AND-WEATHER.md`, `ROAD-SURFACES.md`, `JUNCTIONS.md`, `LIGHTHOUSES.md`, `HISTORY.md`, `DRIVING-CULTURE.md`, and `HANDOFF.md` (where the work stands). `ideas/` holds what isn't decided.
+`docs/` holds the longer references: `DATA.md` (the sources and what was measured in them), `PLAN.md` (the phases), `ART.md` (every art kit), `CAR-METHOD.md` (how a car is built, reviewed and tuned into its tier), `TIME-AND-WEATHER.md`, `ROAD-SURFACES.md`, `JUNCTIONS.md`, `LIGHTHOUSES.md`, `HISTORY.md`, `DRIVING-CULTURE.md`, and `HANDOFF.md` (where the work stands). `ideas/` holds what isn't decided.
 
 ## Controls
 
@@ -34,8 +34,9 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Accelerate | W | RT |
 | Brake, then reverse | S | LT |
 | Steer | A and D | Left stick |
-| Look left, right or behind, while held | Left, Right, Down | Right stick, any way round |
-| Look down on the car, while held | Up | |
+| Chase view or driver's seat, kept in this browser | C | RB |
+| Look left, right or behind, while held | Left, Right, Down | Right stick, any way round; from the seat, the head turns as far as it's pushed |
+| Look down on the car, while held (chase view) | Up | |
 | Handbrake | Space | A |
 | Back to the nearest road | R | Y |
 | Free camera | F | |
@@ -47,6 +48,8 @@ This file holds what applies everywhere in the project. Each system's own detail
 The world map pauses the drive and opens on the main island, north up, and zooms out to all of Åland. The wheel (about the cursor) or the triggers zoom, a drag, WASD or the right stick pans, a click or A sets a destination, with the left stick moving a controller's cursor, X clears the route, and Esc, M, B or View flies home. A pick on a place routes to it, and the cursor over one names it, with its note once it's found.
 
 `~`, or the key under Esc on any layout, opens the dev menu. The menus are `components/CLAUDE.md`.
+
+From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
 
 The free camera is for inspection: WASD, Q and E, Shift, drag to look, the wheel for its speed. There is no touch. Prompts come from the shared glyphs and follow the last input used.
 
@@ -67,7 +70,7 @@ A player starts in Grus while the game is in development (`PLAYER_START_CAR`), a
 | | |
 |---|---|
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
-| `?car=<id>`, `?tyres=` | Starts in that car (its id in `sim/cars.ts`), on those tyres |
+| `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |

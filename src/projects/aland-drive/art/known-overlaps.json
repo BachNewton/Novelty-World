@@ -21,58 +21,55 @@
     "near": 65
   },
   "cars: Skerry GT hero": {
-    "body": 120
+    "body": 66
   },
   "cars: Ljus hero": {
-    "body": 89
-  },
-  "cars: Ljus hero wheel": {
-    "wheel": 204
+    "body": 46
   },
   "cars: Fjärd hero": {
-    "body": 89
+    "body": 41
   },
   "cars: Sund hero": {
-    "body": 173
+    "body": 118
   },
   "cars: Holm hero": {
-    "body": 38
+    "body": 4
   },
   "cars: Holm far": {
     "body": 4
   },
   "cars: Kobb hero": {
-    "body": 155
+    "body": 59
   },
   "cars: Sälta hero": {
-    "body": 40
+    "body": 14
   },
   "cars: Sälta far": {
     "body": 2
   },
   "cars: Vik hero": {
-    "body": 76
+    "body": 16
   },
   "cars: Sten hero": {
-    "body": 53
+    "body": 23
   },
   "cars: Berg hero": {
-    "body": 62
+    "body": 11
   },
   "cars: Ström hero": {
-    "body": 44
+    "body": 10
   },
   "cars: Ankar hero": {
-    "body": 46
+    "body": 6
   },
   "cars: Bris hero": {
-    "body": 54
+    "body": 6
   },
   "cars: Bris far": {
     "body": 2
   },
   "cars: Grus hero": {
-    "body": 58
+    "body": 22
   },
   "cars: world Raggare": {
     "near": 2

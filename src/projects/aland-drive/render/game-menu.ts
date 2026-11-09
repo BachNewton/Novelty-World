@@ -4,6 +4,7 @@ import type { ChallengeKind, RaceGround, RaceShape } from "../challenge/types";
 import type { Units } from "../units";
 import type { Assists } from "../sim/car";
 import type { Tyre } from "../sim/surfaces";
+import type { CarPaint } from "../art/cars/paints";
 
 /*
  * The game menu, as the game wants it: which items it holds, in order, and
@@ -17,7 +18,7 @@ import type { Tyre } from "../sim/surfaces";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "paint" | PaintItem | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -55,8 +56,11 @@ export interface MenuResult {
   race?: RaceResult;
 }
 
-/** What the dialog is: the game menu, its Graphics page, or one of a challenge's choices. */
-export type MenuKind = "menu" | "graphics" | "start" | "invite" | "race";
+/** A paint on the Paint page, by its index in the car's list. */
+export type PaintItem = `paint-${number}`;
+
+/** What the dialog is: the game menu, its Graphics or Paint page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "graphics" | "paint" | "start" | "invite" | "race";
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -81,6 +85,8 @@ export interface GameMenu {
   race?: RaceCard;
   /** Set when the items are about a race, being played or over: its ground. */
   ground?: RaceGround;
+  /** The Paint page's car, by name, and its paints, which its items choose by index; the one it's in is marked. */
+  paints?: { car: string; paints: readonly CarPaint[]; chosen: number };
 }
 
 /**
@@ -98,7 +104,24 @@ const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric",
 /** The units a units choice sets. */
 export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
 
-export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "paint", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+
+export const isPaintItem = (id: MenuItemId): id is PaintItem => /^paint-\d+$/.test(id);
+
+/** The paint a paint item chooses, by its index in the car's list. */
+export const paintOfItem = (id: PaintItem): number => Number(id.slice("paint-".length));
+
+/**
+ * The car's paints, a page of their own off the game menu: each chooses its own and is drawn on the car at once, so the
+ * player sees it before going back. Like the tyres, never in a challenge, whose car is the challenge's.
+ */
+export const paintMenu = (car: string, paints: readonly CarPaint[], chosen: number): GameMenu => ({
+  kind: "paint",
+  items: [...paints.map((_, index): PaintItem => `paint-${index}`), "back"],
+  back: "back",
+  pauses: true,
+  paints: { car, paints, chosen },
+});
 
 /** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
 export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };

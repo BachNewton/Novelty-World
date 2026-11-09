@@ -1,0 +1,44 @@
+import { tuned, type CarEntry } from "./character";
+
+/** A tiny, narrow, light four-by-four with a small petrol four and short gears: nimble and bouncy on a forest track, short in the wheelbase, tippy and slow on the open road. */
+export const knott: CarEntry = {
+  tier: "B4",
+  tuning: tuned({
+    name: "Knott",
+    class: "offroad",
+    massKg: 1100,
+    outline: [3.7, 1.62, 1.76, 0.4],
+    axleZ: [-1.12, 1.12],
+    trackM: 1.37,
+    wheelRadiusM: 0.36,
+    massHeightM: 0.74,
+    rideHz: 1.55,
+    damping: 0.22,
+    rollStiffness: 0.2,
+    droopM: 0.44,
+    travelM: 0.36,
+    grip: [0.92, 0.94],
+    peakSlip: 0.16,
+    slideShare: 0.86,
+    engine: {
+      peakTorqueNm: 108,
+      torqueCurve: [
+        [0.15, 0.6],
+        [0.35, 0.82],
+        [0.6, 0.97],
+        [0.75, 1],
+        [0.9, 0.93],
+        [1, 0.82],
+      ],
+      engineBrakeNm: 30,
+    },
+    gearbox: { idleRpm: 820, redlineRpm: 6300, gearTopMS: [8.5, 15, 23, 31.5, 42], shiftS: 0.3, gentleShift: 0.45 },
+    launchMS2: 4.2,
+    rearShare: 0.5,
+    brakeMS2: 8.8,
+    dragPerMS2: 0.77,
+    aero: 0.3,
+    lock: 0.64,
+    turnPerS: 2.6,
+  }),
+};

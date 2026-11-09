@@ -3,7 +3,7 @@
 // the challenge's own rules (`challenge/run.ts`). One core, no browser, no network.
 //
 // The driver goes flat out wherever the bends allow and brakes for each bend as late as a share of the car's own grip
-// on the ground under it allows (`sim/car-limits.json`, dry), the boldest share it gets round at.
+// on the ground under it allows (`sim/limits/`, dry), the boldest share it gets round at.
 
 import { runOn } from "../challenge/line";
 import { advanceRun, lineAt, linesOf, startRun, type ChallengeRun } from "../challenge/run";
@@ -38,6 +38,11 @@ const RUN_ON_M = 150;
 /** The ground is loaded this far round the car, and the tiles under it must have their detail. */
 const GROUND_REACH_M = 400;
 const LOST_M = 30;
+/**
+ * A driver that runs wide into something can stop short of giving up and back out the way it came, inside the road's
+ * width, which costs seconds but isn't lost; going back this far along its way is losing the road there.
+ */
+const BACK_M = 20;
 /** A line counts as missed once the driver is this far past it along its way. */
 const MISSED_M = 40;
 /** A line belongs to a stretch of the driver's way running within this of its heading, not one crossing it or back along it. */
@@ -45,7 +50,11 @@ const SAME_WAY_COSINE = 0.5;
 /** A pass this near a line is the way's own past it; once the way is this much further off again, it has gone on. */
 const NEAR_LINE_M = 20;
 const PASSED_LINE_M = 50;
-const STOPPED_MS = 0.3;
+/**
+ * Stopped is getting no further along its way than this in that long: a car pinned against a wall rocks to and fro at
+ * a walking pace, which a speed alone never calls stopped.
+ */
+const STUCK_M = 5;
 const GIVE_UP_STOPPED_S = 10;
 /** The longest a run may take: ten minutes, and a minute more for every 600 m past the first 6 km. */
 const LONGEST_S = 600;
@@ -123,7 +132,8 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
   let run: ChallengeRun = startRun(challenge, 1);
   const profile: string[] = [];
   let nextProfileM = PROFILE_EVERY_M;
-  let stoppedS = 0;
+  let furthest = from;
+  let stuck = { along: from, s: 0 };
   const lineAlongs = alongsOf(challenge, driven, from);
   // How near the car has come to the next line since crossing the last, which says why a line was missed.
   let nearestNext = { distance: Infinity, along: 0, line: -1 };
@@ -153,8 +163,10 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
       const where = `${sample.x.toFixed(0)}, ${sample.z.toFixed(0)}, ${pilot.along.toFixed(0)} m along, before line ${nextGate + 1}, which it came within ${nearestNext.distance.toFixed(1)} m of ${nearestNext.along.toFixed(0)} m along`;
       if (pilot.along > lineAlongs[nextGate] + MISSED_M) return { failed: `missed line ${nextGate + 1} at ${where}`, along: lineAlongs[nextGate] };
       if (Math.hypot(onLine.x - sample.x, onLine.z - sample.z) > LOST_M) return { failed: `lost the road at ${where}`, along: pilot.along };
-      stoppedS = sample.speedMS < STOPPED_MS ? stoppedS + STEP_S : 0;
-      if (stoppedS > GIVE_UP_STOPPED_S) return { failed: `stopped at ${where}`, along: pilot.along };
+      furthest = Math.max(furthest, pilot.along);
+      if (furthest - pilot.along > BACK_M) return { failed: `went back along its way from ${furthest.toFixed(0)} m at ${where}`, along: furthest };
+      stuck = furthest >= stuck.along + STUCK_M ? { along: furthest, s: 0 } : { along: stuck.along, s: stuck.s + STEP_S };
+      if (stuck.s > GIVE_UP_STOPPED_S) return { failed: `stopped at ${where}`, along: pilot.along };
       if (profiled && pilot.along >= nextProfileM) {
         profile.push(`${nextProfileM} m ${(sample.speedMS * 3.6).toFixed(1)}`);
         nextProfileM += PROFILE_EVERY_M;

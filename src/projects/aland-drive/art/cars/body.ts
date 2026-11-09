@@ -74,6 +74,50 @@ export interface Block {
   mirror?: boolean;
   /** The far end's width and height as a share of the near end's. */
   taper?: readonly [wide: number, tall: number];
+  /** The taper keeps the block's foot level, `at`'s height its near end's middle, so it grows or shrinks upwards only. */
+  footLevel?: boolean;
+  fine?: boolean;
+}
+
+/**
+ * A wing over an open wheel, fixed to the body, as a track car's cycle wing or a minimal pod: a strip of arc over the
+ * tyre, from `from` to `to` degrees round the wheel (0 straight ahead, 90 over the top, 180 straight behind), standing
+ * `clearM` off the tyre, `wide` across, centred `x` out from the car's middle and mirrored.
+ */
+export interface Fender {
+  axle: number;
+  x: number;
+  wide: number;
+  clearM: number;
+  from: number;
+  to: number;
+  /** How thick its edges are, and how much higher its middle stands: a crowned wing. */
+  thick: number;
+  crown: number;
+  surface: Surface;
+}
+
+/** A tube along a path of points (x across, height, z along): a roll hoop, a suspension arm, a stay. */
+export interface Strut {
+  path: readonly (readonly [x: number, h: number, z: number])[];
+  radius: number;
+  surface: Surface;
+  /** Also on the other side of the car. */
+  mirror?: boolean;
+  fine?: boolean;
+  /** How many sides its section has close up: 6 when not given, more for a tube as big as a bumper bar. */
+  sides?: number;
+}
+
+/**
+ * A spare wheel carried on the body, as a desert truck's in its bed: a tyre round a dark dished rim and a polished hub,
+ * its axle along z (standing, its face to the tail) or along the height (lying flat, its face up), centred at `at`.
+ */
+export interface Spare {
+  at: readonly [x: number, h: number, z: number];
+  radiusM: number;
+  widthM: number;
+  axis: "z" | "h";
   fine?: boolean;
 }
 
@@ -88,6 +132,14 @@ export interface Cabin {
   endZ: number;
   seatX: number;
   seatSurface: Surface;
+  /**
+   * A central driving seat's car: the driver sits in the middle (`seatX` 0) with no console beside them, and the two
+   * passengers either side of them and set back, at `x` out from the middle and `z`, so their shoulders clear the
+   * driver's. None, and the front pair sit either side of the middle at `seatX`.
+   */
+  passengers?: readonly [x: number, z: number];
+  /** How wide its floor and bulkheads are, where a narrow body doesn't reach the wheels: the track's width otherwise. */
+  wideM?: number;
 }
 
 export interface BodySpec {
@@ -107,8 +159,21 @@ export interface BodySpec {
   /** The top of the side glass, between where the glass starts and ends. */
   windowTop: readonly Key[];
   windowZ: readonly [from: number, to: number];
-  /** How far the roof's edge sits below the centre line. */
+  /** How far the roof's edge sits below the centre line: below zero, the edge stands above it, as fenders do beside a hood that dips between them. */
   crown: readonly Key[];
+  /**
+   * How far in from the flank's top the side glass starts, along the car: a shelf of paint between the two, so a
+   * narrow cabin sits inboard of wide hips as a mid-engined car's does. None, and the glass starts at the flank.
+   */
+  shelf?: readonly Key[];
+  /** How far the lower flank is scooped in, along the car: a sculpted side that leads the eye, and the air, into an intake. */
+  scoop?: readonly Key[];
+  /**
+   * Where the silhouette drops below the flank, as at a nose or a tail, the rows above it run across the end in one
+   * direction, so no strip of the end folds back over another in one plane. Every new car sets it; the older cars
+   * keep their ends as their measured swaps and known overlaps have them, until they're redrawn.
+   */
+  cleanEnds?: boolean;
   halfWidth: readonly Key[];
   railWidth: readonly Key[];
   /** How far the corners of the nose and tail pull back from the ends, and over what length. */
@@ -122,13 +187,25 @@ export interface BodySpec {
   /** What the band between window top and roof edge is. */
   pillarSurface: Surface;
   sillSurface: Surface;
+  /**
+   * How tall the sill's strip stands round each wheel's arch: a lip of the sill's surface round the opening, as a rally
+   * car's arch extensions are. None, and the strip is a hairline there.
+   */
+  archLipM?: number;
   /** What the belt strip under the side glass is. */
   beltSurface: Surface;
 
   mirror: { z: number; h: number; x: number };
   decals: readonly Decal[];
-  wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number };
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number };
+  /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
+  wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
+  /**
+   * Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body
+   * hides the end.
+   */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
+  /** Open pipes leaving the sills sideways, on both sides, one at each `z`, their ends `x` out from the car's middle. */
+  sideExhausts?: { z: readonly number[]; h: number; x: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -136,6 +213,14 @@ export interface BodySpec {
   cabin?: Cabin;
   /** Where the hood's shut lines run, from and to. */
   hoodSeamZ?: readonly [from: number, to: number];
+  /**
+   * The wheels stand outside a narrow body, as a track car's do: the body has no arches cut in it and no wells, and
+   * what covers the wheels is its `fenders`.
+   */
+  openWheels?: boolean;
+  fenders?: readonly Fender[];
+  struts?: readonly Strut[];
+  spares?: readonly Spare[];
 }
 
 export interface BodyDetail {
@@ -147,6 +232,8 @@ export interface BodyDetail {
   creaseDeg: number;
   /** A cabin to see through the glass to. */
   cabin: boolean;
+  /** Blocks' and tailpipes' faces wound outward: a drivable car's, at either detail. */
+  outward: boolean;
 }
 
 interface Station extends SilhouettePoint {
@@ -154,6 +241,8 @@ interface Station extends SilhouettePoint {
 }
 
 interface Curves {
+  shelf: (z: number) => number;
+  scoop: (z: number) => number;
   sill: (z: number) => number;
   shoulder: (z: number) => number;
   belt: (z: number) => number;
@@ -167,8 +256,11 @@ interface Curves {
 const SEAM_ROWS = { door: 1, hood: 7.93 } as const;
 const SEAM_HALF_M = 0.006;
 const MERGE_M = 0.012;
+/** How near a hero's arch station may come to another station it must have before it gives way. */
+const SLIVER_M = 0.025;
 
 function archTop(spec: BodySpec, z: number): number {
+  if (spec.openWheels) return 0;
   const radius = spec.wheelRadiusM + spec.archClearM;
   return Math.max(...spec.axleZ.map((axle) => (Math.abs(z - axle) < radius ? spec.wheelRadiusM + Math.sqrt(radius * radius - (z - axle) ** 2) : 0)));
 }
@@ -182,19 +274,32 @@ function flareAt(spec: BodySpec, z: number) {
 function stationsOf(spec: BodySpec, curves: Curves, detail: BodyDetail): Station[] {
   const wanted: { z: number; gapTo?: number }[] = [];
   const radius = spec.wheelRadiusM + spec.archClearM;
-  for (const axle of spec.axleZ) {
+  // A hero with clean ends has its arches' stations laid without slivers; the older cars keep theirs as their known
+  // overlaps were counted on, until they're redrawn.
+  const clean = detail.fine && spec.cleanEnds === true;
+  const arches: number[] = [];
+  for (const axle of spec.openWheels ? [] : spec.axleZ) {
     const low = curves.sill(axle);
-    const startAngle = Math.asin(Math.max(-1, (low - spec.wheelRadiusM) / radius));
+    const lowest = Math.asin(Math.max(-1, (low - spec.wheelRadiusM) / radius));
+    // An arch is drawn over its wheel's top half (`archTop`), so a hero's stations go round that half alone: below the
+    // axle a step's z would land a millimetre or two from one above it, a sliver whose normals crumpled the light.
+    const startAngle = clean ? Math.max(lowest, 0) : lowest;
     for (let step = 0; step <= detail.archSteps; step++) {
       const angle = startAngle + ((Math.PI - 2 * startAngle) * step) / detail.archSteps;
-      wanted.push({ z: axle + Math.cos(angle) * radius });
+      arches.push(axle + Math.cos(angle) * radius);
     }
   }
-  if (detail.seams) for (const seam of spec.seams) wanted.push({ z: seam - SEAM_HALF_M, gapTo: seam + SEAM_HALF_M }, { z: seam + SEAM_HALF_M });
-  for (const [from, to] of spec.pillars) wanted.push({ z: from }, { z: to });
+  const marks: { z: number; gapTo?: number }[] = [];
+  if (detail.seams) for (const seam of spec.seams) marks.push({ z: seam - SEAM_HALF_M, gapTo: seam + SEAM_HALF_M }, { z: seam + SEAM_HALF_M });
+  for (const [from, to] of spec.pillars) marks.push({ z: from }, { z: to });
+  const path = spec.silhouette.filter((point) => detail.fine || !point.fine);
+  // A hero's arch station that falls by a seam, a pillar or a point of the silhouette gives way to it, rather than leave
+  // a sliver between them: its normals crumple the light, and a pane's frit folds across one into the next.
+  const fixed = [...marks.map(({ z }) => z), ...path.map(({ z }) => z)];
+  const clear = (z: number) => !clean || fixed.every((at) => Math.abs(at - z) >= SLIVER_M);
+  wanted.push(...arches.filter(clear).map((z) => ({ z })), ...marks);
 
   const stations: Station[] = [];
-  const path = spec.silhouette.filter((point) => detail.fine || !point.fine);
   for (let at = 0; at + 1 < path.length; at++) {
     const [from, to] = [path[at], path[at + 1]];
     const [low, high] = from.z < to.z ? [from.z, to.z] : [to.z, from.z];
@@ -233,34 +338,66 @@ function rowAt(rib: readonly (readonly [number, number])[], row: number): [numbe
   return [along(0), along(1)];
 }
 
-function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boolean): [x: number, h: number][] {
+/** The larger of two heights, rounded over `round` where they cross, and exactly the larger beyond it. */
+function smoothMax(a: number, b: number, round: number) {
+  const near = Math.max(round - Math.abs(a - b), 0) / round;
+  return Math.max(a, b) + (near * near * round) / 4;
+}
+
+/** How far a hero's flank rows round off where the arch's edge lifts them. */
+const ARCH_ROUND_M = 0.06;
+
+/**
+ * A hero's lower and mid rows: the flank's own lines, as if there were no arch, lifted over the arch's lip only where
+ * it reaches them. Spread between the lip and the shoulder instead, they'd follow the arch's circle, which stands
+ * straight up at the arch's ends, and squeeze the panel over it into a few centimetres, so the light crumpled there.
+ */
+function heroFlank(lowest: number, sill: number, sillTop: number, shoulder: number, lip: number) {
+  const flankTop = Math.max(lowest + 0.08, lowest + lip);
+  const lower = Math.max(flankTop + (shoulder - flankTop) * 0.3, lowest + 0.024);
+  const mid = Math.max(flankTop + (shoulder - flankTop) * 0.68, lowest + 0.036);
+  if (sill <= lowest) return { lower, mid };
+  const gap = shoulder - sillTop;
+  return {
+    lower: smoothMax(lower, sillTop + Math.min(0.015, gap * 0.3), ARCH_ROUND_M),
+    mid: smoothMax(mid, sillTop + Math.min(0.03, gap * 0.68), ARCH_ROUND_M),
+  };
+}
+
+function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boolean, fine: boolean): [x: number, h: number][] {
   const { z, h: top } = station;
   const lowest = curves.sill(z);
   const sill = Math.max(lowest, archTop(spec, z));
   const width = curves.halfWidth(z);
   const flare = flareAt(spec, z);
   const shoulder = Math.max(curves.shoulder(z), sill + 0.05);
-  const sillTop = Math.max(lowest + 0.08, sill + 0.012);
-  const lower = Math.max(sillTop + (shoulder - sillTop) * 0.3, sill + 0.024);
-  const mid = Math.max(sillTop + (shoulder - sillTop) * 0.68, sill + 0.036);
+  const lip = spec.archLipM ?? 0.012;
+  const sillTop = Math.max(lowest + 0.08, sill + lip);
+  // Only a car with clean ends: the older cars keep their flanks as their known overlaps were counted on.
+  const { lower, mid } = fine && spec.cleanEnds === true
+    ? heroFlank(lowest, sill, sillTop, shoulder, lip)
+    : { lower: Math.max(sillTop + (shoulder - sillTop) * 0.3, sill + 0.024), mid: Math.max(sillTop + (shoulder - sillTop) * 0.68, sill + 0.036) };
   const belt = Math.max(curves.belt(z), shoulder + 0.01);
 
   const beltX = width - 0.018 + flare * 0.35;
-  const baseX = beltX - 0.014;
   const railX = curves.railWidth(z);
+  const shelf = curves.shelf(z);
+  const baseX = Math.max(beltX - 0.014 - shelf, railX + 0.02);
   const railH = top - curves.crown(z);
-  const baseH = Math.min(belt + 0.012, railH);
+  // A shelf rises a little as it runs in, so it sheds the light as a surface and not a step.
+  const baseH = Math.min(belt + 0.012 + shelf * 0.18, railH);
   const hasWindow = z > spec.windowZ[0] && z < spec.windowZ[1];
   const windowH = hasWindow ? Math.min(Math.max(curves.windowTop(z), baseH), railH) : baseH;
   const windowShare = railH > baseH ? (windowH - baseH) / (railH - baseH) : 0;
 
+  const scoop = curves.scoop(z);
   const roofOuter: [number, number] = [railX * 0.64, top - curves.crown(z) * 0.42];
   const roofInner: [number, number] = [railX * 0.3, top - curves.crown(z) * 0.1];
   const rib: [number, number][] = [
     [width - 0.04 + flare * 0.7, sill],
     [width - 0.014 + flare, sillTop],
-    [width - 0.004 + flare, lower],
-    [width + flare, mid],
+    [width - 0.004 + flare - scoop * 0.55, lower],
+    [width + flare - scoop, mid],
     [width - 0.002 + flare * 0.75, shoulder],
     [beltX, belt],
     [baseX, baseH],
@@ -281,7 +418,14 @@ function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boole
     return rib;
   }
   if (sideWall) return rib;
-  return rib.map(([x, h]) => [x, Math.min(h, top)]);
+  const cap = top + Math.max(0, -curves.crown(z));
+  const capped = rib.map(([x, h]): [number, number] => [x, Math.min(h, cap)]);
+  if (spec.cleanEnds) {
+    for (let row = 1; row < capped.length; row++) {
+      if (capped[row][1] >= cap) capped[row][0] = Math.min(capped[row][0], capped[row - 1][0]);
+    }
+  }
+  return capped;
 }
 
 function pulledZ(spec: BodySpec, z: number, x: number, width: number, zFront: number, zRear: number) {
@@ -350,7 +494,59 @@ function addDecal(builder: SoupBuilder, ground: number, decal: Decal) {
   }
 }
 
+/**
+ * A hero's mirror: a housing that swells out of a slim arm and tapers to its tip, round in front and flat behind, in
+ * the body's colour, with its dark glass on the flat back.
+ */
+/** How far in from the housing's edge a hero mirror's glass stops. */
+const MIRROR_RIM_M = 0.009;
+
+function addHeroMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
+  const { z, h, x } = spec.mirror;
+  const y = h + ground;
+  const back = 0.035;
+  for (const side of [1, -1]) {
+    const ordered = (rings: Point[][]) => (side > 0 ? [...rings].reverse() : rings);
+    // A section from the top of its flat back, round the front, to the bottom of its back.
+    const section = (out: number, tall: number, deep: number, lift: number): Point[] =>
+      Array.from({ length: 9 }, (_, step) => {
+        const angle = Math.PI / 2 - (Math.PI * step) / 8;
+        return [side * out, y + lift + tall * Math.sin(angle), z + back - (back + deep) * Math.cos(angle)];
+      });
+    builder.rings(
+      ordered([section(x + 0.02, 0.022, 0.02, -0.004), section(x + 0.05, 0.04, 0.045, 0), section(x + 0.1, 0.048, 0.055, 0.004), section(x + 0.145, 0.044, 0.05, 0.006), section(x + 0.172, 0.03, 0.034, 0.006), section(x + 0.184, 0.012, 0.014, 0.005)]),
+      "paint",
+    );
+    // The arm, from the door's top to the housing, thin and swept back.
+    const arm = (out: number, up: number, along: number): Point[] => [
+      [side * out, y + up - 0.007, z + along - 0.018],
+      [side * out, y + up + 0.007, z + along - 0.018],
+      [side * out, y + up + 0.007, z + along + 0.018],
+      [side * out, y + up - 0.007, z + along + 0.018],
+    ];
+    builder.rings(ordered([arm(x - 0.02, -0.06, 0.02), arm(x + 0.01, -0.038, 0.01), arm(x + 0.04, -0.012, 0)]), "paint");
+    // The glass on its flat back, standing off it: the housing's own outline drawn in by a rim of paint, silvered as a
+    // mirror is, so from behind or from the driver's seat it reads as a mirror and not as a dark box.
+    const glassZ = z + back + 0.006;
+    const edge = (out: number, tall: number, lift: number): [Point, Point] => [
+      [side * out, y + lift - tall + MIRROR_RIM_M, glassZ],
+      [side * out, y + lift + tall - MIRROR_RIM_M, glassZ],
+    ];
+    const outline = [edge(x + 0.05, 0.04, 0), edge(x + 0.1, 0.048, 0.004), edge(x + 0.145, 0.044, 0.006), edge(x + 0.168, 0.033, 0.006)];
+    const group = builder.newGroup();
+    outline.slice(1).forEach(([low, high], at) => {
+      const [lowBefore, highBefore] = outline[at];
+      if (side > 0) builder.quad(low, high, highBefore, lowBefore, "rim", group);
+      else builder.quad(lowBefore, highBefore, high, low, "rim", group);
+    });
+  }
+}
+
 function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: boolean) {
+  if (fine) {
+    addHeroMirrors(builder, spec, ground);
+    return;
+  }
   const { z, h, x } = spec.mirror;
   const y = h + ground;
   for (const side of [1, -1]) {
@@ -361,9 +557,7 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: 
       [side * out, y + tall, z - wide],
       [side * out, y - tall * 0.7, z - wide],
     ];
-    const stations = fine
-      ? [shell(x, 0.03, 0.03, 0.03), shell(x + 0.02, 0.05, 0.05, 0.033), shell(x + 0.06, 0.06, 0.06, 0.036), shell(x + 0.11, 0.058, 0.06, 0.036), shell(x + 0.145, 0.05, 0.052, 0.034), shell(x + 0.165, 0.03, 0.035, 0.03)]
-      : [shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)];
+    const stations = [shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)];
     builder.rings(ordered(stations), "paint");
     const stalk = (out: number): Point[] => [
       [side * out, y - 0.04, z - 0.03],
@@ -379,9 +573,8 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: 
       [side * (x + 0.155), y + 0.042, glassZ],
       [side * (x + 0.155), y - 0.036, glassZ],
     ];
-    const glass = fine ? "rim" : "trim";
-    if (side > 0) builder.quad(d, c, b, a, glass);
-    else builder.quad(a, b, c, d, glass);
+    if (side > 0) builder.quad(d, c, b, a, "trim");
+    else builder.quad(a, b, c, d, "trim");
   }
 }
 
@@ -396,11 +589,29 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
     [x, y + rise - 0.03 - sag, z + chord * 0.5],
   ];
   builder.rings([-1, -0.62, 0, 0.62, 1].map((share) => section(share * halfWidth, 0.03 * share * share)), "paint");
+  if (spec.wing.endplates) {
+    // A plate at each tip, standing past the blade's ends so no face of one lies on the other's.
+    for (const side of [1, -1]) {
+      const x = side * (halfWidth - 0.006);
+      // Swept: low and short at its leading edge, rising to a raked trailing edge above the blade.
+      const plate = (at: number): Point[] => [
+        [at, y - 0.06, z - chord - 0.03],
+        [at, y - 0.11, z - chord * 0.2],
+        [at, y - 0.09, z + chord * 0.5 + 0.03],
+        [at, y + rise + 0.035, z + chord * 0.5 + 0.06],
+        [at, y + rise + 0.045, z + chord * 0.5 + 0.02],
+        [at, y + 0.03, z - chord - 0.03],
+      ];
+      const [inner, outer] = side > 0 ? [x, x + 0.012] : [x - 0.012, x];
+      builder.rings([plate(outer), plate(inner)], "paint");
+    }
+  }
+  const stay = spec.wing.stayM ?? 0.2;
   for (const side of [1, -1]) {
     const x = side * halfWidth * 0.72;
     const foot: Point[] = [
-      [x - 0.012, y - 0.2, z - 0.1],
-      [x - 0.012, y - 0.2, z + 0.02],
+      [x - 0.012, y - stay, z - 0.1],
+      [x - 0.012, y - stay, z + 0.02],
       [x - 0.012, y, z + 0.02],
       [x - 0.012, y, z - 0.1],
     ];
@@ -408,17 +619,43 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
   }
 }
 
-function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
+/** Tailpipes wound to face out of them when `outward`; a world car's would face in, as its blocks do. */
+function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number, outward: boolean) {
   if (!spec.exhausts) return;
   const { x, h, z, radius } = spec.exhausts;
+  const turn = outward ? 1 : -1;
   const round = (at: number, zAt: number, r: number): Point[] =>
     Array.from({ length: 8 }, (_, step) => {
-      const angle = (-step / 8) * Math.PI * 2;
+      const angle = ((turn * step) / 8) * Math.PI * 2;
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
+    if (spec.exhausts.open) {
+      // The pipe's wall, its rolled end and its bore, closed a few centimetres in by a dark disc standing clear of the bore's floor.
+      builder.rings([round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, z - 0.03, radius * 0.78)], "gap");
+      continue;
+    }
     builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
     builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
+  }
+}
+
+function addSideExhausts(builder: SoupBuilder, spec: BodySpec, ground: number, outward: boolean) {
+  if (!spec.sideExhausts) return;
+  const { z, h, x, radius } = spec.sideExhausts;
+  const turn = outward ? 1 : -1;
+  for (const side of [1, -1]) {
+    // A rear pipe turned a quarter round the vertical to point out of its side, so its faces wind as a rear pipe's do.
+    const round = (zAt: number, along: number, r: number): Point[] =>
+      Array.from({ length: 8 }, (_, step) => {
+        const angle = ((turn * step) / 8) * Math.PI * 2;
+        return [side * along, h + ground + Math.sin(angle) * r, zAt - side * Math.cos(angle) * r];
+      });
+    for (const at of z) {
+      builder.rings([round(at, x - 0.12, radius), round(at, x, radius), round(at, x, radius * 0.8), round(at, x - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, x - 0.03, radius * 0.78)], "gap");
+    }
   }
 }
 
@@ -450,15 +687,137 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
-function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+/** How far up a block's ring at this height stands: its middle, raised where the taper keeps its foot level. */
+const blockMiddle = ({ at, size, footLevel }: Block, tall: number) => at[1] + (footLevel ? (tall - size[1]) / 2 : 0);
+
+/** A block's faces wound to face out of it when `outward`; a world car's still face in, as its measured swaps have them. */
+function addBlock(builder: SoupBuilder, block: Block, ground: number, outward: boolean) {
+  const { at, size, surface, mirror, taper = [1, 1] } = block;
   const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
-    [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
-    [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
-    [side * at[0] + wide / 2, at[1] + ground + tall / 2, z],
-    [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
+    [side * at[0] - wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
+    [side * at[0] - wide / 2, blockMiddle(block, tall) + ground + tall / 2, z],
+    [side * at[0] + wide / 2, blockMiddle(block, tall) + ground + tall / 2, z],
+    [side * at[0] + wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
   ];
   for (const side of mirror ? [1, -1] : [1]) {
-    builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
+    const ends = [ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)];
+    builder.rings(outward ? ends.reverse() : ends, surface);
+  }
+}
+
+/** Rings joined into a tube, each turned so its faces point out of the tube, whichever way its path runs. */
+function addTube(builder: SoupBuilder, rings: Point[][], surface: Surface) {
+  const middle = (ring: readonly Point[]): Point => [0, 1, 2].map((axis) => ring.reduce((sum, point) => sum + point[axis], 0) / ring.length) as Point;
+  const [here, next] = [middle(rings[0]), middle(rings[1])];
+  const [a, b] = [rings[0][0], rings[0][1]];
+  const edge: Point = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const travel: Point = [next[0] - here[0], next[1] - here[1], next[2] - here[2]];
+  const normal: Point = [edge[1] * travel[2] - edge[2] * travel[1], edge[2] * travel[0] - edge[0] * travel[2], edge[0] * travel[1] - edge[1] * travel[0]];
+  const out: Point = [(a[0] + b[0]) / 2 - here[0], (a[1] + b[1]) / 2 - here[1], (a[2] + b[2]) / 2 - here[2]];
+  const outward = normal[0] * out[0] + normal[1] * out[1] + normal[2] * out[2] > 0;
+  builder.rings(outward ? rings : rings.map((ring) => [...ring].reverse()), surface);
+}
+
+function addFender(builder: SoupBuilder, spec: BodySpec, { axle, x, wide, clearM, from, to, thick, crown, surface }: Fender, ground: number, fine: boolean) {
+  const centreY = spec.wheelRadiusM + ground;
+  const radius = spec.wheelRadiusM + clearM;
+  const steps = fine ? 16 : 4;
+  // Across the wing, inside edge to outside edge: its underside flat, its top crowned, its edges rounded.
+  const section: (readonly [across: number, out: number])[] = fine
+    ? [
+        [-wide / 2, 0],
+        [-wide / 2 - 0.004, thick * 0.6],
+        [-wide / 4, thick + crown * 0.8],
+        [wide / 4, thick + crown * 0.8],
+        [wide / 2 + 0.004, thick * 0.6],
+        [wide / 2, 0],
+      ]
+    : [
+        [-wide / 2, 0],
+        [-wide / 2, thick + crown * 0.5],
+        [wide / 2, thick + crown * 0.5],
+        [wide / 2, 0],
+      ];
+  for (const side of [1, -1]) {
+    const rings = Array.from({ length: steps + 1 }, (_, step): Point[] => {
+      const angle = ((from + ((to - from) * step) / steps) * Math.PI) / 180;
+      const [along, up] = [-Math.cos(angle), Math.sin(angle)];
+      return section.map(([across, out]): Point => [side * (x + across), centreY + up * (radius + out), axle + along * (radius + out)]);
+    });
+    addTube(builder, rings, surface);
+  }
+}
+
+function addStrut(builder: SoupBuilder, { path, radius, surface, mirror, sides: closeSides = 6 }: Strut, ground: number, fine: boolean) {
+  const sides = fine ? closeSides : 4;
+  for (const side of mirror ? [1, -1] : [1]) {
+    const points = path.map(([x, h, z]): Point => [side * x, h + ground, z]);
+    const rings = points.map((point, at): Point[] => {
+      const [before, after] = [points[Math.max(at - 1, 0)], points[Math.min(at + 1, points.length - 1)]];
+      const raw: Point = [after[0] - before[0], after[1] - before[1], after[2] - before[2]];
+      const length = Math.hypot(...raw);
+      const along: Point = [raw[0] / length, raw[1] / length, raw[2] / length];
+      const reference: Point = Math.abs(along[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+      const across: Point = [along[1] * reference[2] - along[2] * reference[1], along[2] * reference[0] - along[0] * reference[2], along[0] * reference[1] - along[1] * reference[0]];
+      const acrossLength = Math.hypot(...across);
+      const u: Point = [across[0] / acrossLength, across[1] / acrossLength, across[2] / acrossLength];
+      const v: Point = [along[1] * u[2] - along[2] * u[1], along[2] * u[0] - along[0] * u[2], along[0] * u[1] - along[1] * u[0]];
+      return Array.from({ length: sides }, (_, step): Point => {
+        const angle = (step / sides) * Math.PI * 2 + Math.PI / sides;
+        const [c, s] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+        return [point[0] + u[0] * c + v[0] * s, point[1] + u[1] * c + v[1] * s, point[2] + u[2] * c + v[2] * s];
+      });
+    });
+    addTube(builder, rings, surface);
+  }
+}
+
+/**
+ * A spare wheel, turned from one profile across its axle (its face first, then the tread, then its back), so every
+ * face points out of it. The profile is in the wheel's own frame, `across` along its axle towards its face; it is
+ * turned onto the body's axes by a rotation, which keeps the faces' winding.
+ */
+function addSpare(builder: SoupBuilder, { at, radiusM: r, widthM, axis }: Spare, ground: number, fine: boolean) {
+  const sides = fine ? 18 : 8;
+  const [half, rim] = [widthM / 2, r * 0.56];
+  type Profile = (readonly [across: number, radius: number, surface: Surface])[];
+  // Far off, a flat face of rim in a tyre as a cone and a drum says a wheel as well as the whole profile would.
+  const profile: Profile = fine
+    ? [
+        [half - 0.02, 0, "rim"],
+        [half - 0.02, r * 0.12, "rim"],
+        [half - 0.05, r * 0.15, "rimDark"],
+        [half - 0.05, rim - 0.02, "rim"],
+        [half - 0.006, rim, "tyre"],
+        [half, rim + 0.012, "tyre"],
+        [half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [half * 0.94, r * 0.975, "tyre"],
+        [half * 0.82, r, "tyre"],
+        [-half * 0.82, r, "tyre"],
+        [-half * 0.94, r * 0.975, "tyre"],
+        [-half * 1.02, rim + (r - rim) * 0.6, "tyre"],
+        [-half, rim, "tyre"],
+        [-half, 0, "tyre"],
+      ]
+    : [
+        [half - 0.03, 0, "rim"],
+        [half - 0.03, rim, "tyre"],
+        [half, r, "tyre"],
+        [-half, r, "tyre"],
+        [-half, 0, "tyre"],
+      ];
+  const place = (across: number, radius: number, angle: number): Point => {
+    const [c, s] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+    // (across, c, s) turned cyclically onto the body's axes: a rotation, so the winding holds.
+    return axis === "z" ? [at[0] + c, at[1] + ground + s, at[2] + across] : [at[0] + s, at[1] + ground + across, at[2] + c];
+  };
+  const rings = profile.map(([across, radius]) => Array.from({ length: sides }, (_, step) => place(across, radius, (step / sides) * Math.PI * 2)));
+  const group = builder.newGroup();
+  for (let row = 0; row + 1 < rings.length; row++) {
+    for (let step = 0; step < sides; step++) {
+      const next = (step + 1) % sides;
+      builder.quad(rings[row][step], rings[row + 1][step], rings[row + 1][next], rings[row][next], profile[row][2], group);
+    }
   }
 }
 
@@ -466,23 +825,27 @@ function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1,
 function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
   const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
   const block = (at: Block["at"], size: Block["size"], surface: Surface, mirror = false, taper?: Block["taper"]) => {
-    addBlock(builder, { at, size, surface, mirror, taper }, ground);
+    addBlock(builder, { at, size, surface, mirror, taper }, ground, true);
   };
-  const wide = spec.trackM * 0.92;
+  const wide = cabin.wideM ?? spec.trackM * 0.92;
   const length = endZ - dashZ;
   block([0, floorH - 0.02, dashZ + length / 2], [wide, 0.04, length], "interior");
   block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
   block([0, (floorH + dashH) / 2 + 0.05, endZ], [wide, dashH - floorH + 0.1, 0.04], "interior");
   block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
-  block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
-  const seat = (x: number, z: number, seatWide: number) => {
+  const { passengers } = cabin;
+  if (!passengers) block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
+  const seat = (x: number, z: number, seatWide: number, mirror = true) => {
     const seatH = Math.min(floorH + 0.28, dashH - 0.25);
     const backTall = dashH + 0.2 - seatH;
-    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, true);
-    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, true, [0.92, 0.95]);
-    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, true);
+    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, mirror);
+    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, mirror, [0.92, 0.95]);
+    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, mirror);
   };
-  seat(seatX, seatZ, 0.46);
+  if (passengers) {
+    seat(seatX, seatZ, 0.44, false);
+    seat(passengers[0], passengers[1], 0.38);
+  } else seat(seatX, seatZ, 0.46);
   if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);
   // The steering wheel, a ring leaning back towards the driver.
   const wheelR = 0.17;
@@ -503,9 +866,42 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([-seatX, dashH + 0.06, wheelZ - 0.1], [0.07, 0.07, 0.34], "interior");
 }
 
+/** Two segments of a row or a station turning by more than this meet at a crease, which a normal doesn't smooth across. */
+const CREASE_COS = Math.cos((32 * Math.PI) / 180);
+
+/**
+ * The hero's normals, from the loft itself: at each point of the grid, the way the surface runs along its row and
+ * along its station, so a reflection runs smooth along a door however its quads were cut. Where a row or a station
+ * turns sharply (a crease, the edge of a band) each face takes the tangent on its own side. `stationSide` and
+ * `rowSide` say which way the face lies from the point: +1 towards the next station or row, -1 the one before.
+ */
+function loftNormals(grid: readonly Point[][]) {
+  const unit = (v: Point): Point | null => {
+    const length = Math.hypot(...v);
+    return length < 1e-6 ? null : [v[0] / length, v[1] / length, v[2] / length];
+  };
+  const between = (from: Point | undefined, to: Point | undefined) => (from && to ? unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]) : null);
+  const tangent = (before: Point | null, after: Point | null, side: number): Point | null => {
+    if (!before) return after;
+    if (!after) return before;
+    const smooth = before[0] * after[0] + before[1] * after[1] + before[2] * after[2] >= CREASE_COS;
+    if (!smooth) return side > 0 ? after : before;
+    return unit([before[0] + after[0], before[1] + after[1], before[2] + after[2]]);
+  };
+  return (station: number, row: number, stationSide: number, rowSide: number): Point | null => {
+    const here = grid[station][row];
+    const along = tangent(between(grid[station - 1]?.[row], here), between(here, grid[station + 1]?.[row]), stationSide);
+    const up = tangent(between(grid[station][row - 1], here), between(here, grid[station][row + 1]), rowSide);
+    if (!along || !up) return null;
+    return unit([along[1] * up[2] - along[2] * up[1], along[2] * up[0] - along[0] * up[2], along[0] * up[1] - along[1] * up[0]]);
+  };
+}
+
 /** `ground` is the height of the car's own origin above the road, negated: y in the car is height + ground. */
 export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): Soup {
   const curves: Curves = {
+    shelf: spec.shelf ? curve(spec.shelf) : () => 0,
+    scoop: spec.scoop ? curve(spec.scoop) : () => 0,
     sill: curve(spec.sill),
     shoulder: curve(spec.shoulder),
     belt: curve(spec.belt),
@@ -521,7 +917,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   const builder = new SoupBuilder();
   const under = builder.newGroup();
   const rows = detail.rows;
-  const ribs = stations.map((station) => ribOf(spec, curves, station, false));
+  const ribs = stations.map((station) => ribOf(spec, curves, station, false, detail.fine));
   const grid: Point[][] = ribs.map((rib, index) => {
     const station = stations[index];
     const width = curves.halfWidth(station.z);
@@ -531,6 +927,12 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
     });
   });
   const railAt = rows.indexOf(ROWS.rail);
+  // The lowest of a rib's top rows: a hood that dips between raised fenders is lower in the middle than at its rail.
+  const topOf = (index: number) => (stations[index].bed ? grid[index][railAt][1] : Math.min(...grid[index].slice(railAt).map(([, y]) => y)));
+  // The floor follows the arches up, but never through a hood lower than them: there it runs under the hood.
+  const floorAt = (index: number, [x, y, z]: Point): Point => [x, Math.min(y, Math.max(curves.sill(stations[index].z) + ground, topOf(index) - 0.04)), z];
+
+  const normalAt = detail.fine ? loftNormals(grid) : null;
 
   const inPillar = (z: number) => spec.pillars.some(([from, to]) => z >= from && z <= to);
   const windowOpen = (index: number) => ribs[index][ROWS.windowTop][1] - ribs[index][ROWS.windowBase][1] > 0.006;
@@ -550,15 +952,17 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
         if (row < ROWS.sillTop) return spec.sillSurface;
         if (detail.fine && exact === SEAM_ROWS.door && midZ > doorZ[0] && midZ < doorZ[1]) return "gap";
         if (detail.fine && exact === SEAM_ROWS.hood && spec.hoodSeamZ && midZ > spec.hoodSeamZ[0] && midZ < spec.hoodSeamZ[1]) return "gap";
-        if (row === ROWS.belt && open) return spec.beltSurface;
+        if (row === ROWS.belt && open) return spec.shelf ? "paint" : spec.beltSurface;
         if (row === ROWS.windowBase && open) return inPillar(midZ) ? "trim" : "glass";
         if (row === ROWS.windowTop && open) return spec.pillarSurface;
         if (station.bed && row >= ROWS.rail) return spec.bedSurface ?? "trim";
         return "paint";
       };
-      builder.mirroredQuad(grid[index][at], grid[index][at + 1], grid[index + 1][at + 1], grid[index + 1][at], surfaceOf());
+      const corners: [Point, Point, Point, Point] = [grid[index][at], grid[index][at + 1], grid[index + 1][at + 1], grid[index + 1][at]];
+      if (normalAt) builder.mirroredSmoothQuad(corners, [normalAt(index, at, 1, 1), normalAt(index, at + 1, 1, -1), normalAt(index + 1, at + 1, -1, -1), normalAt(index + 1, at, -1, 1)], surfaceOf());
+      else builder.mirroredQuad(...corners, surfaceOf());
     }
-    const [a, b] = [grid[index][0], grid[index + 1][0]];
+    const [a, b] = [floorAt(index, grid[index][0]), floorAt(index + 1, grid[index + 1][0])];
     builder.quad(a, b, [-b[0], b[1], b[2]], [-a[0], a[1], a[2]], "under", under);
   }
 
@@ -566,22 +970,27 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   const wellX = spec.trackM / 2 - spec.tyreWidthM / 2 - 0.03;
   const radius = spec.wheelRadiusM + spec.archClearM;
   const wall = builder.newGroup();
-  for (const axle of spec.axleZ) {
+  for (const axle of spec.openWheels ? [] : spec.axleZ) {
     const low = spec.sill[0][1] + ground;
     const high = spec.wheelRadiusM + radius + ground + 0.03;
-    const inWell = stations.map((station, index) => ({ z: station.z, top: Math.min(high, grid[index][railAt][1] - 0.04) })).filter(({ z }) => Math.abs(z - axle) <= radius);
+    const inWell = stations.map((station, index) => ({ z: station.z, top: Math.min(high, topOf(index) - 0.04) })).filter(({ z }) => Math.abs(z - axle) <= radius);
     inWell.slice(1).forEach(({ z, top }, index) => {
       const before = inWell[index];
       if (z > before.z) builder.mirroredQuad([wellX, low, before.z], [wellX, before.top, before.z], [wellX, top, z], [wellX, low, z], "under", wall);
     });
   }
 
+  // Fenders before the decals, so a lamp can sit on one.
+  for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
-  if (detail.fine) addExhausts(builder, spec, ground);
+  if (detail.fine) addExhausts(builder, spec, ground, detail.outward);
+  if (detail.fine) addSideExhausts(builder, spec, ground, detail.outward);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, detail.outward);
+  for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
+  for (const spare of spec.spares ?? []) if (detail.fine || !spare.fine) addSpare(builder, spare, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
 }
@@ -655,7 +1064,7 @@ interface Run {
  * and what stands on the body (a rack, a sign) is a box.
  */
 export function buildDistant(spec: BodySpec, ground: number, near: Soup): Soup {
-  const curves = { sill: curve(spec.sill), belt: curve(spec.belt), halfWidth: curve(spec.halfWidth), railWidth: curve(spec.railWidth) };
+  const curves = { sill: curve(spec.sill), belt: curve(spec.belt), halfWidth: curve(spec.halfWidth), railWidth: curve(spec.railWidth), crown: curve(spec.crown) };
   const firm = spec.silhouette.filter((point) => !point.fine);
   const across = (point: SilhouettePoint, row: number) => (point.band === undefined ? undefined : spec.bands[point.band].find(({ from, to }) => row >= from && row < to)?.surface);
   const stretchOf = (point: SilhouettePoint): Stretch => (point.bed ? { top: spec.bedSurface ?? "trim", upper: "paint" } : { top: across(point, ROWS.roofInner) ?? "paint", upper: across(point, ROWS.windowBase) ?? null });
@@ -701,7 +1110,9 @@ export function buildDistant(spec: BodySpec, ground: number, near: Soup): Soup {
 
   const ends = spec.silhouette.map((point) => point.z);
   const [front, rear] = [Math.min(...ends), Math.max(...ends)];
-  const ribs = path.map(({ z, h }): Point[] => {
+  const ribs = path.map(({ z, h: centre }): Point[] => {
+    // Fenders that stand above a hood between them are the outline from the side, so the stand-in's edge is theirs.
+    const h = centre + Math.max(0, -curves.crown(z));
     const width = curves.halfWidth(z) + 0.01;
     const bottom = Math.min(curves.sill(z), h);
     const belt = Math.min(Math.max(curves.belt(z), bottom), h);
@@ -782,15 +1193,19 @@ export function buildDistant(spec: BodySpec, ground: number, near: Soup): Soup {
 }
 
 /** A block on the stand-in: a box with no floor, and none of its faces too small to see from where it stands in. */
-function addDistantBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+function addDistantBlock(builder: SoupBuilder, block: Block, ground: number) {
+  const { at, size, surface, mirror, taper = [1, 1] } = block;
   for (const side of mirror ? [1, -1] : [1]) {
-    const [x, y] = [side * at[0], at[1] + ground];
-    const ring = (z: number, wide: number, tall: number): Point[] => [
-      [x - wide / 2, y - tall / 2, z],
-      [x + wide / 2, y - tall / 2, z],
-      [x + wide / 2, y + tall / 2, z],
-      [x - wide / 2, y + tall / 2, z],
-    ];
+    const x = side * at[0];
+    const ring = (z: number, wide: number, tall: number): Point[] => {
+      const y = blockMiddle(block, tall) + ground;
+      return [
+        [x - wide / 2, y - tall / 2, z],
+        [x + wide / 2, y - tall / 2, z],
+        [x + wide / 2, y + tall / 2, z],
+        [x - wide / 2, y + tall / 2, z],
+      ];
+    };
     const [front, back] = [ring(at[2] - size[2] / 2, size[0], size[1]), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1])];
     const faces: [readonly [Point, Point, Point, Point], Point][] = [
       [[front[0], front[1], front[2], front[3]], [0, 0, -1]],

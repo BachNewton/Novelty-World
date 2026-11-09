@@ -1,0 +1,46 @@
+import { inline } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A little turbo triple: an off-beat thrum, a whistle as the boost comes in, nothing much at the top. */
+export const ljus: Voice = {
+  seed: 98,
+  combustion: {
+    firing: inline(3),
+    lope: 0.12,
+    jitter: 0.1,
+    banks: { gain: 1, ring: 1, delayMs: 0 },
+    pulseMs: 1.5,
+    headerHz: 600,
+    roughness: 0.3,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.12,
+    fan: null,
+    pipeHz: 150,
+    pipeRing: 0.4,
+    exhaustHz: [800, 1700, 1300],
+    silencerHz: 300,
+    silencerDb: 7,
+    rasp: 1.8,
+    intakeHz: 320,
+    intakeQ: 2,
+    intake: 0.4,
+    limiterHz: 9,
+  },
+  electric: null,
+  turbo: {
+    boostFrom: 0.2,
+    spoolS: 0.45,
+    whistleHz: [2600, 8000],
+    whistle: 0.06,
+    hiss: 0.06,
+    blowOff: "valve",
+    blowOffLevel: 0.4,
+  },
+  supercharger: null,
+  overrun: { crackle: 0, antiLag: 0 },
+  gearWhine: { teeth: 21, level: 0.01 },
+  cabin: 0,
+  level: 0.37,
+  idleLevel: 0.5,
+};

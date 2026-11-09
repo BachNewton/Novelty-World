@@ -108,10 +108,10 @@ export const engineBrakeAt = ({ engine, gearbox }: CarTuning, rpm: number) => (e
  * The drive at the road for a throttle, with the engine where it is: what the car pulls with, before the tyres have
  * their say. Traction control holds it to what the tyres put down off the line; without it, the engine's all.
  */
-export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead, throttle: number, traction = true): number {
+export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead, throttle: number, traction = true, launchN = tuning.power.launchN): number {
   if (shiftLeftS > 0) return 0;
   const toRoad = radiansPerMetre(tuning, gear);
-  const pull = Math.min(traction ? tuning.power.launchN : Infinity, torqueAt(tuning, rpm) * toRoad);
+  const pull = Math.min(traction ? launchN : Infinity, torqueAt(tuning, rpm) * toRoad);
   return throttle * pull - (1 - throttle) * engineBrakeAt(tuning, rpm) * toRoad;
 }
 

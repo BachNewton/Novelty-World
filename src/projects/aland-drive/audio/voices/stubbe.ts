@@ -1,0 +1,46 @@
+import { inline } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A modern turbo-diesel straight six: a smoother clatter at idle than a van's four, a deep gruff pull low down as the turbo's whistle rises over it, and no blow-off, a diesel having no throttle to shut. */
+export const stubbe: Voice = {
+  seed: 1733,
+  combustion: {
+    firing: inline(6),
+    lope: 0.06,
+    jitter: 0.08,
+    banks: { gain: 1, ring: 1, delayMs: 0 },
+    pulseMs: 1.7,
+    headerHz: 520,
+    roughness: 0.55,
+    knock: 0.8,
+    knockHz: 2700,
+    chatter: 0.12,
+    fan: null,
+    pipeHz: 100,
+    pipeRing: 0.42,
+    exhaustHz: [650, 800, 900],
+    silencerHz: 180,
+    silencerDb: 8,
+    rasp: 1.4,
+    intakeHz: 230,
+    intakeQ: 1.6,
+    intake: 0.4,
+    limiterHz: 6,
+  },
+  electric: null,
+  turbo: {
+    boostFrom: 0.18,
+    spoolS: 0.8,
+    whistleHz: [2200, 7500],
+    whistle: 0.09,
+    hiss: 0.07,
+    blowOff: "valve",
+    blowOffLevel: 0,
+  },
+  supercharger: null,
+  overrun: { crackle: 0, antiLag: 0 },
+  gearWhine: { teeth: 21, level: 0.02 },
+  cabin: 0.04,
+  level: 0.35,
+  idleLevel: 0.52,
+};

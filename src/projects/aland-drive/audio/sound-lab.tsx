@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 import { SoundLab as Lab } from "@/shared/components/sound-lab";
 import { unlockAudio } from "@/shared/lib/sound";
 import { createDriveAudio } from "./graph";
-import type { DriveAudioState, Place, SeasonHeard, WeatherHeard } from "./model";
+import type { DriveAudioState, Perspective, Place, SeasonHeard, WeatherHeard } from "./model";
+import { hasOldVoice, oldEngineVoice } from "./old/engine";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
@@ -59,9 +60,15 @@ interface Knobs {
   weather: WeatherHeard;
   season: SeasonName;
   hour: number;
+  /** Today's engine synthesis or the one from before it, for a car that had a voice then. */
+  voice: "new" | "old";
+  perspective: Perspective;
 }
 
-const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0, lake: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 }, season: "summer", hour: 14 };
+const PERSPECTIVES: readonly Perspective[] = ["outside", "inside"];
+const PERSPECTIVE_LABELS: Record<Perspective, string> = { outside: "Outside, the chase camera", inside: "Inside, the cockpit" };
+
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0, lake: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 }, season: "summer", hour: 14, voice: "new", perspective: "outside" };
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -160,6 +167,7 @@ function Bench() {
         if (knob.floorIt) speedMS = Math.max(speedMS + ((pullAt(tuning, engine, 1) - resistanceAt(tuning, speedMS)) / tuning.car.massKg) * dt, 0);
       }
       engineOf = knob.vehicle;
+      drive.auditionEngine(knob.voice === "old" && knob.vehicle !== "bike" && hasOldVoice(knob.vehicle) ? oldEngineVoice : null);
       if (knob.handbrake) speedMS = Math.max(speedMS - BRAKING_MS2 * dt, 0);
       const moved = Math.round(speedMS * 3.6 * 10) / 10;
       if (moved !== knob.kmh) set({ kmh: moved });
@@ -182,6 +190,7 @@ function Bench() {
           season: seasonHeard(knob.season, knob.hour),
           heldRpm: knob.holdRpm ? knob.rpm : undefined,
           engine,
+          perspective: knob.perspective,
         },
         dt,
       );
@@ -191,6 +200,17 @@ function Bench() {
     });
     return () => cancelAnimationFrame(frame);
   }, [running]);
+
+  // B flips old and new while the drive runs, so the two can be compared mid-pull.
+  useEffect(() => {
+    const flip = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "b" || event.repeat) return;
+      const { vehicle, voice } = latest.current;
+      if (vehicle !== "bike" && hasOldVoice(vehicle)) set({ voice: voice === "old" ? "new" : "old" });
+    };
+    window.addEventListener("keydown", flip);
+    return () => window.removeEventListener("keydown", flip);
+  }, []);
 
   const start = () => {
     unlockAudio();
@@ -203,6 +223,8 @@ function Bench() {
   };
 
   const engine = knobs.vehicle === "bike" ? null : ENGINES[knobs.vehicle];
+  const comparable = knobs.vehicle !== "bike" && hasOldVoice(knobs.vehicle);
+  const playingOld = comparable && knobs.voice === "old";
   const topKmh = (knobs.vehicle === "bike" ? BIKE.fullSpeedMS : topSpeedMS(CARS[knobs.vehicle])) * 3.6;
 
   return (
@@ -214,6 +236,32 @@ function Bench() {
         <span className="text-xs text-text-muted tabular-nums">{readout}</span>
       </div>
       <Choice values={VEHICLE_IDS} label={vehicleLabel} value={knobs.vehicle} onChange={(vehicle) => set({ vehicle, kmh: 0, floorIt: false, rpm: vehicle === "bike" ? 0 : Math.min(ENGINES[vehicle].redlineRpm * 0.4, 3000) })} />
+      {engine !== null && (
+        <div className={`flex flex-wrap items-center gap-3 rounded-lg border-2 p-3 ${playingOld ? "border-brand-orange" : "border-brand-green"}`}>
+          <span className={`text-sm font-bold ${playingOld ? "text-brand-orange" : "text-brand-green"}`}>{playingOld ? "OLD engine sound (before the new synthesis)" : "NEW engine sound"}</span>
+          {comparable ? (
+            <>
+              <div className="flex gap-1">
+                {(["old", "new"] as const).map((voice) => (
+                  <button
+                    key={voice}
+                    type="button"
+                    aria-pressed={knobs.voice === voice}
+                    onClick={() => set({ voice })}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${knobs.voice === voice ? (voice === "old" ? "bg-brand-orange text-surface-primary" : "bg-brand-green text-surface-primary") : "border border-border-hover text-text-primary hover:bg-surface-tertiary"}`}
+                  >
+                    {voice === "old" ? "A: old" : "B: new"}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-text-muted">Press B to flip while it runs: same gearbox, same throttle.</span>
+            </>
+          ) : (
+            <span className="text-xs text-text-muted">A new car: it has no old sound to compare.</span>
+          )}
+          <Choice values={PERSPECTIVES} label={(perspective) => PERSPECTIVE_LABELS[perspective]} value={knobs.perspective} onChange={(perspective) => set({ perspective })} />
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-4">
         <Labelled label="Left wheels">
           <Choice values={SURFACES} label={capitalised} value={knobs.left} onChange={(left) => set({ left })} />
@@ -271,7 +319,7 @@ export function SoundLab() {
       intro={
         <>
           The drive runs here as it does in the game, through the same sound. Start it and move the sliders: floor it to hear the gears, hold the revs to sit on one note. The one-shots are below. Edit the engines in{" "}
-          <code>audio/vehicles.ts</code>, the mix in <code>audio/model.ts</code> and the one-shots in <code>audio/sounds.ts</code>.
+          <code>audio/voices/</code>, the mix in <code>audio/model.ts</code> and the one-shots in <code>audio/sounds.ts</code>.
         </>
       }
       controls={

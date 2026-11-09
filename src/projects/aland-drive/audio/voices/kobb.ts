@@ -1,0 +1,46 @@
+import { inline } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A turbo diesel in a tin box: low revs, the clatter of every firing ringing the block, and the turbo's whistle; no throttle, so nothing to blow off. */
+export const kobb: Voice = {
+  seed: 486,
+  combustion: {
+    firing: inline(4),
+    lope: 0.1,
+    jitter: 0.1,
+    banks: { gain: 1, ring: 1, delayMs: 0 },
+    pulseMs: 1.8,
+    headerHz: 500,
+    roughness: 0.6,
+    knock: 1,
+    knockHz: 2400,
+    chatter: 0.2,
+    fan: null,
+    pipeHz: 110,
+    pipeRing: 0.35,
+    exhaustHz: [700, 700, 700],
+    silencerHz: 190,
+    silencerDb: 8,
+    rasp: 1.2,
+    intakeHz: 250,
+    intakeQ: 1.5,
+    intake: 0.35,
+    limiterHz: 6,
+  },
+  electric: null,
+  turbo: {
+    boostFrom: 0.2,
+    spoolS: 0.9,
+    whistleHz: [2500, 8000],
+    whistle: 0.08,
+    hiss: 0.06,
+    blowOff: "valve",
+    blowOffLevel: 0,
+  },
+  supercharger: null,
+  overrun: { crackle: 0, antiLag: 0 },
+  gearWhine: { teeth: 19, level: 0.03 },
+  cabin: 0.05,
+  level: 0.35,
+  idleLevel: 0.56,
+};

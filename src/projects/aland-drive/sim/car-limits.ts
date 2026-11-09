@@ -1,7 +1,45 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
-import table from "./car-limits.json";
+import altura from "./limits/altura.json";
+import aska from "./limits/aska.json";
+import blixt from "./limits/blixt.json";
+import ankar from "./limits/ankar.json";
+import berg from "./limits/berg.json";
+import bris from "./limits/bris.json";
+import brus from "./limits/brus.json";
+import dyning from "./limits/dyning.json";
+import dyn from "./limits/dyn.json";
+import fjard from "./limits/fjard.json";
+import flod from "./limits/flod.json";
+import frost from "./limits/frost.json";
+import grus from "./limits/grus.json";
+import gnista from "./limits/gnista.json";
+import hagel from "./limits/hagel.json";
+import holm from "./limits/holm.json";
+import kraft from "./limits/kraft.json";
+import borg from "./limits/borg.json";
+import kobb from "./limits/kobb.json";
+import knott from "./limits/knott.json";
+import kula from "./limits/kula.json";
+import lera from "./limits/lera.json";
+import myr from "./limits/myr.json";
+import orkan from "./limits/orkan.json";
+import rimfrost from "./limits/rimfrost.json";
+import ljus from "./limits/ljus.json";
+import pil from "./limits/pil.json";
+import lontano from "./limits/lontano.json";
+import salta from "./limits/salta.json";
+import skerryGt from "./limits/skerry-gt.json";
+import span from "./limits/span.json";
+import sten from "./limits/sten.json";
+import strimma from "./limits/strimma.json";
+import strom from "./limits/strom.json";
+import stubbe from "./limits/stubbe.json";
+import sund from "./limits/sund.json";
+import varg from "./limits/varg.json";
+import vik from "./limits/vik.json";
+import virvel from "./limits/virvel.json";
 
 /*
  * What each car can do at the limit, measured in the simulation
@@ -11,7 +49,8 @@ import table from "./car-limits.json";
  * row for every ground, each surface in each condition on each set of tyres
  * that matters there, measured on a pad of that surface alone. Each car's entry carries a print of the tuning and the
  * surfaces' grip it was measured with, and a test holds the two together, so a
- * change to either asks for the table to be measured again.
+ * change to either asks for the table to be measured again. Each car's entry is
+ * a file of its own (`limits/<id>.json`), written by the tool, and a line here.
  */
 
 /** A rate over a band of speeds, in g. */
@@ -56,8 +95,64 @@ export function tuningPrint(tuning: CarTuning): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = table;
-
+/** Every car's entry, under its tier as `cars.ts` has it. */
+export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Partial<Record<Ground, CarLimits>> }>> = {
+  // A1
+  aska,
+  blixt,
+  // A2
+  virvel,
+  orkan,
+  varg,
+  // A3
+  dyning,
+  span,
+  strimma,
+  // A4
+  brus,
+  sund,
+  flod,
+  // A5
+  "skerry-gt": skerryGt,
+  strom,
+  ankar,
+  // A6
+  bris,
+  sten,
+  // A7
+  pil,
+  ljus,
+  // B1
+  grus,
+  gnista,
+  hagel,
+  // B2
+  fjard,
+  dyn,
+  lera,
+  // B3
+  holm,
+  borg,
+  myr,
+  // B4
+  berg,
+  stubbe,
+  knott,
+  // C1
+  frost,
+  altura,
+  // C2
+  rimfrost,
+  lontano,
+  // C3
+  vik,
+  kraft,
+  // C4
+  salta,
+  kula,
+  // Outside the tiers
+  kobb,
+};
 
 /** A car's limits on one ground: a ground the table doesn't measure is a mistake in the caller, not a gap to fill. */
 export function limitsOn(id: CarId, condition: Condition, surface: Surface, tyres: Tyre = "summer"): CarLimits {

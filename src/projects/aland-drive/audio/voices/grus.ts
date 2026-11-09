@@ -1,0 +1,46 @@
+import { boxerFour } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A rally turbo flat four on unequal pipes: a loping rumble, lag and then a rush of whistling boost, anti-lag banging on every lift and a straight-cut box whining. */
+export const grus: Voice = {
+  seed: 1262,
+  combustion: {
+    firing: boxerFour,
+    lope: 0.1,
+    jitter: 0.12,
+    banks: { gain: 0.9, ring: 1.2, delayMs: 2.2 },
+    pulseMs: 1.4,
+    headerHz: 520,
+    roughness: 0.4,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.15,
+    fan: null,
+    pipeHz: 115,
+    pipeRing: 0.5,
+    exhaustHz: [800, 2200, 1800],
+    silencerHz: 260,
+    silencerDb: 8,
+    rasp: 2.4,
+    intakeHz: 300,
+    intakeQ: 2,
+    intake: 0.5,
+    limiterHz: 14,
+  },
+  electric: null,
+  turbo: {
+    boostFrom: 0.32,
+    spoolS: 0.7,
+    whistleHz: [1800, 6500],
+    whistle: 0.12,
+    hiss: 0.12,
+    blowOff: "flutter",
+    blowOffLevel: 1,
+  },
+  supercharger: null,
+  overrun: { crackle: 4, antiLag: 3 },
+  gearWhine: { teeth: 21, level: 0.06 },
+  cabin: 0.15,
+  level: 0.37,
+  idleLevel: 0.5,
+};

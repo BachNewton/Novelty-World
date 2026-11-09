@@ -2,6 +2,7 @@ import { BufferGeometry, Group, Mesh, type Node, type Object3D, type Scene } fro
 import type { CarState } from "../../sim/car-state";
 import { axleY, buildCarParts, groundY, lampCentres, type CarDetail, type CarSpec, type LampCentres } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
+import { paintAt, paintsOf, type CarPaint } from "./paints";
 import { type Sun } from "../sun";
 
 /*
@@ -19,6 +20,8 @@ export interface CarArt {
   wheel: BufferGeometry;
   /** A hero's see-through glass. */
   glass: BufferGeometry | null;
+  /** A hero's brake calipers, right then left. */
+  calipers: readonly [BufferGeometry, BufferGeometry] | null;
   /** Where its lamps are, in the car's own frame. */
   lamps: LampCentres;
   triangles: { body: number; glass: number; wheel: number; total: number };
@@ -27,28 +30,32 @@ export interface CarArt {
 
 export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
   const parts = buildCarParts(spec, detail);
-  const body = geometryOf(parts.body, detail === "hero");
+  const body = geometryOf(parts.body);
   const wheel = geometryOf(parts.wheel);
   const glass = parts.glass && geometryOf(parts.glass);
+  const calipers = parts.calipers && ([geometryOf(parts.calipers[0]), geometryOf(parts.calipers[1])] as const);
   const glassTriangles = parts.glass?.triangles ?? 0;
+  const caliperTriangles = parts.calipers ? parts.calipers[0].triangles * 4 : 0;
   return {
     spec,
     body,
     wheel,
     glass,
+    calipers,
     lamps: lampCentres(parts.body),
-    triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 },
+    triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 + caliperTriangles },
     dispose() {
       body.dispose();
       wheel.dispose();
       glass?.dispose();
+      calipers?.forEach((caliper) => caliper.dispose());
     },
   };
 }
 
 export interface CarViewOptions {
-  /** Another car's paint: a token without the `--color-aland-drive-` prefix. */
-  paint?: string;
+  /** A paint of the car's own choosing, for a car shown rather than driven: a driven car's is its state's. */
+  paint?: CarPaint;
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }
 
@@ -56,7 +63,10 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
   const { spec } = art;
   const road = groundY(spec);
   const { ride } = spec;
-  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed, hero: art.glass !== null });
+  const paints = paintsOf(spec);
+  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? paints[0], groundY: road, hazed: options.hazed, hero: art.glass !== null });
+  /** The paint drawn, by its index in the car's list: a state's paint, or none for one set by hand. */
+  let painted: number | undefined = options.paint ? undefined : 0;
   const glassLook = art.glass && glassMaterial({ sun, hazed: options.hazed });
 
   // In the game an object stands still unless it says so (`render/game.ts`): the car and its hinge move every frame, its
@@ -97,6 +107,11 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     mesh.updateMatrix();
     rolling.add(mesh);
     steering.add(rolling);
+    if (art.calipers) {
+      const caliper = new Mesh(art.calipers[side < 0 ? 1 : 0], material);
+      caliper.updateMatrix();
+      steering.add(caliper);
+    }
     root.add(steering);
     return { steering, rolling, isFront };
   });
@@ -108,10 +123,23 @@ export function createCarModel(art: CarArt, sun: Sun, options: CarViewOptions = 
     root,
     /** A hinge at the centre of mass. Its rotation.x pitches and rotation.z rolls the shell alone, above the simulation's own lean. */
     pivot,
+    /** The body, whose geometry a cockpit swaps for one with nothing inside. */
+    shell,
     wheels,
     setLights,
-    setPaint,
+    /** Paints the car by hand, until a state names a paint. */
+    setPaint(paint: CarPaint) {
+      setPaint(paint);
+      painted = undefined;
+    },
     draw(state: CarState) {
+      // The paint a state names, or the car's default for one it doesn't have: another version's, or none at all.
+      const paint = paintAt(paints, state.paint);
+      const index = paints.indexOf(paint);
+      if (index !== painted && (state.paint !== undefined || painted !== undefined)) {
+        setPaint(paint);
+        painted = index;
+      }
       root.position.set(...state.position);
       root.quaternion.set(...state.rotation);
       wheels.forEach(({ steering, rolling, isFront }, index) => {
@@ -150,6 +178,8 @@ export function carOnRoad(scene: Scene, sun: Sun, art: CarArt, options: CarViewO
   return {
     draw: model.draw,
     setLights: model.setLights,
+    pivot: model.pivot,
+    shell: model.shell,
     objects: [model.root] as Object3D[],
     dispose() {
       scene.remove(model.root);

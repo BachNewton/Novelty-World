@@ -7,11 +7,12 @@
 // Prereq: a dev server. Usage:
 //   node src/projects/aland-drive/tools/frame-cost.mjs [--size=3440x1440] [--keys=1,2,...,0] [--folder=<tiles>]
 //     [--draws] [--list] [--top=14] [--image=<folder>] [--save=<file.json>] [--against=<file.json>] [--fragments=written|rasterized|none]
-//     [--hour=11] [name:east,north,height,yaw,pitch ...]
+//     [--hour=11] [--view=chase|cockpit] [name:east,north,height,yaw,pitch ...]
 // --draws attributes the frame's fragments to each draw and so to each pipeline, redrawing the held frame once per draw
 // (a minute or two a view at 3440×1440), and --list prints every draw of the scene pass. --image saves each view's overdraw as a picture beside a screenshot of it.
 // --save keeps the run as JSON and --against prints each view's change from a saved run. Positions are ETRS-TM35FIN
-// metres, as `tools/look.mjs` takes them. ALAND_DRIVE_URL overrides the page's address.
+// metres, as `tools/look.mjs` takes them. --view measures each showcase spot from the chase camera or the driver's seat
+// rather than the view the game was in. ALAND_DRIVE_URL overrides the page's address.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool reading and writing the files it was told to */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -33,6 +34,7 @@ const STENCIL = option("fragments", "written");
 const LIST = flag("list");
 const TOP = Number(option("top", "14"));
 const HOUR = Number(option("hour", "11"));
+const VIEW = option("view", "");
 /** The boats' clock, held at one moment so every run sees the same boats where they are then. */
 const SEA_HELD_AT = Date.parse("2026-06-21T10:00:00Z") / 1000;
 const SETTLE_FRAMES = 30;
@@ -45,7 +47,7 @@ const LOOKS = process.argv.slice(2).filter((arg) => !arg.startsWith("--")).map((
 });
 
 const tiles = await serveTiles(FOLDER);
-const { page, step, reported, close } = await openGame(`${PAGE}?tiles=local:${tiles.port}&hour=${HOUR}`, {
+const { page, step, reported, close } = await openGame(`${PAGE}${PAGE.includes("?") ? "&" : "?"}tiles=local:${tiles.port}&hour=${HOUR}`, {
   width: WIDTH,
   height: HEIGHT,
   ready: () => window.__alandDrive?.mapReady() === true,
@@ -75,6 +77,7 @@ for (const { name, go } of views) {
       probe.setDay({ hour, held: true });
     }, { seaHeldAt: SEA_HELD_AT, hour: HOUR });
     await go();
+    if (VIEW) await page.evaluate((view) => window.__alandDrive.setCamera(view), VIEW);
     await settleFrames(page, SETTLE_FRAMES);
     const measured = await page.evaluate(async ({ samples, draws, image }) => {
       const probe = window.__alandDrive;

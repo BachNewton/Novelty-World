@@ -1,0 +1,46 @@
+import { inline } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A turbo five: the warble of an odd number of cylinders, a broad hum, and a soft whistle and sigh of boost. */
+export const fjard: Voice = {
+  seed: 195,
+  combustion: {
+    firing: inline(5),
+    lope: 0.08,
+    jitter: 0.08,
+    banks: { gain: 1, ring: 1, delayMs: 0 },
+    pulseMs: 1.4,
+    headerHz: 600,
+    roughness: 0.25,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.1,
+    fan: null,
+    pipeHz: 130,
+    pipeRing: 0.45,
+    exhaustHz: [850, 1900, 1500],
+    silencerHz: 280,
+    silencerDb: 7,
+    rasp: 1.9,
+    intakeHz: 280,
+    intakeQ: 2,
+    intake: 0.4,
+    limiterHz: 10,
+  },
+  electric: null,
+  turbo: {
+    boostFrom: 0.22,
+    spoolS: 0.5,
+    whistleHz: [2200, 7000],
+    whistle: 0.07,
+    hiss: 0.08,
+    blowOff: "valve",
+    blowOffLevel: 0.6,
+  },
+  supercharger: null,
+  overrun: { crackle: 0.5, antiLag: 0 },
+  gearWhine: { teeth: 23, level: 0.01 },
+  cabin: 0,
+  level: 0.39,
+  idleLevel: 0.48,
+};

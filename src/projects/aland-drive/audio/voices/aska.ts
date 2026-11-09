@@ -1,0 +1,58 @@
+import { flatPlaneV8 } from "../firing";
+import type { Voice } from "../vehicles";
+
+/** A twin-turbo flat-plane V8 behind the seats, screaming to 8,500, its turbos whistling and sighing, and under it the motors on both axles whining with the speed. */
+export const aska: Voice = {
+  seed: 517,
+  combustion: {
+    firing: flatPlaneV8,
+    lope: 0.04,
+    jitter: 0.06,
+    banks: { gain: 0.95, ring: 1.08, delayMs: 0.3 },
+    pulseMs: 0.9,
+    headerHz: 820,
+    roughness: 0.32,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.15,
+    fan: null,
+    pipeHz: 200,
+    pipeRing: 0.4,
+    exhaustHz: [1000, 3400, 2400],
+    silencerHz: 400,
+    silencerDb: 5,
+    rasp: 2.8,
+    intakeHz: 340,
+    intakeQ: 2.5,
+    intake: 0.7,
+    limiterHz: 16,
+  },
+  electric: {
+    rpmPerMS: 167,
+    orders: [
+      [8, 1],
+      [24, 0.4],
+      [48, 0.15],
+    ],
+    level: 0.25,
+    carrierHz: 4500,
+    polePairs: 4,
+    inverter: 0.08,
+    regen: 0.6,
+  },
+  turbo: {
+    boostFrom: 0.25,
+    spoolS: 0.4,
+    whistleHz: [2400, 7500],
+    whistle: 0.07,
+    hiss: 0.08,
+    blowOff: "valve",
+    blowOffLevel: 0.6,
+  },
+  supercharger: null,
+  overrun: { crackle: 3, antiLag: 0 },
+  gearWhine: { teeth: 23, level: 0.02 },
+  cabin: 0.1,
+  level: 0.32,
+  idleLevel: 0.4,
+};

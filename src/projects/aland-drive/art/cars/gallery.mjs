@@ -1,10 +1,15 @@
 // Renders every car on the real renderer, in WebGPU, from chase distance, side and three-quarter, and saves a contact
 // sheet. Needs no dev server: it bundles its own page and serves it to itself on a port the OS picks.
 //
-//   node src/projects/aland-drive/art/cars/gallery.mjs <out-folder> [--car=<index>] [--size=WxH] [--detail]
+//   node src/projects/aland-drive/art/cars/gallery.mjs <out-folder> [--car=<index>] [--size=WxH] [--detail] [--paints] [--cockpit]
 //
 // --detail adds the views a car is judged on up close: a tight chase, the back, braking, steered wheels, the far model
-// at 60 m, and the bumper camera. The full Chromium is asked for by name: the default headless shell falls back to WebGL2.
+// at 60 m, the bumper camera, the front and the back by night with the lamps lit, and a front wheel close up. --paints shoots each car in each of its paints instead, a row a paint: by day near and
+// from the chase, by night with its headlamps on, and the near and far models side by side at 30 m, so a colour set and
+// its finishes are judged at a glance; it saves one sheet a car, `paints-<index>.png`. --cockpit shoots only the
+// cockpits: from the driver's eye, the dash from behind the seats and across to the passenger's door, by day, and the
+// eye and dash after dark with the instruments lit. The full Chromium is asked for by name: the default headless shell
+// falls back to WebGL2.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
 
@@ -23,6 +28,8 @@ const option = (name) => flags.find((arg) => arg.startsWith(`--${name}=`))?.slic
 const [WIDTH, HEIGHT] = (option("size") ?? "2408x1007").split("x").map(Number);
 const onlyCar = option("car") === undefined ? null : Number(option("car"));
 const detail = flags.includes("--detail");
+const paintsOnly = flags.includes("--paints");
+const cockpits = flags.includes("--cockpit");
 
 const bundleDir = join(outFolder, ".bundle");
 await mkdir(bundleDir, { recursive: true });
@@ -36,7 +43,9 @@ await build({
 });
 
 const globals = await readFile(join(root, "src/app/globals.css"), "utf8");
-const tokens = globals.match(/--color-aland-drive-[a-z-]+:[^;]+;/g).join("\n");
+const nightTokens = await readFile(join(here, "../night/tokens.css"), "utf8");
+const cockpitTokens = await readFile(join(here, "cockpit/tokens.css"), "utf8");
+const tokens = [globals, nightTokens, cockpitTokens].flatMap((css) => css.match(/--color-aland-drive-[a-z-]+:[^;]+;/g)).join("\n");
 const page = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><style>:root{${tokens}}html,body{margin:0;background:#000;overflow:hidden}</style><script type="module" src="/gallery.js"></script>`;
 
 const server = createServer(async (request, response) => {
@@ -73,6 +82,62 @@ const adapter = await tab.evaluate(async () => (await navigator.gpu.requestAdapt
 console.log(`adapter: ${adapter}`);
 for (const car of cars) console.log(`${car.index} ${car.name}: near ${car.near.total} (body ${car.near.body}, glass ${car.near.glass}, wheel ${car.near.wheel}), far ${car.far.total}`);
 
+/** A page of shots, screenshotted whole: `columns` to a row, each captioned. */
+async function contactSheet(shots, columns, path) {
+  const cell = Math.floor(2400 / columns);
+  const pictures = await Promise.all(
+    shots.map(async ({ path: shot, caption }) => {
+      const data = (await readFile(shot)).toString("base64");
+      return `<figure><img src="data:image/png;base64,${data}"><figcaption>${caption}</figcaption></figure>`;
+    }),
+  );
+  const sheetHtml = `<!doctype html><style>body{margin:0;background:#1c2a36;font:14px sans-serif;color:#f4f8fb;display:grid;grid-template-columns:repeat(${columns},${cell}px)}figure{margin:0;position:relative}img{display:block;width:100%}figcaption{position:absolute;left:6px;top:4px;text-shadow:0 0 3px #000}</style>${pictures.join("")}`;
+  const sheet = await browser.newPage({ viewport: { width: cell * columns, height: 300 }, deviceScaleFactor: 1 });
+  await sheet.setContent(sheetHtml, { waitUntil: "load" });
+  await sheet.screenshot({ path, fullPage: true });
+  await sheet.close();
+}
+
+async function closeDown() {
+  if (problems.length > 0) console.log(`The page reported:\n${[...new Set(problems)].slice(0, 20).join("\n")}`);
+  await browser.close();
+  server.close();
+  await rm(bundleDir, { recursive: true, force: true });
+}
+
+if (paintsOnly) {
+  await mkdir(outFolder, { recursive: true });
+  const FRONT = [8, 1.3, -11, 0, 0.1, 0, 11];
+  const AT_30M = [14, 3, -26, 0, 0.6, 0, 6];
+  const paintViews = [
+    { view: "day", detail: "hero", camera: FRONT },
+    { view: "chase", detail: "hero", camera: "chase" },
+    { view: "night", detail: "hero", camera: FRONT, night: true },
+    { view: "near 30 m", detail: "hero", camera: AT_30M },
+    { view: "far 30 m", detail: "far", camera: AT_30M },
+  ];
+  for (const car of cars) {
+    if (onlyCar !== null && car.index !== onlyCar) continue;
+    const shots = [];
+    for (const [paint, paintName] of car.paints.entries()) {
+      for (const { view, ...shot } of paintViews) {
+        await tab.evaluate(async (s) => {
+          window.__carGallery.clear();
+          await window.__carGallery.shoot(s);
+        }, { ...shot, car: car.index, paint });
+        const path = join(outFolder, `${car.index}-paint${paint}-${view.replace(/ /g, "")}.png`);
+        await tab.screenshot({ path });
+        shots.push({ path, caption: `${paint} ${paintName} · ${view}` });
+      }
+    }
+    const sheetPath = join(outFolder, `paints-${car.index}.png`);
+    await contactSheet(shots, paintViews.length, sheetPath);
+    console.log(`${car.name}: ${car.paints.length} paints: ${sheetPath}`);
+  }
+  await closeDown();
+  process.exit(0);
+}
+
 console.log(JSON.stringify(await tab.evaluate(() => window.__carGallery.worldCounts())));
 console.log("hero cost:", JSON.stringify(await tab.evaluate(async () => {
   window.__carGallery.clear();
@@ -80,6 +145,15 @@ console.log("hero cost:", JSON.stringify(await tab.evaluate(async () => {
 })));
 
 const views = (car) => {
+  if (cockpits) {
+    return [
+      { name: "eye", car, detail: "hero", camera: "eye", steer: 0.12 },
+      { name: "dash", car, detail: "hero", camera: "dash", steer: 0.12 },
+      { name: "side", car, detail: "hero", camera: "side" },
+      { name: "eye-night", car, detail: "hero", camera: "eye", night: true, steer: 0.12 },
+      { name: "dash-night", car, detail: "hero", camera: "dash", night: true, steer: 0.12 },
+    ];
+  }
   const shots = [
     { name: "chase", car, detail: "hero", camera: "chase" },
     { name: "side", car, detail: "hero", camera: [20, 0.3, 0, 0, 0.15, 0, 9] },
@@ -94,6 +168,9 @@ const views = (car) => {
       { name: "steer", car, detail: "hero", camera: [3.5, 1.2, -5.2, 0, 0.1, -0.8, 26], steer: 0.5, roll: 0.6 },
       { name: "far", car, detail: "far", camera: [8, 2.5, 18, 0, 0.1, 0, 12] },
       { name: "hood", car, detail: "hero", camera: "hood" },
+      { name: "night", car, detail: "hero", camera: [6, 1.1, -9, 0, 0.3, 0, 13], lights: { headlights: true }, night: true },
+      { name: "night-rear", car, detail: "hero", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22], lights: { headlights: true, brake: true }, night: true },
+      { name: "wheel", car, detail: "hero", camera: [3.6, -0.1, -2.7, 0.85, -0.3, -1.3, 24] },
     );
   }
   return shots;
@@ -115,7 +192,7 @@ for (const car of cars) {
 }
 
 // The ranks twice, a third of a flash apart, so every car's indicators are seen lit in one or the other.
-const fleetViews = [
+const fleetViews = cockpits ? [] : [
   ["ranks", 0],
   ["ranks", 0.22],
   ["above", 0],
@@ -133,24 +210,10 @@ for (const [view, clock] of fleetViews) {
 }
 
 // The sheet is a page of the shots themselves, screenshotted whole.
-const columns = detail ? 5 : 4;
-const cell = Math.floor(2400 / columns);
-const sheetRows = Math.ceil(saved.length / columns);
-const pictures = await Promise.all(
-  saved.map(async ({ path, car, view }) => {
-    const data = (await readFile(path)).toString("base64");
-    return `<figure><img src="data:image/png;base64,${data}"><figcaption>${car} · ${view}</figcaption></figure>`;
-  }),
-);
-const sheetHtml = `<!doctype html><style>body{margin:0;background:#1c2a36;font:14px sans-serif;color:#f4f8fb;display:grid;grid-template-columns:repeat(${columns},${cell}px)}figure{margin:0;position:relative}img{display:block;width:100%}figcaption{position:absolute;left:6px;top:4px;text-shadow:0 0 3px #000}</style>${pictures.join("")}`;
-const sheet = await browser.newPage({ viewport: { width: cell * columns, height: 300 }, deviceScaleFactor: 1 });
-await sheet.setContent(sheetHtml, { waitUntil: "load" });
+const columns = detail || cockpits ? 5 : 4;
 const sheetPath = join(outFolder, "contact-sheet.png");
-await sheet.screenshot({ path: sheetPath, fullPage: true });
-console.log(`${saved.length} shots (${sheetRows} rows): ${sheetPath}`);
+await contactSheet(saved.map(({ path, car, view }) => ({ path, caption: `${car} · ${view}` })), columns, sheetPath);
+console.log(`${saved.length} shots (${Math.ceil(saved.length / columns)} rows): ${sheetPath}`);
 
-if (problems.length > 0) console.log(`The page reported:\n${[...new Set(problems)].slice(0, 20).join("\n")}`);
-await browser.close();
-server.close();
-await rm(bundleDir, { recursive: true, force: true });
+await closeDown();
 await writeFile(join(outFolder, "cars.json"), JSON.stringify(cars, null, 2));

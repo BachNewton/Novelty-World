@@ -93,6 +93,12 @@ Most placed things share one pattern (`render/placed-models.ts`): one list of pl
 
 **Placed things out of season** (`climate/placed-season.ts`, `render/in-season.ts`): moored boats by `boatsAfloat`, cows and sheep by `grazing`, bales by `bales`, a café's terrace by `terraces`, and the people tied to them. Each leaves and returns on its own threshold, rolled from its place on the GPU and CPU alike, a terrace whole on one roll so its sitters go with it. A kit draws through one copy of its material whose vertex shader folds an out-of-season place to its foot, each mesh marked with its kind's share and salt, so the season rebuilds no list and adds no draw or pipeline. A person carries their season on their vertices.
 
+## The cockpit
+
+The driver's seat is the second driving view (`render/cockpit-camera.ts`), `C` or RB from the chase view and back, the choice kept in this browser (`render/driving-view.ts`); the free camera returns to whichever it left. The eye sits where the car's cabin seats it (`art/cars/cockpit/frame.ts`) and rides the body pivot, so the shell's every lean is the view's; on top of that the head lags the car's acceleration by a few centimetres on a damped spring, looks a touch into a bend, and takes back a little of the body's roll and pitch so the horizon is steadier than the car. Its own field of view (52° high, a few more at speed) and a near plane of 3 cm, which the reversed depth buffer pays nothing for. The map's flight and the free camera start from it as from the chase view.
+
+Only the player's car has a cockpit, built with the car and hung in its body pivot, hidden until the seat is the view; then the shell's geometry is swapped for one with nothing inside, the chase view's simple cabin gone, and the interior drawn first. It is one mesh and one draw (`art/cars/cockpit/`, see `art/CLAUDE.md`): the wheel turns in its vertex stage, and the needles, figures and lamps are drawn in its fragments from uniforms the frame sets from the simulation, so nothing moving adds a draw, and every car's cockpit is the same pipeline, compiled with the rest before the drive. From inside, the glass is a mesh of the cockpit's own, the car's glass by its back faces, much clearer than seen from out, so the chase view's glass is drawn as it always was.
+
 **Nothing but the car is drawn inside it** (`art/car-volume.ts`): every masked material drops its pixels inside the player's car's two boxes, worked out per vertex so no `discard` is added where there was none (see `sim/CLAUDE.md`).
 
 ## The sky

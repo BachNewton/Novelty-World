@@ -1,0 +1,97 @@
+import type { CarSpec } from "../build";
+import { paint } from "../paints";
+import { bodyOf, driven, handles, lampUnits, plates, reflector, reversing, type Shape, thirdBrake } from "../recipe";
+
+const SKERRY = driven("skerry-gt");
+
+/** The sports fastback the game starts in: wide hips, a ducktail, a full-width bar of light. */
+const shape: Shape = {
+  trackM: SKERRY.trackM,
+  axleZ: SKERRY.axleZ,
+  wheelRadiusM: SKERRY.wheelRadiusM,
+  tyreWidthM: 0.235,
+  noseZ: -2.2,
+  tailZ: 2.2,
+  halfWidth: 0.895,
+  sillH: 0.19,
+  grilleH: 0.46,
+  lampH: [0.6, 0.655],
+  hoodLipH: 0.69,
+  hoodH: 0.87,
+  cowl: [-0.72, 0.945],
+  header: [0, 1.36],
+  roof: [0.35, 1.415],
+  roofEnd: [1.02, 1.37],
+  shoulder: [
+    [-2.2, 0.58],
+    [-1.3, 0.77],
+    [0, 0.78],
+    [1.3, 0.85],
+    [2.2, 0.83],
+  ],
+  belt: [
+    [-2.2, 0.66],
+    [-1.3, 0.8],
+    [-0.72, 0.87],
+    [0.9, 0.95],
+    [2.2, 1.04],
+  ],
+  windowTop: [
+    [-0.7, 0.9],
+    [-0.4, 1.02],
+    [-0.1, 1.19],
+    [0.15, 1.3],
+    [0.5, 1.345],
+    [1.0, 1.25],
+    [1.55, 0.96],
+  ],
+  windowZ: [-0.7, 1.55],
+  railWidth: [
+    [-2.2, 0.42],
+    [-1.2, 0.6],
+    [-0.72, 0.72],
+    [0.1, 0.61],
+    [0.9, 0.62],
+    [1.8, 0.66],
+    [2.2, 0.55],
+  ],
+  tail: [
+    { z: 1.06, h: 1.355, band: "rearGlass" },
+    { z: 1.74, h: 1.09 },
+    { z: 1.78, h: 1.075 },
+    { z: 1.97, h: 1.09 },
+    { z: 2.04, h: 1.05, band: "gap" },
+    { z: 2.05, h: 1.035, band: "tailDark" },
+    { z: 2.075, h: 1.0, band: "tailBar" },
+    { z: 2.11, h: 0.89, band: "tailDark" },
+    { z: 2.12, h: 0.85 },
+    { z: 2.16, h: 0.72 },
+    { z: 2.2, h: 0.56, band: "bumper" },
+    { z: 2.2, h: 0.4, band: "bumper" },
+    { z: 2.12, h: 0.27 },
+  ],
+  seams: [-0.62, 0.35, 0.9],
+  pillars: [[0.33, 0.39]],
+  mirror: { z: -0.42, h: 0.99, x: 0.82 },
+  rearPlateH: 0.68,
+  decals: [...plates(0.68, 0.36), reflector(0.56, 0.42), reversing(0.56, 0.8), ...handles([-0.1, 0.76], 0.92), thirdBrake(1.2), ...lampUnits({ headX: [0.38, 0.54], headH: 0.628, tailH: 0.945, tailX: [0.52, 0.78] })],
+  extra: { exhausts: { x: [-0.5, 0.5], h: 0.3, z: 2.2, radius: 0.042 } },
+};
+
+export const skerryGt: CarSpec = {
+  id: SKERRY.id,
+  name: SKERRY.name,
+  ride: SKERRY.ride,
+  paint: "car-paint-signal-red",
+  paints: [
+    paint("car-paint-signal-red"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-racing-green", "metallic"),
+    paint("car-paint-midnight", "metallic"),
+    paint("car-paint-ivory", "pearl", { flip: "car-paint-ivory-flip" }),
+    paint("car-paint-graphite", "matte"),
+  ],
+  body: bodyOf(shape),
+  wheel: { radiusM: SKERRY.wheelRadiusM, widthM: 0.235, rimShare: 0.74, spokes: 5, twinSpokes: true },
+  shadowHalf: [0.92, 2.2],
+};

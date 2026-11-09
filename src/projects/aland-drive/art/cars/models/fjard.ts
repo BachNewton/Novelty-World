@@ -1,0 +1,91 @@
+import type { CarSpec } from "../build";
+import { paint } from "../paints";
+import { bodyOf, driven, handles, plates } from "../recipe";
+
+const estate = driven("fjard");
+/** A long, low Nordic estate: a roof that runs right to the back, and bars on it. */
+export const fjard: CarSpec = {
+  id: estate.id,
+  name: estate.name,
+  ride: estate.ride,
+  paint: "car-paint-navy",
+  paints: [
+    paint("car-paint-navy"),
+    paint("car-paint-silver", "metallic"),
+    paint("car-paint-graphite", "metallic"),
+    paint("car-paint-glacier", "metallic"),
+    paint("car-paint-bronze", "metallic"),
+    paint("car-paint-white"),
+  ],
+  wheel: { radiusM: estate.wheelRadiusM, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
+  shadowHalf: [0.92, 2.38],
+  // A family estate on gravel-wise tyres, not a stage car: its cabin stays a road car's whatever its grip class says.
+  interior: { gauges: "analogue", wheel: "round", shifter: "lever", seats: "comfort", screen: true, cage: false, turnsToLock: 1.5, colours: { glow: "car-cabin-glow-white" } },
+  body: bodyOf({
+    nose: "grille",
+    noseRake: 0.6,
+    trackM: estate.trackM,
+    axleZ: estate.axleZ,
+    wheelRadiusM: estate.wheelRadiusM,
+    tyreWidthM: 0.215,
+    noseZ: -2.38,
+    tailZ: 2.38,
+    halfWidth: 0.91,
+    sillH: 0.2,
+    grilleH: 0.5,
+    lampH: [0.64, 0.7],
+    hoodLipH: 0.74,
+    hoodH: 0.9,
+    cowl: [-0.9, 0.97],
+    header: [-0.1, 1.42],
+    roof: [0.5, 1.48],
+    roofEnd: [1.85, 1.43],
+    shoulder: [
+      [-2.38, 0.6],
+      [-1.4, 0.77],
+      [0.5, 0.8],
+      [2.38, 0.85],
+    ],
+    belt: [
+      [-2.38, 0.68],
+      [-1.4, 0.82],
+      [-0.9, 0.88],
+      [1.6, 0.96],
+      [2.38, 0.98],
+    ],
+    windowTop: [
+      [-0.86, 0.92],
+      [-0.5, 1.1],
+      [-0.1, 1.33],
+      [0.5, 1.41],
+      [1.5, 1.37],
+      [2.0, 1.26],
+    ],
+    windowZ: [-0.86, 2.0],
+    railWidth: [
+      [-2.38, 0.44],
+      [-1.4, 0.6],
+      [-0.9, 0.72],
+      [0, 0.64],
+      [1.9, 0.62],
+      [2.38, 0.64],
+    ],
+    tail: [
+      { z: 1.95, h: 1.4, band: "rearGlassLamp" },
+      { z: 2.3, h: 0.98, band: "tallLamp" },
+      { z: 2.33, h: 0.84 },
+      { z: 2.38, h: 0.6, band: "bumper" },
+      { z: 2.38, h: 0.42, band: "bumper" },
+      { z: 2.3, h: 0.28 },
+    ],
+    seams: [-0.78, 0.36, 1.0],
+    pillars: [
+      [0.32, 0.4],
+      [1.42, 1.5],
+    ],
+    mirror: { z: -0.6, h: 1.0, x: 0.83 },
+    rearPlateH: 0.72,
+    decals: [...plates(0.72, 0.38), ...handles([-0.05, 0.86], 0.95)],
+    extra: { roofBars: { from: 0.1, to: 1.7, x: 0.54, rise: 0.05 } },
+  }),
+};

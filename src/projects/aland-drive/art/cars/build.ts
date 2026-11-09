@@ -1,8 +1,10 @@
 import { CARS, DEFAULT_CAR, type CarId } from "../../sim/cars";
 import { sagOf, type CarTuning } from "../../sim/tuning";
 import { buildBody, ROWS, type BodySpec, type BodyDetail } from "./body";
-import { pick, SURFACES, type Point, type Soup, type Surface } from "./mesh";
-import { buildWheel, type WheelSpec } from "./wheel";
+import { joined, pick, SoupBuilder, SURFACES, type Point, type Soup, type Surface } from "./mesh";
+import { buildCaliper, buildWheel, type WheelSpec } from "./wheel";
+import type { CarPaint } from "./paints";
+import type { InteriorChoice } from "./cockpit/style";
 
 /*
  * A car's parts at a detail: pure numbers, so triangle counts and shapes can be
@@ -27,8 +29,10 @@ export interface CarSpec {
   /** A car a player can drive: its wheels and ride are its simulation's. */
   id?: CarId;
   name: string;
-  /** A paint token, without the `--color-aland-drive-` prefix. */
+  /** A paint token, without the `--color-aland-drive-` prefix: a world car's paint, and a drivable car's default. */
   paint: string;
+  /** A drivable car's paints, the player's choice, the first its default (`paints.ts`). */
+  paints?: readonly CarPaint[];
   body: BodySpec;
   wheel: WheelSpec;
   /** Its paint is its livery, so a seeded world car keeps it and stays plain. */
@@ -36,6 +40,8 @@ export interface CarSpec {
   /** Half the width and length of the car's footprint on the road. */
   shadowHalf: readonly [wide: number, long: number];
   ride: Ride;
+  /** What its cockpit is like where that differs from what the car is (`cockpit/style.ts`). */
+  interior?: InteriorChoice;
 }
 
 export interface CarParts {
@@ -43,6 +49,8 @@ export interface CarParts {
   /** A hero's see-through glass, drawn apart. A world car's is in its body. */
   glass: Soup | null;
   wheel: Soup;
+  /** A hero's brake calipers, the right side's then the left's: they steer with the wheels but don't roll. */
+  calipers: readonly [right: Soup, left: Soup] | null;
 }
 
 const { sill, sillTop, mid, shoulder, belt, windowBase, windowTop, rail, roofOuter, roofInner, centre } = ROWS;
@@ -55,6 +63,7 @@ const HERO: BodyDetail = {
   fine: true,
   creaseDeg: 42,
   cabin: true,
+  outward: true,
 };
 
 const FAR: BodyDetail = {
@@ -65,6 +74,7 @@ const FAR: BodyDetail = {
   fine: false,
   creaseDeg: 40,
   cabin: false,
+  outward: false,
 };
 
 /** Where a wheel's centre sits in the car at rest. */
@@ -114,12 +124,92 @@ export function lampCentres(body: Soup): LampCentres {
   return { head: centre("lensHead", -1), tail: centre("lensTail", 1) };
 }
 
+/** The caliper for each side: the left's is the right's mirrored, so both sit towards the back of their discs. */
+function calipersOf(wheel: WheelSpec): readonly [Soup, Soup] {
+  const right = buildCaliper(wheel);
+  const left: Soup = { positions: new Float32Array(right.positions), normals: new Float32Array(right.normals), surfaces: right.surfaces, triangles: right.triangles };
+  for (let vertex = 0; vertex < right.triangles * 3; vertex++) {
+    left.positions[vertex * 3] *= -1;
+    left.normals[vertex * 3] *= -1;
+  }
+  // Mirroring turns every face inside out, so each triangle's corners are put back in order.
+  for (let face = 0; face < right.triangles; face++) {
+    for (const array of [left.positions, left.normals]) {
+      const [b, c] = [face * 9 + 3, face * 9 + 6];
+      const corner = array.slice(b, b + 3);
+      array.copyWithin(b, c, c + 3);
+      array.set(corner, c);
+    }
+  }
+  return [right, left];
+}
+
+/** How wide a pane's dark ceramic border is, and how far inside the glass it stands, so the two never share a plane. */
+const FRIT_M = 0.045;
+const FRIT_INSET_M = 0.008;
+const FRIT_WELD_PER_M = 2000;
+const FRIT_SHORTEST_M = 0.02;
+
+/**
+ * The dark border round each pane of a hero's glass, as real glass has: a strip along every edge where the glass meets
+ * something else, just inside it, so it shows through the glass's tint as a frame and hides where the pane is bonded.
+ */
+function fritOf(glass: Soup): Soup {
+  const builder = new SoupBuilder();
+  const point = (vertex: number): Point => [glass.positions[vertex * 3], glass.positions[vertex * 3 + 1], glass.positions[vertex * 3 + 2]];
+  const key = ([x, y, z]: Point) => `${Math.round(x * FRIT_WELD_PER_M)},${Math.round(y * FRIT_WELD_PER_M)},${Math.round(z * FRIT_WELD_PER_M)}`;
+  const edges = new Map<string, { a: Point; b: Point; third: Point; count: number }>();
+  for (let face = 0; face < glass.triangles; face++) {
+    const corners = [0, 1, 2].map((corner) => point(face * 3 + corner));
+    for (let edge = 0; edge < 3; edge++) {
+      const [a, b, third] = [corners[edge], corners[(edge + 1) % 3], corners[(edge + 2) % 3]];
+      const name = [key(a), key(b)].sort().join("|");
+      const known = edges.get(name);
+      if (known) known.count++;
+      else edges.set(name, { a, b, third, count: 1 });
+    }
+  }
+  for (const { a, b, third, count } of edges.values()) {
+    const along: Point = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    // A short edge is a sliver's, as at a door's seam, whose strip would stand across its neighbour's.
+    if (count !== 1 || Math.hypot(...along) < FRIT_SHORTEST_M) continue;
+    const toThird: Point = [third[0] - a[0], third[1] - a[1], third[2] - a[2]];
+    const raw: Point = [along[1] * toThird[2] - along[2] * toThird[1], along[2] * toThird[0] - along[0] * toThird[2], along[0] * toThird[1] - along[1] * toThird[0]];
+    const outLength = Math.hypot(...raw);
+    if (outLength < 1e-9) continue;
+    const out: Point = [raw[0] / outLength, raw[1] / outLength, raw[2] / outLength];
+    // Across the pane, from the edge towards its middle.
+    const inwardRaw: Point = [out[1] * along[2] - out[2] * along[1], out[2] * along[0] - out[0] * along[2], out[0] * along[1] - out[1] * along[0]];
+    const sign = inwardRaw[0] * toThird[0] + inwardRaw[1] * toThird[1] + inwardRaw[2] * toThird[2] < 0 ? -1 : 1;
+    const inLength = Math.hypot(...inwardRaw);
+    const width = Math.min(FRIT_M, (Math.abs(inwardRaw[0] * toThird[0] + inwardRaw[1] * toThird[1] + inwardRaw[2] * toThird[2]) / inLength) * 0.9);
+    const inward: Point = [(sign * inwardRaw[0] * width) / inLength, (sign * inwardRaw[1] * width) / inLength, (sign * inwardRaw[2] * width) / inLength];
+    const sunk = (p: Point): Point => [p[0] - out[0] * FRIT_INSET_M, p[1] - out[1] * FRIT_INSET_M, p[2] - out[2] * FRIT_INSET_M];
+    const [p, q] = [sunk(a), sunk(b)];
+    const corners: [Point, Point, Point, Point] = [p, q, [q[0] + inward[0], q[1] + inward[1], q[2] + inward[2]], [p[0] + inward[0], p[1] + inward[1], p[2] + inward[2]]];
+    // Turned to face out of the car, as the glass does.
+    const [c0, c1, c2] = corners;
+    const n = [(c1[1] - c0[1]) * (c2[2] - c0[2]) - (c1[2] - c0[2]) * (c2[1] - c0[1]), (c1[2] - c0[2]) * (c2[0] - c0[0]) - (c1[0] - c0[0]) * (c2[2] - c0[2]), (c1[0] - c0[0]) * (c2[1] - c0[1]) - (c1[1] - c0[1]) * (c2[0] - c0[0])];
+    if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] >= 0) builder.quad(...corners, "trim", builder.newGroup());
+    else builder.quad(corners[3], corners[2], corners[1], corners[0], "trim", builder.newGroup());
+  }
+  return builder.finish(30);
+}
+
 export function buildCarParts(spec: CarSpec, detail: CarDetail, options = false): CarParts {
   const hero = detail === "hero";
-  const shell = buildBody(spec.body, groundY(spec), hero ? HERO : FAR);
+  // A drivable car's blocks and pipes face out at both details; a world car's keep the winding its measured swaps were taken on.
+  const shell = buildBody(spec.body, groundY(spec), hero ? HERO : { ...FAR, outward: spec.id !== undefined });
+  const glass = pick(shell, (surface) => surface === "glass");
   return {
-    body: pick(shell, (surface) => (options || !isOption(surface)) && !(hero && surface === "glass")),
-    glass: hero ? pick(shell, (surface) => surface === "glass") : null,
+    body: hero ? joined(pick(shell, (surface) => (options || !isOption(surface)) && surface !== "glass"), fritOf(glass)) : pick(shell, (surface) => options || !isOption(surface)),
+    glass: hero ? glass : null,
     wheel: buildWheel(spec.wheel, { sides: hero ? 30 : 9, spokes: hero, fine: hero }),
+    calipers: hero ? calipersOf(spec.wheel) : null,
   };
+}
+
+/** A hero's shell with nothing inside it and no glass, for a cockpit to fill: the cabin seen through the windows is the cockpit's own. */
+export function buildBareShell(spec: CarSpec): Soup {
+  return pick(buildBody(spec.body, groundY(spec), { ...HERO, cabin: false }), (surface) => !isOption(surface) && surface !== "glass");
 }

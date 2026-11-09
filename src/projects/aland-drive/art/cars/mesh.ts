@@ -7,7 +7,7 @@
 export type Point = [x: number, y: number, z: number];
 
 /** What a face is made of. The order is the attribute's values, and the table in `material.ts` follows it. */
-export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead", "seat", "seatTan", "interior", "disc", "rack", "plateBand", "stripe", "lensIndicator"] as const;
+export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead", "seat", "seatTan", "interior", "disc", "rack", "plateBand", "stripe", "lensIndicator", "caliper"] as const;
 export type Surface = (typeof SURFACES)[number];
 
 export interface Soup {
@@ -30,6 +30,18 @@ export function pick({ positions, normals, surfaces }: Soup, keep: (surface: Sur
   return out;
 }
 
+/** Two soups as one. */
+export function joined(a: Soup, b: Soup): Soup {
+  const out: Soup = { positions: new Float32Array(a.positions.length + b.positions.length), normals: new Float32Array(a.normals.length + b.normals.length), surfaces: new Uint8Array(a.surfaces.length + b.surfaces.length), triangles: a.triangles + b.triangles };
+  out.positions.set(a.positions);
+  out.positions.set(b.positions, a.positions.length);
+  out.normals.set(a.normals);
+  out.normals.set(b.normals, a.normals.length);
+  out.surfaces.set(a.surfaces);
+  out.surfaces.set(b.surfaces, a.surfaces.length);
+  return out;
+}
+
 const MIN_AREA_M2 = 1e-7;
 const WELD_PER_M = 5000;
 
@@ -45,7 +57,12 @@ interface Face {
   surface: number;
   /** Faces of different groups never shade together. */
   group: number;
+  /** Normals the surface it lies on has at its corners, where the shape that made it knows them better than its faces do. */
+  hints?: [Point | null, Point | null, Point | null];
 }
+
+/** A hinted normal further than this from its face's own is a mistake in the hint, and the face's neighbours decide instead. */
+const HINT_LIMIT = Math.cos((60 * Math.PI) / 180);
 
 export class SoupBuilder {
   private readonly faces: Face[] = [];
@@ -56,7 +73,7 @@ export class SoupBuilder {
     return this.nextGroup++;
   }
 
-  triangle(a: Point, b: Point, c: Point, surface: Surface, group = 0) {
+  triangle(a: Point, b: Point, c: Point, surface: Surface, group = 0, hints?: Face["hints"]) {
     const raw = cross(sub(b, a), sub(c, a));
     const doubleArea = Math.hypot(...raw);
     if (doubleArea < MIN_AREA_M2 * 2) return;
@@ -66,7 +83,26 @@ export class SoupBuilder {
       area: doubleArea,
       surface: SURFACES.indexOf(surface),
       group,
+      hints,
     });
+  }
+
+  /** A quad on a surface whose normals are known at its corners, and its mirror across the car's middle. */
+  mirroredSmoothQuad(corners: [Point, Point, Point, Point], normals: [Point | null, Point | null, Point | null, Point | null], surface: Surface, group = 0) {
+    const [a, b, c, d] = corners;
+    const [na, nb, nc, nd] = normals;
+    const flip = (n: Point | null): Point | null => n && [-n[0], n[1], n[2]];
+    const split = (p: [Point, Point, Point, Point], n: [Point | null, Point | null, Point | null, Point | null]) => {
+      if (Math.hypot(...sub(p[0], p[2])) <= Math.hypot(...sub(p[1], p[3]))) {
+        this.triangle(p[0], p[1], p[2], surface, group, [n[0], n[1], n[2]]);
+        this.triangle(p[0], p[2], p[3], surface, group, [n[0], n[2], n[3]]);
+      } else {
+        this.triangle(p[0], p[1], p[3], surface, group, [n[0], n[1], n[3]]);
+        this.triangle(p[1], p[2], p[3], surface, group, [n[1], n[2], n[3]]);
+      }
+    };
+    split([a, b, c, d], [na, nb, nc, nd]);
+    split([mirrored(d), mirrored(c), mirrored(b), mirrored(a)], [flip(nd), flip(nc), flip(nb), flip(na)]);
   }
 
   /** Corners anticlockwise from outside, cut along the shorter diagonal so a bent quad folds the clean way. */
@@ -138,6 +174,19 @@ export class SoupBuilder {
     const surfaces = new Uint8Array(triangles * 3);
     this.faces.forEach((face, faceAt) => {
       face.corners.forEach((corner, cornerAt) => {
+        const at = faceAt * 9 + cornerAt * 3;
+        const hint = face.hints?.[cornerAt];
+        if (hint) {
+          const length = Math.hypot(...hint);
+          const along = dot(hint, face.normal) / length;
+          if (Math.abs(along) >= HINT_LIMIT) {
+            const sign = along < 0 ? -1 : 1;
+            positions.set(corner, at);
+            normals.set([(sign * hint[0]) / length, (sign * hint[1]) / length, (sign * hint[2]) / length], at);
+            surfaces[faceAt * 3 + cornerAt] = face.surface;
+            return;
+          }
+        }
         const sum: Point = [0, 0, 0];
         for (const other of atCorner.get(key(corner, face.group)) ?? []) {
           if (dot(other.normal, face.normal) < cosine) continue;
@@ -146,7 +195,6 @@ export class SoupBuilder {
           sum[2] += other.normal[2] * other.area;
         }
         const length = Math.hypot(...sum);
-        const at = faceAt * 9 + cornerAt * 3;
         positions.set(corner, at);
         normals.set([sum[0] / length, sum[1] / length, sum[2] / length], at);
         surfaces[faceAt * 3 + cornerAt] = face.surface;

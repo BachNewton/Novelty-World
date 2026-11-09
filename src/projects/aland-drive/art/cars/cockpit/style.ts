@@ -1,0 +1,142 @@
+import { CARS as TUNINGS } from "../../../sim/cars";
+import type { CarSpec } from "../build";
+
+/*
+ * What a car's cockpit is like, beyond the cabin's own numbers: its instruments,
+ * its wheel, its lever, its seats and its colours. Every car gets one from what
+ * it is (its class, whether it is electric, whether it is open), so a car with no
+ * `interior` of its own still has a good cockpit, and a car that says otherwise
+ * changes only what it names.
+ */
+
+/**
+ * "analogue": two big dials, speed and revs, with a gear window between. "digital": one screen, the speed in figures
+ * and the revs (or an electric car's power) as an arc of segments. "classic": two chrome-ringed dials and a row of
+ * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
+ * "tacho": one big rev counter front and centre with the gear under its hub, a smaller speedometer to its left and
+ * the water's dial to its right, a sports car's.
+ * "muscle": a big rev counter in front of the driver with a smaller speed dial beside it, and fuel, water and oil as
+ * small dials on the centre stack, where a screen would be.
+ * "single": one big chrome-ringed speedometer, the gear in a small window in its face, an old economy car's.
+ */
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho" | "muscle" | "single";
+/**
+ * "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large,
+ * thin-rimmed, four slim spokes. "yoke": open at the top. "twoSpoke": large, a thin ivory rim on two slim spokes, an old
+ * economy car's.
+ */
+export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke" | "twoSpoke";
+/** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. "floor": a long, thin lever from the floor, an old car's. */
+export type ShifterKind = "lever" | "sequential" | "selector" | "floor";
+/** "comfort": broad and soft. "sport": bolstered. "bucket": a shell with the headrest in it. */
+export type SeatKind = "comfort" | "sport" | "bucket";
+
+export interface InteriorStyle {
+  gauges: GaugeKind;
+  wheel: WheelKind;
+  shifter: ShifterKind;
+  seats: SeatKind;
+  /** A screen in the middle of the dash, with the clock and the temperature outside. */
+  screen: boolean;
+  /** A roll cage, with bare painted metal for door cards. */
+  cage: boolean;
+  /** A mirror hung at the top of the windscreen: a car with only a low aero screen has none. */
+  rearMirror: boolean;
+  /** A race car's harness over each seat, in the accent colour, in place of a belt. */
+  harness: boolean;
+  /** A band of the car's own paint across the dash, as older cars had. */
+  paintedDash: boolean;
+  /**
+   * With analogue dials, a fine digital display high between them, the gear over the speed in figures, where the
+   * wheel's opening shows it, in place of the gear window low between them that the wheel's hub can hide.
+   */
+  centreDisplay: boolean;
+  /** A grab handle up each windscreen pillar, an off-roader's, in the accent colour. */
+  grabHandles: boolean;
+  /** With analogue dials, a turbo's boost gauge, a small dial between the two big ones over the gear window. */
+  boost: boolean;
+  /** The seats' faces in quilted leather, a grid of stitched pads, as a luxury car's are. */
+  quilted: boolean;
+  /**
+   * A turbo car's big boost gauge in the middle of the centre stack, fuel and water either side, where the screen
+   * would be: the boost it reads flat out, in bar, or 0 for none. Only without a screen, and not with `boost`: both
+   * draw in the oil gauge's cell.
+   */
+  stackBoost: number;
+  /** Ivory dial faces with dark figures, as an older car's are, whatever the instruments; `classic` and `race` have them anyway. */
+  lightDials: boolean;
+  /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
+  colours: {
+    dash: string;
+    /** Door cards' upper part, the console's sides. */
+    trim: string;
+    /** Door cards' inserts. */
+    insert: string;
+    headliner: string;
+    /** Rings round the dials, the vents' and handles' edges. */
+    accent: string;
+    /** What the dials, figures and switches light in after dark. */
+    glow: string;
+    /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
+    seat?: string;
+    /** Contrasting stitching along the seats' centre panels, when they have it. */
+    stitch?: string;
+  };
+  /** A band of contrasting cloth across the front seats' backs at the shoulders, a colour token; null, none. */
+  seatBand: string | null;
+  /** How many turns the wheel takes from straight ahead to full lock. */
+  turnsToLock: number;
+  /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
+  eye: readonly [x: number, y: number, z: number];
+  /**
+   * How far up the wheel, as a share of its radius from the hub, the eye's line to the instruments passes. Higher puts
+   * the cluster's readouts in the wheel's opening over the hub and column, for a car whose dash stands close behind
+   * its wheel.
+   */
+  clusterSight: number;
+  /**
+   * A digital cluster's speed set to the left of its middle, inside the arc: for a low car, whose eye looks down past the
+   * wheel's hub along its column, which crosses the middle of the screen.
+   */
+  speedAside: boolean;
+  /** How far left of the middle a speed set aside sits, metres: further for a wheel whose hub covers more of the screen. */
+  speedAsideM: number;
+}
+
+export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
+
+const MODERN = { dash: "car-cabin-dash", trim: "car-cabin-trim", insert: "car-cabin-insert", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-white" };
+
+/** The cockpit a car has: what it is, then what it chose. */
+export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): InteriorStyle {
+  const tuning = spec.id === undefined ? null : TUNINGS[spec.id];
+  const electric = tuning?.gearbox.idleRpm === 0;
+  const rally = tuning?.class === "rally";
+  const sports = tuning?.class === "sports";
+  const base: InteriorStyle = {
+    gauges: electric ? "digital" : rally ? "race" : "analogue",
+    wheel: rally ? "rally" : sports || electric ? "flat" : "round",
+    shifter: electric ? "selector" : rally ? "sequential" : "lever",
+    seats: rally ? "bucket" : sports ? "sport" : "comfort",
+    screen: !rally,
+    cage: rally,
+    rearMirror: true,
+    harness: false,
+    paintedDash: false,
+    seatBand: null,
+    quilted: false,
+    grabHandles: false,
+    stackBoost: 0,
+    lightDials: false,
+    centreDisplay: false,
+    boost: false,
+    colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
+    turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
+    eye: [0, 0, 0],
+    clusterSight: 0.45,
+    speedAside: false,
+    speedAsideM: 0.064,
+  };
+  const chosen = spec.interior ?? {};
+  return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
+}
