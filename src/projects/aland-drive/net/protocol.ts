@@ -29,6 +29,24 @@ const WORLD_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export interface CarMessage {
   state: CarState;
   at?: number;
+  /** The race this player is in, if any, and how far round it they are. */
+  race?: RaceProgress;
+}
+
+/**
+ * Where a player stands in a race, sent with their car: who is in which race and attempt, which says who may run its
+ * racers (`net/computer-cars.ts`), and how far round they are, which places them among the racers and lets a racer
+ * take their place if they leave it unfinished (`racers/shared.ts`).
+ */
+export interface RaceProgress {
+  race: string;
+  attempt: number;
+  /** The next line to cross, counted over every lap. */
+  nextGate: number;
+  /** Lines crossed and how near the next, as a count of lines (`racers/racer.ts`'s `progressOf`). */
+  progress: number;
+  /** Seconds from their green to their finish, null while still racing. */
+  finishedS: number | null;
 }
 
 /**
@@ -227,7 +245,19 @@ function parseLamps(value: unknown): CarLamps {
 function parseCar(value: Record<string, unknown>): CarMessage | null {
   const state = parseState(value.state);
   if (!state) return null;
-  return isTime(value.at) ? { state, at: value.at } : { state };
+  // A race this version can't read is no race: the car still draws.
+  const race = parseRaceProgress(value.race);
+  return { state, ...(isTime(value.at) ? { at: value.at } : {}), ...(race ? { race } : {}) };
+}
+
+const isAmount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+export function parseRaceProgress(value: unknown): RaceProgress | null {
+  if (!isRecord(value)) return null;
+  const { race, attempt, nextGate, progress, finishedS } = value;
+  if (!isName(race) || !isCount(attempt) || !isCount(nextGate) || !isAmount(progress)) return null;
+  if (finishedS !== null && !isAmount(finishedS)) return null;
+  return { race, attempt, nextGate, progress, finishedS };
 }
 
 const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 64;

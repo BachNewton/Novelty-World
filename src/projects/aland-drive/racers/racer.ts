@@ -1,4 +1,4 @@
-import { advanceRun, startRun, type CarSample, type ChallengeRun } from "../challenge/run";
+import { advanceRun, startRun, type CarSample, type ChallengeRun, type Outcome, type PlayerRun } from "../challenge/run";
 import type { RaceChallenge } from "../challenge/types";
 import { NO_INPUT, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState } from "../sim/car-state";
@@ -79,6 +79,21 @@ export interface RacerRecord {
   offsetM: number;
 }
 
+/**
+ * Everything a racer carries from one step to the next beyond its car: its record, its racecraft, where its driver
+ * is along the line and the race's rules as they stand for it. Plain data, so it goes over the wire with the car's
+ * state, and a racer resumed from it drives on exactly as the one it was taken from.
+ */
+export interface RacerSnapshot {
+  record: RacerRecord;
+  craft: CraftState;
+  /** Where its driver is along the line, which a reset moves apart from the record's. */
+  driverAlong: number;
+  run: { attempt: number; clockS: number; player: PlayerRun; outcome: Outcome | null };
+  /** How far its next line was, at its last step; null before its first. */
+  toNextLineM: number | null;
+}
+
 export interface RacerHost {
   /** Puts the racer's car still at a point on the road, as the player's reset does. */
   reset(road: RoadPoint): void;
@@ -121,6 +136,28 @@ export class Racer {
   }
 
   private distanceToNextLine = Infinity;
+
+  /** What it carries beyond its car, to be resumed elsewhere. */
+  snapshot(): RacerSnapshot {
+    const { attempt, clockS, players, outcome } = this.run;
+    return structuredClone({
+      record: this.record,
+      craft: this.craft,
+      driverAlong: this.driver.along,
+      run: { attempt, clockS, player: players[0], outcome },
+      toNextLineM: Number.isFinite(this.distanceToNextLine) ? this.distanceToNextLine : null,
+    });
+  }
+
+  /** Carries on from a snapshot, taken from this racer or another on the same race, line and plan. */
+  resume(snapshot: RacerSnapshot): void {
+    const { record, craft, driverAlong, run, toNextLineM } = structuredClone(snapshot);
+    this.record = record;
+    this.craft = craft;
+    this.driver.along = driverAlong;
+    this.run = { challenge: this.race, attempt: run.attempt, clockS: run.clockS, players: [run.player], outcome: run.outcome };
+    this.distanceToNextLine = toNextLineM ?? Infinity;
+  }
 
   /** Before the countdown's green, held on the handbrake. */
   held(): DriveInput {
@@ -285,7 +322,11 @@ export class Racer {
 
 /** Progress along a race as a count of lines: those crossed, and how near the next, so places can be read among cars at any moment. */
 export function progressOf(run: ChallengeRun, distanceToNextLineM: number, player = 0): number {
-  const { nextGate, result } = run.players[player];
+  return progressOfPlayer(run.players[player], distanceToNextLineM);
+}
+
+/** The same, from one player's run alone. */
+export function progressOfPlayer({ nextGate, result }: PlayerRun, distanceToNextLineM: number): number {
   if (result !== null) return nextGate;
   return nextGate + Math.max(0, 1 - Math.min(distanceToNextLineM, LINE_SPACING_M) / LINE_SPACING_M);
 }

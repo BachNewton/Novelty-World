@@ -299,4 +299,4 @@ The owner wants online racing to be co-op, as Forza Horizon's team races are: pl
 | Fair to a team | Yes: everyone races the same racers | Yes | No: any contact makes the copies differ |
 | Network | About 6.4 kB a second per racer from whoever runs it | The same | None |
 
-**Decided: the nearest player runs each racer, and keeps it while it's in a fight**, so it never flips between two players side by side. The same rule runs traffic, so it is built once (piece 6).
+**Decided: the nearest player runs each racer, and keeps it while it's in a fight**, so it never flips between two players side by side. The same rule runs traffic, so it is built once (piece 6). **Built** (`racers/CLAUDE.md`, "Online"), with the owner's rulings on what was left open: one rule from the grid on, each grid racer put down by the player whose start place is nearest it; only players in the race run its racers, though everyone sees them; and a player who leaves a race unfinished is replaced by a racer on the racers' side, the race carrying on for those left.

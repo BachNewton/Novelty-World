@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
 import { createOnlineWorld, SEND_EVERY_STEPS, type OnlineWorld } from "./online-world";
-import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, SharedDestination, TrafficMessage } from "./protocol";
+import type { ChallengeMessage, ComputerCarMessage, GuestMessage, HostMessage, RaceProgress, SharedDestination, TrafficMessage } from "./protocol";
 
 type Events = RoomEvents<HostMessage, GuestMessage>;
 
@@ -15,6 +15,8 @@ interface Client {
   cars: Map<string, CarState>;
   /** When each other car's last state was stepped, on its own client's clock. */
   times: Map<string, number | undefined>;
+  /** The race each other player last said they were in. */
+  races: Map<string, RaceProgress | undefined>;
   others: string[];
   /** Challenge messages heard, each with who sent it. */
   challenges: { from: string; message: ChallengeMessage }[];
@@ -43,7 +45,7 @@ function createStar() {
   };
 
   function add(id: string, time = 0): Client {
-    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), times: new Map(), others: [], challenges: [], time, computerCars: [], traffic: [], destination: null };
+    const client: Client = { world: null as unknown as OnlineWorld, cars: new Map(), times: new Map(), races: new Map(), others: [], challenges: [], time, computerCars: [], traffic: [], destination: null };
     client.world = createOnlineWorld(
       (events) => {
         nodes.set(id, events);
@@ -70,9 +72,10 @@ function createStar() {
         };
       },
       {
-        onCar: (peerId, carState, at) => {
+        onCar: (peerId, carState, at, race) => {
           client.cars.set(peerId, carState);
           client.times.set(peerId, at);
+          client.races.set(peerId, race);
         },
         onGone: (peerId) => client.cars.delete(peerId),
         onPlayers: (others) => {
@@ -171,6 +174,23 @@ describe("the online world", () => {
     // Put somewhere while paused, it's sent again where it is now.
     a.world.send(0, { ...STATE, position: [40, 2, -30] }, true, 2000);
     expect(star.sent()).toBe(before + 3);
+  });
+
+  it("hands on the race each player says they're in with their car, and leaving it goes out at once, even from a paused player", () => {
+    const star = createStar();
+    const host = star.join("h");
+    const a = star.join("a");
+    const b = star.join("b");
+    const racing: RaceProgress = { race: "a5-1", attempt: 2, nextGate: 7, progress: 7.25, finishedS: null };
+    a.world.send(SEND_EVERY_STEPS, STATE, false, 1000, racing);
+    star.flush();
+    expect(host.races.get("a")).toEqual(racing);
+    expect(b.races.get("a")).toEqual(racing);
+
+    a.world.send(0, STATE, false, 1100, racing);
+    a.world.send(0, STATE, false, 1200);
+    star.flush();
+    expect(b.races.get("a")).toBeUndefined();
   });
 
   it("sends a new paint at once, even from a player paused in the menu, and the others see it", () => {

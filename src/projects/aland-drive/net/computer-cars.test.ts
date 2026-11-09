@@ -13,7 +13,7 @@ interface Client {
 }
 
 /** Players who hear each other's computer-driven cars once `flush` delivers them, in order. */
-function createPlayers(ids: string[], host = ids[0]) {
+function createPlayers(ids: string[], host = ids[0], mayRun?: (car: ComputerCarMessage, peer: string) => boolean | null) {
   const clients = new Map<string, Client>();
   const queue: (() => void)[] = [];
   for (const id of ids) {
@@ -29,6 +29,7 @@ function createPlayers(ids: string[], host = ids[0]) {
       },
       onHeard: () => undefined,
       onGone: () => undefined,
+      mayRun,
     });
     clients.set(id, { cars, places });
   }
@@ -141,5 +142,66 @@ describe("computer-driven cars online", () => {
     players.frames(1);
     for (const id of ["h", "b"]) expect(runnerOf(players.client(id).cars)).toBe("b");
     expect(players.client("b").cars.running().map((car) => car.handovers)).toEqual([1]);
+  });
+
+  describe("that only some players may run, as a race's racers", () => {
+    /** Who is in the race, as every client has heard it; anyone else is out of it. */
+    const inRace = (racing: Set<string>, unknown = new Set<string>()) => (_car: ComputerCarMessage, peer: string) => (unknown.has(peer) ? null : racing.has(peer));
+
+    it("are handed only to a player who may run them, never to a nearer one driving past", () => {
+      const players = createPlayers(["a", "b", "c"], "a", inRace(new Set(["a", "b"])));
+      players.place({ a: -60, b: 30, c: 15 });
+      players.client("a").cars.add("car", at(0), {});
+      players.frames(FRAMES_TO_HAND_ON * 3);
+      for (const id of ["a", "b", "c"]) expect(runnerOf(players.client(id).cars)).toBe("b");
+    });
+
+    it("pass from a runner who left the race to the nearest player still in it", () => {
+      const racing = new Set(["a", "b", "c"]);
+      const players = createPlayers(["h", "a", "b", "c"], "h", inRace(racing));
+      players.place({ h: 5, a: 0, b: 30, c: 60 });
+      players.client("h").cars.players(new Set(["h", "a", "b", "c"]));
+      players.client("a").cars.add("car", at(10), {});
+      players.frames(1);
+      racing.delete("a");
+      players.frames(1);
+      for (const id of ["h", "a", "b", "c"]) expect(runnerOf(players.client(id).cars)).toBe("b");
+    });
+
+    it("stay with a runner whose word on the race is still on the wire", () => {
+      const players = createPlayers(["h", "a"], "h", inRace(new Set(), new Set(["a"])));
+      players.place({ h: 0, a: 0 });
+      players.client("h").cars.players(new Set(["h", "a"]));
+      players.client("a").cars.add("car", at(10), {});
+      players.frames(3);
+      expect(runnerOf(players.client("h").cars)).toBe("a");
+    });
+
+    it("go out of the world when no one left may run them, and a state still on the wire doesn't bring them back", () => {
+      const racing = new Set(["a"]);
+      const players = createPlayers(["h", "a"], "h", inRace(racing));
+      players.place({ h: 0, a: 0 });
+      players.client("h").cars.players(new Set(["h", "a"]));
+      const a = players.client("a").cars;
+      a.add("car", at(10), {});
+      players.frames(1);
+      const late = structuredClone(a.all()[0]);
+      racing.delete("a");
+      players.frames(2);
+      for (const id of ["h", "a"]) expect(players.client(id).cars.all()).toEqual([]);
+      players.client("h").cars.hear("a", late);
+      expect(players.client("h").cars.all()).toEqual([]);
+    });
+
+    it("let go by a runner leaving the race, go at once to the nearest player still in it", () => {
+      const racing = new Set(["a", "b", "c"]);
+      const players = createPlayers(["a", "b", "c"], "a", inRace(racing));
+      players.place({ a: 0, b: 50, c: 20 });
+      players.client("a").cars.add("car", at(10), {});
+      racing.delete("a");
+      players.client("a").cars.letGo("car");
+      players.frames(1);
+      for (const id of ["a", "b", "c"]) expect(runnerOf(players.client(id).cars)).toBe("c");
+    });
   });
 });
