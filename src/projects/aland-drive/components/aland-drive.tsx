@@ -183,7 +183,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         shownOffer = offerKey;
         setOffer(offered);
       }
-      const coopKey = pairing ? `${pairing.kind}|${pairing.name ?? ""}|${pairing.title}` : "";
+      const coopKey = pairing ? `${pairing.kind}|${pairing.name ?? ""}|${pairing.title}|${pairing.joined.join(",")}` : "";
       if (coopKey !== shownCoop) {
         shownCoop = coopKey;
         setCoop(pairing);
