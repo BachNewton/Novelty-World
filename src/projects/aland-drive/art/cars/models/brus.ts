@@ -12,17 +12,17 @@ const ALL = centre + 1;
  * Aurelle's face, as Dyning set it: a low, wide grille framed in bright metal and crossed by one bright bar, between
  * slim lamps of two strokes of light raked back into the bonnet; the same two strokes in red at the corners of a dark
  * band the tail's whole width; a gill behind each front wheel and a fine bright line drawn back from it. Brus is the
- * sports car of the family: a shorter bonnet with two vents in it, a dark intake at each corner of the nose under its
- * lamps, a tight fastback ending in a kicked-up lip, hips that stand out over the rear wheels, and four pipes in pairs
- * in a dark diffuser.
+ * sports car of the family: a shorter bonnet with two vents in it, a dark intake the nose's width under its grille, a
+ * tight fastback ending in a kicked-up lip, hips that stand out over the rear wheels, and four pipes in pairs in a dark
+ * valance.
  *
  * Every band starts and ends on a row the far model has too (`build.ts`, `FAR`), so the far version's dark shapes are
  * the near one's. Across an end, the rows from `rail` up are its middle and those below are its corners.
  */
 const BANDS: Readonly<Record<string, readonly Band[]>> = {
   bumper: [{ surface: "cladding", from: sill, to: ALL }],
-  /** A dark intake at each corner of the nose, the paint between them carrying the grille above. */
-  corners: [{ surface: "grille", from: sillTop, to: rail }],
+  /** A dark intake the nose's whole width under the grille, over the splitter. */
+  intake: [{ surface: "grille", from: sillTop, to: ALL }],
   /** The grille, in the middle of the nose: as wide as the rail is there. */
   mouth: [{ surface: "grille", from: rail, to: ALL }],
   headDark: [{ surface: "trim", from: belt, to: rail }],
@@ -140,8 +140,6 @@ const shape: Shape = {
     { ...thirdBrake(2.135, 0.36), liftM: 0.012 },
     // Two vents in the bonnet over the engine, three slats each, Aurelle's gill laid flat.
     ...louvres({ x: 0.3, z: -1.42, long: 0.36, wide: 0.2, count: 3 }),
-    // An intake at each corner of the nose under the lamps, its lower edge on the dark band across the corners.
-    { on: "front", at: [0.64, 0.285], size: [0.22, 0.1], surface: "grille", mirror: true, cells: [6, 3], liftM: 0.012 },
     // Reversing lamps at the outer ends of the dark valance, beside the pipes.
     { ...reversing(0.56, 0.4), liftM: 0.012 },
   ],
@@ -151,7 +149,8 @@ const shape: Shape = {
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
       { z: NOSE_Z - 0.012, h: 0.19, band: "bumper" },
-      { z: NOSE_Z - 0.008, h: 0.21, band: "corners" },
+      { z: NOSE_Z - 0.008, h: 0.21, band: "intake" },
+      { z: NOSE_Z - 0.003, h: 0.27 },
       { z: NOSE_Z, h: GRILLE.h[0], band: "mouth" },
       { z: NOSE_Z + 0.002, h: GRILLE.h[1] },
       // The lamp: two strokes of light, one over the other, in a dark housing raked back into the bonnet.
@@ -246,7 +245,7 @@ const shape: Shape = {
     ],
     // A 2+2: the rear seats drawn forward under the fastback, so their heads stay below the rear glass.
     cabin: { dashZ: -0.32, dashH: 0.77, floorH: 0.28, seatZ: 0.6, rearSeatZ: 1.2, endZ: 1.6, seatX: BRUS.trackM * 0.23, seatSurface: "seat" },
-    exhausts: { x: [-0.3, -0.2, 0.2, 0.3], h: 0.26, z: 2.27, radius: 0.042 },
+    exhausts: { x: [-0.3, -0.2, 0.2, 0.3], h: 0.27, z: 2.33, radius: 0.042 },
   },
 };
 
