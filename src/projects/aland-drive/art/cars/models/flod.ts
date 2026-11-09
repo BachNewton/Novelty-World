@@ -115,6 +115,8 @@ const shape: Shape = {
     ...plates(0.66, 0.34),
     ...handles([0.22, 0.88], 0.9),
     reversing(0.32, 0.46),
+    // The tailgate's handle, a dark strip across it over the plate.
+    { on: "rear", at: [0, 0.755], size: [0.62, 0.022], surface: "trim", cells: [4, 1], fine: true, liftM: 0.012 },
     // A reflector low in each corner.
     reflector(0.72, 0.42),
     { ...thirdBrake(2.12, 0.34), liftM: 0.012 },
