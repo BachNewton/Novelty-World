@@ -1,8 +1,7 @@
 import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
-import { diffuser } from "../parts";
-import { bodyOf, driven, faired, handles, plates, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, thirdBrake, type Shape } from "../recipe";
 
 const DYNING = driven("dyning");
 const { sill, sillTop, belt, rail, centre } = ROWS;
@@ -125,8 +124,7 @@ const shape: Shape = {
   rearSeats: false,
   cabinEndZ: 1.45,
   seat: "seatTan",
-  decals: [...plates(0.64, 0.36), ...handles([0.82], 0.79), ...grilleFrame(), ...flank()],
-  blocks: diffuser({ z: 1.98, tailZ: 2.34, h: 0.24, x: [0.3] }).map((fin) => ({ ...fin, fine: true })),
+  decals: [...plates(0.64, 0.36), ...handles([0.82], 0.79), ...grilleFrame(), ...flank(), thirdBrake(2.243, 0.42)],
   extra: {
     bands: BANDS,
     silhouette: [
@@ -175,12 +173,12 @@ const shape: Shape = {
       // A short ducktail lip over the tail.
       { z: 2.22, h: 0.965 },
       { z: 2.265, h: 0.962, band: "gap" },
-      { z: 2.275, h: 0.948, band: "tailDark" },
-      { z: 2.285, h: 0.925, band: "tailLamp" },
-      { z: 2.29, h: 0.905, band: "tailDark" },
-      { z: 2.296, h: 0.885, band: "tailLamp" },
-      { z: 2.302, h: 0.865, band: "tailDark" },
-      { z: 2.31, h: 0.845 },
+      { z: 2.275, h: 0.95, band: "tailDark" },
+      { z: 2.283, h: 0.935, band: "tailLamp" },
+      { z: 2.29, h: 0.908, band: "tailDark" },
+      { z: 2.297, h: 0.893, band: "tailLamp" },
+      { z: 2.304, h: 0.866, band: "tailDark" },
+      { z: 2.312, h: 0.846 },
       { z: 2.345, h: 0.6 },
       { z: 2.355, h: 0.36, band: "diffuser" },
       { z: 2.365, h: 0.235 },
@@ -243,13 +241,14 @@ export const dyning: CarSpec = {
     paint("car-paint-black"),
   ],
   body: bodyOf(shape),
-  /** A grand tourer's cabin: analogue dials, a round wheel, comfortable seats in quilted tan leather, wood on the doors and bright metal round the dials. */
+  /** A grand tourer's cabin: analogue dials with a fine digital display between them, a round wheel, comfortable seats in quilted tan leather, wood on the doors and bright metal round the dials. */
   interior: {
     gauges: "analogue",
     wheel: "round",
     shifter: "lever",
     seats: "comfort",
     quilted: true,
+    centreDisplay: true,
     screen: true,
     // A little below where the roof would seat the eye, so the headliner is a band over the road and not a slab.
     eye: [0, -0.035, 0],

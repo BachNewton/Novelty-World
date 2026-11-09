@@ -253,7 +253,10 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const apart = Math.min(w / 2 - radius - 0.006, 0.09);
     big(SLOT.speed, SOURCE.speed, -apart, radius);
     big(SLOT.revs, SOURCE.revs, apart, radius);
-    if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+    if (style.gauges === "analogue" && style.centreDisplay) {
+      readout(SOURCE.gear, 1, 0, 0.022, 0.026);
+      readout(SOURCE.speed, 3, 0, -0.008, 0.014);
+    } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
