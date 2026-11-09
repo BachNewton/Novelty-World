@@ -4,10 +4,10 @@ import type { CarId } from "../sim/cars";
 import { CoopLink, type CoopNotice } from "./coop";
 import { COUNTDOWN_S } from "./run";
 import { ChallengeSession } from "./session";
-import type { Gate, RouteChallenge } from "./types";
+import type { Challenge, Gate, RaceChallenge, RouteChallenge } from "./types";
 
 /*
- * Two or three clients' co-op links over an in-memory world: every send queues,
+ * Up to five clients' co-op links over an in-memory world: every send queues,
  * and `flush` delivers in order, as the relay does. A straight road east along
  * z = 0, the finish 100 m from the start; east is a heading of -π/2.
  */
@@ -20,7 +20,7 @@ const ROUTE: RouteChallenge = {
   car: "sten",
   where: "",
   waypoints: [],
-  starts: [{ x: 0, z: 2, heading: EAST }, { x: 0, z: -2, heading: EAST }],
+  starts: [{ x: 0, z: 2, heading: EAST }, { x: 0, z: -2, heading: EAST }, { x: 10, z: 2, heading: EAST }, { x: 10, z: -2, heading: EAST }],
   lengthM: 100,
   kind: "route",
   gates: [finish],
@@ -28,6 +28,9 @@ const ROUTE: RouteChallenge = {
   targetS: 60,
   conditions: { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" },
 };
+
+/** A sprint on the same road, its lines the Route's finish. */
+const RACE: RaceChallenge = { ...ROUTE, id: "race", kind: "race", tier: "A5", number: "A5.0", shape: "sprint", ground: "road", laps: 1, gates: [finish], grid: ROUTE.starts, reserve: [], lapM: 100, lineM: 0 };
 
 interface Client {
   id: string;
@@ -66,8 +69,8 @@ function createWorld() {
       },
       selfId: () => id,
       free: () => session === null && !blocked,
-      challengeById: (wanted) => (wanted === ROUTE.id ? ROUTE : null),
-      begin: (challenge, seat) => {
+      challengeById: (wanted) => [ROUTE, RACE].find(({ id }) => id === wanted) ?? null,
+      begin: (challenge, seat, players) => {
         session = new ChallengeSession(
           challenge,
           {
@@ -89,11 +92,11 @@ function createWorld() {
             },
             onRetry: (attempt) => link.retried(attempt),
             onReady: (attempt) => link.ready(attempt),
-            onResult: (attempt, result) => link.result(attempt, result),
+            onResult: (attempt, result, points) => link.result(attempt, result, points),
             onLost: (attempt, results) => link.lost(attempt, results),
           },
           seat,
-          2,
+          players,
         );
         return session;
       },
@@ -142,28 +145,36 @@ function createWorld() {
   };
 }
 
-/** Two clients paired on the route, the first the inviter. */
-function paired({ aLoads = false, bLoads = false } = {}) {
+
+/** A team on the route: the first client invites, the others join in order, and the inviter starts it once they have. */
+function team(size: number, { loads = [] as string[], challenge = ROUTE as Challenge } = {}) {
   const world = createWorld();
-  const a = world.add("a", { loads: aLoads });
-  const b = world.add("b", { loads: bLoads });
-  a.link.inviteAll(ROUTE);
+  const clients = ["a", "b", "c", "d"].slice(0, size).map((id) => world.add(id, { loads: loads.includes(id) }));
+  const [inviter, ...joiners] = clients;
+  inviter.link.inviteAll(challenge);
   world.flush();
-  b.link.accept("a");
+  for (const joiner of joiners) joiner.link.accept(inviter.id);
   world.flush();
-  return { world, a, b };
+  // A full room has started by itself.
+  if (inviter.link.now.kind === "inviting") inviter.link.start();
+  world.flush();
+  return { world, clients };
 }
 
 const at = (x: number, z = 2) => ({ x, z, speedMS: 20 });
 const sessionOf = (client: Client) => client.session() ?? (() => { throw new Error(`${client.id} has no session`); })();
+/** Every client's lights go green, each on its own clock. */
+const green = (clients: readonly Client[]) => {
+  for (const client of clients) sessionOf(client).step(COUNTDOWN_S, at(0));
+};
 
-describe("pairing", () => {
-  it("puts the inviter in seat 0 and the one who joins in seat 1, each on their own place in the challenge's car", () => {
-    const { a, b } = paired();
-    expect(sessionOf(a).seat).toBe(0);
-    expect(sessionOf(b).seat).toBe(1);
-    expect([a.placedAt(), b.placedAt()]).toEqual([0, 1]);
-    expect([a.car(), b.car()]).toEqual(["sten", "sten"]);
+describe("forming a team", () => {
+  it("seats the inviter first and each joiner in the order the inviter heard them, each on their own place in the challenge's car", () => {
+    const { clients } = team(3);
+    expect(clients.map((client) => sessionOf(client).seat)).toEqual([0, 1, 2]);
+    expect(clients.map((client) => client.placedAt())).toEqual([0, 1, 2]);
+    expect(clients.map((client) => client.car())).toEqual(["sten", "sten", "sten"]);
+    expect(clients.map((client) => sessionOf(client).run.players.length)).toEqual([3, 3, 3]);
   });
 
   it("asks everyone in the world, and whoever arrives while the invite is open", () => {
@@ -179,23 +190,25 @@ describe("pairing", () => {
     expect(d.link.invite).toEqual({ peer: "a", challenge: ROUTE });
   });
 
-  it("gives the seat to the first accept heard, withdraws every other invite at once, and tells a second joiner it was taken", () => {
+  it("keeps the invite open after an accept, until the inviter starts it, and then tells a joiner too late it was taken", () => {
     const world = createWorld();
-    const a = world.add("a");
-    const b = world.add("b");
-    const c = world.add("c");
-    const d = world.add("d");
+    const [a, b, c, d] = ["a", "b", "c", "d"].map((id) => world.add(id));
     a.link.inviteAll(ROUTE);
     world.flush();
-    // b and c both join before either hears of the other; d lets it pass.
     b.link.accept("a");
-    c.link.accept("a");
     world.flush();
-    expect(sessionOf(a).seat).toBe(0);
+    expect(a.link.now).toMatchObject({ kind: "inviting", joined: ["b"] });
+    expect(b.session()).toBeNull();
+    expect(c.link.invite?.peer).toBe("a");
+    // c's accept is on its way as a starts.
+    c.link.accept("a");
+    a.link.start();
+    world.flush();
+    expect(sessionOf(a).run.players.length).toBe(2);
     expect(sessionOf(b).seat).toBe(1);
     expect(c.session()).toBeNull();
     expect(c.link.now.kind).toBe("free");
-    expect(c.notices).toEqual([{ kind: "taken", peer: "a", partner: "b" }]);
+    expect(c.notices).toEqual([{ kind: "taken", peer: "a" }]);
     for (const client of [c, d]) {
       expect(client.link.invite).toBeNull();
       expect(client.link.busy("a")).toBe(true);
@@ -205,12 +218,56 @@ describe("pairing", () => {
     expect(d.notices).toEqual([{ kind: "expired", peer: "a" }]);
   });
 
-  it("holds an invite unseen while paired, to answer once that challenge is over", () => {
-    const { world, a, b } = paired();
+  it("starts at once when the room is full, four players, and seats no fifth", () => {
+    const world = createWorld();
+    const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map((id) => world.add(id));
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    for (const joiner of [b, c, d, e]) joiner.link.accept("a");
+    world.flush();
+    expect([a, b, c, d].map((client) => sessionOf(client).seat)).toEqual([0, 1, 2, 3]);
+    expect(e.session()).toBeNull();
+    expect(e.notices).toEqual([{ kind: "taken", peer: "a" }]);
+  });
+
+  it("gives a seat taken back to whoever accepts next", () => {
+    const world = createWorld();
+    const [a, b, c] = ["a", "b", "c"].map((id) => world.add(id));
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    b.link.accept("a");
+    world.flush();
+    b.link.withdraw();
+    c.link.accept("a");
+    world.flush();
+    expect(a.link.now).toMatchObject({ kind: "inviting", joined: ["c"] });
+    a.link.start();
+    world.flush();
+    expect(sessionOf(c).seat).toBe(1);
+    expect(b.session()).toBeNull();
+  });
+
+  it("forgets a joiner who drops out of the world before the start", () => {
+    const world = createWorld();
+    const [a, b, c] = ["a", "b", "c"].map((id) => world.add(id));
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    b.link.accept("a");
+    c.link.accept("a");
+    world.flush();
+    world.drop("b");
+    expect(a.link.now).toMatchObject({ kind: "inviting", joined: ["c"] });
+  });
+
+  it("holds an invite unseen while in a team, to answer once that challenge is over", () => {
+    const {
+      world,
+      clients: [a, b],
+    } = team(2);
     const c = world.add("c");
     c.link.inviteAll(ROUTE);
     world.flush();
-    expect(a.link.now.kind).toBe("paired");
+    expect(a.link.now.kind).toBe("playing");
     expect(a.link.invite).toEqual({ peer: "c", challenge: ROUTE });
     a.link.leave();
     world.flush();
@@ -218,19 +275,23 @@ describe("pairing", () => {
     expect(c.link.busy("a")).toBe(false);
     b.link.accept("c");
     world.flush();
+    c.link.start();
+    world.flush();
     expect(sessionOf(c).seat).toBe(0);
     expect(sessionOf(b).seat).toBe(1);
   });
 
-  it("drops an invite everywhere once its inviter takes it back or leaves the world", () => {
+  it("drops an invite everywhere once its inviter takes it back, telling those who had joined, or leaves the world", () => {
     const world = createWorld();
-    const a = world.add("a");
-    const b = world.add("b");
-    const c = world.add("c");
+    const [a, b, c] = ["a", "b", "c"].map((id) => world.add(id));
     a.link.inviteAll(ROUTE);
+    world.flush();
+    b.link.accept("a");
     world.flush();
     a.link.withdraw();
     world.flush();
+    expect(b.link.now.kind).toBe("free");
+    expect(b.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
     for (const client of [b, c]) expect(client.link.invite).toBeNull();
     c.link.inviteAll(ROUTE);
     world.flush();
@@ -241,9 +302,7 @@ describe("pairing", () => {
 
   it("answers the newest of several invites, and an older one stays until it's let pass", () => {
     const world = createWorld();
-    const a = world.add("a");
-    const b = world.add("b");
-    const c = world.add("c");
+    const [a, b, c] = ["a", "b", "c"].map((id) => world.add(id));
     a.link.inviteAll(ROUTE);
     c.link.inviteAll(ROUTE);
     world.flush();
@@ -254,88 +313,94 @@ describe("pairing", () => {
     expect(c.link.now.kind).toBe("inviting");
   });
 
-  it("starts nothing for an invite taken back while its accept was on the way", () => {
+  it("withdraws the invite from everyone when the room fills while the inviter can't start", () => {
     const world = createWorld();
-    const a = world.add("a");
-    const b = world.add("b");
+    const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map((id) => world.add(id));
     a.link.inviteAll(ROUTE);
     world.flush();
-    b.link.accept("a");
-    a.link.withdraw();
-    world.flush();
-    expect(a.session()).toBeNull();
-    expect(b.session()).toBeNull();
-    expect(b.link.now.kind).toBe("free");
-    expect(b.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
-  });
-
-  it("withdraws the invite from everyone when an accept comes while the inviter can't start", () => {
-    const world = createWorld();
-    const a = world.add("a");
-    const b = world.add("b");
-    const c = world.add("c");
-    a.link.inviteAll(ROUTE);
-    world.flush();
-    // a has opened the map by the time b's accept lands.
-    b.link.accept("a");
+    // a has opened the map by the time the last seat's accept lands.
     a.block(true);
+    for (const joiner of [b, c, d]) joiner.link.accept("a");
     world.flush();
     expect(a.link.now.kind).toBe("free");
-    expect(a.notices).toEqual([{ kind: "withdrawn", peer: "b" }]);
-    expect(b.link.now.kind).toBe("free");
-    expect(b.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
-    expect(c.link.invite).toBeNull();
+    expect(a.notices).toEqual([{ kind: "withdrawn", peer: "d" }]);
+    for (const joiner of [b, c, d]) {
+      expect(joiner.link.now.kind).toBe("free");
+      expect(joiner.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
+    }
+    expect(e.link.invite).toBeNull();
+  });
+
+  it("goes on without a joiner who can't make the start, who tells the rest", () => {
+    const world = createWorld();
+    const [a, b, c] = ["a", "b", "c"].map((id) => world.add(id));
+    a.link.inviteAll(ROUTE);
+    world.flush();
+    b.link.accept("a");
+    c.link.accept("a");
+    world.flush();
+    // c is on the map as the start lands.
+    c.block(true);
+    a.link.start();
+    world.flush();
+    expect(c.session()).toBeNull();
+    expect(c.notices).toEqual([{ kind: "withdrawn", peer: "a" }]);
+    for (const client of [a, b]) {
+      expect(sessionOf(client).run.players[2].gone).toBe(true);
+      expect(sessionOf(client).phase).toBe("countdown");
+    }
   });
 });
 
-describe("the synced start", () => {
-  it("holds the lights until both cars are on their places, and the countdown runs from that moment on each client", () => {
-    const { world, a, b } = paired({ bLoads: true });
-    // a is on its place; b's start is still loading, so a waits on the line with its clock still.
+describe("the ready gate", () => {
+  it("holds the lights until every car is on its place, and the countdown runs from that moment on each client", () => {
+    const { world, clients } = team(3, { loads: ["c"] });
+    const [a, b, c] = clients;
+    // a and b are on their places; c's start is still loading, so they wait on the line with their clocks still.
     sessionOf(a).step(COUNTDOWN_S, at(0));
     expect(sessionOf(a).phase).toBe("waiting");
     expect(sessionOf(a).holdsCar()).toBe(true);
     expect(sessionOf(a).run.clockS).toBe(-COUNTDOWN_S);
-    // b's car lands. b has heard a's ready already, so its own lights start at once; a's once b's ready reaches it.
-    b.land();
-    expect(sessionOf(b).phase).toBe("countdown");
+    expect(sessionOf(b).phase).toBe("waiting");
+    // c's car lands. c has heard the others' ready already, so its own lights start at once; theirs once c's ready reaches them.
+    c.land();
+    expect(sessionOf(c).phase).toBe("countdown");
     expect(sessionOf(a).phase).toBe("waiting");
     world.flush();
-    expect(sessionOf(a).phase).toBe("countdown");
+    for (const client of clients) expect(sessionOf(client).phase).toBe("countdown");
     sessionOf(a).step(COUNTDOWN_S, at(0));
     expect(sessionOf(a).phase).toBe("running");
   });
 });
 
-describe("the synced retry", () => {
-  it("takes both cars back for the attempt either player asks for", () => {
-    const { world, a, b } = paired();
+describe("the shared retry", () => {
+  it("takes every car back for the attempt any player asks for", () => {
+    const { world, clients } = team(4);
+    green(clients);
+    expect(sessionOf(clients[2]).retry()).toBe(true);
     world.flush();
-    sessionOf(a).step(COUNTDOWN_S + 5, at(0));
-    expect(sessionOf(a).retry()).toBe(true);
-    world.flush();
-    expect(sessionOf(a).run.attempt).toBe(2);
-    expect(sessionOf(b).run.attempt).toBe(2);
-    expect(sessionOf(b).phase).toBe("countdown");
-    expect(sessionOf(a).phase).toBe("countdown");
+    for (const client of clients) {
+      expect(sessionOf(client).run.attempt).toBe(2);
+      expect(sessionOf(client).phase).toBe("countdown");
+    }
   });
 
-  it("gives one attempt for two retries at once, and drops a retry for an attempt already under way", () => {
-    const { world, a, b } = paired();
-    world.flush();
-    // Both press before either hears the other.
+  it("gives one attempt for retries at once, and drops a retry for an attempt already under way", () => {
+    const { world, clients } = team(3);
+    const [a, b, c] = clients;
+    // a and c press before either hears the other.
     expect(sessionOf(a).retry()).toBe(true);
-    expect(sessionOf(b).retry()).toBe(true);
+    expect(sessionOf(c).retry()).toBe(true);
     world.flush();
-    expect([sessionOf(a).run.attempt, sessionOf(b).run.attempt]).toEqual([2, 2]);
-    expect([sessionOf(a).phase, sessionOf(b).phase]).toEqual(["countdown", "countdown"]);
-    expect(sessionOf(a).follow(2)).toBe(false);
-    expect(sessionOf(a).follow(1)).toBe(false);
+    expect(clients.map((client) => sessionOf(client).run.attempt)).toEqual([2, 2, 2]);
+    expect(clients.map((client) => sessionOf(client).phase)).toEqual(["countdown", "countdown", "countdown"]);
+    expect(sessionOf(b).follow(2)).toBe(false);
+    expect(sessionOf(b).follow(1)).toBe(false);
   });
 
   it("puts the car down once for a retry heard while it's still on its way to the line, ready for the newer attempt", () => {
-    const { world, a, b } = paired({ aLoads: true });
-    world.flush();
+    const { world, clients } = team(2, { loads: ["a"] });
+    const [a, b] = clients;
     a.land();
     world.flush();
     // b retries, and a's car goes back by a load; b retries again before it's down.
@@ -357,56 +422,97 @@ describe("the synced retry", () => {
 });
 
 describe("results", () => {
-  it("pass on the average for both, each client measuring only its own car", () => {
-    const { world, a, b } = paired();
-    world.flush();
-    for (const client of [a, b]) sessionOf(client).step(COUNTDOWN_S, at(0, client === a ? 2 : -2));
-    // a finishes in 40 s; b, slower than the target alone, in 75.
+  it("pass on the average of everyone, each client measuring only its own car and telling the rest", () => {
+    const { world, clients } = team(3);
+    const [a, b, c] = clients;
+    green(clients);
+    // a finishes in 40 s and b in 50; c, slower than the target alone, in 85: an average of 58.3.
     sessionOf(a).step(40, at(100.01));
+    sessionOf(b).step(50, at(100.01));
     world.flush();
-    expect(sessionOf(b).run.players[0].result).toBeCloseTo(40, 1);
-    sessionOf(b).step(75, at(100.01, -2));
+    expect(sessionOf(c).run.players.map(({ result }) => result)).toEqual([expect.closeTo(40, 1), expect.closeTo(50, 1), null]);
+    sessionOf(c).step(85, at(100.01));
     world.flush();
-    for (const client of [a, b]) {
+    for (const client of clients) {
       expect(sessionOf(client).run.outcome?.passed).toBe(true);
-      expect(sessionOf(client).run.outcome?.average).toBeCloseTo(57.5, 1);
+      expect(sessionOf(client).run.outcome?.average).toBeCloseTo(58.33, 1);
       expect(client.overs).toBe(1);
     }
   });
 
-  it("is lost by the client still timing a player, and ends the same way on the other", () => {
-    const { world, a, b } = paired();
-    world.flush();
-    for (const client of [a, b]) sessionOf(client).step(COUNTDOWN_S, at(0));
+  it("is lost by a client still timing a player, and ends the same way on the rest", () => {
+    const { world, clients } = team(3);
+    const [a, b, c] = clients;
+    green(clients);
     sessionOf(a).step(50, at(100.01));
     world.flush();
-    // a has finished, so a's own clock says nothing about b: a waits however long it runs.
+    // a has finished, so a's own clock says nothing about the others: a waits however long it runs.
     sessionOf(a).step(100, at(120));
     expect(sessionOf(a).run.outcome).toBeNull();
-    // On b's clock, (50 + 71) / 2 is over 60.
-    sessionOf(b).step(71, at(60, -2));
+    // On b's clock, (50 + 66 + 66) / 3 is over 60.
+    sessionOf(b).step(66, at(60));
     expect(sessionOf(b).run.outcome?.passed).toBe(false);
     world.flush();
     expect(sessionOf(a).run.outcome).toEqual(sessionOf(b).run.outcome);
+    expect(sessionOf(c).run.outcome).toEqual(sessionOf(b).run.outcome);
   });
 });
 
 describe("leaving", () => {
-  it("by either player ends it for the other, and both have their cars back", () => {
-    const { world, a, b } = paired();
+  it("by one of three leaves the rest playing, the average theirs alone, and a car back for the one who left", () => {
+    const { world, clients } = team(3);
+    const [a, b, c] = clients;
+    green(clients);
+    sessionOf(a).step(40, at(100.01));
+    world.flush();
+    c.link.leave();
+    sessionOf(c).leave();
+    world.flush();
+    expect(c.car()).toBe("skerry-gt");
+    for (const client of [a, b]) expect(client.notices).toEqual([{ kind: "left", peer: "c" }]);
+    // b's 70 and a's 40 pass on their own average, 55; c's is in no one's.
+    sessionOf(b).step(70, at(100.01));
+    world.flush();
+    for (const client of [a, b]) expect(sessionOf(client).run.outcome).toMatchObject({ passed: true, average: expect.closeTo(55, 1) });
+    // The next attempt waits for no one who has gone.
+    expect(sessionOf(a).retry()).toBe(true);
+    world.flush();
+    for (const client of [a, b]) expect(sessionOf(client).phase).toBe("countdown");
+  });
+
+  it("settles the attempt at once when the one who leaves was the last still driving", () => {
+    const { world, clients } = team(3);
+    const [a, b] = clients;
+    green(clients);
+    sessionOf(a).step(40, at(100.01));
+    sessionOf(b).step(50, at(100.01));
+    world.flush();
+    world.drop("c");
+    for (const client of [a, b]) expect(sessionOf(client).run.outcome).toMatchObject({ passed: true, average: expect.closeTo(45, 1) });
+  });
+
+  it("leaves a race running for the last one left, against the racers still there", () => {
+    const { world, clients } = team(3, { challenge: RACE });
+    const c = clients[2];
+    green(clients);
+    world.drop("a");
+    world.drop("b");
+    expect(c.notices).toEqual([{ kind: "left", peer: "a" }, { kind: "left", peer: "b" }]);
+    expect(sessionOf(c).playing).toBe(1);
+    sessionOf(c).step(30, at(100.01));
+    expect(sessionOf(c).run.outcome?.results).toEqual([null, null, expect.closeTo(30, 1)]);
+  });
+
+  it("ends a challenge for the last one left, with their car back", () => {
+    const { world, clients } = team(3);
+    const [a, b, c] = clients;
     a.link.leave();
     sessionOf(a).leave();
     world.flush();
-    expect(b.session()).toBeNull();
-    expect(b.notices).toEqual([{ kind: "left", peer: "a" }]);
-    expect([a.car(), b.car()]).toEqual(["skerry-gt", "skerry-gt"]);
-  });
-
-  it("dropping out of the world ends it for the one left", () => {
-    const { world, b } = paired();
-    world.drop("a");
-    expect(b.session()).toBeNull();
-    expect(b.notices).toEqual([{ kind: "left", peer: "a" }]);
-    expect(b.car()).toBe("skerry-gt");
+    expect(sessionOf(b).playing).toBe(2);
+    world.drop("b");
+    expect(c.session()).toBeNull();
+    expect(c.notices).toEqual([{ kind: "left", peer: "a" }, { kind: "left", peer: "b" }]);
+    expect(c.car()).toBe("skerry-gt");
   });
 });

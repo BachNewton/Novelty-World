@@ -13,15 +13,30 @@ import { isCarId, type CarId } from "../sim/cars";
  * The game menu, as the game wants it: which items it holds, in order, and
  * whether opening it stops the drive. The game works it out each time the
  * menu opens, and the page draws each item by its id. After a challenge's
- * attempt it is the result card: how the attempt went, then Retry and Leave.
- * The same dialog is a challenge's small choices on its own button: Solo or
- * Co-op in a start ring with another player in it, and Join or Decline when
- * another player asks. A race's button opens its card first, whatever else:
+ * attempt it is the result card: how the attempt went, then Leave and Retry,
+ * Leave first after a win (`resultItems`). The same dialog is a challenge's
+ * small choices on its own button: Solo or Co-op in a start ring with another
+ * player in it, Join or Decline when another player asks, and Start or take
+ * the invite back once someone has joined this player's. A race's button opens its card first, whatever else:
  * the track and its car, the medals won, then Start.
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `shifting-${Shifting}` | `units-${Units}` | "cars" | "settings" | CarItem | PaintItem | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `shifting-${Shifting}` | `units-${Units}` | "cars" | "settings" | CarItem | PaintItem | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "start-team" | "withdraw-coop" | "cancel" | "retry" | "leave";
+
+/** One player of a co-op team on a result card: their name (null for this player), their time or speed, and in a race their points. */
+export interface TeamResult {
+  name: string | null;
+  result: number | null;
+  points?: number | null;
+}
+
+/**
+ * The result card's choices, the first where it opens. After a win (a challenge passed, a race won, or in co-op a team
+ * gold) there's nothing left to chase, so it opens on Leave, back to the drive in the player's own car; after a loss on
+ * Retry, since another go is what a player who just missed wants. Both are always there, and B leaves.
+ */
+export const resultItems = (won: boolean): MenuItemId[] => (won ? ["leave", "retry"] : ["retry", "leave"]);
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -30,6 +45,8 @@ export interface RaceResult {
   medal: Medal | null;
   /** The best medal kept in this mode, this attempt included. */
   bestMedal: Medal | null;
+  /** Co-op: the medal is the team's, from its points per player, and each player's points against the racers. */
+  team?: readonly TeamResult[];
 }
 
 /** A race's card, before it starts. */
@@ -54,8 +71,8 @@ export interface MenuResult {
   target: number | null;
   /** The best kept for this challenge, this attempt included. */
   best: number | null;
-  /** Co-op: this player's own time or speed and the partner's, either null for a Route lost before that one's finish. The result is their average. */
-  team?: { own: number | null; partner: number | null; partnerName: string };
+  /** Co-op: each player's own time or speed, null for a Route lost before theirs. The result is their average. */
+  team?: readonly TeamResult[];
   race?: RaceResult;
 }
 
@@ -66,7 +83,7 @@ export type CarItem = `car-${CarId}`;
 export type PaintItem = `paint-${number}`;
 
 /** What the dialog is: the game menu, its Settings or Cars page, or one of a challenge's choices. */
-export type MenuKind = "menu" | "settings" | "cars" | "start" | "invite" | "race";
+export type MenuKind = "menu" | "settings" | "cars" | "start" | "invite" | "race" | "team";
 
 /** A car as the Cars page shows it: its spec sheet, its paints and the one it's in. */
 export interface CarCard {
@@ -86,7 +103,7 @@ export interface GameMenu {
   challenge?: string;
   result?: MenuResult;
   kind?: MenuKind;
-  /** The player whose co-op invite this is. */
+  /** The player whose co-op invite this is, or those who have joined this player's. */
   partner?: string;
   /** How many other players a co-op invite would ask: set when one can be sent. */
   players?: number;
