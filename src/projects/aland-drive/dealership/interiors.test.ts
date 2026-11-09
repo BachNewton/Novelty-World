@@ -19,8 +19,8 @@ describe("every dealership keeps the definition's rules", () => {
 });
 
 describe("the stock", () => {
-  it("no car is sold at two dealers, and every dealer-bought car is sold somewhere", async () => {
-    const sold = (await Promise.all(DEALERSHIPS.filter(({ site }) => site !== "used-lot").map(async ({ load }) => stockOf((await load()).stock)))).flat();
+  it("no car is sold at two dealers", async () => {
+    const sold = (await Promise.all(DEALERSHIPS.map(async ({ load }) => stockOf((await load()).stock)))).flat();
     expect(new Set(sold).size).toBe(sold.length);
   });
 });

@@ -20,5 +20,4 @@ export const DEALERSHIPS: readonly Dealership[] = [
   { site: "waterfront-showroom", load: draft("waterfront-showroom") },
   { site: "town-dealer", load: draft("town-dealer") },
   { site: "village-garage", load: draft("village-garage") },
-  { site: "used-lot", load: draft("used-lot") },
 ];

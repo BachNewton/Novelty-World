@@ -1,10 +1,9 @@
-import { buildExterior } from "../art/dealers/exteriors";
 import { buildInterior, type Interior, type InteriorId } from "../art/dealers/interiors";
 import type { V3 } from "../art/dealers/shell";
 import type { DealerInterior, Door, Lamp, PlanOutline, Solid, Spot, Stock, Window } from "./interior";
 
 /*
- * Today's draft rooms, read into the interior definition, so the walk-in works before their art is rebuilt to it. What
+ * Today's three draft rooms, read into the interior definition, so the walk-in works before their art is rebuilt to it. What
  * a draft doesn't say (where its furniture stands on the plan, its openings, its door) is written here from its art.
  * Once a dealership's art returns a `DealerInterior` itself, its entry here goes, and this file with the last one.
  */
@@ -13,12 +12,10 @@ import type { DealerInterior, Door, Lamp, PlanOutline, Solid, Spot, Stock, Windo
 const DRAFT_AMBIENT = 0.5;
 const EYE_M = 1.6;
 
-const STOCK: Readonly<Record<InteriorId | "used-lot", Stock>> = {
+const STOCK: Readonly<Record<InteriorId, Stock>> = {
   "waterfront-showroom": { makers: ["Tärna", "Aurelle"], from: ["dealer"] },
   "town-dealer": { makers: ["Västan", "Ödmark", "Norrsken"], from: ["dealer"] },
   "village-garage": { makers: ["Klippa"] },
-  // The used lot's stock comes with the economy; until then, the cheaper end of the dealers' cars.
-  "used-lot": { from: ["dealer"], tiers: ["A7", "B3", "B4"] },
 };
 
 const rectangle = (x0: number, z0: number, x1: number, z1: number): PlanOutline => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
@@ -128,31 +125,6 @@ function fromDraft(draft: Interior): DealerInterior {
   };
 }
 
-/** The used lot is outdoors: its yard is its exterior, walked as it stands, under the open sky. */
-function usedLot(): DealerInterior {
-  const { soup, slots, plotHalf } = buildExterior("used-lot");
-  const [hx, hz] = plotHalf;
-  const floodlight = (x: number, z: number): Lamp => ({ kind: "spot", at: [x, 5, z], aim: [0, -1, 0], coneDeg: 70, paint: "dealer-light-cool", power: 0.5, reachM: 9 });
-  return {
-    name: "Begagnade bilar",
-    room: soup,
-    turntables: [],
-    stock: STOCK["used-lot"],
-    spots: slots.map(({ at, yaw }) => ({ at, yaw })),
-    floor: rectangle(-hx + 0.2, -hz + 0.2, hx - 0.2, hz - 0.2),
-    solids: [box(11, -7, 3.25, 1.85), ...[-16.5, 16.5].flatMap((x) => [round(x, -10.5, 0.1), round(x, 10.5, 0.1)])],
-    windows: [],
-    viewFrom: [0, EYE_M, 0],
-    light: {
-      ambient: 0.85,
-      ambientPaint: "wall-trim",
-      lamps: [floodlight(-8, -4), floodlight(8, 1), floodlight(-8, 6)],
-      mirrors: ["dealer-asphalt", "sky"],
-    },
-    door: { at: [12.9, -4.2], yaw: Math.PI / 2, reachM: 1.6 },
-  };
-}
-
-export function draftInterior(site: InteriorId | "used-lot"): DealerInterior {
-  return site === "used-lot" ? usedLot() : fromDraft(buildInterior(site));
+export function draftInterior(site: InteriorId): DealerInterior {
+  return fromDraft(buildInterior(site));
 }
