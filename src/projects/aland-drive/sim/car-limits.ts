@@ -1,6 +1,7 @@
 import type { CarTuning } from "./tuning";
 import type { CarId } from "./cars";
 import { GROUND_GRIP, TYRES, type Condition, type Surface, type Tyre } from "./surfaces";
+import altura from "./limits/altura.json";
 import aska from "./limits/aska.json";
 import blixt from "./limits/blixt.json";
 import ankar from "./limits/ankar.json";
@@ -121,6 +122,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   stubbe,
   knott,
   // C1
+  altura,
   // C2
   // C3
   vik,

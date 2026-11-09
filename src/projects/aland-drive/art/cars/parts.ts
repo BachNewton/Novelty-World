@@ -67,8 +67,11 @@ export const tailLine = ({ h, wide, thick = 0.03 }: { h: number; wide: number; t
   liftM: 0.01,
 });
 
-/** Slats across a deck or a fender, from `z` back by `long`, each `wide` across, at `x` from the middle (mirrored when not zero). */
-export const louvres = ({ x, z, long, wide, count, surface = "grille" }: { x: number; z: number; long: number; wide: number; count: number; surface?: Decal["surface"] }): Decal[] =>
+/**
+ * Slats across a deck or a fender, from `z` back by `long`, each `wide` across, at `x` from the middle (mirrored when
+ * not zero), lifted `liftM` off it: more on a panel that curves under them.
+ */
+export const louvres = ({ x, z, long, wide, count, surface = "grille", liftM = 0.012 }: { x: number; z: number; long: number; wide: number; count: number; surface?: Decal["surface"]; liftM?: number }): Decal[] =>
   Array.from({ length: count }, (_, at): Decal => ({
     on: "top",
     at: [x, z + (long * (at + 0.5)) / count],
@@ -77,5 +80,5 @@ export const louvres = ({ x, z, long, wide, count, surface = "grille" }: { x: nu
     mirror: x !== 0,
     cells: [4, 1],
     fine: true,
-    liftM: 0.012,
+    liftM,
   }));
