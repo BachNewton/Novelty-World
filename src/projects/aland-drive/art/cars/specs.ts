@@ -23,6 +23,7 @@ import { orkan } from "./models/orkan";
 import { rimfrost } from "./models/rimfrost";
 import { ljus } from "./models/ljus";
 import { pil } from "./models/pil";
+import { lontano } from "./models/lontano";
 import { salta } from "./models/salta";
 import { skerryGt } from "./models/skerry-gt";
 import { span } from "./models/span";
@@ -84,6 +85,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   altura,
   // C2
   rimfrost,
+  lontano,
   // C3
   vik,
   // C4

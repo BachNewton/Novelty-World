@@ -14,8 +14,10 @@ import { SoupBuilder, type Point, type Soup } from "./mesh";
  * swept round, a hypercar's. "mesh": two sets of thin spokes crossing, a classic's. "aero": broad spokes with narrow
  * gaps, nearly a closed disc, an electric car's. "steel": a pressed steel disc in the body's paint, dished, with a ring of
  * small vents and a chrome hubcap over its middle, an old economy car's; `spokes` is how many vents.
+ * "wire": a 1960s wire wheel, `spokes` fine wires each way laced from a
+ * small hub to the rim, held on by a two-eared knock-off nut.
  */
-export type RimStyle = "blade" | "split" | "turbine" | "mesh" | "aero" | "steel";
+export type RimStyle = "blade" | "split" | "turbine" | "mesh" | "aero" | "steel" | "wire";
 
 export interface WheelSpec {
   radiusM: number;
@@ -90,6 +92,13 @@ function spokesOf(style: RimStyle, count: number, hub: number, rimInner: number,
     case "aero":
       // Each as broad as it can be beside its neighbours without touching them, from the hub to the rim.
       return around(count).map((a) => ({ ...dish, angle: [a, a + 0.12], wide: [(Math.PI * hub) / count - 0.004, (Math.PI * rimInner) / count - 0.012], steps: 2 }));
+    case "wire": {
+      // Straight wires, each set a few millimetres behind the other so no two share a plane where they cross, and the
+      // knock-off's two ears standing proud of the hub.
+      const wires = around(count).flatMap((a) => [-0.62, 0.62].map((sweep, side): Spoke => ({ ...dish, face: [dish.face[0] - side * 0.007, dish.face[1] - side * 0.007], angle: [a, a + sweep], wide: [0.0032, 0.0028], depth: 0.006, steps: 1 })));
+      const ears = [0, Math.PI].map((a): Spoke => ({ angle: [a, a], wide: [0.014, 0.022], radius: [hub * 0.6, hub * 1.9], face: [faceX + 0.012, faceX - 0.004], depth: 0.012, steps: 1 }));
+      return [...wires, ...ears];
+    }
     case "steel":
       return [];
   }
@@ -232,12 +241,14 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
     const style = spec.style ?? (spec.twinSpokes ? "split" : "blade");
     for (const one of spokesOf(style, spec.spokes, hubRadius, rim - 0.03, faceX)) spoke(builder, one);
     builder.rings([ring(faceX - 0.026, radius * 0.15, 10), ring(faceX - 0.05, radius * 0.165, 10)], "rim");
+    // A wire wheel's hub is a polished barrel the knock-off screws onto, standing out of the wires.
+    if (style === "wire") builder.rings([ring(faceX - 0.06, radius * 0.2, 12), ring(faceX - 0.004, radius * 0.18, 12), ring(faceX + 0.006, radius * 0.11, 12), ring(faceX + 0.008, 0.004, 12)], "rim");
     if (detail.fine) {
       // The brake disc behind the spokes, with its dark hat in the middle.
       const discX = faceX - 0.085;
       builder.rings([ring(discX + 0.012, rim - 0.045, 24), ring(discX - 0.012, rim - 0.045, 24)], "disc");
       builder.rings([ring(discX + 0.03, radius * 0.24, 10), ring(discX + 0.004, radius * 0.24, 10)], "rimDark");
-      for (let nut = 0; nut < 5; nut++) {
+      for (let nut = 0; nut < (style === "wire" ? 0 : 5); nut++) {
         const angle = (nut / 5) * Math.PI * 2 + 0.3;
         const place = (r: number, a: number, x: number): Point => [x, Math.cos(angle) * radius * 0.1 + Math.cos(a) * r, Math.sin(angle) * radius * 0.1 + Math.sin(a) * r];
         const nutRing = (x: number): Point[] => [0, 1, 2, 3, 4, 5].map((step) => place(0.011, (step / 6) * Math.PI * 2, x));
