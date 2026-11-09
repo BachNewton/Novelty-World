@@ -12,7 +12,9 @@
 // The grid stands where a road of two lanes (a main road, a tertiary or a street, as `ideas/races.md` counts widths)
 // takes the widest car of the race's field two abreast, a lane each, for three rows: six places. A lane takes one car at a time, however wide
 // it's laid, so on one, or a road that never takes two within reach of the start, the grid is four places in single
-// file on the road's middle. The start line is a little ahead of the pole. A circuit's lap runs from the start line round to it again,
+// file on the road's middle, with two places in reserve for co-op, so three or four players still race two racers: on a
+// circuit behind the back of the grid, where the loop runs on behind it, and on a sprint ahead of the pole, since behind
+// its back is the junction the route starts from. The start line is a little ahead of the pole. A circuit's lap runs from the start line round to it again,
 // with a line every 400 m or so, the last the start line itself; a sprint's lines run from the pole to its finish.
 //
 // Every place and line stands on the road as laid (`racers/laid-road.ts`, read along the route by `racers/route-plan.ts`),
@@ -42,6 +44,7 @@ const STEP_M = 5;
 const FURTHEST_POLE_M = 500;
 const ABREAST_ROWS = 3;
 const SINGLE_FILE = 4;
+const RESERVE = 2;
 /** From one row to the next: the longest car and a car's length between. */
 const ROW_M = 10;
 /** From the pole to the start line. */
@@ -87,6 +90,15 @@ function grid(spec: RaceSpec, plan: RoutePlan): { pole: number; places: StartPla
   return { pole, places: Array.from({ length: SINGLE_FILE }, (_, place) => placeAt(plan, pole - place * ROW_M, 0)) };
 }
 
+/**
+ * A single-file grid's places in reserve, in the order a bigger field takes them: on a circuit behind its back place, read
+ * round the loop's end (the plan runs the lap twice), and on a sprint ahead of its pole.
+ */
+function reserve(spec: RaceSpec, plan: RoutePlan, pole: number, lapM: number): StartPlace[] {
+  const back = pole - (SINGLE_FILE - 1) * ROW_M;
+  return Array.from({ length: RESERVE }, (_, place) => (spec.shape === "circuit" ? placeAt(plan, back - (place + 1) * ROW_M + lapM, 0) : placeAt(plan, pole + (place + 1) * ROW_M, 0)));
+}
+
 /** A line across the laid road a distance along the route: on its middle, reaching across the whole surface and a gate's margin past it. */
 function laidGateAt(plan: RoutePlan, world: World, along: number): Gate {
   const { laid } = plan.at(along);
@@ -128,6 +140,7 @@ for (const spec of RACE_SPECS) {
     runInM: circuit ? LINE_AHEAD_M : 0,
     gravel: round(gravelShare(line, world, circuit ? 0 : pole), 2),
     grid: laid,
+    ...(laid.length === SINGLE_FILE ? { reserve: reserve(spec, plan, pole, line.length) } : {}),
     gates: circuit ? laidGates(plan, world, lineM, lineM + lapM) : laidGates(plan, world, pole, line.length),
   };
   places[spec.id] = entry;

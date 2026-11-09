@@ -63,39 +63,29 @@ function alongOfPlace(line: RoadLine, { x, z }: StartPlace): number {
   return best.along;
 }
 
-/**
- * How many racers a race gets: as many as asked, of the grid places the players don't take. The racers take the grid
- * from the pole and the players start at the back, the owner's call: a lead held from the pole was no race, and
- * taking it through the pack is.
- */
-export const racersOn = (race: RaceChallenge, players: number, asked: number): number => Math.max(0, Math.min(asked, race.grid.length - players));
-
-/** A player's place on the grid: the first behind the racers, seat by seat. */
-export const startPlaceOf = (race: RaceChallenge, seat: number, players: number, asked: number): StartPlace => race.grid[racersOn(race, players, asked) + seat];
-
 export class RaceGrid {
   readonly racers: GridRacer[] = [];
 
   /**
-   * `count` racers on the grid's places from the pole, each in a car of the field in turn, on the race's line and its
-   * surface, in the world's condition.
+   * A racer on each of these places on the grid (`gridPlaces`, pole first), each in a car of the field in turn, on the
+   * race's line and its surface, in the world's condition.
    */
   constructor(
     readonly race: RaceChallenge,
     { line, pavedAt, geometry }: RaceLine,
     field: readonly CarId[],
-    count: number,
+    places: readonly StartPlace[],
     private readonly host: GridHost,
   ) {
     const condition = host.condition();
     const bends = signedCurvatureOf(line, ROUTE_STEP_M);
     const curvature = bends.map((bend) => Math.abs(bend));
     const crest = crestOf(line, ROUTE_STEP_M);
-    for (const [slot, { car: carId, paint }] of gridCars(field, Math.min(count, race.grid.length)).entries()) {
+    for (const [slot, { car: carId, paint }] of gridCars(field, places.length).entries()) {
       const tuning = CARS[carId];
       const tyres = tyresFor(condition);
       const limits = { asphalt: limitsOn(carId, condition, "asphalt", tyres), gravel: limitsOn(carId, condition, "gravel", tyres) };
-      const place = race.grid[slot];
+      const place = places[slot];
       const from = alongOfPlace(line, place);
       const plan = planSpeeds({
         curvature,

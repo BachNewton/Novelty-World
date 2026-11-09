@@ -7,7 +7,7 @@ const common = { title: "", car: "skerry-gt" as const, where: "", waypoints: [],
 const ROUTE: Challenge = { ...common, id: "route", kind: "route", gates: [], parS: 60, targetS: 60 };
 const TRAP: Challenge = { ...common, id: "trap", kind: "speed-trap", camera: { x: 0, z: 0, heading: 0, halfWidthM: 1 }, parKmh: 150, targetKmh: 150 };
 const passed = (average: number) => ({ passed: true, results: [average], average });
-const RACE: RaceChallenge = { ...common, id: "race", kind: "race", tier: "A5", number: "A5.0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], lapM: 0, lineM: 0 };
+const RACE: RaceChallenge = { ...common, id: "race", kind: "race", tier: "A5", number: "A5.0", shape: "sprint", ground: "road", laps: 1, gates: [], grid: [place, place, place, place], reserve: [], lapM: 0, lineM: 0 };
 const finished = (time: number) => ({ passed: true, results: [time], average: time });
 
 describe("the passes kept", () => {
@@ -41,5 +41,14 @@ describe("the passes kept", () => {
     passes = withOutcome(passes, RACE, "coop", finished(400));
     expect(passes).toEqual({ solo: { race: { best: 1, medal: "gold" } }, coop: { race: { best: 1, medal: "gold" } } });
     expect(readPasses({ solo: { race: { best: 1, medal: "platinum" } } }, [RACE])).toEqual({ solo: { race: { best: 1, medal: null } }, coop: {} });
+  });
+
+  it("keep a co-op race's team medal over a better place of this player's on a worse one", () => {
+    // Fourth, with the team's points per player gold; then second, the team only silver.
+    let passes = withOutcome(NO_PASSES, RACE, "coop", finished(300), 4, "gold");
+    passes = withOutcome(passes, RACE, "coop", finished(300), 2, "silver");
+    expect(passes.coop.race).toEqual({ best: 4, medal: "gold" });
+    passes = withOutcome(passes, RACE, "coop", finished(300), 3, "gold");
+    expect(passes.coop.race).toEqual({ best: 3, medal: "gold" });
   });
 });

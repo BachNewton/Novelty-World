@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceRun, COUNTDOWN_S, partnerNeeds, reportResult, startRun, type CarSample, type ChallengeRun } from "./run";
+import { advanceRun, COUNTDOWN_S, dropPlayer, reportResult, retryRun, teamNeeds, startRun, type CarSample, type ChallengeRun } from "./run";
 import type { Gate, RouteChallenge, SpeedTrapChallenge } from "./types";
 
 /* A straight road east along z = 0, every line across it 10 m either side. East is a heading of -π/2. */
@@ -63,8 +63,8 @@ describe("a co-op Route", () => {
     let run = green(startRun(route(100), 2), [at(0), at(0)]);
     // The first finishes in 70 s, so the second needs to be in by 130.
     run = advanceRun(run, 70, [at(300.01), at(150)]).run;
-    expect(partnerNeeds(run)?.player).toBe(1);
-    expect(partnerNeeds(run)?.result).toBeCloseTo(130, 1);
+    expect(teamNeeds(run)?.players).toEqual([1]);
+    expect(teamNeeds(run)?.result).toBeCloseTo(130, 1);
     // At 125 s, past the target alone, the second finishes and the team passes.
     run = advanceRun(run, 55, [null, at(300.01)]).run;
     expect(run.outcome?.passed).toBe(true);
@@ -94,6 +94,31 @@ describe("a co-op Route", () => {
   });
 });
 
+describe("a co-op Route of three or four", () => {
+  it("tells those still driving the average they need between them, and settles on everyone's average", () => {
+    let run = green(startRun(route(100), 4), [at(0), at(0), at(0), at(0)]);
+    // Two finish in 70 and 90 s: the other two need 120 between them for the four to average 100.
+    run = advanceRun(run, 70, [at(300.01), at(150), at(150), at(150)]).run;
+    run = advanceRun(run, 20, [null, at(300.01), at(200), at(200)]).run;
+    expect(teamNeeds(run)).toEqual({ players: [2, 3], result: expect.closeTo(120, 1) });
+    run = advanceRun(run, 20, [null, null, at(300.01), at(250)]).run;
+    run = advanceRun(run, 15, [null, null, null, at(300.01)]).run;
+    expect(run.outcome?.passed).toBe(true);
+    expect(run.outcome?.average).toBeCloseTo((70 + 90 + 110 + 125) / 4, 1);
+  });
+
+  it("goes on without a player who leaves, the average theirs no more, this attempt and the next", () => {
+    let run = green(startRun(route(100), 3), [at(0), at(0), at(0)]);
+    run = advanceRun(run, 70, [at(300.01), at(150), at(150)]).run;
+    run = advanceRun(run, 30, [null, at(300.01), at(200)]).run;
+    // 70 and 100 average 85, and the third, still driving at 100 s, would put the three at 90: they leave, and the two pass.
+    expect(run.outcome).toBeNull();
+    const dropped = dropPlayer(run, 2, 0);
+    expect(dropped.events).toEqual([{ kind: "over", outcome: { passed: true, results: [expect.closeTo(70, 1), expect.closeTo(100, 1), null], average: expect.closeTo(85, 1) } }]);
+    expect(retryRun(dropped.run).players.map(({ gone }) => gone)).toEqual([false, false, true]);
+  });
+});
+
 describe("a co-op Speed trap", () => {
   it("ends once both have crossed, and passes on the average of the speeds at the line", () => {
     let run = green(startRun(trap(139), 2), [at(0, 0, 0), at(0, 0, 0)]);
@@ -102,7 +127,7 @@ describe("a co-op Speed trap", () => {
     run = advanceRun(run, 1, [at(110, 0, 160 / 3.6), at(60, 0, 130 / 3.6)]).run;
     expect(run.players[0].result).toBeCloseTo(150, 6);
     expect(run.outcome).toBeNull();
-    expect(partnerNeeds(run)?.result).toBeCloseTo(128, 6);
+    expect(teamNeeds(run)?.result).toBeCloseTo(128, 6);
     run = advanceRun(run, 1, [at(120, 0, 0), at(110, 0, 130 / 3.6)]).run;
     expect(run.outcome?.average).toBeCloseTo(140, 6);
     expect(run.outcome?.passed).toBe(true);

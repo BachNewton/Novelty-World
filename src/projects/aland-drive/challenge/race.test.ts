@@ -23,6 +23,7 @@ const RACE: RaceChallenge = {
   laps: 2,
   gates: [gate(100), gate(200), gate(300)],
   grid: Array.from({ length: 6 }, () => start),
+  reserve: [],
   starts: [start, start],
   lapM: 300,
   lineM: 300,

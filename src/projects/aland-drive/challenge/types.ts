@@ -4,7 +4,7 @@ import type { ChallengeConditions } from "./conditions";
 
 /*
  * What a bucket list challenge is (`ideas/bucket-list.md`): one car, one place on
- * the real roads, and one target, passed or failed, solo or co-op for two. There
+ * the real roads, and one target, passed or failed, solo or co-op for two to four. There
  * are two kinds: a Route against a clock, through gates in order, and a Speed
  * trap, the speed as the car crosses a camera's line. A race (`ideas/races.md`)
  * is a third kind on the same machinery: the same handed car, its lines crossed
@@ -13,6 +13,9 @@ import type { ChallengeConditions } from "./conditions";
  * east is +x and north is -z, and a heading is radians anticlockwise from north,
  * as the road lines' are.
  */
+
+/** The most players a co-op challenge or race takes. */
+export const MOST_PLAYERS = 4;
 
 export type ChallengeKind = "route" | "speed-trap" | "race";
 
@@ -46,8 +49,12 @@ interface ChallengeCommon {
   where: string;
   /** The places the GPS routes through, start first and finish last (`challengeLine`). */
   waypoints: readonly ScenePoint[];
-  /** Side by side, each in its own lane: the first player's on the right, as traffic keeps, and a solo run's. */
-  starts: readonly [StartPlace, StartPlace];
+  /**
+   * A seat's place at the start: the first two side by side, each in its own lane, the first player's on the right, as
+   * traffic keeps, and a solo run's. A bucket list challenge has a row of two more for co-op's third and fourth players;
+   * a race's are its grid's first two, and its players take the grid (`racers/grid.ts`).
+   */
+  starts: readonly StartPlace[];
   /** Along the route from the start to the finish or the camera. */
   lengthM: number;
 }
@@ -87,6 +94,8 @@ export interface RaceChallenge extends ChallengeCommon {
   gates: readonly Gate[];
   /** The places on the grid, pole first: two abreast on a road that takes two, single file on a lane. `starts` are its first two. */
   grid: readonly StartPlace[];
+  /** A single-file grid's two more places, for a co-op field bigger than it: behind its back on a circuit, ahead of its pole on a sprint. */
+  reserve: readonly StartPlace[];
   /** How far a lap is, from the start line round to it again; a sprint's is the whole way. */
   lapM: number;
   /** Along the route from its first waypoint to the start line, where each lap of a circuit begins and ends. */
