@@ -58,12 +58,14 @@ test("two pages race one racer, and it changes hands to the player who gets clea
   const { race, line } = await layRace(first, { id: "fixture-shared-racer", title: "Fixture shared racer" });
   for (const page of [first, second]) await page.evaluate((added: RaceChallenge) => window.__alandDrive?.addChallenge(added), race);
 
-  // A co-op race for two, asked from its ring and joined from down the road.
+  // A co-op race for two, asked from its ring, joined from down the road and started.
   await first.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), race.starts[0]);
   await first.waitForFunction(() => window.__alandDrive?.coop().kind === "free");
   await first.evaluate(() => window.__alandDrive?.coopInvite());
   await second.waitForFunction(() => window.__alandDrive?.coop().kind === "invited", null, { timeout: 30_000 });
   await second.evaluate(() => window.__alandDrive?.coopAccept());
+  await first.waitForFunction(() => window.__alandDrive?.coop().joined.length === 1, null, { timeout: 30_000 });
+  await first.evaluate(() => window.__alandDrive?.coopStart());
   for (const page of [first, second]) await page.waitForFunction(() => window.__alandDrive?.challenge()?.phase === "running", null, { timeout: 60_000 });
 
   // One racer, the same on both pages: the first's start place is nearest its grid place, so the first runs it.

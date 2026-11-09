@@ -95,7 +95,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, resultItems, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
 import { createChallengeMarks, type StartMark } from "./challenge-marks";
@@ -104,11 +104,12 @@ import { conditionOf, timeOf, tyresOf, weatherOf } from "../challenge/conditions
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
 import { CHALLENGES, RACES } from "../challenge/list";
 import { PASSES_KEY, type PlayMode } from "../challenge/passes";
-import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, partnerNeeds, type Outcome } from "../challenge/run";
-import { medalForPlace, placeOf, type Standing } from "../challenge/standings";
+import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, teamNeeds, type Outcome } from "../challenge/run";
+import { placeOf, teamMedal, teamPointsOf, type Medal, type Standing } from "../challenge/standings";
+import { startPlaceOf } from "../challenge/grid-places";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
 import type { SeenCar } from "../racers/awareness";
-import { startPlaceOf, seenCarOf } from "../racers/grid";
+import { seenCarOf } from "../racers/grid";
 import { isRacer } from "../racers/shared";
 import { createSharedRacers } from "./shared-racers";
 import { LaidRoad } from "../racers/laid-road";
@@ -353,12 +354,14 @@ export interface GameProbe {
   driveChallenge: (cruiseMS: number) => void;
   /** The best kept for a challenge in a mode, solo unless asked, or null if it hasn't been passed so. */
   challengeBest: (id: string, mode?: PlayMode) => number | null;
-  /** Where this client stands in co-op ("invited" while it's free and holds an invite), naming the other player, and how many of each challenge message it has heard. */
-  coop: () => { kind: string; peer: string | null; name: string | null; heard: Partial<Record<ChallengeType, number>> };
+  /** Where this client stands in co-op ("invited" while it's free and holds an invite), naming the inviter it holds or joins, who has joined its own invite, its teammates, and how many of each challenge message it has heard. */
+  coop: () => { kind: string; peer: string | null; name: string | null; joined: string[]; team: string[]; heard: Partial<Record<ChallengeType, number>> };
   /** Invites everyone to the challenge whose start ring the car is in, as choosing Co-op does. */
   coopInvite: () => void;
   /** Accepts the newest invite this client holds, as choosing Join does. */
   coopAccept: () => void;
+  /** Starts this client's invite with everyone who has joined it, as choosing Start does. */
+  coopStart: () => void;
   /** This player's Retry, as the menu's: false if refused while the car is still on its way to the line. */
   retryChallenge: () => boolean;
   /** Holds challenge messages as they arrive, to hand them all on in order when let go: two clients' presses before either hears the other. */
@@ -378,10 +381,10 @@ export interface ChallengeProbe {
   place: number;
   racers: number;
   outcome: Outcome | null;
-  seat: 0 | 1;
+  seat: number;
   players: number;
-  /** Whether the partner's car is on its place for this attempt (always, solo). */
-  partnerReady: boolean;
+  /** Whether every teammate's car still in is on its place for this attempt (always, solo). */
+  teamReady: boolean;
   /** Each seat's result so far. */
   results: (number | null)[];
 }
@@ -402,10 +405,10 @@ export interface ChallengeReading {
   race: { lap: number; laps: number; place: number; cars: number } | null;
   /** A race's ground, which colours its panel. */
   ground: RaceChallenge["ground"] | null;
-  /** Co-op, once the partner is in and this player isn't: the time to finish by, or the speed to reach, for the team to pass. */
+  /** Co-op, once a teammate is in and this player isn't: the time to finish by, or the speed to reach, on average with those still driving, for the team to pass. */
   needs: number | null;
-  /** The partner's name in co-op. */
-  partner: string | null;
+  /** The teammates still in, by name, in co-op. */
+  team: string[];
 }
 
 /** A challenge's start ring the car is in: its button starts it, or offers co-op with everyone else in the world. */
@@ -422,16 +425,17 @@ export interface CoopReading {
   kind: "inviting" | "invited" | "joining";
   /** Who asked, or who is being joined; null while this player asks everyone. */
   name: string | null;
+  /** Who has joined this player's invite so far. */
+  joined: string[];
   title: string;
   /** A race's ground; null for a challenge. */
   ground: RaceChallenge["ground"] | null;
 }
 
-/** Something about co-op the player is told once: who, and for a taken invite, who took it; or another player setting or clearing the room's destination. */
+/** Something about co-op the player is told once, and who it's about; or another player setting or clearing the room's destination. */
 export interface CoopNoticeReading {
   kind: CoopNotice["kind"] | "destination" | "cleared";
   name: string;
-  partner?: string;
 }
 
 export interface HudReading {
@@ -1743,13 +1747,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return seen;
   };
   /** The racers on the grid for this attempt, in the world's condition, once the player's car is on its place; none for a challenge. */
-  const putRacersOnGrid = async (challenge: Challenge, seat: number, players: number, attempt: number) => {
+  const putRacersOnGrid = async (challenge: Challenge, seat: number, players: number, attempt: number, gone: readonly boolean[]) => {
     if (challenge.kind !== "race" || racersAsked === 0) {
       sharedRacers.end();
       return;
     }
     // The racers drive the cars of the race's tier.
-    await sharedRacers.begin(challenge, attempt, seat, players, racersAsked, raceFieldOf(challenge.car));
+    await sharedRacers.begin(challenge, attempt, seat, players, gone, racersAsked, raceFieldOf(challenge.car));
   };
   /** Where this player stands in the race: their finish once in, and how far round they are until then. */
   const playerStanding = (): Standing | null => {
@@ -1819,8 +1823,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
    */
   const challengeButton = () => {
     if (gameMenu !== null || !canOpenMenu() || cameraMode === "free") return;
-    if (coop.now.kind === "inviting") {
-      coop.withdraw();
+    const standing = coop.now;
+    if (standing.kind === "inviting") {
+      // With no one in yet the button takes the invite back; once someone has joined, it asks: start, or take it back.
+      if (standing.joined.length === 0) coop.withdraw();
+      else showMenu({ kind: "team", items: ["start-team", "withdraw-coop", "cancel"], back: "cancel", pauses: true, challenge: standing.challenge.title, partner: standing.joined.map(nameOf).join(", "), players: standing.joined.length, ground: groundOf(standing.challenge) ?? undefined });
       return;
     }
     const invite = inviteNow();
@@ -1866,6 +1873,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     carId: () => drive.carId,
     // In a race the racers take the grid from the pole, and the players start at the back.
     startPlaceOf: (challenge, seat, players) => (challenge.kind === "race" ? startPlaceOf(challenge, seat, players, racersAsked) : challenge.starts[seat]),
+    // Settled as the player crosses the line: no racer behind can pass them then.
+    pointsNow: () => {
+      const standing = playerStanding();
+      return standing ? teamPointsOf(standing, sharedRacers.standings()) : 0;
+    },
     // A bucket list challenge hands its car on the tyres for its conditions, as its target was measured on.
     setCar: (id, handedFor) => {
       setCar(id, handedFor && handedFor.kind !== "race" ? tyresOf(handedFor.conditions) : undefined);
@@ -1883,9 +1895,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         // A scripted drive belongs to the attempt it was started in.
         autopilot = null;
         // The racers take their places once the player has, and the lights wait for them.
-        const placing = starting ?? (session && { challenge: session.challenge, seat: session.seat, players: session.run.players.length, attempt: session.run.attempt });
+        const placing = starting ?? (session && { challenge: session.challenge, seat: session.seat, players: session.run.players.length, attempt: session.run.attempt, gone: session.run.players.map(({ gone }) => gone) });
         if (!placing) throw new Error("a car placed for no challenge");
-        void putRacersOnGrid(placing.challenge, placing.seat, placing.players, placing.attempt)
+        void putRacersOnGrid(placing.challenge, placing.seat, placing.players, placing.attempt, placing.gone)
           .then(() => {
             if (asked !== sessionsLeft) return;
             done();
@@ -1909,18 +1921,21 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       } else followGoal();
     },
     onOver: (challenge, outcome) => {
-      const mode = session?.coop ? "coop" : "solo";
+      if (!session) throw new Error(`${challenge.id} over with no session`);
+      const { coop: inTeam, seat } = session;
+      const mode = inTeam ? "coop" : "solo";
       // A finished player's place is settled: no racer behind can pass them now.
       const place = playerPlace();
-      challengeBoard.record(challenge, mode, outcome, place);
-      const seat = session?.seat ?? 0;
+      // A race's medal is its team's, from its points per player (`challenge/standings.ts`): solo, a team of one.
+      const medal = challenge.kind === "race" ? raceMedal(session) : null;
+      challengeBoard.record(challenge, mode, outcome, place, medal);
       const best = challengeBoard.passOf(challenge, mode)?.best ?? null;
       const target = targetOf(challenge);
-      const partner = coop.partner;
-      const team = partner === null ? undefined : { own: outcome.results[seat], partner: outcome.results[1 - seat], partnerName: nameOf(partner) };
+      const team = inTeam ? teamResults(outcome) : undefined;
       const result = outcome.average ?? outcome.results[seat];
-      const race = challenge.kind === "race" ? raceResult(challenge, mode, place) : undefined;
-      showMenu({ items: ["retry", "leave"], back: "leave", pauses: partner === null, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team, race } });
+      const race = challenge.kind === "race" ? raceResult(challenge, mode, place, medal, team) : undefined;
+      const won = challenge.kind === "race" ? medal === "gold" : outcome.passed;
+      showMenu({ items: resultItems(won), back: "leave", pauses: !inTeam, challenge: challenge.title, ground: race?.ground, result: { passed: outcome.passed, kind: challenge.kind, result, target, best, team: race ? undefined : team, race } });
     },
     onRetry: (attempt) => {
       coop.retried(attempt);
@@ -1928,34 +1943,54 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     onReady: (attempt) => {
       coop.ready(attempt);
     },
-    onResult: (attempt, result) => {
-      coop.result(attempt, result);
+    onResult: (attempt, result, points) => {
+      coop.result(attempt, result, points);
     },
     onLost: (attempt, results) => {
       coop.lost(attempt, results);
     },
   };
-  /** How a race finished, for its result card: the place, its medal, and the best medal kept in this mode. */
-  const raceResult = (race: RaceChallenge, mode: PlayMode, place: number): RaceResult => ({
+  /** How a race finished, for its result card: the place, its medal (the team's in co-op), and the best medal kept in this mode. */
+  const raceResult = (race: RaceChallenge, mode: PlayMode, place: number, medal: Medal | null, team?: readonly TeamResult[]): RaceResult => ({
     ground: race.ground,
     place,
-    medal: medalForPlace(place),
+    medal,
     bestMedal: challengeBoard.medal(race, mode),
+    team,
   });
+  /** A race's medal, solo or co-op alike: its team's points per player against the racers, every player's points in by now. */
+  const raceMedal = (played: ChallengeSession): Medal | null => {
+    const points = played.teamPoints;
+    if (!points) throw new Error(`${played.challenge.id} over before every player's points were in`);
+    return teamMedal(points.reduce((sum, each) => sum + each, 0) / points.length, sharedRacers.count());
+  };
+  /** Each player still in a co-op team's result, this player first: their time or speed, and in a race their points. */
+  const teamResults = (outcome: Outcome): TeamResult[] => {
+    if (!session) throw new Error("a team's results with no session");
+    const { seat, run } = session;
+    const points = session.teamPoints;
+    const still = run.players.flatMap(({ gone }, index) => (gone ? [] : [index]));
+    const shown = [seat, ...still.filter((index) => index !== seat)];
+    return shown.map((index) => {
+      const peer = coop.peerAt(index);
+      const name = index === seat || peer === null ? null : nameOf(peer);
+      return { name, result: outcome.results[index], points: points?.[still.indexOf(index)] ?? null };
+    });
+  };
   // Counts sessions left, so a start's load that lands after its session has gone knows it.
   let sessionsLeft = 0;
   // Where a player who joined a co-op invite was when it took them to its start, which leaving takes them back to.
   let cameFrom: { x: number; z: number; heading: number } | null = null;
-  const startChallenge = (challenge: Challenge, seat: 0 | 1 = 0, players: 1 | 2 = 1): ChallengeSession => {
+  const startChallenge = (challenge: Challenge, seat = 0, players = 1): ChallengeSession => {
     if (session) throw new Error(`${challenge.id} started during ${session.challenge.id}`);
     if (jumping || mapFrom) throw new Error(`${challenge.id} started while the car was being moved`);
     // The choice that started it, or a menu about the drive before, is over.
     if (gameMenu) showMenu(null);
-    if (seat === 1) {
+    if (seat > 0) {
       const car = drive.stateAt(1);
       cameFrom = { x: car.position[0], z: car.position[2], heading: headingOf(car.rotation) };
     }
-    starting = { challenge, seat, players, attempt: 1 };
+    starting = { challenge, seat, players, attempt: 1, gone: [] };
     const started = new ChallengeSession(challenge, sessionHost, seat, players);
     starting = null;
     session = started;
@@ -1978,7 +2013,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     else show();
   };
   // The challenge whose session is being made: its constructor puts the car on the line before the session exists.
-  let starting: { challenge: Challenge; seat: number; players: number; attempt: number } | null = null;
+  let starting: { challenge: Challenge; seat: number; players: number; attempt: number; gone: readonly boolean[] } | null = null;
   const leaveChallenge = () => {
     if (!session) throw new Error("Leave with no challenge being played");
     session.leave();
@@ -2005,7 +2040,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     else void loadRound(x, z, put).catch(fail);
   };
 
-  // Co-op with one other player in the online world (`challenge/coop.ts`): pairing, and both sessions on one attempt.
+  // Co-op with one to three other players in the online world (`challenge/coop.ts`): forming a team, and every session on one attempt.
   const names = new Map<string, string>();
   const coop = new CoopLink({
     send: (to, message) => {
@@ -2014,7 +2049,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     selfId: () => onlineWorld?.state().selfId ?? null,
     free: () => !session && !jumping && !mapFrom,
     challengeById: (id) => challengeBoard.challenges.find((challenge) => challenge.id === id) ?? null,
-    begin: (challenge, seat) => startChallenge(challenge, seat, 2),
+    begin: (challenge, seat, players) => startChallenge(challenge, seat, players),
     end: (notice) => {
       leaveChallenge();
       tellCoop(notice);
@@ -2027,7 +2062,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     },
   });
   const tellCoop = (notice: CoopNotice) => {
-    events.onCoopNotice?.({ kind: notice.kind, name: nameOf(notice.peer), partner: notice.kind === "taken" ? nameOf(notice.partner) : undefined });
+    events.onCoopNotice?.({ kind: notice.kind, name: nameOf(notice.peer) });
   };
   // Test only: challenge messages held as they arrive, to be heard in order when let go.
   let heldMessages: { from: string; message: ChallengeMessage }[] | null = null;
@@ -2104,6 +2139,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         coop.accept(inviter);
         break;
       }
+      case "start-team": {
+        setGameMenuOpen(false);
+        // The team may have filled and started, or the invite gone, while the choice was open.
+        if (coop.now.kind === "inviting" && coop.now.joined.length > 0) coop.start();
+        break;
+      }
+      case "withdraw-coop":
+        setGameMenuOpen(false);
+        coop.withdraw();
+        break;
       case "decline-coop": {
         const inviter = answering;
         if (inviter === null) throw new Error("Decline picked with no invite open");
@@ -2118,7 +2163,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         break;
       case "leave":
         setGameMenuOpen(false);
-        if (coop.partner !== null) coop.leave();
+        if (coop.now.kind === "playing") coop.leave();
         leaveChallenge();
         break;
     }
@@ -2272,7 +2317,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     trafficContact.beforeStep(trafficSteps);
     driveComputerCars();
     // The racers' lights count down with the player's: held until the car is on its place and, in co-op, the partner's is.
-    sharedRacers.beforeStep(carsRacersSee(), session !== null && !session.placing && session.partnerReady);
+    sharedRacers.beforeStep(carsRacersSee(), session !== null && !session.placing && session.teamReady);
     drive.step(lastInput);
     trafficContact.afterStep();
     if (sharedTraffic) updateHitCars();
@@ -2557,8 +2602,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const readChallenge = (): ChallengeReading | null => {
     if (!session) return null;
     const { run, challenge, seat } = session;
-    const needs = partnerNeeds(run);
-    const partner = coop.partner;
+    const needs = teamNeeds(run);
     return {
       title: challenge.title,
       kind: challenge.kind,
@@ -2569,16 +2613,16 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       gates: gatesPassed(run, seat),
       ground: challenge.kind === "race" ? challenge.ground : null,
       race: challenge.kind === "race" ? { lap: lapOf(run, seat).lap, laps: challenge.laps, place: playerPlace(), cars: sharedRacers.count() + run.players.length } : null,
-      needs: needs?.player === seat ? needs.result : null,
-      partner: partner === null ? null : nameOf(partner),
+      needs: needs?.players.includes(seat) ? needs.result : null,
+      team: coop.teammates.map(({ peer }) => nameOf(peer)),
     };
   };
   const readCoop = (): CoopReading | null => {
     const standing = coop.now;
-    if (standing.kind === "inviting") return { kind: "inviting", name: null, title: standing.challenge.title, ground: groundOf(standing.challenge) };
-    if (standing.kind === "joining") return { kind: "joining", name: nameOf(standing.peer), title: standing.challenge.title, ground: groundOf(standing.challenge) };
+    if (standing.kind === "inviting") return { kind: "inviting", name: null, joined: standing.joined.map(nameOf), title: standing.challenge.title, ground: groundOf(standing.challenge) };
+    if (standing.kind === "joining") return { kind: "joining", name: nameOf(standing.peer), joined: [], title: standing.challenge.title, ground: groundOf(standing.challenge) };
     const invite = inviteNow();
-    return invite && { kind: "invited", name: nameOf(invite.peer), title: invite.challenge.title, ground: groundOf(invite.challenge) };
+    return invite && { kind: "invited", name: nameOf(invite.peer), joined: [], title: invite.challenge.title, ground: groundOf(invite.challenge) };
   };
   const readOffer = (): ChallengeOffer | null => {
     const challenge = ringNow();
@@ -3147,7 +3191,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           outcome: run.outcome,
           seat,
           players: run.players.length,
-          partnerReady: session.partnerReady,
+          teamReady: session.teamReady,
           results: run.players.map(({ result }) => result),
         };
       },
@@ -3168,8 +3212,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       coop: () => {
         const standing = coop.now;
         const invite = inviteNow();
-        const peer = invite ? invite.peer : standing.kind === "joining" || standing.kind === "paired" ? standing.peer : null;
-        return { kind: invite ? "invited" : standing.kind, peer, name: peer === null ? null : nameOf(peer), heard: { ...coop.heard } };
+        const peer = invite ? invite.peer : standing.kind === "joining" ? standing.peer : null;
+        return {
+          kind: invite ? "invited" : standing.kind,
+          peer,
+          name: peer === null ? null : nameOf(peer),
+          joined: standing.kind === "inviting" ? [...standing.joined] : [],
+          team: coop.teammates.map(({ peer: teammate }) => teammate),
+          heard: { ...coop.heard },
+        };
       },
       coopInvite: () => {
         const challenge = ringNow();
@@ -3180,6 +3231,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const invite = inviteNow();
         if (!invite) throw new Error("no invite to accept");
         coop.accept(invite.peer);
+      },
+      coopStart: () => {
+        coop.start();
       },
       retryChallenge: () => {
         if (!session) throw new Error("no challenge to retry");

@@ -3,7 +3,8 @@ import type { RaceChallenge } from "../challenge/types";
 import type { ComputerCars } from "../net/computer-cars";
 import type { ComputerCarMessage, RaceProgress } from "../net/protocol";
 import type { SeenCar } from "../racers/awareness";
-import { gridSlots, RaceGrid, racersOn, seenCarOf, startPlaceOf, type GridHost } from "../racers/grid";
+import { gridPlaces, racersOn, startPlaceOf } from "../challenge/grid-places";
+import { gridSlots, RaceGrid, seenCarOf, type GridHost } from "../racers/grid";
 import type { RaceLine } from "../racers/race-line-file";
 import { gridRacerId, isRacer, leftUnfinished, mayRunRacer, parseRacerDriver, placerOf, replacementId, replacementOf, standingOf, type RacerDriver } from "../racers/shared";
 import type { CarState } from "../sim/car-state";
@@ -106,19 +107,23 @@ export function createSharedRacers(host: SharedRacersHost) {
   return {
     /**
      * Once this player's car is on its grid place for an attempt: the racers of any race before go, and this page puts
-     * down the grid racers nearer its own start place than any other player's.
+     * down the grid racers nearer its own start place than any other player's still in the race. A player who has left
+     * the team (`gone`, by seat) has a racer on their place, as the one that took their place in the attempt they left.
      */
-    async begin(race: RaceChallenge, attempt: number, seat: number, players: number, asked: number, field: readonly CarId[]): Promise<void> {
+    async begin(race: RaceChallenge, attempt: number, seat: number, players: number, gone: readonly boolean[], asked: number, field: readonly CarId[]): Promise<void> {
       letGoOthers(race.id, attempt);
       grid?.dispose();
       grid = null;
       line = await host.raceLine(race);
       grid = new RaceGrid(race, line, host.grid);
       const count = racersOn(race, players, asked);
-      const starts = Array.from({ length: players }, (_, each) => startPlaceOf(race, each, players, asked));
+      const seats = Array.from({ length: players }, (_, each) => each);
+      const still = seats.filter((each) => !gone[each]);
+      const starts = still.map((each) => startPlaceOf(race, each, players, asked));
+      const places = [...gridPlaces(race, count + players).slice(0, count), ...seats.filter((each) => gone[each]).map((each) => startPlaceOf(race, each, players, asked))];
       const condition = host.condition();
-      for (const { slot, place, car, paint } of gridSlots(race, field, count)) {
-        if (placerOf(place, starts) !== seat) continue;
+      for (const { slot, place, car, paint } of gridSlots(places, field)) {
+        if (still[placerOf(place, starts)] !== seat) continue;
         const id = gridRacerId(race.id, attempt, slot);
         const entry = grid.place(id, attempt, place, car, paint, condition);
         host.cars.add(id, entry.car.stateAt(1), { ...grid.driverOf(entry) });

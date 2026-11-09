@@ -116,7 +116,7 @@ export function replacementOf(race: RaceChallenge, line: RoadLine, leaver: { sta
       record: { phase: "driving", along, phaseS: 0, tries: 0, furthest: along, stuckS: 0, resets: 0, lastReset: null, offsetM: 0 },
       craft: freshCraft(),
       driverAlong: along,
-      run: { attempt: leaver.progress.attempt, clockS, player: { last: null, nextGate: leaver.progress.nextGate, result: null }, outcome: null },
+      run: { attempt: leaver.progress.attempt, clockS, player: { last: null, nextGate: leaver.progress.nextGate, result: null, gone: false }, outcome: null },
       toNextLineM: null,
     },
   };

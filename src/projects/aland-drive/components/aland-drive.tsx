@@ -64,7 +64,7 @@ const NOTICE_LOOKS = {
   left: { icon: LogOut, label: "Left the challenge" },
   withdrawn: { icon: UserX, label: "Invite off" },
   expired: { icon: UserX, label: "Invite off" },
-  taken: { icon: UserCheck, label: "Someone joined first" },
+  taken: { icon: UserCheck, label: "Started without you" },
   destination: { icon: MapPin, label: "Set the destination" },
   cleared: { icon: MapPinOff, label: "Cleared the destination" },
 } as const;
@@ -92,7 +92,7 @@ function TimeCover({ jump, onDone }: { jump: () => void; onDone: () => void }) {
   );
 }
 
-/** A co-op partner left, an invite was taken back, someone else joined it first, or another player set or cleared the destination: who, and an icon for what. */
+/** A co-op teammate left, an invite was taken back or started without this player, or another player set or cleared the destination: who, and an icon for what. */
 function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () => void }) {
   const { icon: Icon, label } = NOTICE_LOOKS[notice.kind];
   return (
@@ -100,7 +100,6 @@ function CoopNotice({ notice, onDone }: { notice: CoopNoticeReading; onDone: () 
       <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
       <span>{notice.name}</span>
       <Icon className="size-5 shrink-0" aria-label={label} />
-      {notice.partner !== undefined && <span aria-label="Joined by">{notice.partner}</span>}
     </div>
   );
 }
@@ -143,7 +142,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [finds, setFinds] = useState<Place[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   // What the challenge panel shows that holds still through a run; the clock, lights and gates change every frame, so they're written straight to their elements.
-  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number | null; partner: string | null; colour: string } | null>(null);
+  const [playing, setPlaying] = useState<{ title: string; kind: ChallengeKind; target: number | null; team: readonly string[]; colour: string } | null>(null);
   // A find during a run still counts, but shows no card: read by the game's callback, which outlives any one render.
   const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
@@ -189,12 +188,12 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         shownCoop = coopKey;
         setCoop(pairing);
       }
-      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.partner ?? ""}|${challenge.ground ?? ""}` : "";
+      const play = challenge ? `${challenge.title}|${challenge.kind}|${challenge.target}|${challenge.team.join(",")}|${challenge.ground ?? ""}` : "";
       if (play !== shownPlay) {
         shownPlay = play;
         inRun.current = challenge !== null;
         if (challenge) setFinds([]);
-        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, partner: challenge.partner, colour: challenge.ground ? raceColour(challenge.ground) : CHALLENGE } : null);
+        setPlaying(challenge ? { title: challenge.title, kind: challenge.kind, target: challenge.target, team: challenge.team, colour: challenge.ground ? raceColour(challenge.ground) : CHALLENGE } : null);
       }
       if (!challenge) return;
       if (needsRow.current) needsRow.current.style.display = challenge.needs === null ? "none" : "flex";
@@ -338,15 +337,15 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                       <span key={index} ref={(light) => { lights.current[index] = light; }} className="size-6 rounded-full" style={{ background: SHADE, border: `2px solid ${INK}` }} />
                     ))}
                   </div>
-                  {playing.partner !== null && (
-                    <div className="flex items-center gap-2 text-sm font-semibold" aria-label="Partner" title="Co-op">
+                  {playing.team.length > 0 && (
+                    <div className="flex items-center gap-2 text-sm font-semibold" aria-label="Team" title="Co-op">
                       <Users className="size-4 shrink-0" style={{ color: PLAYER }} aria-hidden />
-                      <span>{playing.partner}</span>
+                      <span>{playing.team.join(", ")}</span>
                     </div>
                   )}
                   <div ref={needsRow} className="items-center gap-2 text-lg font-semibold tabular-nums" style={{ display: "none", color: ACCENT }}>
                     <Target className="size-5 shrink-0" aria-hidden />
-                    <span ref={needsText} aria-label="Partner needs" />
+                    <span ref={needsText} aria-label="Team needs" />
                   </div>
                   {playing.kind === "race" && (
                     <div className="flex items-center gap-5 tabular-nums">
@@ -459,10 +458,16 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
             </div>
           )}
           {coop !== null && gameMenu === null && !mapOpen && camera !== "free" && (
-            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}` }} aria-label={coop.kind === "invited" ? "Co-op invite" : "Co-op waiting"} title={coop.kind === "invited" ? "Join or decline" : coop.kind === "inviting" ? "Take the invite back" : "Joining"}>
+            <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${PLAYER}` }} aria-label={coop.kind === "invited" ? "Co-op invite" : "Co-op waiting"} title={coop.kind === "invited" ? "Join or decline" : coop.kind === "inviting" ? (coop.joined.length > 0 ? "Start, or take the invite back" : "Take the invite back") : "Joining"}>
               {coop.kind !== "joining" && <Prompt binding={BINDINGS.challenge} input={input} />}
               {coop.kind === "invited" ? <UserPlus className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden /> : <Hourglass className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />}
               {coop.name === null ? <Users className="size-5 shrink-0" style={{ color: PLAYER }} aria-label="Everyone" /> : <span>{coop.name}</span>}
+              {coop.joined.length > 0 && (
+                <span className="flex items-center gap-1" aria-label="Joined" title={coop.joined.join(", ")}>
+                  <UserCheck className="size-5 shrink-0" style={{ color: PLAYER }} aria-hidden />
+                  <span className="tabular-nums">{coop.joined.length}</span>
+                </span>
+              )}
               {coop.ground ? <Trophy className="size-5 shrink-0" style={{ color: raceColour(coop.ground) }} aria-label="Race" /> : <Flag className="size-5 shrink-0" style={{ color: CHALLENGE }} aria-label="Challenge" />}
               <span>{coop.title}</span>
             </div>

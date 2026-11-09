@@ -72,19 +72,9 @@ function alongOfPlace(line: RoadLine, { x, z }: StartPlace): number {
   return best.along;
 }
 
-/**
- * How many racers a race gets: as many as asked, of the grid places the players don't take. The racers take the grid
- * from the pole and the players start at the back, the owner's call: a lead held from the pole was no race, and
- * taking it through the pack is.
- */
-export const racersOn = (race: RaceChallenge, players: number, asked: number): number => Math.max(0, Math.min(asked, race.grid.length - players));
-
-/** A player's place on the grid: the first behind the racers, seat by seat. */
-export const startPlaceOf = (race: RaceChallenge, seat: number, players: number, asked: number): StartPlace => race.grid[racersOn(race, players, asked) + seat];
-
-/** The racers a race's grid gets, from the pole: each slot's place, and a car of the field in turn, a repeat in another paint. */
-export function gridSlots(race: RaceChallenge, field: readonly CarId[], count: number): { slot: number; place: StartPlace; car: CarId; paint: number }[] {
-  return gridCars(field, Math.min(count, race.grid.length)).map(({ car, paint }, slot) => ({ slot, place: race.grid[slot], car, paint }));
+/** The racers on these places (`gridPlaces`, pole first): each slot's place, and a car of the field in turn, a repeat in another paint. */
+export function gridSlots(places: readonly StartPlace[], field: readonly CarId[]): { slot: number; place: StartPlace; car: CarId; paint: number }[] {
+  return gridCars(field, places.length).map(({ car, paint }, slot) => ({ slot, place: places[slot], car, paint }));
 }
 
 export class RaceGrid {

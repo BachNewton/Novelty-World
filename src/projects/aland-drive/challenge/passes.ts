@@ -1,5 +1,5 @@
 import type { Outcome } from "./run";
-import { medalForPlace, MEDALS, type Medal } from "./standings";
+import { betterMedal, medalForPlace, MEDALS, type Medal } from "./standings";
 import type { Challenge } from "./types";
 
 /*
@@ -11,8 +11,9 @@ import type { Challenge } from "./types";
  * the list no longer has is dropped on reading.
  *
  * A race keeps every finish rather than only a pass, and no time, since in a
- * race only the place counts: its best is the best finishing place, and the
- * medal that place earned.
+ * race only the place counts: its best medal, and the best finishing place
+ * with it. Solo the medal is the place's; in co-op it is the team's, from its
+ * points per player (`standings.ts`), and the place this player's own.
  */
 
 export const PASSES_KEY = "challenge-passes";
@@ -55,13 +56,16 @@ const better = (challenge: Challenge, a: number, b: number) => (challenge.kind =
 
 /**
  * The passes after an attempt played in a mode: unchanged unless it passed, and that mode's best only where this beats
- * it. A race's finish is kept as its place and medal, where it betters the best; with no racers in it, a finish is first.
+ * it. A race's finish is kept as its medal and place, where it betters the best, a better medal first and then a
+ * better place with the same; with no racers in it, a finish is first.
  */
-export function withOutcome(passes: ChallengePasses, challenge: Challenge, mode: PlayMode, outcome: Outcome, place = 1): ChallengePasses {
+export function withOutcome(passes: ChallengePasses, challenge: Challenge, mode: PlayMode, outcome: Outcome, place = 1, medal = medalForPlace(place)): ChallengePasses {
   const kept = passes[mode][challenge.id] as ChallengePass | undefined;
   if (challenge.kind === "race") {
-    if (outcome.average === null || (kept && kept.best <= place)) return passes;
-    return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: place, medal: medalForPlace(place) } } };
+    if (outcome.average === null) return passes;
+    const keptMedal = kept?.medal ?? null;
+    if (kept && (betterMedal(keptMedal, medal) || (keptMedal === medal && kept.best <= place))) return passes;
+    return { ...passes, [mode]: { ...passes[mode], [challenge.id]: { best: place, medal } } };
   }
   if (!outcome.passed || outcome.average === null) return passes;
   if (kept && !better(challenge, outcome.average, kept.best)) return passes;

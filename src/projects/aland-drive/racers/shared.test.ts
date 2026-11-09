@@ -48,6 +48,7 @@ const CIRCUIT: RaceChallenge = {
   gates: [gate(SIDE, SIDE / 2, SOUTH), gate(SIDE / 2, SIDE, WEST), gate(0, SIDE / 2, NORTH), gate(SIDE / 2, 0, EAST)],
   grid: [start, start],
   starts: [start, start],
+  reserve: [],
   lapM: 4 * SIDE,
   lineM: 0,
   lengthM: 8 * SIDE,

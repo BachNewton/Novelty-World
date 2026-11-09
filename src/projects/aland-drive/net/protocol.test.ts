@@ -7,11 +7,12 @@ import { parseChallengeMessage, parseGuestMessage, parseHostMessage, wireState, 
 const valid: ChallengeMessage[] = [
   { type: "invite", challenge: "ytterby-sprint", attempt: 1 },
   { type: "accept", challenge: "ytterby-sprint", attempt: 1 },
-  { type: "start", challenge: "ytterby-sprint", attempt: 1, partner: "Ab3_x-9q" },
+  { type: "start", challenge: "ytterby-sprint", attempt: 1, team: ["Ab3_x-9q", "c", "d", "e"] },
   { type: "retry", challenge: "ytterby-sprint", attempt: 7 },
   { type: "ready", challenge: "ytterby-sprint", attempt: 7 },
   { type: "result", challenge: "ytterby-sprint", attempt: 7, result: 81.25 },
-  { type: "lost", challenge: "ytterby-sprint", attempt: 7, results: [80, null] },
+  { type: "result", challenge: "a5-race", attempt: 7, result: 412.5, points: 350 },
+  { type: "lost", challenge: "ytterby-sprint", attempt: 7, results: [80, null, null, 91] },
   { type: "leave", challenge: "ytterby-sprint", attempt: 7 },
 ];
 
@@ -30,10 +31,12 @@ describe("a challenge message", () => {
   it("is dropped when what its type carries is missing or wrong", () => {
     const base = { challenge: "c", attempt: 2 };
     expect(parseChallengeMessage({ ...base, type: "start" })).toBeNull();
+    for (const team of [["a"], ["a", "b", "c", "d", "e"], ["a", "a"], ["a", 7]]) expect(parseChallengeMessage({ ...base, type: "start", team })).toBeNull();
+    expect(parseChallengeMessage({ ...base, type: "result", result: 1, points: -50 })).toBeNull();
     expect(parseChallengeMessage({ ...base, type: "result", result: -1 })).toBeNull();
     expect(parseChallengeMessage({ ...base, type: "result", result: Number.POSITIVE_INFINITY })).toBeNull();
     expect(parseChallengeMessage({ ...base, type: "lost", results: [] })).toBeNull();
-    expect(parseChallengeMessage({ ...base, type: "lost", results: [1, 2, 3] })).toBeNull();
+    expect(parseChallengeMessage({ ...base, type: "lost", results: [1, 2, 3, 4, 5] })).toBeNull();
     expect(parseChallengeMessage({ ...base, type: "lost", results: [1, "2"] })).toBeNull();
   });
 

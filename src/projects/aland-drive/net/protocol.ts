@@ -3,6 +3,7 @@ import { RELAY_PARAM, relayUrlFromSearch } from "@/shared/lib/peer";
 import { LAMPS_OFF, type CarLamps, type CarState, type Rotation, type Vector3 } from "../sim/car-state";
 import { DEFAULT_CAR, isCarId, type CarId } from "../sim/cars";
 import type { LaneRecord, VehicleKind } from "../traffic/lane-driver";
+import { MOST_PLAYERS } from "../challenge/types";
 
 /*
  * What players send each other in the online world: each car's state, as its
@@ -50,18 +51,19 @@ export interface RaceProgress {
 
 /**
  * A co-op challenge's messages (`challenge/coop.ts`), each naming the challenge
- * and the attempt it's about. Invite, to everyone, and accept: pairing. Start:
- * the inviter has the pair, told to everyone so no third player is offered
- * either and every other invitee drops the invite. Retry: the attempt both go
- * back for. Ready: this car is on its start place for the attempt. Result:
- * this player's own time or speed. Lost: this client called the attempt lost
+ * and the attempt it's about. Invite, to everyone, and accept: forming a team.
+ * Start: the inviter's team, by seat, the inviter first, told to everyone so
+ * none of them is offered another and every other invitee drops the invite.
+ * Retry: the attempt everyone goes back for. Ready: this car is on its start
+ * place for the attempt. Result: this player's own time or speed, and in a race
+ * their team points. Lost: this client called the attempt lost
  * on its own clock, with the results it had. Leave: out of the challenge, or
  * an invite or accept taken back.
  */
 export type ChallengeMessage =
   | { type: "invite" | "accept" | "retry" | "ready" | "leave"; challenge: string; attempt: number }
-  | { type: "start"; challenge: string; attempt: number; partner: string }
-  | { type: "result"; challenge: string; attempt: number; result: number }
+  | { type: "start"; challenge: string; attempt: number; team: string[] }
+  | { type: "result"; challenge: string; attempt: number; result: number; points?: number }
   | { type: "lost"; challenge: string; attempt: number; results: (number | null)[] };
 
 export type ChallengeType = ChallengeMessage["type"];
@@ -281,11 +283,19 @@ export function parseChallengeMessage(value: unknown): ChallengeMessage | null {
   const { type, challenge, attempt } = value;
   if (!isName(challenge) || typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1 || attempt > MOST_ATTEMPTS) return null;
   if (PLAIN_TYPES.has(type)) return { type: type as "invite", challenge, attempt };
-  if (type === "start") return isName(value.partner) ? { type, challenge, attempt, partner: value.partner } : null;
-  if (type === "result") return isResult(value.result) ? { type, challenge, attempt, result: value.result } : null;
+  if (type === "start") {
+    const { team } = value;
+    if (!Array.isArray(team) || team.length < 2 || team.length > MOST_PLAYERS || !team.every(isName) || new Set(team).size !== team.length) return null;
+    return { type, challenge, attempt, team: team as string[] };
+  }
+  if (type === "result") {
+    if (!isResult(value.result)) return null;
+    if (value.points === undefined) return { type, challenge, attempt, result: value.result };
+    return isResult(value.points) ? { type, challenge, attempt, result: value.result, points: value.points } : null;
+  }
   if (type === "lost") {
     const { results } = value;
-    if (!Array.isArray(results) || results.length < 1 || results.length > 2 || !results.every((each) => each === null || isResult(each))) return null;
+    if (!Array.isArray(results) || results.length < 1 || results.length > MOST_PLAYERS || !results.every((each) => each === null || isResult(each))) return null;
     return { type, challenge, attempt, results: results as (number | null)[] };
   }
   return null;

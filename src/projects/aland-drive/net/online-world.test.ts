@@ -267,7 +267,7 @@ describe("the online world", () => {
     const host = star.join("h");
     const a = star.join("a");
     const b = star.join("b");
-    const start: ChallengeMessage = { type: "start", challenge: "c", attempt: 1, partner: "b" };
+    const start: ChallengeMessage = { type: "start", challenge: "c", attempt: 1, team: ["a", "b"] };
     a.world.sendChallenge(null, start);
     star.flush();
     for (const client of [host, b]) expect(client.challenges).toEqual([{ from: "a", message: start }]);
