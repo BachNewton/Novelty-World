@@ -26,7 +26,7 @@ const PARTS = {
   gelcoat: { paint: "wall-trim", finish: { gloss: 0.15 } },
   teak: { paint: "dealer-timber", finish: { pattern: "boards" } },
   varnish: { paint: "dealer-timber-dark", finish: { gloss: 0.4 } },
-  glass: { paint: "dealer-shade", finish: { gloss: 0.8, lit: 0.75 } },
+  glass: { paint: "dealer-shade", finish: { gloss: 0.8, lit: 0.75, litTone: "amber" } },
   alu: { paint: "dealer-steel", finish: { gloss: 0.5 } },
   "spar-black": { paint: "dealer-shade", finish: {} },
 } as const satisfies Record<string, PartLook>;
