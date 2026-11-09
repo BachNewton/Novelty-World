@@ -1,6 +1,7 @@
 import type { Gearbox } from "../sim/gearbox";
 import type { Firing } from "./firing";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
+import { altura } from "./voices/altura";
 import { aska } from "./voices/aska";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
@@ -168,6 +169,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   // B4
   berg,
   // C1
+  altura,
   // C2
   // C3
   vik,

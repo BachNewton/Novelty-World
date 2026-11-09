@@ -355,12 +355,51 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 }
 
 /** The stack in the middle of the dash, with its screen or small dials, vents and knobs, and the console back between the seats. */
+/** Vents at the dash's ends, on its face. */
+function addDashVents(b: CockpitBuilder, f: CockpitFrame, paints: Paints, up: Point, back: Point) {
+  const { dash, ground: g } = f;
+  const half = f.glassX(dash.rearZ) - 0.012;
+  const endAt = axes([0, dash.topH - 0.075 + g, dash.rearZ + (dash.lowZ - dash.rearZ) * 0.2], RIGHT, up, back);
+  for (const side of [-1, 1]) {
+    const x = side * (half - 0.11);
+    plate(b, endAt, [x, 0], [0.105, 0.045], 0.004, flat(paints.accent));
+    plate(b, endAt, [x, 0], [0.095, 0.037], 0.007, flat(paints.vent, KIND.vent));
+  }
+}
+
+/**
+ * A central driving seat's lever: no console between seats that aren't there, but a slim pedestal at the driver's right
+ * hand, ahead of the passenger's knees, topped by a bare metal plate with an open gate cut in it and a tall lever.
+ */
+function addGatedLever(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
+  const { ground: g, floorH, cushionH } = f;
+  const [x, z] = [0.27, f.seatZ - 0.4];
+  const topH = cushionH + 0.05;
+  const half = (topH - floorH) / 2;
+  pillow(b, axes([x, floorH + half + g, z], RIGHT, [0, 1, 0], [0, 0, 1]), [0.055, half, 0.1], 0.3, smooth(paints.trim), 8);
+  const gate = axes([x, topH + g, z], RIGHT, [0, 0, -1], [0, 1, 0]);
+  plate(b, gate, [0, 0], [0.1, 0.17], 0.002, flat(paints.chrome));
+  // Three lanes and the cross slot, the gate's dark openings.
+  for (const lane of [-0.032, 0, 0.032]) plate(b, gate, [lane, 0], [0.01, 0.12], 0.004, flat(paints.piano));
+  plate(b, gate, [0, 0], [0.074, 0.01], 0.004, flat(paints.piano));
+  const root: Point = [x + 0.032, topH + g, z - 0.045];
+  const top = add(root, normalize([-0.15, 1, 0.12]), 0.17);
+  b.tube([root, top], 0.0065, 8, smooth(paints.chrome));
+  pillow(b, axes(top, RIGHT, [0, 1, 0], [0, 0, 1]), [0.021, 0.021, 0.021], 0.85, smooth(paints.chrome), 8);
+}
+
 function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec[] {
   const { dash, ground: g, style, cushionH, floorH } = f;
   const dials: DialSpec[] = [];
   const faceDown = normalize([0, dash.lowH - (dash.topH - 0.03), dash.lowZ - dash.rearZ]);
   const up: Point = [0, -faceDown[1], -faceDown[2]];
   const back = normalize(cross(RIGHT, up));
+  // The driver sits where the stack and the console would be.
+  if (f.cabin.passengers) {
+    addDashVents(b, f, paints, up, back);
+    addGatedLever(b, f, paints);
+    return dials;
+  }
   const bottomH = Math.max(cushionH + 0.1, floorH + 0.25);
   const topH = dash.topH - 0.05;
   const middleH = (topH + bottomH) / 2;
@@ -400,14 +439,7 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
   }
   for (const x of [-0.035, 0.035]) plate(b, at, [x, knobsY], [0.022, 0.008], front + 0.002, flat(paints.switchLit));
 
-  // Vents at the dash's ends, on its face.
-  const half = f.glassX(dash.rearZ) - 0.012;
-  const endAt = axes([0, dash.topH - 0.075 + g, dash.rearZ + (dash.lowZ - dash.rearZ) * 0.2], RIGHT, up, back);
-  for (const side of [-1, 1]) {
-    const x = side * (half - 0.11);
-    plate(b, endAt, [x, 0], [0.105, 0.045], 0.004, flat(paints.accent));
-    plate(b, endAt, [x, 0], [0.095, 0.037], 0.007, flat(paints.vent, KIND.vent));
-  }
+  addDashVents(b, f, paints, up, back);
 
   // The console: from under the stack back between the seats, an armrest at its end.
   const fromZ = faceZ - 0.02 + depth * 0.4;
@@ -666,8 +698,13 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   const dials = [...addCluster(b, frame, paints), ...addCentre(b, frame, paints)];
   addWheel(b, frame, paints);
   const seatKind = style.seats;
-  for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24, style.quilted);
-  if (style.harness) for (const side of [-1, 1]) addHarness(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH);
+  // A central driving seat's car seats its driver alone in the middle and a passenger either side, set back.
+  const { passengers } = cabin;
+  const seats: [x: number, z: number, wide: number][] = passengers
+    ? [[0, frame.seatZ, 0.22], ...[-1, 1].map((side): [number, number, number] => [side * passengers[0], passengers[1] + frame.seatZ - cabin.seatZ, 0.19])]
+    : [-1, 1].map((side): [number, number, number] => [side * cabin.seatX, frame.seatZ, seatKind === "comfort" ? 0.25 : 0.24]);
+  for (const [x, z, wide] of seats) addSeat(b, frame, paints, x, z, cushionH, seatKind, wide, style.quilted);
+  if (style.harness) for (const [x, z] of seats) addHarness(b, frame, paints, x, z, cushionH);
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
   addFloor(b, frame, paints);
