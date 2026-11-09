@@ -130,7 +130,7 @@ const shape: Shape = {
     reversing(0.585, 0.665),
     sideIntake({ z: 0.62, h: 0.5, long: 0.36, tall: 0.26 }),
     // The radiators' outlets either side of the hood's middle.
-    ...louvres({ x: 0.26, z: -1.95, long: 0.26, wide: 0.2, count: 4, liftM: 0.022 }),
+    ...louvres({ x: 0.26, z: -1.95, long: 0.26, wide: 0.2, count: 4, liftM: 0.03 }),
     // Slats of the body's colour across the engine cover's vents.
     ...louvres({ x: 0.42, z: 0.66, long: 0.66, wide: 0.3, count: 7, surface: "paint", liftM: 0.022 }),
   ],
@@ -201,7 +201,9 @@ const shape: Shape = {
     crown: [
       [-2.26, 0.02],
       [-1.9, -0.05],
-      [-1.5, -0.11],
+      // Keeps the nose's slope as it was, so only the arch rises.
+      [-1.8, -0.065],
+      [-1.5, -0.17],
       [-1.15, -0.04],
       [-0.85, 0.04],
       [0.0, 0.05],

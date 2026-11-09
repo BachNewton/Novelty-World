@@ -282,6 +282,8 @@ export class Car {
     const drive = this.driveForce(input, forward);
     const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: -up[0], y: -up[1], z: -up[2] });
     const reach = suspension.droopM + car.wheelRadiusM;
+    const sag = sagOf(tuning);
+    const heave = suspension.heaveNPerM ?? 0;
 
     // Springs first: the anti-roll bar needs each axle's two compressions.
     const compression: number[] = [];
@@ -343,10 +345,12 @@ export class Car {
       const rising = -dot(at, normal);
       const opposite = compression[index ^ 1];
       const over = Math.max(0, compression[index] - suspension.travelM);
+      const sunk = Math.max(0, (compression[index] + opposite) / 2 - sag);
       const axle = axleShare(tuning, wheel.end === 1);
       const load = Math.max(
         0,
-        axle * (suspension.springNPerM * compression[index] + suspension.damperNPerMS * rising + suspension.bumpStopNPerM * over) + suspension.antiRollNPerM * (compression[index] - opposite),
+        axle * (suspension.springNPerM * compression[index] + suspension.damperNPerMS * rising + suspension.bumpStopNPerM * over + heave * sunk) +
+          suspension.antiRollNPerM * (compression[index] - opposite),
       );
 
       const isFront = wheel.end === 1;

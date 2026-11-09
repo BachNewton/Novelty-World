@@ -23,6 +23,7 @@ export const varg: CarEntry = {
     rideHz: 1.8,
     damping: 0.42,
     rollStiffness: 0.5,
+    heave: 0.8,
     travelM: 0.24,
     grip: [1.54, 1.64],
     peakSlip: 0.11,

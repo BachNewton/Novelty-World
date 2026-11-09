@@ -23,6 +23,7 @@ export const aska: CarEntry = {
     rideHz: 2.0,
     damping: 0.5,
     rollStiffness: 0.65,
+    heave: 2.1,
     travelM: 0.24,
     grip: [1.66, 1.72],
     peakSlip: 0.11,

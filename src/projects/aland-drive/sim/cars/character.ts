@@ -44,6 +44,8 @@ export interface Character {
   damping: number;
   /** The anti-roll bars against one wheel's spring: more leans less. */
   rollStiffness: number;
+  /** A heave spring against one wheel's spring, holding the body up against downforce at speed (`heaveNPerM`). */
+  heave?: number;
   droopM?: number;
   travelM?: number;
   grip: readonly [front: number, rear: number];
@@ -109,6 +111,7 @@ export function tuned(c: Character): CarTuning {
       damperNPerMS: c.damping * 2 * Math.sqrt(springNPerM * quarter),
       bumpStopNPerM: 4 * springNPerM,
       antiRollNPerM: c.rollStiffness * springNPerM,
+      ...(c.heave === undefined ? {} : { heaveNPerM: c.heave * springNPerM }),
     },
     grip: {
       frontMu,

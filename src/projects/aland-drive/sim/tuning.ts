@@ -41,6 +41,12 @@ export interface CarTuning {
     bumpStopNPerM: number;
     /** Moves load between a left and a right wheel by how far apart they sit: more stops the lean. */
     antiRollNPerM: number;
+    /**
+     * A third spring across each axle, as a hypercar's, that holds the body up against downforce: it pushes only on an
+     * axle's two wheels sunk together past where they sit at rest, so it firms the car at speed but barely a lone bump
+     * or the lean. None, and the car has only its corner springs.
+     */
+    heaveNPerM?: number;
   };
   grip: {
     /** Peak grip as a share of the load on a tyre. Front below rear keeps the back end planted. */

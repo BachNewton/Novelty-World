@@ -45,7 +45,7 @@ export const altura: CarEntry = {
     rearShare: 1,
     brakeMS2: 11.5,
     dragPerMS2: 0.4,
-    aero: 0.7,
+    aero: 0.25,
     lock: 0.58,
     turnPerS: 2.8,
   }),

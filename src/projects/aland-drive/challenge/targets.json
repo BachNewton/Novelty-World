@@ -1,17 +1,17 @@
 {
   "streetrace-hammarbo": {
-    "tuning": "5dc154e9",
+    "tuning": "8d5f0f48",
     "places": "00e254fb",
     "ground": "wet on summer",
-    "par": 240,
+    "par": 239.72,
     "target": 239
   },
   "ship-at-three": {
-    "tuning": "4547ea87",
+    "tuning": "a2b541a1",
     "places": "86204347",
     "ground": "dry on summer",
-    "par": 166.12,
-    "target": 166.2
+    "par": 166.67,
+    "target": 166.7
   },
   "godby-to-geta-fog": {
     "tuning": "d33bfe78",
@@ -28,10 +28,10 @@
     "target": 161.8
   },
   "road-2-midnight": {
-    "tuning": "a3df25c4",
+    "tuning": "f61e31db",
     "places": "b0236d93",
     "ground": "dry on summer",
-    "par": 314.34,
+    "par": 314.22,
     "target": 314
   },
   "castle-to-fortress-sunset": {
@@ -119,10 +119,10 @@
     "target": 162.8
   },
   "mockelo-straight": {
-    "tuning": "660946f2",
+    "tuning": "8e64bacb",
     "places": "15c25e85",
     "ground": "dry on summer",
-    "par": 302.42,
+    "par": 302.66,
     "target": 302
   },
   "degersand-group-b": {

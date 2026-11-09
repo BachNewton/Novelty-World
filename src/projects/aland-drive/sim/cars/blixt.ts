@@ -23,6 +23,7 @@ export const blixt: CarEntry = {
     rideHz: 2.1,
     damping: 0.55,
     rollStiffness: 0.72,
+    heave: 1.8,
     travelM: 0.22,
     grip: [1.58, 1.66],
     peakSlip: 0.11,
