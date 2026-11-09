@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Bike, CalendarDays, Car, Check, RotateCcw, Cloud, CloudFog, CloudRain, CloudSnow, CloudSun, FlaskConical, Globe, MapPin, Navigation, Pause, Play, TreePine, Snowflake, Sun, Sunrise, ThermometerSnowflake, X, type LucideIcon } from "lucide-react";
-import type { CarChoice, DayChange, DayShown, Game } from "../render/game";
+import type { DayChange, DayShown, Game } from "../render/game";
 import { HELD_WEATHER, type HeldWeather } from "../climate/held";
 import { DAYS_A_MONTH, MONTH_NAMES } from "../time/calendar";
-import type { CarId } from "../sim/cars";
 import { CONDITIONS, type Condition } from "../sim/surfaces";
 import { playgroundAsked, playgroundLink } from "../playground/place";
 
@@ -25,33 +24,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="text-sm font-semibold">{title}</h3>
       {children}
     </section>
-  );
-}
-
-function CarList({ cars, car, onCar }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void }) {
-  const current = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    current.current?.focus();
-  }, []);
-  return (
-    <ul className="flex flex-col gap-1">
-      {cars.map(({ id, name, paint }) => (
-        <li key={id}>
-          <button
-            ref={id === car ? current : undefined}
-            type="button"
-            aria-pressed={id === car}
-            className="flex w-full cursor-pointer items-center gap-2 rounded border-2 px-2 py-1 text-left text-sm"
-            style={{ borderColor: id === car ? ACCENT : "transparent" }}
-            onClick={() => { onCar(id); }}
-          >
-            <span aria-hidden className="size-4 shrink-0 rounded-full border" style={{ background: `var(--color-aland-drive-${paint})`, borderColor: INK }} />
-            <span className="grow">{name}</span>
-            {id === car && <Check aria-hidden className="size-4" style={{ color: ACCENT }} />}
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -282,21 +254,21 @@ function SpotList({ spots, onJump, onJumpToDestination }: { spots: readonly { id
   );
 }
 
-export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCondition, day, onDay, weather, onWeather, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { cars: readonly CarChoice[]; car: CarId; onCar: (id: CarId) => void; traffic: boolean | null; onTraffic: (on: boolean) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; weather: Game["weather"]; onWeather: Game["setWeather"]; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
+export function DevMenu({ traffic, onTraffic, condition, onCondition, day, onDay, weather, onWeather, spots, onJump, onJumpToDestination, whereabouts, onResetSave, onClose }: { traffic: boolean | null; onTraffic: (on: boolean) => void; condition: Condition; onCondition: (condition: Condition) => void; day: () => DayShown; onDay: (change: DayChange) => void; weather: Game["weather"]; onWeather: Game["setWeather"]; spots: readonly { id: string; name: string }[]; onJump: (id: string) => void; onJumpToDestination: (() => void) | null; whereabouts: () => string; onResetSave: () => void; onClose: () => void }) {
   return (
     <div className="absolute inset-0" onClick={onClose}>
       <div
         role="dialog"
         aria-modal
         aria-label="Dev menu"
-        className="absolute top-14 right-6 grid max-h-[calc(100vh-4.5rem)] w-[min(60rem,calc(100vw-3rem))] grid-cols-3 gap-5 overflow-y-auto rounded-lg p-4"
+        className="absolute top-14 right-6 grid max-h-[calc(100vh-4.5rem)] w-[min(40rem,calc(100vw-3rem))] grid-cols-2 gap-5 overflow-y-auto rounded-lg p-4"
         style={{ background: SHADE, color: INK }}
         onClick={(event) => { event.stopPropagation(); }}
       >
         <button type="button" aria-label="Close" title="Close" className="absolute top-2 right-2 cursor-pointer" onClick={onClose}>
           <X className="size-5" />
         </button>
-        {/* Three columns, so it fits a screen's height: the world's day, weather and ground, where to go, and what to drive. */}
+        {/* Two columns, so it fits a screen's height: the world's day, weather and ground, and where to go. */}
         <div className="flex flex-col gap-4">
           <Section title="Place">
             <CopyPlace whereabouts={whereabouts} />
@@ -320,9 +292,6 @@ export function DevMenu({ cars, car, onCar, traffic, onTraffic, condition, onCon
         </div>
         <Section title="Jump to">
           <SpotList spots={spots} onJump={onJump} onJumpToDestination={onJumpToDestination} />
-        </Section>
-        <Section title="Cars">
-          <CarList cars={cars} car={car} onCar={onCar} />
         </Section>
       </div>
     </div>

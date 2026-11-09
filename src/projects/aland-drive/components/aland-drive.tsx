@@ -14,7 +14,6 @@ import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
-import { DEFAULT_CAR, type CarId } from "../sim/cars";
 import { resultText, timeText } from "../challenge/format";
 import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
@@ -143,10 +142,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
-  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "weather" | "setWeather" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "trafficOn" | "setTraffic" | "condition" | "setCondition" | "day" | "setDay" | "weather" | "setWeather" | "setDevMenuOpen" | "pickMenuItem" | "spots" | "jumpTo" | "hasDestination" | "jumpToDestination" | "whereabouts" | "resetSave"> | null>(null);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [gameMenu, setGameMenu] = useState<GameMenuState | null>(null);
-  const [carId, setCarId] = useState<CarId>(DEFAULT_CAR);
   const [others, setOthers] = useState<string[]>([]);
   // Places found and not yet shown, the one on screen first.
   const [finds, setFinds] = useState<Place[]>([]);
@@ -254,7 +252,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onMapOpen: setMapOpen,
           onDevMenuOpen: setDevMenuOpen,
           onGameMenu: setGameMenu,
-          onCarChange: setCarId,
           onRoad: (named) => { setRoad((last) => ({ name: named, seen: (last?.seen ?? 0) + 1 })); },
           onPlayers: setOthers,
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
@@ -269,7 +266,6 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
         window.__alandDrive = game.probe;
         onStarted?.(game.probe);
         setDev(game);
-        setCarId(game.probe.carId());
         setStarted(true);
         stop = () => {
           game.dispose();
@@ -477,7 +473,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       )}
       {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} revealPadFocus={input === "pad"} onPick={dev.pickMenuItem} />}
-      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carId} onCar={dev.setCar} traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
+      {devMenuOpen && dev !== null && <DevMenu traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">{failure}</p>

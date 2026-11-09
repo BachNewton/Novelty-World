@@ -9,6 +9,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const lontano: CarEntry = {
   tier: "C2",
+  maker: "Castellane",
+  engine: "V12 on triple carbs",
+  from: "barn",
   tuning: tuned({
     name: "Lontano",
     class: "sports",

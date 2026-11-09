@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const kula: CarEntry = {
   tier: "C4",
+  maker: "Kamrat",
+  engine: "Air-cooled flat four",
+  from: "barn",
   tuning: tuned({
     name: "Kula",
     class: "road",

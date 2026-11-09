@@ -1447,3 +1447,15 @@ Stage 1 of `learned-bot.md` (its report has every reading and interval). net-v1'
 - **The stall**: five argmax copies (`risk:trace --survey --mirror`, 10 games) capped 4, the decided games averaging 279 player-turns. The teacher's own 5-player mirrors capped 0 of 160.
 
 Predictions 1 (60% or more) and 5 (40% or more against GD Defensive) held. 3 (turn-start placements at half the teacher's consistency), 4 (the buckets expressing under 70% of placements and 40% of attacks) and 6 (the sampling bot not worse than v6.1) failed. 2 (still climbing) isn't read, for the seed spread above. Next: stage 2, PPO from imit-1, read both sampling and argmax with the mirror cap rate beside it. Before it, on Actions, the argmax copy one-out among v6.1 and against rule-v7.1.
+
+## imit-1 one-out among rule-v6.1, and the imitation's data curve on a fixed schedule (2026-11-09)
+
+The reads stage 1 left (`learned-bot.md`, "The day after").
+
+- **One-out among rule-v6.1** (Actions run 42461754595, train seeds, 5 players): four `net-v1~{"weights":"imit-1","pick":"argmax"}` against one rule-v6.1 read **better**. The copies won 92.0% [86.8, 95.3] of 162 decisive games against a par of 80%, at win Elo +183 and finishing-order Elo +92, with the lone v6.1's mean place 2.99. 22.9% of the 210 games capped: the copy stalls when it meets itself, which it never did alone among v6.1. Actions played 240 games and 555,526 decisions in 5,487 s.
+- **Against rule-v7.1, one-in and one-out** (run 42461757380): still playing, to be recorded when it lands.
+- **The data curve**: `imitate.py` now trains on a fixed cosine schedule over 100 million samples in place of the plateau rule. Main agreement on all 3.12 million held-out decisions, seeds 1 and 2:
+  - half the recording: 63.4% [63.2, 63.6] and 63.3% [63.1, 63.5];
+  - all of it: 64.0% [63.8, 64.2] and 63.9% [63.6, 64.1].
+
+  The seeds now agree within 0.13 points, where they were 2.1 apart on the plateau rule. All beats half by 0.55 points, so prediction 2 (still climbing) holds, at half a point a doubling, a sixth of the three points that would justify another recording. imit-1 (64.8%) beats both: its plateau rule held the full rate for most of its steps, and it fits the training data better too. At full data the copy is short of training steps more than of games.

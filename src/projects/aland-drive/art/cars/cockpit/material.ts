@@ -1,9 +1,9 @@
 import { BufferAttribute, BufferGeometry, MeshBasicNodeMaterial, Vector3, Vector4, type Node, type Texture } from "three/webgpu";
-import { abs, attribute, cameraPosition, clamp, cos, dFdx, dFdy, exp, float, floor, fract, fwidth, max, min, mix, modelNormalMatrix, modelWorldMatrixInverse, normalGeometry, positionGeometry, positionWorld, pow, reflect, select, sin, smoothstep, texture, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
+import { abs, attribute, cameraPosition, clamp, cos, dFdx, dFdy, exp, float, floor, fract, fwidth, int, max, min, mix, modelNormalMatrix, modelWorldMatrixInverse, normalGeometry, positionGeometry, positionWorld, reflect, round, select, sin, smoothstep, texture, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { sharedUniform } from "../../shared-uniform";
 import { towardsSun, type Sun } from "../../sun";
-import { GLYPH, GLYPH_ASPECT, GLYPH_GRID, SLOT, cellUv } from "./atlas";
+import { GLYPH, GLYPH_ASPECT, GLYPH_GRID, SLOT, SOURCE, cellUv } from "./atlas";
 import { KIND, type CockpitSoup } from "./builder";
 import type { CabinShade } from "./frame";
 import type { DialSpec } from "./interior";
@@ -173,6 +173,10 @@ export function cockpitMaterial({ sun, sheet, hazed, glowing }: CockpitMaterialO
   const finish = attribute<"vec4">("cockpitFinish", "vec4");
   const face = attribute<"vec4">("cockpitFace", "vec4");
   const kind = face.z;
+  // What a face's parameter says (a dial's slot, a readout's source and width, a lamp's threshold) is the same at its
+  // every corner, so it reaches the pixels flat: blended, it came a hair off at some pixels on Nvidia, and a readout's
+  // pixels each cut a different digit from it, a 0 speckled with a 9.
+  const param = varying(face.w).setInterpolation("flat");
 
   // The wheel's faces turn about its column; everything else stands still.
   const turn = wheelTurn.angle.mul(is(kind, KIND.wheel));
@@ -212,12 +216,10 @@ export function cockpitMaterial({ sun, sheet, hazed, glowing }: CockpitMaterialO
 
   // A dial: its face from the sheet, its needle drawn from its reading over it.
   const uv = face.xy;
-  const slot = floor(face.w.add(0.5));
-  const cellColumn = slot.mod(4);
-  const cellRow = floor(slot.div(4));
-  const cellOrigin = vec2(cellColumn.mul(0.25), float(1).sub(cellRow.add(1).mul(0.5)));
+  const slot = int(round(param));
+  const cellOrigin = vec2(float(slot.mod(int(4))).mul(0.25), float(1).sub(float(slot.div(int(4)).add(int(1))).mul(0.5)));
   const dialPoint = uv.sub(cellOrigin).div(vec2(0.25, 0.5)).mul(2).sub(1);
-  const dial = dialSpecs.element(slot.toInt());
+  const dial = dialSpecs.element(slot);
   const share = clamp(readingOf(dial.z).div(dial.w), -0.02, 1.04);
   const angle = dial.x.add(dial.y.mul(share));
   const pointing = vec2(cos(angle), sin(angle));
@@ -233,35 +235,39 @@ export function cockpitMaterial({ sun, sheet, hazed, glowing }: CockpitMaterialO
   const dialColour = shaded(dialFace).add(dialFace.mul(DIAL_DAY_LIGHT));
   const dialGlow = shared.glow.mul(sheetAt.w.mul(1.3)).add(shared.needle.mul(needle.mul(1.1))).mul(glowing);
 
-  // A readout: which glyph each of its places shows, from what it reads.
-  const source = floor(face.w.div(16));
-  const places = face.w.sub(source.mul(16));
-  const place = min(floor(uv.x.mul(places)), places.sub(1));
-  const inPlace = fract(uv.x.mul(places));
+  // A readout: which glyph each of its places shows, from what it reads. Its digits are cut in integers: a float's
+  // division and power land a hair under a whole number on some GPUs, and 120's tens read 1.
+  const code = int(round(param));
+  const sourceIndex = code.div(int(16));
+  const source = float(sourceIndex);
+  const places = code.mod(int(16));
+  const placesWide = float(places);
+  const placeAt = int(floor(uv.x.mul(placesWide)));
+  const place = select(placeAt.lessThan(places), placeAt, places.sub(int(1)));
+  const inPlace = fract(uv.x.mul(placesWide));
   const value = readingOf(source);
-  const whole = floor(value.abs().add(0.5));
-  const power = places.sub(1).sub(place);
-  const scale = pow(float(10), power);
-  const digit = floor(whole.div(scale)).mod(10);
-  const isGear = is(source, 6);
-  const isClock = is(source, 7);
-  const isOutside = is(source, 8);
-  const leadingBlank = select(power.greaterThan(0.5).and(whole.lessThan(scale)), float(1), float(0)).mul(float(1).sub(isClock));
-  const gearGlyph = select(value.lessThan(-0.5), float(GLYPH.reverse), select(value.lessThan(0.5), float(GLYPH.neutral), select(value.greaterThan(9.5), whole, digit)));
-  const signPlace = isOutside.mul(is(place, 0));
-  const signGlyph = select(value.lessThan(-0.5), float(GLYPH.minus), float(GLYPH.blank));
-  const plainGlyph = mix(digit, float(GLYPH.blank), leadingBlank);
-  const glyph = mix(mix(plainGlyph, gearGlyph, isGear), signGlyph, signPlace);
+  const whole = int(floor(value.abs().add(0.5)));
+  const power = places.sub(int(1)).sub(place);
+  const scale = select(power.equal(int(0)), int(1), select(power.equal(int(1)), int(10), select(power.equal(int(2)), int(100), int(1000))));
+  const digit = whole.div(scale).mod(int(10));
+  const isClock = sourceIndex.equal(int(SOURCE.clock));
+  const leadingBlank = power.greaterThan(int(0)).and(whole.lessThan(scale)).and(isClock.not());
+  const gearGlyph = select(value.lessThan(-0.5), int(GLYPH.reverse), select(value.lessThan(0.5), int(GLYPH.neutral), select(value.greaterThan(9.5), whole, digit)));
+  const signPlace = sourceIndex.equal(int(SOURCE.outside)).and(place.equal(int(0)));
+  const signGlyph = select(value.lessThan(-0.5), int(GLYPH.minus), int(GLYPH.blank));
+  const plainGlyph = select(leadingBlank, int(GLYPH.blank), digit);
+  const glyph = select(signPlace, signGlyph, select(sourceIndex.equal(int(SOURCE.gear)), gearGlyph, plainGlyph));
   const figures = cellUv(SLOT.figures);
   const glyphSize = vec2(figures.width / GLYPH_GRID, figures.height / GLYPH_GRID);
-  const glyphOrigin = vec2(figures.u, figures.v).add(vec2(glyph.mod(GLYPH_GRID), float(GLYPH_GRID - 1).sub(floor(glyph.div(GLYPH_GRID)))).mul(glyphSize));
+  const glyphCell = vec2(float(glyph.mod(int(GLYPH_GRID))), float(int(GLYPH_GRID - 1).sub(glyph.div(int(GLYPH_GRID)))));
+  const glyphOrigin = vec2(figures.u, figures.v).add(glyphCell.mul(glyphSize));
   const inGlyph = vec2(float(0.5).add(inPlace.sub(0.5).mul(GLYPH_ASPECT)), uv.y);
   const glyphUv = glyphOrigin.add(inGlyph.mul(glyphSize));
-  const gradientScale = vec2(places.mul(GLYPH_ASPECT), float(1)).mul(glyphSize);
+  const gradientScale = vec2(placesWide.mul(GLYPH_ASPECT), float(1)).mul(glyphSize);
   const glyphNode = texture(sheet, glyphUv);
   const ink = glyphNode.grad(dFdx(uv).mul(gradientScale), dFdy(uv).mul(gradientScale)).w;
   // The clock's colon, between its second and third places.
-  const colon = isClock.mul(float(1).sub(smoothstep(float(0.035), float(0.05), vec2(uv.x.sub(0.5).mul(places.mul(GLYPH_ASPECT)), abs(uv.y.sub(0.5)).sub(0.2)).length())));
+  const colon = select(isClock, float(1), float(0)).mul(float(1).sub(smoothstep(float(0.035), float(0.05), vec2(uv.x.sub(0.5).mul(placesWide.mul(GLYPH_ASPECT)), abs(uv.y.sub(0.5)).sub(0.2)).length())));
   const figureInk = max(ink, colon);
   const readoutColour = base.mul(0.6).add(shared.glow.mul(figureInk.mul(FIGURES)));
 
@@ -269,7 +275,7 @@ export function cockpitMaterial({ sun, sheet, hazed, glowing }: CockpitMaterialO
   const screenColour = base.add(vec3(0.004, 0.008, 0.016).mul(smoothstep(float(0.1), float(1), uv.y))).add(shared.glow.mul(0.006));
 
   // A lamp or a segment of an arc: lit once the revs or the power reach its threshold.
-  const lit = select(readings.lamps.greaterThanEqual(face.w), float(1), float(0));
+  const lit = select(readings.lamps.greaterThanEqual(param), float(1), float(0));
   const lampColour = mix(base.mul(0.1), base.mul(LAMP_LIT), lit);
 
   // A vent: slats across it.

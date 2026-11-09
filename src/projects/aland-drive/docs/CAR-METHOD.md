@@ -21,7 +21,7 @@ A car is six files and four lines, plus its paints and cockpit in its model file
 
 | | File | Registered in |
 |---|---|---|
-| Tuning and tier | `sim/cars/<id>.ts`, a `CarEntry` through `tuned()` (`sim/cars/character.ts`) | `sim/cars.ts` |
+| Tuning, tier, and what the Cars page says of it (maker, engine in a few words, where it comes from) | `sim/cars/<id>.ts`, a `CarEntry` through `tuned()` (`sim/cars/character.ts`) | `sim/cars.ts` |
 | Measured limits | `sim/limits/<id>.json`, written by `tools/car-limits.ts` | `sim/car-limits.ts` |
 | Art | `art/cars/models/<id>.ts`, a `CarSpec` on the recipe | `art/cars/specs.ts` |
 | Voice | `audio/voices/<id>.ts` | `audio/vehicles.ts` |

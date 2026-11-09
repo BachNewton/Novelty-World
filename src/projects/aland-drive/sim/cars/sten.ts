@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A hot hatch with a four that revs to 8,200 and close gears: front-driven, stiff, and it wants to be wrung out. */
 export const sten: CarEntry = {
   tier: "A6",
+  maker: "Ödmark",
+  engine: "High-revving four",
+  from: "dealer",
   tuning: tuned({
     name: "Sten",
     class: "road",

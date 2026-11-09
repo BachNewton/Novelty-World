@@ -3,7 +3,7 @@ import { isCarId, type CarId } from "../sim/cars";
 
 /*
  * The paint the player has chosen for each car, kept in this browser by its index in the car's list of paints
- * (`art/cars/paints.ts`): a car stays in what it was given until it's given something else. The game menu's Paint page
+ * (`art/cars/paints.ts`): a car stays in what it was given until it's given something else. The game menu's Cars page
  * chooses it now, a home's garage or a car shop later, and the game draws the car in it and sends it to everyone.
  */
 

@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A tiny, narrow, light four-by-four with a small petrol four and short gears: nimble and bouncy on a forest track, short in the wheelbase, tippy and slow on the open road. */
 export const knott: CarEntry = {
   tier: "B4",
+  maker: "Klippa",
+  engine: "Small petrol four",
+  from: "dealer",
   tuning: tuned({
     name: "Knott",
     class: "offroad",

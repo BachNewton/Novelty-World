@@ -120,7 +120,7 @@ The recording runs on Actions before the night (`gh` on the owner's own account)
 
 ### The first night's report
 
-**In one paragraph.** The copy works, and the way it plays decides its strength. imit-1 makes the teacher's choice on 64.8% of held-out decisions. Played as net-v1 plays (sampling its moves), it is worse than rule-v6.1 alone among four of them: −136 win Elo. Played by its most likely move, it is better than rule-v6.1 by +110 win Elo, more than sw128b-450's +46 and about v7's own gain over its planner. But the same argmax copy stalls among its own copies, 4 of 10 five-player mirrors capped, where the teacher capped none of 160. Predictions 1 and 5 held; 3, 4 and 6 failed. 2 isn't read: a second seed of the full run came out 2.1 points lower, more than the data curve's top gap, because of how the trainer's schedule cut its rate. The next night is stage 2, from imit-1.
+**In one paragraph.** The copy works, and the way it plays decides its strength. imit-1 makes the teacher's choice on 64.8% of held-out decisions. Played as net-v1 plays (sampling its moves), it is worse than rule-v6.1 alone among four of them: −136 win Elo. Played by its most likely move, it is better than rule-v6.1 by +110 win Elo, more than sw128b-450's +46 and about v7's own gain over its planner. But the same argmax copy stalls among its own copies, 4 of 10 five-player mirrors capped, where the teacher capped none of 160. Predictions 1 and 5 held; 3, 4 and 6 failed. 2 wasn't read that night: a second seed of the full run came out 2.1 points lower, more than the data curve's top gap, because of how the trainer's schedule cut its rate. Re-read the next night on a fixed schedule, it held, by half a point a doubling ("The day after", below). The argmax copy is better than rule-v6.1 one-out too. The next night is stage 2, from imit-1.
 
 **What ran.** Five recordings on Actions, every machine of each succeeded: run 42405066556 (`imit-5m`, 3,200 games), 42400208888 (`imit-5x`, 8,000), 42405064040 (`imit-6m`, 1,200), 42400215077 (`imit-3m`, 3,200), 42400217997 (`imit-4x`, 4,000). Two earlier runs at the first sizes (5-player mirrors at `--count 150`, 6-player at 50) were cancelled and replaced by these. That makes 19,600 games, 18.96 million moves and 15.53 million teacher decisions. A sample of 245 games, one file per seating, replayed exactly in `lockstep.py`. The extraction then replayed every game on the GPU engine, comparing the state's hash every 32 decisions and at the end: **none diverged, none was cut**, in 20 minutes on the eGPU.
 
@@ -187,7 +187,7 @@ Every attack, move-in and fortify the teacher makes is its planner's, determinis
 | # | Reading | |
 |---|---|---|
 | 1 | 64.8% [64.6, 65.0] | **held** |
-| 2 | all 64.8% [64.6, 65.0] against half 63.1% [62.9, 63.3], 1.6 points apart; all again on seed 2, 62.7% | **not read**: the gap is outside the reads' intervals but inside the recipe's spread between seeds (2.1 points), so the curve's top waits on the fixed schedule |
+| 2 | on the plateau rule, all 64.8% [64.6, 65.0] against half 63.1% [62.9, 63.3], inside the seeds' 2.1-point spread; re-read on a fixed schedule, all 64.0% and 63.9% against half 63.4% and 63.3%, on two seeds each | **held**, on the re-read ("The day after", below): all is above half by 0.55 points on each seed, outside the reads' intervals and four times the seeds' spread, though at a sixth of the three points a doubling the plan set for another recording |
 | 3 | 25.7% [24.3, 27.0] against half of 65.0%, 32.5% | **failed**: the net copies the search's own decision worse than v6.1's planner does (33.4%) |
 | 4 | the buckets express 88.3% of placements and 54.2% of attacks | **failed**: they express more than predicted; the misses are blitz keeps, 57% of mirror blitzes |
 | 5 | 81.5% [79.0, 83.7] (94.0% argmax) | **held** |
@@ -211,6 +211,25 @@ The kill reading is the plan's: the pair against imit-1 falling below the start 
 - the imitation trainer on a fixed schedule, with the half and the full re-read on two seeds each. That gives prediction 2 its reading and gives stage 2 a known spread for the imitation it starts from.
 
 **Is another night worth it?** Yes. One night took the learned line from below the planner's class to a copy that beats rule-v6.1 by more than any net here has, and stage 2 is the first time policy improvement starts from the target's class.
+
+#### The day after: the Actions reads and the curve on a fixed schedule
+
+**The argmax copy one-out among rule-v6.1** (Actions run 42461754595, train seeds, 5 players, brought in by `risk:import`). Four `net-v1~{"weights":"imit-1","pick":"argmax"}` against one rule-v6.1 read **better**. The copies won 92.0% [86.8, 95.3] of 162 decisive games against a par of 80% (149 to 13), at win Elo +183 and finishing-order Elo +92, with the lone v6.1's mean place 2.99. But 48 of the 210 games (22.9%) reached the cap. Four copies at one table stall nearly as often as five, while the copy alone among four v6.1 never capped. So the stall belongs to the copy's own play meeting itself, not to the table.
+
+**Against rule-v7.1, one-in and one-out** (run 42461757380). It was still playing its seventh round when the curve finished. Rule-v7.1's search makes every round long, so it is read when it lands.
+
+**The data curve on a fixed schedule.** `imitate.py` now trains on a fixed schedule over 100 million samples: 500 steps of warmup, then a cosine fall from 5e-4 to zero. The held-out read now only chooses which checkpoint is kept. Four runs used it: the half and the full recording, each on seeds 1 and 2 (`imit-2-f2`, `imit-2-f2-s2`, `imit-2`, `imit-2-s2`). Each was read on all 3.12 million held-out decisions:
+
+| Training games | Main, seed 1 | Main, seed 2 | Turn-start placement, seeds 1 and 2 |
+|---|---|---|---|
+| 7,840 (a half) | 63.4% [63.2, 63.6] | 63.3% [63.1, 63.5] | 40.8%, 40.8% |
+| 15,680 (all) | 64.0% [63.8, 64.2] | 63.9% [63.6, 64.1] | 41.1%, 41.0% |
+| imit-1: all, on the plateau rule | 64.8% [64.6, 65.0] | | 41.5% |
+
+- **The fixed schedule removed the spread between seeds.** Two seeds land 0.13 points apart on the full data and 0.10 on the half. Under the plateau rule they were 2.1 points apart.
+- **More data still helps, but only a little.** The full data beats the half by 0.57 and 0.54 points on the two seeds, outside both reads' intervals and four times the spread between seeds. Prediction 2 holds. The slope is half a point a doubling, a third of what the plateau runs showed at face value and a sixth of the three points the plan set before another recording.
+- **At full data, the trainer is short of steps more than of games.** On the same data, imit-1 beats both fixed-schedule runs by 0.8 points. It also fits its own training data better: 65.6% agreement on training decisions, against 64.7% for the full runs. The plateau rule happened to keep imit-1 at the full rate for 19,500 of its 24,415 steps, while the cosine spends half of them below half that rate. So the full runs are underfitted. The half-data runs are the opposite case: they agree 65.2% on training decisions against 63.4% held out, a 1.8-point gap, where the full runs' gap is 0.7. A longer schedule, not a new recording, is the cheaper next point of agreement. imit-1 stays the best copy and stage 2's start.
+- **Throughput.** The four runs went in two pairs, each pair sharing the GPU while another session's builds shared the CPU. They trained 5,500 to 8,200 samples a second each, 11,000 to 16,300 a pair, against the 27,000 imit-1 managed alone. A timing on a shared machine can't say which contention cost the most, but the cost itself is clear: the curve took the whole night (23:20 to 07:51), and stage 2 didn't start. An imitation run takes the GPU on its own from now on.
 
 ### Kill rule, cost, and what follows
 

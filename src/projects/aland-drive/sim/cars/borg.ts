@@ -9,6 +9,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const borg: CarEntry = {
   tier: "B3",
+  maker: "Valtor",
+  engine: "Twin-turbo V8",
+  from: "harbour",
   tuning: tuned({
     name: "Borg",
     class: "road",
