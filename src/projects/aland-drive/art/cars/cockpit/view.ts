@@ -68,6 +68,7 @@ export function createCockpit(spec: CarSpec, { sun, hazed, glowing = float(0), u
     redline: tuning.gearbox.redlineRpm / 1000,
     panelAspect: (frame.cluster.width - 0.014) / (frame.cluster.height - 0.014),
     boost: frame.style.boost > 0,
+    light: frame.style.lightDials,
   });
   let sheet = drawDialSheet(faces());
   const { material, setSheet } = cockpitMaterial({ sun, sheet, hazed, glowing });

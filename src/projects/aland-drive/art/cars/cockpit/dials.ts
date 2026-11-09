@@ -23,6 +23,8 @@ export interface DialFaces {
   panelAspect: number;
   /** A boost gauge in the oil gauge's cell. */
   boost: boolean;
+  /** Ivory faces with dark figures (`InteriorStyle.lightDials`). */
+  light: boolean;
 }
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--color-aland-drive-${name}`).trim();
@@ -237,8 +239,8 @@ export function drawDialSheet(faces: DialFaces): DataTexture {
   glowPen.fillStyle = "#000";
   glowPen.fillRect(0, 0, width, height);
 
-  const classic = faces.gauges === "classic" || faces.gauges === "race";
-  const face = classic ? { ground: token("car-cabin-ivory"), ink: token("car-cabin-ink-dark"), red: token("car-cabin-lamp-red") } : { ground: token("car-cabin-panel"), ink: token("car-cabin-ink"), red: token("car-cabin-lamp-red") };
+  const light = faces.light || faces.gauges === "classic" || faces.gauges === "race";
+  const face = light ? { ground: token("car-cabin-ivory"), ink: token("car-cabin-ink-dark"), red: token("car-cabin-lamp-red") } : { ground: token("car-cabin-panel"), ink: token("car-cabin-ink"), red: token("car-cabin-lamp-red") };
   const speedLabel = faces.speedMax > 200 ? 40 : 20;
   drawDial(pens, SLOT.speed, { max: faces.speedMax, minor: speedLabel / 4, major: speedLabel / 2, label: speedLabel, shown: 1, start: 225, sweep: -270 }, face, [faces.speedUnit]);
   drawDial(pens, SLOT.revs, { max: faces.revsMax, minor: 0.5, major: 1, label: 1, shown: 1, red: faces.redline, start: 225, sweep: -270 }, face, ["RPM", "X1000"]);

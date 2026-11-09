@@ -53,6 +53,8 @@ export interface InteriorStyle {
    * would be: the boost it reads flat out, in bar, or 0 for none. Only without a screen.
    */
   boost: number;
+  /** Ivory dial faces with dark figures, as an older car's are, whatever the instruments; `classic` and `race` have them anyway. */
+  lightDials: boolean;
   /** Cabin colours: tokens without the `--color-aland-drive-` prefix. */
   colours: {
     dash: string;
@@ -107,6 +109,7 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     paintedDash: false,
     quilted: false,
     boost: 0,
+    lightDials: false,
     centreDisplay: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,

@@ -1,5 +1,6 @@
 import { CAR_IDS, type CarId } from "../../sim/cars";
 import type { CarSpec } from "./build";
+import { altura } from "./models/altura";
 import { ankar } from "./models/ankar";
 import { aska } from "./models/aska";
 import { blixt } from "./models/blixt";
@@ -73,6 +74,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   berg,
   // C1
   frost,
+  altura,
   // C2
   rimfrost,
   // C3

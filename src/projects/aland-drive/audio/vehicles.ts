@@ -1,6 +1,7 @@
 import type { Gearbox } from "../sim/gearbox";
 import type { Firing } from "./firing";
 import { CAR_IDS, CARS, type CarId } from "../sim/cars";
+import { altura } from "./voices/altura";
 import { aska } from "./voices/aska";
 import { blixt } from "./voices/blixt";
 import { ankar } from "./voices/ankar";
@@ -181,6 +182,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   berg,
   // C1
   frost,
+  altura,
   // C2
   rimfrost,
   // C3
