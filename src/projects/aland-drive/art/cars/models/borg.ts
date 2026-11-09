@@ -49,7 +49,7 @@ const shape: Shape = {
   halfWidth: 1.01,
   sillH: 0.42,
   rearSillH: 0.44,
-  flareM: 0.035,
+  flareM: 0.022,
   cornerPullM: [0.1, 0.07],
   archClearM: 0.06,
   grilleH: 0.86,
@@ -258,10 +258,8 @@ export const borg: CarSpec = {
     seats: "comfort",
     quilted: true,
     screen: true,
-    // Sat a touch higher than the recipe's sitting height, as the driver of a tall four-by-four sits, and the cluster read
-    // high in the wheel's opening so no spoke crosses the speed.
-    eye: [0, 0.04, 0],
-    clusterSight: 0.9,
+    // The speed set inside the arc's left, clear of the wheel's right spoke, which crosses the middle of the cluster here.
+    speedAside: true,
     colours: { trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner-dark", glow: "car-cabin-glow-white" },
   },
 };
