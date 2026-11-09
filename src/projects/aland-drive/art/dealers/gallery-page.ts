@@ -5,6 +5,9 @@ import type { CarDetail } from "../cars/build";
 import { buildCarArt, createCarModel, type CarArt } from "../cars/model";
 import { BRANDS, BRAND_IDS, buildExterior, carNamed, dealerMaterial, EXTERIOR_IDS, geometryOf, loadInterior, restingCar, type ExteriorId, type InteriorId } from "./index";
 import { INTERIOR_IDS } from "./interiors";
+import { deliveryHallInterior } from "./delivery-hall-interior";
+import type { RoomLight } from "./material";
+import { CAR_ENTRIES, CAR_IDS } from "../../sim/cars";
 import { Shell } from "./shell";
 
 /*
@@ -150,6 +153,45 @@ for (const id of INTERIOR_IDS as readonly InteriorId[]) {
   for (const { car, at, yaw, paint } of interior.displays) placeCar(scene, car, at, yaw, paint, "hero");
   counts[`interior ${id}`] = interior.soup.triangles + interior.turntable.soup.triangles;
   for (const { name, position, target, fovDeg } of interior.cameras) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, ${name} camera`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 3.75 });
+}
+
+// The delivery hall's room. This page's material has point lights only, so each spot is a point at its lamp and each
+// strip three along it sharing its power: near the room's light, not the walk-in system's own. Its windows show the sky here, where the
+// game shows the island.
+{
+  const hall = deliveryHallInterior();
+  const scene = new Scene();
+  scene.background = new Color(token("sky"));
+  scenes.set("delivery-hall", scene);
+  const lights: RoomLight[] = hall.light.lamps.flatMap((lamp): RoomLight[] => {
+    const { paint, power, reachM } = lamp;
+    if (lamp.kind !== "strip") return [{ at: lamp.at, paint, power, reachM }];
+    return [0.1, 0.5, 0.9].map((share) => ({ at: [0, 1, 2].map((axis) => lamp.from[axis] + (lamp.to[axis] - lamp.from[axis]) * share) as [number, number, number], paint, power: power / 3, reachM }));
+  });
+  const material = dealerMaterial({ kind: "room", lights, mirrors: hall.light.mirrors });
+  scene.add(new Mesh(geometryOf(hall.room), material));
+  const { stock } = hall;
+  const cars = CAR_IDS.filter((id) => {
+    const entry = CAR_ENTRIES[id];
+    return (stock.from?.includes(entry.from) ?? true) && (stock.tiers?.includes(entry.tier) ?? true) && (stock.makers?.includes(entry.maker) ?? true);
+  }).map((id) => CAR_ENTRIES[id].tuning.name);
+  const spin = new Group();
+  const [table] = hall.turntables;
+  spin.position.set(...table.centre);
+  spin.add(new Mesh(geometryOf(table.soup), material));
+  scene.add(spin);
+  tables.push({ scene: "delivery-hall", spin });
+  cars.forEach((name, index) => {
+    const spot = hall.spots[index];
+    if (spot.turntable === undefined) placeCar(scene, name, spot.at, spot.yaw, undefined, "hero");
+    else placeCar(spin, name, [0, spot.at[1], 0], spot.yaw, undefined, "hero");
+  });
+  counts["interior delivery-hall"] = hall.room.triangles + table.soup.triangles;
+  const door = hall.door.at;
+  shots.push({ name: "int-delivery-hall-door", label: "delivery hall, from the door", scene: "delivery-hall", camera: [door[0], 1.65, door[1]], target: [0, 1, -10], fieldOfView: 62, turn: 0 });
+  shots.push({ name: "int-delivery-hall-corner", label: "delivery hall, from the south back corner", scene: "delivery-hall", camera: [18, 2.4, -18.8], target: [-2, 1.2, -4], fieldOfView: 62, turn: 0.6 });
+  shots.push({ name: "int-delivery-hall-lounge", label: "delivery hall, from the lounge", scene: "delivery-hall", camera: [-14.5, 1.5, -13.2], target: [8, 1.4, -7], fieldOfView: 62, turn: 1.2 });
+  shots.push({ name: "int-delivery-hall-routes", label: "delivery hall, the north end", scene: "delivery-hall", camera: [-6, 1.7, -4], target: [-19.7, 3.4, -11], fieldOfView: 56, turn: 0 });
 }
 
 async function frame(name: string) {
