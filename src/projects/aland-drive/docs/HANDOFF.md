@@ -8,7 +8,7 @@ Phase 5 is done and live at `https://novelty-world.vercel.app/games/3d-games/ala
 
 Much of the art under `art/` is now in the game: the ground, roads and their paint, roofs, facades and shopfronts, the sky, water with a seabed, the forest (lit per face, see `render/CLAUDE.md`), verges, reeds, shrubs, boathouses and sheds, the medieval stone churches and the landmarks, the roadside (lamps, poles and wires, signs, rails, edge posts, mailboxes, shelters), stone walls and parked cars. `docs/ART.md` ticks each kit. Every car drives and sounds as its own, swapped from the game menu's Cars page, and online free roam puts every player in one shared world with collisions between cars. There is no gameplay yet. A car's brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
-The bucket holds the live version, `43f1ca8c5567`, 491 MB, beside the one before it, `382c3b80722b`: clear it (`upload.py --clear-old`) once the new one is checked live.
+The bucket holds only the live version, `43f1ca8c5567`, 491 MB.
 
 Walkers are the next people to place, through the same per-tile files as the waterfront's and the seated (`pipeline/people.py`).
 
