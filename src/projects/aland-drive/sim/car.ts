@@ -76,6 +76,8 @@ const WHEELS = [
 ] as const;
 
 const SLOW_MS = 0.6;
+/** The ground a cautious traction control holds back on (`looseLaunchN`). */
+const LOOSE: ReadonlySet<Surface> = new Set(["gravel", "grass"]);
 const STOPPED_FOR_REVERSE_MS = 1;
 /** The share of the peak slip angle the lock allows on top of the path, measured: more and the fronts slide past their peak at middle speeds. */
 const SLIP_ROOM = 0.3;
@@ -434,7 +436,15 @@ export class Car {
     // The handbrake holds the clutch in, as the driving games do: it always beats the engine.
     if (input.handbrake) return 0;
     if (this.reversingNow) return forward > -power.reverseSpeedMS ? -input.brake * power.reverseN : 0;
-    return pullAt(this.tuning, this.engineNow, input.throttle, this.assists.traction);
+    return pullAt(this.tuning, this.engineNow, input.throttle, this.assists.traction, this.launchN());
+  }
+
+  /** What traction control lets the car pull with off the line, on the ground its wheels stood on last step. */
+  private launchN(): number {
+    const { launchN, looseLaunchN } = this.tuning.power;
+    if (looseLaunchN === undefined) return launchN;
+    const loose = this.surfaces.filter((surface) => LOOSE.has(surface)).length / this.surfaces.length;
+    return launchN + (looseLaunchN - launchN) * loose;
   }
 
   rotation(): Rotation {
