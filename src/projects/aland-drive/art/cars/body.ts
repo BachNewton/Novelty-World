@@ -206,6 +206,8 @@ export interface BodyDetail {
   creaseDeg: number;
   /** A cabin to see through the glass to. */
   cabin: boolean;
+  /** Blocks' faces wound outward: a drivable car's, at either detail. */
+  outwardBlocks: boolean;
 }
 
 interface Station extends SilhouettePoint {
@@ -642,7 +644,8 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
 /** How far up a block's ring at this height stands: its middle, raised where the taper keeps its foot level. */
 const blockMiddle = ({ at, size, footLevel }: Block, tall: number) => at[1] + (footLevel ? (tall - size[1]) / 2 : 0);
 
-function addBlock(builder: SoupBuilder, block: Block, ground: number) {
+/** A block's faces wound to face out of it when `outward`; a world car's still face in, as its measured swaps have them. */
+function addBlock(builder: SoupBuilder, block: Block, ground: number, outward: boolean) {
   const { at, size, surface, mirror, taper = [1, 1] } = block;
   const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
     [side * at[0] - wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
@@ -651,7 +654,8 @@ function addBlock(builder: SoupBuilder, block: Block, ground: number) {
     [side * at[0] + wide / 2, blockMiddle(block, tall) + ground - tall / 2, z],
   ];
   for (const side of mirror ? [1, -1] : [1]) {
-    builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
+    const ends = [ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)];
+    builder.rings(outward ? ends.reverse() : ends, surface);
   }
 }
 
@@ -726,7 +730,7 @@ function addStrut(builder: SoupBuilder, { path, radius, surface, mirror }: Strut
 function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
   const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
   const block = (at: Block["at"], size: Block["size"], surface: Surface, mirror = false, taper?: Block["taper"]) => {
-    addBlock(builder, { at, size, surface, mirror, taper }, ground);
+    addBlock(builder, { at, size, surface, mirror, taper }, ground, true);
   };
   const wide = cabin.wideM ?? spec.trackM * 0.92;
   const length = endZ - dashZ;
@@ -884,7 +888,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
-  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground, detail.outwardBlocks);
   for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
