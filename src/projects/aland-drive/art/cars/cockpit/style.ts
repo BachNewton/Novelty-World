@@ -15,8 +15,10 @@ import type { CarSpec } from "../build";
  * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
  * "tacho": one big rev counter front and centre with the gear under its hub, a smaller speedometer to its left and
  * the water's dial to its right, a sports car's.
+ * "muscle": a big rev counter in front of the driver with a smaller speed dial beside it, and fuel, water and oil as
+ * small dials on the centre stack, where a screen would be.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "tacho" | "muscle";
 /** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
 export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
 /** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
@@ -58,6 +60,8 @@ export interface InteriorStyle {
     accent: string;
     /** What the dials, figures and switches light in after dark. */
     glow: string;
+    /** The seats' leather, when it isn't what the car's cabin says (`car-cabin-seat` or its tan). */
+    seat?: string;
   };
   /** How many turns the wheel takes from straight ahead to full lock. */
   turnsToLock: number;
