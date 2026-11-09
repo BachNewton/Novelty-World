@@ -1,6 +1,6 @@
 # Car traffic and AI racers
 
-A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), so is the grip by surface the racers need, and so are the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10), and the bubble with cyclists as its first users (piece 11), as `traffic/CLAUDE.md` describes, and walkers on the same lanes, traffic driving, reacting to the player, shared online, and following the hours and the year with its sound (pieces 12–15); the rest isn't. The architecture, the order of work and five of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
+A design for the two kinds of computer-driven car Åland Drive will have: **traffic**, the island's ordinary drivers going about their day, and **racers**, a few AI drivers who race the player for real. It is an idea in its first steps: the foundation's first two pieces are built (several simulated cars, and each car's limits measured), so is the grip by surface the racers need, and so are the lane map in the pipeline and the game, its lab and the index of what's around (pieces 8–10), and the bubble with cyclists as its first users (piece 11), as `traffic/CLAUDE.md` describes, and walkers on the same lanes, traffic driving, reacting to the player, shared online, and following the hours and the year with its sound (pieces 12–15); the racing line, its speed plan, the racer that drives them and its racecraft are built as `racers/CLAUDE.md` describes, with the vetting tool that is their ruler and the method in `ideas/racer-method.md`; the rest isn't. The architecture, the order of work and five of the owner's decisions are settled, with police left open (see "The owner's decisions"); everything else, numbers included, is a starting point to be measured and judged once it is on the road.
 
 The two are designed together because they stand on the same foundation, and because the obvious framing, cheap cars for traffic and real cars for racers, needed testing against the code before either is built. It holds, with three corrections the code forced:
 
@@ -168,7 +168,7 @@ Racers see each other and the player along the route: who's ahead and how far, w
 
 ### Crashes and recovery
 
-A racer crashes as any car does: it runs wide, clips a wall, is hit. It recovers as a player would, by steering back to the road, reversing out of a ditch, and, when it is stuck, upside down or in the water, by pressing its own R: the same reset the player has, to the nearest road, at the same cost in time. Nothing the game does for racers is done for nobody else.
+A racer crashes as any car does: it runs wide, clips a wall, is hit. It recovers as a player would, by steering back to the road, reversing out of a ditch, and, when it is stuck, upside down or in the water, by pressing its own R: the same reset the player has, to the nearest road, at the same cost in time. Nothing the game does for racers is done for nobody else. The reset is the last resort, never the way the racers get round: the owner, having raced them, ruled that the mistakes it covers for are what go (`ideas/racer-method.md`).
 
 ### Difficulty without visible cheating
 
@@ -180,7 +180,7 @@ The rule: **a racer never gets more grip, power or luck than its car has.** No r
 - how often it makes a small mistake, a late brake or a lift mid-bend;
 - which car it drives.
 
-Since the drive is deterministic, a racer's lap is the same every time for the same start and the same player, so its difficulty can be measured by counting: its time on each real stage, at each setting, from a tool.
+Since the drive is deterministic, a racer's lap is the same every time for the same start and the same player, so its pace can be measured by counting: its time on each real stage, at each setting, from a tool. The owner ruled against graded levels once they had raced them (`ideas/racer-method.md`): every racer drives at one skill, as fast as it legally can be.
 
 ### Races through traffic
 
@@ -215,8 +215,8 @@ Each piece is small enough for one session, and says what it needs first. Racers
 
 **Racers** (needs 1, 2 and grip by surface; phase 6's race start and finish are their own work, and the racers need only a route)
 
-3. **The racing line and speed plan**, for a route on real roads, inside the laid edges. Checked against the real stages of `docs/DRIVING-CULTURE.md`: every car finishes Norra Sundsvägen and the Ytterby gravel, and the times come out by count.
-4. **The racer.** The autopilot grown into a driver of the plan, with recovery by its own reset, and difficulty as above.
+3. **The racing line and speed plan**, for a route on real roads, inside the laid edges. Built (`racers/racing-line.ts`, `racers/speed-plan.ts`): the minimum-curvature line through the carriageway as laid, and the plan from the car's limits along it, by surface and condition, at a share of them, allowing for crests and the steering's lock. Checked on the 32 races by the vetting tool rather than the challenges' stages; the line is faster than the laid middle wherever both are clean, and the tracks it isn't yet clean on are the open findings in `ideas/races.md`, section 7.
+4. **The racer.** Built (`racers/racer.ts`, `racers/grid.ts`): the driver of the plan with a player's recovery (backing out, then its own reset), every racer at one skill, the highest the vetting tool finds clean, since the owner ruled against difficulty levels (`ideas/racer-method.md`), in the game as the grid's other cars, with places. Not yet: the pace model past the tiles' detail (a racer far from every player drives on coarse ground), and the small human flaws.
 5. **Racecraft**: racers seeing each other and the player along the route, passing and defending.
 6. **Computer-driven cars online**: the nearest-player rule, built once for racers and traffic alike. Built (`net/computer-cars.ts`): a car's state and its driver's record sent to everyone 20 times a second by whoever runs it, handed over once another player has been clearly nearer for half a second, held while any other car is within a few metres, and handed on by the host when its runner leaves; each car counts its handovers, so a state sent before one is known for stale. Proven before there were racers on a scripted car (`net/scripted-car.ts`), a steady roll along a road whose record is where it is, since a racer or a lane driver would have brought their own work into the proof: `net/computer-cars.test.ts` holds who runs it and when it changes hands. A car is run here as a stand-in steered to its driver, as traffic near the player is; a racer will be a full simulated car. Not yet: taking a car out of the world, and a driver record of a kind this version doesn't know.
 7. **Co-op races online**, the team against the racers. Needs 5, 6 and the online race itself.

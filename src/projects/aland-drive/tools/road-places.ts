@@ -15,17 +15,17 @@ import type { World } from "../sim/world";
 
 export const option = (name: string, otherwise: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;
 
-const GATE_EVERY_M = 400;
+export const GATE_EVERY_M = 400;
 // Narrow enough that a gate reads as the road's and a short cut across the fields misses it, forgiving enough for a fast
 // line through a bend: the late-braking driver that sets par cuts the inside of one of Nötviken's gravel bends 4.7 m
 // past the road's edge, the most of any gate on the list. It was 12 m when gates stood on the GPS line rather than the
 // laid road's middle.
-const GATE_PAST_SURFACE_M = 6;
+export const GATE_PAST_SURFACE_M = 6;
 /** A gate is moved on from a bend sharper than this over `BEND_READ_M` either side, so it lies square across a straight. */
-const BEND_RADIANS = (25 * Math.PI) / 180;
+export const BEND_RADIANS = (25 * Math.PI) / 180;
 const BEND_READ_M = 15;
-const BEND_STEP_M = 10;
-const FURTHEST_NUDGE_M = 120;
+export const BEND_STEP_M = 10;
+export const FURTHEST_NUDGE_M = 120;
 const RING_WITHIN_M = 12;
 const SAMPLE_M = 50;
 const CENTRE = 2;
@@ -101,7 +101,7 @@ export function gateAt(line: RoadLine, world: World, along: number): Gate {
   return { x: round(x, 2), z: round(z, 2), heading: round(heading, 4), halfWidthM: round(surfaceM / 2 + GATE_PAST_SURFACE_M, 1) };
 }
 
-const bendAt = (line: RoadLine, along: number) => Math.abs(wrap(line.at(along + BEND_READ_M).heading - line.at(along - BEND_READ_M).heading));
+export const bendAt = (line: RoadLine, along: number) => Math.abs(wrap(line.at(along + BEND_READ_M).heading - line.at(along - BEND_READ_M).heading));
 
 /** Gates every 400 m or so from one place along the line to another, each moved on to a straight, and the last at `to`. */
 export function gates(line: RoadLine, world: World, from: number, to: number): Gate[] {
