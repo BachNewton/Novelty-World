@@ -5,7 +5,7 @@ import { louvres } from "../parts";
 import { bodyOf, driven, faired, handles, type Shape } from "../recipe";
 
 const KULA = driven("kula");
-const { sill, belt, rail, centre } = ROWS;
+const { belt, rail, centre } = ROWS;
 const ALL = centre + 1;
 
 /*
@@ -48,9 +48,11 @@ const face = (): Decal[] => [
 
 /** The tail: a tall drop of red in a chrome ring on each wing, the plate under the lid with its lamp's hood, a reversing lamp under it. */
 const tail = (): Decal[] => [
-  { on: "rear", at: [0.56, 0.68], size: [0.105, 0.19], surface: "rim", mirror: true, round: true, liftM: 0.012 },
-  { on: "rear", at: [0.56, 0.68], size: [0.08, 0.16], surface: "lensTail", mirror: true, round: true, liftM: 0.018 },
-  { on: "rear", at: [0.56, 0.555], size: [0.06, 0.045], surface: "lensAmber", mirror: true, round: true, liftM: 0.014, fine: true },
+  { on: "rear", at: [0.55, 0.7], size: [0.13, 0.23], surface: "rim", mirror: true, round: true, liftM: 0.012 },
+  { on: "rear", at: [0.55, 0.7], size: [0.1, 0.2], surface: "lensTail", mirror: true, round: true, liftM: 0.018 },
+  { on: "rear", at: [0.55, 0.545], size: [0.065, 0.048], surface: "lensAmber", mirror: true, round: true, liftM: 0.014, fine: true },
+  // The engine lid's chrome handle, at the top of the tail.
+  { on: "rear", at: [0, 0.79], size: [0.14, 0.024], surface: "rim", cells: [4, 1], liftM: 0.014, fine: true },
   { on: "rear", at: [0, 0.5], size: [0.44, 0.11], surface: "plate", cells: [4, 1], liftM: 0.014, fine: true },
   { on: "rear", at: [0, 0.578], size: [0.16, 0.026], surface: "rim", cells: [4, 1], liftM: 0.018, fine: true },
   { on: "rear", at: [0.12, 0.26], size: [0.08, 0.04], surface: "lensReverse", cells: [2, 1], liftM: 0.012, fine: true },
@@ -264,7 +266,7 @@ const shape: Shape = {
     cornerReachM: 0.75,
     hoodSeamZ: [-1.97, -1.1],
     cleanEnds: true,
-    cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.15, rearSeatZ: 0.52, endZ: 0.88, seatX: 0.3, seatSurface: "seat" },
+    cabin: { dashZ: -0.98, dashH: 0.9, floorH: 0.34, seatZ: -0.15, rearSeatZ: 0.52, endZ: 0.88, seatX: 0.3, seatSurface: "seatTan" },
     struts: [...FRONT_BUMPER.struts, ...REAR_BUMPER.struts],
     exhausts: { x: [-0.24, 0.24], h: 0.24, z: TAIL_Z - 0.02, radius: 0.022 },
   },
@@ -287,13 +289,14 @@ export const kula: CarSpec = {
   body: bodyOf(shape),
   /** A people's car's cabin: a bare dash in the body's paint with one big speedometer, a thin two-spoke wheel, a long floor lever and plain vinyl seats. */
   interior: {
-    gauges: "classic",
-    wheel: "classic",
-    shifter: "lever",
+    gauges: "single",
+    wheel: "twoSpoke",
+    shifter: "floor",
     seats: "comfort",
     screen: false,
     paintedDash: true,
-    colours: { glow: "car-cabin-glow-amber" },
+    turnsToLock: 2.2,
+    colours: { dash: "car-cabin-dash", trim: "car-cabin-trim-tan", insert: "car-cabin-insert-tan", headliner: "car-cabin-headliner", accent: "car-cabin-metal", glow: "car-cabin-glow-amber" },
   },
   wheel: { radiusM: KULA.wheelRadiusM, widthM: 0.155, rimShare: 0.62, spokes: 6, twinSpokes: false, style: "steel" },
   shadowHalf: [0.78, 1.95],

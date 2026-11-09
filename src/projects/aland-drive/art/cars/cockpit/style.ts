@@ -13,12 +13,17 @@ import type { CarSpec } from "../build";
  * "analogue": two big dials, speed and revs, with a gear window between. "digital": one screen, the speed in figures
  * and the revs (or an electric car's power) as an arc of segments. "classic": two chrome-ringed dials and a row of
  * small ones, fuel, water and oil. "race": one big rev counter with shift lights, the speed and gear in figures.
+ * "single": one big chrome-ringed speedometer, the gear in a small window in its face, an old economy car's.
  */
-export type GaugeKind = "analogue" | "digital" | "classic" | "race";
-/** "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large, thin-rimmed, four slim spokes. "yoke": open at the top. */
-export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke";
-/** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. */
-export type ShifterKind = "lever" | "sequential" | "selector";
+export type GaugeKind = "analogue" | "digital" | "classic" | "race" | "single";
+/**
+ * "round": three spokes. "flat": flat-bottomed and sporty. "rally": dished, with a marker at the top. "classic": large,
+ * thin-rimmed, four slim spokes. "yoke": open at the top. "twoSpoke": large, a thin ivory rim on two slim spokes, an old
+ * economy car's.
+ */
+export type WheelKind = "round" | "flat" | "rally" | "classic" | "yoke" | "twoSpoke";
+/** "lever": a gear stick. "sequential": a tall lever pushed and pulled, beside a rally handbrake. "selector": an electric car's dial. "floor": a long, thin lever from the floor, an old car's. */
+export type ShifterKind = "lever" | "sequential" | "selector" | "floor";
 /** "comfort": broad and soft. "sport": bolstered. "bucket": a shell with the headrest in it. */
 export type SeatKind = "comfort" | "sport" | "bucket";
 

@@ -235,7 +235,7 @@ export function drawDialSheet(faces: DialFaces): DataTexture {
   glowPen.fillStyle = "#000";
   glowPen.fillRect(0, 0, width, height);
 
-  const classic = faces.gauges === "classic" || faces.gauges === "race";
+  const classic = faces.gauges === "classic" || faces.gauges === "race" || faces.gauges === "single";
   const face = classic ? { ground: token("car-cabin-ivory"), ink: token("car-cabin-ink-dark"), red: token("car-cabin-lamp-red") } : { ground: token("car-cabin-panel"), ink: token("car-cabin-ink"), red: token("car-cabin-lamp-red") };
   const speedLabel = faces.speedMax > 200 ? 40 : 20;
   drawDial(pens, SLOT.speed, { max: faces.speedMax, minor: speedLabel / 4, major: speedLabel / 2, label: speedLabel, shown: 1, start: 225, sweep: -270 }, face, [faces.speedUnit]);
