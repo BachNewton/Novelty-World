@@ -6,6 +6,7 @@ import { blixt } from "./voices/blixt";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
+import { brus } from "./voices/brus";
 import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
@@ -21,6 +22,7 @@ import { strimma } from "./voices/strimma";
 import { strom } from "./voices/strom";
 import { span } from "./voices/span";
 import { sund } from "./voices/sund";
+import { varg } from "./voices/varg";
 import { vik } from "./voices/vik";
 
 /*
@@ -145,11 +147,13 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   blixt,
   // A2
   orkan,
+  varg,
   // A3
   dyning,
   span,
   strimma,
   // A4
+  brus,
   sund,
   // A5
   "skerry-gt": skerryGt,
