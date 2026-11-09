@@ -8,7 +8,6 @@ import { BRANDS, BRAND_IDS, buildExterior, carSpecOf, dealerMaterial, EXTERIOR_I
 import { matching } from "./stock";
 import { INTERIOR_IDS } from "./interiors";
 import { deliveryHallInterior } from "./delivery-hall-interior";
-import type { RoomLight } from "./material";
 import { CAR_ENTRIES, CAR_IDS } from "../../sim/cars";
 import { Shell } from "./shell";
 
@@ -226,20 +225,13 @@ for (const id of INTERIOR_IDS as readonly InteriorId[]) {
   for (const { name, position, target, fovDeg } of ROOM_VIEWS[id]) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, from the ${name}`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 0 });
 }
 
-// The delivery hall's room. This page's material has point lights only, so each spot is a point at its lamp and each
-// strip three along it sharing its power: near the room's light, not the walk-in system's own. Its windows show the sky here, where the
-// game shows the island.
+// The delivery hall's room, lit by its own lamps. Its windows show the sky here, where the game shows the island.
 {
   const hall = deliveryHallInterior();
   const scene = new Scene();
   scene.background = new Color(token("sky"));
   scenes.set("delivery-hall", scene);
-  const lights: RoomLight[] = hall.light.lamps.flatMap((lamp): RoomLight[] => {
-    const { paint, power, reachM } = lamp;
-    if (lamp.kind !== "strip") return [{ at: lamp.at, paint, power, reachM }];
-    return [0.1, 0.5, 0.9].map((share) => ({ at: [0, 1, 2].map((axis) => lamp.from[axis] + (lamp.to[axis] - lamp.from[axis]) * share) as [number, number, number], paint, power: power / 3, reachM }));
-  });
-  const material = dealerMaterial({ kind: "room", lights, mirrors: hall.light.mirrors });
+  const material = dealerMaterial({ kind: "room", light: hall.light });
   scene.add(new Mesh(geometryOf(hall.room), material));
   const { stock } = hall;
   const cars = CAR_IDS.filter((id) => {
