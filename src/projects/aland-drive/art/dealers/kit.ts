@@ -1,4 +1,5 @@
 import type { Brand } from "./brands";
+import { GLYPH_HEIGHT, lineWidth } from "./glyphs";
 import type { Finish, Paint, Shell, V3 } from "./shell";
 
 /*
@@ -18,11 +19,11 @@ export function barrel(s: Shell, paint: Paint): void {
   s.lathe([[0.29, 0], [0.29, 0.86], [0, 0.88]], 8, paint);
 }
 
-/** A flat board on two posts, with lettering on the side facing +z. */
+/** A flat board on two posts, with lettering on the side facing +z, as big as the board's height and its longest line allow. */
 export function postSign(s: Shell, lines: readonly string[], wide: number, tall: number, foot: number, face: Paint, ink: Paint, glow = 0): void {
   s.box([-wide / 2, foot, -0.06], [wide / 2, foot + tall, 0.06], face, { glow });
   for (const x of [-wide * 0.35, wide * 0.35]) s.box([x - 0.05, 0, -0.05], [x + 0.05, foot, 0.05], "dealer-steel-dark");
-  const size = (tall * 0.8) / lines.length / 1.5;
+  const size = Math.min((tall * 0.8) / lines.length / 1.5, ...lines.map((line) => (wide * 0.84 * GLYPH_HEIGHT) / lineWidth(line)));
   lines.forEach((line, index) => {
     s.within({ y: foot + tall - (index + 0.5) * (tall / lines.length) - size / 2, z: 0.065 }, () => s.text(line, size, ink, { glow }));
   });
@@ -55,15 +56,13 @@ export function bannerFlag(s: Shell, brand: Brand, height: number): void {
   s.within({ x: 0.52, y: height - 1, z: -0.02, yaw: Math.PI }, () => s.logo(brand, 0.33));
 }
 
-/** A tall brand totem, its logo and name on both broad faces. */
-export function pylon(s: Shell, brand: Brand, wide: number, tall: number): void {
-  s.box([-wide / 2, 0, -0.22], [wide / 2, tall, 0.22], brand.colour, { shade: [0.9, 0.9, 1, 1] });
+/** A dealer's tall sign by the road: its name on both broad faces, and under it the badge of each maker it sells. */
+export function pylon(s: Shell, name: string, brands: readonly Brand[], wide: number, tall: number, face: Paint, ink: Paint): void {
+  s.box([-wide / 2, 0, -0.22], [wide / 2, tall, 0.22], face, { shade: [0.9, 0.9, 1, 1] });
   for (const yaw of [0, Math.PI]) {
-    s.within({ y: tall - wide * 0.62, z: 0, yaw }, () => {
-      s.within({ z: 0.226 }, () => s.logo(brand, wide * 0.36, { glow: 0.8 }));
-    });
-    s.within({ y: tall - wide * 1.45, yaw }, () => {
-      s.within({ z: 0.225 }, () => s.text(brand.name, wide * 0.15, "wall-trim", { glow: 0.85 }));
+    s.within({ y: tall - 0.7, z: 0, yaw }, () => s.within({ z: 0.225 }, () => s.text(name, wide * 0.13, ink, { glow: 0.85 })));
+    s.detail(() => {
+      brands.forEach((brand, index) => s.within({ y: tall - 1.9 - index * 1.6, z: 0, yaw }, () => s.within({ z: 0.226 }, () => s.logo(brand, wide * 0.3, { glow: 0.8 }))));
     });
   }
 }

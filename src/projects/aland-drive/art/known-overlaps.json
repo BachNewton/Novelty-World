@@ -36,16 +36,7 @@
     "near": 1
   },
   "dealers: exterior village-garage": {
-    "exterior": 26
-  },
-  "dealers: exterior town-dealer": {
-    "exterior": 1
-  },
-  "dealers: exterior waterfront-showroom": {
-    "exterior": 14
-  },
-  "dealers: exterior tyre-shop": {
-    "exterior": 1
+    "near": 24
   },
   "dealers: interior village-garage": {
     "interior": 182
@@ -53,7 +44,7 @@
   "dealers: interior town-dealer": {
     "interior": 98
   },
-  "dealers: interior waterfront-showroom": {
+  "dealers: interior premium-showroom": {
     "interior": 115
   },
   "homes: cottage living": {

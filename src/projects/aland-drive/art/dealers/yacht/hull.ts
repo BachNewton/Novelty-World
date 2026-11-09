@@ -26,7 +26,7 @@ const PARTS = {
   gelcoat: { paint: "wall-trim", finish: { gloss: 0.15 } },
   teak: { paint: "dealer-timber", finish: { pattern: "boards" } },
   varnish: { paint: "dealer-timber-dark", finish: { gloss: 0.4 } },
-  glass: { paint: "dealer-shade", finish: { gloss: 0.8 } },
+  glass: { paint: "dealer-shade", finish: { gloss: 0.8, lit: 0.75 } },
   alu: { paint: "dealer-steel", finish: { gloss: 0.5 } },
   "spar-black": { paint: "dealer-shade", finish: {} },
 } as const satisfies Record<string, PartLook>;
@@ -95,6 +95,9 @@ class Painter {
 
 const STERN_X = -34;
 const HALF_BEAM = 6.3;
+const BOW_X = 36.2;
+/** The hull from above: its transom, its stem at the bulwark, and its half beam, for the plot and the walls the car hits. */
+export const HULL_PLAN = { sternX: STERN_X, bowX: BOW_X, halfBeam: HALF_BEAM } as const;
 
 const MAIN_DECK_Y = 4;
 const BULWARK_Y = 4.9;
@@ -117,7 +120,7 @@ const LEVELS: readonly Level[] = [
   { y: 0.4, to: 33.7, beam: 0.92, sheer: false },
   { y: 1.9, to: 35, beam: 0.985, sheer: false },
   { y: MAIN_DECK_Y, to: 35.8, beam: 1, sheer: true },
-  { y: BULWARK_Y, to: 36.2, beam: 1, sheer: true },
+  { y: BULWARK_Y, to: BOW_X, beam: 1, sheer: true },
 ];
 const BANDS: readonly Part[] = ["boot", "gelcoat", "navy", "navy", "navy"];
 const BULWARK_FROM = (BULWARK_FROM_X - STERN_X) / (LEVELS[5].to - STERN_X);

@@ -13,6 +13,7 @@ export type V3 = readonly [x: number, y: number, z: number];
 /** A token without the `--color-aland-drive-` prefix. */
 export const PAINTS = [
   "dealer-klippa", "dealer-klippa-ink", "dealer-vastan", "dealer-vastan-ink", "dealer-tarna", "dealer-tarna-ink",
+  "dealer-odmark", "dealer-odmark-ink", "dealer-norrsken", "dealer-norrsken-ink", "dealer-aurelle", "dealer-aurelle-ink", "dealer-house", "dealer-house-ink",
   "dealer-concrete", "dealer-tile", "dealer-polish", "dealer-paving", "dealer-paving-dark", "dealer-gravel", "dealer-asphalt",
   "dealer-panel", "dealer-steel", "dealer-steel-dark", "dealer-timber", "dealer-timber-dark", "dealer-stone", "dealer-leather",
   "dealer-fabric", "dealer-rubber", "dealer-hazard", "dealer-glass", "dealer-shade", "dealer-light-warm", "dealer-light-cool", "dealer-ceiling",
@@ -33,17 +34,24 @@ export interface Finish {
   pattern?: Pattern;
   /** A brightness per corner, as baked shade; one value for all. */
   shade?: number | readonly number[];
+  /** Shines once the lamps are lit, as a lit room seen through glass, in its room's light: 1 ignores the light entirely. */
+  lit?: number;
+  /** The room's light: a showroom's or workshop's warm, or a retail floor's cool. Warm unless given. */
+  litTone?: "warm" | "cool";
 }
 
 export interface Soup {
   positions: Float32Array;
   normals: Float32Array;
-  /** A paint index, a shade, a glow, a gloss and a pattern index, per vertex. */
+  /** A paint index, a shade, a glow, a gloss, a pattern index and a glow by night, per vertex: by night's sign is its light's tone, cool below 0. */
   surface: Float32Array;
   triangles: number;
 }
 
-export const SURFACE_STRIDE = 5;
+export const SURFACE_STRIDE = 6;
+
+/** A model as it is seen near, or simplified for far off: the far version leaves out what a shell draws as `detail`. */
+export type Version = "near" | "far";
 
 type Apply = (at: V3) => V3;
 
@@ -67,6 +75,14 @@ export class Shell {
   private readonly surface: number[] = [];
   private apply: Apply = (at) => at;
 
+  constructor(readonly version: Version = "near") {}
+
+  /** What only the near version draws: what is gone to a pixel or less by the swap. */
+  detail(draw: () => void): this {
+    if (this.version === "near") draw();
+    return this;
+  }
+
   /** Draws inside a moved frame: a kit's piece stands at its own origin. */
   within(place: Place, draw: () => void): this {
     const { x = 0, y = 0, z = 0, yaw = 0, pitch = 0 } = place;
@@ -87,13 +103,13 @@ export class Shell {
     const length = Math.hypot(...raw);
     if (length === 0) return this;
     const normal = [raw[0] / length, raw[1] / length, raw[2] / length];
-    const { glow = 0, gloss = 0, pattern = "plain" } = finish;
+    const { glow = 0, gloss = 0, pattern = "plain", lit = 0, litTone = "warm" } = finish;
     const paintIndex = PAINTS.indexOf(paint);
     const patternIndex = PATTERNS.indexOf(pattern);
     [pa, pb, pc].forEach((corner, index) => {
       this.positions.push(...corner);
       this.normals.push(...normal);
-      this.surface.push(paintIndex, shades[index], glow, gloss, patternIndex);
+      this.surface.push(paintIndex, shades[index], glow, gloss, patternIndex, litTone === "cool" ? -lit : lit);
     });
     return this;
   }

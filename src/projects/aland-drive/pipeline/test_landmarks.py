@@ -9,7 +9,7 @@ import numpy as np
 from shapely.geometry import box
 
 from grid import Tile, to_local
-from landmarks import Landmarks, Site, read_sites
+from landmarks import DEALER_SITES_FILE, Landmarks, Site, read_sites
 
 TILE = Tile("TEST01", 100000, 6680000)
 
@@ -92,9 +92,36 @@ class Listing(unittest.TestCase):
         self.assertLess(church["z"], ship["z"])
 
 
+class OwnList(unittest.TestCase):
+    """A dealership is drawn by its own list: it takes the building under its plot whole, with no wall left where that
+    stood across its forecourt, and the car meets its own walls instead."""
+
+    def dealer(self) -> Site:
+        showroom = [box(102995, 6682995, 103005, 6683000)]
+        return Site("town-dealer", 103000, 6683000, None, frozenset(), True, box(102980, 6682980, 103020, 6683020), showroom, False, True)
+
+    def test_what_it_replaces_leaves_no_wall_and_its_own_walls_stop_the_car(self):
+        sites = Landmarks(TILE, [])
+        sites.stand_also([self.dealer()])
+        self.assertTrue(sites.replaces_solid("block", box(102985, 6682985, 103010, 6683015)))
+        self.assertTrue(sites.leaves_no_wall("block"))
+        self.assertEqual([wall.area for wall in sites.plans()], [50.0])
+
+    def test_a_landmark_s_replaced_building_still_stops_the_car(self):
+        sites = Landmarks(TILE, [site("castle", 103000, 6683000, inside=True)])
+        self.assertTrue(sites.replaces_solid("in", box(102995, 6682990, 103005, 6683000)))
+        self.assertFalse(sites.leaves_no_wall("in"))
+
+    def test_the_tile_does_not_list_it(self):
+        sites = Landmarks(TILE, [])
+        sites.stand_also([self.dealer()])
+        self.assertEqual(sites.places(Flat()), [])
+        self.assertEqual(sites.places(Flat(), near_only=True), [])
+
+
 class TheArt(unittest.TestCase):
     def test_every_plan_is_ground_the_model_covers(self):
-        for record in read_sites():
+        for record in read_sites() + read_sites(DEALER_SITES_FILE, own_list=True):
             self.assertGreater(record.plan.area, 20, record.id)
             self.assertLess(record.plan.distance(box(record.east - 1, record.north - 1, record.east + 1, record.north + 1)), 150, record.id)
 
