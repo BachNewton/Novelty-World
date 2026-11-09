@@ -396,6 +396,7 @@ A draft for the owner's review: a route for each of the 56 events, chosen from t
 - **The race picks the car**, as a bucket-list challenge does, for a first race system with no money and no way to change cars. How a player chooses a car to enter, and what's allowed, is for later.
 - **The racers drive mixed cars of the race's kind**, which may mean adding more racing cars, of the loose kinds above all.
 - **All 32 tracks go on the map at once.**
+- **A grid of six**, inside the four to eight the owner is happy with: six cars two abreast where a two-lane road takes two, four in single file on a lane.
 - **Races may use the bucket-list challenges' roads**, as long as a race asks something different of the road: laps, racers and traffic, another car or another way round.
 - **Races are run in the world as it is: traffic on, as TDU's are, and the world's hour, season and weather.** The AI racers must handle every track in every condition. Bucket-list challenges set their own conditions instead, as Forza's do.
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
