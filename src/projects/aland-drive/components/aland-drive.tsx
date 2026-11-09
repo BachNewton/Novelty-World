@@ -14,7 +14,7 @@ import type { GameMenu as GameMenuState } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
 import type { Place } from "../map/places";
 import type { CameraMode, ChallengeOffer, CoopNoticeReading, CoopReading, Game, GameProbe, HudReading, LoadingProgress, Progress } from "../render/game";
-import { resultText, timeText } from "../challenge/format";
+import { placeText, resultText, timeText } from "../challenge/format";
 import { clockText as hourText, distanceText, speedNumber, speedUnit, temperatureText, useUnits } from "../units";
 import type { ChallengeKind } from "../challenge/types";
 import { DealershipHud } from "../dealership/hud";
@@ -156,6 +156,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const clockText = useRef<HTMLSpanElement>(null);
   const gatesText = useRef<HTMLSpanElement>(null);
   const lapText = useRef<HTMLSpanElement>(null);
+  const placeShown = useRef<HTMLSpanElement>(null);
   const lights = useRef<(HTMLSpanElement | null)[]>([]);
   const lightsRow = useRef<HTMLDivElement>(null);
   useFrameStats();
@@ -197,6 +198,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
       if (clockText.current) clockText.current.textContent = timeText(challenge.clockS);
       if (gatesText.current) gatesText.current.textContent = `${challenge.gates.passed} / ${challenge.gates.of}`;
       if (lapText.current && challenge.race) lapText.current.textContent = `${challenge.race.lap} / ${challenge.race.laps}`;
+      if (placeShown.current && challenge.race) placeShown.current.textContent = `${placeText(challenge.race.place)} of ${challenge.race.cars}`;
       // One red light a second through the countdown, then all green for a second.
       const red = challenge.phase === "countdown" ? Math.min(LIGHTS, LIGHTS + 1 - Math.ceil(challenge.countdownS)) : 0;
       const green = challenge.phase === "running" && challenge.clockS < 1;
@@ -343,6 +345,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
                   </div>
                   {playing.kind === "race" && (
                     <div className="flex items-center gap-5 tabular-nums">
+                      <span className="text-3xl font-bold" title="Place" aria-label="Place" ref={placeShown}>
+                        1st of 1
+                      </span>
                       <span className="flex items-center gap-2 text-3xl font-bold" title="Lap">
                         <Repeat className="size-6 shrink-0" aria-hidden />
                         <span ref={lapText} aria-label="Lap">1 / 1</span>

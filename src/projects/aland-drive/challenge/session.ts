@@ -25,6 +25,8 @@ export interface SessionHost {
   setCar: (id: CarId) => void;
   /** Puts the car still on a start place, and calls `done` once it's there: at once, or once the ground there has loaded. */
   placeAt: (place: StartPlace, done: () => void) => void;
+  /** Where a seat starts, when not the challenge's own start places: a race puts its players behind the racers. */
+  startPlaceOf?: (challenge: Challenge, seat: number, players: number) => StartPlace;
   /** Shows a challenge's route on the GPS, or takes it away. */
   showRoute: (challenge: Challenge | null) => void;
   /** An attempt is over. */
@@ -82,7 +84,7 @@ export class ChallengeSession {
 
   private toStart(): void {
     this.placing = true;
-    this.host.placeAt(this.challenge.starts[this.seat], () => {
+    this.host.placeAt(this.host.startPlaceOf?.(this.challenge, this.seat, this.run.players.length) ?? this.challenge.starts[this.seat], () => {
       if (this.left) return;
       this.placing = false;
       this.host.showRoute(this.challenge);

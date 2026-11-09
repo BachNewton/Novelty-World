@@ -18,6 +18,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | `traffic/` | Cars, cyclists and walkers on the lanes, and `?lane-lab` |
 | `challenge/` | Challenges, co-op and races |
 | `dealership/` | Walking round a dealership: the interior definition every dealership's art follows, going in, the island through its windows, and its cars |
+| `racers/` | The AI racers: the road as laid, the racing line and speed plan, the driver, difficulty, the field, and the race vetting tool |
 | `map/` | The world map, mini map, GPS and places to find |
 | `audio/` | Sound |
 | `time/`, `climate/` | The calendar and clock; the shared weather |
@@ -74,6 +75,7 @@ A player starts in the car they last chose on the game menu's Cars page, or in G
 |---|---|
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
 | `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
+| `?racers=<count>` | How many AI racers a race gets (`racers/CLAUDE.md`); the whole grid without it, 0 for none |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |
