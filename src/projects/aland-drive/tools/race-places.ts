@@ -10,7 +10,7 @@
 // How much of the race is gravel is kept too, which is what sorts it as road, cross country or off-road.
 //
 // The grid stands where a road of two lanes (a main road, a tertiary or a street, as `ideas/races.md` counts widths)
-// takes the race's car two abreast, a lane each, for three rows: six places. A lane takes one car at a time, however wide
+// takes the widest car of the race's field two abreast, a lane each, for three rows: six places. A lane takes one car at a time, however wide
 // it's laid, so on one, or a road that never takes two within reach of the start, the grid is four places in single
 // file on the road's middle. The start line is a little ahead of the pole. A circuit's lap runs from the start line round to it again,
 // with a line every 400 m or so, the last the start line itself; a sprint's lines run from the pole to its finish.
@@ -27,6 +27,7 @@ import { CARS } from "../sim/cars";
 import { readWorld } from "../sim/read-tile";
 import { RoadLine } from "../sim/road-net";
 import type { World } from "../sim/world";
+import { fieldOf } from "../racers/field";
 import { LaidRoad } from "../racers/laid-road";
 import { RoutePlan } from "../racers/route-plan";
 import { BEND_RADIANS, BEND_STEP_M, bendAt, FURTHEST_NUDGE_M, GATE_EVERY_M, GATE_PAST_SURFACE_M, gateAt, gravelShare, option, readRoads, roadsAlong, round, tilesUnder } from "./road-places";
@@ -66,7 +67,8 @@ const placeAt = (plan: RoutePlan, along: number, right: number): StartPlace => {
 
 /** How far right of the middle two abreast stand, or null where the carriageway doesn't take two of this car. */
 function abreastAt(spec: RaceSpec, plan: RoutePlan, along: number): number | null {
-  const halfWidth = CARS[spec.car].car.halfSize[0];
+  // The widest car of the field, since any of them may stand on any place.
+  const halfWidth = Math.max(...fieldOf(spec.car).map((car) => CARS[car].car.halfSize[0]));
   const { laid } = plan.at(along);
   if (!laid || !TWO_LANE_KINDS.has(laid.kind)) return null;
   const carriagewayM = laid.leftM + laid.rightM;

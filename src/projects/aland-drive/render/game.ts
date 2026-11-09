@@ -1682,7 +1682,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const route = routeOf(race);
     if (!route) throw new Error(`no road network to draw ${race.id}'s line on`);
     const corridor = corridorOf(new RoutePlan(runOn(route.line, CHALLENGE_RUN_ON_M), new LaidRoad(world)));
-    const widest = raceFieldOf(race.car, race.ground).reduce((best, car) => (TUNINGS[car].car.halfSize[0] > TUNINGS[best].car.halfSize[0] ? car : best));
+    const widest = raceFieldOf(race.car).reduce((best, car) => (TUNINGS[car].car.halfSize[0] > TUNINGS[best].car.halfSize[0] ? car : best));
     const { line, offsets } = racingLine(corridor, TUNINGS[widest].car.halfSize[0]);
     return { line, pavedAt: (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved, geometry: geometryOf(corridor, offsets) };
   };
@@ -1703,8 +1703,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     grid = null;
     if (challenge.kind !== "race" || racersAsked === 0) return;
     const raceLine = await raceLineOf(challenge);
-    // The racers drive the other cars of the race's kind.
-    const field = raceFieldOf(challenge.car, challenge.ground).slice(1);
+    // The racers drive the cars of the race's tier.
+    const field = raceFieldOf(challenge.car);
     grid = new RaceGrid(challenge, raceLine, field, racersOn(challenge, players, racersAsked), {
       addCar: (place, car, condition) => {
         const road = world.roads.nearest(place.x, place.z);

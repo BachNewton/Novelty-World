@@ -13,7 +13,7 @@ const start = { x: 0, z: 0, heading: EAST };
 const RACE: RaceChallenge = {
   id: "race",
   kind: "race",
-  number: "R0",
+  tier: "A5", number: "A5.0",
   title: "",
   car: "skerry-gt",
   where: "",
