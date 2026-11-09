@@ -14,7 +14,7 @@ export const myr: CarEntry = {
     name: "Myr",
     class: "offroad",
     massKg: 2800,
-    outline: [5.42, 2.04, 1.88, 0.42],
+    outline: [5.32, 2.04, 1.88, 0.42],
     axleZ: [-1.74, 1.74],
     trackM: 1.72,
     wheelRadiusM: 0.41,

@@ -64,7 +64,7 @@ const shape: Shape = {
   axleZ: MYR.axleZ,
   wheelRadiusM: MYR.wheelRadiusM,
   tyreWidthM: 0.29,
-  noseZ: -2.71,
+  noseZ: -2.61,
   tailZ: 2.71,
   halfWidth: 1.0,
   sillH: 0.42,
@@ -80,14 +80,14 @@ const shape: Shape = {
   roof: [0.2, 1.87],
   roofEnd: [0.98, 1.85],
   shoulder: [
-    [-2.71, 0.93],
+    [-2.61, 0.93],
     [-1.74, 1.04],
     [0, 1.11],
     [1.74, 1.17],
     [2.71, 1.2],
   ],
   belt: [
-    [-2.71, 1.0],
+    [-2.61, 1.0],
     [-1.74, 1.13],
     [-1.0, 1.19],
     [0, 1.23],
@@ -104,7 +104,7 @@ const shape: Shape = {
   ],
   windowZ: [-0.98, 0.94],
   railWidth: [
-    [-2.71, 0.6],
+    [-2.61, 0.6],
     [-1.74, 0.8],
     [-1.0, 0.86],
     [-0.25, 0.8],
@@ -115,7 +115,7 @@ const shape: Shape = {
   tail: [],
   seams: [-0.96, 0.02, 0.96],
   pillars: [[-0.03, 0.07]],
-  mirror: { z: -0.8, h: 1.34, x: 1.0 },
+  mirror: { z: -0.8, h: 1.34, x: 0.92 },
   rearPlateH: 0.94,
   decals: [
     ...plates(0.94, 0.71, { recessed: true }),
@@ -135,21 +135,21 @@ const shape: Shape = {
     bands: BANDS,
     silhouette: [
       // Each end runs one way along the car, so its side walls never fold back over each other at the pulled corners.
-      { z: -2.71, h: 0.52, band: "bumper" },
-      { z: -2.707, h: 0.63 },
-      { z: -2.705, h: 0.67, band: "mouth" },
-      { z: -2.7, h: 0.75 },
-      { z: -2.695, h: 0.84, band: "headDark" },
-      { z: -2.688, h: 1.0 },
+      { z: -2.61, h: 0.52, band: "bumper" },
+      { z: -2.607, h: 0.63 },
+      { z: -2.605, h: 0.67, band: "mouth" },
+      { z: -2.6, h: 0.75 },
+      { z: -2.595, h: 0.84, band: "headDark" },
+      { z: -2.588, h: 1.0 },
       // The hood, then the screen and roof, each as one fair line.
       ...faired(
         [
-          [-2.675, 1.05],
-          [-2.4, 1.11],
+          [-2.575, 1.05],
+          [-2.3, 1.11],
           [-1.74, 1.16],
           [-1.08, 1.2],
         ],
-        [[-2.675, undefined]],
+        [[-2.575, undefined]],
       ),
       { z: -1.08, h: 1.2, band: "cowl" },
       ...faired(
@@ -175,7 +175,7 @@ const shape: Shape = {
       { z: 2.71, h: 0.56 },
     ],
     crown: [
-      [-2.71, 0.0],
+      [-2.61, 0.0],
       [-2.2, -0.02],
       [-1.5, -0.02],
       [-0.9, 0.03],
@@ -184,14 +184,14 @@ const shape: Shape = {
       [2.71, 0.02],
     ],
     shelf: [
-      [-2.71, 0],
+      [-2.61, 0],
       [-1.0, 0.02],
       [0.98, 0.03],
       [2.71, 0],
     ],
     halfWidth: [
-      [-2.71, 0.88],
-      [-2.45, 0.975],
+      [-2.61, 0.88],
+      [-2.35, 0.975],
       [-1.74, 1.0],
       [0, 0.99],
       [1.74, 1.0],
@@ -199,7 +199,7 @@ const shape: Shape = {
       [2.71, 0.96],
     ],
     // The frunk's lid: shut lines along the hood's edges, short of the nose where the hood rolls over into it.
-    hoodSeamZ: [-2.45, -1.15],
+    hoodSeamZ: [-2.35, -1.15],
     cleanEnds: true,
     archLipM: 0.07,
     bedFloorH: 0.9,
