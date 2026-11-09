@@ -174,6 +174,8 @@ As TDU2's were, a dealership is walked round in first person, among its cars.
 - **Each place is lit as its kind would be** (the table above), not by the sun.
 - **Every car is free while the game is built.** Buying and selling go through the dealerships as they will, but no money moves until the economy exists, and the Cars menu still offers every car. A bought car has nowhere to be kept yet.
 
+**What's built** (`dealership/CLAUDE.md`): the walk-in, on the drafts of the premium showroom, the town dealer, the village garage and the used lot. A dealership is data, the interior definition (`dealership/interior.ts`) its art follows: its room, its stock by the table above as rules on the car list, its cars' spots, its floor and solids, its windows, where its view is captured from, its own lamps and its door. Each door is a ring on the island; E or X there captures the island all round from the dealership's place at that moment's hour, season and weather and opens the room, where the player walks among its cars, revs one, sits in its seat and reads its measured figures, and takes it as their car outside. The yacht and the delivery hall come with their art, to the same definition. The draft garage holds three of its five cars; selling at the used lot waits for a garage that holds more than one car.
+
 ## The owner's decisions
 
 - **Classes and tiers are TDU2's, with today's cars in each tier**: A1–A7 asphalt, B1–B4 gravel (widened from off-road, with B1 back), C1–C4 classic.

@@ -52,13 +52,15 @@ function extras(id: InteriorId): Extra {
           box(2.6, -5.2, 0.1, 3.8),
           box(5, -3, 1.2, 0.5, Math.PI / 2 + 0.25),
           box(4.8, -8.6, 0.9, 0.3),
-          // The lift's posts.
+          // The lift's posts, and the price stands.
           round(-3.02, -4.2, 0.28),
           round(0.22, -4.2, 0.28),
+          round(-3.2, -1.7, 0.3),
+          round(-6.1, -8.2, 0.3),
         ],
         windows: [paneAlongX(-11.6, -7.6, 0, 0, 3.4), paneAlongX(-5.6, -1.6, 0, 0, 3.4)],
         viewFrom: [-6.6, EYE_M, -0.6],
-        door: { at: [-2.4, -1.0], yaw: 0, reachM: 1.4 },
+        door: { at: [-2.1, -0.7], yaw: 0.2, reachM: 1.4 },
       };
     case "town-dealer":
       return {

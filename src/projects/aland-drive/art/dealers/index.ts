@@ -5,8 +5,9 @@ import { buildExterior, EXTERIOR_IDS, type CarSlot, type Exterior, type Exterior
 import type { Interior, InteriorId } from "./interiors";
 
 /*
- * Dealerships: three brands, three showrooms with interiors, a used lot and a tyre shop. Nothing here is wired into the
- * game. An exterior is a mesh for the world, `geometryOf(exterior.soup)` drawn with `dealerMaterial({ kind: "sun", sun })`
+ * Dealerships: three brands, three showrooms with interiors, a used lot and a tyre shop. The walk-in (`dealership/`) reads
+ * the sites, the exteriors' entrances and, through `dealership/drafts.ts`, the interiors; no exterior is placed on the
+ * island yet. An exterior is a mesh for the world, `geometryOf(exterior.soup)` drawn with `dealerMaterial({ kind: "sun", sun })`
  * and put at one of `DEALER_SITES`. An interior is a scene of its own, loaded by `loadInterior` only on entering, drawn
  * with `dealerMaterial(interior.lighting)`.
  */
