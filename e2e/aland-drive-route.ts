@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import type { ChallengeConditions } from "../src/projects/aland-drive/challenge/conditions";
 import type { RaceChallenge, RouteChallenge } from "../src/projects/aland-drive/challenge/types";
 import { expect } from "./test";
 
@@ -12,6 +13,7 @@ import { expect } from "./test";
 
 export const STEPS_A_SECOND = 120;
 export const COUNTDOWN_STEPS = 3 * STEPS_A_SECOND;
+const NOON: ChallengeConditions = { date: { year: 2026, month: 7, day: 1 }, hour: 12, weather: "clear" };
 
 /** A place a distance along a line of (x, y, z) points, and the way the line runs there, anticlockwise from north. */
 export function along(points: readonly number[], metres: number) {
@@ -39,9 +41,10 @@ function lengthOf(points: readonly number[]) {
  * A Route on the fixture's main road: the GPS's way between two places on it,
  * its two start places side by side a lane apart just past the first, two
  * gates and a finish short of the end. The target is `targetS`, or the length
- * over `targetMS` (a speed), and the line itself comes back too.
+ * over `targetMS` (a speed), and the line itself comes back too. It is played
+ * on a clear summer noon unless given conditions of its own.
  */
-export async function layChallenge(page: Page, { id, title, target }: { id: string; title: string; target: { s: number } | { ms: number } }): Promise<{ challenge: RouteChallenge; line: number[] }> {
+export async function layChallenge(page: Page, { id, title, target, conditions = NOON }: { id: string; title: string; target: { s: number } | { ms: number }; conditions?: ChallengeConditions }): Promise<{ challenge: RouteChallenge; line: number[] }> {
   await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });
   const { waypoints, line } = await page.evaluate(() => {
     const probe = window.__alandDrive;
@@ -75,6 +78,7 @@ export async function layChallenge(page: Page, { id, title, target }: { id: stri
       gates: [gate(finishM / 3), gate((2 * finishM) / 3), gate(finishM)],
       parS: targetS,
       targetS,
+      conditions,
     },
     line,
   };

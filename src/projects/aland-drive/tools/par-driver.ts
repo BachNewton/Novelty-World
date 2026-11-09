@@ -3,7 +3,7 @@
 // the challenge's own rules (`challenge/run.ts`). One core, no browser, no network.
 //
 // The driver goes flat out wherever the bends allow and brakes for each bend as late as a share of the car's own grip
-// on the ground under it allows (`sim/limits/`, dry), the boldest share it gets round at.
+// on the ground under it allows (`sim/limits/`, dry unless given a condition and tyres), the boldest share it gets round at.
 
 import { runOn } from "../challenge/line";
 import { advanceRun, lineAt, startRun, type ChallengeRun } from "../challenge/run";
@@ -15,6 +15,7 @@ import { speedOf } from "../sim/car-state";
 import type { CarId } from "../sim/cars";
 import { Drive } from "../sim/drive";
 import type { RoadLine } from "../sim/road-net";
+import type { Condition, Tyre } from "../sim/surfaces";
 import { STEP_S, WORLD } from "../sim/tuning";
 import type { World } from "../sim/world";
 import { alongsOf, inSpot, type Eased } from "../racers/route-plan";
@@ -58,9 +59,17 @@ const PROFILE_EVERY_M = 100;
  * The grip on the ground under each stretch of the line, for this car: its carriageway's surface,
  * asphalt or gravel as the road is laid, and the limits table's least grip there, dry, cornering and braking.
  */
-function speedPlan(car: CarId, line: RoadLine, world: World, eased: readonly Eased[], lapM?: number): SpeedPlan {
+/** The ground's condition the driver drives in and the tyres it drives on. */
+export interface ParGround {
+  condition: Condition;
+  tyres: Tyre;
+}
+
+const DRY: ParGround = { condition: "dry", tyres: "summer" };
+
+function speedPlan(car: CarId, line: RoadLine, world: World, eased: readonly Eased[], lapM: number | undefined, { condition, tyres }: ParGround): SpeedPlan {
   const least = (bands: readonly { g: number }[]) => Math.min(...bands.map(({ g }) => g)) * WORLD.gravity;
-  const grips = { asphalt: limitsOn(car, "dry", "asphalt"), gravel: limitsOn(car, "dry", "gravel") };
+  const grips = { asphalt: limitsOn(car, condition, "asphalt", tyres), gravel: limitsOn(car, condition, "gravel", tyres) };
   const grip = {
     asphalt: { cornerMS2: least(grips.asphalt.corner), brakeMS2: least(grips.asphalt.braking) },
     gravel: { cornerMS2: least(grips.gravel.corner), brakeMS2: least(grips.gravel.braking) },
@@ -91,13 +100,15 @@ export interface Measured {
  * Par at one share of the car's grip, or why the driver didn't get there. The challenge must be one it can't lose,
  * and `line` is the way it drives, from its start; `from` is how far along that the car starts.
  */
-function measure(challenge: Challenge, line: RoadLine, from: number, world: World, eased: readonly Eased[], profiled: boolean, lapM?: number, shortestLookM?: number): Measured | { failed: string; along: number } {
+function measure(challenge: Challenge, line: RoadLine, from: number, world: World, eased: readonly Eased[], profiled: boolean, lapM: number | undefined, shortestLookM: number | undefined, ground: ParGround): Measured | { failed: string; along: number } {
   const [place] = challenge.starts;
   const road = world.roads.nearest(place.x, place.z);
   if (!road) throw new Error(`${challenge.id}: no road at the start`);
   const drive = new Drive(world, { ...road, x: place.x, z: place.z, heading: place.heading }, challenge.car);
+  drive.condition = ground.condition;
+  drive.tyres = ground.tyres;
   const driven = runOn(line, RUN_ON_M);
-  const pilot = new Autopilot(driven, FLAT_OUT_MS, from, 0, shortestLookM, speedPlan(challenge.car, driven, world, eased, lapM));
+  const pilot = new Autopilot(driven, FLAT_OUT_MS, from, 0, shortestLookM, speedPlan(challenge.car, driven, world, eased, lapM, ground));
   let run: ChallengeRun = startRun(challenge, 1);
   const profile: string[] = [];
   let nextProfileM = PROFILE_EVERY_M;
@@ -152,10 +163,10 @@ function measure(challenge: Challenge, line: RoadLine, from: number, world: Worl
  * circuit, `lapM` is its lap, and a spot eased is eased on every lap. `shortestLookM` is the nearest the driver aims, for
  * a track with a corner too tight for its usual look, which cuts it.
  */
-export function drivePar(challenge: Challenge, line: RoadLine, from: number, world: World, profiled = false, lapM?: number, shortestLookM?: number): { measured: Measured; eased: Eased[] } {
+export function drivePar(challenge: Challenge, line: RoadLine, from: number, world: World, profiled = false, lapM?: number, shortestLookM?: number, ground: ParGround = DRY): { measured: Measured; eased: Eased[] } {
   const eased: Eased[] = [];
   for (let tries = 0; tries < MOST_TRIES; tries++) {
-    const attempt = measure(challenge, line, from, world, eased, profiled, lapM, shortestLookM);
+    const attempt = measure(challenge, line, from, world, eased, profiled, lapM, shortestLookM, ground);
     if (!("failed" in attempt)) return { measured: attempt, eased };
     const { failed } = attempt;
     const along = lapM === undefined || !Number.isFinite(attempt.along) ? attempt.along : attempt.along % lapM;

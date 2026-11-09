@@ -1,4 +1,4 @@
-// e2e-covers: src/projects/aland-drive/challenge/{session,run}.ts src/projects/aland-drive/render/challenge-marks.ts src/projects/aland-drive/components/game-menu.tsx
+// e2e-covers: src/projects/aland-drive/challenge/{session,run,conditions}.ts src/projects/aland-drive/render/{challenge-marks,day-and-night}.ts src/projects/aland-drive/components/game-menu.tsx
 import type { Server } from "node:http";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
@@ -34,10 +34,11 @@ test.afterAll(() => {
 test.use(WEBGPU_BROWSER);
 test.setTimeout(120_000);
 
-test("a solo Route: started from its ring by its button, held through the countdown, driven to a pass and left", async ({ page }) => {
+test("a solo Route: started from its ring by its button, in its own conditions, held through the countdown, driven to a pass and left", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
-  const { challenge: laid } = await layChallenge(page, { id: ID, title: TITLE, target: { s: 600 } });
+  const { challenge: laid } = await layChallenge(page, { id: ID, title: TITLE, target: { s: 600 }, conditions: { date: { year: 2026, month: 10, day: 14 }, hour: 17.5, weather: "rain" } });
+  expect(await page.evaluate(() => window.__alandDrive?.day().date)).not.toBe("2026-10-14");
   const [start] = laid.starts;
   await page.evaluate((added) => {
     const probe = window.__alandDrive;
@@ -59,6 +60,10 @@ test("a solo Route: started from its ring by its button, held through the countd
   expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe("sten");
   expect(await offStart(page, start)).toBeLessThan(0.3);
   await expect(page.getByLabel("Challenge", { exact: true })).toContainText(TITLE);
+
+  // Its own date, hour and rain show over the tool page's dry day, behind the time cover, and the car drives on a wet road.
+  await page.waitForFunction(() => window.__alandDrive?.day().date === "2026-10-14");
+  expect(await page.evaluate(() => ({ hour: window.__alandDrive?.day().hour, rain: window.__alandDrive?.weather()?.state, ground: window.__alandDrive?.condition() }))).toEqual({ hour: 17.5, rain: "rain", ground: "wet" });
 
   // The run's Settings hold all but the tyres, which are the challenge's car's, and Esc steps back out to the run.
   await page.keyboard.press("Escape");
@@ -97,4 +102,10 @@ test("a solo Route: started from its ring by its button, held through the countd
   const after = await carAt(page);
   expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeLessThan(0.5);
   await expect(page.getByLabel("Challenge", { exact: true })).toBeHidden();
+
+  // Leaving gives back the world's day, which ran on beneath: its own date, no weather on a tool's page, and a dry road.
+  await page.waitForFunction(() => window.__alandDrive?.weather() === null);
+  const back = await page.evaluate(() => ({ date: window.__alandDrive?.day().date, ground: window.__alandDrive?.condition() }));
+  expect(back.date).not.toBe("2026-10-14");
+  expect(back.ground).toBe("dry");
 });

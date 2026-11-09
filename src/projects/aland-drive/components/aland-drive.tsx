@@ -147,7 +147,9 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
-  const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
+  // The time cover's round, while one shows, and the jumps waiting for it: one asked for while the cover is lifting gets a round of its own.
+  const [timeCover, setTimeCover] = useState<number | null>(null);
+  const timeJumps = useRef<(() => void)[]>([]);
   const needsRow = useRef<HTMLDivElement>(null);
   const needsText = useRef<HTMLSpanElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
@@ -250,7 +252,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onCoopNotice: (heard) => { setNotice((last) => ({ ...heard, seen: (last?.seen ?? 0) + 1 })); },
           onPlaceFound: (place) => { if (!inRun.current) setFinds((waiting) => [...waiting, place]); },
           onProgress: setProgress,
-          onTimeJump: (jump) => { setTimeJump({ jump }); },
+          onTimeJump: (jump) => { timeJumps.current.push(jump); setTimeCover((round) => round ?? 0); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -470,7 +472,13 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           )}
         </>
       )}
-      {timeJump !== null && <TimeCover jump={timeJump.jump} onDone={() => { setTimeJump(null); }} />}
+      {timeCover !== null && (
+        <TimeCover
+          key={timeCover}
+          jump={() => { for (const jump of timeJumps.current.splice(0)) jump(); }}
+          onDone={() => { setTimeCover((round) => (timeJumps.current.length > 0 ? (round ?? 0) + 1 : null)); }}
+        />
+      )}
       {gameMenu !== null && dev !== null && <GameMenu key={`${gameMenu.items.join()}${gameMenu.result ? "-result" : ""}`} menu={gameMenu} input={input} onPick={dev.pickMenuItem} />}
       {devMenuOpen && dev !== null && <DevMenu traffic={dev.trafficOn()} onTraffic={dev.setTraffic} condition={dev.condition()} onCondition={dev.setCondition} day={dev.day} onDay={dev.setDay} weather={dev.weather} onWeather={dev.setWeather} spots={dev.spots} onJump={dev.jumpTo} onJumpToDestination={dev.hasDestination() ? dev.jumpToDestination : null} whereabouts={dev.whereabouts} onResetSave={dev.resetSave} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
