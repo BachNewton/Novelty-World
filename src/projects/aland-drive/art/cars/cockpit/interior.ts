@@ -262,7 +262,8 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
   } else if (style.gauges === "single") {
     big(SLOT.speed, SOURCE.speed, 0, 0.074);
-    readout(SOURCE.gear, 1, 0, -0.04, 0.022);
+    // The gear over the needle's pivot, under the figures, where the wheel's hub below the dial can't cover it.
+    readout(SOURCE.gear, 1, 0, 0.026, 0.02);
   } else if (style.gauges === "tacho") {
     // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
     big(SLOT.revs, SOURCE.revs, 0, 0.066);
