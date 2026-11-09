@@ -39,6 +39,8 @@ export const BINDINGS = {
   walkLeft: binding("L3", "A"),
   walkBack: binding("L3", "S"),
   walkRight: binding("L3", "D"),
+  /** Held while walking: a light jog across the floor. */
+  walkJog: binding("L3", "Shift"),
   /** Looking round on foot: a drag of the mouse, the arrows, or the right stick. */
   walkLook: binding("R3", "Drag"),
   /** Held, at a dealership's car or in its seat: revs its engine. In the seat, W does too. */
@@ -74,6 +76,8 @@ export interface WalkInput {
   turn: number;
   tilt: number;
   rev: number;
+  /** Held: a light jog rather than a walk. */
+  jog: boolean;
 }
 
 /** The left stick's own deadzone is radial and small; walking ignores a little more, so a resting thumb doesn't drift the eye. */
@@ -220,13 +224,15 @@ export function startControls({ onAction, onMapAction, onDevMenu, onGameMenu, on
       const stick = (value: number) => (Math.abs(value) < WALK_DEADZONE ? 0 : value);
       const keys = { forward: axis(["KeyS"], ["KeyW"]), right: axis(["KeyA"], ["KeyD"]), turn: axis(["ArrowRight"], ["ArrowLeft"]), tilt: axis(["ArrowDown"], ["ArrowUp"]) };
       const rev = held.has("KeyR") ? 1 : 0;
-      if (!controls) return { ...keys, rev };
+      const shift = held.has("ShiftLeft") || held.has("ShiftRight");
+      if (!controls) return { ...keys, rev, jog: shift };
       return {
         forward: keys.forward !== 0 ? keys.forward : -stick(controls.leftStick.y),
         right: keys.right !== 0 ? keys.right : stick(controls.leftStick.x),
         turn: keys.turn !== 0 ? keys.turn : -stick(controls.rightStick.x),
         tilt: keys.tilt !== 0 ? keys.tilt : -stick(controls.rightStick.y),
         rev: Math.max(rev, controls.rightTrigger),
+        jog: shift || controls.buttons.LS.pressed,
       };
     },
     /** The steady inputs on the world map: a pad's, and WASD's panning. */

@@ -478,6 +478,8 @@ export interface GameEvents {
   onTimeJump?: (jump: () => void) => void;
   /** A dealership's door is in reach, the player is going in, or what's at hand inside one (`dealership/`); null for none. */
   onDealership?: (reading: DealershipReading | null) => void;
+  /** Going into a dealership: cover the view, then call `covered`, and the room is built under it. */
+  onDealershipCover?: (covered: () => void) => void;
 }
 
 export interface Progress {
@@ -1373,6 +1375,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       cockpitCamera.snap();
     },
     onReading: (reading) => events.onDealership?.(reading),
+    cover: (covered) => (events.onDealershipCover ? events.onDealershipCover(covered) : covered()),
   });
 
   // A pipeline first used mid-drive stalls that frame while it compiles, so every mesh is built once before the drive starts.

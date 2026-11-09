@@ -53,7 +53,7 @@ The world map pauses the drive and opens on the main island, north up, and zooms
 
 From the driver's seat the right stick turns the head smoothly, up to about 140° either way and a little up and down, and springs back when let go; the arrows look left, right and behind as in the chase view (behind, the head leans towards the middle to see past the seat). The seat is `render/CLAUDE.md`'s Cockpit.
 
-In a dealership the player is on foot (`dealership/CLAUDE.md`): WASD or the left stick walk, a mouse drag, the arrows or the right stick look, R or RT held revs the car at hand, C or RB sits in it or gets out, and E or X takes it, or leaves at the door.
+In a dealership the player is on foot (`dealership/CLAUDE.md`): WASD or the left stick walk, Shift or a click of the left stick held jogs, a mouse drag, the arrows or the right stick look, R or RT held revs the car at hand, C or RB sits in it or gets out, and E or X takes it, or leaves at the door.
 
 The free camera is for inspection: WASD, Q and E, Shift, drag to look, the wheel for its speed. There is no touch. Prompts come from the shared glyphs and follow the last input used.
 

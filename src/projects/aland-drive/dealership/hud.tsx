@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Armchair, Check, DoorOpen, Gauge, KeyRound, Store, Timer, Weight, Zap } from "lucide-react";
+import { Armchair, Check, DoorOpen, Gauge, KeyRound, LoaderCircle, Store, Timer, Weight, Zap } from "lucide-react";
 import { Prompt } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
 import { carFacts } from "../garage/car-facts";
@@ -61,7 +61,10 @@ function CarCard({ id, yours }: { id: Parameters<typeof carFacts>[0]; yours: boo
   );
 }
 
-export function DealershipHud({ reading, input }: { reading: DealershipReading | null; input: InputKind }) {
+/** The cover fades in over this long, and the room is built once it has: the page's own keyframes (`aland-time-cover`). */
+const COVER_S = 0.2;
+
+export function DealershipHud({ reading, input, onCovered }: { reading: DealershipReading | null; input: InputKind; onCovered: () => void }) {
   if (reading === null) return null;
   if (reading.kind === "door") {
     return (
@@ -77,8 +80,12 @@ export function DealershipHud({ reading, input }: { reading: DealershipReading |
   }
   if (reading.kind === "entering") {
     return (
-      <div className="absolute inset-0 flex items-center justify-center" style={{ background: SHADE, color: INK }} role="status" aria-label={`Going into ${reading.name}`}>
-        <Store aria-hidden className="size-10" style={{ color: MARK }} />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4" style={{ background: SHADE, color: INK, animation: `aland-time-cover ${COVER_S}s ease-out forwards` }} role="status" aria-label={`Going into ${reading.name}`} onAnimationEnd={onCovered}>
+        <div className="flex items-center gap-3 text-3xl font-bold">
+          <Store aria-hidden className="size-9" style={{ color: MARK }} />
+          <span>{reading.name}</span>
+        </div>
+        <LoaderCircle aria-hidden className="size-10 animate-spin" style={{ color: MARK }} />
       </div>
     );
   }

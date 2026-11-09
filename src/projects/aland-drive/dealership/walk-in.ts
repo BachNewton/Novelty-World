@@ -1,5 +1,7 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, Mesh, PerspectiveCamera, Scene, SphereGeometry, Vector3, type Node, type WebGPURenderer } from "three/webgpu";
-import { float, positionWorld } from "three/tsl";
+import { BufferAttribute, BufferGeometry, DoubleSide, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, RingGeometry, Scene, SphereGeometry, Vector3, type Node, type WebGPURenderer } from "three/webgpu";
+import { float, positionWorld, vec3 } from "three/tsl";
+import { themeColor } from "@/shared/lib/three/theme-color";
+import { sharedUniform } from "../art/shared-uniform";
 import { buildExterior, DEALER_SITES, dealerMaterial, geometryOf, restingCar, type DealerSite } from "../art/dealers";
 import { Shell } from "../art/dealers/shell";
 import { createCarView } from "../art/cars/model";
@@ -33,6 +35,8 @@ import { createIslandView } from "./view";
 const EYE_M = 1.62;
 const BODY_RADIUS_M = 0.3;
 const WALK_MS = 1.7;
+/** Shift or a click of the left stick held: a light jog across the floor, not a run. */
+const JOG_MS = 3;
 const TURN_PER_S = 2.2;
 const TILT_PER_S = 1.4;
 const DRAG_PER_PX = 0.0035;
@@ -52,6 +56,12 @@ const REV_FALL_PER_S = 2.5;
 /** An electric car has no idle: its motor's whine is revved from this. */
 const ELECTRIC_IDLE_RPM = 400;
 const SEA_LEVEL_M = 0;
+/** The ring on the floor round the way out: its band's width, a hand's height off the floor so no face shares its plane. */
+const DOOR_RING_M = 0.1;
+const DOOR_RING_LIFT_M = 0.015;
+/** How bright the ring glows, and brighter once the player is in it. */
+const DOOR_GLOW = 0.75;
+const DOOR_GLOW_IN_REACH = 1.5;
 
 /** What the page shows for the dealerships: a door's offer, the cover while entering, and inside, what's at hand. */
 export type DealershipReading =
@@ -88,6 +98,8 @@ export interface WalkInHost {
   /** The drive goes on: the game puts its cameras back where the car is. */
   resumed: () => void;
   onReading: (reading: DealershipReading | null) => void;
+  /** The page covers the view while a room is built and the island captured, then calls `covered`. */
+  cover: (covered: () => void) => void;
 }
 
 interface Door {
@@ -113,6 +125,7 @@ interface Room {
   turntables: Mesh[];
   roomMesh: Mesh;
   windowMesh: Mesh | null;
+  doorMesh: Mesh;
 }
 
 const turnPoint = (site: DealerSite, x: number, z: number): [number, number] => {
@@ -131,6 +144,15 @@ function windowsOf(interior: DealerInterior, material: Mesh["material"]): Mesh |
   return mesh;
 }
 
+/** The way out marked on the floor: a ring as wide as the door's reach. */
+function doorRingOf({ door }: DealerInterior, material: Mesh["material"]): Mesh {
+  const geometry = new RingGeometry(door.reachM - DOOR_RING_M, door.reachM, 64).rotateX(-Math.PI / 2);
+  const mesh = new Mesh(geometry, material);
+  mesh.position.set(door.at[0], DOOR_RING_LIFT_M, door.at[1]);
+  mesh.updateMatrix();
+  return mesh;
+}
+
 export function createWalkIn(host: WalkInHost) {
   const { renderer } = host;
   const view = createIslandView(renderer);
@@ -144,6 +166,11 @@ export function createWalkIn(host: WalkInHost) {
   const camera = new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.03, SKY_RADIUS_M * 2);
   camera.matrixAutoUpdate = true;
   const sky = new Mesh(new SphereGeometry(SKY_RADIUS_M, 48, 24), view.sky);
+  const doorGlow = sharedUniform(DOOR_GLOW);
+  const doorMaterial = new MeshBasicNodeMaterial();
+  doorMaterial.name = "dealer-door";
+  const mark = themeColor("--color-aland-drive-dealer-mark");
+  doorMaterial.colorNode = vec3(mark.r, mark.g, mark.b).mul(doorGlow);
   sky.matrixAutoUpdate = true;
   sky.frustumCulled = false;
 
@@ -159,6 +186,8 @@ export function createWalkIn(host: WalkInHost) {
   const ready = Promise.all(DEALERSHIPS.map(async (dealership) => interiors.set(dealership, await dealership.load())));
 
   let phase: "outside" | "entering" | "inside" = "outside";
+  /** The door being gone in at, until the page's cover shows. */
+  let covering: Door | null = null;
   let room: Room | null = null;
   const at = { x: 0, z: 0, yaw: 0, pitch: 0 };
   let seat: { car: StandingCar; cockpit: ReturnType<typeof createCockpit>; chaseShell: BufferGeometry; look: { yaw: number; pitch: number } } | null = null;
@@ -236,8 +265,10 @@ export function createWalkIn(host: WalkInHost) {
     });
     const windowMesh = windowsOf(interior, view.glass);
     if (windowMesh) scene.add(windowMesh);
+    const doorMesh = doorRingOf(interior, doorMaterial);
+    scene.add(doorMesh);
     scene.add(sky);
-    return { door, interior, scene, cars, turntables, roomMesh, windowMesh };
+    return { door, interior, scene, cars, turntables, roomMesh, windowMesh, doorMesh };
   };
 
   const disposeRoom = (gone: Room) => {
@@ -245,6 +276,7 @@ export function createWalkIn(host: WalkInHost) {
     gone.roomMesh.geometry.dispose();
     for (const mesh of gone.turntables) mesh.geometry.dispose();
     gone.windowMesh?.geometry.dispose();
+    gone.doorMesh.geometry.dispose();
     gone.scene.remove(sky);
   };
 
@@ -280,10 +312,20 @@ export function createWalkIn(host: WalkInHost) {
     return (turnedS / room.interior.turntables[spot.turntable].turnSeconds) * Math.PI * 2;
   };
 
+  /** Goes in: the drive stops and the page covers the view at once, and the room is built once the cover shows. */
   const enter = (door: Door) => {
     const interior = interiors.get(door.dealership);
     if (!interior || phase !== "outside") return;
     phase = "entering";
+    covering = door;
+    tell();
+    host.cover(() => {
+      if (covering === door) open(door, interior);
+    });
+  };
+
+  const open = (door: Door, interior: DealerInterior) => {
+    covering = null;
     aspect = host.camera.aspect;
     room = buildRoom(door, interior);
     lighting.set(interior.light);
@@ -342,8 +384,11 @@ export function createWalkIn(host: WalkInHost) {
       const interior = door && interiors.get(door.dealership);
       return door && interior ? { kind: "door", name: interior.name, place: door.site.place } : null;
     }
+    if (phase === "entering") {
+      const going = room?.door ?? covering;
+      return going && { kind: "entering", name: interiors.get(going.dealership)?.name ?? "" };
+    }
     if (!room) return null;
-    if (phase === "entering") return { kind: "entering", name: room.interior.name };
     const car = carAtHand();
     return { kind: "inside", name: room.interior.name, door: atDoor(), car: car && { id: car.id, yours: car.id === host.carId(), seated: seat?.car === car, revving: revs.car === car.id && revs.throttle > 0.05 } };
   };
@@ -373,11 +418,14 @@ export function createWalkIn(host: WalkInHost) {
       scene.add(mesh);
       const panes = new Mesh(new BufferGeometry().setAttribute("position", new BufferAttribute(new Float32Array(9), 3)), view.glass);
       scene.add(panes);
+      const ring = new Mesh(new RingGeometry(0.9, 1, 8), doorMaterial);
+      scene.add(ring);
       scene.add(sky);
       await renderer.compileAsync(scene, camera);
       scene.remove(sky);
       mesh.geometry.dispose();
       panes.geometry.dispose();
+      ring.geometry.dispose();
     },
     /** E or X, or another game action: what it does here, if anything. True when it was this system's. */
     onAction(action: "respawn" | "freeCamera" | "cockpit" | "map" | "mute" | "challenge"): boolean {
@@ -404,16 +452,16 @@ export function createWalkIn(host: WalkInHost) {
     aim: (worldCamera: PerspectiveCamera) => view.aim(worldCamera),
     /** Draws the game's frame into the capture, when one is under way. */
     renderCapture: (scene: Scene, worldCamera: PerspectiveCamera) => view.render(scene, worldCamera),
-    /** Outside: whether a door is in reach, for the page. */
+    /** Outside and on the way in, what the page shows: a door in reach, or the cover. */
     tellOutside() {
-      if (phase === "outside") tell();
+      if (phase !== "inside") tell();
     },
     /** A frame inside: walks, turns the tables, revs and draws the room. */
     frame(seconds: number) {
       tell();
       if (phase !== "inside" || !room) return;
       const held = host.held();
-      const input = held ? { forward: 0, right: 0, turn: 0, tilt: 0, rev: 0 } : host.walk();
+      const input = held ? { forward: 0, right: 0, turn: 0, tilt: 0, rev: 0, jog: false } : host.walk();
       const dragX = held ? 0 : drag.x;
       const dragY = held ? 0 : drag.y;
       drag.x = 0;
@@ -427,7 +475,7 @@ export function createWalkIn(host: WalkInHost) {
         at.yaw += input.turn * TURN_PER_S * seconds - dragX * DRAG_PER_PX;
         at.pitch = Math.max(-MOST_TILT, Math.min(MOST_TILT, at.pitch + input.tilt * TILT_PER_S * seconds - dragY * DRAG_PER_PX));
         const [c, s] = [Math.cos(at.yaw), Math.sin(at.yaw)];
-        const step = WALK_MS * seconds;
+        const step = (input.jog ? JOG_MS : WALK_MS) * seconds;
         const ahead = Math.max(-1, Math.min(1, input.forward));
         const across = Math.max(-1, Math.min(1, input.right));
         const x = at.x + (-s * ahead + c * across) * step;
@@ -445,6 +493,7 @@ export function createWalkIn(host: WalkInHost) {
         mesh.rotation.y = (turnedS / turntables[index].turnSeconds) * Math.PI * 2;
       });
 
+      doorGlow.value = atDoor() ? DOOR_GLOW_IN_REACH : DOOR_GLOW;
       const hand = carAtHand();
       const throttle = hand ? Math.max(input.rev, seat ? Math.max(input.forward, 0) : 0) : 0;
       const sounding = hand && (seat || revs.car === hand.id || throttle > 0) ? hand : null;
@@ -541,6 +590,7 @@ export function createWalkIn(host: WalkInHost) {
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       view.dispose();
       roomMaterial.dispose();
+      doorMaterial.dispose();
       sky.geometry.dispose();
     },
   };

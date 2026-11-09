@@ -148,6 +148,8 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
   const inRun = useRef(false);
   const [offer, setOffer] = useState<ChallengeOffer | null>(null);
   const [dealership, setDealership] = useState<DealershipReading | null>(null);
+  // Going into a dealership: the game builds the room once the cover has faded in.
+  const [dealerCovered, setDealerCovered] = useState<{ covered: () => void } | null>(null);
   const [coop, setCoop] = useState<CoopReading | null>(null);
   const [notice, setNotice] = useState<(CoopNoticeReading & { seen: number }) | null>(null);
   const [timeJump, setTimeJump] = useState<{ jump: () => void } | null>(null);
@@ -255,6 +257,7 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
           onProgress: setProgress,
           onTimeJump: (jump) => { setTimeJump({ jump }); },
           onDealership: setDealership,
+          onDealershipCover: (covered) => { setDealerCovered({ covered }); },
         }, { mini, world }, relayUrl === null ? undefined : { relayUrl, code: worldCodeFromSearch(search), profile: { id, name } });
         if (closed()) {
           game.dispose();
@@ -432,7 +435,14 @@ export function AlandDrive({ solo = false, onStarted }: { solo?: boolean; onStar
               </span>
             </div>
           )}
-          <DealershipHud reading={dealership} input={input} />
+          <DealershipHud
+            reading={dealership}
+            input={input}
+            onCovered={() => {
+              dealerCovered?.covered();
+              setDealerCovered(null);
+            }}
+          />
           {offer !== null && !walking && coop === null && playing === null && gameMenu === null && !mapOpen && camera !== "free" && (
             <div className="pointer-events-none absolute bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-2 text-lg font-semibold" style={{ color: INK, background: SHADE, border: `2px solid ${offer.ground ? raceColour(offer.ground) : CHALLENGE}` }} aria-label={offer.ground ? "Race here" : "Challenge here"} title={offer.ground ? "Race card" : offer.players === 0 ? "Start" : "Solo or co-op"}>
               <Prompt binding={BINDINGS.challenge} input={input} />
