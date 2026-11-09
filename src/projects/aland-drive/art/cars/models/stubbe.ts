@@ -189,7 +189,6 @@ const shape: Shape = {
       { z: 2.4, h: 0.86, band: "bumper" },
       { z: 2.4, h: 0.54 },
     ],
-    screenTop: [-0.5, 1.85],
     crown: [
       [-2.36, 0.01],
       [-1.45, -0.01],

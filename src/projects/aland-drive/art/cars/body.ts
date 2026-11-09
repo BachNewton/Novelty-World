@@ -624,13 +624,15 @@ function addSpare(builder: SoupBuilder, spec: BodySpec, ground: number, fine: bo
   const { x, h, z, radius, wide } = spec.spare;
   const y = h + ground;
   const sides = fine ? 24 : 10;
+  // Anticlockwise seen from behind, so each tube's walls face out and its last cap faces out of the tail.
   const round = (along: number, r: number, count = sides, at: readonly [number, number] = [x, y]): Point[] =>
     Array.from({ length: count }, (_, step) => {
-      const angle = (-step / count) * Math.PI * 2;
+      const angle = (step / count) * Math.PI * 2;
       return [at[0] + Math.cos(angle) * r, at[1] + Math.sin(angle) * r, along];
     });
   const rim = radius * 0.6;
-  // The tyre from its back to its face, its sidewalls rolling over rounded shoulders into the tread.
+  // Every tube runs back to front, so its last ring's cap is the face turned out of the tail. The tyre from its back to
+  // its face, its sidewalls rolling over rounded shoulders into the tread.
   const tyre: (readonly [along: number, r: number])[] = fine
     ? [
         [0, rim],
@@ -640,28 +642,27 @@ function addSpare(builder: SoupBuilder, spec: BodySpec, ground: number, fine: bo
         [wide - 0.07, radius],
         [wide - 0.035, radius * 0.97],
         [wide - 0.012, radius * 0.86],
-        [wide - 0.03, rim],
+        [wide, rim * 1.04],
       ]
     : [
         [0, rim],
         [0.03, radius],
         [wide - 0.03, radius],
-        [wide - 0.03, rim],
+        [wide, rim * 1.04],
       ];
   builder.rings(
     tyre.map(([along, r]) => round(z + along, r)),
     "tyre",
   );
-  // The steel wheel's face, dished in from its lip, standing proud of the tyre's own face.
-  const face = z + wide - 0.015;
-  builder.rings([round(z + wide - 0.04, rim * 1.01), round(face, rim * 0.98), round(face - 0.012, rim * 0.8)], "rim");
+  // The steel wheel's face, standing proud of the tyre's, with a hub on it and dark slots round the hub.
+  const face = z + wide + 0.012;
+  builder.rings([round(z + wide - 0.02, rim), round(face, rim)], "rim");
   if (!fine) return;
-  builder.rings([round(face - 0.008, rim * 0.34, 12), round(face + 0.012, rim * 0.3, 12)], "rim");
-  // Slots round the hub, dark, a few millimetres off the dished face.
+  builder.rings([round(face - 0.004, rim * 0.32, 12), round(face + 0.022, rim * 0.28, 12)], "rim");
   for (let slot = 0; slot < 6; slot++) {
     const angle = (slot / 6) * Math.PI * 2 + Math.PI / 6;
-    const centre: [number, number] = [x + Math.cos(angle) * rim * 0.58, y + Math.sin(angle) * rim * 0.58];
-    builder.rings([round(face - 0.01, rim * 0.11, 8, centre), round(face - 0.006, rim * 0.11, 8, centre)], "rimDark");
+    const centre: [number, number] = [x + Math.cos(angle) * rim * 0.6, y + Math.sin(angle) * rim * 0.6];
+    builder.rings([round(face - 0.004, rim * 0.11, 8, centre), round(face + 0.004, rim * 0.11, 8, centre)], "rimDark");
   }
 }
 

@@ -15,6 +15,7 @@ import gnista from "./limits/gnista.json";
 import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import kobb from "./limits/kobb.json";
+import knott from "./limits/knott.json";
 import orkan from "./limits/orkan.json";
 import ljus from "./limits/ljus.json";
 import salta from "./limits/salta.json";
@@ -118,6 +119,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   // B4
   berg,
   stubbe,
+  knott,
   // C1
   // C2
   // C3

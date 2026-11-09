@@ -14,6 +14,7 @@ import { gnista } from "./models/gnista";
 import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { kobb } from "./models/kobb";
+import { knott } from "./models/knott";
 import { orkan } from "./models/orkan";
 import { ljus } from "./models/ljus";
 import { salta } from "./models/salta";
@@ -71,6 +72,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   // B4
   berg,
   stubbe,
+  knott,
   // C1
   // C2
   // C3
