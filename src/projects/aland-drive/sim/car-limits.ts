@@ -18,6 +18,7 @@ import hagel from "./limits/hagel.json";
 import holm from "./limits/holm.json";
 import borg from "./limits/borg.json";
 import kobb from "./limits/kobb.json";
+import kula from "./limits/kula.json";
 import lera from "./limits/lera.json";
 import orkan from "./limits/orkan.json";
 import rimfrost from "./limits/rimfrost.json";
@@ -132,6 +133,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

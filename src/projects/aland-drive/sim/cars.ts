@@ -20,6 +20,7 @@ import { gnista } from "./cars/gnista";
 import { hagel } from "./cars/hagel";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
+import { kula } from "./cars/kula";
 import { lera } from "./cars/lera";
 import { ljus } from "./cars/ljus";
 import { salta } from "./cars/salta";
@@ -92,6 +93,7 @@ const ENTRIES = {
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 } satisfies Record<string, CarEntry>;

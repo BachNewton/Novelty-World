@@ -22,6 +22,7 @@ import { lera } from "./voices/lera";
 import { orkan } from "./voices/orkan";
 import { rimfrost } from "./voices/rimfrost";
 import { ljus } from "./voices/ljus";
+import { kula } from "./voices/kula";
 import { salta } from "./voices/salta";
 import { skerryGt } from "./voices/skerry-gt";
 import { sten } from "./voices/sten";
@@ -193,6 +194,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };

@@ -46,10 +46,13 @@ const words = (token: string) => {
   return name.charAt(0).toUpperCase() + name.slice(1);
 };
 
-/** A paint as it's spoken, from its tokens: "Teal metallic", "White gloss with red stripes". */
+/**
+ * A paint as it's spoken, from its tokens: "Teal metallic", "White gloss with red stripes". Stripes in the paint's own
+ * colour aren't spoken: a car whose stripes are a two-tone's contrasting panels wears them so in its plain paints.
+ */
 export function paintName({ colour, finish, stripe }: CarPaint): string {
   const named = `${words(colour)} ${FINISH_NAMES[finish]}`;
-  return stripe === undefined ? named : `${named} with ${words(stripe).toLowerCase()} stripes`;
+  return stripe === undefined || stripe === colour ? named : `${named} with ${words(stripe).toLowerCase()} stripes`;
 }
 
 /** The paint a link asks for (`?paint=2`, or a paint's colour, `?paint=teal`), or null when it asks for none. */

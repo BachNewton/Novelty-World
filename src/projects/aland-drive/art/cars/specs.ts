@@ -17,6 +17,7 @@ import { hagel } from "./models/hagel";
 import { holm } from "./models/holm";
 import { borg } from "./models/borg";
 import { kobb } from "./models/kobb";
+import { kula } from "./models/kula";
 import { lera } from "./models/lera";
 import { orkan } from "./models/orkan";
 import { rimfrost } from "./models/rimfrost";
@@ -85,6 +86,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   vik,
   // C4
   salta,
+  kula,
   // Outside the tiers
   kobb,
 };
