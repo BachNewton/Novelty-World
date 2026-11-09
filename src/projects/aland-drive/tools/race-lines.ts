@@ -33,7 +33,7 @@ for (const spec of RACE_SPECS) {
   if (!race) throw new Error(`${spec.id} isn't measured yet`);
   const loaded = loadRace(FOLDER, spec.id, roads);
   // The widest car of the field: a narrower one has the more room.
-  const widest = fieldOf(race.car, race.ground).reduce((best, car) => (CARS[car].car.halfSize[0] > CARS[best].car.halfSize[0] ? car : best));
+  const widest = fieldOf(race.car).reduce((best, car) => (CARS[car].car.halfSize[0] > CARS[best].car.halfSize[0] ? car : best));
   const drawn = racingLineFor(loaded, widest);
   const file = raceLineFile(spec, race.laps, roads.manifest.version, drawn);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- the list's own folder, a file per race

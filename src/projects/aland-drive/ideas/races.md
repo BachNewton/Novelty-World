@@ -407,7 +407,8 @@ A draft for the owner's review: a route for each of the 56 events, chosen from t
 - **The player starts at the back of the grid**, the racers ahead from the pole. Raced from the pole against the first racers that fought, the owner took the lead at once and held it without trouble; having to pass the whole field is the challenge. A co-op partner starts beside or behind the player, behind every racer.
 - **The racers ship as they are, playable, with their gaps written down** (`ideas/racer-method.md`, "The owner's reading, and what ships"): comically bad but not terrible, the owner's words; what ends their races is mistakes, and a reset is never to be how they make up for them.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
-- **Once cars are bought, events ask for a class and tier** (`ideas/cars.md`).
+- **Once cars are bought, events ask for a class and tier** (`ideas/cars.md`). Every event is one class and one tier (A1–A7, B1–B4, C1–C4). The player picks from the cars they own of that tier; owning none, they can't enter, except in co-op, where they may share the car their partner chose. Until cars are owned, **an event hands the player one car of its tier**, as the challenges do.
+- **The racers drive the event's tier's cars and no others**: no racer brings a car the event wouldn't let in. A tier holds two or three cars and a grid six, so the racers take them in turn, a repeated car in another of its paints.
 - **56 events**, weighted to Åland's roads as section 9 sets out. Any of the 32 tracks may be kept, changed or dropped to fit.
 
 ## Sources

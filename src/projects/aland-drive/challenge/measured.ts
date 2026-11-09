@@ -75,6 +75,7 @@ export function raceFrom(spec: RaceSpec, places: RacePlacesEntry, laps: number):
   return {
     id: spec.id,
     kind: "race",
+    tier: spec.tier,
     number: spec.number,
     title: spec.title,
     shape: spec.shape,

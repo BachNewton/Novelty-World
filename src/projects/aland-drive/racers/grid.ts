@@ -9,7 +9,7 @@ import type { RoadLine, RoadPoint } from "../sim/road-net";
 import type { Condition } from "../sim/surfaces";
 import { wheelBaseOf } from "../sim/tuning";
 import type { SeenCar } from "./awareness";
-import { tyresFor } from "./field";
+import { gridCars, tyresFor } from "./field";
 import { Racer, type RacerHost } from "./racer";
 import type { RaceLine } from "./race-line-file";
 import { crestOf, signedCurvatureOf } from "./racing-line";
@@ -91,8 +91,7 @@ export class RaceGrid {
     const bends = signedCurvatureOf(line, ROUTE_STEP_M);
     const curvature = bends.map((bend) => Math.abs(bend));
     const crest = crestOf(line, ROUTE_STEP_M);
-    for (let slot = 0; slot < Math.min(count, race.grid.length); slot++) {
-      const carId = field[slot % field.length];
+    for (const [slot, { car: carId, paint }] of gridCars(field, Math.min(count, race.grid.length)).entries()) {
       const tuning = CARS[carId];
       const tyres = tyresFor(condition);
       const limits = { asphalt: limitsOn(carId, condition, "asphalt", tyres), gravel: limitsOn(carId, condition, "gravel", tyres) };
@@ -109,6 +108,7 @@ export class RaceGrid {
         fromM: from,
       });
       const car = host.addCar(place, carId, condition);
+      car.paint = paint;
       const [halfWidthM, , halfLengthM] = tuning.car.halfSize;
       const entry: GridRacer = {
         id: `racer-${slot}`,

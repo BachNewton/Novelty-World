@@ -1,87 +1,157 @@
 {
-  "harbour-to-harbour": {
-    "tuning": "ddb0fa06",
-    "places": "81f826ad",
-    "laps": 3
-  },
-  "hammarbo": {
-    "tuning": "8ef79a91",
-    "places": "3afb53c3",
-    "laps": 3
-  },
-  "painters-loop": {
-    "tuning": "e75df841",
-    "places": "c1f0bf98",
-    "laps": 3
-  },
-  "tengsoda": {
-    "tuning": "5558f8c4",
-    "places": "3ba4a8c9",
-    "laps": 3
-  },
-  "round-geta": {
-    "tuning": "81096a61",
-    "places": "d3a65966",
+  "road-2-flat-out": {
+    "tuning": "fb0a962b",
+    "places": "7211b4c3",
     "laps": 1
   },
-  "godby-to-soltuna": {
-    "tuning": "df95e8a6",
-    "places": "3d3a0135",
+  "apple-orchard-road": {
+    "tuning": "b57059f1",
+    "places": "c6a86247",
     "laps": 1
   },
-  "lemland-to-the-sea": {
-    "tuning": "be4fd727",
-    "places": "4866a3f8",
+  "night-ferry": {
+    "tuning": "fbe1970f",
+    "places": "db56df1e",
     "laps": 1
   },
-  "north-hammarland": {
-    "tuning": "130d7764",
-    "places": "e23d2296",
+  "road-1": {
+    "tuning": "6802a631",
+    "places": "463ced4e",
     "laps": 1
   },
-  "jomala-west": {
-    "tuning": "8ef79a91",
-    "places": "730d59ff",
+  "torpvagen": {
+    "tuning": "bfa33668",
+    "places": "55aebe7b",
+    "laps": 1
+  },
+  "road-50": {
+    "tuning": "f7b29790",
+    "places": "1e0ed07d",
+    "laps": 1
+  },
+  "bergovagen": {
+    "tuning": "8b73c0a2",
+    "places": "b9642b8a",
+    "laps": 1
+  },
+  "round-jomalaby": {
+    "tuning": "2d4ae6e7",
+    "places": "e5130e99",
     "laps": 2
   },
-  "hamnsund": {
-    "tuning": "e75df841",
-    "places": "179d7d57",
+  "mangstekta": {
+    "tuning": "f7b29790",
+    "places": "debe06d3",
     "laps": 1
   },
-  "kungso-road": {
-    "tuning": "130d7764",
-    "places": "d05b5d34",
-    "laps": 3
+  "skarpnato": {
+    "tuning": "df95e8a6",
+    "places": "26c5d801",
+    "laps": 1
+  },
+  "hamnsund": {
+    "tuning": "f95010fe",
+    "places": "6b260507",
+    "laps": 1
   },
   "kastelholm": {
-    "tuning": "ddb0fa06",
-    "places": "9861ac73",
+    "tuning": "9bd95253",
+    "places": "e3dd1654",
+    "laps": 4
+  },
+  "monbacka": {
+    "tuning": "f95010fe",
+    "places": "bfe2f0eb",
+    "laps": 1
+  },
+  "harbour-to-harbour": {
+    "tuning": "8ef79a91",
+    "places": "057a86eb",
+    "laps": 3
+  },
+  "round-the-airport": {
+    "tuning": "130d7764",
+    "places": "703bd880",
+    "laps": 3
+  },
+  "round-ytternas": {
+    "tuning": "b0258063",
+    "places": "54f9af25",
+    "laps": 3
+  },
+  "west-way-out": {
+    "tuning": "8ef79a91",
+    "places": "9ca10050",
+    "laps": 3
+  },
+  "kalmare-and-onningeby": {
+    "tuning": "130d7764",
+    "places": "cf431029",
+    "laps": 2
+  },
+  "drygsbole": {
+    "tuning": "e75df841",
+    "places": "b208c320",
     "laps": 3
   },
   "old-road-and-the-new": {
-    "tuning": "df95e8a6",
-    "places": "ce4d06a5",
-    "laps": 4
-  },
-  "night-ferry": {
-    "tuning": "b0258063",
-    "places": "fb2e6e98",
-    "laps": 1
-  },
-  "sund-ring": {
     "tuning": "81096a61",
-    "places": "b0d540fa",
-    "laps": 1
+    "places": "58175dcb",
+    "laps": 3
   },
-  "degersand": {
-    "tuning": "4b369df6",
-    "places": "ceb91bd6",
+  "dalkarby": {
+    "tuning": "81096a61",
+    "places": "aff85100",
+    "laps": 3
+  },
+  "jomalaby": {
+    "tuning": "e75df841",
+    "places": "6ffe9456",
+    "laps": 5
+  },
+  "tengsoda": {
+    "tuning": "2522bbf7",
+    "places": "e98a6dec",
+    "laps": 3
+  },
+  "morby": {
+    "tuning": "5558f8c4",
+    "places": "1669c2ab",
     "laps": 2
   },
-  "kvarnbo-to-the-old-shore": {
-    "tuning": "be4fd727",
-    "places": "f6218a8d",
+  "haga": {
+    "tuning": "2522bbf7",
+    "places": "7c516582",
+    "laps": 3
+  },
+  "boda": {
+    "tuning": "5558f8c4",
+    "places": "1553ba1d",
+    "laps": 3
+  },
+  "lavo": {
+    "tuning": "4b369df6",
+    "places": "4dc00a74",
+    "laps": 1
+  },
+  "smakarr": {
+    "tuning": "b0e53d64",
+    "places": "4137c98f",
+    "laps": 1
+  },
+  "batvik": {
+    "tuning": "eeeb0758",
+    "places": "4eaeffd3",
+    "laps": 4
+  },
+  "grondal": {
+    "tuning": "b0e53d64",
+    "places": "3f9dbcd0",
+    "laps": 1
+  },
+  "djurvik": {
+    "tuning": "4b369df6",
+    "places": "d186576f",
     "laps": 1
   },
   "emkarby-and-svartsmara": {
@@ -89,74 +159,124 @@
     "places": "b54251f9",
     "laps": 1
   },
-  "out-to-bergo": {
-    "tuning": "dbb5dd34",
-    "places": "d6362a21",
-    "laps": 1
-  },
-  "getas-islands": {
-    "tuning": "4b369df6",
-    "places": "46782413",
-    "laps": 1
+  "degersand": {
+    "tuning": "474a424a",
+    "places": "61613fac",
+    "laps": 2
   },
   "tobole": {
-    "tuning": "be4fd727",
-    "places": "65e1742f",
+    "tuning": "bf7dfdb2",
+    "places": "2bb9aede",
     "laps": 1
   },
   "bovik": {
-    "tuning": "dbb5dd34",
-    "places": "ecd7f14d",
-    "laps": 2
-  },
-  "storby-to-karingsund": {
-    "tuning": "4b369df6",
-    "places": "067731fa",
-    "laps": 1
-  },
-  "tellholm": {
-    "tuning": "4b369df6",
-    "places": "24db6c2b",
+    "tuning": "be4fd727",
+    "places": "6f13877e",
     "laps": 3
   },
-  "out-to-jarso": {
-    "tuning": "be4fd727",
-    "places": "b81efa26",
-    "laps": 1
+  "ramsvik": {
+    "tuning": "bf7dfdb2",
+    "places": "37c200cd",
+    "laps": 3
   },
-  "lavo": {
+  "tellholm": {
     "tuning": "dbb5dd34",
-    "places": "ac6c00bd",
-    "laps": 1
-  },
-  "notviken": {
-    "tuning": "4b369df6",
-    "places": "d9f5a78b",
-    "laps": 2
+    "places": "c6c502c0",
+    "laps": 3
   },
   "vessingsboda-lanes": {
-    "tuning": "4b369df6",
-    "places": "debf348d",
+    "tuning": "dbb5dd34",
+    "places": "5734bdc2",
     "laps": 2
-  },
-  "batvik": {
-    "tuning": "4b369df6",
-    "places": "1ef94067",
-    "laps": 4
-  },
-  "smakarr": {
-    "tuning": "fc9fde7c",
-    "places": "6f1470a7",
-    "laps": 1
   },
   "kullskar": {
-    "tuning": "fc9fde7c",
-    "places": "b1be9943",
+    "tuning": "1745b25a",
+    "places": "ef0363bd",
     "laps": 2
   },
-  "djurvik": {
+  "fridhem": {
+    "tuning": "1745b25a",
+    "places": "700c3a78",
+    "laps": 3
+  },
+  "notviken": {
     "tuning": "dbb5dd34",
-    "places": "f5402441",
+    "places": "4d27914c",
+    "laps": 2
+  },
+  "norrvik-woods": {
+    "tuning": "fc9fde7c",
+    "places": "524235b8",
+    "laps": 2
+  },
+  "norrvagen": {
+    "tuning": "729b04fb",
+    "places": "50ba6270",
+    "laps": 3
+  },
+  "flakabacka": {
+    "tuning": "db9d890c",
+    "places": "6494435f",
+    "laps": 1
+  },
+  "krossvagen-woods": {
+    "tuning": "729b04fb",
+    "places": "a58db548",
+    "laps": 1
+  },
+  "hammarland-forest": {
+    "tuning": "fc9fde7c",
+    "places": "7d7b1e05",
+    "laps": 1
+  },
+  "lemland-to-the-sea": {
+    "tuning": "0b4f15e3",
+    "places": "67939e51",
+    "laps": 1
+  },
+  "dano": {
+    "tuning": "660946f2",
+    "places": "bea3733e",
+    "laps": 1
+  },
+  "round-geta": {
+    "tuning": "f037884f",
+    "places": "a6a46ae8",
+    "laps": 1
+  },
+  "sodersunda": {
+    "tuning": "f037884f",
+    "places": "9034cd83",
+    "laps": 1
+  },
+  "kungso-road": {
+    "tuning": "ddb0fa06",
+    "places": "2cf58c9d",
+    "laps": 2
+  },
+  "out-to-jarso": {
+    "tuning": "858a45f8",
+    "places": "db960253",
+    "laps": 1
+  },
+  "basto-road": {
+    "tuning": "ddb0fa06",
+    "places": "a3615bb2",
+    "laps": 1
+  },
+  "getas-islands": {
+    "tuning": "b989acff",
+    "places": "b3416e95",
+    "laps": 1
+  },
+  "storby-to-karingsund": {
+    "tuning": "7252e776",
+    "places": "14762268",
+    "laps": 1
+  },
+  "berghamn": {
+    "tuning": "7252e776",
+    "places": "bddb0b5a",
     "laps": 1
   }
 }

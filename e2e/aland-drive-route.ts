@@ -97,6 +97,7 @@ export async function layRace(page: Page, { id, title }: { id: string; title: st
       lengthM,
       gates,
       kind: "race",
+      tier: "A6",
       number: "T1",
       shape: "sprint",
       ground: "road",
