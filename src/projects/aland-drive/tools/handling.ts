@@ -34,9 +34,32 @@ function drive(assists: Assists, x = 200, heading = -Math.PI / 2): Drive {
   return made;
 }
 
-function upTo(on: Drive, speed: number): void {
-  while (speedOf(on.stateAt(1)) < speed) on.step({ ...NO_INPUT, throttle: 1 });
+/** A second of the simulation's steps, flat out, that gains less than this has stopped gaining: the car's top speed. */
+const STILL_GAINING_MS = 0.05;
+const SECOND_STEPS = Math.round(1 / STEP_S);
+
+/**
+ * Flat out until the car is at `speed`, or, if it stops gaining short of it (a slow car whose top speed is under a
+ * test's), the fastest it reached, so the test is skipped rather than floored for ever.
+ */
+function upTo(on: Drive, speed: number): { reached: true } | { reached: false; topKmh: number } {
+  let mark = speedOf(on.stateAt(1));
+  for (let step = 1; speedOf(on.stateAt(1)) < speed; step++) {
+    on.step({ ...NO_INPUT, throttle: 1 });
+    if (step % SECOND_STEPS !== 0) continue;
+    const now = speedOf(on.stateAt(1));
+    if (now - mark < STILL_GAINING_MS) return { reached: false, topKmh: kmh(now) };
+    mark = now;
+  }
+  return { reached: true };
 }
+
+/** What a test prints when the car can't reach its speed. */
+const notReached = (on: Drive, atKmh: number, run: ReturnType<typeof upTo>): string | null => {
+  if (run.reached) return null;
+  on.dispose();
+  return `not reached: ${atKmh} km/h asked, tops out at ${run.topKmh.toFixed(0)} km/h`;
+};
 
 const spinOf = (on: Drive, wheel: number) => on.player.treads()[wheel].spinMS;
 
@@ -70,7 +93,8 @@ function launch(assists: Assists): string {
 
 function stop(assists: Assists): string {
   const on = drive(assists);
-  upTo(on, 100 / 3.6);
+  const skipped = notReached(on, 100, upTo(on, 100 / 3.6));
+  if (skipped !== null) return skipped;
   const [x, , z] = on.stateAt(1).position;
   let locked = 0;
   for (let step = 0; speedOf(on.stateAt(1)) > 0.3 && step < 30 / STEP_S; step++) {
@@ -85,7 +109,8 @@ function stop(assists: Assists): string {
 /** From 120 km/h, a second on the brakes, then this for 1.2 s: how far the car turned. */
 function intoBend(assists: Assists, after: Pick<DriveInput, "brake" | "steer">): string {
   const on = drive(assists);
-  upTo(on, 120 / 3.6);
+  const skipped = notReached(on, 120, upTo(on, 120 / 3.6));
+  if (skipped !== null) return skipped;
   const before = headingOf(on.stateAt(1).rotation);
   for (let step = 0; step < 120; step++) on.step({ ...NO_INPUT, brake: 1 });
   for (let step = 0; step < 144; step++) on.step({ ...NO_INPUT, ...after });
@@ -98,7 +123,8 @@ function intoBend(assists: Assists, after: Pick<DriveInput, "brake" | "steer">):
 /** Full steer at a speed held by the throttle, for three seconds: the sideways pull it settles at, and whether it spun. */
 function corner(assists: Assists, atKmh: number): string {
   const on = drive(assists);
-  upTo(on, atKmh / 3.6);
+  const skipped = notReached(on, atKmh, upTo(on, atKmh / 3.6));
+  if (skipped !== null) return skipped;
   const pulls: number[] = [];
   let before = on.stateAt(1);
   let worst = 0;
@@ -122,7 +148,8 @@ function corner(assists: Assists, atKmh: number): string {
 /** At 100 km/h, a quick swerve one way and back and straight again: how far the tail stepped out, and how long until the car ran straight. */
 function swerve(assists: Assists): string {
   const on = drive(assists);
-  upTo(on, 100 / 3.6);
+  const skipped = notReached(on, 100, upTo(on, 100 / 3.6));
+  if (skipped !== null) return skipped;
   let worst = 0;
   let settledAt = 0;
   for (let step = 0; step < 480; step++) {
