@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, Car, Check, Disc, Footprints, Navigation, Flag, LogOut, Medal as MedalIcon, PaintBucket, Play, Repeat, Route, RotateCcw, Settings, Trophy, User, UserPlus, Users, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { ArrowLeft, Car, Check, Disc, Footprints, Navigation, Flag, LogOut, Medal as MedalIcon, PaintBucket, Play, Repeat, Route, RotateCcw, Settings, Trophy, User, UserPlus, UserX, Users, X } from "lucide-react";
 import type { InputKind } from "@/shared/lib/input";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
@@ -71,6 +71,10 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
         return { icon: UserPlus, label: `Join ${menu.partner ?? ""}` };
       case "decline-coop":
         return { icon: X, label: "Decline" };
+      case "start-team":
+        return { icon: Flag, label: `Start · ${(menu.players ?? 0) + 1} players` };
+      case "withdraw-coop":
+        return { icon: UserX, label: "Take the invite back" };
       case "cancel":
         return { icon: X, label: "Cancel" };
       case "retry":
@@ -125,7 +129,18 @@ function RaceCardHeader({ title, card }: { title: string; card: RaceCard }) {
   );
 }
 
-/** How a race finished: the medal and place, and the best medal kept. */
+/** One player of a co-op team on a result card: this player as a single figure, a teammate by name. */
+function TeamRow({ name, children }: { name: string | null; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2" aria-label={name ?? "Yours"} title={name ?? "You"}>
+      {name === null ? <User aria-hidden className="size-4 shrink-0" /> : <Users aria-hidden className="size-4 shrink-0" />}
+      {name !== null && <span className="max-w-32 truncate">{name}</span>}
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/** How a race finished: the medal and place, with each teammate's points in co-op, and the best medal kept. */
 function RaceResultHeader({ title, race }: { title: string; race: RaceResult }) {
   return (
     <div className="mb-1 flex flex-col gap-1" aria-label="Result">
@@ -137,6 +152,15 @@ function RaceResultHeader({ title, race }: { title: string; race: RaceResult }) 
         <MedalMark medal={race.medal} className="size-9 shrink-0" />
         <span aria-label="Place">{placeText(race.place)}</span>
       </div>
+      {race.team && (
+        <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Team" title="Team points: 100 a racer beaten, 50 for beating them all">
+          {race.team.map(({ name, points }) => (
+            <TeamRow key={name ?? ""} name={name}>
+              {points === undefined || points === null ? "–" : `${points} pts`}
+            </TeamRow>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 text-sm" aria-label="Best medal" title="Best medal">
         <Trophy aria-hidden className="size-4 shrink-0" style={{ color: ACCENT }} />
         <MedalMark medal={race.bestMedal} className="size-4 shrink-0" />
@@ -165,14 +189,11 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
       </div>
       {team && (
         <div className="flex flex-col gap-0.5 text-sm tabular-nums" aria-label="Team">
-          <div className="flex items-center gap-2" aria-label="Yours">
-            <User aria-hidden className="size-4 shrink-0" />
-            <span>{team.own === null ? "–" : resultText(kind, team.own, units)}</span>
-          </div>
-          <div className="flex items-center gap-2" aria-label={team.partnerName} title={team.partnerName}>
-            <Users aria-hidden className="size-4 shrink-0" />
-            <span>{team.partner === null ? "–" : resultText(kind, team.partner, units)}</span>
-          </div>
+          {team.map(({ name, result: own }) => (
+            <TeamRow key={name ?? ""} name={name}>
+              {own === null ? "–" : resultText(kind, own, units)}
+            </TeamRow>
+          ))}
         </div>
       )}
       {best !== null && (
@@ -202,7 +223,7 @@ function useSize(element: RefObject<HTMLElement | null>): { width: number; heigh
   return size;
 }
 
-const DIALOG_NAMES = { menu: "Game menu", settings: "Settings", cars: "Cars", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
+const DIALOG_NAMES = { menu: "Game menu", settings: "Settings", cars: "Cars", start: "Start challenge", invite: "Co-op invite", race: "Race", team: "Co-op team" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
 function ChoiceHeader({ title, from, ground }: { title: string; from?: string; ground?: RaceGround }) {
@@ -241,7 +262,7 @@ export function GameMenu({ menu, input, onPick }: { menu: GameMenuState; input: 
         {menu.kind === "settings" && <SettingsMenu menu={menu} input={input} view={view} first={first} look={look} onPick={onPick} />}
         {menu.kind === "cars" && <CarSelect menu={menu} first={first} onPick={onPick} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
-        {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} ground={menu.ground} />}
+        {(menu.kind === "invite" || menu.kind === "team") && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} ground={menu.ground} />}
         {menu.kind !== "settings" && menu.items.map((id, index) => {
           if (isPaintItem(id) || isCarItem(id)) return null;
           // The Cars page opens on the car being driven.
@@ -253,7 +274,7 @@ export function GameMenu({ menu, input, onPick }: { menu: GameMenuState; input: 
               start={opensHere}
               back={id === menu.back}
               buttonRef={opensHere ? first : undefined}
-              border={id === "start-solo" || id === "start-coop" || id === "join-coop" ? CHALLENGE : INK}
+              border={id === "start-solo" || id === "start-coop" || id === "join-coop" || id === "start-team" ? CHALLENGE : INK}
               onPress={() => { onPick(id); }}
             />
           );

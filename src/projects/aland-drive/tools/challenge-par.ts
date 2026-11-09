@@ -65,7 +65,8 @@ function asRace(challenge: BucketChallenge): RaceChallenge {
     ground: "road",
     laps: 1,
     gates: challenge.kind === "route" ? challenge.gates : [challenge.camera],
-    grid: [...challenge.starts],
+    grid: challenge.starts.slice(0, 2),
+    reserve: [],
     lapM: challenge.lengthM,
     lineM: 0,
   };

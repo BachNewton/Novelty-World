@@ -1,6 +1,6 @@
 # Bucket list challenges
 
-An idea with its main decisions taken, built for solo and co-op, both kinds (see `challenge/CLAUDE.md`): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two, with a synced quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the two players' average, teammates are solid, either player can retry, and a challenge is one or two players. Retry lives in a new game menu on the controller's Menu button. The world map moves to View.
+An idea with its main decisions taken, built for solo and co-op, both kinds (see `challenge/CLAUDE.md`): Forza Horizon's bucket list challenges, on Åland's real roads, played solo or as co-op for two to four, with a shared quick retry. These are decided: the challenges are Forza's (a clock or a speed trap, pass or fail against one target), co-op takes the players' average, teammates are solid, any player can retry, a challenge is one to four players, and one who leaves is dropped while the rest carry on. Retry lives in a new game menu on the controller's Menu button. The world map moves to View.
 
 **The system is the foundation; the list on it is the third.** The owner played the first twelve and judged the system sound and the list not yet good: the short ones were boring, and every one was beaten at the first try. A second list of eleven, longer, followed and was judged too easy too. The list below is the third, 25 challenges on 25 cars, each in its own date, hour and weather, with targets the fastest the AI gets, and it hasn't been played yet. Co-op is built and passes its e2e spec, but the owner hasn't played it yet.
 
@@ -12,7 +12,7 @@ Forza Horizon 2 brought them in: two solo lists of fifteen ("15 More Things You 
 
 - **One car, one goal, one place.** Each challenge hands you its own car, so you don't need to own it, and its title is its pitch: "Drive a Koenigsegg Agera Like You Stole It", "Outrun the Sun in a Ferrari F40", "Get Caught Doing 200 MPH in a Bugatti". FH3 labelled each easy, medium or hard and gave it a song.
 - **One target, pass or fail.** Beat the time, or pass the camera at the speed, or the attempt fails. Of FH3's 30 Australian challenges, 13 are Set Routes (point to point in 1:10 to 6:00) and 6 are Speed Cameras (65 to 250 mph). Those are the two kinds this game takes. The rest were jumps, drifts and skill scores.
-- **Co-op takes the average.** Both players drive the challenge at once and the team passes if their average makes the target. A strong run carries a struggling partner, and that is what made co-op fun: you could make up for a friend having a bad attempt by beating the target by more than it asked. FH2 added skill scores the same way, 30,000 alone or 60,000 between two. FH3's co-op was two players only, even in a four-player session.
+- **Co-op takes the average.** Both players drive the challenge at once and the team passes if their average makes the target. A strong run carries a struggling partner, and that is what made co-op fun: you could make up for a friend having a bad attempt by beating the target by more than it asked. FH2 added skill scores the same way, 30,000 alone or 60,000 between two. FH3's co-op was two players only, even in a four-player session; here a team is up to four, the owner's call, on the same average of everyone, so the target per player stays the same at any size.
 - **Co-op had no restart.** To try again, one player had to quit, drive back to the start and ask to start the event, and the other had to accept, and then both loaded in again. That's a long wait between attempts of a challenge you'd try twenty times. Fixing it is what this design is for.
 
 ## The two kinds of challenge
@@ -47,7 +47,8 @@ The game has no menu of its own yet. The controller's **Menu** button opens one,
 
 **Teammates are solid**, as they are in free roam: the stand-ins already let each car hit the other, with both clients seeing the hit. Pushing past a partner on a narrow road is part of it.
 
-- **Two places on the start line**, side by side, each in its own lane facing along the route, at a spot where the road is wide enough for two. A challenge on a narrow road starts where it widens. Retry puts each car back on its own place.
+- **Two places on the start line**, side by side, each in its own lane facing along the route, at a spot where the road is wide enough for two, and a row of two more for a third and fourth player, a row behind or, where the road behind doesn't take two, ahead. A challenge on a narrow road starts where it widens. Retry puts each car back on its own place.
+- **The invite stays open until its inviter starts it or the room of four is full**, each player who joins taking the next seat. **A player who leaves is dropped and the rest carry on**, the average then theirs alone, so the target stands for whoever is still driving; the last one left is out of co-op too.
 - **After a retry the cars are apart.** A stand-in put more than 6 m from where it was already touches nothing until it's clear of this car. Two places a lane apart are never inside each other, so that guard isn't needed here, and nothing is thrown at a green light.
 - **Everyone else in the world stays solid too**, so a player driving through can spoil an attempt. A retry is cheap.
 
@@ -131,12 +132,14 @@ Forza's designers tuned their targets. Here they come from the simulation, and t
 3. **Co-op**: joining, two start places, the synced retry and the average. Its exit test is an e2e spec on the run's own relay. Two pages start a co-op Route. One retries mid-run, and both cars are back on their start places, counting down on the same attempt. Both retrying at once gives one attempt. A pass on the average of a fast run and a slow one counts for both.
 4. **Speed traps in co-op** on the average, as the Routes. Built with step 3, since co-op needed nothing a Speed trap did not already have from the run; its e2e spec plays a Route.
 5. **The list of 25**, each challenge in its own date, hour and weather, the hour running on through the attempt, its car on tyres for them, and its target the fastest the AI gets in them.
-6. **Later:** blueprints, as FH3 had them, where a player picks a start, finish, kind and car on the world map. Then leaderboards.
+6. **Co-op for up to four**: the invite open until started or full, a seat and a start place each, the ready gate and the retry for everyone, the average of all, and a leaver dropped while the rest carry on. Its e2e spec plays four pages: the room filling and starting, one leaving, and the rest retrying.
+7. **Later:** blueprints, as FH3 had them, where a player picks a start, finish, kind and car on the world map. Then leaderboards.
 
 ## Still open
 
 - **Whether the list is right**: whether its targets take several tries and its roads are worth retrying, once the owner has played it, and which targets they set by hand.
 - **Playing co-op**, which only its e2e spec has done so far.
+- **The second row's head start.** Every challenge starts 8 m from its junction, so every second row stands 10 m ahead of the first, a third of a second or so on a Route for the third and fourth players; whether that's worth evening out is for once co-op of four has been played.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.
 - **The keyboard's retry.** Esc's menu reaches it in two presses. A key of its own may be worth it once it's been played.

@@ -39,8 +39,9 @@ function lengthOf(points: readonly number[]) {
 
 /**
  * A Route on the fixture's main road: the GPS's way between two places on it,
- * its two start places side by side a lane apart just past the first, two
- * gates and a finish short of the end. The target is `targetS`, or the length
+ * its start places side by side a lane apart just past the first, and a row of
+ * two more ahead of them for co-op's third and fourth, as the list's measured
+ * starts stand, two gates and a finish short of the end. The target is `targetS`, or the length
  * over `targetMS` (a speed), and the line itself comes back too. It is played
  * on a clear summer noon unless given conditions of its own.
  */
@@ -58,9 +59,10 @@ export async function layChallenge(page: Page, { id, title, target, conditions =
   });
   const length = lengthOf(line);
   expect(length).toBeGreaterThan(300);
-  const first = along(line, 15);
-  const right = { x: Math.cos(first.heading), z: -Math.sin(first.heading) };
-  const side = (by: number) => ({ x: first.x + by * right.x, z: first.z + by * right.z, heading: first.heading });
+  const side = (by: number, metres = 15) => {
+    const row = along(line, metres);
+    return { x: row.x + by * Math.cos(row.heading), z: row.z - by * Math.sin(row.heading), heading: row.heading };
+  };
   const gate = (metres: number) => ({ ...along(line, metres), halfWidthM: 12 });
   const finishM = length - 40;
   const lengthM = finishM - 15;
@@ -73,7 +75,7 @@ export async function layChallenge(page: Page, { id, title, target, conditions =
       car: "sten",
       where: "the fixture's main road",
       waypoints,
-      starts: [side(1.5), side(-1.5)],
+      starts: [side(1.5), side(-1.5), side(1.5, 25), side(-1.5, 25)],
       lengthM,
       gates: [gate(finishM / 3), gate((2 * finishM) / 3), gate(finishM)],
       parS: targetS,
@@ -89,7 +91,8 @@ export async function layRace(page: Page, { id, title }: { id: string; title: st
   const { challenge, line } = await layChallenge(page, { id, title, target: { s: 600 } });
   const [front, beside] = challenge.starts;
   const back = (place: typeof front) => ({ ...place, x: place.x + 10 * Math.sin(place.heading), z: place.z + 10 * Math.cos(place.heading) });
-  const { car, where, waypoints, starts, lengthM, gates } = challenge;
+  const { car, where, waypoints, lengthM, gates } = challenge;
+  const starts = [front, beside];
   return {
     race: {
       id,
@@ -107,6 +110,7 @@ export async function layRace(page: Page, { id, title }: { id: string; title: st
       ground: "road",
       laps: 1,
       grid: [front, beside, back(front), back(beside)],
+      reserve: [],
       lapM: challenge.lengthM,
       lineM: 0,
     },

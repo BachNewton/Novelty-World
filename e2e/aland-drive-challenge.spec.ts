@@ -1,4 +1,4 @@
-// e2e-covers: src/projects/aland-drive/challenge/{session,run,conditions}.ts src/projects/aland-drive/render/{challenge-marks,day-and-night}.ts src/projects/aland-drive/components/game-menu.tsx
+// e2e-covers: src/projects/aland-drive/challenge/{session,run,conditions}.ts src/projects/aland-drive/render/{challenge-marks,day-and-night}.ts src/projects/aland-drive/components/game-menu.tsx src/projects/aland-drive/render/game-menu.ts
 import type { Server } from "node:http";
 import { serveTiles } from "../src/projects/aland-drive/tools/serve-tiles.mjs";
 import { carAt, challengeOf as challenge, COUNTDOWN_STEPS, layChallenge, offStart, STEPS_A_SECOND } from "./aland-drive-route";
@@ -96,6 +96,8 @@ test("a solo Route: started from its ring by its button, in its own conditions, 
   }, 120 * STEPS_A_SECOND);
   expect(finished?.outcome?.passed).toBe(true);
   await expect(page.getByRole("dialog", { name: "Challenge result" })).toContainText("Passed");
+  // Passed, the card opens on Leave, not Retry: there's nothing left to chase.
+  await expect(page.getByRole("dialog", { name: "Challenge result" }).getByRole("button", { name: "Leave challenge" })).toBeFocused();
 
   // Esc on the result card leaves: the car from before is back, where the car is now.
   const before = await carAt(page);
