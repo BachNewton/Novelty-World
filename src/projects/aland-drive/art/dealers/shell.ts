@@ -16,6 +16,7 @@ export const PAINTS = [
   "dealer-concrete", "dealer-tile", "dealer-polish", "dealer-paving", "dealer-paving-dark", "dealer-gravel", "dealer-asphalt",
   "dealer-panel", "dealer-steel", "dealer-steel-dark", "dealer-timber", "dealer-timber-dark", "dealer-stone", "dealer-leather",
   "dealer-fabric", "dealer-rubber", "dealer-hazard", "dealer-glass", "dealer-shade", "dealer-light-warm", "dealer-light-cool", "dealer-ceiling",
+  "dealer-yacht-hull",
   "wall-red", "wall-trim", "wall-grey", "wall-plinth", "wall-door", "wall-glass", "road-paint", "sky", "water", "tree-spruce", "tree-birch", "ground",
 ] as const;
 export type Paint = (typeof PAINTS)[number];

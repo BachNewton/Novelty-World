@@ -23,7 +23,6 @@ export interface CarSlot {
 
 export interface Exterior {
   id: ExteriorId;
-  /** The yacht's is empty: its hull is a boat (`yacht/hull.ts`), drawn with the boats in the harbour. */
   soup: Soup;
   slots: readonly CarSlot[];
   /** Half the plot, x and z, about the origin. Nothing in the model leaves it, by much. */

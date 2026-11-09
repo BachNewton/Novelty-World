@@ -1,6 +1,4 @@
-import { BoatMesh, finished, type BoatPart } from "../../boats/mesh";
-import type { RoadsideModel } from "../../roadside/models";
-import type { V3 } from "../../roadside/mesh";
+import type { Finish, Paint, Shell, V3 } from "../shell";
 import { CAR_DECK, CAR_DECK_GLASS, CAR_DECK_PANES, PASSERELLE_END, SHELL_DOOR } from "./plan";
 
 /*
@@ -9,10 +7,91 @@ import { CAR_DECK, CAR_DECK_GLASS, CAR_DECK_PANES, PASSERELLE_END, SHELL_DOOR } 
  * shows. The car deck is the lower deck aft of the guest cabins, its windows the long panes low in the hull, its door
  * the shell door on the quay side with a passerelle down to the quay.
  *
- * A boat of the boats kit: drawn with `boatMaterials` (or `yachtMaterials`, which lights its glass at night) and placed
- * by the roadside's `placeModel`. Bow along +x, the quay side +z (its starboard), y up from the water: the dealership
- * frame, whose street side is +z, so the room and the site read it as they read a building.
+ * The yacht's exterior in the dealer kit, drawn and placed as every dealership is. Bow along +x, the quay side +z
+ * (its starboard), y up from the water: the dealership frame, whose street side is +z, so the room and the site read it
+ * as they read a building.
  */
+
+interface PartLook {
+  paint: Paint;
+  finish: Finish;
+  /** Darker than its paint, as the boot-top's band is. */
+  shade?: number;
+}
+
+/** What each part of the yacht is painted with, in the dealer kit's paints. */
+const PARTS = {
+  navy: { paint: "dealer-yacht-hull", finish: { gloss: 0.45 } },
+  boot: { paint: "dealer-yacht-hull", finish: {}, shade: 0.6 },
+  gelcoat: { paint: "wall-trim", finish: { gloss: 0.15 } },
+  teak: { paint: "dealer-timber", finish: { pattern: "boards" } },
+  varnish: { paint: "dealer-timber-dark", finish: { gloss: 0.4 } },
+  glass: { paint: "dealer-shade", finish: { gloss: 0.8 } },
+  alu: { paint: "dealer-steel", finish: { gloss: 0.5 } },
+  "spar-black": { paint: "dealer-shade", finish: {} },
+} as const satisfies Record<string, PartLook>;
+type Part = keyof typeof PARTS;
+
+/** A rail's or a post's thickness. */
+const RAIL_M = 0.05;
+
+/** The shapes the hull is written in, onto a shell in the yacht's parts. */
+class Painter {
+  constructor(private readonly s: Shell) {}
+
+  private finish(part: Part, shade: number): Finish {
+    const look: PartLook = PARTS[part];
+    return { ...look.finish, shade: shade * (look.shade ?? 1) };
+  }
+
+  face(corners: readonly V3[], part: Part, shade = 1): this {
+    const [paint, finish] = [PARTS[part].paint, this.finish(part, shade)];
+    for (let next = 2; next < corners.length; next++) this.s.tri(corners[0], corners[next - 1], corners[next], paint, finish);
+    return this;
+  }
+
+  box(low: V3, high: V3, part: Part, { open = false, shade = 1 }: { open?: boolean; shade?: number } = {}): this {
+    this.s.box(low, high, PARTS[part].paint, this.finish(part, shade), open ? ["bottom"] : []);
+    return this;
+  }
+
+  beam(from: V3, to: V3, thick: number, part: Part): this {
+    this.s.bar(from, to, thick, PARTS[part].paint, this.finish(part, 1));
+    return this;
+  }
+
+  line(from: V3, to: V3, part: Part): this {
+    return this.beam(from, to, RAIL_M, part);
+  }
+
+  /** A round bar from one point to another, tapering to `radiusTo`, its far end closed by `cap`. */
+  tube(from: V3, to: V3, radius: number, sides: number, { radiusTo = radius, cap = false }: { radiusTo?: number; cap?: boolean }, part: Part): this {
+    const along: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    const length = Math.hypot(...along);
+    const unit: V3 = [along[0] / length, along[1] / length, along[2] / length];
+    const seed: V3 = Math.abs(unit[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const normalise = (a: V3): V3 => {
+      const size = Math.hypot(...a);
+      return [a[0] / size, a[1] / size, a[2] / size];
+    };
+    const u = normalise(cross(unit, seed));
+    const v = cross(unit, u);
+    const ring = (centre: V3, r: number) =>
+      Array.from({ length: sides }, (_, side): V3 => {
+        const angle = (side * 2 * Math.PI) / sides;
+        const [c, s] = [Math.cos(angle) * r, Math.sin(angle) * r];
+        return [centre[0] + u[0] * c + v[0] * s, centre[1] + u[1] * c + v[1] * s, centre[2] + u[2] * c + v[2] * s];
+      });
+    const [a, b] = [ring(from, radius), ring(to, radiusTo)];
+    for (let side = 0; side < sides; side++) {
+      const next = (side + 1) % sides;
+      this.face([a[side], a[next], b[next], b[side]], part);
+    }
+    if (cap) this.face(b, part);
+    return this;
+  }
+}
 
 const STERN_X = -34;
 const HALF_BEAM = 6.3;
@@ -40,7 +119,7 @@ const LEVELS: readonly Level[] = [
   { y: MAIN_DECK_Y, to: 35.8, beam: 1, sheer: true },
   { y: BULWARK_Y, to: 36.2, beam: 1, sheer: true },
 ];
-const BANDS: readonly BoatPart[] = ["boot", "gelcoat", "navy", "navy", "navy"];
+const BANDS: readonly Part[] = ["boot", "gelcoat", "navy", "navy", "navy"];
 const BULWARK_FROM = (BULWARK_FROM_X - STERN_X) / (LEVELS[5].to - STERN_X);
 const SHEER_RISE_M = 0.8;
 
@@ -66,12 +145,12 @@ function hullPoint(level: Level, share: number, side: number, inset = 0): V3 {
 }
 
 /** A strip of hull between two levels and two stations, ending in a point at the stem. */
-function band(into: BoatMesh, low: Level, high: Level, a: number, b: number, side: number, part: BoatPart, inset = 0, shade = 1) {
+function band(into: Painter, low: Level, high: Level, a: number, b: number, side: number, part: Part, inset = 0, shade = 1) {
   const corners = [hullPoint(low, a, side, inset), hullPoint(low, b, side, inset), hullPoint(high, b, side, inset), hullPoint(high, a, side, inset)];
   into.face(b === 1 ? [corners[0], corners[1], corners[3]] : corners, part, shade);
 }
 
-function hull(into: BoatMesh, stations: readonly number[], bands: readonly BoatPart[]) {
+function hull(into: Painter, stations: readonly number[], bands: readonly Part[]) {
   const bulwark = bands.length - 1;
   for (let station = 0; station + 1 < stations.length; station++) {
     const [a, b] = [stations[station], stations[station + 1]];
@@ -89,7 +168,7 @@ function hull(into: BoatMesh, stations: readonly number[], bands: readonly BoatP
 }
 
 /** The bulwark's inside and its teak cap from the house forward, and the main deck, open aft: what shows from the quay and the upper decks. */
-function bulwarkAndDeck(into: BoatMesh, stations: readonly number[]) {
+function bulwarkAndDeck(into: Painter, stations: readonly number[]) {
   const [deck, top] = [LEVELS[4], LEVELS[5]];
   const inner = stations.filter((share) => share < 0.97);
   for (let station = 0; station + 1 < inner.length; station++) {
@@ -113,7 +192,7 @@ function bulwarkAndDeck(into: BoatMesh, stations: readonly number[]) {
 }
 
 /** The stern: a teak swim platform low over the water, the beach club's glass in the transom, and rails round the open aft deck. */
-function stern(into: BoatMesh, near: boolean) {
+function stern(into: Painter, near: boolean) {
   const [low, high, half] = [0.35, 0.75, HALF_BEAM * 0.8];
   into.box([STERN_X - 2.8, low, -half], [STERN_X + 0.05, high, half], "navy", { open: true, shade: 0.9 });
   into.face([[STERN_X - 2.75, high + 0.012, -half + 0.05], [STERN_X - 2.75, high + 0.012, half - 0.05], [STERN_X, high + 0.012, half - 0.05], [STERN_X, high + 0.012, -half + 0.05]], "teak", 1.05);
@@ -156,14 +235,14 @@ const LIFT = 0.03;
 const RAIL_POST_M = 0.97;
 
 /** A flat patch laid on the hull's side, both sides unless `side` is given: a pane, a seam, a door. */
-function onHull(into: BoatMesh, fromX: number, toX: number, lowY: number, highY: number, part: BoatPart, lift = LIFT, sides: readonly number[] = [-1, 1]) {
+function onHull(into: Painter, fromX: number, toX: number, lowY: number, highY: number, part: Part, lift = LIFT, sides: readonly number[] = [-1, 1]) {
   for (const side of sides) {
     const at = (x: number, y: number): V3 => [x, y, side * (hullHalfAt(x, y) + lift)];
     into.face([at(fromX, lowY), at(toX, lowY), at(toX, highY), at(fromX, highY)], part, side > 0 ? 1.05 : 0.95);
   }
 }
 
-function hullDetail(into: BoatMesh, near: boolean) {
+function hullDetail(into: Painter, near: boolean) {
   for (const [from, to] of near ? CAR_DECK_PANES : [[CAR_DECK_PANES[0][0], CAR_DECK_PANES[CAR_DECK_PANES.length - 1][1]] as const]) {
     onHull(into, from, to, CAR_DECK_GLASS.lowY, CAR_DECK_GLASS.highY, "glass");
     if (!near) continue;
@@ -189,7 +268,7 @@ function hullDetail(into: BoatMesh, near: boolean) {
 }
 
 /** The passerelle from the shell door's sill to the quay: a teak plank with a steel rail each side and a foot where it lands. */
-function passerelle(into: BoatMesh, near: boolean) {
+function passerelle(into: Painter, near: boolean) {
   const middle = (SHELL_DOOR.fromX + SHELL_DOOR.toX) / 2;
   const [x0, x1] = [middle - 0.65, middle + 0.65];
   const startZ = hullHalfAt(middle, CAR_DECK.floorY) + LIFT;
@@ -201,7 +280,7 @@ function passerelle(into: BoatMesh, near: boolean) {
   into.face([[x0, startY - thick, startZ], [x1, startY - thick, startZ], [x1, endY - thick, endZ], [x0, endY - thick, endZ]], "alu", 0.7);
   into.box([x0 - 0.15, endY - 0.8, endZ - 0.3], [x1 + 0.15, endY - thick, endZ + 0.35], "alu", { open: true, shade: 0.85 });
   if (!near) return;
-  // Each rail's posts stop just under it and stand in from the plank's edge, so no two ribbons meet in one plane.
+  // Each rail's posts stop just under it and stand in from the plank's edge, so no two bars meet in one plane.
   for (const x of [x0 + 0.06, x1 - 0.06]) {
     for (const [z, y] of [[startZ + 0.4, startY], [(startZ + endZ) / 2, (startY + endY) / 2], [endZ - 0.3, endY]] as const) into.line([x, y, z], [x, y + RAIL_POST_M, z], "alu");
     into.line([x, startY + 1, startZ + 0.4], [x, endY + 1, endZ - 0.3], "alu");
@@ -245,7 +324,7 @@ function houseOutline({ from, to, half, low, high, rake }: House, y: number): V3
   return [[from, y, -half], [front - taper, y, -half], [front, y, -half * NOSE], [front, y, half * NOSE], [front - taper, y, half], [from, y, half]];
 }
 
-function house(into: BoatMesh, spec: House, near: boolean) {
+function house(into: Painter, spec: House, near: boolean) {
   const [foot, head] = [houseOutline(spec, spec.low), houseOutline(spec, spec.high)];
   foot.forEach((corner, at) => {
     const next = (at + 1) % foot.length;
@@ -289,7 +368,7 @@ function house(into: BoatMesh, spec: House, near: boolean) {
   into.face([[aft, spec.low + 0.1, -spec.half + 0.9], [aft, spec.low + 0.1, spec.half - 0.9], [aft, spec.high - 0.35, spec.half - 0.9], [aft, spec.high - 0.35, -spec.half + 0.9]], "glass", 0.9);
 }
 
-function slab(into: BoatMesh, { from, to, half, y }: (typeof SLABS)[number]) {
+function slab(into: Painter, { from, to, half, y }: (typeof SLABS)[number]) {
   const top = y + SLAB_THICK;
   const taper = 3.4;
   // The aft corners swept round, as a yacht's overhangs are.
@@ -313,8 +392,8 @@ function slab(into: BoatMesh, { from, to, half, y }: (typeof SLABS)[number]) {
   into.face(level(top).map(inset), "teak", 1.04);
 }
 
-/** Rails round the open decks aft, as ribbons the material holds at a pixel's width. */
-function rails(into: BoatMesh) {
+/** Rails round the open decks aft. */
+function rails(into: Painter) {
   for (const { from, half, y } of SLABS) {
     const top = y + SLAB_THICK + 1;
     // Round the open deck, from the house standing on the slab (or the hardtop's posts on the sun deck) aft, round the
@@ -335,45 +414,31 @@ function rails(into: BoatMesh) {
 const HARDTOP = { from: -4.5, to: 9.5, half: 4.3 } as const;
 
 /** The sun deck's hardtop on its four posts, and the mast over it with its radomes. */
-function hardtopAndMast(into: BoatMesh, near: boolean) {
+function hardtopAndMast(into: Painter, near: boolean) {
   const deck = SLABS[2].y + SLAB_THICK;
   const [roofLow, roofHigh] = [deck + 2.6, deck + 2.9];
   const { from, to, half } = HARDTOP;
-  into.box([from, roofLow, -half], [to, roofHigh, half], "gelcoat", { shadeTop: 1.05 });
+  into.box([from, roofLow, -half], [to, roofHigh, half], "gelcoat");
   into.face([[from, roofLow - 0.01, -half], [to, roofLow - 0.01, -half], [to, roofLow - 0.01, half], [from, roofLow - 0.01, half]], "gelcoat", 0.7);
   for (const x of [from + 1, to - 1.5]) for (const z of [-half + 0.5, half - 0.5]) into.box([x - 0.12, deck, z - 0.12], [x + 0.12, roofLow, z + 0.12], "gelcoat", { open: true, shade: 0.9 });
   const sides = near ? 8 : 4;
   into.tube([5.5, roofHigh, 0], [4.6, roofHigh + 4.8, 0], 0.32, sides, { radiusTo: 0.14 }, "gelcoat");
-  into.beam([4.9, roofHigh + 3, -1.8], [4.9, roofHigh + 3, 1.8], 0.16, 0.16, "gelcoat");
+  into.beam([4.9, roofHigh + 3, -1.8], [4.9, roofHigh + 3, 1.8], 0.16, "gelcoat");
   if (!near) return;
   for (const z of [-1.5, 1.5]) into.tube([4.9, roofHigh + 3.08, z], [4.9, roofHigh + 3.6, z], 0.3, 8, { cap: true }, "gelcoat");
   into.tube([2, roofHigh, 0], [2, roofHigh + 0.7, 0], 0.55, 10, { cap: true, radiusTo: 0.45 }, "gelcoat");
 }
 
-const SWAP_M = 450;
-const REACH_M = 10000;
-
-/** The yacht: near under 3,000 triangles and far under 500, swapping where the LOD check measured it. */
-export function buildYacht(): RoadsideModel {
-  const near = new BoatMesh();
-  hull(near, NEAR_STATIONS, BANDS);
-  bulwarkAndDeck(near, NEAR_STATIONS);
-  hullDetail(near, true);
-  passerelle(near, true);
-  stern(near, true);
-  for (const spec of SLABS) slab(near, spec);
-  for (const spec of HOUSES) house(near, spec, true);
-  rails(near);
-  hardtopAndMast(near, true);
-
-  const far = new BoatMesh();
-  hull(far, FAR_STATIONS, BANDS);
-  bulwarkAndDeck(far, FAR_STATIONS);
-  hullDetail(far, false);
-  passerelle(far, false);
-  stern(far, false);
-  for (const spec of SLABS) slab(far, spec);
-  for (const spec of HOUSES) house(far, spec, false);
-  hardtopAndMast(far, false);
-  return finished({ near, far, swapM: SWAP_M, reachM: REACH_M, rock: 0 });
+/** The yacht's hull and decks onto a shell: the near version, or with `near` false, the far one, which keeps its shape and colours but drops what is gone to a pixel by its swap. */
+export function drawHull(s: Shell, near: boolean) {
+  const into = new Painter(s);
+  hull(into, near ? NEAR_STATIONS : FAR_STATIONS, BANDS);
+  bulwarkAndDeck(into, near ? NEAR_STATIONS : FAR_STATIONS);
+  hullDetail(into, near);
+  passerelle(into, near);
+  stern(into, near);
+  for (const spec of SLABS) slab(into, spec);
+  for (const spec of HOUSES) house(into, spec, near);
+  if (near) rails(into);
+  hardtopAndMast(into, near);
 }

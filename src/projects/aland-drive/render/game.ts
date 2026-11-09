@@ -37,7 +37,6 @@ import { towardsPlace } from "../art/sun";
 import { terrainLightAsked } from "./terrain-light";
 import { createPeople } from "./people";
 import { createRegattas } from "./regatta";
-import { createYacht } from "./yacht";
 import { createLandmarks } from "./landmarks";
 import { createRuralBuildings } from "./rural-buildings";
 import { createWindmills } from "./windmills";
@@ -1096,7 +1095,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // The small boats keep to the season and off the ice; the ice is the exposure against the season's reach, as drawn.
   const seaSeason = { season, frozenAt: (x: number, z: number) => season.current().iceReach > 0 && exposureAt(iceExposure, x, z) < season.current().iceReach };
   const regattas = createRegattas(scene, { colour: colorOf, linear, hazed }, inPlayground ? [] : undefined, seaSeason);
-  const yacht = inPlayground ? null : createYacht(scene, { colour: colorOf, linear, hazed, sun }, night.lampsOn);
   const stoneWalls = createStoneWalls(scene, outbuildingMaterials);
   const boatsUnderWay = createBoatsUnderWay(scene, { colour: colorOf, linear, hazed, sun }, seaSeason);
   const seaMarks = createSeaMarks(scene, { colour: colorOf, linear, hazed, sun }, (x, z) => world.height(x, z));
@@ -2615,7 +2613,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     parkedCars.update(camera.position);
     outbuildings.follow(camera.position);
     docks.follow(camera.position);
-    yacht?.follow(camera.position);
     // Over the map the car stays where traffic is wanted; and online, where every player keeps the slots nearest their
     // car, it's always the car, the place the others are told of, or two players could each think a slot theirs.
     const trafficAt = mapFrom || sharedTraffic ? { x: drive.player.position[0], z: drive.player.position[2] } : camera.position;
@@ -3039,7 +3036,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       seaMarks.dispose();
       people.dispose();
       regattas.dispose();
-      yacht?.dispose();
       stoneWalls.dispose();
       for (const clearing of Object.values(wallClearings)) clearing.dispose();
       roadside.dispose();
