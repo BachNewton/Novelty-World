@@ -109,11 +109,11 @@ const shape: Shape = {
   windowTop: [
     [-0.31, 0.83],
     [0.0, 1.02],
-    [0.3, 1.16],
-    [0.6, 1.2],
-    [0.95, 1.13],
-    [1.25, 1.01],
-    [1.5, 0.92],
+    [0.3, 1.15],
+    [0.6, 1.185],
+    [0.95, 1.12],
+    [1.25, 0.99],
+    [1.5, 0.9],
   ],
   windowZ: [-0.31, 1.5],
   railWidth: [
@@ -139,7 +139,7 @@ const shape: Shape = {
     ...flank(),
     { ...thirdBrake(2.135, 0.36), liftM: 0.012 },
     // Two vents in the bonnet over the engine, three slats each, Aurelle's gill laid flat.
-    ...louvres({ x: 0.3, z: -1.42, long: 0.36, wide: 0.2, count: 3 }),
+    ...louvres({ x: 0.28, z: -1.42, long: 0.36, wide: 0.17, count: 3 }),
     // Reversing lamps at the outer ends of the dark valance, beside the pipes.
     { ...reversing(0.56, 0.4), liftM: 0.012 },
   ],
@@ -187,7 +187,7 @@ const shape: Shape = {
           [-0.34, "screen"],
           [0.2, undefined],
           [0.85, "rearGlass"],
-          [1.72, undefined],
+          [1.68, undefined],
         ],
       ),
       // The fastback kicks up into a short lip over the tail.
