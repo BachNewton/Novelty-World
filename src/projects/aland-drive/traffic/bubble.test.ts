@@ -44,6 +44,16 @@ describe("the bubble", () => {
     expect(inSight).toEqual([]);
   });
 
+  it("fills for the hour: fewer cars at night than at the morning peak", () => {
+    const filled = (hour: number) => {
+      const { traffic, bubble } = setUp(5);
+      bubble.setClock({ hour, yearDay: 100 });
+      bubble.update({ x: 1500, z: 0 }, () => false);
+      return traffic.count();
+    };
+    expect(filled(3)).toBeLessThan(filled(8) / 4);
+  });
+
   it("leaves an empty slot in sight empty until it's out of sight", () => {
     const { traffic, bubble } = setUp(5);
     bubble.update({ x: 1500, z: 0 }, () => false);

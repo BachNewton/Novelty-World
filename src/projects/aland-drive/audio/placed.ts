@@ -1,5 +1,6 @@
 import { heardAt, voicesHeard, type Listener } from "./model";
-import { churchBell, gullCall, type Loop } from "./synthesis";
+import { churchBell, gullCall, rollGravelLoop, rollTarmacLoop, trafficEngineLoop, trafficMotorLoop, type Loop } from "./synthesis";
+import { ELECTRIC_LOOP_RPM, TRAFFIC_LOOP_RPM, TRAFFIC_VOICES } from "./traffic";
 
 /*
  * Sounds placed in the world: each comes from a place in the scene, as loud as its loudness at 8 m and falling off with
@@ -14,9 +15,18 @@ import { churchBell, gullCall, type Loop } from "./synthesis";
 const PLACED = {
   gull: gullCall,
   bell: churchBell,
+  "traffic-petrol": () => trafficEngineLoop(TRAFFIC_VOICES.petrol, TRAFFIC_LOOP_RPM.petrol),
+  "traffic-diesel": () => trafficEngineLoop(TRAFFIC_VOICES.diesel, TRAFFIC_LOOP_RPM.diesel),
+  "traffic-van": () => trafficEngineLoop(TRAFFIC_VOICES.van, TRAFFIC_LOOP_RPM.van),
+  "traffic-electric": () => trafficMotorLoop(TRAFFIC_VOICES.electric, ELECTRIC_LOOP_RPM),
+  "roll-tarmac": rollTarmacLoop,
+  "roll-gravel": rollGravelLoop,
 } satisfies Record<string, () => Loop>;
 
 export type PlacedSoundId = keyof typeof PLACED;
+
+/** The traffic's loops (`traffic.ts`). */
+export const TRAFFIC_SOUNDS: readonly PlacedSoundId[] = ["traffic-petrol", "traffic-diesel", "traffic-van", "traffic-electric", "roll-tarmac", "roll-gravel"];
 
 /** A loop placed in the world this frame: `id` keeps it the same voice from frame to frame. */
 export interface PlacedLoop {
@@ -25,6 +35,8 @@ export interface PlacedLoop {
   x: number;
   z: number;
   loudness: number;
+  /** How fast it plays, 1 as rendered: a traffic car's revs and its pass-by. */
+  rate?: number;
 }
 
 /** How fast a placed voice's loudness and side follow the listener, seconds: smooth, but quick enough to follow a pass-by. */
@@ -71,6 +83,10 @@ export function createPlacedVoices(context: BaseAudioContext, out: AudioNode, to
   };
 
   return {
+    /** Renders these sounds now, while the sound is being built, so the first time one plays costs a frame nothing. */
+    prepare(sounds: readonly PlacedSoundId[]) {
+      for (const sound of sounds) bufferOf(sound);
+    },
     /** Each frame: where the sound is heard from, the loops placed this frame, and how many voices may play. */
     frame(heardFrom: Listener, placed: readonly PlacedLoop[], budget: number) {
       listener = heardFrom;
@@ -85,14 +101,15 @@ export function createPlacedVoices(context: BaseAudioContext, out: AudioNode, to
         stop(voice);
         loops.delete(id);
       }
-      for (const { id, sound, x, z, loudness, gain, pan } of chosen) {
+      for (const { id, sound, x, z, loudness, rate = 1, gain, pan } of chosen) {
         let voice = loops.get(id);
         if (voice === undefined) {
-          voice = start(sound, true, 1, x, z, loudness);
+          voice = start(sound, true, rate, x, z, loudness);
           loops.set(id, voice);
         }
         Object.assign(voice, { x, z, loudness });
         follow(voice, gain, pan);
+        voice.source.playbackRate.setTargetAtTime(rate, context.currentTime, FOLLOW_S);
       }
     },
     /** Plays a sound once from a place, at a rate (1 as rendered), if it's heard and the budget has room. */

@@ -2,7 +2,7 @@ import { audioContext, listenForAudioUnlock, renderSound, SoundPlayer, unlockAud
 import { useDriveSoundSettings } from "./settings";
 import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { landing, mix, noJolts, PLACED_VOICES, quietEngine, readJolts, stepEngineSound, type DriveAudioState, type EngineHeard, type EngineSound, type Jolt, type Mix } from "./model";
-import { createPlacedVoices, type PlacedLoop, type PlacedSoundId } from "./placed";
+import { createPlacedVoices, TRAFFIC_SOUNDS, type PlacedLoop, type PlacedSoundId } from "./placed";
 import { SOUNDS, type SoundId } from "./sounds";
 import { engineLoops, engineShots, birdsBed, freewheelLoop, grassLoop, gravelLoop, iceBed, lakeBed, noiseLoop, rainHeavyLoop, rainLightLoop, rockLoop, shoreBed, snowLoop, sprayLoop, studsLoop, winterCallsBed, type Loop } from "./synthesis";
 import { ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
@@ -459,6 +459,10 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     () => ({ muted: settings().muted, volume: 1 }),
   );
 
+  // The traffic's voices are rendered with the rest, not on the first car heard mid-drive.
+  const placed = createPlacedVoices(context, master, toBuffer);
+  placed.prepare(TRAFFIC_SOUNDS);
+
   return {
     master,
     player,
@@ -488,7 +492,7 @@ async function buildRig(context: BaseAudioContext, settings: () => SoundSettings
     shore: shore.level,
     lake: lake.level,
     ice: ice.level,
-    placed: createPlacedVoices(context, master, toBuffer),
+    placed,
     ticks: toBuffer(freewheelLoop()),
     shots: shotBuffers(),
     loops: new Map(),

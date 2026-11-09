@@ -14,6 +14,8 @@ import { createCyclistsView } from "./cyclists";
 import { createWalkersView, standingPlaces, walkerPace } from "./walkers";
 import { PEOPLE_REACH_M } from "../art/people/material";
 import { Bubble } from "../traffic/bubble";
+import { createTrafficLife } from "../traffic/life";
+import { PARKED_CARS } from "./parked-places";
 import { REACH_M as CAR_REACH_M } from "../art/cars/fleet";
 import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
@@ -1138,6 +1140,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let trafficMade = 0;
   const nameVehicle = online ? (slot: string) => `${slot}~${onlineWorld?.state().selfId ?? trafficTag}${(trafficMade++).toString(36)}` : undefined;
   const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 1 }, bike: { reachM: BIKE_REACH_M, density: 1 }, walker: { reachM: PEOPLE_REACH_M, density: 1 } }, nameVehicle);
+  const trafficLife = createTrafficLife(bubble, laneTraffic, laneNet, PARKED_CARS.map(({ name }) => name));
   let trafficSeesPlayer = true;
   let trafficSteps = 0;
   let bubbleSteps = 0;
@@ -2157,6 +2160,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (bubble.density("car") === 0 && bubble.density("bike") === 0 && bubble.density("walker") === 0) return;
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
+      trafficLife.step(seasonHeard());
       const eye = eyeNow();
       bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() && sharedTraffic.namedBy(others.keys()) } : undefined);
     }
@@ -2574,8 +2578,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
+      trafficLife.reset();
     }
     const [carX, , carZ] = car.position;
+    audio.placeLoops(mapFrom !== null || jumping || menuHolds ? [] : trafficLife.sound(heardFrom(), conditionUnderCar(), seconds));
     audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), listener: heardFrom(), perspective: cameraMode === "cockpit" ? "inside" : "outside", paused: mapFrom !== null || jumping || menuHolds }, drive.player.treads().map((tread) => tread.spinMS)), seconds);
     ringBells();
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
