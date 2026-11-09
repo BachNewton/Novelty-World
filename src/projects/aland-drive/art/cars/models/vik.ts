@@ -135,15 +135,15 @@ const shape: Shape = {
       { z: -0.12, h: 1.1, band: "screen" },
       // The scuttle's rim, and the cockpit open from it back to behind the seats.
       { z: -0.06, h: 0.8, bed: true },
-      { z: 0.5, h: 0.78, bed: true },
+      { z: 0.6, h: 0.78, bed: true },
       ...faired(
         [
-          [0.92, 0.8],
-          [1.2, 0.84],
+          [1.06, 0.8],
+          [1.3, 0.84],
           [1.6, 0.8],
           [1.9, 0.73],
         ],
-        [[0.92, undefined]],
+        [[1.06, undefined]],
       ),
       { z: 1.9, h: 0.73, band: "gap" },
       { z: 1.91, h: 0.71, band: "tailDark" },
@@ -186,7 +186,7 @@ const shape: Shape = {
     hoodSeamZ: [-1.85, -0.42],
     cornerPullM: [0.22, 0.16],
     exhausts: { x: [0.4], h: 0.27, z: 1.98, radius: 0.03, open: true },
-    cabin: { dashZ: -0.28, dashH: 0.72, floorH: 0.31, seatZ: 0.5, endZ: 0.88, seatX: VIK.trackM * 0.23, seatSurface: "seat" },
+    cabin: { dashZ: -0.28, dashH: 0.72, floorH: 0.31, seatZ: 0.66, endZ: 1.02, seatX: VIK.trackM * 0.23, seatSurface: "seat" },
   },
 };
 
