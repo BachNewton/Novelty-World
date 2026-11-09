@@ -31,6 +31,10 @@ export interface InteriorStyle {
   screen: boolean;
   /** A roll cage, with bare painted metal for door cards. */
   cage: boolean;
+  /** A mirror hung at the top of the windscreen: a car with only a low aero screen has none. */
+  rearMirror: boolean;
+  /** A race car's harness over each seat, in the accent colour, in place of a belt. */
+  harness: boolean;
   /** A band of the car's own paint across the dash, as older cars had. */
   paintedDash: boolean;
   /**
@@ -57,6 +61,12 @@ export interface InteriorStyle {
   turnsToLock: number;
   /** Metres the driver's eye moves from where the cabin seats it: right, up, back. */
   eye: readonly [x: number, y: number, z: number];
+  /**
+   * How far up the wheel, as a share of its radius from the hub, the eye's line to the instruments passes. Higher puts
+   * the cluster's readouts in the wheel's opening over the hub and column, for a car whose dash stands close behind
+   * its wheel.
+   */
+  clusterSight: number;
 }
 
 export type InteriorChoice = Partial<Omit<InteriorStyle, "colours">> & { colours?: Partial<InteriorStyle["colours"]> };
@@ -76,12 +86,15 @@ export function interiorOf(spec: Pick<CarSpec, "id" | "interior" | "body">): Int
     seats: rally ? "bucket" : sports ? "sport" : "comfort",
     screen: !rally,
     cage: rally,
+    rearMirror: true,
+    harness: false,
     paintedDash: false,
     quilted: false,
     centreDisplay: false,
     colours: { ...MODERN, glow: electric ? "car-cabin-glow-ice" : rally ? "car-cabin-glow-red" : sports ? "car-cabin-glow-amber" : MODERN.glow },
     turnsToLock: rally ? 1 : sports ? 1.3 : 1.5,
     eye: [0, 0, 0],
+    clusterSight: 0.45,
   };
   const chosen = spec.interior ?? {};
   return { ...base, ...chosen, colours: { ...base.colours, ...chosen.colours } };
