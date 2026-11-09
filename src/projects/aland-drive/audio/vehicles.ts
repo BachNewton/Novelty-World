@@ -5,6 +5,7 @@ import { aska } from "./voices/aska";
 import { ankar } from "./voices/ankar";
 import { berg } from "./voices/berg";
 import { bris } from "./voices/bris";
+import { dyning } from "./voices/dyning";
 import { fjard } from "./voices/fjard";
 import { grus } from "./voices/grus";
 import { gnista } from "./voices/gnista";
@@ -140,6 +141,7 @@ const VOICES: Readonly<Record<EngineId, Voice>> = {
   aska,
   // A2
   // A3
+  dyning,
   strimma,
   // A4
   sund,
