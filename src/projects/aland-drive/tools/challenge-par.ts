@@ -13,7 +13,7 @@
 // pulling at the top of the car's measured pull table, so it sets the Speed traps. A Speed trap's line ends at the
 // camera and runs straight on, so neither brakes there for a bend past it. The racer still makes mistakes on some
 // roads (`ideas/racer-method.md`'s gaps): a run with a reset or a hit is slower for it, never shorter, and the table
-// says which pars have one, since those are the targets that tighten as the racer improves. A challenge no driver
+// says which pars have one, the softest targets. A challenge no driver
 // finishes fails loudly, with what went wrong in each run.
 
 import { readFileSync, writeFileSync } from "node:fs";

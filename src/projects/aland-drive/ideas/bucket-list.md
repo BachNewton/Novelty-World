@@ -61,7 +61,7 @@ The third list, 25 challenges on 25 of the car list's 38 cars (`ideas/cars.md`):
 - **A challenge is a test drive.** Forza's handed you cars you didn't own, dream cars above all, so the list is built round the car list, the ones hardest to own first, and every car worth dreaming of can be driven before it's bought.
 - **A challenge chooses its car, its road, its date, its hour and its weather.** The date gives the season: a midsummer night that never gets dark, autumn rain, January ice, a snowfall. The times and dates are the real ones where Åland's events give them (`docs/DRIVING-CULTURE.md`).
 
-Target is the fastest the AI gets (see "Targets are measured"); "set by" says which driver, and where the racer's run still had a mistake in it, which makes that target softer than it will be.
+Target is the fastest the AI gets (see "Targets are measured"); "set by" says which driver, and where the racer's run still had a mistake in it, which makes that target softer than a clean run's.
 
 | # | Title | Kind | Car | Road | Length | When | Weather | Target | Set by |
 |---|---|---|---|---|---|---|---|---|---|
@@ -97,7 +97,7 @@ Target is the fastest the AI gets (see "Targets are measured"); "set by" says wh
 - **Orrdalsklint's track (17) and the Soltuna climb (22), left out of the second list, are in.** The tiny four-by-four's racer climbs Orrdalsklint clean, and the people's car takes a long minute up Getabergen.
 - **The streetrace's 201 m (1) and its title.** The electric hypercar reaches 241 km/h in 201 m in the rain, so "Do 200" undersells it; the target is the AI's.
 - **The cruise (21) has no gentle target**: no challenge has a difficulty, so it is the fastest the AI gets like the rest.
-- **Kullskär (16), Jomala's ice (24) and Degersand (19) have the softest targets**: the racer resets ten times or more on them, so they are the first to tighten as the racer improves, or to be set by hand.
+- **Kullskär (16), Jomala's ice (24) and Degersand (19) have the softest targets**: the racer resets ten times or more on them, so they are the first to set by hand.
 - **Thirteen cars have no challenge**: the Skerry GT, Ankar, Bris, Fjärd, Ljus, Holm, Berg, Vik, the A7 hot hatch, the rally-bred hatch, the electric pickup, the modern utility four-by-four and the 1990s rally saloon. Most are easy to own or are dealer cars a player can try there.
 
 ## The car suits the road
@@ -119,7 +119,7 @@ Forza's designers tuned their targets. Here they come from the simulation, and t
 
 - **There are no difficulties.** The owner's ruling: a target is the fastest the AI gets in the challenge's car on its road, in its conditions, through every line in order (`challenge/targets.ts`, `tools/challenge-par.ts`). The old lists were too easy.
 - **Two drivers have a go.** The AI racer (`racers/CLAUDE.md`) drives the racing line at its own skill and at bolder shares of the car's grip, and sets every Route, faster on each than the old scripted driver, by 6 to 37% (Hultvägen 56.7 s against 77.5), and the scripted driver never got round five of them at all. The old scripted driver keeps to the GPS line and eases the spots it loses the road at, but it goes flat out where the racer's plan stops pulling at the top of a car's measured pull table, so it sets the Speed traps: the old estate reaches 148.6 km/h at Lemland's camera with it and 138.5 with the racer.
-- **Where the racer still makes mistakes, a target is softer** than it will be. Its reset or knock only slows it (`ideas/racer-method.md`'s gaps), so a Route whose best run had one tightens as the racer improves; the list below says which.
+- **The targets are a baseline**, the owner's call: sensible from the start and updated by hand once played, not chased by improving the racers, which need far more work than the bucket list does. Where the racer still makes mistakes (`ideas/racer-method.md`'s gaps) its reset or knock only slows it, so that target is softer than a clean run's; the list below says which.
 - **A test holds that every challenge can be passed**: the target is par rounded the easy way, so the AI's own run passes it, and each target was measured on the car as tuned, the places as laid, and the ground and tyres its conditions give.
 - **Fog and darkness don't change grip**, so the targets can't see them. None is eased for them; that waits for the owner's play.
 - **Gates are the road's width and a little more**, standing on the laid road's own middle and reaching 6 m past its surface either side: narrow enough to read as the road's and to miss a short cut across the fields, forgiving enough for a fast line through a bend. The late-braking driver that sets par cuts the inside of a gravel bend at most 4.7 m past the road's edge. Gates once stood on the GPS line, which can lie metres off the road as laid, and reached 12 m past it, because a narrower one there was missed without a sign and the finish never counted; at that width a gate was hard to read.
@@ -136,7 +136,6 @@ Forza's designers tuned their targets. Here they come from the simulation, and t
 ## Still open
 
 - **Whether the list is right**: whether its targets take several tries and its roads are worth retrying, once the owner has played it, and which targets they set by hand.
-- **The racers' pull past their table**: the racer's speed plan stops pulling at the top of a car's measured pull table, short of its top speed, which is why the Speed traps are set by the old driver. Once the racers' plan pulls to the car's real top speed, the racer sets every target.
 - **Playing co-op**, which only its e2e spec has done so far.
 
 - **What else the game menu holds** outside a challenge, beyond the sound.
