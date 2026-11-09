@@ -44,7 +44,7 @@ const BANDS: Readonly<Record<string, readonly Band[]>> = {
 
 /** The works livery: twin stripes over the bonnet and the roof, and down each flank a broad band over a thin one. Lifted clear of the curved panels they lie on. */
 const livery = (): Decal[] => [
-  { on: "top", at: [0.13, -1.42], size: [0.15, 1.18], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
+  { on: "top", at: [0.13, -1.385], size: [0.15, 1.11], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.016 },
   { on: "top", at: [0.13, 0.62], size: [0.15, 1.16], surface: "stripe", mirror: true, cells: [1, 4], liftM: 0.012 },
   { on: "side", at: [0.115, 0.625], size: [1.66, 0.15], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
   { on: "side", at: [0.115, 0.525], size: [1.66, 0.035], surface: "stripe", mirror: true, cells: [5, 1], liftM: 0.01 },
@@ -54,6 +54,14 @@ const livery = (): Decal[] => [
 const scoop: Block[] = [
   { at: [0, 1.352, 0.2], size: [0.36, 0.085, 0.44], surface: "paint", taper: [0.8, 0.3] },
   { at: [0, 1.36, -0.015], size: [0.3, 0.05, 0.03], surface: "grille", fine: true },
+];
+
+/** A square exhaust through the rear bumper, as Ödmark's lamps are square: a polished frame round a dark pipe set back in it. */
+const exhaust: Block[] = [
+  { at: [0.4, 0.408, 2.035], size: [0.11, 0.014, 0.09], surface: "rim", fine: true },
+  { at: [0.4, 0.312, 2.035], size: [0.11, 0.014, 0.09], surface: "rim", fine: true },
+  ...[0.352, 0.448].map((x): Block => ({ at: [x, 0.36, 2.0335], size: [0.014, 0.11, 0.087], surface: "rim", fine: true })),
+  { at: [0.4, 0.36, 2.03], size: [0.075, 0.075, 0.06], surface: "gap", fine: true },
 ];
 
 /** A mud flap behind each wheel, in the stripe colour, hung from under the body to a hand's width off the road. */
@@ -128,12 +136,12 @@ const shape: Shape = {
     ...handles([0.2], 0.9),
     ...livery(),
     reversing(0.24, 0.6),
-    // The bonnet's exit vent between the stripes, and louvres over each front arch.
+    // The bonnet's exit vent between the stripes, and louvres either side of them over the engine.
     { on: "top", at: [0, -1.2], size: [0.13, 0.3], surface: "grille", cells: [2, 4], liftM: 0.012, fine: true },
-    ...louvres({ x: 0.66, z: -1.6, long: 0.42, wide: 0.15, count: 5 }),
+    ...louvres({ x: 0.4, z: -1.2, long: 0.3, wide: 0.15, count: 4 }).map((slat) => ({ ...slat, liftM: 0.016 })),
     { ...sideIntake({ z: -0.8, h: 0.6, long: 0.12, tall: 0.24 }), cells: [1, 3] },
     // The vent behind each rear wheel, where the air from the arch leaves.
-    { ...sideIntake({ z: 1.83, h: 0.52, long: 0.16, tall: 0.2 }), cells: [1, 3], fine: true },
+    { ...sideIntake({ z: 1.78, h: 0.55, long: 0.14, tall: 0.16 }), cells: [1, 3], fine: true },
   ],
   blocks: [
     // Ödmark's square driving lamps, low in the mouth.
@@ -146,6 +154,7 @@ const shape: Shape = {
     splitter({ z: -2.13, h: 0.255, halfWidth: 0.78, long: 0.2 }),
     ...diffuser({ z: 1.78, tailZ: 2.05, h: 0.34, x: [0.24, 0.56] }),
     ...scoop,
+    ...exhaust,
     flaps(-0.87),
     flaps(1.73),
   ],
@@ -243,7 +252,6 @@ const shape: Shape = {
     hoodSeamZ: [-1.95, -0.84],
     wing: { z: 1.4, h: 1.45, halfWidth: 0.82, chord: 0.2, rise: 0.06, endplates: true },
     cornerPullM: [0.13, 0.09],
-    exhausts: { x: [0.5], h: 0.36, z: 2.04, radius: 0.05 },
   },
 };
 
