@@ -2,7 +2,7 @@ import { ROWS, type Band, type Decal } from "../body";
 import type { CarSpec } from "../build";
 import { paint } from "../paints";
 import { diffuser, louvres, projectors, sideIntake, splitter } from "../parts";
-import { bodyOf, driven, faired, handles, plates, thirdBrake, type Shape } from "../recipe";
+import { bodyOf, driven, faired, handles, plates, reflector, reversing, thirdBrake, type Shape } from "../recipe";
 
 const STRIMMA = driven("strimma");
 const { sill, sillTop, belt, windowBase, rail, roofInner, centre } = ROWS;
@@ -122,8 +122,11 @@ const shape: Shape = {
     ...projectors({ x: [0.52, 0.63], h: 0.43, size: 0.034 }),
     sideIntake({ z: 0.58, h: 0.52, long: 0.36, tall: 0.3 }),
     thirdBrake(1.9, 0.36),
-    // The radiators' outlet in the nose's middle.
-    ...louvres({ x: 0, z: -1.9, long: 0.24, wide: 0.42, count: 3 }),
+    // The tail's lower panel: reversing lamps beside the plate, reflectors at its corners.
+    reversing(0.38, 0.52),
+    reflector(0.64, 0.52),
+    // The radiators' outlet in the middle of the hood.
+    ...louvres({ x: 0, z: -1.75, long: 0.22, wide: 0.3, count: 3 }),
   ],
   blocks: [
     // A strake of the body's colour standing in each intake's mouth, its lip over it and its wall at the back, standing
@@ -176,7 +179,7 @@ const shape: Shape = {
           [-0.84, "screen"],
           [-0.3, undefined],
           [0.4, "rearGlass"],
-          [1.3, "deck"],
+          [1.25, "deck"],
           [1.7, undefined],
         ],
       ),
@@ -220,10 +223,11 @@ const shape: Shape = {
       [-0.6, 0.9],
       [0.3, 0.92],
       [1.18, 0.95],
-      [1.76, 0.92],
-      [2.1, 0.8],
+      [1.76, 0.93],
+      [2.1, 0.86],
     ],
-    cornerPullM: [0.2, 0.18],
+    // The mirror hangs from where the faired screen meets the roof, not from the screen's foot.
+    screenTop: [-0.3, 1.1],
     hoodSeamZ: [-1.9, -0.92],
     cleanEnds: true,
     scoop: [
@@ -234,7 +238,7 @@ const shape: Shape = {
       [0.9, 0.02],
       [1.0, 0],
     ],
-    exhausts: { x: [-0.11, 0.11], h: 0.4, z: 2.108, radius: 0.045 },
+    exhausts: { x: [-0.11, 0.11], h: 0.4, z: 2.115, radius: 0.045, open: true },
   },
 };
 
