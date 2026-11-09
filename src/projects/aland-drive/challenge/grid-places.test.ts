@@ -20,7 +20,7 @@ const race = (shape: RaceChallenge["shape"], grid: number): RaceChallenge => ({
   laps: 1,
   gates: [],
   // Pole first, each 10 m further back; a sprint's reserve stands ahead of the pole, a circuit's behind the back.
-  grid: Array.from({ length: grid }, (_, index) => place(-10 * index)),
+  grid: Array.from({ length: grid }, (_, index) => place(index === 0 ? 0 : -10 * index)),
   reserve: grid === 4 ? (shape === "sprint" ? [place(10), place(20)] : [place(-40), place(-50)]) : [],
   starts: [place(0), place(-10)],
   lapM: 1000,

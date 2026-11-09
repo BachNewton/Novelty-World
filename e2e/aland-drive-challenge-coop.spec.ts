@@ -9,13 +9,16 @@ import { expect, test } from "./test";
 import { WEBGPU_BROWSER } from "./webgpu";
 
 /*
- * A co-op challenge for two, on the run's own relay: two pages in a world of
+ * A co-op challenge for four, on the run's own relay: four pages in a world of
  * their own (`?drive-world=`) on the fixture's one tile, with a Route of the
- * test's own (`aland-drive-route.ts`) given to both. This is the wiring alone:
- * the invite, the join and the synced start crossing the relay, and leaving
- * ending it for both. Retries, results and every race between messages are
- * `challenge/coop.test.ts`'s. The invite goes to everyone in the world, so the
- * one who joins is down the road from the ring, and goes back there after.
+ * test's own (`aland-drive-route.ts`) given to each. This is the wiring alone:
+ * the invite, three joins filling the room and starting it, the ready gate
+ * across four pages, one leaving while the rest carry on, and a retry reaching
+ * those still in. Results, the averages and every race between messages are
+ * `challenge/coop.test.ts`'s. The invite goes to everyone in the world, so
+ * those who join are down the road from the ring, and one goes back there
+ * when it leaves. Four game pages are all the GPU pages the budget shares
+ * out, so they're small.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
@@ -38,65 +41,78 @@ test.afterAll(() => {
 });
 
 test.use(WEBGPU_BROWSER);
-test.setTimeout(180_000);
+test.setTimeout(240_000);
 
 async function joinWorld(browser: Browser, world: string): Promise<Page> {
-  const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
   await page.goto(`${PAGE}?tiles=local:${tilesPort}&${LOCAL_RELAY}&drive-world=${world}`);
   await page.waitForFunction(() => window.__alandDrive?.online().status === "connected" && window.__alandDrive.mapReady(), null, { timeout: 90_000 });
   return page;
 }
 
-/** Waits until a page's run is on this attempt with both cars on their places and the lights counting down. */
+/** Waits until a page's run is on this attempt with every car still in on its place and the lights counting down. */
 const countingDown = (page: Page, attempt: number) =>
   page.waitForFunction((wanted) => {
     const run = window.__alandDrive?.challenge();
     return run?.attempt === wanted && run.phase === "countdown";
   }, attempt, { timeout: 30_000 });
 
-test("a co-op Route for two: asked from its ring, joined from down the road over the relay, counted down together, and left", async ({ browser }) => {
+test("a co-op Route for four: asked from its ring, the room filled from down the road over the relay, counted down together, one leaving and the rest retrying", async ({ browser }) => {
   const world = `coop-${crypto.randomUUID()}`;
-  const first = await joinWorld(browser, world);
-  const second = await joinWorld(browser, world);
+  const pages: Page[] = [];
+  for (let count = 0; count < 4; count++) pages.push(await joinWorld(browser, world));
+  const [first, ...joiners] = pages;
   const { challenge, line } = await layChallenge(first, { id: ID, title: TITLE, target: { s: 600 } });
-  for (const page of [first, second]) await page.evaluate((added: Challenge) => window.__alandDrive?.addChallenge(added), challenge);
+  for (const page of pages) await page.evaluate((added: Challenge) => window.__alandDrive?.addChallenge(added), challenge);
 
-  // The first drives into the ring and the second is down the road, out of it: Co-op is offered all the same.
-  const away = along(line, 200);
+  // The first drives into the ring and the others are down the road, out of it: Co-op is offered all the same.
   await first.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), challenge.starts[0]);
-  await second.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), away);
-  await expect(first.getByLabel("Co-op with")).toBeVisible({ timeout: 30_000 });
-  for (const page of [first, second]) await page.evaluate(() => window.__alandDrive?.hold(true));
-  const [awayX, , awayZ] = await carAt(second);
+  for (const [index, page] of joiners.entries()) await page.evaluate(({ x, z }) => window.__alandDrive?.placeNear(x, z), along(line, 200 + 60 * index));
+  await expect(first.getByLabel("Co-op with")).toContainText("3", { timeout: 30_000 });
+  for (const page of pages) await page.evaluate(() => window.__alandDrive?.hold(true));
+  const [awayX, , awayZ] = await carAt(joiners[1]);
 
-  // The first's button offers Solo or Co-op; Co-op asks everyone, and the second's button answers it where it is.
+  // The first's button offers Solo or Co-op; Co-op asks everyone, and each joiner's button answers it where they are.
   await first.keyboard.press("KeyE");
   const choice = first.getByRole("dialog", { name: "Start challenge" });
   await choice.getByRole("button", { name: /^Co-op/ }).click();
   await expect(choice).toBeHidden();
-  await expect(second.getByLabel("Co-op invite")).toContainText(TITLE);
-  await second.keyboard.press("KeyE");
-  const invite = second.getByRole("dialog", { name: "Co-op invite" });
-  await expect(invite.getByRole("button", { name: /^Join / })).toBeFocused();
-  await second.keyboard.press("Enter");
-  await expect(invite).toBeHidden();
+  for (const [index, page] of joiners.entries()) {
+    await expect(page.getByLabel("Co-op invite")).toContainText(TITLE);
+    await page.keyboard.press("KeyE");
+    const invite = page.getByRole("dialog", { name: "Co-op invite" });
+    await expect(invite.getByRole("button", { name: /^Join / })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(invite).toBeHidden();
+    // The invite stays open for more until the room is full, the inviter's HUD counting who's in.
+    if (index < 2) await expect(first.getByLabel("Joined")).toContainText(String(index + 1));
+  }
 
-  // Each is in its own seat, on its own place, in the challenge's car, and counting down once both are ready.
-  await countingDown(first, 1);
-  await countingDown(second, 1);
-  expect(await challengeOf(first)).toMatchObject({ id: ID, seat: 0, players: 2, clockS: -3 });
-  expect(await challengeOf(second)).toMatchObject({ id: ID, seat: 1, players: 2, clockS: -3 });
-  for (const page of [first, second]) expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe("sten");
+  // The third join filled the room, which started at once: each is in their own seat and place, in the challenge's car, counting down once all four are ready.
+  for (const page of pages) await countingDown(page, 1);
+  for (const [seat, page] of pages.entries()) {
+    expect(await challengeOf(page)).toMatchObject({ id: ID, seat, players: 4, clockS: -3, teamReady: true });
+    expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe("sten");
+    expect(await offStart(page, challenge.starts[seat])).toBeLessThan(0.3);
+  }
 
-  // The first leaves: it's over for the second, with a notice, and both have their cars back, the second where the invite took it from.
-  await first.keyboard.press("Escape");
-  await first.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Leave challenge" }).click();
-  expect(await challengeOf(first)).toBeNull();
-  await second.waitForFunction(() => window.__alandDrive?.challenge() === null);
-  await expect(second.getByLabel("Co-op notice")).toBeVisible();
-  for (const page of [first, second]) expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe(PREVIOUS_CAR);
-  expect(await offStart(second, { x: awayX, z: awayZ })).toBeLessThan(1);
+  // The third player leaves: the rest carry on, told who left, and the one who left is back where the invite took them from.
+  const [, second, third, fourth] = pages;
+  await third.keyboard.press("Escape");
+  await third.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Leave challenge" }).click();
+  expect(await challengeOf(third)).toBeNull();
+  expect(await third.evaluate(() => window.__alandDrive?.carId())).toBe(PREVIOUS_CAR);
+  expect(await offStart(third, { x: awayX, z: awayZ })).toBeLessThan(1);
+  const stillIn = [first, second, fourth];
+  for (const page of stillIn) {
+    await expect(page.getByLabel("Co-op notice")).toBeVisible();
+    expect(await challengeOf(page)).toMatchObject({ id: ID, players: 4 });
+    await page.waitForFunction(() => window.__alandDrive?.coop().team.length === 2);
+  }
 
-  await first.context().close();
-  await second.context().close();
+  // The second's Retry takes everyone still in back for the next attempt, the gate waiting for no one who has gone.
+  expect(await second.evaluate(() => window.__alandDrive?.retryChallenge())).toBe(true);
+  for (const page of stillIn) await countingDown(page, 2);
+
+  for (const page of pages) await page.context().close();
 });
