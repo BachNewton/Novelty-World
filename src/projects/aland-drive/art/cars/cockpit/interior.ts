@@ -56,6 +56,7 @@ function paintsOf(style: InteriorStyle, seat: string) {
     panel: finish("car-cabin-panel", 0.01, 0.2),
     piano: finish("car-trim", 0.07, 0.85),
     accent: finish(colours.accent, 0.3, 0.6, { metal: 0.6 }),
+    webbing: finish(colours.accent, 0.006, 0.08),
     chrome: finish("car-rim", 0.55, 0.9, { metal: 0.85 }),
     seat: finish(seat, 0.008, 0.12),
     seatSide: finish(seat, 0.006, 0.1, { shade: 0.78 }),
@@ -253,7 +254,19 @@ function addCluster(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpe
     const apart = Math.min(w / 2 - radius - 0.006, 0.09);
     big(SLOT.speed, SOURCE.speed, -apart, radius);
     big(SLOT.revs, SOURCE.revs, apart, radius);
-    if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+    if (style.gauges === "analogue" && style.centreDisplay) {
+      readout(SOURCE.gear, 1, 0, 0.022, 0.026);
+      readout(SOURCE.speed, 3, 0, -0.008, 0.014);
+    } else if (style.gauges === "analogue") readout(SOURCE.gear, 1, 0, -0.03, 0.03);
+  } else if (style.gauges === "tacho") {
+    // The gear and the speed in figures sit in the dial's open foot, under the needle's sweep.
+    big(SLOT.revs, SOURCE.revs, 0, 0.066);
+    readout(SOURCE.gear, 1, 0, -0.024, 0.024);
+    readout(SOURCE.speed, 3, 0, -0.049, 0.013);
+    big(SLOT.speed, SOURCE.speed, -0.118, 0.044);
+    disc(b, at, [0.118, -0.006], 0.036, 0.004, dialLook(SLOT.water), SLOT.water);
+    bezel(b, at, [0.118, -0.006], 0.039, 0.0025, 0.005, ringLook);
+    dials.push({ slot: SLOT.water, source: SOURCE.water, startDeg: 135, sweepDeg: -90 });
   } else if (style.gauges === "race") {
     big(SLOT.revs, SOURCE.revs, -0.02, 0.07);
     readout(SOURCE.speed, 3, -0.02, -0.036, 0.022);
@@ -332,7 +345,9 @@ function addWheel(b: CockpitBuilder, f: CockpitFrame, paints: Paints) {
 
   // The column into the dash, and the stalks either side of it.
   const column = (along: number) => add(middle, back, -along);
-  b.tube([column(dish + 0.02), column(0.34)], 0.034, 12, smooth(paints.under));
+  // Behind one big dial in the middle the column ends in a shroud just behind the hub, so it never crosses the dial.
+  const columnLong = f.style.gauges === "tacho" ? 0.12 : 0.34;
+  b.tube([column(dish + 0.02), column(columnLong)], 0.034, 12, smooth(paints.under));
   for (const side of [-1, 1]) {
     const root = add(column(dish + 0.07), RIGHT, side * 0.03);
     b.tube([root, add(add(root, RIGHT, side * 0.11), up, 0.015)], 0.0055, 6, smooth(paints.piano));
@@ -432,8 +447,22 @@ function addCentre(b: CockpitBuilder, f: CockpitFrame, paints: Paints): DialSpec
   return dials;
 }
 
+/**
+ * Quilted leather over a seat's face: a grid of small stitched pads standing out of the back's front and the cushion's
+ * top, the seams between them the leather under, a shade apart.
+ */
+function addQuilting(b: CockpitBuilder, paints: Paints, wide: number, middle: Point, tall: number, up: Point, back: Point, cushion: Point, cushionUp: Point, cushionBack: Point) {
+  const pad = smooth(paints.seatInsert);
+  const across = [-1, 0, 1].map((at) => at * wide * 0.27);
+  const face = add(middle, back, -0.058);
+  for (const a of across) {
+    for (const along of [-0.6, -0.2, 0.2, 0.6]) pillow(b, axes(add(add(face, RIGHT, a), up, along * tall), RIGHT, up, back), [wide * 0.12, tall * 0.18, 0.012], 0.35, pad, 3);
+    for (const along of [-0.13, 0, 0.13]) pillow(b, axes(add(add(add(cushion, RIGHT, a), cushionBack, along), cushionUp, 0.012), RIGHT, cushionUp, cushionBack), [wide * 0.12, 0.012, 0.058], 0.35, pad, 3);
+  }
+}
+
 /** One seat at x, its cushion at `cushionH` and its back reclined from z. */
-function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number) {
+function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number, kind: "comfort" | "sport" | "bucket" | "bench", wide: number, quilted = false) {
   const g = f.ground;
   const recline = ((kind === "bench" ? 22 : 16) * Math.PI) / 180;
   const up: Point = [0, Math.cos(recline), Math.sin(recline)];
@@ -457,6 +486,7 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
   // A panel down the middle of the back and the cushion, a shade apart, as stitched seats have.
   pillow(b, axes(add(middle, back, 0.056), RIGHT, up, back), [wide * 0.5, tall * 0.78, 0.014], 0.25, smooth(paints.seatInsert), 6);
   pillow(b, axes([x, cushionH + g - 0.003, z - 0.21], RIGHT, cushionUp, cushionBack), [wide * 0.52, 0.014, 0.2], 0.25, smooth(paints.seatInsert), 6);
+  if (quilted) addQuilting(b, paints, wide, middle, tall, up, back, [x, cushionH + g, z - 0.21], cushionUp, cushionBack);
   if (kind !== "comfort" && kind !== "bench") {
     const bolster = kind === "bucket" ? 0.07 : 0.05;
     for (const s of [-1, 1]) {
@@ -474,6 +504,20 @@ function addSeat(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, 
     pillow(b, axes(top, RIGHT, up, back), [0.125, 0.085, 0.055], 0.35, look, 8);
     for (const post of [-0.06, 0.06]) b.tube([add(add(top, RIGHT, post), up, -0.07), add(add(top, RIGHT, post), up, -0.13)], 0.0055, 6, smooth(paints.chrome));
   }
+}
+
+/** A four-point harness over a seat at x: two shoulder straps down the back, a lap belt across and its buckle. */
+function addHarness(b: CockpitBuilder, f: CockpitFrame, paints: Paints, x: number, z: number, cushionH: number) {
+  const g = f.ground;
+  // The seat's own recline (`addSeat`), so the straps lie on its back.
+  const recline = (16 * Math.PI) / 180;
+  const up: Point = [0, Math.cos(recline), Math.sin(recline)];
+  const back: Point = [0, -Math.sin(recline), Math.cos(recline)];
+  const hip: Point = [x, cushionH - 0.02 + g, z + 0.1];
+  const strap = smooth(paints.webbing);
+  for (const s of [-1, 1]) pillow(b, axes(add(add(add(hip, up, 0.44), RIGHT, s * 0.075), back, -0.078), RIGHT, up, back), [0.024, 0.3, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.04], RIGHT, [0, 1, 0], [0, 0, 1]), [0.2, 0.024, 0.005], 0.2, strap, 4);
+  pillow(b, axes([x, cushionH + 0.06 + g, z - 0.05], RIGHT, [0, 1, 0], [0, 0, 1]), [0.035, 0.032, 0.008], 0.3, smooth(paints.chrome), 6);
 }
 
 /** The door cards along each side, below the glass: a kick panel, an armrest, an insert and a cap where the glass starts. */
@@ -631,11 +675,12 @@ export function buildCockpit(spec: CarSpec): CockpitParts {
   const dials = [...addCluster(b, frame, paints), ...addCentre(b, frame, paints)];
   addWheel(b, frame, paints);
   const seatKind = style.seats;
-  for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24);
+  for (const side of [-1, 1]) addSeat(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH, seatKind, seatKind === "comfort" ? 0.25 : 0.24, style.quilted);
+  if (style.harness) for (const side of [-1, 1]) addHarness(b, frame, paints, side * cabin.seatX, frame.seatZ, cushionH);
   if (frame.rearSeatZ !== undefined) addSeat(b, frame, paints, 0, frame.rearSeatZ, cushionH - 0.03, "bench", Math.min(frame.cardX(frame.rearSeatZ) - 0.06, 0.62));
   addDoors(b, frame, paints);
   addFloor(b, frame, paints);
-  addMirrorAndVisors(b, frame, paints);
+  if (style.rearMirror) addMirrorAndVisors(b, frame, paints);
   if (style.cage) addCage(b, frame, paints);
   const soup = b.finish(38);
 

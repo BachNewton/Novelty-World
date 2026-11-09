@@ -79,6 +79,34 @@ export interface Block {
   fine?: boolean;
 }
 
+/**
+ * A wing over an open wheel, fixed to the body, as a track car's cycle wing or a minimal pod: a strip of arc over the
+ * tyre, from `from` to `to` degrees round the wheel (0 straight ahead, 90 over the top, 180 straight behind), standing
+ * `clearM` off the tyre, `wide` across, centred `x` out from the car's middle and mirrored.
+ */
+export interface Fender {
+  axle: number;
+  x: number;
+  wide: number;
+  clearM: number;
+  from: number;
+  to: number;
+  /** How thick its edges are, and how much higher its middle stands: a crowned wing. */
+  thick: number;
+  crown: number;
+  surface: Surface;
+}
+
+/** A tube along a path of points (x across, height, z along): a roll hoop, a suspension arm, a stay. */
+export interface Strut {
+  path: readonly (readonly [x: number, h: number, z: number])[];
+  radius: number;
+  surface: Surface;
+  /** Also on the other side of the car. */
+  mirror?: boolean;
+  fine?: boolean;
+}
+
 /** Where the inside of the car is. */
 export interface Cabin {
   dashZ: number;
@@ -90,6 +118,8 @@ export interface Cabin {
   endZ: number;
   seatX: number;
   seatSurface: Surface;
+  /** How wide its floor and bulkheads are, where a narrow body doesn't reach the wheels: the track's width otherwise. */
+  wideM?: number;
 }
 
 export interface BodySpec {
@@ -147,8 +177,10 @@ export interface BodySpec {
 
   mirror: { z: number; h: number; x: number };
   decals: readonly Decal[];
-  wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean };
-  exhausts?: { x: readonly number[]; h: number; z: number; radius: number };
+  /** `stayM` is how far its two feet reach down to the deck, 0.2 m when not given. */
+  wing?: { z: number; h: number; halfWidth: number; chord: number; rise: number; endplates?: boolean; stayM?: number };
+  /** Tailpipes; `open` ones stand out of the body, rolled at the end round a dark bore, rather than capped where the body hides the end. */
+  exhausts?: { x: readonly number[]; h: number; z: number; radius: number; open?: boolean };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
   bedSurface?: Surface;
@@ -156,6 +188,18 @@ export interface BodySpec {
   cabin?: Cabin;
   /** Where the hood's shut lines run, from and to. */
   hoodSeamZ?: readonly [from: number, to: number];
+  /**
+   * The wheels stand outside a narrow body, as a track car's do: the body has no arches cut in it and no wells, and
+   * what covers the wheels is its `fenders`.
+   */
+  openWheels?: boolean;
+  fenders?: readonly Fender[];
+  struts?: readonly Strut[];
+  /**
+   * Where the windscreen meets the roof, for a silhouette faired through it, whose point after the screen's start is
+   * only the next sample up the glass. None, and that point is the screen's top, as a hand-placed silhouette has it.
+   */
+  screenTop?: readonly [z: number, h: number];
 }
 
 export interface BodyDetail {
@@ -193,6 +237,7 @@ const MERGE_M = 0.012;
 const SLIVER_M = 0.025;
 
 function archTop(spec: BodySpec, z: number): number {
+  if (spec.openWheels) return 0;
   const radius = spec.wheelRadiusM + spec.archClearM;
   return Math.max(...spec.axleZ.map((axle) => (Math.abs(z - axle) < radius ? spec.wheelRadiusM + Math.sqrt(radius * radius - (z - axle) ** 2) : 0)));
 }
@@ -210,7 +255,7 @@ function stationsOf(spec: BodySpec, curves: Curves, detail: BodyDetail): Station
   // overlaps were counted on, until they're redrawn.
   const clean = detail.fine && spec.cleanEnds === true;
   const arches: number[] = [];
-  for (const axle of spec.axleZ) {
+  for (const axle of spec.openWheels ? [] : spec.axleZ) {
     const low = curves.sill(axle);
     const lowest = Math.asin(Math.max(-1, (low - spec.wheelRadiusM) / radius));
     // An arch is drawn over its wheel's top half (`archTop`), so a hero's stations go round that half alone: below the
@@ -538,11 +583,12 @@ function addWing(builder: SoupBuilder, spec: BodySpec, ground: number) {
       builder.rings([plate(outer), plate(inner)], "paint");
     }
   }
+  const stay = spec.wing.stayM ?? 0.2;
   for (const side of [1, -1]) {
     const x = side * halfWidth * 0.72;
     const foot: Point[] = [
-      [x - 0.012, y - 0.2, z - 0.1],
-      [x - 0.012, y - 0.2, z + 0.02],
+      [x - 0.012, y - stay, z - 0.1],
+      [x - 0.012, y - stay, z + 0.02],
       [x - 0.012, y, z + 0.02],
       [x - 0.012, y, z - 0.1],
     ];
@@ -559,6 +605,12 @@ function addExhausts(builder: SoupBuilder, spec: BodySpec, ground: number) {
       return [at + Math.cos(angle) * r, h + ground + Math.sin(angle) * r, zAt];
     });
   for (const at of x) {
+    if (spec.exhausts.open) {
+      // The pipe's wall, its rolled end and its bore, closed a few centimetres in by a dark disc standing clear of the bore's floor.
+      builder.rings([round(at, z - 0.12, radius), round(at, z, radius), round(at, z, radius * 0.8), round(at, z - 0.04, radius * 0.8)], "rim");
+      builder.rings([round(at, z - 0.03, radius * 0.78)], "gap");
+      continue;
+    }
     builder.rings([round(at, z - 0.12, radius), round(at, z, radius)], "rim");
     builder.rings([round(at, z + 0.001, radius * 0.72)], "gap");
   }
@@ -608,13 +660,80 @@ function addBlock(builder: SoupBuilder, block: Block, ground: number) {
   }
 }
 
+/** Rings joined into a tube, each turned so its faces point out of the tube, whichever way its path runs. */
+function addTube(builder: SoupBuilder, rings: Point[][], surface: Surface) {
+  const middle = (ring: readonly Point[]): Point => [0, 1, 2].map((axis) => ring.reduce((sum, point) => sum + point[axis], 0) / ring.length) as Point;
+  const [here, next] = [middle(rings[0]), middle(rings[1])];
+  const [a, b] = [rings[0][0], rings[0][1]];
+  const edge: Point = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const travel: Point = [next[0] - here[0], next[1] - here[1], next[2] - here[2]];
+  const normal: Point = [edge[1] * travel[2] - edge[2] * travel[1], edge[2] * travel[0] - edge[0] * travel[2], edge[0] * travel[1] - edge[1] * travel[0]];
+  const out: Point = [(a[0] + b[0]) / 2 - here[0], (a[1] + b[1]) / 2 - here[1], (a[2] + b[2]) / 2 - here[2]];
+  const outward = normal[0] * out[0] + normal[1] * out[1] + normal[2] * out[2] > 0;
+  builder.rings(outward ? rings : rings.map((ring) => [...ring].reverse()), surface);
+}
+
+function addFender(builder: SoupBuilder, spec: BodySpec, { axle, x, wide, clearM, from, to, thick, crown, surface }: Fender, ground: number, fine: boolean) {
+  const centreY = spec.wheelRadiusM + ground;
+  const radius = spec.wheelRadiusM + clearM;
+  const steps = fine ? 16 : 4;
+  // Across the wing, inside edge to outside edge: its underside flat, its top crowned, its edges rounded.
+  const section: (readonly [across: number, out: number])[] = fine
+    ? [
+        [-wide / 2, 0],
+        [-wide / 2 - 0.004, thick * 0.6],
+        [-wide / 4, thick + crown * 0.8],
+        [wide / 4, thick + crown * 0.8],
+        [wide / 2 + 0.004, thick * 0.6],
+        [wide / 2, 0],
+      ]
+    : [
+        [-wide / 2, 0],
+        [-wide / 2, thick + crown * 0.5],
+        [wide / 2, thick + crown * 0.5],
+        [wide / 2, 0],
+      ];
+  for (const side of [1, -1]) {
+    const rings = Array.from({ length: steps + 1 }, (_, step): Point[] => {
+      const angle = ((from + ((to - from) * step) / steps) * Math.PI) / 180;
+      const [along, up] = [-Math.cos(angle), Math.sin(angle)];
+      return section.map(([across, out]): Point => [side * (x + across), centreY + up * (radius + out), axle + along * (radius + out)]);
+    });
+    addTube(builder, rings, surface);
+  }
+}
+
+function addStrut(builder: SoupBuilder, { path, radius, surface, mirror }: Strut, ground: number, fine: boolean) {
+  const sides = fine ? 6 : 4;
+  for (const side of mirror ? [1, -1] : [1]) {
+    const points = path.map(([x, h, z]): Point => [side * x, h + ground, z]);
+    const rings = points.map((point, at): Point[] => {
+      const [before, after] = [points[Math.max(at - 1, 0)], points[Math.min(at + 1, points.length - 1)]];
+      const raw: Point = [after[0] - before[0], after[1] - before[1], after[2] - before[2]];
+      const length = Math.hypot(...raw);
+      const along: Point = [raw[0] / length, raw[1] / length, raw[2] / length];
+      const reference: Point = Math.abs(along[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+      const across: Point = [along[1] * reference[2] - along[2] * reference[1], along[2] * reference[0] - along[0] * reference[2], along[0] * reference[1] - along[1] * reference[0]];
+      const acrossLength = Math.hypot(...across);
+      const u: Point = [across[0] / acrossLength, across[1] / acrossLength, across[2] / acrossLength];
+      const v: Point = [along[1] * u[2] - along[2] * u[1], along[2] * u[0] - along[0] * u[2], along[0] * u[1] - along[1] * u[0]];
+      return Array.from({ length: sides }, (_, step): Point => {
+        const angle = (step / sides) * Math.PI * 2 + Math.PI / sides;
+        const [c, s] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+        return [point[0] + u[0] * c + v[0] * s, point[1] + u[1] * c + v[1] * s, point[2] + u[2] * c + v[2] * s];
+      });
+    });
+    addTube(builder, rings, surface);
+  }
+}
+
 /** Enough of an inside for a window to look into: floor, dash, seats and a wheel, on the driver's side as in Finland. */
 function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
   const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
   const block = (at: Block["at"], size: Block["size"], surface: Surface, mirror = false, taper?: Block["taper"]) => {
     addBlock(builder, { at, size, surface, mirror, taper }, ground);
   };
-  const wide = spec.trackM * 0.92;
+  const wide = cabin.wideM ?? spec.trackM * 0.92;
   const length = endZ - dashZ;
   block([0, floorH - 0.02, dashZ + length / 2], [wide, 0.04, length], "interior");
   block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
@@ -753,7 +872,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   const wellX = spec.trackM / 2 - spec.tyreWidthM / 2 - 0.03;
   const radius = spec.wheelRadiusM + spec.archClearM;
   const wall = builder.newGroup();
-  for (const axle of spec.axleZ) {
+  for (const axle of spec.openWheels ? [] : spec.axleZ) {
     const low = spec.sill[0][1] + ground;
     const high = spec.wheelRadiusM + radius + ground + 0.03;
     const inWell = stations.map((station, index) => ({ z: station.z, top: Math.min(high, topOf(index) - 0.04) })).filter(({ z }) => Math.abs(z - axle) <= radius);
@@ -763,12 +882,15 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
     });
   }
 
+  // Fenders before the decals, so a lamp can sit on one.
+  for (const fender of spec.fenders ?? []) addFender(builder, spec, fender, ground, detail.fine);
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
   if (detail.fine) addExhausts(builder, spec, ground);
   addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
   for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  for (const strut of spec.struts ?? []) if (detail.fine || !strut.fine) addStrut(builder, strut, ground, detail.fine);
   if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
 }
