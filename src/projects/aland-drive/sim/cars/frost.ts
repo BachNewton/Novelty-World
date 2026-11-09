@@ -9,6 +9,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const frost: CarEntry = {
   tier: "C1",
+  maker: "Ödmark",
+  engine: "Turbo four",
+  from: "barn",
   tuning: tuned({
     name: "Frost",
     class: "rally",

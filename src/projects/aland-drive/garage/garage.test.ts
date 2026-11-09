@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ALL_ASSISTS } from "../sim/car";
 import { keepAssists, keptAssists } from "./assists";
+import { carKept, keepCar } from "./car";
 import { fitTyres, tyresOn } from "./tyres";
 
 /*
@@ -54,5 +55,15 @@ describe("the garage", () => {
     expect(keptAssists()).toEqual({ abs: true, traction: false, stability: true });
     storage.setItem("nw:aland-drive:assists", JSON.stringify({ traction: false, launch: true }));
     expect(keptAssists()).toEqual({ ...ALL_ASSISTS, traction: false });
+  });
+
+  it("starts the next drive in the car last chosen, and forgets a car this version doesn't know", () => {
+    const storage = fakeStorage();
+    vi.stubGlobal("localStorage", storage);
+    expect(carKept()).toBeNull();
+    keepCar("hagel");
+    expect(carKept()).toBe("hagel");
+    storage.setItem("nw:aland-drive:car", JSON.stringify("a-car-gone"));
+    expect(carKept()).toBeNull();
   });
 });

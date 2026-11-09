@@ -91,7 +91,8 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { drivingMenu, graphicsMenu, isPaintItem, paintMenu, paintOfItem, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, graphicsMenu, isCarItem, isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
@@ -131,6 +132,7 @@ import { createPrecipitation } from "./precipitation";
 import { keepAssists, keptAssists } from "../garage/assists";
 import { fitTyres, tyresOn } from "../garage/tyres";
 import { keepPaint, paintOn } from "../garage/paint";
+import { carKept, keepCar } from "../garage/car";
 import { paintAsked, paintIndex, paintsOf } from "../art/cars/paints";
 import { pixelRatio, useDriveGraphics } from "./graphics-settings";
 import { World, type TileDetail } from "../sim/world";
@@ -446,8 +448,6 @@ export interface GameEvents {
   onDevMenuOpen?: (open: boolean) => void;
   /** The game menu has opened, with what it holds, or closed (null). */
   onGameMenu?: (menu: GameMenu | null) => void;
-  /** Another car is being driven. */
-  onCarChange?: (id: CarId) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
   /** Everyone else in the online world, by name, whenever that changes. */
@@ -482,14 +482,6 @@ export interface MapCanvases {
   world: HTMLCanvasElement;
 }
 
-/** A car the dev menu can offer. */
-export interface CarChoice {
-  id: CarId;
-  name: string;
-  /** A paint token, without the `--color-aland-drive-` prefix. */
-  paint: string;
-}
-
 /** The game's time as drawn: the month and its game day, the real date whose sky it shows, the hour, and where the sun stands. */
 export interface DayShown {
   /** The world's time, game days since the first of 2000's. */
@@ -518,9 +510,6 @@ export interface DayChange {
 
 export interface Game {
   probe: GameProbe;
-  /** What a dev menu needs, so the page imports no car art. */
-  cars: readonly CarChoice[];
-  setCar: (id: CarId) => void;
   /** Whether cars, cyclists and walkers ride the lanes round the car, or null in the shared world, where traffic is everyone's and always on. */
   trafficOn: () => boolean | null;
   setTraffic: (on: boolean) => void;
@@ -1303,7 +1292,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const askedRoad = askedAt ? world.roads.nearest(askedAt.x, askedAt.z) : undefined;
   if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
   // Tools and tests measured what they hold against the default car, so they keep it.
-  const startCar = carAsked(window.location.search, toolPage ? DEFAULT_CAR : PLAYER_START_CAR);
+  const startCar = carAsked(window.location.search, toolPage ? DEFAULT_CAR : (carKept() ?? PLAYER_START_CAR));
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   // A link's tyres are for this drive only: what's kept is what the player fitted.
   drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
@@ -1887,9 +1876,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const pickMenuItem = (id: MenuItemId) => {
+    if (isCarItem(id)) {
+      keepCar(carOfItem(id));
+      setCar(carOfItem(id));
+      showMenu(carsMenuNow());
+      return;
+    }
     if (isPaintItem(id)) {
       setPaint(paintOfItem(id));
-      showMenu(paintMenuNow());
+      showMenu(carsMenuNow());
       return;
     }
     switch (id) {
@@ -1924,8 +1919,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "graphics":
         showMenu(graphicsMenu);
         break;
-      case "paint":
-        showMenu(paintMenuNow());
+      case "cars":
+        showMenu(carsMenuNow());
         break;
       case "back":
         showMenu(menuNow());
@@ -2006,7 +2001,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     fitCarVolume(carView.art);
     ({ cockpit, chaseShell } = cockpitOf(carView, spec));
     showCockpit(wasShown);
-    events.onCarChange?.(id);
   };
 
   /** Paints the car being driven, kept for it, drawn at once and sent to everyone with its next state. */
@@ -2014,7 +2008,21 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     keepPaint(drive.carId, paint);
     drive.paint = paint;
   };
-  const paintMenuNow = () => paintMenu(carSpec.name, paintsOf(carSpec), drive.paint);
+  // Every car's spec sheet, read once, when the Cars page first opens: it never changes while the page runs.
+  let specSheets: { facts: CarFacts[]; field: Field } | null = null;
+  const carsMenuNow = () => {
+    if (!specSheets) {
+      const facts = allCarFacts();
+      specSheets = { facts, field: fieldOf(facts) };
+    }
+    const cards = specSheets.facts.map((facts): CarCard => {
+      const spec = CARS.find((car) => car.id === facts.id);
+      if (!spec) throw new Error(`no car's art for ${facts.id}`);
+      const paints = paintsOf(spec);
+      return { facts, paints, chosen: facts.id === drive.carId ? drive.paint : paintIndex(paints, paintOn(facts.id)) };
+    });
+    return carsMenu(drive.carId, cards, specSheets.field);
+  };
 
   const setTyres = (tyres: Tyre) => {
     fitTyres(drive.carId, tyres);
@@ -2941,8 +2949,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         for (const { from, message } of waiting) coop.hear(from, message);
       },
     },
-    cars: CARS.flatMap(({ id, name, paint }) => (id ? [{ id, name, paint }] : [])),
-    setCar,
     trafficOn: () => (trafficOffered ? bubble.density("car") > 0 : null),
     setTraffic: (on) => {
       if (!trafficOffered) throw new Error("the shared world's traffic is everyone's, and can't be turned off on one page");

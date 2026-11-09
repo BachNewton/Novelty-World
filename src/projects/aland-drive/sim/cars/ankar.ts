@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A long black saloon with a V12 and eight gears: silk at a cruise, a wall of pull flat out, heavy and planted. */
 export const ankar: CarEntry = {
   tier: "A5",
+  maker: "Aurelle",
+  engine: "V12",
+  from: "dealer",
   tuning: tuned({
     name: "Ankar",
     class: "sports",

@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const varg: CarEntry = {
   tier: "A2",
+  maker: "Ridgeway",
+  engine: "Supercharged V8",
+  from: "harbour",
   tuning: tuned({
     name: "Varg",
     class: "sports",

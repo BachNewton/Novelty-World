@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A working pickup with a lazy cross-plane V8 and four gears: heavy, soft, wallowing on its tall tyres. */
 export const holm: CarEntry = {
   tier: "B3",
+  maker: "Klippa",
+  engine: "Cross-plane V8",
+  from: "dealer",
   tuning: tuned({
     name: "Holm",
     class: "offroad",

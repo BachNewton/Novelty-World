@@ -95,6 +95,30 @@ test("Esc opens the game menu, which pauses the drive and fits the tyres picked,
   await expect(menu).toBeHidden();
 });
 
+// e2e-covers: src/projects/aland-drive/components/{game-menu,car-select}.tsx src/projects/aland-drive/render/game-menu.ts src/projects/aland-drive/garage/{car,car-facts}.ts
+test("the game menu's Cars page drives the car picked and paints it, and Back returns to the menu", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Cars" }).click();
+  const cars = page.getByRole("dialog", { name: "Cars" });
+  await expect(cars.getByRole("radio", { name: "Skerry GT" })).toBeFocused();
+  await expect(cars.getByRole("region", { name: "Skerry GT spec sheet" })).toBeVisible();
+
+  await cars.getByRole("radio", { name: "Hagel" }).click();
+  await expect(cars.getByRole("radio", { name: "Hagel" })).toBeChecked();
+  expect(await page.evaluate(() => window.__alandDrive?.carId())).toBe("hagel");
+
+  const paints = cars.getByRole("radiogroup", { name: "Paint" }).getByRole("radio");
+  await paints.nth(2).click();
+  await expect(paints.nth(2)).toBeChecked();
+  expect(await page.evaluate(() => window.__alandDrive?.car().paint)).toBe(2);
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Game menu" })).toBeVisible();
+});
+
 // e2e-covers: src/projects/aland-drive/render/{forest,tree-place,tree-shapes,foliage-light}.ts
 test("the forest draws only what the GPU picked, and a setting changes that with no rebuild", async ({ page }) => {
   await page.goto(`${onFixture}&forest-lab`);

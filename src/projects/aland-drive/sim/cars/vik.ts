@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A tiny open roadster on skinny tyres with a twin-carb four: light as a feather, quick to turn, happy to slide. */
 export const vik: CarEntry = {
   tier: "C3",
+  maker: "Tärna",
+  engine: "Twin-carb four",
+  from: "barn",
   tuning: tuned({
     name: "Vik",
     class: "road",

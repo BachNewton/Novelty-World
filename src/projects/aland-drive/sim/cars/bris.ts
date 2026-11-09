@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** An open four-seat cruiser with a gruff V6: comfortable, rear-driven, quick enough, made for the coast road. */
 export const bris: CarEntry = {
   tier: "A6",
+  maker: "Aurelle",
+  engine: "V6",
+  from: "dealer",
   tuning: tuned({
     name: "Bris",
     class: "road",

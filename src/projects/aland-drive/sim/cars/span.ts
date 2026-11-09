@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const span: CarEntry = {
   tier: "A3",
+  maker: "Fjäder",
+  engine: "Supercharged four",
+  from: "harbour",
   tuning: tuned({
     name: "Spån",
     class: "sports",
