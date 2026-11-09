@@ -47,7 +47,7 @@ jobs:
       groups: ${{ steps.plan.outputs.groups }}
       tiles: ${{ steps.plan.outputs.tiles }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: plan
         env:
           TILES: ${{ github.event_name == 'push' && 'L2343A L2343C L2343D' || inputs.tiles }}
@@ -76,8 +76,8 @@ jobs:
       matrix:
         group: ${{ fromJSON(needs.plan.outputs.groups) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -87,7 +87,7 @@ jobs:
           GROUP: ${{ matrix.group }}
           PAVING: ${{ inputs.paving && '--paving' || '' }}
         run: python3 "$PIPELINE/run.py" --phase tiles $GROUP --jobs "$(nproc)" $PAVING
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tiles-${{ strategy.job-index }}
           path: ${{ env.TILES_FOLDER }}
@@ -99,14 +99,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: ${{ env.PIPELINE }}/requirements.txt
       - run: python3 "$PIPELINE/inputs.py" fetch
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: tiles-*
           path: ${{ env.TILES_FOLDER }}
@@ -118,7 +118,7 @@ jobs:
           cd "$PIPELINE"
           .venv/bin/python check_seams.py
           echo "Built world \`$(jq -r .version ../.data/tiles/world.json)\`: $(jq '.tiles | length' ../.data/tiles/world.json) tiles" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: world
           path: ${{ env.TILES_FOLDER }}
