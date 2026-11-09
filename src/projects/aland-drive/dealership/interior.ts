@@ -55,6 +55,8 @@ export interface Window {
 /**
  * One source of light. A point shines all round; a spot down a cone about its aim; a strip, a tube or a run of
  * panels, from every point between its two ends. Each is as bright as `power` at itself and half that at `reachM`.
+ * A spot's `aim` is a direction, the way it shines from `at` (any length: [0, -1, 0] is straight down), never a point
+ * it shines at; `coneDeg` is the cone's whole width.
  */
 export type Lamp =
   | { kind: "point"; at: V3; paint: Paint; power: number; reachM: number }
