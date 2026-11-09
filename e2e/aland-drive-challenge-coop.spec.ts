@@ -18,7 +18,7 @@ import { WEBGPU_BROWSER } from "./webgpu";
  * `challenge/coop.test.ts`'s. The invite goes to everyone in the world, so
  * those who join are down the road from the ring, and one goes back there
  * when it leaves. Four game pages are all the GPU pages the budget shares
- * out, so they're small.
+ * out, so they're small, and each starts while the others stand still.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
@@ -59,8 +59,15 @@ const countingDown = (page: Page, attempt: number) =>
 
 test("a co-op Route for four: asked from its ring, the room filled from down the road over the relay, counted down together, one leaving and the rest retrying", async ({ browser }) => {
   const world = `coop-${crypto.randomUUID()}`;
+  // Each page starts while those before it stand still (`holdDrawing`): its pipelines compile on the browser's one GPU
+  // process behind every frame the others draw, and a fourth page's never finished behind three drawing.
   const pages: Page[] = [];
-  for (let count = 0; count < 4; count++) pages.push(await joinWorld(browser, world));
+  for (let count = 0; count < 4; count++) {
+    const page = await joinWorld(browser, world);
+    await page.evaluate(() => window.__alandDrive?.holdDrawing(true));
+    pages.push(page);
+  }
+  for (const page of pages) await page.evaluate(() => window.__alandDrive?.holdDrawing(false));
   const [first, ...joiners] = pages;
   const { challenge, line } = await layChallenge(first, { id: ID, title: TITLE, target: { s: 600 } });
   for (const page of pages) await page.evaluate((added: Challenge) => window.__alandDrive?.addChallenge(added), challenge);
