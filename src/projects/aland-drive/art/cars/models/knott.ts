@@ -183,7 +183,7 @@ const shape: Shape = {
     hoodSeamZ: [-1.65, -1.0],
     cleanEnds: true,
     archLipM: 0.06,
-    spare: { x: 0, h: 1.06, z: 1.715, radius: 0.33, wide: 0.2 },
+    spares: [{ at: [0, 1.06, 1.815], radiusM: 0.33, widthM: 0.2, axis: "z" }],
   },
 };
 
