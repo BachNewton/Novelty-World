@@ -121,8 +121,8 @@ const shape: Shape = {
     [-0.1, 1.26],
     [0.45, 1.33],
     [0.9, 1.31],
-    [1.1, 1.26],
-    [1.2, 1.17],
+    [1.2, 1.25],
+    [1.42, 1.16],
   ],
   windowZ: [-0.64, 1.2],
   railWidth: [
@@ -149,8 +149,8 @@ const shape: Shape = {
   ],
   blocks: [
     // Ödmark's square driving lamps, low in the bumper at the intake's ends.
-    { at: [0.5, 0.348, -1.99], size: [0.11, 0.084, 0.04], surface: "trim", mirror: true, fine: true },
-    { at: [0.5, 0.348, -2.004], size: [0.085, 0.06, 0.03], surface: "lensHead", mirror: true },
+    { at: [0.44, 0.348, -1.992], size: [0.11, 0.084, 0.04], surface: "trim", mirror: true, fine: true },
+    { at: [0.44, 0.348, -2.006], size: [0.085, 0.06, 0.03], surface: "lensHead", mirror: true },
     // The fog lamp in the middle of the tail's dark bar, square as the lamps either side of it.
     { at: [0, 0.868, 1.87], size: [0.07, 0.07, 0.04], surface: "lensTail", fine: true },
     ...scoop,
@@ -236,11 +236,10 @@ const shape: Shape = {
       [-2.01, 0.79],
       [-1.75, 0.9],
       [-1.28, 0.925],
-      [-0.75, 0.885],
-      [0.2, 0.87],
-      [0.75, 0.89],
+      [-0.7, 0.885],
+      [0.25, 0.872],
       [1.27, 0.925],
-      [1.75, 0.915],
+      [1.8, 0.912],
       [2.01, 0.84],
     ],
     hoodSeamZ: [-1.9, -0.76],
