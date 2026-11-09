@@ -761,7 +761,11 @@ def licence() -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--data", type=Path, default=DATA)
-    data = parser.parse_args().data
+    write_lanes(parser.parse_args().data)
+
+
+def write_lanes(data: Path) -> None:
+    """Every lane, from the built tiles in `data`, written to `sea/lanes.json`. An island build runs it last."""
     water = load_water(data)
     osm = read_osm(data)
     official = official_lines()

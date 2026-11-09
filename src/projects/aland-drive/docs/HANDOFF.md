@@ -4,17 +4,13 @@ Where the project stands, and what's next. `CLAUDE.md` and the `CLAUDE.md` in ea
 
 ## Where it stands
 
-Phase 5 is done and live at `https://novelty-world.vercel.app/games/3d-games/aland-drive`: the whole island, 94 tiles, streaming from Supabase as version `864b209e5ae8`, with 91 bridges, a mini map, a world map on one continuous crane camera, GPS, street names and showcase spots on keys 1–0. The exit test passed: Eckerö harbour to Långnäs on the game's own route, 57.8 km, no respawns.
+Phase 5 is done and live at `https://novelty-world.vercel.app/games/3d-games/aland-drive`: the whole island, 94 tiles, built with paving (`docs/ROAD-SURFACES.md`) and streaming from Supabase as version `382c3b80722b`, with 91 bridges, a mini map, a world map on one continuous crane camera, GPS, street names and showcase spots on keys 1–0. The exit test passed: Eckerö harbour to Långnäs on the game's own route, 57.8 km, no respawns.
 
 Much of the art under `art/` is now in the game: the ground, roads and their paint, roofs, facades and shopfronts, the sky, water with a seabed, the forest (lit per face, see `render/CLAUDE.md`), verges, reeds, shrubs, boathouses and sheds, the medieval stone churches and the landmarks, the roadside (lamps, poles and wires, signs, rails, edge posts, mailboxes, shelters), stone walls and parked cars. `docs/ART.md` ticks each kit. Every car drives and sounds as its own, swapped from the game menu's Cars page, and online free roam puts every player in one shared world with collisions between cars. There is no gameplay yet. A car's brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
-The bucket holds one tile version, `864b209e5ae8` (about 400 MB of the 1 GB it shares with `audiobooks`, 105 MB). An island is about 400 MB, so one more fits beside it: clear the older once the newer has proved itself live.
+The bucket holds only the live version, `382c3b80722b`, 491 MB.
 
-## Waiting for the next tile publish
-
-Granite (`pipeline/rocks.py`: rock outcrops, boulder fields and boulders) and the shore (`pipeline/docks.py`: jetties, harbour piers, pontoons and boats, and piers no longer laid as road bridges) are on main and in the game, but not in the published tiles, so the live island shows neither until the next publish. The docks change how roads are laid on piers, so it takes a full `build.py --island`, which runs every step, not the two scripts alone. Both read as absent on older tiles, so the game runs on the published tiles meanwhile, with neither.
-
-People (`pipeline/waterfront.py`, `render/people.ts`: fishers, sitters, tenders and strollers on the docks, and groups at the landmarks) are in the game on tiles the script has been run on, and not in the published tiles either. `waterfront.py` alone adds them to tiles already built, after the docks; a tile without them has no one. Street furniture (`pipeline/furniture.py`, in the roadside's list) and people seated on it (`pipeline/seated.py`) are the same: in the game on tiles rebuilt since, run after the roadside, and not published. Walkers are the next to place, through the same per-tile files (`pipeline/people.py`).
+Walkers are the next people to place, through the same per-tile files as the waterfront's and the seated (`pipeline/people.py`).
 
 ## What's next, in order
 

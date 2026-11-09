@@ -14,6 +14,8 @@ import { createCyclistsView } from "./cyclists";
 import { createWalkersView, standingPlaces, walkerPace } from "./walkers";
 import { PEOPLE_REACH_M } from "../art/people/material";
 import { Bubble } from "../traffic/bubble";
+import { createTrafficLife } from "../traffic/life";
+import { PARKED_CARS } from "./parked-places";
 import { REACH_M as CAR_REACH_M } from "../art/cars/fleet";
 import { BIKE_REACH_M } from "../art/bikes";
 import { indicatorClock } from "../art/cars/material";
@@ -91,7 +93,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { carOfItem, carsMenu, drivingMenu, graphicsMenu, isCarItem, isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
 import { createChallengeMarks } from "./challenge-marks";
@@ -1138,6 +1140,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let trafficMade = 0;
   const nameVehicle = online ? (slot: string) => `${slot}~${onlineWorld?.state().selfId ?? trafficTag}${(trafficMade++).toString(36)}` : undefined;
   const bubble = new Bubble(laneNet, laneTraffic, { car: { reachM: CAR_REACH_M, density: 1 }, bike: { reachM: BIKE_REACH_M, density: 1 }, walker: { reachM: PEOPLE_REACH_M, density: 1 } }, nameVehicle);
+  const trafficLife = createTrafficLife(bubble, laneTraffic, laneNet, PARKED_CARS.map(({ name }) => name));
   let trafficSeesPlayer = true;
   let trafficSteps = 0;
   let bubbleSteps = 0;
@@ -1669,11 +1672,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   /** What the game menu holds and whether it stops the drive, worked out as it opens. */
   const menuNow = (): GameMenu => {
-    if (!session) return drivingMenu(drive.tyres, drive.assists);
+    if (!session) return drivingMenu;
     // Solo, the menu stops the run's clock with the drive; in co-op the partner drives on, so it can't.
     const { challenge } = session;
-    return { items: ["resume", "retry", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
+    return { items: ["resume", "retry", "settings", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
   };
+  /** The Settings page: everything a player may change, which in a challenge is all but the tyres, the challenge's car's. */
+  const settingsNow = () => (session ? settingsMenu({ assists: drive.assists, pauses: !session.coop }) : settingsMenu({ assists: drive.assists, tyres: drive.tyres, pauses: true }));
   const showMenu = (menu: GameMenu | null) => {
     gameMenu = menu;
     controls.setGameMenuOpen(menu !== null);
@@ -1895,9 +1900,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       case "tyres-summer":
       case "tyres-winter":
       case "tyres-studded": {
-        const fitted = tyreOfItem(id);
-        setTyres(fitted);
-        showMenu(drivingMenu(fitted, drive.assists));
+        if (session) throw new Error("Tyres picked in a challenge, whose car is the challenge's");
+        setTyres(tyreOfItem(id));
+        showMenu(settingsNow());
         break;
       }
       case "abs":
@@ -1906,18 +1911,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const assists = { ...drive.assists, [id]: !drive.assists[id] };
         keepAssists(assists);
         drive.assists = assists;
-        showMenu(drivingMenu(drive.tyres, assists));
+        showMenu(settingsNow());
         break;
       }
       case "units-metric":
       case "units-imperial":
         useUnits.getState().setUnits(unitsOfItem(id));
         break;
-      case "sound":
-        useDriveSoundSettings.getState().toggleMuted();
-        break;
-      case "graphics":
-        showMenu(graphicsMenu);
+      case "settings":
+        showMenu(settingsNow());
         break;
       case "cars":
         showMenu(carsMenuNow());
@@ -2158,6 +2160,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (bubble.density("car") === 0 && bubble.density("bike") === 0 && bubble.density("walker") === 0) return;
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
+      trafficLife.step(seasonHeard());
       const eye = eyeNow();
       bubble.update(trafficFocus, (vehicle) => sees(eye, groundAt, sightOf(vehicle)), sharedTraffic ? { others: otherPlaces(), runsHere: sharedTraffic.runsHere, ready: worldHeard() && sharedTraffic.namedBy(others.keys()) } : undefined);
     }
@@ -2575,8 +2578,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (drive.placements !== placements) {
       placements = drive.placements;
       audio.reset();
+      trafficLife.reset();
     }
     const [carX, , carZ] = car.position;
+    audio.placeLoops(mapFrom !== null || jumping || menuHolds ? [] : trafficLife.sound(heardFrom(), conditionUnderCar(), seconds));
     audio.update(stateFromCar(car, lastInput, { vehicle: drive.carId, engine, wheels: drive.player.surfaces(), condition: conditionUnderCar(), tyres: drive.tyres, place: placeAround(world, carX, carZ), weather: day.weather() ?? undefined, season: seasonHeard(), listener: heardFrom(), perspective: cameraMode === "cockpit" ? "inside" : "outside", paused: mapFrom !== null || jumping || menuHolds }, drive.player.treads().map((tread) => tread.spinMS)), seconds);
     ringBells();
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });

@@ -1,5 +1,6 @@
 import { ENGINE_RATE, loopRpms } from "./model";
 import { BIKE, type Combustion, type EngineSpec } from "./vehicles";
+import type { TrafficVoice } from "./traffic";
 
 /*
  * Every loop the continuous sounds play, computed once as samples: an engine's
@@ -780,3 +781,79 @@ export function churchBell(): Loop {
   return { rate: BED_RATE, channels: [channel, Float32Array.from(channel)] };
 }
 
+
+// ---- Traffic ----
+
+/** A one-pole low-pass run twice round a loop, so its memory at the start is its end's and the loop stays seamless. */
+function lowPassed(channel: Float32Array, cornerHz: number, rate: number): void {
+  const share = 1 - Math.exp((-TAU * cornerHz) / rate);
+  let held = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < channel.length; i++) {
+      held += (channel[i] - held) * share;
+      if (pass === 1) channel[i] = held;
+    }
+  }
+}
+
+/**
+ * A traffic car's engine heard from the roadside (`traffic.ts`), one loop at a cruise: its exhaust and a little of its
+ * bay, part on load and part off as a car holding its speed is, through its silencer shut. Mono, in both channels, so
+ * the placed sound's panner puts it where the car is.
+ */
+export function trafficEngineLoop(voice: TrafficVoice, rpm: number): Loop {
+  const engine = voice.combustion;
+  if (engine === null) throw new Error("a traffic engine loop needs an engine");
+  const next = random(voice.seed);
+  const strengths = engine.firing.angles.map(() => 1 - engine.lope * next());
+  const on = engineLoop(engine, rpm, true, strengths, next);
+  const off = engineLoop(engine, rpm, false, strengths, next);
+  const channel = on.channels[0].map((sample, i) => 0.6 * (sample + 0.4 * on.channels[1][i]) + 0.4 * (off.channels[0][i] + 0.4 * off.channels[1][i]));
+  lowPassed(channel, engine.exhaustHz[0] + 0.3 * engine.exhaustHz[1], ENGINE_RATE);
+  lowPassed(channel, engine.exhaustHz[0] * 2, ENGINE_RATE);
+  normalise([channel], 0.85);
+  return { rate: ENGINE_RATE, channels: [channel, Float32Array.from(channel)] };
+}
+
+/** A traffic car's motor at `rpm`: its whine in its orders, the inverter's tone under it, and a breath of noise so it isn't a bare sine. */
+export function trafficMotorLoop(voice: TrafficVoice, rpm: number): Loop {
+  const motor = voice.electric;
+  if (motor === null) throw new Error("a traffic motor loop needs a motor");
+  const next = random(voice.seed);
+  const turnHz = rpm / 60;
+  const seconds = 2;
+  const length = Math.round(seconds * HIGH_RATE);
+  // Every tone a whole number of cycles in the loop.
+  const whole = (hz: number) => Math.round(hz * seconds) / seconds;
+  const breath = lowNoise(length, next, () => 2500, HIGH_RATE);
+  const channel = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    const t = i / HIGH_RATE;
+    let sum = 0;
+    for (const [order, level] of motor.orders) sum += level * Math.sin(TAU * whole(turnHz * order) * t);
+    sum += motor.inverter * Math.sin(TAU * whole(motor.carrierHz) * t);
+    channel[i] = sum + 0.6 * breath[i];
+  }
+  normalise([channel], 0.8);
+  return { rate: HIGH_RATE, channels: [channel, Float32Array.from(channel)] };
+}
+
+/** Tyres rolling on a sealed road, heard from the roadside: a broad hiss with a roar under it. */
+export function rollTarmacLoop(): Loop {
+  const next = random(53);
+  const length = Math.round(2.9 * HIGH_RATE);
+  const hiss = lowNoise(length, next, () => 1400, HIGH_RATE);
+  const held = lowNoise(length, next, () => 120, HIGH_RATE);
+  const roar = lowNoise(length, next, () => 350, HIGH_RATE);
+  const channel = hiss.map((sample, i) => sample - held[i] + 0.8 * (roar[i] - held[i]));
+  normalise([channel], 0.8);
+  return { rate: HIGH_RATE, channels: [channel, Float32Array.from(channel)] };
+}
+
+/** Tyres rolling on gravel, heard from the roadside: the car's own gravel bed, both sides together. */
+export function rollGravelLoop(): Loop {
+  const { rate, channels } = gravelLoop();
+  const channel = channels[0].map((sample, i) => 0.5 * (sample + channels[1][i]));
+  normalise([channel], 0.8);
+  return { rate, channels: [channel, Float32Array.from(channel)] };
+}

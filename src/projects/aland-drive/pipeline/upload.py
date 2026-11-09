@@ -1,6 +1,7 @@
 """Publishes the built tiles to Supabase Storage. Safe to run again: what's already there is left alone.
 
     pipeline/.venv/Scripts/python pipeline/upload.py [--dry-run]
+    pipeline/.venv/Scripts/python pipeline/upload.py --clear-old [--dry-run]
 
 Reads the project's URL and service-role key from the environment where both
 are set (a workflow's secrets), else from the repo's .env.local, and never
@@ -9,12 +10,16 @@ the build's version, so a rebuild is a new folder beside the old one and a page
 only ever sees the files it was deployed with. They are immutable, so they carry
 a year's cache. Then set TILES_VERSION in render/tile-address.ts to the version
 printed. It won't publish tiles that don't meet (`check_seams.py`).
+
+Once the new version is deployed and checked live, `--clear-old` deletes every
+other version in the bucket: all but the one TILES_VERSION names.
 """
 
 import argparse
 import json
 import mimetypes
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +31,7 @@ from sources import USER_AGENT
 
 BUCKET = "aland-drive-tiles"
 ENV_FILE = Path(__file__).resolve().parents[4] / ".env.local"
+TILE_ADDRESS = Path(__file__).resolve().parents[1] / "render" / "tile-address.ts"
 YEAR_S = 31_536_000
 BUCKET_FILE_LIMIT_BYTES = 20_000_000
 # Only what's game data: routes.json beside the tiles is the local tools' own.
@@ -93,6 +99,21 @@ class Storage:
                 return found
             offset += len(entries)
 
+    def versions(self) -> list[str]:
+        """The bucket's top-level folders, one per published build."""
+        request = {"prefix": "", "limit": 1000}
+        status, body = self._call("POST", f"object/list/{BUCKET}", json.dumps(request).encode(), {"Content-Type": "application/json"})
+        if status != 200:
+            raise SystemExit(f"couldn't list the bucket: {status} {body[:200]!r}")
+        return [entry["name"] for entry in json.loads(body) if entry.get("id") is None]
+
+    def delete(self, paths: list[str]) -> None:
+        for start in range(0, len(paths), 1000):
+            batch = json.dumps({"prefixes": paths[start : start + 1000]}).encode()
+            status, body = self._call("DELETE", f"object/{BUCKET}", batch, {"Content-Type": "application/json"})
+            if status != 200:
+                raise SystemExit(f"couldn't delete from {paths[start]}: {status} {body[:200]!r}")
+
     def upload(self, path: str, data: bytes, content_type: str) -> None:
         headers = {"Content-Type": content_type, "Cache-Control": f"max-age={YEAR_S}, immutable", "x-upsert": "false"}
         status, body = self._call("POST", f"object/{BUCKET}/{urllib.parse.quote(path)}", data, headers)
@@ -100,10 +121,41 @@ class Storage:
             raise SystemExit(f"couldn't upload {path}: {status} {body[:200]!r}")
 
 
+def live_version() -> str:
+    found = re.search(r'const TILES_VERSION = "([0-9a-f]+)";', TILE_ADDRESS.read_text(encoding="utf-8"))
+    if found is None:
+        raise SystemExit(f"no TILES_VERSION in {TILE_ADDRESS}")
+    return found.group(1)
+
+
+def clear_old(dry_run: bool) -> None:
+    """Deletes every version but the live one. Run once the live one is deployed and checked."""
+    storage = Storage(*environment())
+    live = live_version()
+    versions = storage.versions()
+    if live not in versions:
+        raise SystemExit(f"TILES_VERSION {live} isn't in the bucket, so nothing is cleared")
+    for version in versions:
+        if version == live:
+            continue
+        files = storage.existing(version)
+        print(f"{'would delete' if dry_run else 'deleting'} {version}: {len(files)} files, {sum(files.values()) / 1e6:.1f} MB")
+        if not dry_run:
+            storage.delete(list(files))
+            left = storage.existing(version)
+            if left:
+                raise SystemExit(f"{len(left)} files of {version} are still there")
+    print(f"kept {live}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="say what would go up, and touch nothing")
+    parser.add_argument("--clear-old", action="store_true", help="delete every version but the one TILES_VERSION names")
     arguments = parser.parse_args()
+    if arguments.clear_old:
+        clear_old(arguments.dry_run)
+        return
 
     problems = check_seams.check_all()
     if problems:

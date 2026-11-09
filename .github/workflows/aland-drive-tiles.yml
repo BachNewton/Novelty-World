@@ -15,9 +15,9 @@ on:
         type: string
         default: ""
       paving:
-        description: Lay the roads as one paved surface with the ground cut round it (build.py --paving)
+        description: Lay the roads as one paved surface with the ground cut round it (build.py --paving), as the published island is
         type: boolean
-        default: false
+        default: true
       upload:
         description: Publish the tiles to Supabase as a new version, once their seams meet
         type: boolean
@@ -43,6 +43,7 @@ jobs:
     outputs:
       groups: ${{ steps.plan.outputs.groups }}
       tiles: ${{ steps.plan.outputs.tiles }}
+      island: ${{ steps.plan.outputs.island }}
     steps:
       - uses: actions/checkout@v7
       - id: plan
@@ -59,7 +60,7 @@ jobs:
           machines = min(int(os.environ["MACHINES"]), len(tiles))
           groups = [" ".join(tiles[machine::machines]) for machine in range(machines)]
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write(f"groups={json.dumps(groups)}\ntiles={' '.join(tiles)}\n")
+              out.write(f"groups={json.dumps(groups)}\ntiles={' '.join(tiles)}\nisland={'false' if os.environ['TILES'].split() else 'true'}\n")
           print(f"{len(tiles)} tiles on {len(groups)} machines")
           EOF
 
@@ -108,8 +109,9 @@ jobs:
           pattern: tiles-*
           path: ${{ env.TILES_FOLDER }}
           merge-multiple: true
+      # The whole island as --island, so its sea lanes are drawn too.
       - env:
-          TILES: ${{ needs.plan.outputs.tiles }}
+          TILES: ${{ needs.plan.outputs.island == 'true' && '--island' || needs.plan.outputs.tiles }}
         run: python3 "$PIPELINE/run.py" --phase after $TILES --jobs "$(nproc)"
       - run: |
           cd "$PIPELINE"
@@ -119,6 +121,13 @@ jobs:
         with:
           name: world
           path: ${{ env.TILES_FOLDER }}
+          if-no-files-found: error
+          retention-days: 7
+      - if: needs.plan.outputs.island == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sea-lanes
+          path: src/projects/aland-drive/sea/lanes.json
           if-no-files-found: error
           retention-days: 7
       - if: inputs.upload

@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentType, type RefObject } from "react";
-import { ArrowLeft, Car, Check, CircleDot, Disc, Footprints, Navigation, Flag, Fullscreen, LogOut, Medal as MedalIcon, Minus, MonitorCog, PaintBucket, Play, Plus, Repeat, Route, Ruler, RotateCcw, Snowflake, Sun, ToggleLeft, ToggleRight, Trophy, User, UserPlus, Users, Volume2, VolumeX, X } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { ArrowLeft, Car, Check, Disc, Footprints, Navigation, Flag, LogOut, Medal as MedalIcon, PaintBucket, Play, Repeat, Route, RotateCcw, Settings, Trophy, User, UserPlus, Users, X } from "lucide-react";
+import type { InputKind } from "@/shared/lib/input";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { PadHints } from "@/shared/components/pad-hints";
-import { useDriveSoundSettings } from "../audio/settings";
-import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
 import { isCarItem, isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
 import { CarSelect } from "./car-select";
-import { useUnits, type Units } from "../units";
-import type { Tyre } from "../sim/surfaces";
+import { SettingsMenu } from "./settings-menu";
+import { ACCENT, CHALLENGE, INK, MenuButton, SHADE, TYRE_LOOKS, UNITS_LOOKS, type ItemLook } from "./menu-parts";
+import { useUnits } from "../units";
 
 /*
  * The game's own menu, on a pad's Menu or Esc, and a challenge's small
@@ -23,10 +23,6 @@ import type { Tyre } from "../sim/surfaces";
  * own card before it starts and its own result card, with the places.
  */
 
-const INK = "var(--color-aland-drive-ui-ink)";
-const SHADE = "var(--color-aland-drive-ui-shade)";
-const ACCENT = "var(--color-aland-drive-ui-accent)";
-const CHALLENGE = "var(--color-aland-drive-ui-challenge)";
 const PASS = "var(--color-aland-drive-ui-pass)";
 const FAIL = "var(--color-aland-drive-ui-redline)";
 
@@ -36,31 +32,7 @@ const medalColour = (medal: Medal) => `var(--color-aland-drive-ui-${medal})`;
 const MEDAL_NAMES: Record<Medal, string> = { gold: "Gold", silver: "Silver", bronze: "Bronze" };
 const GROUND_NAMES: Record<RaceGround, string> = { road: "Road", "cross-country": "Cross country", "off-road": "Off-road" };
 
-const TYRE_LOOKS: Record<Tyre, { icon: ItemLook["icon"]; name: string }> = {
-  summer: { icon: Sun, name: "Summer" },
-  winter: { icon: Snowflake, name: "Friction" },
-  studded: { icon: CircleDot, name: "Studded" },
-};
-
-const UNITS_LOOKS: Record<Units, { icon: ItemLook["icon"]; name: string; detail: string }> = {
-  metric: { icon: Ruler, name: "Metric", detail: "km/h · °C · 24h" },
-  imperial: { icon: Ruler, name: "Imperial", detail: "mph · °F · 12h" },
-};
-
-type TyreItem = `tyres-${Tyre}`;
-const isTyreItem = (id: MenuItemId): id is TyreItem => id.startsWith("tyres-");
-type UnitsItem = `units-${Units}`;
-const isUnitsItem = (id: MenuItemId): id is UnitsItem => id.startsWith("units-");
-
-interface ItemLook {
-  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  label: string;
-  /** For an item that is a setting: whether it's on. */
-  on?: boolean;
-}
-
 function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
-  const muted = useDriveSoundSettings((state) => state.settings.muted);
   const shownUnits = useUnits((state) => state.units);
   return (id) => {
     if (isPaintItem(id)) return { icon: PaintBucket, label: `Paint ${paintOfItem(id) + 1}` };
@@ -85,10 +57,8 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
         return { icon: Footprints, label: "Traction control", on: menu.assists?.traction ?? true };
       case "stability":
         return { icon: Navigation, label: "Stability", on: menu.assists?.stability ?? true };
-      case "sound":
-        return { icon: muted ? VolumeX : Volume2, label: "Sound", on: !muted };
-      case "graphics":
-        return { icon: MonitorCog, label: "Graphics" };
+      case "settings":
+        return { icon: Settings, label: "Settings" };
       case "cars":
         return { icon: Car, label: "Cars" };
       case "back":
@@ -215,34 +185,6 @@ function ResultHeader({ title, result: { passed, kind, result, target, best, tea
   );
 }
 
-/**
- * A setting's choices side by side, the one in force marked: each picks its own, so no button has to say whether it's
- * what's set or what pressing it would set. The tyres and the units are each one.
- */
-function SideBySide({ name, choices, onPick }: { name: string; choices: { id: MenuItemId; icon: ItemLook["icon"]; label: string; spoken: string; detail?: string; on: boolean }[]; onPick: (id: MenuItemId) => void }) {
-  return (
-    <div role="radiogroup" aria-label={name} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}>
-      {choices.map(({ id, icon: Icon, label, spoken, detail, on }) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={on}
-          aria-label={spoken}
-          className="relative flex cursor-pointer flex-col items-center gap-1 rounded border-2 px-2 py-2 text-sm font-semibold"
-          style={{ borderColor: on ? ACCENT : "transparent", color: on ? ACCENT : INK }}
-          onClick={() => { onPick(id); }}
-        >
-          {on && <Check aria-hidden className="absolute top-1 right-1 size-4" />}
-          <Icon aria-hidden className="size-6" />
-          <span>{label}</span>
-          {detail !== undefined && <span className="text-xs font-normal opacity-80">{detail}</span>}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** The size of an element in CSS pixels, kept as it changes. */
 function useSize(element: RefObject<HTMLElement | null>): { width: number; height: number } {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -260,42 +202,7 @@ function useSize(element: RefObject<HTMLElement | null>): { width: number; heigh
   return size;
 }
 
-/** The Graphics page's settings, which the page keeps and the game follows live. The menu covers the game, so its size is the game's. */
-function GraphicsSettings({ view, first }: { view: { width: number; height: number }; first: RefObject<HTMLButtonElement | null> }) {
-  const scale = useDriveGraphics((state) => state.settings.renderScale);
-  const step = useDriveGraphics((state) => state.stepRenderScale);
-  // As three sizes the canvas: CSS pixels times the pixel ratio, rounded down.
-  const ratio = window.devicePixelRatio * scale;
-  const resolution = `${Math.floor(view.width * ratio)}×${Math.floor(view.height * ratio)}`;
-  const lowest = scale === RENDER_SCALES[0];
-  const highest = scale === RENDER_SCALES[RENDER_SCALES.length - 1];
-  const stepper = "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded border-2 aria-disabled:cursor-default aria-disabled:opacity-40";
-  return (
-    <div className="mb-1 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-lg font-semibold">
-        <MonitorCog aria-hidden className="size-5 shrink-0" />
-        <span>Graphics</span>
-      </div>
-      <div role="group" aria-label="Render scale" className="flex items-center gap-2">
-        <Fullscreen aria-hidden className="size-5 shrink-0" />
-        <div className="flex grow flex-col leading-tight" title="Share of the screen's physical pixels the world is drawn at">
-          <span className="text-lg font-semibold">Render scale</span>
-          <span className="text-xs tabular-nums opacity-75" aria-label="Resolution">{resolution}</span>
-        </div>
-        {/* aria-disabled rather than disabled, so a pad's focus stays on a button pressed to its end. */}
-        <button ref={first} type="button" data-pad-start aria-label="Lower render scale" aria-disabled={lowest} className={stepper} style={{ borderColor: INK }} onClick={() => { step(-1); }}>
-          <Minus aria-hidden className="size-4" />
-        </button>
-        <span className="w-12 text-center text-lg font-semibold tabular-nums" role="status" aria-label="Render scale">{Math.round(scale * 100)}%</span>
-        <button type="button" aria-label="Raise render scale" aria-disabled={highest} className={stepper} style={{ borderColor: INK }} onClick={() => { step(1); }}>
-          <Plus aria-hidden className="size-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const DIALOG_NAMES = { menu: "Game menu", graphics: "Graphics", cars: "Cars", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
+const DIALOG_NAMES = { menu: "Game menu", settings: "Settings", cars: "Cars", start: "Start challenge", invite: "Co-op invite", race: "Race" } as const;
 
 /** A choice's heading: the challenge, and who a co-op invite is from. */
 function ChoiceHeader({ title, from, ground }: { title: string; from?: string; ground?: RaceGround }) {
@@ -315,66 +222,40 @@ function ChoiceHeader({ title, from, ground }: { title: string; from?: string; g
   );
 }
 
-export function GameMenu({ menu, revealPadFocus, onPick }: { menu: GameMenuState; revealPadFocus: boolean; onPick: (id: MenuItemId) => void }) {
+export function GameMenu({ menu, input, onPick }: { menu: GameMenuState; input: InputKind; onPick: (id: MenuItemId) => void }) {
   const backdrop = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
   const look = useItemLook(menu);
-  const shownUnits = useUnits((state) => state.units);
   const view = useSize(backdrop);
-  usePadNavigation(root, { reveal: revealPadFocus });
+  usePadNavigation(root, { reveal: input === "pad" });
   useEffect(() => {
     first.current?.focus({ preventScroll: true });
   }, []);
 
   return (
     <div ref={backdrop} className="absolute inset-0 flex items-center justify-center" style={{ ["--color-pad-focus" as string]: ACCENT }}>
-      <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className={`flex max-h-[94vh] flex-col gap-2 rounded-lg p-4 ${menu.kind === "cars" ? "max-w-[96vw]" : "w-80 max-w-[90vw]"}`} style={{ background: SHADE, color: INK }}>
+      <div ref={root} role="dialog" aria-modal aria-label={menu.result ? (menu.result.race ? "Race result" : "Challenge result") : DIALOG_NAMES[menu.kind ?? "menu"]} className={`flex max-h-[94vh] flex-col gap-2 rounded-lg p-4 ${menu.kind === "cars" ? "max-w-[96vw]" : menu.kind === "settings" ? "w-[52rem] max-w-[96vw]" : "w-80 max-w-[90vw]"}`} style={{ background: SHADE, color: INK }}>
         {menu.result && (menu.result.race ? <RaceResultHeader title={menu.challenge ?? ""} race={menu.result.race} /> : <ResultHeader title={menu.challenge ?? ""} result={menu.result} />)}
         {menu.kind === "race" && menu.race && <RaceCardHeader title={menu.challenge ?? ""} card={menu.race} />}
-        {menu.kind === "graphics" && <GraphicsSettings view={view} first={first} />}
+        {menu.kind === "settings" && <SettingsMenu menu={menu} input={input} view={view} first={first} look={look} onPick={onPick} />}
         {menu.kind === "cars" && <CarSelect menu={menu} first={first} onPick={onPick} />}
         {menu.kind === "start" && <ChoiceHeader title={menu.challenge ?? ""} />}
         {menu.kind === "invite" && <ChoiceHeader title={menu.challenge ?? ""} from={menu.partner} ground={menu.ground} />}
-        {menu.items.map((id, index) => {
+        {menu.kind !== "settings" && menu.items.map((id, index) => {
           if (isPaintItem(id) || isCarItem(id)) return null;
-          if (isTyreItem(id)) {
-            if (id !== menu.items.find(isTyreItem)) return null;
-            const choices = menu.items.filter(isTyreItem).map((item) => {
-              const tyre = tyreOfItem(item);
-              return { id: item, icon: TYRE_LOOKS[tyre].icon, label: TYRE_LOOKS[tyre].name, spoken: `${TYRE_LOOKS[tyre].name} tyres`, on: tyre === menu.tyres };
-            });
-            return <SideBySide key="tyres" name="Tyres" choices={choices} onPick={onPick} />;
-          }
-          if (isUnitsItem(id)) {
-            if (id !== menu.items.find(isUnitsItem)) return null;
-            const choices = menu.items.filter(isUnitsItem).map((item) => {
-              const units = unitsOfItem(item);
-              return { id: item, icon: UNITS_LOOKS[units].icon, label: UNITS_LOOKS[units].name, spoken: `${UNITS_LOOKS[units].name} units`, detail: UNITS_LOOKS[units].detail, on: units === shownUnits };
-            });
-            return <SideBySide key="units" name="Units" choices={choices} onPick={onPick} />;
-          }
-          const { icon: Icon, label, on } = look(id);
-          const back = id === menu.back;
-          // A page of settings opens on its first setting rather than its first item, and the Cars page on the car being driven.
-          const opensHere = index === 0 && menu.kind !== "graphics" && menu.kind !== "cars";
+          // The Cars page opens on the car being driven.
+          const opensHere = index === 0 && menu.kind !== "cars";
           return (
-            <button
+            <MenuButton
               key={id}
-              ref={opensHere ? first : undefined}
-              type="button"
-              aria-pressed={on}
-              data-pad-start={opensHere || undefined}
-              data-pad-back={back || undefined}
-              data-pad-menu={back || undefined}
-              className="flex cursor-pointer items-center gap-3 rounded border-2 px-3 py-2 text-left text-lg font-semibold"
-              style={{ borderColor: id === "start-solo" || id === "start-coop" || id === "join-coop" ? CHALLENGE : INK }}
-              onClick={() => { onPick(id); }}
-            >
-              <Icon aria-hidden className="size-5 shrink-0" />
-              <span className="grow">{label}</span>
-              {on !== undefined && (on ? <ToggleRight aria-hidden className="size-7 shrink-0" style={{ color: ACCENT }} /> : <ToggleLeft aria-hidden className="size-7 shrink-0 opacity-50" />)}
-            </button>
+              look={look(id)}
+              start={opensHere}
+              back={id === menu.back}
+              buttonRef={opensHere ? first : undefined}
+              border={id === "start-solo" || id === "start-coop" || id === "join-coop" ? CHALLENGE : INK}
+              onPress={() => { onPick(id); }}
+            />
           );
         })}
         <PadHints hints={[["A", "Choose"], ["B", look(menu.back).label]]} className="mt-1" />

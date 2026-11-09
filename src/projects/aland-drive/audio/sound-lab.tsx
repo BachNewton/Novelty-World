@@ -9,6 +9,7 @@ import { hasOldVoice, oldEngineVoice } from "./old/engine";
 import { useDriveSoundSettings } from "./settings";
 import { SOUND_IDS, SOUNDS } from "./sounds";
 import { BIKE, ENGINES, VEHICLE_IDS, vehicleLabel, type VehicleId } from "./vehicles";
+import { TRAFFIC_VOICES, TrafficSound, type TrafficVoiceId } from "./traffic";
 import { CARS } from "../sim/cars";
 import { CONDITIONS, SURFACES, TYRES, type Condition, type Surface, type Tyre } from "../sim/surfaces";
 import { pullAt, resistanceAt, restingEngine, stepEngine, topSpeedMS, type EngineRead } from "../sim/gearbox";
@@ -63,12 +64,22 @@ interface Knobs {
   /** Today's engine synthesis or the one from before it, for a car that had a voice then. */
   voice: "new" | "old";
   perspective: Perspective;
+  /** A traffic car driving past on a road 6 m ahead, to and fro: its voice, its tyres' surface and its speed. */
+  passing: boolean;
+  trafficVoice: TrafficVoiceId;
+  trafficSurface: Surface;
+  trafficKmh: number;
 }
 
 const PERSPECTIVES: readonly Perspective[] = ["outside", "inside"];
 const PERSPECTIVE_LABELS: Record<Perspective, string> = { outside: "Outside, the chase camera", inside: "Inside, the cockpit" };
 
-const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0, lake: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 }, season: "summer", hour: 14, voice: "new", perspective: "outside" };
+const START: Knobs = { vehicle: "skerry-gt", left: "asphalt", right: "asphalt", condition: "dry", tyres: "summer", kmh: 0, throttle: 0, slip: 0, handbrake: false, floorIt: false, holdRpm: false, rpm: 3000, place: { forest: 0, shore: 0, town: 0, lake: 0 }, weather: { rain: 0, snowfall: 0, windMS: 0 }, season: "summer", hour: 14, voice: "new", perspective: "outside", passing: false, trafficVoice: "petrol", trafficSurface: "asphalt", trafficKmh: 80 };
+
+const TRAFFIC_VOICE_IDS = Object.keys(TRAFFIC_VOICES) as TrafficVoiceId[];
+/** The passing car's road: along x, this far ahead of the listener, turning back this far off either way. */
+const PASSING_AHEAD_M = 6;
+const PASSING_TURNS_M = 300;
 
 function Slider({ label, value, min, max, step = 1, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return (
@@ -151,6 +162,9 @@ function Bench() {
     let engine: EngineRead | undefined;
     let engineOf: VehicleId | null = null;
     let last = performance.now();
+    const passing = new TrafficSound();
+    let passingX = -PASSING_TURNS_M;
+    let passingWay = 1;
     let frame = requestAnimationFrame(function tick(now) {
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
@@ -167,6 +181,12 @@ function Bench() {
         if (knob.floorIt) speedMS = Math.max(speedMS + ((pullAt(tuning, engine, 1) - resistanceAt(tuning, speedMS)) / tuning.car.massKg) * dt, 0);
       }
       engineOf = knob.vehicle;
+      const passingMS = knob.trafficKmh / 3.6;
+      passingX += passingWay * passingMS * dt;
+      if (Math.abs(passingX) > PASSING_TURNS_M) passingWay = -Math.sign(passingX);
+      // A car driving east faces -π/2, west π/2 (`traffic/lane-driver.ts`'s yaw).
+      const passer = { id: "passing", voice: knob.trafficVoice, x: passingX, z: -PASSING_AHEAD_M, yaw: (-passingWay * Math.PI) / 2, speedMS: passingMS, surface: knob.trafficSurface };
+      drive.placeLoops(knob.passing ? passing.frame({ x: 0, z: 0, rightX: 1, rightZ: 0 }, [passer], knob.condition, 1, dt) : []);
       drive.auditionEngine(knob.voice === "old" && knob.vehicle !== "bike" && hasOldVoice(knob.vehicle) ? oldEngineVoice : null);
       if (knob.handbrake) speedMS = Math.max(speedMS - BRAKING_MS2 * dt, 0);
       const moved = Math.round(speedMS * 3.6 * 10) / 10;
@@ -219,7 +239,8 @@ function Bench() {
   const stop = () => {
     setRunning(false);
     setReadout("Stopped");
-    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, wheels: [latest.current.left, latest.current.right, latest.current.left, latest.current.right], condition: latest.current.condition, tyres: latest.current.tyres, suspension: REST, place: { forest: 0, shore: 0, town: 0 }, paused: true }, 0.03);
+    drive.placeLoops([]);
+    drive.update({ vehicle: latest.current.vehicle, speedMS: 0, throttle: 0, brake: 0, handbrake: false, slip: 0, wheels: [latest.current.left, latest.current.right, latest.current.left, latest.current.right], condition: latest.current.condition, tyres: latest.current.tyres, suspension: REST, place: { forest: 0, shore: 0, town: 0 }, listener: { x: 0, z: 0, rightX: 1, rightZ: 0 }, paused: true }, 0.03);
   };
 
   const engine = knobs.vehicle === "bike" ? null : ENGINES[knobs.vehicle];
@@ -290,6 +311,14 @@ function Bench() {
         <Slider label={`Hour (sun ${seasonHeard(knobs.season, knobs.hour).sunDeg.toFixed(0)}°)`} value={knobs.hour} min={0} max={23.75} step={0.25} onChange={(hour) => set({ hour })} />
         <Slider label="Rain" value={knobs.weather.rain} min={0} max={1} step={0.05} onChange={(rain) => set({ weather: { ...latest.current.weather, rain } })} />
         <Slider label="Wind, m/s" value={knobs.weather.windMS} min={0} max={20} step={0.5} onChange={(windMS) => set({ weather: { ...latest.current.weather, windMS } })} />
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-border-default p-3">
+        <Toggle label="Traffic passing, 6 m ahead, to and fro" on={knobs.passing} onChange={(passing) => set({ passing })} />
+        <Choice values={TRAFFIC_VOICE_IDS} label={capitalised} value={knobs.trafficVoice} onChange={(trafficVoice) => set({ trafficVoice })} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Choice values={SURFACES} label={capitalised} value={knobs.trafficSurface} onChange={(trafficSurface) => set({ trafficSurface })} />
+          <Slider label="Its speed, km/h" value={knobs.trafficKmh} min={0} max={120} onChange={(trafficKmh) => set({ trafficKmh })} />
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         <Toggle label="Floor it, through the gears" on={knobs.floorIt} onChange={(floorIt) => set({ floorIt })} />
