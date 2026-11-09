@@ -299,10 +299,10 @@ export class Drive {
     return car;
   }
 
-  /** Another simulated car, where a state has it and moving as it moves: a traffic car once it's hit. */
-  addMovingCar(state: CarState): SimulatedCar {
+  /** Another simulated car, where a state has it and moving as it moves: a traffic car once it's hit, or a racer handed here. */
+  addMovingCar(state: CarState, tyres: Tyre = "summer"): SimulatedCar {
     this.loadGround(placeOf(this.player.position), placeOf(state.position));
-    const car = new SimulatedCar(new Car(this.rapier, this.centre, state.car, this.ground), this.world);
+    const car = new SimulatedCar(new Car(this.rapier, this.centre, state.car, this.ground, tyres), this.world);
     car.resume(state);
     car.land();
     this.others.push(car);

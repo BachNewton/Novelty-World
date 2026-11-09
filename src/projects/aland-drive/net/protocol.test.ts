@@ -96,3 +96,21 @@ describe("the world's time", () => {
     expect(parseGuestMessage({ kind: "ask-time" })).toEqual({ kind: "ask-time" });
   });
 });
+
+describe("a car's race", () => {
+  const car = { kind: "car", state: { position: [1, 2, 3], rotation: [0, 0, 0, 1], velocity: [0, 0, 0], spin: [0, 0, 0], car: "skerry-gt", steer: 0, suspension: [0, 0, 0, 0], roll: [0, 0, 0, 0], lamps: { head: true, brake: false, reverse: false } } };
+  const race = { race: "a5-1", attempt: 2, nextGate: 7, progress: 7.25, finishedS: null };
+
+  it("comes through whole with the car, finished or not", () => {
+    expect(parseGuestMessage({ ...car, race })).toMatchObject({ race });
+    expect(parseGuestMessage({ ...car, race: { ...race, finishedS: 301.5 } })).toMatchObject({ race: { finishedS: 301.5 } });
+  });
+
+  it("is dropped when it isn't one, and the car still comes through", () => {
+    for (const bad of [{ ...race, attempt: -1 }, { ...race, nextGate: 1.5 }, { ...race, race: "" }, { ...race, progress: Number.NaN }, { ...race, finishedS: "soon" }, "a5-1"]) {
+      const parsed = parseGuestMessage({ ...car, race: bad });
+      expect(parsed).toMatchObject({ kind: "car" });
+      expect(parsed).not.toHaveProperty("race");
+    }
+  });
+});

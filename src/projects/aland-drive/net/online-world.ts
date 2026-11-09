@@ -1,6 +1,6 @@
 import type { Player, Room, RoomEvents, RoomState } from "@/shared/lib/peer";
 import type { CarState } from "../sim/car-state";
-import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTime, wireTraffic, type ChallengeMessage, type ComputerCarMessage, type GuestMessage, type HostMessage, type MapPoint, type SharedDestination, type TrafficMessage, type WireTraffic } from "./protocol";
+import { parseGuestMessage, parseHostMessage, parseTraffic, wireState, wireTime, wireTraffic, type ChallengeMessage, type ComputerCarMessage, type RaceProgress, type GuestMessage, type HostMessage, type MapPoint, type SharedDestination, type TrafficMessage, type WireTraffic } from "./protocol";
 
 /*
  * The online world: one room on the relay that every player claims, so the
@@ -42,7 +42,7 @@ export const SEND_EVERY_STEPS = 6;
 
 export interface OnlineEvents {
   /** Another player's car, as their client last had it, and when their client stepped it, on its own clock, if it said. */
-  onCar: (peerId: string, state: CarState, at?: number) => void;
+  onCar: (peerId: string, state: CarState, at?: number, race?: RaceProgress) => void;
   /** A player has left, or we have. */
   onGone: (peerId: string) => void;
   /** Everyone else in the world, whenever that changes. */
@@ -68,9 +68,9 @@ export interface OnlineWorld {
   stop: () => void;
   /**
    * Each frame, with the steps the simulation took in it, the car as it stands, whether it was put somewhere since the
-   * last frame, and the time its last step stood for, in ms on this client's clock.
+   * last frame, the time its last step stood for, in ms on this client's clock, and the race this player is in.
    */
-  send: (steps: number, state: CarState, placed: boolean, at: number) => void;
+  send: (steps: number, state: CarState, placed: boolean, at: number, race?: RaceProgress) => void;
   /** A co-op challenge's message, to one player, or to everyone with `to` null. */
   sendChallenge: (to: string | null, message: ChallengeMessage) => void;
   /** A computer-driven car this player runs, to everyone, stepped when the last frame's car was; false when there's no one to send it to. */
@@ -82,6 +82,7 @@ export interface OnlineWorld {
   state: () => RoomState;
 }
 
+const raceKey = (race: RaceProgress | undefined) => (race ? `${race.race}/${race.attempt}` : "");
 const still = (state: CarState): CarState => ({ ...state, velocity: [0, 0, 0], spin: [0, 0, 0] });
 
 export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, GuestMessage>) => OnlineRoom, events: OnlineEvents): OnlineWorld {
@@ -93,6 +94,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   let sentStill = false;
   /** The paint last sent: a new one goes out at once, even from a paused player choosing it in the menu. */
   let sentPaint: number | undefined;
+  /** The race and attempt last sent: joining or leaving one goes out at once, even from a paused player. */
+  let sentRace = "";
   /** The time the last frame's step stood for. */
   let steppedAt = 0;
   /** Challenge messages wait out a reconnect, rather than being lost and leaving two clients on different attempts. */
@@ -114,10 +117,10 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
   // A message can outlive its sender by a moment on the wire.
   const present = (peerId: string) => peerId !== state.selfId && state.players.some((player) => player.peerId === peerId);
 
-  function hear(peerId: string, carState: CarState, at: number | undefined): void {
+  function hear(peerId: string, carState: CarState, at: number | undefined, race: RaceProgress | undefined): void {
     if (!present(peerId)) return;
     known.add(peerId);
-    events.onCar(peerId, carState, at);
+    events.onCar(peerId, carState, at, race);
   }
 
   function hearChallenge(peerId: string, message: ChallengeMessage): void {
@@ -174,8 +177,8 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         return;
       }
       if (message.kind === "car") {
-        hear(from.peerId, message.state, message.at);
-        room.broadcast({ kind: "car", from: from.peerId, state: message.state, at: message.at }, from.peerId);
+        hear(from.peerId, message.state, message.at, message.race);
+        room.broadcast({ kind: "car", from: from.peerId, state: message.state, at: message.at, ...(message.race ? { race: message.race } : {}) }, from.peerId);
         return;
       }
       if (message.kind === "destination") {
@@ -207,7 +210,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
         return;
       }
       if (message.kind === "time") events.onTime(message.gameDays);
-      else if (message.kind === "car") hear(message.from, message.state, message.at);
+      else if (message.kind === "car") hear(message.from, message.state, message.at, message.race);
       else if (message.kind === "computer") hearComputerCar(message.from, message.car);
       else if (message.kind === "traffic") hearTraffic(message.from, message.traffic);
       else if (message.kind === "destination") {
@@ -240,26 +243,27 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
     }
   }
 
-  function transmit(carState: CarState): void {
+  function transmit(carState: CarState, race: RaceProgress | undefined): void {
     sentPaint = carState.paint;
-    const wire = wireState(carState);
-    const at = wireTime(steppedAt);
-    if (state.role === "host" && state.selfId !== null) room.broadcast({ kind: "car", from: state.selfId, state: wire, at });
-    else if (state.role === "guest") room.sendToHost({ kind: "car", state: wire, at });
+    sentRace = raceKey(race);
+    const wire = { state: wireState(carState), at: wireTime(steppedAt), ...(race ? { race } : {}) };
+    if (state.role === "host" && state.selfId !== null) room.broadcast({ kind: "car", from: state.selfId, ...wire });
+    else if (state.role === "guest") room.sendToHost({ kind: "car", ...wire });
   }
 
   return {
     start: () => room.start(),
     stop: () => room.stop(),
-    send(steps, carState, placed, at) {
+    send(steps, carState, placed, at, race) {
       steppedAt = at;
       if (state.status !== "connected") return;
       // A car put somewhere while paused (a retry's load, a test's hold) is somewhere else now for everyone.
       if (placed) owed = true;
       if (carState.paint !== sentPaint) owed = true;
+      if (raceKey(race) !== sentRace) owed = true;
       if (steps === 0) {
         if (sentStill && !owed) return;
-        transmit(still(carState));
+        transmit(still(carState), race);
         sentStill = true;
         owed = false;
         return;
@@ -269,7 +273,7 @@ export function createOnlineWorld(createRoom: (events: RoomEvents<HostMessage, G
       if (owedSteps < SEND_EVERY_STEPS && !owed) return;
       owedSteps = 0;
       owed = false;
-      transmit(carState);
+      transmit(carState, race);
     },
     sendComputerCar(car) {
       if (state.status !== "connected" || state.selfId === null) return false;
