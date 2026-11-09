@@ -6,6 +6,7 @@ import { berg } from "./models/berg";
 import { bris } from "./models/bris";
 import { dyning } from "./models/dyning";
 import { fjard } from "./models/fjard";
+import { flod } from "./models/flod";
 import { grus } from "./models/grus";
 import { gnista } from "./models/gnista";
 import { holm } from "./models/holm";
@@ -39,6 +40,7 @@ const MODELS: Readonly<Record<CarId, CarSpec>> = {
   span,
   // A4
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,

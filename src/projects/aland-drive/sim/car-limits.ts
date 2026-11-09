@@ -7,6 +7,7 @@ import berg from "./limits/berg.json";
 import bris from "./limits/bris.json";
 import dyning from "./limits/dyning.json";
 import fjard from "./limits/fjard.json";
+import flod from "./limits/flod.json";
 import grus from "./limits/grus.json";
 import gnista from "./limits/gnista.json";
 import holm from "./limits/holm.json";
@@ -86,6 +87,7 @@ export const CAR_LIMITS: Readonly<Record<CarId, { tuning: string; grounds: Parti
   span,
   // A4
   sund,
+  flod,
   // A5
   "skerry-gt": skerryGt,
   strom,
