@@ -273,6 +273,7 @@ Built as `tools/race-vet.ts` (`racers/CLAUDE.md`). What its first readings found
 - **Three races no level of racer yet finishes cleanly**, all off the tarmac: X2 Kvarnbo (its start and finish above), and X5 Geta's Islands and O5 Djurvik, which every level finishes but none without one hit, at a spot the vetting tool's traces will name (Geta's Islands has bridge rails at the water, Djurvik a verge the racer runs on to); whether the fix is the racer's plan on gravel or the track is read there.
 - **X2 Kvarnbo's start is the one place the racer can't leave**: from the pole it gets 70 m, stops against something, and resets there six times over, the only race of the 32 it doesn't finish alone. Together with its finish above, X2's route needs the owner's call before racers run on it.
 - **Two races grew a lap as the racer got faster**: R9 Jomala West and O4 Kullskär are two laps now (`tools/race-laps.ts` sizes a race to about seven minutes of the racer's pace), so their lines were redrawn.
+- **Corners a player cuts across the grass.** Racing the pack, the owner cut across the grass into turns wherever no line of the race pinned the corner, as any player will, and the racers, which hold the laid road, lost ground to it. Whether that is the racers' flaw or the track's is open: a race whose corner matters should have a line there (the lines are a lap's gates, `tools/race-places.ts` places them), and a corner left open is a corner the cut is fair at, which the racing line's corridor, read from the laid road, can't yet take. The vetting tool can count what a cut saves; the ruling is per track.
 
 ## 8. The build order after the plan
 
@@ -404,6 +405,7 @@ A draft for the owner's review: a route for each of the 56 events, chosen from t
 - **Records are gold, silver and bronze** for first, second and third, and a solo record is kept apart from a co-op one.
 - **A race shows no time**, only places: the time is the bucket list's. Until the racers exist, a finish is first, rather than timed stand-in rivals.
 - **The player starts at the back of the grid**, the racers ahead from the pole. Raced from the pole against the first racers that fought, the owner took the lead at once and held it without trouble; having to pass the whole field is the challenge. A co-op partner starts beside or behind the player, behind every racer.
+- **The racers ship as they are, playable, with their gaps written down** (`ideas/racer-method.md`, "The owner's reading, and what ships"): comically bad but not terrible, the owner's words; what ends their races is mistakes, and a reset is never to be how they make up for them.
 - **Co-op players are one team, scored on Forza Horizon's team points**, its medal from its points per player.
 - **Once cars are bought, events ask for a class and tier** (`ideas/cars.md`).
 - **56 events**, weighted to Åland's roads as section 9 sets out. Any of the 32 tracks may be kept, changed or dropped to fit.

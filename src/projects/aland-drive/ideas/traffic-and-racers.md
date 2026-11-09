@@ -168,7 +168,7 @@ Racers see each other and the player along the route: who's ahead and how far, w
 
 ### Crashes and recovery
 
-A racer crashes as any car does: it runs wide, clips a wall, is hit. It recovers as a player would, by steering back to the road, reversing out of a ditch, and, when it is stuck, upside down or in the water, by pressing its own R: the same reset the player has, to the nearest road, at the same cost in time. Nothing the game does for racers is done for nobody else.
+A racer crashes as any car does: it runs wide, clips a wall, is hit. It recovers as a player would, by steering back to the road, reversing out of a ditch, and, when it is stuck, upside down or in the water, by pressing its own R: the same reset the player has, to the nearest road, at the same cost in time. Nothing the game does for racers is done for nobody else. The reset is the last resort, never the way the racers get round: the owner, having raced them, ruled that the mistakes it covers for are what go (`ideas/racer-method.md`).
 
 ### Difficulty without visible cheating
 

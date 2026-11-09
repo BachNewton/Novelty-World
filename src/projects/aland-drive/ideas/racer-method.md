@@ -69,6 +69,22 @@ The look-ahead was the lever: pure pursuit on a racing line cuts every bend's in
 
 What is left, by the traces: the heavy or slow-steering cars of a field (Lontano, Borg, and less so Kraft and Bris) run wide in S-bends at speed where the race's own car doesn't, so a field's weaker cars reset several times a race and finish last; and on the loose, a car at 150 km/h and more drifts off a gentle bend. The next reading is per car: the highest share each car is clean at, found by the tool, is what "as fast as it legally can be" means for that car.
 
+### The owner's reading, and what ships
+
+The owner raced the pack from the back of the grid and called it playable, comically bad but not terrible, and ruled to ship it with the gaps written down. Their reading, in their words made into counts: it all comes down to the mistakes. A racer misses a turn, hits a car, clips a wall or a building, and its race is over; it resets often enough that the race goes on, but **a reset must never be the racers' way of compensating for bad driving**: the mistake is what goes, and the reset stays the last resort it is for a player. And human players cut across the grass into a turn wherever no line of the race makes them take the corner, which the racers never do and lose ground by; whether that is a flaw in the racers or in the tracks (a race whose lines don't pin its corners invites the cut) is an open question for the track design, below.
+
+What ships: the racer and racecraft as read above, the player at the back of the grid, and these gaps, each with its next step:
+
+| Gap, as counted | Next step | How it is read |
+|---|---|---|
+| A racer that misses a turn or clips something ends up `lost` and resets: 45 resets alone over 32 races, 20 to 40 a grid of six | Read the traces for the mistakes alone first (where, at what speed, on what the plan said) and make the plan see what it misses there; then the knock at speed, where a player gathers the car up and the racer steers to full lock | The alone vet's resets and off-surface metres fall; a grid's resets fall with its passes kept |
+| Lontano, Borg, Kraft and Bris run wide in S-bends where the race's own car doesn't | Per-car skill: the highest share each car is clean at, found by the tool and kept in `skill.ts`, is that car's "as fast as it legally can be" | A field alone: every car finishes, the weaker ones clean at their own share |
+| A line a player would cut across the grass, the racers take round | Decide per track whether the corner is the race's (then a line pins it) or the cut is fair (then the racing line's corridor may leave the road there, which the laid-road corridor can't yet say); the vetting tool can count the metres a cut saves | A ruling per track in `ideas/races.md`; the line tool draws the corridor as ruled |
+| X2 Kvarnbo's start and finish | The owner's call on the route (`ideas/races.md`, section 7) | The alone vet finishes it |
+| Every reading so far is dry, from the pole, in the race's own car | The full ruler: every car of the field, every condition, every grid place, tens of minutes on all cores | Clean counts by condition, the table in section 7's spirit |
+
+The racing line drawn on the road for the player (`ideas/racing-line-display.md`) would also show, in play, the very line and plan the racers drive, which is where most of these are read today only in traces.
+
 ### The grid, by the vetting tool's grid mode
 
 A grid of six on Kastelholm and the Painters' Loop, each racer seeing the others, is the racecraft's ruler (`racers/vet-grid.ts`): places, passes, pile-ups, and each racer's hits and resets with their causes. Before: Kastelholm's pole car never finished (483 hits, 477 resets, lapping into the five cars parked on the finish line); the Painters' Loop had 140 pile-ups. After the finishers cool down off the line, the reset lands before the next line, a pass needs the racer to be closing (off a standing start everyone ahead is slow, and the grid is two abreast with no room), and a defence picks its side once: every racer finishes, no pile-up, 37 and 29 passes, and 22 and 38 resets across the six, almost all `lost` after a contact, Lontano's and Borg's half of them. Contact is now the thing to read: a knock at speed still ends in a reset, where a player would gather it up.
@@ -82,4 +98,6 @@ Each step's "done" is in `ideas/races.md`, section 8. The line is done when ever
 ## The owner's rulings
 
 - **One kind of racer, as fast as it legally can be; no difficulty levels.** Put to the owner as five levels, each a share of the car's limit, with their spread measured; raced, and ruled against: every racer on the grid is to be as hard as possible while obeying the simulation, never cheating, and the work goes into their pace and their racecraft, not into grading them down. The owner's reasoning: it is hard to make an AI racer good and easy to make one bad, so the best racer comes first, and scaling it down into levels later, if ever wanted, is the easy part. What they lacked when raced was what the levels couldn't give: they saw neither each other, nor the player, nor the traffic, and a spun car struggled to recover.
+- **A reset never compensates for bad driving.** The racers reset liberally enough that a race stays playable, and the owner ruled that this is not how they get round: the mistakes go, the reset stays what it is for the player, the last resort.
+- **Shipped with the gaps written down**, above, and the next step for each, rather than held back until clean: playable, and known.
 - Beyond that, those in `ideas/traffic-and-racers.md` and `ideas/races.md`.
