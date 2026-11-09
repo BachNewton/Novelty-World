@@ -2,6 +2,7 @@ import type { OnLane } from "./around";
 import { bikeRides, seedShare, walks, type LaneCar, type LaneTraffic, type VehicleKind } from "./lane-driver";
 import { pointAlong, type Lane } from "./lane-map";
 import type { LaneNet } from "./lane-net";
+import { carHourShare, pathShare, type TrafficClock } from "./rhythm";
 
 /*
  * The bubble: the cars, cyclists and walkers round the player, made and taken away only
@@ -24,17 +25,17 @@ import type { LaneNet } from "./lane-net";
 
 /**
  * Cars on a lane come from its road's real vehicles a day (`Lane.daily`): a road holds its flow over its speed at any
- * moment, so a lane at Åland's own density holds half the day's traffic, at an average daytime hour's share of it,
- * over its limit. Until the day's hours change it (piece 15 of `ideas/traffic-and-racers.md`), every hour is that one.
+ * moment, so a lane holds half the hour's traffic over its limit, the hour's share of the day following the game's
+ * clock and calendar (`rhythm.ts`). With no clock set, every hour is an average daytime one.
  */
 const DAYTIME_HOUR_SHARE = 0.065;
-/** As games are, busier than the real island by half, so a drive away from town meets something about once a minute. */
+/** As games are, busier than the real island by half, so a daytime drive away from town meets something about once a minute. */
 const BUSIER_THAN_REAL = 1.5;
 
 /** Cars per kilometre of a road lane at a density of 1. */
-function carsPerKm(lane: Lane): number {
+function carsPerKm(lane: Lane, clock: TrafficClock | null): number {
   const [[, speedKmh]] = lane.speeds;
-  return (BUSIER_THAN_REAL * DAYTIME_HOUR_SHARE * lane.daily) / 2 / speedKmh;
+  return (BUSIER_THAN_REAL * (clock ? carHourShare(clock) : DAYTIME_HOUR_SHARE) * lane.daily) / 2 / speedKmh;
 }
 
 /** Cyclists per kilometre of one lane: most on the cycleways, a few on footways and quiet streets, fewest on the main roads. */
@@ -68,8 +69,8 @@ const WALKERS_PER_KM: Partial<Record<string, number>> = {
 
 
 interface KindRules {
-  /** Vehicles per kilometre of a lane at a density of 1. */
-  perKm: (lane: Lane) => number;
+  /** Vehicles per kilometre of a lane at a density of 1, at the clock's hour and day, or an average daytime hour without one. */
+  perKm: (lane: Lane, clock: TrafficClock | null) => number;
   /** Nothing starts nearer the player than this, seen or not: a car behind the player at speed would run into it. */
   nearestM: number;
   /** Nor nearer another vehicle than this. */
@@ -90,9 +91,9 @@ interface KindRules {
 }
 
 const RULES: Record<VehicleKind, KindRules> = {
-  car: { perKm: (lane) => (lane.path ? 0 : carsPerKm(lane)), nearestM: 80, clearM: 25, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
-  bike: { perKm: (lane) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) : 0), nearestM: 40, clearM: 8, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
-  walker: { perKm: (lane) => (walks(lane) ? (WALKERS_PER_KM[lane.kind] ?? 0) : 0), nearestM: 20, clearM: 3, beyondM: 100, leaveM: 100, slotM: 10, shortLanes: true },
+  car: { perKm: (lane, clock) => (lane.path ? 0 : carsPerKm(lane, clock)), nearestM: 80, clearM: 25, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
+  bike: { perKm: (lane, clock) => (bikeRides(lane) ? (BIKES_PER_KM[lane.kind] ?? 0) * (clock ? pathShare("bike", clock) : 1) : 0), nearestM: 40, clearM: 8, beyondM: 250, leaveM: 200, slotM: 40, shortLanes: false },
+  walker: { perKm: (lane, clock) => (walks(lane) ? (WALKERS_PER_KM[lane.kind] ?? 0) * (clock ? pathShare("walker", clock) : 1) : 0), nearestM: 20, clearM: 3, beyondM: 100, leaveM: 100, slotM: 10, shortLanes: true },
 };
 
 /** Whether two kinds ever meet on a lane: a walker on a pavement is no reason for a car not to start beside it. */
@@ -111,7 +112,10 @@ function seedOf(name: string): number {
   return hash >>> 0;
 }
 
-/** What the bubble keeps each kind to: how far it's drawn, and its density, 1 for Åland's own and 0 for none. */
+/**
+ * What the bubble keeps each kind to: how far it's drawn, and its density, 1 for Åland's own and 0 for none. Both are
+ * numbers a step reads, which a setting turns down on a weaker machine (`traffic/settings.ts`).
+ */
 export interface BubbleKind {
   reachM: number;
   density: number;
@@ -139,6 +143,8 @@ export class Bubble {
   /** Kinds whose next fill is the first, which may go anywhere. */
   private readonly fresh = new Set<VehicleKind>();
   private readonly made = { spawned: 0, gone: 0 };
+  private clock: TrafficClock | null = null;
+  private cost = { density: 1, reach: 1 };
 
   constructor(
     private readonly net: LaneNet,
@@ -162,6 +168,23 @@ export class Bubble {
     if (density === 0) for (const vehicle of [...this.traffic.all()]) if (vehicle.kind === kind) this.traffic.remove(vehicle.id);
   }
 
+  /**
+   * The hour and day of the year the bubble fills for. A quieter hour leaves fewer slots to fill, and those out already
+   * drive on until they leave as ever, so the roads empty and fill as the hours pass, never in sight.
+   */
+  setClock(clock: TrafficClock | null): void {
+    this.clock = clock;
+  }
+
+  /**
+   * What a weaker machine turns down (`traffic/settings.ts`), as shares of the full: how many of every kind the roads
+   * and paths hold, and how far round the player the bubble fills and keeps them. Neither changes how any of them
+   * drives. A shorter reach holds fewer to step; what's drawn still reaches as far, so a vehicle never appears in sight.
+   */
+  setCost(density: number, reach: number): void {
+    this.cost = { density, reach };
+  }
+
   /** The next fill of every kind turned on goes anywhere, as a page's first does: after a jump, nobody saw the car arrive. */
   refill(): void {
     for (const kind of Object.keys(this.kinds) as VehicleKind[]) if (this.kinds[kind].density > 0) this.fresh.add(kind);
@@ -179,7 +202,7 @@ export class Bubble {
   /** How far from a player a vehicle of a kind is past the bubble's edge, and goes. */
   edgeM(kind: VehicleKind): number {
     const { beyondM, leaveM } = RULES[kind];
-    return this.kinds[kind].reachM + beyondM + leaveM;
+    return this.kinds[kind].reachM * this.cost.reach + beyondM + leaveM;
   }
 
   /** Takes away what has gone out of sight past the bubble's edge, and fills the slots out of sight within it that this player keeps. */
@@ -205,7 +228,7 @@ export class Bubble {
   private fill(kind: VehicleKind, focus: { x: number; z: number }, others: Sharing["others"]): void {
     const { reachM, density } = this.kinds[kind];
     const { perKm, nearestM, clearM, beyondM, slotM, shortLanes } = RULES[kind];
-    const bubbleM = reachM + beyondM;
+    const bubbleM = reachM * this.cost.reach + beyondM;
     const fresh = this.fresh.has(kind);
     const near = [...this.traffic.all()];
     const taken = new Set(near.map((vehicle) => slotOf(vehicle.id)));
@@ -215,12 +238,13 @@ export class Bubble {
       const tile = this.net.tile(ref.tile);
       if (!tile) continue;
       const lane = tile.lanes[ref.lane];
-      if (perKm(lane) === 0) continue;
+      const perKmNow = perKm(lane, this.clock);
+      if (perKmNow === 0) continue;
       const place: OnLane = { tile: ref.tile, index: ref.lane, connector: false, along: 0 };
       const length = this.traffic.around.length(place);
       const slots = shortLanes ? Math.max(1, Math.round(length / slotM)) : Math.floor(length / slotM);
       const spacing = shortLanes ? length / slots : slotM;
-      const share = Math.min(1, (perKm(lane) * density * spacing) / 1000);
+      const share = Math.min(1, (perKmNow * density * this.cost.density * spacing) / 1000);
       for (let slot = 0; slot < slots; slot++) {
         const id = `${kind}:${ref.tile}:${ref.lane}:${slot}`;
         const seed = seedOf(id);

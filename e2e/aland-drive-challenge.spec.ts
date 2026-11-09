@@ -60,6 +60,16 @@ test("a solo Route: started from its ring by its button, held through the countd
   expect(await offStart(page, start)).toBeLessThan(0.3);
   await expect(page.getByLabel("Challenge", { exact: true })).toContainText(TITLE);
 
+  // The run's Settings hold all but the tyres, which are the challenge's car's, and Esc steps back out to the run.
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByRole("button", { name: "ABS" })).toBeFocused();
+  await expect(settings.getByRole("radiogroup", { name: "Tyres" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Game menu" })).toBeHidden();
+
   // Flooring it through the countdown goes nowhere: the car is held on the handbrake until green.
   await page.evaluate((steps) => window.__alandDrive?.advance(steps, { throttle: 1, brake: 0, steer: 0, handbrake: false }), COUNTDOWN_STEPS - 1);
   expect((await challenge(page))?.phase).toBe("countdown");
