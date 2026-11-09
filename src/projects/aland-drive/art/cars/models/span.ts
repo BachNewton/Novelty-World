@@ -162,9 +162,9 @@ const shape: Shape = {
     { on: "rear", at: [0, 0.45], size: [0.46, 0.11], surface: "plate", cells: [4, 1], fine: true },
     ...handles([-0.1], 0.6),
     ...feather("front", 0.24, 0.31, "lensHead"),
-    ...feather("rear", 0.3, 0.57, "lensTail", 1.2),
+    ...feather("rear", 0.25, 0.55, "lensTail", 1.1),
     // The rain light, in the middle of the tail between the lamps.
-    { on: "rear", at: [0, 0.57], size: [0.06, 0.06], surface: "lensTail", cells: [1, 1], liftM: 0.012 },
+    { on: "rear", at: [0, 0.56], size: [0.06, 0.06], surface: "lensTail", cells: [1, 1], liftM: 0.012 },
     sideIntake({ z: 0.22, h: 0.42, long: 0.3, tall: 0.13 }),
     // The tub's bare carbon lower half, under the painted top: the structure showing through the body.
     { on: "side", at: [-0.2, 0.255], size: [1.64, 0.15], surface: "trim", mirror: true, cells: [16, 2], liftM: 0.012 },
@@ -247,7 +247,7 @@ const shape: Shape = {
     struts: STRUCTURE,
     wing: { z: 1.6, h: 1.08, halfWidth: 0.76, chord: 0.22, rise: 0.06, endplates: true, stayM: 0.45 },
     exhausts: { x: [-0.11, 0.11], h: 0.31, z: 1.875, radius: 0.04 },
-    cabin: { dashZ: -0.62, dashH: 0.56, floorH: 0.18, seatZ: 0.2, endZ: 0.6, seatX: 0.3, seatSurface: "seat", wideM: 1.1 },
+    cabin: { dashZ: -0.62, dashH: 0.5, floorH: 0.18, seatZ: 0.2, endZ: 0.6, seatX: 0.3, seatSurface: "seat", wideM: 1.1 },
   },
 };
 
