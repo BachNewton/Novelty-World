@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A modern utility four-by-four with a turbo-diesel six and eight gears: tall, heavy and soft, all shove low down, leaning through bends and never stopping on loose ground. */
 export const stubbe: CarEntry = {
   tier: "B4",
+  maker: "Klippa",
+  engine: "Turbo-diesel six",
+  from: "dealer",
   tuning: tuned({
     name: "Stubbe",
     class: "offroad",

@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A rally special with a turbo flat four: lag, then a rush; four-wheel drive, a wing, and a tail that swings on the handbrake. */
 export const grus: CarEntry = {
   tier: "B1",
+  maker: "Ödmark",
+  engine: "Turbo flat four",
+  from: "club",
   tuning: tuned({
     name: "Grus",
     class: "rally",

@@ -8,6 +8,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const blixt: CarEntry = {
   tier: "A1",
+  maker: "Norrsken",
+  engine: "Four electric motors",
+  from: "harbour",
   tuning: tuned({
     name: "Blixt",
     class: "sports",

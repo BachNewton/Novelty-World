@@ -10,6 +10,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const hagel: CarEntry = {
   tier: "B1",
+  maker: "Ödmark",
+  engine: "Turbo four hybrid",
+  from: "club",
   tuning: tuned({
     name: "Hagel",
     class: "rally",

@@ -1,14 +1,17 @@
 import { tuned, type CarEntry } from "./character";
 
 /**
- * The road car Ã–dmark built so Hagel could rally: a short, wide three-door hatch on a two-litre turbo four and a
+ * The road car Ödmark built so Hagel could rally: a short, wide three-door hatch on a two-litre turbo four and a
  * rear-biased four-wheel drive. Below 3,000 rpm it waits for its turbo, then it shoves to the redline; its springs are
  * a road car's, softer than Hagel's, but its travel is long and its tyres let go gently and come back, so on a gravel
- * lane it leans, squirms, steps its tail out on the throttle and is caught again. FjÃ¤rd is calm and front-led on the
+ * lane it leans, squirms, steps its tail out on the throttle and is caught again. Fjärd is calm and front-led on the
  * same roads; this is the one that wants to be driven sideways.
  */
 export const lera: CarEntry = {
   tier: "B2",
+  maker: "Ödmark",
+  engine: "Turbo four",
+  from: "dealer",
   tuning: tuned({
     name: "Lera",
     class: "rally",

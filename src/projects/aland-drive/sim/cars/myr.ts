@@ -10,6 +10,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const myr: CarEntry = {
   tier: "B3",
+  maker: "Norrsken",
+  engine: "Two electric motors",
+  from: "dealer",
   tuning: tuned({
     name: "Myr",
     class: "offroad",

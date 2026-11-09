@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** An old four-by-four with a slow straight six: tall, soft, heavy, on mud tyres, and the slowest thing on the road. */
 export const berg: CarEntry = {
   tier: "B4",
+  maker: "Klippa",
+  engine: "Straight six",
+  from: "dealer",
   tuning: tuned({
     name: "Berg",
     class: "offroad",

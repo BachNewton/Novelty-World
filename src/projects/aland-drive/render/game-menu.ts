@@ -5,6 +5,8 @@ import type { Units } from "../units";
 import type { Assists } from "../sim/car";
 import type { Tyre } from "../sim/surfaces";
 import type { CarPaint } from "../art/cars/paints";
+import type { CarFacts, Field } from "../garage/car-facts";
+import { isCarId, type CarId } from "../sim/cars";
 
 /*
  * The game menu, as the game wants it: which items it holds, in order, and
@@ -18,7 +20,7 @@ import type { CarPaint } from "../art/cars/paints";
  */
 
 /** Something the game menu can offer. Resume and Cancel close it. */
-export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "paint" | PaintItem | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
+export type MenuItemId = "resume" | `tyres-${Tyre}` | keyof Assists | `units-${Units}` | "sound" | "cars" | CarItem | PaintItem | "graphics" | "back" | "start-solo" | "start-coop" | "join-coop" | "decline-coop" | "cancel" | "retry" | "leave";
 
 /** How a race finished: the place and its medal. */
 export interface RaceResult {
@@ -56,11 +58,21 @@ export interface MenuResult {
   race?: RaceResult;
 }
 
-/** A paint on the Paint page, by its index in the car's list. */
+/** A car on the Cars page, by its id. */
+export type CarItem = `car-${CarId}`;
+
+/** A paint on the Cars page, by its index in the driven car's list. */
 export type PaintItem = `paint-${number}`;
 
-/** What the dialog is: the game menu, its Graphics or Paint page, or one of a challenge's choices. */
-export type MenuKind = "menu" | "graphics" | "paint" | "start" | "invite" | "race";
+/** What the dialog is: the game menu, its Graphics or Cars page, or one of a challenge's choices. */
+export type MenuKind = "menu" | "graphics" | "cars" | "start" | "invite" | "race";
+
+/** A car as the Cars page shows it: its spec sheet, its paints and the one it's in. */
+export interface CarCard {
+  facts: CarFacts;
+  paints: readonly CarPaint[];
+  chosen: number;
+}
 
 export interface GameMenu {
   /** The first is where the menu opens. */
@@ -85,8 +97,8 @@ export interface GameMenu {
   race?: RaceCard;
   /** Set when the items are about a race, being played or over: its ground. */
   ground?: RaceGround;
-  /** The Paint page's car, by name, and its paints, which its items choose by index; the one it's in is marked. */
-  paints?: { car: string; paints: readonly CarPaint[]; chosen: number };
+  /** The Cars page: every car, the one being driven, whose paints its paint items choose by index, and each figure's reach across the field. */
+  garage?: { driven: CarId; cars: readonly CarCard[]; field: Field };
 }
 
 /**
@@ -104,7 +116,12 @@ const UNITS_ITEMS: Record<`units-${Units}`, Units> = { "units-metric": "metric",
 /** The units a units choice sets. */
 export const unitsOfItem = (id: `units-${Units}`): Units => UNITS_ITEMS[id];
 
-export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "paint", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+export const drivingMenu = (tyres: Tyre, assists: Assists): GameMenu => ({ items: ["resume", "cars", "tyres-summer", "tyres-winter", "tyres-studded", "abs", "traction", "stability", "units-metric", "units-imperial", "sound", "graphics"], back: "resume", pauses: true, tyres, assists });
+
+export const isCarItem = (id: MenuItemId): id is CarItem => id.startsWith("car-") && isCarId(id.slice("car-".length));
+
+/** The car a car item chooses. */
+export const carOfItem = (id: CarItem): CarId => id.slice("car-".length) as CarId;
 
 export const isPaintItem = (id: MenuItemId): id is PaintItem => /^paint-\d+$/.test(id);
 
@@ -112,16 +129,21 @@ export const isPaintItem = (id: MenuItemId): id is PaintItem => /^paint-\d+$/.te
 export const paintOfItem = (id: PaintItem): number => Number(id.slice("paint-".length));
 
 /**
- * The car's paints, a page of their own off the game menu: each chooses its own and is drawn on the car at once, so the
- * player sees it before going back. Like the tyres, never in a challenge, whose car is the challenge's.
+ * The Cars page off the game menu: every car, by class and tier, to drive at once from where the car is, and the driven
+ * car's paints, each drawn on the car at once, so the player sees it before going back. Like the tyres, never in a
+ * challenge, whose car is the challenge's.
  */
-export const paintMenu = (car: string, paints: readonly CarPaint[], chosen: number): GameMenu => ({
-  kind: "paint",
-  items: [...paints.map((_, index): PaintItem => `paint-${index}`), "back"],
-  back: "back",
-  pauses: true,
-  paints: { car, paints, chosen },
-});
+export const carsMenu = (driven: CarId, cars: readonly CarCard[], field: Field): GameMenu => {
+  const own = cars.find(({ facts }) => facts.id === driven);
+  if (!own) throw new Error(`no card for the driven car, ${driven}`);
+  return {
+    kind: "cars",
+    items: [...cars.map(({ facts }): CarItem => `car-${facts.id}`), ...own.paints.map((_, index): PaintItem => `paint-${index}`), "back"],
+    back: "back",
+    pauses: true,
+    garage: { driven, cars, field },
+  };
+};
 
 /** The graphics settings, a page of their own off the game menu. The page draws and keeps the settings; Back returns to the menu. */
 export const graphicsMenu: GameMenu = { kind: "graphics", items: ["back"], back: "back", pauses: true };

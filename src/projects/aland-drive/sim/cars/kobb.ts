@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A tradesman's turbo-diesel van: slow, tall and top-heavy, but it pulls hard low down and never minds a hill. */
 export const kobb: CarEntry = {
   tier: null,
+  maker: "Klippa",
+  engine: "Turbo-diesel",
+  from: "dealer",
   tuning: tuned({
     name: "Kobb",
     class: "road",

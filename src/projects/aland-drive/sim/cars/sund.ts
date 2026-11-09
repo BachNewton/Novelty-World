@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** A low two-seater with a flat-plane V8 that screams to 9,000: the fastest car here, stiff, sharp, and all its drive at the back. */
 export const sund: CarEntry = {
   tier: "A4",
+  maker: "Tärna",
+  engine: "Flat-plane V8",
+  from: "harbour",
   tuning: tuned({
     name: "Sund",
     class: "sports",

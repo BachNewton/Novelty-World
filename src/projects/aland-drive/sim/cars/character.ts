@@ -8,9 +8,21 @@ import { skerryGt } from "./skerry-gt";
  * forces and collision box follow from those the same way for every car.
  */
 
-/** A car as the game enters it: its tuning, and the tier it races in, or none. */
+/** The invented makers whose badges the cars wear (`ideas/cars.md`). */
+export type Maker = "Tärna" | "Västan" | "Klippa" | "Ödmark" | "Aurelle" | "Valtor" | "Ridgeway" | "Norrsken" | "Castellane" | "Fjäder" | "Kamrat";
+
+/** How a car reaches the island (`ideas/cars.md`): shipped in by the harbour, from a dealer, from the motor club, or found in a barn. */
+export type Origin = "harbour" | "dealer" | "club" | "barn";
+
+/**
+ * A car as the game enters it: its tuning, the tier it races in or none, and what a player reads about it on the Cars
+ * page beside the figures its tuning and limits give: its maker, its engine in a few words, and where it comes from.
+ */
 export interface CarEntry {
   tier: Tier | null;
+  maker: Maker;
+  engine: string;
+  from: Origin;
   tuning: CarTuning;
 }
 

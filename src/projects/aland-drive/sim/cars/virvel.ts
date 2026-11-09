@@ -7,6 +7,9 @@ import { tuned, type CarEntry } from "./character";
  */
 export const virvel: CarEntry = {
   tier: "A2",
+  maker: "Tärna",
+  engine: "Twin-turbo flat-plane V8",
+  from: "harbour",
   tuning: tuned({
     name: "Virvel",
     class: "sports",

@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** An electric car: one gear, all its shove at once, a low battery floor, regeneration on the lift, and a limit at 230. */
 export const strom: CarEntry = {
   tier: "A5",
+  maker: "Västan",
+  engine: "Electric motors",
+  from: "dealer",
   tuning: tuned({
     name: "Ström",
     class: "road",

@@ -63,7 +63,7 @@ The render (`render/game.ts`) is one renderer, one scene and one loop. The page 
 
 The scene is east +x, up +y and north -z. The renderer uses a reversed depth buffer.
 
-A player starts in Grus while the game is in development (`PLAYER_START_CAR`), and a tool's or test's page in the Skerry GT, which what they hold was measured against.
+A player starts in the car they last chose on the game menu's Cars page, or in Grus before they've chosen one (`PLAYER_START_CAR`), and a tool's or test's page in the Skerry GT, which what they hold was measured against.
 
 **Links that set up a page**, combined freely in one link:
 

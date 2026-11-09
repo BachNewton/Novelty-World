@@ -91,7 +91,9 @@ export function startCockpitCamera(camera: PerspectiveCamera) {
      * of the car's motion, the head turned by `wanted`.
      */
     update(car: CarState, cockpit: Object3D, eye: Vector3, seconds: number, wanted: HeadLook) {
-      cockpit.updateWorldMatrix(true, false);
+      // Forced: three recomputes an object's world matrix only when its own matrix changed, and the interior stands
+      // still in its car, so unforced it keeps the frame before's and the eye trails the seat by a frame's travel.
+      cockpit.updateWorldMatrix(true, false, true);
       body.copy(cockpit.matrixWorld);
       carTurn.setFromRotationMatrix(body);
       toCar.copy(carTurn).invert();

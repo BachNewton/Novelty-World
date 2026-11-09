@@ -3,6 +3,9 @@ import { tuned, type CarEntry } from "./character";
 /** An old estate with a tired four and a four-speed box: soft, slow to answer, and a long way to stop. */
 export const salta: CarEntry = {
   tier: "C4",
+  maker: "Västan",
+  engine: "Tired four",
+  from: "barn",
   tuning: tuned({
     name: "Sälta",
     class: "road",
