@@ -34,7 +34,7 @@ import {
 } from "@/shared/lib/bot-lab/pool";
 import { timeText } from "../challenge/format";
 import { RACES } from "../challenge/list";
-import { fieldOf, tyresFor } from "../racers/field";
+import { fieldOf, gridCars, tyresFor } from "../racers/field";
 import { RACER_SKILL } from "../racers/skill";
 import {
   LINE_KINDS,
@@ -103,7 +103,7 @@ const specsOf = (raceId: string, from: number): VetSpec[] => {
   const race = RACES.find(({ id }) => id === raceId);
   if (!race) throw new Error(`no race ${raceId}`);
   const cars =
-    CARS_ASKED === "own" ? [race.car] : fieldOf(race.car, race.ground);
+    CARS_ASKED === "own" ? [race.car] : fieldOf(race.car);
   const slots = SLOTS === "pole" ? [0] : race.grid.map((_, slot) => slot);
   const specs: VetSpec[] = [];
   for (const car of cars)
@@ -177,8 +177,7 @@ async function vetGrids(): Promise<void> {
   const all: GridSpec[] = [];
   const byRace = new Map<string, GridSpec[]>();
   for (const race of races) {
-    const field = fieldOf(race.car, race.ground);
-    const slots = race.grid.map((_, slot) => field[slot % field.length]);
+    const slots = gridCars(fieldOf(race.car), race.grid.length).map(({ car }) => car);
     const specs: GridSpec[] = [];
     for (const condition of conditions)
       for (const { skill, cornerShare, brakeShare } of GRIPS)

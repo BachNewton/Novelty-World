@@ -1,4 +1,5 @@
 import type { CarId } from "../sim/cars";
+import type { Tier } from "../sim/tiers";
 import type { ChallengeConditions } from "./conditions";
 
 /*
@@ -75,7 +76,9 @@ export interface SpeedTrapChallenge extends ChallengeCommon, HeldConditions {
 
 export interface RaceChallenge extends ChallengeCommon {
   kind: "race";
-  /** The list's number, as R1, X1 or O1. */
+  /** The class and tier of car it's for, the car it hands the player among them. */
+  tier: Tier;
+  /** The list's number: its tier and its place among the tier's races, as A5.2. */
   number: string;
   shape: RaceShape;
   ground: RaceGround;

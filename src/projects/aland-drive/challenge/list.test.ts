@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARS } from "../sim/cars";
+import { CAR_TIERS, CARS } from "../sim/cars";
 import { groundText } from "./conditions";
 import { tuningPrint } from "../sim/car-limits";
 import { CHALLENGES, PLACES, RACE_LAPS, RACE_PLACES, RACES, TARGETS } from "./list";
@@ -38,6 +38,10 @@ describe("the list of races", () => {
   it("has every id once, and a circuit ends where it starts", () => {
     expect(new Set(RACES.map(({ id }) => id)).size).toBe(RACES.length);
     for (const { id, shape, waypoints } of RACES) if (shape === "circuit") expect([id, waypoints[waypoints.length - 1]]).toEqual([id, waypoints[0]]);
+  });
+
+  it("hands each race's player a car of the race's tier", () => {
+    for (const { id, car, tier } of RACE_SPECS) expect([id, CAR_TIERS[car]]).toEqual([id, tier]);
   });
 
   it.each(RACE_SPECS.map((spec) => [spec.id, spec] as const))("%s's ground is what its road is laid in: road all asphalt, off-road all gravel, cross country both", (id, { ground }) => {
