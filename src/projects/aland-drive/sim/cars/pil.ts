@@ -37,7 +37,7 @@ export const pil: CarEntry = {
       engineBrakeNm: 45,
     },
     gearbox: { idleRpm: 850, redlineRpm: 6600, gearTopMS: [14, 23, 34, 46, 58, 70], shiftS: 0.09, gentleShift: 0.4 },
-    launchMS2: 5.0,
+    launchMS2: 5.08,
     rearShare: 0,
     brakeMS2: 11.5,
     dragPerMS2: 0.52,
