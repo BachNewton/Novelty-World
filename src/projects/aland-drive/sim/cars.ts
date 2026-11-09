@@ -7,6 +7,7 @@ import { berg } from "./cars/berg";
 import { bris } from "./cars/bris";
 import { fjard } from "./cars/fjard";
 import { grus } from "./cars/grus";
+import { gnista } from "./cars/gnista";
 import { holm } from "./cars/holm";
 import { kobb } from "./cars/kobb";
 import { ljus } from "./cars/ljus";
@@ -52,6 +53,7 @@ const ENTRIES = {
   ljus,
   // B1
   grus,
+  gnista,
   // B2
   fjard,
   // B3
