@@ -509,7 +509,7 @@ def main() -> None:
     parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each")
     parser.add_argument("--refresh-osm", action="store_true", help="ask OSM's API again instead of reusing the kept copy")
     parser.add_argument("--town", action="store_true", help="bake the town's ground too, which is tabled and off by default")
-    parser.add_argument("--paving", action="store_true", help="lay the roads as one paved surface with the ground cut round it, on trial (docs/ROAD-SURFACES.md)")
+    parser.add_argument("--paving", action="store_true", help="lay the roads as one paved surface with the ground cut round it, as the published island is (docs/ROAD-SURFACES.md)")
     arguments = parser.parse_args()
     names = list(arguments.tiles)
     if arguments.island:

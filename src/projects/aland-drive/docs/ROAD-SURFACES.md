@@ -42,7 +42,7 @@ Every attempt above is a layer over the one before: aprons hide the gaps between
 
 ## The design: paving first, then its heights, then the ground round it
 
-On trial on the two Mariehamn tiles (`pipeline/paving.py`, `build.py --paving`), with the game drawing either kind of tile. The owner judged the second trial the biggest improvement yet; "What the trial taught" below holds the rules it added.
+How the published island is built (`pipeline/paving.py`, `build.py --paving`), with the game drawing either kind of tile. It began as a trial on the two Mariehamn tiles, which the owner judged the biggest improvement yet; "What the trial taught" below holds the rules it added.
 
 ### 1. Where paving is, in plan
 
@@ -146,12 +146,12 @@ Only if the trial reads clean on all three does the old system get deleted and t
 
 ## Where the trial stands
 
-The paving is merged and built with `build.py --paving` on L2334E, L2334F, L2343H (Godby) and L3121B only; every other tile, the fixture and the published tiles are still ribbons. The owner judged it the biggest improvement yet, and Godby's underpass, with its straight edge line, fine as an underpass rather than a tunnel. Packed, a paved tile is between 10% smaller and 20% larger than its ribbon build (L2343C 8.65 → 10.42 MB, L2334E 18.85 → 16.95 MB). Seams match to 0.0 mm, the car's surface matches the drawn one to 1 mm, and no pop shows where the cut cells end.
+The published island is paved: every tile built from main with `build.py --island --paving` and published as `382c3b80722b`. The build's default and the fixture are still ribbons, so **an island build passes `--paving`** until paving is the default (below). The owner judged it the biggest improvement yet, and Godby's underpass, with its straight edge line, fine as an underpass rather than a tunnel. Packed, a paved tile is between 10% smaller and 20% larger than its ribbon build (L2343C 8.65 → 10.42 MB, L2334E 18.85 → 16.95 MB). Seams match to 0.0 mm, the car's surface matches the drawn one to 1 mm, and no pop shows where the cut cells end.
 
 **The owner's calls, still open:**
 
 - **Step three: cut the paving where its look changes.** Where a sidewalk changes surface along its length, the two looks meet in a sawtooth along the triangles; cutting the paving at each change gives a straight join.
-- **Paving as the build's default, and the island rebuilt from main.** That is when the ribbon system goes, and the rebuild should be one with the lanes (below).
+- **Paving as the build's default.** That is when the ribbon system goes.
 
 **Left after that, in order** (`pipeline/paving_audit.py L2334E L2334F --report <file>` counts most of them):
 
@@ -163,13 +163,10 @@ The paving is merged and built with `build.py --paving` on L2334E, L2334F, L2343
 6. The road surface's rings (1.4–3.4 MB a tile) could be packed as the cut ground was.
 7. A slab lattice breaks where one OSM way meets the next, and a piece between a street and a path can wear a crossing path's surface.
 8. Driving it: `tools/road-check.ts` and `tools/junction-check.ts` on paved tiles, and an e2e fixture that is paved, since the fixture is ribbons and the paved path has no e2e coverage.
+9. Where the ground moved most against the ribbon build, a path can stand on a bank of the embankment rule's making: across a dip in the country it runs along a tall bank like a dyke (L2343C), and by the boathouses a track's uphill side is an upright cut (L2433G). Both are paths; whether motor roads do the same is what 8 would show.
 
 Known and left alone: one-pixel gaps where the clipmap's cut meets the cut mesh, visible only from about 120 m up, which the owner saw no problem with live.
 
 ## Getting it to players
 
-Traffic, cyclists and walkers drive the lane map, which follows the drawn road surface, and road lanes must carry their traffic counts (`pipeline/traffic_volume.py`; `traffic/lane-map.ts` refuses a lane without one). The published tiles have neither paving nor lanes, so players see neither yet. One rebuild and one publish brings both, so players download the map once:
-
-1. Paving as the build's default (the owner's call above).
-2. The island rebuilt from main: `build.py --island` with paving, then `pipeline/lanes.py` over every tile. It holds the machine for a long while, so it needs the owner's go-ahead and the machine's budget (`npm run slot -- cores:N`).
-3. The checks the upload needs (`pipeline/check_seams.py`), then `pipeline/upload.py`, `TILES_VERSION` in `render/tile-address.ts` set to what it prints, the game checked on the published tiles, and main pushed.
+Traffic, cyclists and walkers drive the lane map, which follows the drawn road surface, and road lanes must carry their traffic counts (`pipeline/traffic_volume.py`; `traffic/lane-map.ts` refuses a lane without one). The published island has both: `build.py --island --paving` runs the lanes over every tile, so one rebuild and one publish brought paving and lanes together. A later publish goes the same way: the island built, `pipeline/check_seams.py`, `pipeline/upload.py`, `TILES_VERSION` in `render/tile-address.ts` set to what it prints, the game checked on the published tiles, and main pushed.

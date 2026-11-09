@@ -8,7 +8,7 @@ How tiles are built from the geodata. The sources and what was measured in them 
 
     python src/projects/aland-drive/pipeline/run.py L2343C [more tiles]
 
-That builds the venv on first use, downloads what is missing into `.data/raw/` (gitignored, one folder per source, read as untrusted data) and writes a folder of plain files per tile to `.data/tiles/`, described by its `tile.json`, and `world.json` listing them all with a version hashed from their contents, beside the overview and the road map. A tile's eight neighbours' elevation is downloaded too, for the seams and the shading. A tile the mirror doesn't have is open sea and stays out of the world. `run.py --island --jobs 7` builds them all, a core each.
+That builds the venv on first use, downloads what is missing into `.data/raw/` (gitignored, one folder per source, read as untrusted data) and writes a folder of plain files per tile to `.data/tiles/`, described by its `tile.json`, and `world.json` listing them all with a version hashed from their contents, beside the overview and the road map. A tile's eight neighbours' elevation is downloaded too, for the seams and the shading. A tile the mirror doesn't have is open sea and stays out of the world. `run.py --island --paving --jobs 7` builds them all, a core each: the published island is paved, and the build's default is still the ribbon roads (`docs/ROAD-SURFACES.md`).
 
 **Order.** `build.py` runs the tile builds, then the steps that need every tile built (the roadside and lanes, then waterfront, seated, parking, farm and clearing, last), then the world file's steps (overview, road map, version). Most steps also run alone on tiles already built, which the bullets below say; a step that reads another's output needs rerunning after it.
 
