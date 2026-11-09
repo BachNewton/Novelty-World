@@ -16,7 +16,7 @@ import { CARS as TUNINGS, type CarId } from "../sim/cars";
 import { speedOf, type CarState } from "../sim/car-state";
 import type { Units } from "../units";
 import type { DealerInterior, Solid, Spot } from "./interior";
-import { carBox, carReach, carSpec, carsOnSpots } from "./rules";
+import { AT_CAR_M, BODY_RADIUS_M, carBox, carSpec, carsOnSpots } from "./rules";
 import { boxDistance, settle, type PlanBox } from "./plan";
 import { DEALERSHIPS, type Dealership } from "./registry";
 import { createRoomLighting } from "./room-light";
@@ -33,7 +33,6 @@ import { createIslandView } from "./view";
  */
 
 const EYE_M = 1.62;
-const BODY_RADIUS_M = 0.3;
 const WALK_MS = 1.7;
 /** Shift or a click of the left stick held: a light jog across the floor, not a run. */
 const JOG_MS = 3;
@@ -42,8 +41,6 @@ const TILT_PER_S = 1.4;
 const DRAG_PER_PX = 0.0035;
 const MOST_TILT = 1.2;
 const FIELD_OF_VIEW = 68;
-/** Close enough to a car to rev, sit in or take it: its footprint's edge this near. */
-const AT_CAR_M = 1.2;
 /** The car must be slower than this to go in. */
 const DOOR_SPEED_MS = 4;
 const SKY_RADIUS_M = 900;
@@ -113,8 +110,8 @@ interface StandingCar {
   id: CarId;
   spot: Spot;
   view: ReturnType<typeof createCarView>;
-  /** Its footprint for walking and reaching, or for a car on a turntable, the circle it turns in. */
-  solid: PlanBox | Solid;
+  /** Its footprint as it stands now, for walking and reaching: a turntable's car turns it. */
+  solid: PlanBox;
 }
 
 interface Room {
@@ -236,7 +233,7 @@ export function createWalkIn(host: WalkInHost) {
     let nearest: StandingCar | null = null;
     let best = AT_CAR_M;
     for (const car of room.cars) {
-      const distance = "kind" in car.solid ? Math.hypot(at.x - car.spot.at[0], at.z - car.spot.at[2]) - carReach(carSpec(car.id)) : boxDistance(car.solid, at.x, at.z);
+      const distance = boxDistance(car.solid, at.x, at.z);
       if (distance < best) [nearest, best] = [car, distance];
     }
     return nearest;
@@ -260,8 +257,7 @@ export function createWalkIn(host: WalkInHost) {
       const paints = paintsOf(spec);
       const view = createCarView(scene, sun, spec, "hero", { hazed: carHazed, paint: paints[(index * 3) % paints.length] });
       view.draw(restingCar(spec, spot.at, spot.yaw));
-      const solid: PlanBox | Solid = spot.turntable === undefined ? carBox(spec, spot) : { kind: "round", centre: [spot.at[0], spot.at[2]], radiusM: carReach(spec) };
-      return { id, spot, view, solid };
+      return { id, spot, view, solid: carBox(spec, spot) };
     });
     const windowMesh = windowsOf(interior, view.glass);
     if (windowMesh) scene.add(windowMesh);
@@ -486,7 +482,10 @@ export function createWalkIn(host: WalkInHost) {
       for (const car of room.cars) {
         if (car.spot.turntable === undefined) continue;
         const spec = carSpec(car.id);
-        car.view.draw(restingCar(spec, car.spot.at, car.spot.yaw + turnAngle(car.spot)));
+        const yaw = car.spot.yaw + turnAngle(car.spot);
+        car.view.draw(restingCar(spec, car.spot.at, yaw));
+        // Solid where it stands now, so the player can walk up between its corners; one it sweeps into is pushed aside.
+        car.solid = carBox(spec, { at: car.spot.at, yaw });
       }
       const { turntables } = room.interior;
       room.turntables.forEach((mesh, index) => {

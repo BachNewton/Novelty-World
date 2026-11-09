@@ -21,6 +21,8 @@ const STOCK: Readonly<Record<InteriorId, Stock>> = {
 const rectangle = (x0: number, z0: number, x1: number, z1: number): PlanOutline => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
 const box = (x: number, z: number, hx: number, hz: number, yaw = 0): Solid => ({ kind: "box", centre: [x, z], half: [hx, hz], yaw });
 const round = (x: number, z: number, radiusM: number): Solid => ({ kind: "round", centre: [x, z], radiusM });
+/** A price stand (`priceStand`, `art/dealers/kit.ts`): what stops a body is its card, 0.56 m across and edge on at waist height. */
+const stand = (x: number, z: number, yaw: number): Solid => box(x, z, 0.28, 0.06, yaw);
 /** An upright pane along x at `z`, or along z at `x`. */
 const paneAlongX = (x0: number, x1: number, z: number, y0: number, y1: number): Window => ({ corners: [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]] });
 
@@ -52,8 +54,8 @@ function extras(id: InteriorId): Extra {
           // The lift's posts, and the price stands.
           round(-3.02, -4.2, 0.28),
           round(0.22, -4.2, 0.28),
-          round(-3.2, -1.7, 0.3),
-          round(-6.1, -8.2, 0.3),
+          stand(-3.2, -1.7, 0.2),
+          stand(-6.1, -8.2, 0.2),
         ],
         windows: [paneAlongX(-11.6, -7.6, 0, 0, 3.4), paneAlongX(-5.6, -1.6, 0, 0, 3.4)],
         viewFrom: [-6.6, EYE_M, -0.6],
@@ -72,7 +74,7 @@ function extras(id: InteriorId): Extra {
           round(14.3, -7.3, 0.5),
           box(-16.2, -7.3, 1.5, 0.3, Math.PI / 2),
           box(0, -14.87, 9, 0.13),
-          ...[-9.9, 9.9].flatMap((x) => [round(x, -1.3, 0.3), round(x, -13.3, 0.3)]),
+          ...[-9.9, 9.9].flatMap((x) => [stand(x, -1.3, x < 0 ? 0.4 : -0.4), stand(x, -13.3, x < 0 ? 0.4 : -0.4)]),
         ],
         windows: [paneAlongX(-17, 17, 0, 0, 4.3)],
         viewFrom: [0, EYE_M, -1],
