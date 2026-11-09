@@ -132,7 +132,7 @@ const shape: Shape = {
     { at: [0.9, 0.685, 0.58], size: [0.07, 0.018, 0.4], surface: "paint", mirror: true, taper: [1, 0.6], fine: true },
     { at: [0.875, 0.52, 0.765], size: [0.06, 0.3, 0.016], surface: "paint", mirror: true, fine: true },
     // A painted blade across the mouth.
-    { at: [0, 0.31, -2.08], size: [0.9, 0.025, 0.05], surface: "paint" },
+    { at: [0, 0.31, -2.095], size: [0.9, 0.03, 0.05], surface: "paint" },
     splitter({ z: -2.14, h: 0.25, halfWidth: 0.52, long: 0.15 }),
     // The diffuser's strakes stand in the dark band under the tail, not below it.
     ...diffuser({ z: 1.82, tailZ: 2.08, h: 0.3, x: [0.22, 0.44] }),
@@ -188,7 +188,7 @@ const shape: Shape = {
       { z: 2.048, h: 0.812, band: "vent" },
       { z: 2.056, h: 0.775 },
       { z: 2.085, h: 0.46, band: "diffuser" },
-      { z: 2.097, h: 0.36 },
+      { z: 2.097, h: 0.36, band: "diffuser" },
       { z: 2.1, h: 0.22 },
     ],
     crown: [
@@ -234,7 +234,7 @@ const shape: Shape = {
       [0.9, 0.02],
       [1.0, 0],
     ],
-    exhausts: { x: [-0.11, 0.11], h: 0.4, z: 2.07, radius: 0.045 },
+    exhausts: { x: [-0.11, 0.11], h: 0.4, z: 2.108, radius: 0.045 },
   },
 };
 

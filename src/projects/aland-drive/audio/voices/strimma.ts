@@ -1,31 +1,42 @@
+import { vee } from "../firing";
 import type { Voice } from "../vehicles";
 
 /**
- * A free-breathing flat six to 9,000: a gruff, metallic boxer's beat low down that hardens into a wail up top, with
- * the airbox howling behind the seats. Provisional, until the sound's own work redoes the voices.
+ * A free-breathing flat six to 9,000, behind the seats: its two sides fire in turn into headers a little unequal, so a
+ * metallic, faintly gruff beat low down hardens into a clean wail up top, the airbox howling at the driver's back and
+ * the valve gear ticking. A few pops on a lift.
  */
 export const strimma: Voice = {
   seed: 1907,
-  firesPerRev: 3,
-  pulseOrders: [1, 1.5, 2.02, 3.03, 4.05],
-  pulseDecay: 0.48,
-  unevenness: 0.1,
-  harmonics: [
-    { order: 0.5, wave: "triangle", level: 0.08, cents: 0 },
-    { order: 1, wave: "sawtooth", level: 0.38, cents: -4 },
-    { order: 1.5, wave: "triangle", level: 0.06, cents: 6 },
-    { order: 2, wave: "sawtooth", level: 0.22, cents: 6 },
-    { order: 3, wave: "square", level: 0.06, cents: 12 },
-  ],
-  cycleLevel: 0.5,
-  exhaustHz: [1000, 3800, 2400],
-  bodyHz: 360,
-  bodyDb: 8,
-  drive: 2.9,
-  intakeHz: [700, 3800],
-  intakeQ: 1.8,
-  intakeLevel: 0.26,
-  firingBeat: 0.45,
-  level: 0.36,
+  combustion: {
+    firing: vee(6),
+    lope: 0.05,
+    jitter: 0.07,
+    banks: { gain: 0.93, ring: 1.08, delayMs: 0.6 },
+    pulseMs: 0.95,
+    headerHz: 720,
+    roughness: 0.28,
+    knock: 0,
+    knockHz: 2400,
+    chatter: 0.18,
+    fan: null,
+    pipeHz: 170,
+    pipeRing: 0.42,
+    exhaustHz: [1050, 3200, 2200],
+    silencerHz: 380,
+    silencerDb: 6,
+    rasp: 2.5,
+    intakeHz: 300,
+    intakeQ: 2.4,
+    intake: 0.9,
+    limiterHz: 13,
+  },
+  electric: null,
+  turbo: null,
+  supercharger: null,
+  overrun: { crackle: 2.5, antiLag: 0 },
+  gearWhine: { teeth: 23, level: 0.02 },
+  cabin: 0.12,
+  level: 0.4,
   idleLevel: 0.44,
 };
