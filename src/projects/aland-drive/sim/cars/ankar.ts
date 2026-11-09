@@ -19,7 +19,7 @@ export const ankar: CarEntry = {
     peakSlip: 0.14,
     slideShare: 0.8,
     engine: {
-      peakTorqueNm: 580,
+      peakTorqueNm: 640,
       torqueCurve: [
         [0.12, 0.6],
         [0.3, 0.88],
@@ -31,10 +31,10 @@ export const ankar: CarEntry = {
       engineBrakeNm: 60,
     },
     gearbox: { idleRpm: 650, redlineRpm: 7000, gearTopMS: [13, 21, 30, 40, 51, 62, 74, 88], shiftS: 0.09, gentleShift: 0.38 },
-    launchMS2: 6,
+    launchMS2: 6.6,
     rearShare: 1,
     brakeMS2: 11.5,
-    dragPerMS2: 0.56,
+    dragPerMS2: 0.625,
     aero: 0.9,
     lock: 0.58,
     turnPerS: 2.3,

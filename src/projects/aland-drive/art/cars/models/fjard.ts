@@ -19,6 +19,8 @@ export const fjard: CarSpec = {
   ],
   wheel: { radiusM: estate.wheelRadiusM, widthM: 0.215, rimShare: 0.7, spokes: 5, twinSpokes: false },
   shadowHalf: [0.92, 2.38],
+  // A family estate on gravel-wise tyres, not a stage car: its cabin stays a road car's whatever its grip class says.
+  interior: { gauges: "analogue", wheel: "round", shifter: "lever", seats: "comfort", screen: true, cage: false, turnsToLock: 1.5, colours: { glow: "car-cabin-glow-white" } },
   body: bodyOf({
     nose: "grille",
     noseRake: 0.6,
