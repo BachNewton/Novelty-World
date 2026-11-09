@@ -1,4 +1,5 @@
-import { loadInterior, type ExteriorId } from "../art/dealers";
+import { loadInterior } from "../art/dealers";
+import type { ListedId } from "../art/dealers/listings";
 import type { DealerInterior } from "./interior";
 
 /*
@@ -8,7 +9,7 @@ import type { DealerInterior } from "./interior";
  */
 
 export interface Dealership {
-  site: ExteriorId;
+  site: ListedId;
   load: () => Promise<DealerInterior>;
 }
 

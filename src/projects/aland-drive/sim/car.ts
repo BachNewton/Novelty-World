@@ -3,7 +3,7 @@ import { axleShare, sagOf, STEP_S, wheelBaseOf, type CarTuning } from "./tuning"
 import { CARS, type CarId } from "./cars";
 import type { CarState, Rotation, Vector3 } from "./car-state";
 import { CAR_GROUPS, WHEEL_RAY_GROUPS } from "./groups";
-import { pullAt, radiansPerMetre, restingEngine, runningEngine, stepEngine, type EngineRead } from "./gearbox";
+import { pullAt, radiansPerMetre, restingEngine, runningEngine, shiftGear, stepEngine, type EngineRead, type Shifting } from "./gearbox";
 import type { PhysicsCentre } from "./physics-centre";
 import { FIRM_FOOTING, GROUND_GRIP, type Condition, type Footing, type Surface, type SurfaceGrip, type Tyre } from "./surfaces";
 
@@ -142,6 +142,10 @@ export class Car {
   private readonly slipping = [false, false, false, false];
   /** The driver's aids, which a car keeps until they're changed. */
   assists: Assists = ALL_ASSISTS;
+  /** Whether the box shifts by itself or only when the driver shifts it, which a car keeps until it's changed. */
+  shifting: Shifting = "auto";
+  /** The driver's shifts not yet made, up above 0 and down below it: each is made once the one before it is done. */
+  private shiftsAsked = 0;
   private reversingNow = false;
   private brakingNow = false;
   /** The headlamps: always on while driving, as the law has it. */
@@ -194,6 +198,7 @@ export class Car {
     this.resume({ ...before, position: [before.position[0] + up[0], before.position[1] + up[1], before.position[2] + up[2]] });
     this.reversingNow = from.reversingNow;
     this.assists = from.assists;
+    this.shifting = from.shifting;
   }
 
   /** Every wheel turning with the road at a speed, none spinning or locked. */
@@ -213,6 +218,7 @@ export class Car {
     for (let wheel = 0; wheel < 4; wheel++) this.roll[wheel] = state.roll[wheel];
     this.rollingAt(dot(state.velocity, rotate(state.rotation, [0, 0, -1])));
     this.reversingNow = false;
+    this.shiftsAsked = 0;
     this.engineNow = runningEngine(this.tuning.gearbox, Math.hypot(...state.velocity));
   }
 
@@ -231,7 +237,13 @@ export class Car {
     this.rollingAt(0);
     this.reversingNow = false;
     this.brakingNow = false;
+    this.shiftsAsked = 0;
     this.engineNow = restingEngine(this.tuning.gearbox);
+  }
+
+  /** The driver shifts a gear up or down, in manual; the automatic ignores it. */
+  shift(way: 1 | -1): void {
+    if (this.shifting === "manual") this.shiftsAsked += way;
   }
 
   get engine(): EngineRead {
@@ -260,7 +272,9 @@ export class Car {
     this.brakingNow = input.brake > 0 && !this.reversingNow;
     const shares = WHEELS.map((wheel) => (wheel.end === 1 ? 1 - power.rearShare : power.rearShare) / 2);
     const driven = shares.reduce((sum, share, index) => sum + share * Math.abs(this.wheelMS[index]), 0);
-    this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S, driven).read;
+    if (this.shifting === "manual") this.makeShifts(driven);
+    else this.shiftsAsked = 0;
+    this.engineNow = stepEngine(tuning.gearbox, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S, driven, this.shifting).read;
     // What a tread has to turn to spin its wheel up: the wheel itself, and the engine through the gear for its share of the drive.
     const engineKg = ENGINE_INERTIA * radiansPerMetre(tuning, this.engineNow.gear) ** 2;
     const wheelKg = shares.map((share) => WHEEL_INERTIA / car.wheelRadiusM ** 2 + share * engineKg);
@@ -429,6 +443,22 @@ export class Car {
       if (!this.contact[wheel] && !this.slipping[wheel]) this.wheelMS[wheel] = forward;
       this.roll[wheel] += (this.wheelMS[wheel] / car.wheelRadiusM) * STEP_S;
     }
+  }
+
+  /** In manual, the next shift the driver asked for, once the last is done; one the box refuses is dropped. Reverse is first's gear, as in the automatic. */
+  private makeShifts(wheelSpeed: number): void {
+    if (this.reversingNow) {
+      this.shiftsAsked = 0;
+      this.engineNow = { ...this.engineNow, gear: 0 };
+      return;
+    }
+    if (this.shiftsAsked === 0 || this.engineNow.shiftLeftS > 0) return;
+    const way = this.shiftsAsked > 0 ? 1 : -1;
+    const next = shiftGear(this.tuning.gearbox, this.engineNow, way, wheelSpeed);
+    if (next) {
+      this.engineNow = next;
+      this.shiftsAsked -= way;
+    } else this.shiftsAsked = 0;
   }
 
   private driveForce(input: DriveInput, forward: number): number {

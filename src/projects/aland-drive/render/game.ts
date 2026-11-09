@@ -75,6 +75,8 @@ import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { createCockpit } from "../art/cars/cockpit/view";
 import { createWalkIn, type DealershipReading, type WalkIn } from "../dealership/walk-in";
+import { dealerDoors } from "../dealership/doors";
+import { mapDealersOf } from "../map/dealers";
 import { fitCarVolume, placeCarVolume } from "../art/car-volume";
 import { createRemoteCarViews, lightsOf } from "./remote-cars";
 import { createTyreParticles } from "./tyre-particles";
@@ -95,7 +97,7 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, resultItems, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, resultItems, shiftingOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
 import { useUnits } from "../units";
 import { createChallengeMarks, type StartMark } from "./challenge-marks";
@@ -146,7 +148,8 @@ import { createRoadWeather, hazeInFog } from "./weather";
 import { roadWeather } from "./road-weather";
 import { createPrecipitation } from "./precipitation";
 import { keepAssists, keptAssists } from "../garage/assists";
-import { fitTyres, tyresOn } from "../garage/tyres";
+import { keepShifting, keptShifting } from "../garage/shifting";
+import { keepTyres, keptTyres } from "../garage/tyres";
 import { keepPaint, paintOn } from "../garage/paint";
 import { carKept, keepCar } from "../garage/car";
 import { paintAsked, paintIndex, paintsOf } from "../art/cars/paints";
@@ -1335,9 +1338,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // Tools and tests measured what they hold against the default car, so they keep it.
   const startCar = carAsked(window.location.search, toolPage ? DEFAULT_CAR : (carKept() ?? PLAYER_START_CAR));
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
-  // A link's tyres are for this drive only: what's kept is what the player fitted.
-  drive.tyres = tyresAsked(window.location.search) ?? tyresOn(startCar);
+  // A link's tyres are for this drive only: what's kept is what the player chose.
+  drive.tyres = tyresAsked(window.location.search) ?? keptTyres();
   drive.assists = keptAssists();
+  drive.shifting = keptShifting();
   const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
   let carSpec = CARS.find((car) => car.id === startCar) ?? PLAYER_CAR;
   // As with tyres, a link's paint is for this drive only: what's kept is what the player chose.
@@ -1572,13 +1576,15 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
             load: () => storage.get<string[]>(FOUND_KEY),
             save: (ids) => { storage.set(FOUND_KEY, ids); },
           });
-      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, challengeBoard, { onRoad: (name) => events.onRoad?.(name) });
+      const mapDealers = mapDealersOf(dealerDoors(manifest.worldOrigin));
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, found, challengeBoard, mapDealers, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
         ink,
         found,
         challengeBoard,
+        mapDealers,
         (x, z) => {
           pickDestination(x, z);
         },
@@ -1804,7 +1810,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return { items: ["resume", "retry", "settings", "leave"], back: "resume", pauses: !session.coop, challenge: challenge.title, ground: challenge.kind === "race" ? challenge.ground : undefined };
   };
   /** The Settings page: everything a player may change, which in a challenge is all but the tyres, the challenge's car's. */
-  const settingsNow = () => (session ? settingsMenu({ assists: drive.assists, pauses: !session.coop }) : settingsMenu({ assists: drive.assists, tyres: drive.tyres, pauses: true }));
+  const settingsNow = () => (session ? settingsMenu({ assists: drive.assists, shifting: drive.shifting, pauses: !session.coop }) : settingsMenu({ assists: drive.assists, shifting: drive.shifting, tyres: drive.tyres, pauses: true }));
   const showMenu = (menu: GameMenu | null) => {
     gameMenu = menu;
     controls.setGameMenuOpen(menu !== null);
@@ -2105,6 +2111,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         showMenu(settingsNow());
         break;
       }
+      case "shifting-auto":
+      case "shifting-manual": {
+        const shifting = shiftingOfItem(id);
+        keepShifting(shifting);
+        drive.shifting = shifting;
+        showMenu(settingsNow());
+        break;
+      }
       case "units-metric":
       case "units-imperial":
         useUnits.getState().setUnits(unitsOfItem(id));
@@ -2189,7 +2203,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     ].join("\n");
   };
 
-  const setCar = (id: CarId, tyres = tyresOn(id)) => {
+  const setCar = (id: CarId, tyres = keptTyres()) => {
     const spec = CARS.find((car) => car.id === id);
     if (!spec) throw new Error(`no car's art for ${id}`);
     drive.tyres = tyres;
@@ -2229,7 +2243,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   const setTyres = (tyres: Tyre) => {
-    fitTyres(drive.carId, tyres);
+    keepTyres(tyres);
     drive.tyres = tyres;
   };
 
@@ -2244,6 +2258,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (action === "map") setMapOpen(true);
     if (action === "mute") useDriveSoundSettings.getState().toggleMuted();
     if (action === "challenge") challengeButton();
+    if ((action === "shiftUp" || action === "shiftDown") && cameraMode !== "free") drive.shift(action === "shiftUp" ? 1 : -1);
   };
   const onMapAction = (action: MapAction) => {
     if (action === "close") setMapOpen(false);

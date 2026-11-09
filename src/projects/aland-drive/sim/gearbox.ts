@@ -1,10 +1,15 @@
 import type { CarTuning } from "./tuning";
 
 /*
- * The engine and its automatic gearbox, with no physics in them: the gear, the
- * revs and the load a speed and a throttle ask for, and the torque those revs
- * make. The car drives on this, and the sound hears the same numbers.
+ * The engine and its gearbox, with no physics in them: the gear, the revs and
+ * the load a speed and a throttle ask for, and the torque those revs make. The
+ * box shifts by itself, or only when the driver shifts it (`shiftGear`). The
+ * car drives on this, and the sound hears the same numbers.
  */
+
+/** Whether the box shifts by itself or only when the driver shifts it: the player's own setting. */
+export type Shifting = "auto" | "manual";
+
 
 export interface Gearbox {
   idleRpm: number;
@@ -52,16 +57,28 @@ export function runningEngine(box: Gearbox, speed: number): EngineRead {
 }
 
 /**
- * One step of the revs, the gear and the load. `shifted` says a change happened in this step. The revs follow the
- * driven wheels, which a spinning tyre turns faster than the car goes, and so does the box once the car is under way:
- * a car spinning its wheels on the spot stays in first, at the limiter.
+ * The driver's shift, one gear up or down, from the engine as it stands: null while a shift is still under way, past
+ * the top or bottom gear, or down into a gear whose revs at the wheels' speed would be past the redline.
  */
-export function stepEngine(box: Gearbox, read: EngineRead, speed: number, throttle: number, dt: number, wheelSpeed = speed): { read: EngineRead; shifted: boolean } {
+export function shiftGear(box: Gearbox, read: EngineRead, way: 1 | -1, wheelSpeed: number): EngineRead | null {
+  const gear = read.gear + way;
+  if (read.shiftLeftS > 0 || gear < 0 || gear >= box.gearTopMS.length) return null;
+  if (way < 0 && revsIn(box, gear, wheelSpeed) > box.redlineRpm) return null;
+  return { ...read, gear, shiftLeftS: box.shiftS };
+}
+
+/**
+ * One step of the revs, the gear and the load. `shifted` says the automatic changed gear in this step; in manual it
+ * never does, and the revs run up to the limiter. The revs follow the driven wheels, which a spinning tyre turns faster
+ * than the car goes, and so does the automatic once the car is under way: a car spinning its wheels on the spot stays
+ * in first, at the limiter.
+ */
+export function stepEngine(box: Gearbox, read: EngineRead, speed: number, throttle: number, dt: number, wheelSpeed = speed, shifting: Shifting = "auto"): { read: EngineRead; shifted: boolean } {
   let { gear, shiftLeftS } = read;
   let shifted = false;
   shiftLeftS = Math.max(0, shiftLeftS - dt);
 
-  if (shiftLeftS === 0) {
+  if (shiftLeftS === 0 && shifting === "auto") {
     const by = speed < box.gearTopMS[0] * CLUTCH_SHARE ? speed : wheelSpeed;
     const upAt = lerp(box.gentleShift, 0.97, throttle) * box.redlineRpm;
     const downAt = lerp(DOWNSHIFT_AT[0], DOWNSHIFT_AT[1], throttle) * box.redlineRpm;

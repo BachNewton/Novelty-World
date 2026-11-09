@@ -8,10 +8,10 @@ import { PadHints } from "@/shared/components/pad-hints";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
-import { isCarItem, isPaintItem, paintOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
+import { isCarItem, isPaintItem, paintOfItem, shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
 import { CarSelect } from "./car-select";
 import { SettingsMenu } from "./settings-menu";
-import { ACCENT, CHALLENGE, INK, MenuButton, SHADE, TYRE_LOOKS, UNITS_LOOKS, type ItemLook } from "./menu-parts";
+import { ACCENT, CHALLENGE, INK, MenuButton, SHADE, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type ItemLook } from "./menu-parts";
 import { useUnits } from "../units";
 
 /*
@@ -45,6 +45,11 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "tyres-studded": {
         const tyre = tyreOfItem(id);
         return { icon: TYRE_LOOKS[tyre].icon, label: `${TYRE_LOOKS[tyre].name} tyres`, on: menu.tyres === tyre };
+      }
+      case "shifting-auto":
+      case "shifting-manual": {
+        const shifting = shiftingOfItem(id);
+        return { icon: SHIFTING_LOOKS[shifting].icon, label: SHIFTING_LOOKS[shifting].name, on: menu.shifting === shifting };
       }
       case "units-metric":
       case "units-imperial": {

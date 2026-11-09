@@ -44,7 +44,7 @@ export const orkan: CarEntry = {
     rearShare: 0.55,
     brakeMS2: 14,
     dragPerMS2: 0.66,
-    aero: 1.7,
+    aero: 0.86,
     lock: 0.56,
     turnPerS: 2.7,
   }),

@@ -52,7 +52,7 @@ test("a solo Route: started from its ring by its button, in its own conditions, 
 
   // In the ring, the HUD prompts its button, and with no one else there it starts the challenge solo at once.
   await expect(page.getByLabel("Challenge here")).toContainText(TITLE);
-  await page.keyboard.press("KeyE");
+  await page.keyboard.press("KeyF");
   await expect(page.getByLabel("Challenge here")).toBeHidden();
 
   // The start's tile is loaded, so the car is on the line at once, in the challenge's car.

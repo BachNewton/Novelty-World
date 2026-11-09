@@ -146,7 +146,7 @@ Only if the trial reads clean on all three does the old system get deleted and t
 
 ## Where the trial stands
 
-The published island is paved: every tile built from main with `build.py --island --paving` and published as `382c3b80722b`. The build's default and the fixture are still ribbons, so **an island build passes `--paving`** until paving is the default (below). The owner judged it the biggest improvement yet, and Godby's underpass, with its straight edge line, fine as an underpass rather than a tunnel. Packed, a paved tile is between 10% smaller and 20% larger than its ribbon build (L2343C 8.65 → 10.42 MB, L2334E 18.85 → 16.95 MB). Seams match to 0.0 mm, the car's surface matches the drawn one to 1 mm, and no pop shows where the cut cells end.
+The published island is paved: every tile built from main with `build.py --island --paving` and published as `382c3b80722b`, and its three dealership tiles since rebuilt in `43f1ca8c5567`. The build's default and the fixture are still ribbons, so **an island build passes `--paving`** until paving is the default (below). The owner judged it the biggest improvement yet, and Godby's underpass, with its straight edge line, fine as an underpass rather than a tunnel. Packed, a paved tile is between 10% smaller and 20% larger than its ribbon build (L2343C 8.65 → 10.42 MB, L2334E 18.85 → 16.95 MB). Seams match to 0.0 mm, the car's surface matches the drawn one to 1 mm, and no pop shows where the cut cells end.
 
 **The owner's calls, still open:**
 

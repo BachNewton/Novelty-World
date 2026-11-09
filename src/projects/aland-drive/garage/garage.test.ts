@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ALL_ASSISTS } from "../sim/car";
 import { keepAssists, keptAssists } from "./assists";
 import { carKept, keepCar } from "./car";
-import { fitTyres, tyresOn } from "./tyres";
+import { keepTyres, keptTyres } from "./tyres";
 
 /*
  * What the player chose in the garage outlives the page, and survives what
@@ -35,16 +35,14 @@ afterEach(() => {
 });
 
 describe("the garage", () => {
-  it("keeps each car on the tyres it was given, summer until then, past what another version kept", () => {
+  it("keeps the tyres chosen, summer until then, and a tyre it doesn't know as summer", () => {
     const storage = fakeStorage();
     vi.stubGlobal("localStorage", storage);
-    storage.setItem("nw:aland-drive:fitted-tyres", JSON.stringify({ "a-car-to-come": "winter", sten: "slicks" }));
-    expect(tyresOn("sten")).toBe("summer");
-    fitTyres("sten", "studded");
-    fitTyres("kobb", "winter");
-    expect(tyresOn("sten")).toBe("studded");
-    expect(tyresOn("kobb")).toBe("winter");
-    expect(tyresOn("skerry-gt")).toBe("summer");
+    expect(keptTyres()).toBe("summer");
+    keepTyres("studded");
+    expect(keptTyres()).toBe("studded");
+    storage.setItem("nw:aland-drive:tyres", JSON.stringify("slicks"));
+    expect(keptTyres()).toBe("summer");
   });
 
   it("keeps the driver's aids, all on until turned off, an aid not kept on, and one it doesn't know dropped", () => {

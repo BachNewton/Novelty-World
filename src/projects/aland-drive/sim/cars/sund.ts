@@ -39,7 +39,7 @@ export const sund: CarEntry = {
     rearShare: 1,
     brakeMS2: 13,
     dragPerMS2: 0.46,
-    aero: 1.5,
+    aero: 0.91,
     lock: 0.58,
     turnPerS: 3.1,
   }),

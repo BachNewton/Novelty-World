@@ -45,7 +45,7 @@ export const strimma: CarEntry = {
     rearShare: 1,
     brakeMS2: 14,
     dragPerMS2: 0.56,
-    aero: 1.4,
+    aero: 0.9,
     lock: 0.6,
     turnPerS: 3.4,
   }),

@@ -1,73 +1,73 @@
 {
   "streetrace-hammarbo": {
-    "tuning": "b57059f1",
+    "tuning": "5dc154e9",
     "places": "00e254fb",
     "ground": "wet on summer",
-    "par": 241.83,
-    "target": 241
+    "par": 240,
+    "target": 239
   },
   "ship-at-three": {
-    "tuning": "fb0a962b",
+    "tuning": "4547ea87",
     "places": "86204347",
     "ground": "dry on summer",
-    "par": 161.57,
-    "target": 161.6
+    "par": 166.12,
+    "target": 166.2
   },
   "godby-to-geta-fog": {
-    "tuning": "6802a631",
+    "tuning": "d33bfe78",
     "places": "5e78e582",
     "ground": "dry on summer",
-    "par": 151.94,
-    "target": 152
+    "par": 155.95,
+    "target": 156
   },
   "eckero-boat-rain": {
-    "tuning": "fbe1970f",
+    "tuning": "908f39b0",
     "places": "078d4f28",
     "ground": "wet on summer",
-    "par": 156.85,
-    "target": 156.9
+    "par": 161.72,
+    "target": 161.8
   },
   "road-2-midnight": {
-    "tuning": "bfa33668",
+    "tuning": "a3df25c4",
     "places": "b0236d93",
     "ground": "dry on summer",
-    "par": 314.52,
+    "par": 314.34,
     "target": 314
   },
   "castle-to-fortress-sunset": {
-    "tuning": "f7b29790",
+    "tuning": "76633cfd",
     "places": "6cb0902d",
     "ground": "dry on summer",
-    "par": 142.4,
-    "target": 142.5
+    "par": 143.14,
+    "target": 143.2
   },
   "backrace-weekend": {
-    "tuning": "2d4ae6e7",
+    "tuning": "2411f7c6",
     "places": "039dc965",
     "ground": "wet on summer",
-    "par": 192.7,
-    "target": 192.8
+    "par": 197.5,
+    "target": 197.5
   },
   "hultvagen-dawn": {
-    "tuning": "8b73c0a2",
+    "tuning": "faa0f96d",
     "places": "d40bc9eb",
     "ground": "dry on summer",
-    "par": 56.68,
-    "target": 56.7
+    "par": 60.45,
+    "target": 60.5
   },
   "painters-light": {
-    "tuning": "df95e8a6",
+    "tuning": "dd4dba43",
     "places": "d4a19e01",
     "ground": "dry on summer",
-    "par": 141.28,
-    "target": 141.3
+    "par": 145.05,
+    "target": 145.1
   },
   "jarso-sunrise": {
-    "tuning": "f95010fe",
+    "tuning": "37b4e9e5",
     "places": "f5fb065f",
     "ground": "dry on summer",
-    "par": 137.91,
-    "target": 138
+    "par": 138.92,
+    "target": 139
   },
   "geta-snowstorm": {
     "tuning": "9bd95253",
