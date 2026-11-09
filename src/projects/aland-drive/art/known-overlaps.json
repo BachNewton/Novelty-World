@@ -120,7 +120,7 @@
     "room": 257
   },
   "homes: cottage garage": {
-    "room": 95
+    "room": 79
   },
   "homes: farmhouse": {
     "near": 1
@@ -138,7 +138,7 @@
     "room": 383
   },
   "homes: farmhouse garage": {
-    "room": 550
+    "room": 526
   },
   "homes: villa": {
     "near": 4,
@@ -157,7 +157,7 @@
     "room": 149
   },
   "homes: villa garage": {
-    "room": 94
+    "room": 66
   },
   "homes: waterfront": {
     "near": 5,
@@ -176,7 +176,7 @@
     "room": 129
   },
   "homes: waterfront garage": {
-    "room": 116
+    "room": 102
   },
   "identity: upturned boat": {
     "near": 4
