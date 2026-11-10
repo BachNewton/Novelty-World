@@ -318,6 +318,29 @@ The kill reading never came close. The pair against imit-1 rose from +10 Elo a s
 
 **Is another night worth it?** Yes. One night of PPO took the learned line from a copy below the target to a net at or above rule-v7.1 at 5 players, with nothing about the method in question.
 
+#### The M4 read: s2-2-150 passes
+
+`net-v1~{"weights":"s2-2-150","pick":"argmax"}` was read against rule-v7.1 at 3, 4, 5 and 6 players, one-in and one-out, by the gauntlet's SPRT (±30 Elo a seat) on Actions. Run 42778024656 used train seeds and run 42778029527 holdout seeds, both from the branch `risk/s2-reads`. The verdict is **better at all 16 tables**, with no regression and no game capped:
+
+| Table | Train seeds | Holdout seeds |
+|---|---|---|
+| 3 players, alone among two (par 33.3%) | 68.5% [55.3, 79.3] | 57.7% [46.6, 68.0] |
+| 3 players, two against one (par 66.7%) | 76.3% [70.4, 81.4] | 79.7% [72.7, 85.3] |
+| 4 players, alone among three (par 25%) | 59.6% [46.1, 71.8] | 62.5% [48.4, 74.8] |
+| 4 players, three against one (par 75%) | 85.9% [80.1, 90.2] | 93.3% [86.8, 96.7] |
+| 5 players, alone among four (par 20%) | 56.4% [43.3, 68.6] | 56.4% [43.3, 68.6] |
+| 5 players, four against one (par 80%) | 90.5% [85.5, 93.9] | 93.6% [88.2, 96.6] |
+| 6 players, alone among five (par 16.7%) | 46.7% [34.6, 59.1] | 54.2% [40.3, 67.4] |
+| 6 players, five against one (par 83.3%) | 94.1% [89.7, 96.7] | 89.2% [85.6, 91.9] |
+| Win Elo over rule-v7.1, finishing-order Elo | +174, +197 | +170, +197 |
+
+The 5-player one-in pairing's tally is the same on both seed sets (31 to 24 in 55 decisive games). They are different games, averaging 128 and 118 player-turns, and the SPRT stops at the same tallies on any games. The train run also repeats the local read of that pairing exactly.
+
+So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What follows, by "Seating" above:
+- the owner's ruling on the runtime;
+- the parity test on the export;
+- the seatable ratings run with every seatable bot, which sets its rank.
+
 ### Kill rule, cost, and what follows
 
 - **Kill rule.** None for the recording, which is data whatever it shows, and none for the training, whose reading is the answer. The line's own reading: if the overall agreement at the full recording is under 40% and the curve has bent (under two points from half to all), the raw-board observation or the net can't copy the teacher, and that is fixed before any night of PPO (features the planner reads as extra tokens, or capacity), read by the same tool at an evening's cost.

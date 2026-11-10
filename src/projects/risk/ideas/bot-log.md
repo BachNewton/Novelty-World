@@ -1482,3 +1482,17 @@ The reads stage 1 left (`learned-bot.md`, "The day after").
 - **The seeds** agreed at iteration 50. After it, seed 1 fell back (argmax alone among four sw128b-450, 36.3% to 23.1%), while seed 2 kept climbing (to 41.0%). The same seed with the entropy bonus off didn't fall against sw128b-450, and didn't gain either.
 
 Predictions 1 (sampled learner at par or more against sw128b-450) and 3 (mirror cap rate under 20%) held. 2 (argmax at 90% or more against GD Defensive throughout) held on seed 2 and failed narrowly on seed 1. 4 (the seeds' best checkpoints within 30 Elo) failed, at 55 to 100 Elo a seat apart. The kill reading never came close. Next: the M4 read on Actions, `s2-2-150` against rule-v7.1 at every table in both mixtures on train and holdout seeds, before another night.
+
+## s2-2-150 passes M4: better than rule-v7.1 at every table in both mixtures (2026-11-10)
+
+`net-v1~{"weights":"s2-2-150","pick":"argmax"}` against rule-v7.1 at 3 to 6 players, one-in and one-out. Run 42778024656 used train seeds and run 42778029527 holdout seeds, on Actions. Both read **better at all 8 tables**, with no regression and no game capped (`learned-bot.md`, "The M4 read").
+
+- One-in, against a par of 33%, 25%, 20% and 17%:
+  - train: 68.5%, 59.6%, 56.4%, 46.7%;
+  - holdout: 57.7%, 62.5%, 56.4%, 54.2%.
+- One-out, against a par of 67%, 75%, 80% and 83%:
+  - train: 76.3%, 85.9%, 90.5%, 94.1%;
+  - holdout: 79.7%, 93.3%, 93.6%, 89.2%.
+- Win Elo over rule-v7.1: +174 on train, +170 on holdout. Finishing-order Elo: +197 on both.
+
+Each run played about 1,050 games and 680,000 decisions, in 7,900 s and 7,600 s on Actions. Next: the owner's ruling on the runtime, the parity test, and the seatable ratings run.
