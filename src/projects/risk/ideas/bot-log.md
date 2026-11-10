@@ -1463,3 +1463,21 @@ The reads stage 1 left (`learned-bot.md`, "The day after").
   - all of it: 64.0% [63.8, 64.2] and 63.9% [63.6, 64.1].
 
   The seeds now agree within 0.13 points, where they were 2.1 apart on the plateau rule. All beats half by 0.55 points, so prediction 2 (still climbing) holds, at half a point a doubling, a sixth of the three points that would justify another recording. imit-1 (64.8%) beats both: its plateau rule held the full rate for most of its steps, and it fits the training data better too. At full data the copy is short of training steps more than of games.
+
+## Stage 2's first night: PPO from imit-1, at or above rule-v7.1 at 5 players within 50 iterations (2026-11-10)
+
+`learned-bot.md` ("Stage 2's first night: the report") has every reading with its interval. The setup was PPO (`ppo.py --init` from imit-1) on pf4's cold recipe, with imit-1 and sw128b-450 pinned in the league beside GD's personas and the win reward alone. Two seeds and a diagnostic ran, each to 150 iterations, one after the other on the RTX 4070 (two at once overflowed its memory).
+
+- **The panel** (5 players). Sampling, alone among four sw128b-450: 14.3% at the start, 32% to 42% at every read of every run, and 40.8% [36.6, 45.1] for the best checkpoint, `s2-2-150`, at 1,024 games. The argmax mirror's cap rate fell from 37.0% to 0 of 1,024 [0, 0.4].
+- **The harness** (train seeds, 5 players):
+  - Alone among four rule-v6.1, sampling and argmax alike, **better**:
+    - `s2-1-50`: 54.5% [41.5, 67.0] argmax (+272 win Elo), 58.0% [44.2, 70.6] sampling (+297);
+    - `s2-2-150`: 60.0% [46.2, 72.4] argmax, 60.0% [45.5, 73.0] sampling (+311 each).
+  - `s2-1-50` argmax against rule-v7.1:
+    - alone among four, **better**: 43.5% [33.5, 54.1] of 85 decisive games against a par of 20%;
+    - four against one, **even**: 80.3% [78.4, 82.1] of 1,745 against a par of 80%.
+    - None capped either way: win Elo +15, finishing-order Elo +43. imit-1 was even and worse at those two tables.
+- **Health**: KL 0.003 to 0.006, the clipped share 0.03 to 0.06, explained variance 0.92 to 0.96. The entropy fell from 1.02 to about 0.5 by iteration 50, then rose to 1.6 to 1.9 under the 0.01 bonus. With the bonus off, it fell to 0.28.
+- **The seeds** agreed at iteration 50. After it, seed 1 fell back (argmax alone among four sw128b-450, 36.3% to 23.1%), while seed 2 kept climbing (to 41.0%). The same seed with the entropy bonus off didn't fall against sw128b-450, and didn't gain either.
+
+Predictions 1 (sampled learner at par or more against sw128b-450) and 3 (mirror cap rate under 20%) held. 2 (argmax at 90% or more against GD Defensive throughout) held on seed 2 and failed narrowly on seed 1. 4 (the seeds' best checkpoints within 30 Elo) failed, at 55 to 100 Elo a seat apart. The kill reading never came close. Next: the M4 read on Actions, `s2-2-150` against rule-v7.1 at every table in both mixtures on train and holdout seeds, before another night.

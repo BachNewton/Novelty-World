@@ -236,6 +236,87 @@ The win Elo is −14 and the finishing-order Elo +35. So **the copy plays at the
 - **At full data, the trainer is short of steps more than of games.** On the same data, imit-1 beats both fixed-schedule runs by 0.8 points. It also fits its own training data better: 65.6% agreement on training decisions, against 64.7% for the full runs. The plateau rule happened to keep imit-1 at the full rate for 19,500 of its 24,415 steps, while the cosine spends half of them below half that rate. So the full runs are underfitted. The half-data runs are the opposite case: they agree 65.2% on training decisions against 63.4% held out, a 1.8-point gap, where the full runs' gap is 0.7. A longer schedule, not a new recording, is the cheaper next point of agreement. imit-1 stays the best copy and stage 2's start.
 - **Throughput.** The four runs went in two pairs, each pair sharing the GPU while another session's builds shared the CPU. They trained 5,500 to 8,200 samples a second each, 11,000 to 16,300 a pair, against the 27,000 imit-1 managed alone. A timing on a shared machine can't say which contention cost the most, but the cost itself is clear: the curve took the whole night (23:20 to 07:51), and stage 2 didn't start. An imitation run takes the GPU on its own from now on.
 
+### Stage 2's first night: the report
+
+**In one paragraph.** PPO from imit-1 took the copy past the target within 50 iterations, and fixed its stall. At iteration 50, argmax and sampling play alike: each beats rule-v6.1 alone among four of them by about +280 win Elo, where imit-1's argmax play was +110 and its sampled play −136. In the harness, the argmax net is better than rule-v7.1 alone among four of it and even with it four against one. No argmax mirror game capped at any read from iteration 50 on, where imit-1's capped 37%. Predictions 1 and 3 held. 2 held on seed 2 and failed narrowly on seed 1. 4 failed: the two seeds agreed at iteration 50, but by 150 seed 1 had fallen back while seed 2 kept climbing. The best checkpoint is seed 2's at iteration 150 (`s2-2-150`). The next step is the M4 read, before another night: the best checkpoint against rule-v7.1 at every table, in both mixtures, on holdout seeds, on Actions.
+
+**What ran.** PPO from imit-1 on pf4's cold recipe, as planned, with imit-1 and sw128b-450 pinned in the league. Each run was read on the panel every 50 iterations at 512 games, and the start and the best checkpoints at 1,024. Three things changed from the plan during the night:
+
+- **The seeds ran one after the other, not side by side.** Two trainers and their panels didn't fit in the card's 12 GB. The overflow spilled into shared system memory, and every update took 490 to 950 seconds instead of pf4's 20 to 40. One at a time, a run trains at about 56,000 steps a second, an iteration every 50 seconds.
+- **The runs stopped at iteration 150, not on a time budget.** That way the seeds read at matched iterations.
+- **A third run, `s2-1-e0`, was added.** It repeats seed 1 with the entropy bonus off, a diagnostic for seed 1's fall (below).
+
+So the night is three runs of 150 iterations each (157 million steps of play a run, about 50 million of them the learner's decisions), with four panels at 1,024 games and five harness reads on the laptop's CPU.
+
+**The panel at matched iterations** (512 games; 95% Wilson intervals). "Alone among four" is one-in, par 20%:
+
+| Run, iteration | Sampling alone among four sw128b-450 | Argmax alone among four sw128b-450 | Argmax alone among four GD Defensive | Sampling alone among four imit-1 | Argmax mirror capped |
+|---|---|---|---|---|---|
+| imit-1, the start (1,024 games) | 14.3% [11.5, 17.5] | 31.0% [27.2, 35.2] | 94.3% [92.7, 95.6] | 22.7% [19.3, 26.5] | 37.0% [34.1, 40.0] |
+| seed 1, 50 | 37.9% [32.2, 44.0] | 35.5% [29.9, 41.6] | 96.3% [94.3, 97.6] | 67.2% [61.2, 72.7] | 0 of 512 |
+| seed 1, 100 | 35.5% [29.9, 41.6] | 36.3% [30.7, 42.4] | 93.5% [91.1, 95.4] | 71.9% [66.1, 77.0] | 0 |
+| seed 1, 150 | 30.5% [25.1, 36.4] | 23.1% [18.3, 28.6] | 89.3% [86.3, 91.6] | 64.8% [58.8, 70.4] | 0 |
+| seed 2, 50 | 32.4% [27.0, 38.4] | 38.7% [32.9, 44.8] | 97.7% [96.0, 98.7] | 70.7% [64.8, 75.9] | 0 |
+| seed 2, 100 | 36.3% [30.7, 42.4] | 39.8% [34.0, 46.0] | 97.9% [96.2, 98.8] | 71.5% [65.7, 76.7] | 0 |
+| seed 2, 150 | 42.2% [36.3, 48.3] | 41.0% [35.2, 47.1] | 96.3% [94.3, 97.6] | 74.6% [68.9, 79.5] | 0 |
+| seed 1 without the entropy bonus, 50 | 34.4% [28.8, 40.4] | 37.1% [31.4, 43.2] | 99.0% [97.7, 99.6] | 66.4% [60.4, 71.9] | 0 |
+| the same, 100 | 35.9% [30.3, 42.0] | 32.8% [27.4, 38.8] | 94.1% [91.8, 95.9] | 71.9% [66.1, 77.0] | 0 |
+| the same, 150 | 37.5% [31.8, 43.6] | 36.3% [30.7, 42.4] | 91.4% [88.7, 93.5] | 69.9% [64.0, 75.2] | 0 |
+
+**The best checkpoints on the full panel** (1,024 games). The pair reads are also given as Elo a seat, by the Luce model, averaged over one-in and one-out:
+
+| | imit-1 | s2-1-50 | s2-2-150 | s2-1-e0-150 |
+|---|---|---|---|---|
+| Sampling alone among four GD Defensive | 82.0% [79.6, 84.3] | 94.0% [92.4, 95.3] | 94.4% [92.9, 95.7] | 90.5% [88.6, 92.2] |
+| Argmax alone among four GD Defensive | 94.3% [92.7, 95.6] | 97.5% [96.3, 98.3] | 95.9% [94.5, 97.0] | 91.1% [89.2, 92.7] |
+| Sampling alone among four sw128b-450 | 14.3% [11.5, 17.5] | 33.8% [29.8, 38.0] | 40.8% [36.6, 45.1] | 34.4% [30.4, 38.6] |
+| Sampling, four against one sw128b-450 (par 80%) | 74.8% [70.9, 78.4] | 81.5% [77.8, 84.6] | 91.2% [88.4, 93.4] | 86.5% [83.3, 89.2] |
+| Argmax alone among four sw128b-450 | 31.0% [27.2, 35.2] | 35.7% [31.7, 40.0] | 36.7% [32.7, 41.0] | 34.4% [30.4, 38.6] |
+| Argmax, four against one sw128b-450 | 88.8% [85.7, 91.4] | 82.4% [78.9, 85.5] | 89.4% [86.5, 91.8] | 88.3% [85.2, 90.8] |
+| Pair against sw128b-450, Elo a seat, sampling and argmax | −61, +111 | +70, +83 | +171, +138 | |
+| Pair against imit-1, Elo a seat, sampling and argmax | +10, +225 | +223, +241 | +317, +304 | |
+| Argmax mirror capped | 37.0% [34.1, 40.0] | 0% [0, 0.4], 51 turns | 0% [0, 0.4], 63 turns | 0% [0, 0.4], 83 turns |
+
+**The harness** (train seeds, 5 players, the gauntlet's SPRT at ±30 Elo a seat; the weight sets `s2-1-50` and `s2-2-150` are the exported snapshots):
+
+| Candidate | Table | Verdict |
+|---|---|---|
+| s2-1-50, argmax | alone among four rule-v6.1 | **better**: 54.5% [41.5, 67.0] of 55 decisive games against par 20%, win Elo +272, finishing-order +261, mean place 1.73, none capped |
+| s2-1-50, sampling | alone among four rule-v6.1 | **better**: 58.0% [44.2, 70.6] of 50, win Elo +297 |
+| s2-2-150, argmax | alone among four rule-v6.1 | **better**: 60.0% [46.2, 72.4] of 50, win Elo +311, mean place 1.58 |
+| s2-2-150, sampling | alone among four rule-v6.1 | **better**: 60.0% [45.5, 73.0] of 45, win Elo +311 |
+| s2-1-50, argmax | alone among four rule-v7.1 | **better**: 43.5% [33.5, 54.1] of 85 decisive games against par 20%, mean place 1.89, none capped |
+| s2-1-50, argmax | four against one rule-v7.1 | **even**: 80.3% [78.4, 82.1] of 1,745 against par 80%, lone v7.1's mean place 3.20, none capped |
+
+s2-1-50 against rule-v7.1 is win Elo +15 and finishing-order Elo +43 over both tables. imit-1's argmax play was even one-in and worse one-out, with 29% of its one-out games capped. Every SPRT that stopped early did so on a large edge, so those intervals are wide; each one's lower bound is still above par, and above imit-1's own reading at that table. s2-2-150's argmax read alone among four rule-v7.1 was still playing when this was written.
+
+**Health.**
+- KL stayed between 0.003 and 0.006 a step, and the clipped share between 0.03 and 0.06, in every run.
+- The value head explained 36% of the return's variance at iteration 1 (imit-1's value head, fitted to final scores) and 92% to 96% from iteration 25 on.
+- The training games' cap rate stayed under half a percent.
+- **Entropy is the reading that moved.** It fell from imit-1's 1.02 to about 0.5 by iteration 50 in both seeds, then rose: seed 1 to 1.93 by 150, seed 2 to 1.57. With the bonus off it fell all the way, to 0.28. pf4 and sw128b settled at about 2 under the same bonus, so 0.01 holds a policy near an entropy of 2, a long way above where imitation started.
+
+**Seed 1's fall, and what the diagnostic showed.** After iteration 100, seed 1 lost 12 points against sw128b-450 (argmax alone among four, 36.3% to 23.1%) and 4 against GD Defensive, while its entropy rose. Seed 2's entropy rose almost as far, and it kept climbing. So the entropy bonus alone doesn't explain the fall. The same seed with the bonus off kept its entropy low and didn't fall against sw128b-450 (36.3% at 150). But it didn't gain either, and it lost as much against GD Defensive (91.4%). One run each can't separate the bonus from the seeds' own spread, which by iteration 150 is wider than the panel's interval. What the night does settle is that the best checkpoints come early (50 to 150 iterations), and that keep-best on the panel matters more than how long a run trains.
+
+**The predictions.**
+
+| # | Prediction | Reading | |
+|---|---|---|---|
+| 1 | The sampled learner alone among four sw128b-450 reaches par (20%) or more, from 13.7% | 32.4% to 42.2% at every read of every run; at 1,024 games, 33.8% [29.8, 38.0] for s2-1-50 and 40.8% [36.6, 45.1] for s2-2-150 | **held** |
+| 2 | The argmax learner alone among four GD Defensive stays at 90% or more throughout | seed 2: 96.3% to 97.9% at every read; seed 1: 89.3% [86.3, 91.6] at iteration 150 | **held** on seed 2, **failed** narrowly on seed 1 (the point under 90%, the interval across it) |
+| 3 | The argmax learner's 5-player mirror cap rate falls below 20%, from 40% | 0 of 512 at every read from iteration 50 on; 0 of 1,024 [0, 0.4] on the best checkpoints | **held** |
+| 4 | The two seeds' best checkpoints are within 30 win Elo of each other on the panel's pair read | s2-1-50 and s2-2-150 are 55 to 100 Elo a seat apart on the pair reads; at matched iteration 50 the seeds agree within their intervals | **failed**: the seeds part after iteration 50 |
+
+The kill reading never came close. The pair against imit-1 rose from +10 Elo a seat (sampling) at the start to +223 and +317 on the best checkpoints.
+
+**What it rules out.** The worry behind the kill rule, that PPO would destroy what imitation gave, is ruled out for this recipe through 150 iterations. Both of the copy's faults are gone. Sampling no longer costs strength (sampling and argmax read alike in the harness). The stall is gone: none of the 3,072 argmax mirror games read on the full panels capped. The panel is running out of headroom, though. GD Defensive reads 91% to 98%, and the pair against imit-1 is several hundred Elo above it. Only the sw128b-450 reads still spread the checkpoints out, and those are below the target's class.
+
+**The next step, before another night: the M4 read.** M4 is better than rule-v7.1 at every table in both mixtures. The checkpoint already meets it at one table and one mixture (better at 5 players one-in) and ties in the other (even one-out). The rest of the read is CPU work that splits into games: s2-2-150, argmax and sampling, against rule-v7.1 at 3, 4, 5 and 6 players, one-in and one-out, on train and holdout seeds, and the parity test on its export. That belongs on Actions, at a day's cost and with the laptop free. It decides what the next night is for:
+- **If M4 holds**, the bot's seating is the owner's ruling (its runtime, "Seating" above), and the next night grows the panel instead. The best checkpoint goes in as a fixed anchor, since the panel can no longer resolve gains above it, and stage 2 runs a seed pair to 400 iterations from it.
+- **If M4 fails at some table**, the next night's one change targets that table. The trainer already plays 3 to 6 players, so that means a heavier weight on the failing size in the league's mix, predicted to lift that table's harness read by its interval without costing the 5-player one.
+
+**Is another night worth it?** Yes. One night of PPO took the learned line from a copy below the target to a net at or above rule-v7.1 at 5 players, with nothing about the method in question.
+
 ### Kill rule, cost, and what follows
 
 - **Kill rule.** None for the recording, which is data whatever it shows, and none for the training, whose reading is the answer. The line's own reading: if the overall agreement at the full recording is under 40% and the curve has bent (under two points from half to all), the raw-board observation or the net can't copy the teacher, and that is fixed before any night of PPO (features the planner reads as extra tokens, or capacity), read by the same tool at an evening's cost.
