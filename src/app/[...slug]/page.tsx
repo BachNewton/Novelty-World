@@ -80,6 +80,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "ai-compass": dynamic(() =>
     import("@/projects/ai-compass").then((m) => ({ default: m.AiCompass })),
   ),
+  "spot-access": dynamic(() =>
+    import("@/projects/spot-access").then((m) => ({ default: m.SpotAccess })),
+  ),
 };
 
 interface Props {

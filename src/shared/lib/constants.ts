@@ -174,6 +174,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "Compass",
   },
+  {
+    name: "Spot Access",
+    slug: "spot-access",
+    description: "When the shared GPU machine is free, and for how long",
+    categorySlug: "tools",
+    icon: "Cpu",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

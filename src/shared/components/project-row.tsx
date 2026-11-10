@@ -34,6 +34,7 @@ import {
   Music,
   PawPrint,
   Compass,
+  Cpu,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -68,6 +69,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Music,
   PawPrint,
   Compass,
+  Cpu,
 };
 
 interface ProjectRowProps {
