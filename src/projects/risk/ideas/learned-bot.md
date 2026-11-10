@@ -336,6 +336,12 @@ The kill reading never came close. The pair against imit-1 rose from +10 Elo a s
 
 The 5-player one-in pairing's tally is the same on both seed sets (31 to 24 in 55 decisive games). They are different games, averaging 128 and 118 player-turns, and the SPRT stops at the same tallies on any games. The train run also repeats the local read of that pairing exactly.
 
+**Seed 2 trained on, iterations 150 to 228.** It ran on the same recipe in the eGPU's last hours before a two-week absence. The panel then also read against s2-2-150, where the run resumed. At iteration 200 it is even with that checkpoint:
+- alone among four s2-2-150, 19.5% [15.1, 24.8] sampling and 19.9% [15.5, 25.2] argmax, against a par of 20%;
+- four against one s2-2-150, 79.7% [74.3, 84.2] and 80.9% [75.6, 85.2], against a par of 80%.
+
+Every other read stayed at iteration 150's level, and the entropy sat at about 2. The run was stopped at 228, with snapshots kept at 175, 200 and 225. So on this recipe, 50 more iterations past 150 bought nothing the panel can resolve, about 50 Elo a seat. Whether the curve has flattened or only slowed is the question a longer run with s2-2-150 as an anchor answers. The sw128b-450 and imit-1 reads can no longer tell.
+
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What follows, by "Seating" above:
 - the owner's ruling on the runtime;
 - the parity test on the export;

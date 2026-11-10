@@ -4,8 +4,9 @@
 
 run from `src/projects/risk/gpu/`; the PPO trainer reads the same panel on its learner every
 `--eval-every` iterations with `--panel`. At 5 players, on fixed deals, the network alone among four
-GD Defensive (the floor), and one-in and one-out against net-v1 sw128b-450 (the planner's class) and
-against imit-1 (the imitation of the target's class), each read twice: the network sampling its
+GD Defensive (the floor), and one-in and one-out against net-v1 sw128b-450 (the planner's class),
+against imit-1 (the imitation of the target's class) and against s2-2-150 (stage 2's best, past
+the target's class, learned-v1's weights), each read twice: the network sampling its
 moves as net-v1 plays, and playing its most likely move. Its opponents always sample. Each reading is
 the network side's win share of the decisive games against its par, with a 95% Wilson interval.
 Beside them, the stall's health reading: five argmax copies of the network at one table, and the
@@ -30,7 +31,8 @@ from .ppo import Evaluator, MirrorEval, PairEval
 GPU = os.path.dirname(DATA)
 SW128B_450 = os.path.join(GPU, "runs", "selfplay", "sw128b", "snap-450.pt")
 IMIT_1 = os.path.join(GPU, "runs", "imitate", "imit-1", "best.pt")
-ANCHORS = (("sw128b-450", SW128B_450), ("imit-1", IMIT_1))
+S2_2_150 = os.path.join(GPU, "runs", "selfplay", "s2-2", "snap-150.pt")
+ANCHORS = (("sw128b-450", SW128B_450), ("imit-1", IMIT_1), ("s2-2-150", S2_2_150))
 MODES = ("sample", "argmax")
 
 
