@@ -20,6 +20,10 @@ exports[`seated bots are frozen > greedy plays the moves it was rated on (frozen
 
 exports[`seated bots are frozen > greedy plays the moves it was rated on (frozen-b) 1`] = `"06174340a3457c7bfac8a67765bc6640"`;
 
+exports[`seated bots are frozen > learned-v1 plays the moves it was rated on (frozen-a) 1`] = `"716ef257ae03df424aedccc883ec881d"`;
+
+exports[`seated bots are frozen > learned-v1 plays the moves it was rated on (frozen-b) 1`] = `"22f78896bb72747c9e8670cf88c89850"`;
+
 exports[`seated bots are frozen > rule-v1 plays the moves it was rated on (frozen-a) 1`] = `"4f2016764705c349ae0b5dda736ac914"`;
 
 exports[`seated bots are frozen > rule-v1 plays the moves it was rated on (frozen-b) 1`] = `"f2cb1a71548641433c369a403204d141"`;
