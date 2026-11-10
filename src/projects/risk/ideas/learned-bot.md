@@ -246,7 +246,7 @@ The win Elo is −14 and the finishing-order Elo +35. So **the copy plays at the
 - **The runs stopped at iteration 150, not on a time budget.** That way the seeds read at matched iterations.
 - **A third run, `s2-1-e0`, was added.** It repeats seed 1 with the entropy bonus off, a diagnostic for seed 1's fall (below).
 
-So the night is three runs of 150 iterations each (157 million steps of play a run, about 50 million of them the learner's decisions), with four panels at 1,024 games and five harness reads on the laptop's CPU.
+So the night is three runs of 150 iterations each (157 million steps of play a run, about 50 million of them the learner's decisions), with four panels at 1,024 games and six harness reads on the laptop's CPU.
 
 **The panel at matched iterations** (512 games; 95% Wilson intervals). "Alone among four" is one-in, par 20%:
 
@@ -287,8 +287,9 @@ So the night is three runs of 150 iterations each (157 million steps of play a r
 | s2-2-150, sampling | alone among four rule-v6.1 | **better**: 60.0% [45.5, 73.0] of 45, win Elo +311 |
 | s2-1-50, argmax | alone among four rule-v7.1 | **better**: 43.5% [33.5, 54.1] of 85 decisive games against par 20%, mean place 1.89, none capped |
 | s2-1-50, argmax | four against one rule-v7.1 | **even**: 80.3% [78.4, 82.1] of 1,745 against par 80%, lone v7.1's mean place 3.20, none capped |
+| s2-2-150, argmax | alone among four rule-v7.1 | **better**: 56.4% [43.3, 68.6] of 55 decisive games against par 20%, win Elo +285 at this table, mean place 1.67, none capped |
 
-s2-1-50 against rule-v7.1 is win Elo +15 and finishing-order Elo +43 over both tables. imit-1's argmax play was even one-in and worse one-out, with 29% of its one-out games capped. Every SPRT that stopped early did so on a large edge, so those intervals are wide; each one's lower bound is still above par, and above imit-1's own reading at that table. s2-2-150's argmax read alone among four rule-v7.1 was still playing when this was written.
+s2-1-50 against rule-v7.1 is win Elo +15 and finishing-order Elo +43 over both tables. imit-1's argmax play was even one-in and worse one-out, with 29% of its one-out games capped. Every SPRT that stopped early did so on a large edge, so those intervals are wide; each one's lower bound is still above par, and above imit-1's own reading at that table.
 
 **Health.**
 - KL stayed between 0.003 and 0.006 a step, and the clipped share between 0.03 and 0.06, in every run.

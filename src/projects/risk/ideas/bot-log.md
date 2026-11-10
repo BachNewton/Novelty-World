@@ -1477,6 +1477,7 @@ The reads stage 1 left (`learned-bot.md`, "The day after").
     - alone among four, **better**: 43.5% [33.5, 54.1] of 85 decisive games against a par of 20%;
     - four against one, **even**: 80.3% [78.4, 82.1] of 1,745 against a par of 80%.
     - None capped either way: win Elo +15, finishing-order Elo +43. imit-1 was even and worse at those two tables.
+  - `s2-2-150` argmax alone among four rule-v7.1, **better**: 56.4% [43.3, 68.6] of 55 decisive games, win Elo +285, none capped.
 - **Health**: KL 0.003 to 0.006, the clipped share 0.03 to 0.06, explained variance 0.92 to 0.96. The entropy fell from 1.02 to about 0.5 by iteration 50, then rose to 1.6 to 1.9 under the 0.01 bonus. With the bonus off, it fell to 0.28.
 - **The seeds** agreed at iteration 50. After it, seed 1 fell back (argmax alone among four sw128b-450, 36.3% to 23.1%), while seed 2 kept climbing (to 41.0%). The same seed with the entropy bonus off didn't fall against sw128b-450, and didn't gain either.
 
