@@ -486,8 +486,10 @@ def main(argv: list[str] | None = None) -> int:
         ck = torch.load(latest, map_location=device, weights_only=False)
         net.load_state_dict(ck["net"])
         opt.load_state_dict(ck["opt"])
-        iteration, steps_done, league = ck["iteration"], ck["steps"], ck["league"]
-        record_of = ck.get("record_of", {})
+        iteration, steps_done = ck["iteration"], ck["steps"]
+        # Paths saved on Windows carry backslashes, which Linux (a Kaggle session) reads as part of a name.
+        league = [p.replace("\\", "/") for p in ck["league"]]
+        record_of = {p.replace("\\", "/"): r for p, r in ck.get("record_of", {}).items()}
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     with open(os.path.join(out_dir, "args.json"), "w") as f:
@@ -609,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
             torch.save(net.state_dict(), path)
             # Kept relative to the GPU folder, so a run resumes in any checkout of the repo.
-            league.append(os.path.relpath(path, GPU))
+            league.append(os.path.relpath(path, GPU).replace("\\", "/"))
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]

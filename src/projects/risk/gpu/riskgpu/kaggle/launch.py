@@ -51,6 +51,11 @@ def needed_files(name: str, trainer_args: list[str]) -> list[str]:
     if os.path.isdir(own):
         files += [f"runs/selfplay/{name}/{f}" for f in sorted(os.listdir(own))
                   if os.path.isfile(os.path.join(own, f)) and f not in LOCAL_ONLY]
+    latest = os.path.join(own, "latest.pt")
+    if os.path.exists(latest):
+        # A resumed run's league seats its past snapshots, which may live in the run it was copied from.
+        import torch
+        files += [p.replace("\\", "/") for p in torch.load(latest, map_location="cpu", weights_only=False)["league"]]
     for arg in trainer_args:
         files += CHECKPOINT.findall(arg.replace("\\", "/"))
     if "--panel" in trainer_args and trainer_args[trainer_args.index("--panel") + 1] != "0":
