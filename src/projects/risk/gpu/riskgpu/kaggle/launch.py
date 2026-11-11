@@ -125,14 +125,16 @@ def sha256(path: str) -> str | None:
 def wait_ready(dataset: str) -> None:
     # Kaggle processes an upload before a session can mount it, and offers no event for that, so its
     # status is asked; a session started early would mount the previous version (`kernel.py` checks).
+    # A dataset just created answers 403 until it has been processed, so a refusal is waited through too.
     for _ in range(120):
-        status = kaggle("datasets", "status", dataset).stdout.strip().lower()
-        if "ready" in status:
+        asked = kaggle("datasets", "status", dataset, check=False)
+        status = asked.stdout.strip().lower()
+        if asked.returncode == 0 and "ready" in status:
             return
-        if "error" in status:
+        if asked.returncode == 0 and "error" in status:
             raise SystemExit(f"{dataset}'s upload failed: {status}")
         time.sleep(15)
-    raise SystemExit(f"{dataset} still isn't ready after 30 minutes")
+    raise SystemExit(f"{dataset} still isn't ready after 30 minutes; it last said:\n{asked.stdout}{asked.stderr}")
 
 
 def push(args: argparse.Namespace) -> int:
