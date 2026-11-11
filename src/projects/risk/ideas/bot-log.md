@@ -1496,3 +1496,11 @@ Predictions 1 (sampled learner at par or more against sw128b-450) and 3 (mirror 
 - Win Elo over rule-v7.1: +174 on train, +170 on holdout. Finishing-order Elo: +197 on both.
 
 Each run played about 1,050 games and 680,000 decisions, in 7,900 s and 7,600 s on Actions. Next: the owner's ruling on the runtime, the parity test, and the seatable ratings run.
+
+## Seed 2 trained on past iteration 150: even with s2-2-150 at 200 (2026-11-10)
+
+Seed 2 of stage 2 resumed from iteration 150 on the same recipe and stopped at 228. The panel now also reads against s2-2-150. At iteration 200, against s2-2-150:
+- alone among four of it, 19.5% [15.1, 24.8] sampling and 19.9% [15.5, 25.2] argmax, against a par of 20%;
+- four against one of it, 79.7% [74.3, 84.2] and 80.9% [75.6, 85.2], against a par of 80%.
+
+The other reads held at iteration 150's level. Fifty more iterations gained nothing the panel resolves (about 50 Elo a seat). The snapshots at 175, 200 and 225 are kept in `gpu/runs/selfplay/s2-2/`.
