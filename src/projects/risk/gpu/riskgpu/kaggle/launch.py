@@ -260,15 +260,16 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--accelerator", default="NvidiaTeslaT4")
     s.add_argument("--session-hours", type=float, default=11.0, help="under Kaggle's 12-hour session, with room to set up")
     s.add_argument("--no-stop", action="store_true", help="let the session run its hours without a plateau stop")
-    s.add_argument("trainer", nargs=argparse.REMAINDER, help="after --: the trainer's arguments")
     for command in ("status", "fetch"):
         sub.add_parser(command).add_argument("name")
     r = sub.add_parser("report")
     r.add_argument("name")
     r.add_argument("--key", default=None, help="the panel reading to show (default: the run's --stop-key)")
-    args = p.parse_args(argv)
-    if args.command == "push" and args.trainer[:1] == ["--"]:
-        args.trainer = args.trainer[1:]
+    argv = sys.argv[1:] if argv is None else argv
+    # The trainer's arguments follow `--`, kept apart so the launcher's own options never mix with them.
+    split = argv.index("--") if "--" in argv else len(argv)
+    args = p.parse_args(argv[:split])
+    args.trainer = argv[split + 1:]
     return {"push": push, "status": status, "fetch": fetch, "report": report}[args.command](args)
 
 
