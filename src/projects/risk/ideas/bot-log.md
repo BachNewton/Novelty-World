@@ -1504,3 +1504,32 @@ Seed 2 of stage 2 resumed from iteration 150 on the same recipe and stopped at 2
 - four against one of it, 79.7% [74.3, 84.2] and 80.9% [75.6, 85.2], against a par of 80%.
 
 The other reads held at iteration 150's level. Fifty more iterations gained nothing the panel resolves (about 50 Elo a seat). The snapshots at 175, 200 and 225 are kept in `gpu/runs/selfplay/s2-2/`.
+
+## learned-v1 seated: 1694 on the seatable ladder, the strongest seatable bot (2026-11-11)
+
+`risk:ratings -- --seatable` with learned-v1 (`net-v1~{"weights":"s2-2-150","pick":"argmax"}`, `bots/learned-v1/`) among the seatable bots, on GitHub Actions (run 42808137973, from `risk/s2-reads`, 15,912 games in 3,536 seed groups over 14 rounds, none from the cache). The whole ladder replayed: three files every matchup's code hash covers (`engine/setup.ts`, `shared/lib/shuffle.ts`, `eval/native/bot.ts`) had changed since the last ladder, so every cached matchup was stale. The import keeps the whole refreshed cache.
+
+| Rank | Bot | Elo (greedy = 1000) | Last ladder |
+|---|---|---|---|
+| Major | **learned-v1** | **1693.7** | new |
+| Captain | rule-v7.1 | 1629.4 | 1668.6 |
+| First Lieutenant | rule-v6.1 | 1504.3 | 1536.2 |
+| Second Lieutenant | rule-v5.1 | 1478.1 | 1513.1 |
+| Warrant Officer | rule-v4.1 | 1458.5 | 1493.2 |
+| Sergeant Major | rule-v2 | 1392.7 | 1421.7 |
+| Master Sergeant | rule-v3 | 1389.6 | 1428.3 |
+| Sergeant First Class | rule-v1 | 1287.1 | 1312.3 |
+| Staff Sergeant | gd-stacker | 1071.0 | 1084.4 |
+| Sergeant | gd-continental | 1064.7 | 1071.0 |
+| Corporal | gd-defensive | 1017.1 | 975.0 |
+| Private | gd-aggressive | 1016.1 | 1010.4 |
+| Recruit | greedy | 1000 | 1000 |
+
+Finishing-order Elo puts learned-v1 first too, +436.5 over greedy against v7.1's +347.0. No game of learned-v1's capped in any matchup.
+
+- **learned-v1 is the strongest seatable bot**, 64 above rule-v7.1, so it is the lobby's default bot (`DEFAULT_BOT`, the strongest by Elo) and the bot picker's first entry. Its direct matchups with v7.1: alone among v7.1s it won 46.7%, 40.0%, 40.0% and 50.0% at 3 to 6 players (par 33.3, 25, 20, 16.7%); a lone v7.1 among learned-v1s won 6.7%, 15.0%, 16.0% and 16.7%. Against everything below v7.1 it won 72% to 100% alone, and a lone opponent among it at most 22%.
+- **The ladder's gap is smaller than the gauntlet's.** The M4 gauntlet read +170 to +174 win Elo over v7.1 head to head; the ladder puts the two 64 apart. The ladder fits one strength per bot across every matchup: learned-v1 already wins nearly every game against the weak bots, as v7.1 nearly does, so those matchups can't spread them, and the one fit lands between the head-to-head edge and the edge over the field.
+- **Every rank that moved** is a swap of neighbours within the ladder's precision (18.2 Elo): rule-v2 over rule-v3 (3 Elo apart, the other way round by 7 last time), and at the bottom greedy, GD Aggressive and GD Defensive within 17 Elo of each other, GD Defensive up from last to third from last and greedy down to Recruit. Everything else kept its rank; rule-v7.1 is still Captain, with learned-v1 a rung above it.
+- **The whole ladder sits closer to greedy than before**, the rule bots 25 to 39 lower than on the last ladder, GD Defensive 42 higher. These are new deals (the setup and shuffle changed), so every number is a fresh sample; the order of everything more than a margin apart is unchanged.
+
+16,056 games and 10.4 million decisions in 6.6 hours, over 191 play jobs in 14 rounds. Seated per `learned-bot.md` ("Seating"), on the TypeScript export at net-v1's cost, the runtime the owner ruled acceptable.

@@ -84,6 +84,8 @@ The rungs past `gpu-engine.md`'s milestones, each fixed before the run that read
 
 A learned bot that passes M4 is seated as any bot is, after a ruling on its runtime: the TypeScript export of net-v1 fits a real turn (about 119 milliseconds a decision on one loaded core), and a bot that needs the native search needs the Rust seat the native line hasn't decided (`native-v2.md`, "Seating is a separate step").
 
+**learned-v1 is seated** (`bots/learned-v1/`): net-v1's network with the weight set s2-2-150, playing its most likely move, on the TypeScript export at net-v1's cost, a runtime the owner ruled acceptable. Its export passed the parity test, and the game server bundles its weights. On the seatable ladder it rates 1694 (greedy 1000), first of every seatable bot and 64 above rule-v7.1, so it is the lobby's default (`bot-log.md`, "learned-v1 seated"). Later learned bots are seated beside it the same way, each a version of its own.
+
 ## The first night
 
 The plan of the stage-1 run, in the skill's shape (`references/recipes.md`, "The plan before a run").
@@ -342,10 +344,7 @@ The 5-player one-in pairing's tally is the same on both seed sets (31 to 24 in 5
 
 Every other read stayed at iteration 150's level, and the entropy sat at about 2. The run was stopped at 228, with snapshots kept at 175, 200 and 225. So on this recipe, 50 more iterations past 150 bought nothing the panel can resolve, about 50 Elo a seat. Whether the curve has flattened or only slowed is the question a longer run with s2-2-150 as an anchor answers. The sw128b-450 and imit-1 reads can no longer tell.
 
-So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What follows, by "Seating" above:
-- the owner's ruling on the runtime;
-- the parity test on the export;
-- the seatable ratings run with every seatable bot, which sets its rank.
+So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 
 ### Kill rule, cost, and what follows
 

@@ -1,18 +1,19 @@
 {
-  "measured": "risk:ratings -- --seatable --margin 30 --alpha 0.05, 2026-10-27: 10080 games at 3, 4, 5, 6 players, each bot alone among each other",
+  "measured": "risk:ratings -- --seatable --margin 30 --alpha 0.05, 2026-11-10: 15912 games at 3, 4, 5, 6 players, each bot alone among each other",
   "anchor": "greedy = 1000",
   "elo": {
     "greedy": 1000,
-    "rule-v1": 1312.3,
-    "rule-v2": 1421.7,
-    "rule-v3": 1428.3,
-    "rule-v4.1": 1493.2,
-    "rule-v5.1": 1513.1,
-    "rule-v6.1": 1536.2,
-    "rule-v7.1": 1668.6,
-    "gd-defensive": 975,
-    "gd-continental": 1071,
-    "gd-aggressive": 1010.4,
-    "gd-stacker": 1084.4
+    "rule-v1": 1287.1,
+    "rule-v2": 1392.7,
+    "rule-v3": 1389.6,
+    "rule-v4.1": 1458.5,
+    "rule-v5.1": 1478.1,
+    "rule-v6.1": 1504.3,
+    "rule-v7.1": 1629.4,
+    "learned-v1": 1693.7,
+    "gd-defensive": 1017.1,
+    "gd-continental": 1064.7,
+    "gd-aggressive": 1016.1,
+    "gd-stacker": 1071
   }
 }

@@ -2,9 +2,13 @@
 
 A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot that masters the game: one whose strength keeps rising with the training it is given, until it beats any person (`learned-bot.md`). The rule bots are its floor, its teachers and its yardsticks, and the seated best is the bot players feel meanwhile.
 
+## learned-v1 seated: the strongest bot, and the first that learned
+
+learned-v1 (`bots/learned-v1/`) is net-v1's network with the weight set s2-2-150, playing its most likely move: imit-1's copy of native-v2, improved by PPO (`learned-bot.md`). It passed M4, better than rule-v7.1 at every table in both mixtures on train and holdout seeds, and rates 1694 on the seatable ladder, 64 above v7.1's 1629, first of every seatable bot (`bot-log.md`, "learned-v1 seated"). It is the lobby's default and the bot to beat.
+
 ## rule-v7.1: v7's search on v6.1, seated
 
-v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is seated: better than v6, v6.1 and the weak bots at every table on train seeds, 1669 on the seatable ladder against v6's last 1560 and v6.1's 1536, and its own 5- and 6-player tables finish their games (`bot-log.md`, "v7.1's train gauntlet" and "v7.1 seated"). It is now the bot to beat.
+v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is seated: better than v6, v6.1 and the weak bots at every table on train seeds, and second on the seatable ladder (1629), below learned-v1 and above v6.1's 1504 (`bot-log.md`, "v7.1's train gauntlet", "v7.1 seated" and "learned-v1 seated"). It is the strongest rule bot, and the yardstick the learned line's M4 was read against.
 
 ## Stalled games: fixed and seated, at a cost at 6 players
 
@@ -30,9 +34,10 @@ native-v2 is v7's search on native replies, with switches (`native-v2.md`). The 
 
 Every line that learns is now one line with one design doc, `learned-bot.md`, written to the `machine-learning` skill: the brief, the ruler, the approach, and the next run's predictions. Where it stands:
 
-- **net-v1**, a transformer trained from scratch by PPO on the GPU engine (`gpu-engine.md`, "Phase 3 so far"), passed M1, M2 and M3: `net-v1~{"weights":"sw128b-450"}` is better than rule-v6 one-in and one-out on train seeds, and worse than rule-v7.1 at 5 players (−64 win Elo: it outlasts v7.1 and doesn't finish). Trained on, it wandered: the league and the opponents' strength were ruled out as the cause, the gradient's noise scale measured at about 1.8 million decisions, colder updates slowed the drift without stopping it, and a shaping reward taught stalling (`self-play-league.md`). M4 stands open.
-- **imit-1**, stage 1 of `learned-bot.md`: net-v1 trained to copy native-v2 (v7.1's search on the native planner) from 19,600 recorded games. It makes the teacher's choice on 65% of held-out decisions. Played by its most likely move (`net-v1~{"weights":"imit-1","pick":"argmax"}`), it is better than rule-v6.1 alone among four of them at 5 players, +110 win Elo, the strongest net here. Sampling, as net-v1 plays by default, it is worse (−136). The argmax copy stalls among its own copies (4 of 10 five-player mirrors capped).
+- **net-v1**, a transformer trained from scratch by PPO on the GPU engine (`gpu-engine.md`, "Phase 3 so far"), passed M1, M2 and M3 as `sw128b-450`; trained on, it wandered (`self-play-league.md`).
+- **imit-1**, stage 1: net-v1 trained to copy native-v2 (v7.1's search on the native planner), making the teacher's choice on 65% of held-out decisions, the warm start for stage 2.
+- **s2-2-150**, stage 2: PPO from imit-1. Played by its most likely move it passed M4, better than rule-v7.1 at every table in both mixtures, train and holdout, about +170 win Elo head to head. It is seated as **learned-v1**, first on the seatable ladder. Trained on to iteration 228, the same seed gained nothing the panel resolves past 150.
 - **student-v1** (above) is a research bot below v7, and its pipeline is the template for distilling a search's choices.
 - **rule-v8**, the planner on a learned evaluation, is closed (`rule-bot-v8.md`): an evaluation fit to one population's games carries that population in.
 
-**Next:** stage 2 of `learned-bot.md`: PPO from imit-1, a seed pair, with imit-1 pinned in the league, read on the panel both sampling and argmax, the argmax mirror's cap rate beside it. Before it, on Actions: the argmax copy one-out among rule-v6.1, and one-in and one-out against rule-v7.1. Then the net inside the search.
+**Next:** M5 and the net inside the search (`learned-bot.md`, "Beyond M4" and stage 3), with s2-2-150 as the panel's anchor. Whether the PPO curve has flattened or only slowed is the first question: a longer run, or a change of recipe, read against s2-2-150. The GPU work waits for the eGPU's return; until then the CPU and Actions can read learned-v1 against native-v2 and vulture-v1 (M6's first half).
