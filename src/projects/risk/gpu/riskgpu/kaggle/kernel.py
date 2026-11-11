@@ -82,10 +82,14 @@ def main(job: dict) -> int:
                             "torch": torch.__version__, "args": job["args"]}) + "\n")
     cmd = [sys.executable, "-u", "-m", "riskgpu.selfplay.ppo", "--name", name, "--resume", *job["args"]]
     print("$", " ".join(cmd), flush=True)
+    # Each line goes to the run's out.txt and to the session's log, which Kaggle's page shows live.
     with open(os.path.join(run_dir, "out.txt"), "a") as out, open(os.path.join(run_dir, "err.txt"), "a") as err:
-        code = subprocess.run(cmd, cwd=gpu_dir, stdout=out, stderr=err).returncode
-    with open(os.path.join(run_dir, "out.txt")) as f:
-        print("".join(f.readlines()[-40:]), flush=True)
+        trainer = subprocess.Popen(cmd, cwd=gpu_dir, stdout=subprocess.PIPE, stderr=err, text=True)
+        for line in trainer.stdout:
+            out.write(line)
+            out.flush()
+            print(line, end="", flush=True)
+        code = trainer.wait()
     if code != 0:
         with open(os.path.join(run_dir, "err.txt")) as f:
             print(f.read()[-4000:], file=sys.stderr, flush=True)
