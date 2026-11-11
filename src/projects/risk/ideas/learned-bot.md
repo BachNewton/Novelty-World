@@ -344,6 +344,8 @@ The 5-player one-in pairing's tally is the same on both seed sets (31 to 24 in 5
 
 Every other read stayed at iteration 150's level, and the entropy sat at about 2. The run was stopped at 228, with snapshots kept at 175, 200 and 225. So on this recipe, 50 more iterations past 150 bought nothing the panel can resolve, about 50 Elo a seat. Whether the curve has flattened or only slowed is the question a longer run with s2-2-150 as an anchor answers. The sw128b-450 and imit-1 reads can no longer tell.
 
+**Seed 2 on Kaggle, iterations 225 to 250 (k1).** A copy of s2-2 at its iteration-225 checkpoint, trained on in full precision on a Kaggle T4 (`docs/kaggle.md`), the same recipe otherwise. At 250 it is still even with s2-2-150: alone among four, 18.4% [14.1, 23.6] sampling and 19.9% [15.5, 25.2] argmax; four against one, 79.3% [73.9, 83.8] and 76.2% [70.6, 81.0]. Every panel reading at 250 lies within the interval of the bf16 reading at 200, so the change of precision shows no effect the panel can resolve (about ±5 points a reading), though it was read across 50 more iterations of training, not on the same weights.
+
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 
 ### Kill rule, cost, and what follows
