@@ -11,8 +11,9 @@ run from `src/projects/risk/gpu/` (`docs/kaggle.md`). The run's folder here,
 own folder, to resume it, every checkpoint its arguments name, the panel's anchors and the blitz
 tables, which git ignores) as a private dataset, then pushes `kernel.py` as a private script that
 trains from the repo at this checkout's commit, which must be on GitHub. A T4 session has two GPUs,
-so a push may name two runs (a seed pair, or a base and a change), each trained on a GPU of its own
-for the same quota. `fetch` brings every run of the session back over its local folder, refusing if
+and the quota counts the session, so a push names its runs in order and each GPU takes the next as
+it frees; after a run stops, its sharp reading (the panel at a larger size on its last checkpoints,
+`kernel.py`) joins the queue, so no GPU sits idle while the session runs. `fetch` brings every run of the session back over its local folder, refusing if
 a local run moved since the push. `report` reads
 the run's panel readings with their intervals and the verdict (`selfplay/verdict.py`).
 
@@ -148,9 +149,10 @@ def last_value(args: list[str], flag: str) -> str | None:
     return args[len(args) - 1 - args[::-1].index(flag) + 1]
 
 
-def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool, session_hours: float) -> list[str]:
+def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool) -> list[str]:
     """One run's trainer arguments: the shared ones, then its own (which win, as argparse takes the
-    last), then the session's cap; refused here, before any upload, if a session would refuse them."""
+    last); refused here, before any upload, if a session would refuse them. The session adds the
+    hours it has left when the run starts."""
     args = shared + shlex.split(extra)
     if accelerator in PRE_AMPERE:
         assert "--no-bf16" in args, f"{accelerator} has no native bfloat16: give the trainer --no-bf16"
@@ -160,7 +162,7 @@ def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool, ses
         assert last_value(args, "--stop-key") and last_value(args, "--panel") not in (None, "0"), \
             "the stop reads --stop-key on the panel: give the trainer both"
     assert "--session-hours" not in args, "the session's cap is the launcher's --session-hours"
-    return args + ["--session-hours", str(session_hours)]
+    return args
 
 
 def push(args: argparse.Namespace) -> int:
@@ -168,8 +170,8 @@ def push(args: argparse.Namespace) -> int:
     assert len(set(names)) == len(names), "a run can't share a session with itself"
     extras = dict(x.split("=", 1) for x in args.run_args)
     assert set(extras) <= set(names), f"--run-args names a run not pushed: {sorted(set(extras) - set(names))}"
-    runs = [{"name": n, "args": run_args(list(args.trainer), extras.get(n, ""), args.accelerator, args.no_stop,
-                                         args.session_hours)} for n in names]
+    runs = [{"name": n, "args": run_args(list(args.trainer), extras.get(n, ""), args.accelerator, args.no_stop)}
+            for n in names]
     commit = checkout_commit()
     user = username()
     job_name = "-".join(names)
@@ -198,7 +200,7 @@ def push(args: argparse.Namespace) -> int:
     kernel_dir = os.path.join(STAGING, job_name, "kernel")
     shutil.rmtree(kernel_dir, ignore_errors=True)
     os.makedirs(kernel_dir)
-    job = {"commit": commit, "bundle": bundle_id, "runs": runs}
+    job = {"commit": commit, "bundle": bundle_id, "runs": runs, "session_hours": args.session_hours}
     with open(KERNEL) as f:
         source = f.read()
     with open(os.path.join(kernel_dir, "run.py"), "w") as f:
@@ -277,6 +279,15 @@ def report(args: argparse.Namespace) -> int:
             low, high = r["interval"]
             print(f"  iter {r['iter']:>5}  {r['steps'] / 1e6:>7.0f}M  {r['win']:.3f} [{low:.3f}, {high:.3f}]  "
                   f"{verdict(readings[:k + 1])}")
+    sharp = sorted((int(m.group(1)), m.group(0)) for m in
+                   (re.fullmatch(r"panel-(\d+)-g(\d+)\.json", f) for f in os.listdir(run_dir)) if m)
+    if key and sharp:
+        print(f"{key}, sharp readings:")
+        for it, file in sharp:
+            with open(os.path.join(run_dir, file)) as f:
+                r = json.load(f)[key]
+            low, high = r["interval"]
+            print(f"  iter {it:>5}  {r['win']:.3f} [{low:.3f}, {high:.3f}]  ({r['decisive']} decisive games)")
     stopped = os.path.join(run_dir, "stopped.txt")
     if os.path.exists(stopped):
         with open(stopped) as f:
@@ -288,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
     s = sub.add_parser("push")
-    s.add_argument("names", nargs="+", help="the runs, one to each of the session's GPUs (a T4 session has two)")
+    s.add_argument("names", nargs="+", help="the runs, in order: each of the session's GPUs (a T4 session has two) takes the next when it is free")
     s.add_argument("--run-args", action="append", default=[], metavar="NAME=ARGS",
                    help="one run's own trainer arguments, after the shared ones (e.g. k2='--seed 1')")
     s.add_argument("--accelerator", default="NvidiaTeslaT4")

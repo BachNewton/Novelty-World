@@ -95,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ckpt", required=True)
     p.add_argument("--games", type=int, default=1024)
     p.add_argument("--out", default="")
+    p.add_argument("--bf16", action=argparse.BooleanOptionalAction, default=True,
+                   help="the networks in bfloat16 autocast; a GPU before Ampere (a T4) needs --no-bf16")
     args = p.parse_args(argv)
     assert torch.cuda.is_available(), "no CUDA device: is the eGPU connected?"
     device = "cuda"
@@ -104,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     tables.scaled_oversize = True
     net = load_net(args.ckpt, board, device)
     out = {"ckpt": args.ckpt, "games": args.games,
-           **Panel(board, tables, net, args.games, device, gd_bots_for(tables)).run()}
+           **Panel(board, tables, net, args.games, device, gd_bots_for(tables), bf16=args.bf16).run()}
     text = json.dumps(out, indent=1)
     print(text)
     if args.out:

@@ -1,10 +1,17 @@
 """The script a Kaggle session runs (`launch.py` pushes it with its job prepended as `JOB`): standard
 library only, since it starts before the repo is there.
 
-It checks the GPUs, fetches the repo's GPU package at the job's commit, puts the bundle's files back
-at their paths (each run's own folder in `/kaggle/working`, which is what the session keeps), and
-runs each of the job's runs at once, one trainer on each GPU (a T4 session has two), each with its
-own arguments and its output appended to its run's `out.txt` and `err.txt`.
+It checks the GPUs, fetches the repo's GPU package at the job's commit, and puts the bundle's files
+back at their paths (each run's own folder in `/kaggle/working`, which is what the session keeps).
+Then every GPU (a T4 session has two) works through one shared queue, so none sits idle while the
+session's quota runs: first the job's training runs, in order, and after each run stops (its plateau,
+its iterations or the session's hours) a sharp reading of it, the panel at `SHARP_GAMES` a check on
+the checkpoints of its last three headline readings, which tells a flat run from one climbing too
+slowly for the training panel's intervals to resolve. A task's output goes to its run's `out.txt` and
+`err.txt` and to the session's log, which Kaggle's page shows live, each line prefixed with its task.
+
+No task starts after the session's hours are up, and a reading still going half an hour past them is
+stopped, so the session ends inside Kaggle's own limit with its output kept.
 """
 
 import json
@@ -13,12 +20,15 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 
 REPO = "https://github.com/BachNewton/Novelty-World"
 GPU_PATH = "src/projects/risk/gpu"
 INPUT = "/kaggle/input"
 WORKING = "/kaggle/working"
 CLONE = "/tmp/novelty-world"
+SHARP_GAMES = 4096  # a reading's 95% interval about ±1.5 points, against ±5 at the training panel's 512
+GRACE_S = 1800  # how long past the session's hours a reading may run before it is stopped
 
 
 def find_bundle(input_dir: str, bundle_id: str) -> str:
@@ -54,41 +64,117 @@ def restore(bundle_dir: str, gpu_dir: str, working: str, names: list[str]) -> li
     return placed
 
 
+def last_value(args: list[str], flag: str) -> str | None:
+    if flag not in args:
+        return None
+    return args[len(args) - 1 - args[::-1].index(flag) + 1]
+
+
+def sharp_readings(name: str, args: list[str], run_dir: str) -> list[dict]:
+    """The reading tasks for a stopped run: the checkpoints of its last three headline readings, the
+    window its verdict is read on, newest first, each read once."""
+    key = last_value(args, "--stop-key")
+    if not key or not os.path.exists(os.path.join(run_dir, "log.jsonl")):
+        return []
+    iters = []
+    with open(os.path.join(run_dir, "log.jsonl")) as f:
+        for line in f:
+            record = json.loads(line)
+            if key in record.get("panel", {}):
+                iters.append(record["iter"])
+    tasks = []
+    for it in reversed(list(dict.fromkeys(iters))[-3:]):
+        out = os.path.join(run_dir, f"panel-{it}-g{SHARP_GAMES}.json")
+        if os.path.exists(os.path.join(run_dir, f"snap-{it}.pt")) and not os.path.exists(out):
+            tasks.append({"kind": "read", "name": name, "iter": it, "bf16": "--no-bf16" not in args})
+    return tasks
+
+
 def run(cmd: list[str], **kw) -> None:
     print("$", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True, **kw)
 
 
-def train(name: str, args: list[str], device: int, gpu_dir: str, run_dir: str) -> tuple[subprocess.Popen, threading.Thread]:
-    """One run's trainer on one GPU, each line of its output to the run's out.txt and to the session's
-    log (which Kaggle's page shows live), prefixed with the run's name."""
-    cmd = [sys.executable, "-u", "-m", "riskgpu.selfplay.ppo", "--name", name, "--resume", *args]
-    print(f"$ [GPU {device}]", " ".join(cmd), flush=True)
-    err = open(os.path.join(run_dir, "err.txt"), "a")
-    trainer = subprocess.Popen(cmd, cwd=gpu_dir, stdout=subprocess.PIPE, stderr=err, text=True,
-                               env={**os.environ, "CUDA_VISIBLE_DEVICES": str(device)})
+class Session:
+    def __init__(self, job: dict, gpu_dir: str, gpus: int, deadline: float):
+        self.job, self.gpu_dir, self.gpus, self.deadline = job, gpu_dir, gpus, deadline
+        self.queue = [{"kind": "train", **r} for r in job["runs"]]
+        self.lock = threading.Lock()
+        self.failed: list[str] = []
 
-    def pump() -> None:
-        with open(os.path.join(run_dir, "out.txt"), "a") as out:
-            for line in trainer.stdout:
+    def next_task(self) -> dict | None:
+        with self.lock:
+            if not self.queue or time.time() > self.deadline:
+                return None
+            return self.queue.pop(0)
+
+    def command(self, task: dict) -> list[str]:
+        name = task["name"]
+        if task["kind"] == "train":
+            # The session's hours left when the run starts, which the trainer stops itself at.
+            hours = max(0.0, (self.deadline - time.time()) / 3600)
+            return [sys.executable, "-u", "-m", "riskgpu.selfplay.ppo", "--name", name, "--resume", *task["args"],
+                    "--session-hours", f"{hours:.3f}"]
+        it = task["iter"]
+        return [sys.executable, "-u", "-m", "riskgpu.selfplay.panel", "--ckpt", f"runs/selfplay/{name}/snap-{it}.pt",
+                "--games", str(SHARP_GAMES), "--out", f"runs/selfplay/{name}/panel-{it}-g{SHARP_GAMES}.json",
+                "--bf16" if task["bf16"] else "--no-bf16"]
+
+    def perform(self, task: dict, device: int) -> None:
+        name = task["name"]
+        run_dir = os.path.join(WORKING, name)
+        label = f"{name}" if task["kind"] == "train" else f"{name} read {task['iter']}"
+        cmd = self.command(task)
+        print(f"$ [GPU {device}] [{label}]", " ".join(cmd), flush=True)
+        with open(os.path.join(run_dir, "out.txt"), "a") as out, open(os.path.join(run_dir, "err.txt"), "a") as err:
+            proc = subprocess.Popen(cmd, cwd=self.gpu_dir, stdout=subprocess.PIPE, stderr=err, text=True,
+                                    env={**os.environ, "CUDA_VISIBLE_DEVICES": str(device)})
+            if task["kind"] == "read":
+                # The trainer stops itself at the session's hours; a reading is stopped from here.
+                stopper = threading.Timer(max(0.0, self.deadline + GRACE_S - time.time()), proc.kill)
+                stopper.start()
+            for line in proc.stdout:
                 out.write(line)
                 out.flush()
-                print(f"[{name}] {line}", end="", flush=True)
-        err.close()
+                print(f"[{label}] {line}", end="", flush=True)
+            code = proc.wait()
+            if task["kind"] == "read":
+                stopper.cancel()
+        if code != 0:
+            with open(os.path.join(run_dir, "err.txt")) as f:
+                print(f"[{label}] failed ({code}):\n" + f.read()[-4000:], file=sys.stderr, flush=True)
+            with self.lock:
+                self.failed.append(f"{label} ({code})")
+        if task["kind"] == "train" and code == 0:
+            with self.lock:
+                self.queue += sharp_readings(name, task["args"], run_dir)
 
-    pumping = threading.Thread(target=pump)
-    pumping.start()
-    return trainer, pumping
+    def worker(self, device: int) -> None:
+        while (task := self.next_task()) is not None:
+            self.perform(task, device)
+
+    def run(self) -> None:
+        workers = [threading.Thread(target=self.worker, args=(d,)) for d in range(self.gpus)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+        with self.lock:
+            left = [f"{t['name']} {t['kind']}" for t in self.queue]
+        if left:
+            print(f"the session's hours ran out with tasks left: {left}", flush=True)
+        if self.failed:
+            raise SystemExit(f"tasks failed: {', '.join(self.failed)}; see each run's err.txt")
 
 
 def main(job: dict) -> int:
+    started = time.time()
     run(["nvidia-smi"])
     import torch
     assert torch.cuda.is_available(), "no CUDA device in this session: was it pushed with a GPU?"
-    print(f"torch {torch.__version__}, {torch.cuda.device_count()} x {torch.cuda.get_device_name(0)}, "
+    gpus = torch.cuda.device_count()
+    print(f"torch {torch.__version__}, {gpus} x {torch.cuda.get_device_name(0)}, "
           f"capability {torch.cuda.get_device_capability(0)}", flush=True)
-    runs = job["runs"]
-    assert len(runs) <= torch.cuda.device_count(), f"{len(runs)} runs need a GPU each; the session has {torch.cuda.device_count()}"
 
     os.makedirs(CLONE, exist_ok=True)
     run(["git", "init", "-q"], cwd=CLONE)
@@ -98,34 +184,20 @@ def main(job: dict) -> int:
     run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=CLONE)
     gpu_dir = os.path.join(CLONE, GPU_PATH)
 
-    names = [r["name"] for r in runs]
+    names = [r["name"] for r in job["runs"]]
     for name in names:
         os.makedirs(os.path.join(WORKING, name), exist_ok=True)
     placed = restore(find_bundle(INPUT, job["bundle"]), gpu_dir, WORKING, names)
     print(f"restored {len(placed)} files", flush=True)
-
-    trainers = []
-    for device, r in enumerate(runs):
-        run_dir = os.path.join(WORKING, r["name"])
-        link = os.path.join(gpu_dir, "runs", "selfplay", r["name"])
+    for name in names:
+        link = os.path.join(gpu_dir, "runs", "selfplay", name)
         os.makedirs(os.path.dirname(link), exist_ok=True)
-        os.symlink(run_dir, link)
-        with open(os.path.join(run_dir, "kaggle-sessions.jsonl"), "a") as f:
-            f.write(json.dumps({"commit": job["commit"], "bundle": job["bundle"],
-                                "device": torch.cuda.get_device_name(device), "torch": torch.__version__,
-                                "args": r["args"], "beside": [n for n in names if n != r["name"]]}) + "\n")
-        trainers.append((r["name"], train(r["name"], r["args"], device, gpu_dir, run_dir)))
+        os.symlink(os.path.join(WORKING, name), link)
+        with open(os.path.join(WORKING, name, "kaggle-sessions.jsonl"), "a") as f:
+            f.write(json.dumps({"commit": job["commit"], "bundle": job["bundle"], "device": torch.cuda.get_device_name(0),
+                                "gpus": gpus, "torch": torch.__version__, "runs": job["runs"]}) + "\n")
 
-    failed = []
-    for name, (trainer, pumping) in trainers:
-        code = trainer.wait()
-        pumping.join()
-        if code != 0:
-            with open(os.path.join(WORKING, name, "err.txt")) as f:
-                print(f"[{name}] " + f.read()[-4000:], file=sys.stderr, flush=True)
-            failed.append(f"{name} ({code})")
-    if failed:
-        raise SystemExit(f"trainers failed: {', '.join(failed)}; see each run's err.txt")
+    Session(job, gpu_dir, gpus, started + job["session_hours"] * 3600).run()
     return 0
 
 
