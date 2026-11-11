@@ -23,19 +23,23 @@ def test_verdicts_follow_the_daily_contract():
     assert verdict([reading(0.40), reading(0.45), reading(0.44), reading(0.30)]) == "climbing"
 
 
-def test_a_bundle_lands_where_the_trainer_reads(tmp_path):
-    files = ["data/blitz-256.bin", "runs/selfplay/r1/latest.pt", "runs/selfplay/r1/snap-25.pt", "runs/imitate/imit-1/best.pt"]
-    mounted = tmp_path / "input" / "datasets" / "someone" / "risk-bundle-r1"
+def test_a_bundle_lands_where_the_trainers_read(tmp_path):
+    files = ["data/blitz-256.bin", "runs/selfplay/r1/latest.pt", "runs/selfplay/r1/snap-25.pt",
+             "runs/selfplay/r2/latest.pt", "runs/selfplay/r0/snap-200.pt", "runs/imitate/imit-1/best.pt"]
+    mounted = tmp_path / "input" / "datasets" / "someone" / "risk-bundle-r1-r2"
     mounted.mkdir(parents=True)
     for rel in files:
         (mounted / flat_name(rel)).write_text(rel)
     (mounted / "MANIFEST.json").write_text(json.dumps({"id": "b1", "files": {flat_name(r): r for r in files}}))
-    gpu, run_dir = tmp_path / "repo" / "gpu", tmp_path / "working" / "r1"
+    gpu, working = tmp_path / "repo" / "gpu", tmp_path / "working"
 
-    kernel.restore(kernel.find_bundle(str(tmp_path / "input"), "b1"), str(gpu), str(run_dir), "r1")
+    kernel.restore(kernel.find_bundle(str(tmp_path / "input"), "b1"), str(gpu), str(working), ["r1", "r2"])
 
     assert (gpu / "data" / "blitz-256.bin").read_text() == "data/blitz-256.bin"
     assert (gpu / "runs" / "imitate" / "imit-1" / "best.pt").exists()
-    # The run's own files go to the folder the session keeps, not into the clone.
-    assert sorted(os.listdir(run_dir)) == ["latest.pt", "snap-25.pt"]
+    # Each run's own files go to the folder the session keeps, not into the clone; a run the session
+    # doesn't train (one a league seats snapshots from) stays in the clone.
+    assert sorted(os.listdir(working / "r1")) == ["latest.pt", "snap-25.pt"]
+    assert sorted(os.listdir(working / "r2")) == ["latest.pt"]
+    assert (gpu / "runs" / "selfplay" / "r0" / "snap-200.pt").exists()
     assert not (gpu / "runs" / "selfplay" / "r1").exists()

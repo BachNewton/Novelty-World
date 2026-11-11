@@ -16,8 +16,9 @@ python -m riskgpu.kaggle.launch fetch <name>
 python -m riskgpu.kaggle.launch report <name>
 ```
 
-- **`push`** uploads what the session needs that git doesn't carry (the run's own folder, so it resumes; every checkpoint its arguments name; the panel's anchors; the blitz tables) as a private dataset, then starts a private script that clones the repo's GPU package at this checkout's commit and trains. The commit must be on GitHub and the GPU package committed, or the session would train other code than the one here; the launcher refuses otherwise. Every session resumes the run from its `latest.pt` when there is one.
-- **`fetch`** brings the session's run folder back over the local one, once the session has ended. The local run folder stays the source of truth: the fetch refuses if the local `latest.pt` changed since the push, since it would overwrite that work.
+- **`push`** uploads what the session needs that git doesn't carry (each run's own folder, so it resumes; every checkpoint its arguments name; the panel's anchors; the blitz tables) as a private dataset, then starts a private script that clones the repo's GPU package at this checkout's commit and trains. The commit must be on GitHub and the GPU package committed, or the session would train other code than the one here; the launcher refuses otherwise. Every session resumes the run from its `latest.pt` when there is one.
+- **Two runs to a session.** A T4 session has two GPUs and its quota counts the session, not the GPUs, so a push may name two runs, each trained on a GPU of its own at once: `push k2 k3 --run-args k2="--seed 1" --run-args k3="--seed 2" -- <shared trainer arguments>`. Each run's own arguments follow the shared ones and win where they repeat one. A seed pair (the spread the skill asks for before any change is judged) or a base beside its one change costs what a single run would.
+- **`fetch`** brings every run of the session back over its local folder, once the session has ended. The local run folder stays the source of truth: the fetch refuses if the local `latest.pt` changed since the push, since it would overwrite that work.
 - **`report`** prints the run's panel readings, every one with its interval, the samples it was read at and the verdict at that point.
 
 ## What a session costs and when it stops
