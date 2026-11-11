@@ -32,6 +32,7 @@ from .actions import legal_main
 from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfig
 from .net import Net, evaluate
 from .obs import observe, slots
+from .verdict import panel_readings, verdict
 
 GPU = os.path.dirname(DATA)
 RUNS = os.path.join(GPU, "runs", "selfplay")
@@ -190,11 +191,11 @@ class Evaluator:
     evaluations compare."""
 
     def __init__(self, board, tables, net, players: int, games: int, device: str, opponent: str = "greedy",
-                 gd_bots: list | None = None, greedy: bool = True):
+                 gd_bots: list | None = None, greedy: bool = True, bf16: bool = True):
         kind = KIND_NAMES.index(opponent)
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600,
                         pool=8, snapshots=0, record=False, reset=False, learner_greedy=greedy,
-                        gd=kind >= GD, cap_gd=(0.9,) * len(GD_PERSONAS), cap_learner=0.5, cap_greedy=1.0)
+                        gd=kind >= GD, cap_gd=(0.9,) * len(GD_PERSONAS), cap_learner=0.5, cap_greedy=1.0, bf16=bf16)
         self.env = Env(cfg, board, tables, net, device, seed_prefix=f"eval{players}",
                        gd_bots=[gd_bots[kind - GD]] if kind >= GD else None)
         if kind >= GD:
@@ -265,11 +266,11 @@ class PairEval:
     crushed a net that beat GD harder), so both are watched."""
 
     def __init__(self, board, tables, net, anchor_label: str, anchor_path: str, games: int, device: str,
-                 players: int = 5, greedy: bool = False):
+                 players: int = 5, greedy: bool = False, bf16: bool = True):
         from .ladder import load_net
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
                         snapshots=0, record=False, reset=False, cap_learner=0.85, cap_snapshot=0.85, cap_greedy=0.01,
-                        learner_greedy=greedy)
+                        learner_greedy=greedy, bf16=bf16)
         env = self.env = Env(cfg, board, tables, net, device, seed_prefix="pair")
         env.snapshots = [load_net(anchor_path, board, device)]
         env.active_snapshots = 1
@@ -310,9 +311,11 @@ class MirrorEval:
     unless `greedy` is off: the share of games that reach the cap, the stall's health reading (an
     argmax copy of imit-1 capped 4 of 10 such games, its teacher none of 160)."""
 
-    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, greedy: bool = True):
+    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, greedy: bool = True,
+                 bf16: bool = True):
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
-                        snapshots=0, record=False, reset=False, learner_greedy=greedy, cap_learner=1.0, cap_greedy=0.01)
+                        snapshots=0, record=False, reset=False, learner_greedy=greedy, cap_learner=1.0, cap_greedy=0.01,
+                        bf16=bf16)
         env = self.env = Env(cfg, board, tables, net, device, seed_prefix="mirror")
         env.kind_probs.zero_()
         env.kind_probs[LEARNER] = 1.0
@@ -343,10 +346,10 @@ class Ladder:
     fit over who won each decisive game gives each its win Elo, the oldest at 0."""
 
     def __init__(self, board, tables, net, games: int, device: str, players: int = 5, slots: int = 7,
-                 greedy: bool = True):
+                 greedy: bool = True, bf16: bool = True):
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
                         snapshots=slots, record=False, reset=False, learner_greedy=greedy, snapshot_greedy=greedy,
-                        cap_learner=0.5, cap_snapshot=0.5, cap_greedy=0.01)
+                        cap_learner=0.5, cap_snapshot=0.5, cap_greedy=0.01, bf16=bf16)
         self.env = Env(cfg, board, tables, net, device, seed_prefix="ladder")
         self.env.active_snapshots = slots
         self.players, self.slots, self.games, self.device = players, slots, games, device
@@ -448,7 +451,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
     p.add_argument("--ckpt-every", type=int, default=25)
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--bf16", action=argparse.BooleanOptionalAction, default=True,
+                   help="the networks' forward passes in bfloat16 autocast; a GPU before Ampere (a T4) needs --no-bf16")
+    p.add_argument("--session-hours", type=float, default=None,
+                   help="stop this process after this many hours, saving latest.pt (a session cap, as Kaggle's); --hours caps the run")
+    p.add_argument("--stop-when", default="never", choices=["never", "flat", "falling"],
+                   help="stop once the --stop-key panel reading's verdict (`verdict.py`) is flat or falling (flat), or falling")
+    p.add_argument("--stop-key", default="", help="the panel reading the stop reads, e.g. 'sample s2-2-150 one-in'")
     args = p.parse_args(argv)
+    assert args.stop_when == "never" or (args.stop_key and args.panel), "--stop-when reads --stop-key on the panel: give both"
 
     device = "cuda"
     # Past this the allocator raises rather than letting the Windows driver spill into system
@@ -458,6 +469,9 @@ def main(argv: list[str] | None = None) -> int:
     random.seed(args.seed)
     out_dir = os.path.join(RUNS, args.name)
     os.makedirs(out_dir, exist_ok=True)
+    stopped_path = os.path.join(out_dir, "stopped.txt")
+    if os.path.exists(stopped_path):
+        os.remove(stopped_path)
     board = Board.load(device)
     tables = BlitzTables.load(os.path.join(DATA, "blitz-256"), device)
     tables.scaled_oversize = True
@@ -492,7 +506,7 @@ def main(argv: list[str] | None = None) -> int:
         from ..bots.gd import gd_bot_graphable
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
-                    reward=args.reward, snapshots=args.snapshots)
+                    reward=args.reward, snapshots=args.snapshots, bf16=args.bf16)
     fixed = [x for x in args.league_fixed.split(",") if x]
     assert len(fixed) < cfg.snapshots, "leave the league a slot for this run's own snapshots"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
@@ -538,23 +552,31 @@ def main(argv: list[str] | None = None) -> int:
     set_league()
     if env.graph is None:
         env.capture()
-    evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots, not args.eval_sample)
+    evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots, not args.eval_sample, bf16=args.bf16)
                   for o, n in evals]
-    ladder = Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample) if args.ladder_games > 0 else None
+    ladder = (Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample, bf16=args.bf16)
+              if args.ladder_games > 0 else None)
     extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
-    pairs = [PairEval(board, tables, net, *x.split("=", 1), args.pair_games, device) for x in args.pair.split(",") if x]
+    pairs = [PairEval(board, tables, net, *x.split("=", 1), args.pair_games, device, bf16=args.bf16)
+             for x in args.pair.split(",") if x]
     panel = None
     if args.panel:
         from .panel import Panel
-        panel = Panel(board, tables, net, args.panel, device, gd_bots)
+        panel = Panel(board, tables, net, args.panel, device, gd_bots, bf16=args.bf16)
     log_path = os.path.join(out_dir, "log.jsonl")
+    headline = panel_readings(log_path, args.stop_key) if args.stop_key else []
+    session_started = time.time()
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time() - trained_s
     print(f"{args.name}: batch {args.batch} x horizon {args.horizon}, {sum(x.numel() for x in net.parameters()):,} weights",
           flush=True)
 
     assert args.lr_end is None or args.iters < 10**9, "--lr-end anneals over --iters: give it"
+    stopped = ""
     while iteration < args.iters and time.time() - started < args.hours * 3600:
+        if args.session_hours is not None and time.time() - session_started > args.session_hours * 3600:
+            stopped = "session"
+            break
         t0 = time.time()
         if args.lr_end is not None:
             # By iterations, not the clock: two runs sharing the GPU stay on the same schedule.
@@ -593,6 +615,9 @@ def main(argv: list[str] | None = None) -> int:
             record["eval"] = [e.run() for e in evaluators]
             if panel is not None:
                 record["panel"] = panel.run()
+                if args.stop_key:
+                    headline.append(record["panel"][args.stop_key])
+                    record["verdict"] = verdict(headline)
             if pairs:
                 record["pair"] = [pair.run() for pair in pairs]
                 record["league"] = [os.path.basename(p)[5:-3] for p in slot_paths]
@@ -620,9 +645,19 @@ def main(argv: list[str] | None = None) -> int:
                 print("  panel", json.dumps({k: v.get("win", v.get("share")) for k, v in record["panel"].items()}), flush=True)
             if "ladder" in record:
                 print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
+            if "verdict" in record:
+                print(f"  verdict on {args.stop_key}: {record['verdict']}", flush=True)
+                stops_on = {"never": (), "flat": ("flat", "falling"), "falling": ("falling",)}[args.stop_when]
+                if record["verdict"] in stops_on:
+                    stopped = record["verdict"]
+                    break
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
                 "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
                 "trained_s": time.time() - started}, latest)
+    if stopped:
+        print(f"stopped: {stopped}", flush=True)
+        with open(os.path.join(out_dir, "stopped.txt"), "w") as f:
+            f.write(f"{stopped} at iteration {iteration}\n")
     return 0
 
 

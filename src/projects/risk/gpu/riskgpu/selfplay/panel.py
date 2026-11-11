@@ -54,16 +54,17 @@ class Panel:
     """Every check built at once, as the trainer builds its checks: the captured steps share one
     memory pool, which is released when the last graph holding it is freed."""
 
-    def __init__(self, board, tables, net, games: int, device: str, gd_bots: list):
+    def __init__(self, board, tables, net, games: int, device: str, gd_bots: list, bf16: bool = True):
         self.games = games
         self.checks = {}
         for mode in MODES:
             greedy = mode == "argmax"
             self.checks[mode] = (
-                Evaluator(board, tables, net, 5, games, device, opponent="gd-defensive", gd_bots=gd_bots, greedy=greedy),
-                [PairEval(board, tables, net, label, path, games, device, greedy=greedy) for label, path in ANCHORS],
+                Evaluator(board, tables, net, 5, games, device, opponent="gd-defensive", gd_bots=gd_bots, greedy=greedy,
+                          bf16=bf16),
+                [PairEval(board, tables, net, label, path, games, device, greedy=greedy, bf16=bf16) for label, path in ANCHORS],
             )
-        self.mirror = MirrorEval(board, tables, net, games, device)
+        self.mirror = MirrorEval(board, tables, net, games, device, bf16=bf16)
 
     def run(self) -> dict:
         out = {}

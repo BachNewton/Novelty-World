@@ -114,6 +114,9 @@ class Env:
     def __init__(self, cfg: EnvConfig, board: Board, tables: BlitzTables, learner: Net, device: str = "cuda",
                  seed_prefix: str = "sp", gd_bots: list | None = None):
         assert tables.scaled_oversize, "training resolves oversize fights on the device"
+        if cfg.bf16 and torch.device(device).type == "cuda" and torch.cuda.get_device_capability(device) < (8, 0):
+            # Before Ampere there is no native bfloat16: PyTorch emulates it, slowly, without saying so.
+            raise RuntimeError(f"{torch.cuda.get_device_name(device)} has no native bfloat16: run with --no-bf16")
         self.cfg, self.board, self.tables, self.learner, self.device = cfg, board, tables, learner, device
         self.seed_prefix = seed_prefix
         self.generation = 0
