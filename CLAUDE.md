@@ -12,6 +12,8 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 
 **The server:** Vercel only runs short-lived functions, so anything that needs a long-lived server runs on Novelty World's own Oracle Cloud machine, which Claude manages from the command line. `infra/oracle/README.md` covers the machine, how to reach it, its firewalls, and the rules for changing it.
 
+**The spot machine:** a friend's GPU computer, borrowed for training while he isn't using it, reached and driven by `npm run spot` (`infra/spot/README.md`); the Spot Access tool shows when it is free.
+
 ## Commands
 
 | Task | Command |

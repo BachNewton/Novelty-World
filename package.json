@@ -52,6 +52,7 @@
     "risk:gpu-check": "tsx src/projects/risk/eval/gpu-check-cli.ts",
     "bench": "vitest bench --run",
     "relay:deploy": "bash relay/deploy.sh",
+    "spot": "bash infra/spot/spot.sh",
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
     "test:e2e": "node scripts/affected-e2e.mjs",
