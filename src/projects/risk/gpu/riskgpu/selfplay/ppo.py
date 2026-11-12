@@ -404,7 +404,7 @@ def trained_from_log(out_dir: str, iteration: int) -> float:
     return max(r["time"] for r in records if r["iter"] <= iteration) - start
 
 
-def main(argv: list[str] | None = None) -> int:
+def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--name", required=True)
     p.add_argument("--resume", action="store_true")
@@ -458,7 +458,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--stop-when", default="never", choices=["never", "flat", "falling"],
                    help="stop once the --stop-key panel reading's verdict (`verdict.py`) is flat or falling (flat), or falling")
     p.add_argument("--stop-key", default="", help="the panel reading the stop reads, e.g. 'sample s2-2-150 one-in'")
-    args = p.parse_args(argv)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     assert args.stop_when == "never" or (args.stop_key and args.panel), "--stop-when reads --stop-key on the panel: give both"
 
     device = "cuda"

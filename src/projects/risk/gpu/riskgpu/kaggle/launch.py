@@ -162,6 +162,9 @@ def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool) -> 
         assert last_value(args, "--stop-key") and last_value(args, "--panel") not in (None, "0"), \
             "the stop reads --stop-key on the panel: give the trainer both"
     assert "--session-hours" not in args, "the session's cap is the launcher's --session-hours"
+    from ..selfplay.ppo import parser
+    # The trainer's own parser, so arguments it would refuse cost no session: it exits loudly here.
+    parser().parse_args(["--name", "check", *args])
     return args
 
 

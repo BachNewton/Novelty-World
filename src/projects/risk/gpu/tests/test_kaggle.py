@@ -118,3 +118,13 @@ def test_a_bundle_lands_where_the_trainers_read(tmp_path):
     assert sorted(os.listdir(working / "r2")) == ["latest.pt"]
     assert (gpu / "runs" / "selfplay" / "r0" / "snap-200.pt").exists()
     assert not (gpu / "runs" / "selfplay" / "r1").exists()
+
+
+def test_a_push_is_refused_before_upload_if_the_trainer_would_refuse_its_arguments():
+    # A push once dropped `--epochs`' value, and the session failed at its first trainer.
+    import pytest
+    from riskgpu.kaggle.launch import run_args
+    good = ["--epochs", "2", "--no-bf16", "--stop-when", "flat", "--stop-key", "k", "--panel", "512"]
+    assert run_args(good, "--ent 0.003", "NvidiaTeslaT4", no_stop=False)[-1] == "0.003"
+    with pytest.raises(SystemExit):
+        run_args(["--epochs", *good[2:]], "", "NvidiaTeslaT4", no_stop=False)
