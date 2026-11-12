@@ -39,7 +39,10 @@ schedule that cut the rate on that read's noise spread two seeds of one recipe 2
 than the data curve's top gap (`ideas/learned-bot.md`). `--fraction` trains on that share of the
 training games (the same games at every run, nested: a quarter holds the sixteenth), for the data
 curve; every share gets the same budget of samples. `--init` starts from a checkpoint (an
-exact-space net from a bucket-space one's trunk and main heads).
+exact-space net from a bucket-space one's trunk and main heads). `--hours` caps the training's
+time, as a Kaggle session must: training stops there as it does at the budget, read and saved, its
+last log line marked `stopped`; the schedule stays over the budget, so a capped run ends with its
+rate still above zero.
 
 **Read.** Held-out agreement over every held-out decision, by the teacher's move kind and by the
 decision's kind as the crate's `agree` tallies it, the main choice alone and the whole move, with
@@ -583,7 +586,8 @@ def train(args) -> None:
             count += 1
             step_ += 1
             samples += args.minibatch
-            if step_ % args.read_every == 0 or step_ >= total_steps:
+            out_of_time = args.hours is not None and time.time() - t0 > args.hours * 3600
+            if step_ % args.read_every == 0 or step_ >= total_steps or out_of_time:
                 main_ok, move_ok, _, verr = agreement(net, data, monitor, board, device, args.bf16)
                 held = float(main_ok.float().mean())
                 record = {"step": step_, "samples": samples, "epoch": round(samples / len(train_idx), 3),
@@ -597,13 +601,17 @@ def train(args) -> None:
                     torch.save({"net": net.state_dict(), "config": net.config(), "step": step_, "held_main": held},
                                os.path.join(out_dir, "best.pt"))
                 record["best"] = round(best, 5)
+                if out_of_time and step_ < total_steps:
+                    record["stopped"] = "hours"
                 with open(log_path, "a") as f:
                     f.write(json.dumps(record) + "\n")
                 print(json.dumps(record), flush=True)
-            if step_ >= total_steps:
+            if step_ >= total_steps or out_of_time:
                 done = True
                 break
     torch.save({"net": net.state_dict(), "config": net.config(), "step": step_}, os.path.join(out_dir, "last.pt"))
+    if step_ < total_steps:
+        print(f"{args.name}: stopped on the hours (--hours {args.hours}) at step {step_} of {total_steps}", flush=True)
     print(f"{args.name}: best held-out main agreement {best:.4f} at step {best_step}", flush=True)
 
 
@@ -718,7 +726,7 @@ def measure(args) -> dict:
     return report
 
 
-def main(argv: list[str] | None = None) -> int:
+def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("extract")
@@ -744,6 +752,9 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--warmup", type=int, default=500)
     t.add_argument("--minibatch", type=int, default=4096)
     t.add_argument("--max-samples", type=int, default=100_000_000, help="the schedule's budget of samples")
+    t.add_argument("--hours", type=float, default=None,
+                   help="stop once this many hours of training have passed, as at --max-samples (a cap, as a Kaggle "
+                        "session's; the schedule stays over --max-samples)")
     t.add_argument("--amount-weight", type=float, default=0.5)
     t.add_argument("--vf", type=float, default=0.25)
     t.add_argument("--grad-clip", type=float, default=1.0)
@@ -765,7 +776,11 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--device", default="cpu")
     m.add_argument("--chunk", type=int, default=32768)
     m.add_argument("--out", default="", help="write the report as JSON here too")
-    args = p.parse_args(argv)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     if args.cmd == "extract":
         require_cuda(args.device)
         extract(args.records, args.out, args.teacher, args.device, args.batch, args.check)

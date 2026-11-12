@@ -1,6 +1,6 @@
 # Training on Kaggle's free GPUs
 
-The GPU trainer (`gpu/riskgpu/selfplay/ppo.py`) can run its sessions on Kaggle Notebooks instead of the laptop's eGPU. Kaggle's free tier gives about 30 GPU-hours a week (the figure floats; the account's settings show the current quota), in sessions of at most 12 hours, on a T4. A session runs on Kaggle's machine once pushed, with no browser open and nothing of the laptop's in use, so it serves the days and the weeks the eGPU is away. `gpu/riskgpu/kaggle/launch.py` drives it from here, run from `src/projects/risk/gpu/`.
+The GPU trainers (`gpu/riskgpu/selfplay/ppo.py`, and `imitate.py`'s imitation) can run their sessions on Kaggle Notebooks instead of the laptop's eGPU. Kaggle's free tier gives about 30 GPU-hours a week (the figure floats; the account's settings show the current quota), in sessions of at most 12 hours, on a T4. A session runs on Kaggle's machine once pushed, with no browser open and nothing of the laptop's in use, so it serves the days and the weeks the eGPU is away. `gpu/riskgpu/kaggle/launch.py` drives it from here, run from `src/projects/risk/gpu/`.
 
 ## The one-time setup (the owner's)
 
@@ -21,6 +21,15 @@ python -m riskgpu.kaggle.launch report <name>
 - **A stopped run is read sharply.** When a run stops, its checkpoints at its last three headline readings (the window its verdict was read on) join the queue, each to be read on the panel at 4,096 games a check, about ±1.8 points against the training panel's ±5. The readings are taken newest first across every run (every run's stopped checkpoint, then every run's one before), so hours that can't fit them all lose the oldest. That tells a run that is flat from one climbing too slowly for its training readings to resolve, which the stop alone can't. Each reading is saved beside the run (`panel-<iteration>-g4096.json`) and `report` prints them; one already read isn't read again.
 - **`fetch`** brings every run of the session back over its local folder, once the session has ended. The local run folder stays the source of truth: the fetch refuses if the local `latest.pt` changed since the push, since it would overwrite that work.
 - **`report`** prints the run's panel readings, every one with its interval, the samples it was read at and the verdict at that point.
+
+## An imitation session
+
+`push --imitate` makes the session's runs imitations (`gpu/riskgpu/selfplay/imitate.py`'s `train`, its arguments after `--`) instead of PPO runs, each in its own folder, `runs/imitate/<name>/`. Everything else is the same session: one queue, its runs in order, the readings' hours at its end.
+
+- **The bundle carries what the imitation reads**: the data folder its `--data` names (gigabytes: the bundle is staged as hard links to the files, never copies, and the CLI streams them up), every checkpoint its arguments name (its `--init`), the panel's anchors and the blitz tables. An imitation never resumes, so its own folder is not sent, and the launcher refuses a name whose folder already holds a trained net.
+- **Its training is capped by the session**: it is given `--hours`, the hours left before the readings' share when it starts, and stops there as it would at its budget of samples, its best and last nets saved and its log's last line marked. The cosine schedule stays over `--max-samples`, so a capped run ends with its rate still above zero: a budget sized to the hours is the plan, the cap its guard.
+- **Once trained, it is read twice**: its held-out agreement with the teacher (`imitate read`, saved as `read.json`) and the panel at 1,024 games a check (`panel.json`), both on its best net, one on each GPU.
+- **`fetch`** guards the run's `best.pt` as a PPO fetch guards `latest.pt`, and `report` prints the imitation's last log line (its samples, held-out main agreement and seconds) and the headline numbers of its two readings.
 
 ## What a session costs and when it stops
 

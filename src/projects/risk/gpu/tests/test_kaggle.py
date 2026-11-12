@@ -108,7 +108,8 @@ def test_a_bundle_lands_where_the_trainers_read(tmp_path):
     (mounted / "MANIFEST.json").write_text(json.dumps({"id": "b1", "files": {flat_name(r): r for r in files}}))
     gpu, working = tmp_path / "repo" / "gpu", tmp_path / "working"
 
-    kernel.restore(kernel.find_bundle(str(tmp_path / "input"), "b1"), str(gpu), str(working), ["r1", "r2"])
+    kernel.restore(kernel.find_bundle(str(tmp_path / "input"), "b1"), str(gpu), str(working),
+                   [{"name": "r1", "args": []}, {"name": "r2", "args": []}])
 
     assert (gpu / "data" / "blitz-256.bin").read_text() == "data/blitz-256.bin"
     assert (gpu / "runs" / "imitate" / "imit-1" / "best.pt").exists()
@@ -128,3 +129,91 @@ def test_a_push_is_refused_before_upload_if_the_trainer_would_refuse_its_argumen
     assert run_args(good, "--ent 0.003", "NvidiaTeslaT4", no_stop=False)[-1] == "0.003"
     with pytest.raises(SystemExit):
         run_args(["--epochs", *good[2:]], "", "NvidiaTeslaT4", no_stop=False)
+
+
+IMITATION = ["--data", "runs/imitate/d", "--init", "runs/imitate/imit-1/best.pt", "--no-bf16", "--max-samples", "5"]
+
+
+def test_an_imitation_trains_to_the_readings_share_then_is_read_in_its_own_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(kernel, "WORKING", str(tmp_path))
+    (tmp_path / "imit-x").mkdir()
+    job = {"runs": [{"name": "imit-x", "trainer": "imitate", "args": IMITATION}], "read_hours": 1}
+    session = kernel.Session(job, str(tmp_path), gpus=1, deadline=time.time() + 7200)
+    done = []
+
+    def command(task):
+        cmd = kernel.Session.command(session, task)
+        done.append(cmd)
+        if task["kind"] == "train":
+            # The trainer leaves its best checkpoint, which the readings read.
+            return [sys.executable, "-c", f"open(r'{tmp_path / 'imit-x' / 'best.pt'}', 'w')"]
+        return [sys.executable, "-c", "pass"]
+    monkeypatch.setattr(session, "command", command)
+    session.run()
+
+    train, read, panel = [" ".join(c[3:]) for c in done]
+    assert train.startswith("riskgpu.selfplay.imitate train --name imit-x --data runs/imitate/d")
+    assert 0.9 < float(done[0][-1]) <= 1.0 and done[0][-2] == "--hours"
+    assert read == ("riskgpu.selfplay.imitate read --data runs/imitate/d --ckpt runs/imitate/imit-x/best.pt "
+                    "--out runs/imitate/imit-x/read.json --no-bf16")
+    assert panel == ("riskgpu.selfplay.panel --ckpt runs/imitate/imit-x/best.pt --games 1024 "
+                     "--out runs/imitate/imit-x/panel.json --no-bf16")
+    assert session.queue == [] and session.failed == []
+
+
+def gpu_tree(root, files: list[str]) -> None:
+    for rel in files:
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(rel)
+
+
+def test_an_imitations_bundle_carries_its_data_init_and_anchors_to_where_its_commands_read(tmp_path, monkeypatch):
+    from riskgpu.kaggle import launch
+    from riskgpu.selfplay import panel
+    local = tmp_path / "local"
+    data = ["runs/imitate/d/a.pt", "runs/imitate/d/b.pt", "runs/imitate/d/extract.json"]
+    anchors = ["runs/selfplay/sw/snap-1.pt", "runs/imitate/imit-1/best.pt"]
+    gpu_tree(local, ["data/blitz-256.bin", "data/blitz-256.json", *data, *anchors])
+    monkeypatch.setattr(launch, "GPU", str(local))
+    monkeypatch.setattr(panel, "ANCHORS", tuple((rel, str(local / rel)) for rel in anchors))
+    run = {"name": "imit-x", "trainer": "imitate", "args": IMITATION}
+
+    files = launch.needed_files(run)
+    assert set(data + anchors) <= set(files)
+    bundle = tmp_path / "input" / "bundle"
+    launch.stage(files, str(bundle))
+    (bundle / "MANIFEST.json").write_text(json.dumps({"id": "b1", "files": {flat_name(r): r for r in files}}))
+    gpu, working = tmp_path / "clone", tmp_path / "working"
+    kernel.restore(str(bundle), str(gpu), str(working), [run])
+
+    for rel in data + anchors:
+        assert (gpu / rel).read_text() == rel
+    assert not (working / "imit-x").exists()
+
+
+def test_fetch_guards_and_fills_an_imitations_own_folder(tmp_path, monkeypatch):
+    from riskgpu.kaggle import launch
+    monkeypatch.setattr(launch, "GPU", str(tmp_path))
+    run = {"name": "imit-x", "trainer": "imitate", "args": IMITATION}
+    job = {"runs": [run], "guard_sha256": {"imit-x": None}}
+    output = tmp_path / "output" / "imit-x"
+    gpu_tree(tmp_path / "output", ["imit-x/kaggle-sessions.jsonl", "imit-x/best.pt", "imit-x/log.jsonl"])
+
+    launch.check_guards(job)
+    launch.copy_back(job, str(tmp_path / "output"))
+    assert sorted(os.listdir(tmp_path / "runs" / "imitate" / "imit-x")) == sorted(os.listdir(output))
+    assert not (tmp_path / "runs" / "selfplay").exists()
+    # A best.pt here that the push didn't see would be overwritten.
+    import pytest
+    with pytest.raises(AssertionError, match="best.pt changed"):
+        launch.check_guards(job)
+
+
+def test_an_imitation_push_is_refused_before_upload_if_its_trainer_would_refuse_its_arguments():
+    import pytest
+    from riskgpu.kaggle.launch import run_args
+    assert run_args(IMITATION, "--seed 2", "NvidiaTeslaT4", no_stop=False, trainer="imitate")[-1] == "2"
+    with pytest.raises(SystemExit):
+        run_args([*IMITATION, "--max-samples", "5M"], "", "NvidiaTeslaT4", no_stop=False, trainer="imitate")
+    with pytest.raises(AssertionError):
+        run_args([*IMITATION, "--hours", "3"], "", "NvidiaTeslaT4", no_stop=False, trainer="imitate")
