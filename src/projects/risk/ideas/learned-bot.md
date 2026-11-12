@@ -346,6 +346,36 @@ Every other read stayed at iteration 150's level, and the entropy sat at about 2
 
 **Seed 2 on Kaggle, iterations 225 to 250 (k1).** A copy of s2-2 at its iteration-225 checkpoint, trained on in full precision on a Kaggle T4 (`docs/kaggle.md`), the same recipe otherwise. At 250 it is still even with s2-2-150: alone among four, 18.4% [14.1, 23.6] sampling and 19.9% [15.5, 25.2] argmax; four against one, 79.3% [73.9, 83.8] and 76.2% [70.6, 81.0]. Every panel reading at 250 lies within the interval of the bf16 reading at 200, so the change of precision shows no effect the panel can resolve (about ±5 points a reading), though it was read across 50 more iterations of training, not on the same weights.
 
+**Seed 2 to 275 and seed 1 from 150 to 225 (session k1-k2).** One Kaggle session trained both at once in full precision, each stopping when its headline reading, sampling alone among four s2-2-150 at 512 games, went flat: k1 (seed 2) resumed at 250, k2 (seed 1) started from s2-1-150. Both stopped flat, k1 at 275 and k2 at 225, after about 2.6 and 7 hours. The session then read each stopped run sharply (4,096 games a reading) and ran out of hours with two of k2's readings left: its reading at 200 was stopped half an hour past the deadline and the one at 175 never started, which is what Kaggle reports as an error. Every other output came back.
+
+The headline readings (512 games; par 20%), with the verdict the trainer gave:
+
+| Run, iteration | Sampling alone among four s2-2-150 | Verdict |
+|---|---|---|
+| seed 2, 200 (bf16, the 4070) | 19.5% [15.1, 24.8] | early |
+| seed 2, 250 (k1's first session) | 18.4% [14.1, 23.6] | early |
+| seed 2, 275 | 18.4% [14.1, 23.6] | flat: stopped |
+| seed 1, 175 | 19.1% [14.8, 24.4] | early |
+| seed 1, 200 | 18.8% [14.4, 24.0] | early |
+| seed 1, 225 | 16.4% [12.4, 21.4] | flat: stopped |
+
+The sharp readings (4,096 games; 2,048 decisive where a lone seat is read):
+
+| | seed 2, 200 | seed 2, 250 | seed 2, 275 | seed 1, 225 |
+|---|---|---|---|---|
+| Sampling alone among four s2-2-150 (par 20%) | 21.5% [19.8, 23.4] | 18.9% [17.2, 20.6] | 19.3% [17.7, 21.1] | 19.6% [17.9, 21.4] |
+| Argmax alone among four s2-2-150 | 22.4% [20.7, 24.3] | 19.0% [17.4, 20.8] | 18.4% [16.8, 20.2] | 18.6% [17.0, 20.4] |
+| Sampling, four against one s2-2-150 (par 80%) | 81.2% [79.4, 82.8] | 78.1% [76.2, 79.8] | 77.2% [75.3, 79.0] | 79.5% [77.7, 81.2] |
+| Argmax, four against one s2-2-150 | 80.7% [79.0, 82.4] | 77.7% [75.8, 79.4] | 78.6% [76.8, 80.4] | 78.7% [76.9, 80.4] |
+| Argmax alone among four sw128b-450 | 39.1% [37.0, 41.2] | 33.3% [31.2, 35.3] | 35.1% [33.0, 37.2] | 35.1% [33.1, 37.2] |
+| Argmax alone among four imit-1 | 79.1% [77.2, 80.8] | 76.1% [74.2, 77.9] | 76.0% [74.1, 77.8] | 70.1% [68.1, 72.0] |
+| Argmax alone among four GD Defensive | 95.0% [94.2, 95.6] | 94.1% [93.3, 94.8] | 94.9% [94.2, 95.5] | 95.7% [95.1, 96.3] |
+| Argmax mirror capped | 0% [0, 0.1] | 0% [0, 0.1] | 1.2% [0.9, 1.6] | 0% [0, 0.1] |
+
+**What it settles: the recipe has flattened, not slowed, at about s2-2-150's strength.** Seed 2 is even with s2-2-150 at 200, and from 250 on it reads a point or two below it in all four mixtures, the sharp intervals just short of par; against sw128b-450 it fell six points from 200 to 250, intervals apart, and gained nothing back by 275. Seed 1 climbed from its own 150 (23.1% [18.3, 28.6] alone among four sw128b-450 at 512 games) to the same level as seed 2: at 225 every reading but imit-1's is within a point of seed 2's at 250 or 275, mostly inside their intervals. So the two seeds agree on where the recipe ends, if not on the path there: about s2-2-150's strength, reached at 150 to 200 iterations and not exceeded through 275. One caveat: seed 2's step down from 200 to 250 spans the change from bf16 on the 4070 to full precision on the T4. Seed 1 trained only in full precision and lands at the same level, so precision isn't needed to explain the plateau, but it isn't ruled out for that one step.
+
+**Health.** KL stayed at 0.003 to 0.004 a step and the clipped share at 0.02 to 0.03, smaller steps than stage 2's first night; the value head explained 96% to 97% of the return's variance; the training games' cap rate stayed under a quarter of a percent. Seed 2's entropy rose again, from 1.8 at 225 to 2.2 at 275, and its games lengthened (66 player-turns on average at 200, 76 at 275), with its first capped mirror games at 275. Seed 1's entropy sat at 1.8 to 1.9. A resumed run starts fresh games, so its first ten or so iterations train on openings (entropy about 0.5, the value head explaining 71%), then return to where they were; the optimizer's state is restored.
+
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 
 ### Kill rule, cost, and what follows
