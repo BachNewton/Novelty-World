@@ -195,7 +195,7 @@ Every attack, move-in and fortify the teacher makes is its planner's, determinis
 | 5 | 81.5% [79.0, 83.7] (94.0% argmax) | **held** |
 | 6 | sampling: worse, −136 win Elo | **failed** as written; the argmax copy is better, +110 |
 
-**What it rules out.** Cause 4 (the representation can't copy the teacher) is ruled out: two thirds of the decisions, and a copy stronger than v6.1, from the raw board on net-v1 as it stands. The rule for "6 fails while 1 holds" (a DAgger round, on the reading that the copy learned the wrong decisions) doesn't apply. The argmax read shows its most likely moves win; what loses is sampling from a copy that is unsure on a third of its decisions, over hundreds of decisions a game. The next step is stage 2 from imit-1: 1 holds, and the copy is already past v6.1, which is what a warm start needs. Whether more data pays is still open, since prediction 2 isn't read. But even the face-value slope, 1.6 points a doubling, is under the plan's three, so no second recording round until the curve is re-read. Prediction 4's rule (a count head) is not triggered as written. The blitz keeps are still the action space's one large miss, and a candidate once stage 2 has read.
+**What it rules out.** The copy learned two thirds of the decisions and came out stronger than v6.1, from the raw board on net-v1 as it stands, so the observation and the network can learn the game. That is not the same as ruling out cause 4: the action space can't express 22% of the teacher's moves, so it caps how well any net on it can play, and nothing here measured where that cap is. (Read at the time as ruling cause 4 out; corrected once stage 2 had plateaued.) The rule for "6 fails while 1 holds" (a DAgger round, on the reading that the copy learned the wrong decisions) doesn't apply. The argmax read shows its most likely moves win; what loses is sampling from a copy that is unsure on a third of its decisions, over hundreds of decisions a game. The next step is stage 2 from imit-1: 1 holds, and the copy is already past v6.1, which is what a warm start needs. Whether more data pays is still open, since prediction 2 isn't read. But even the face-value slope, 1.6 points a doubling, is under the plan's three, so no second recording round until the curve is re-read. Prediction 4's rule (a count head) is not triggered as written. The blitz keeps are still the action space's one large miss, and a candidate once stage 2 has read.
 
 **Two rulings for the line, from these readings.** How a learned bot plays (sampling, argmax, or a temperature between) is a measured choice per checkpoint, never fixed by a past one's result: argmax stalled the from-scratch nets and makes this copy strong. So every panel read of stage 2 is taken both ways. And the stall is a health reading of every checkpoint: the argmax copy's mirror cap rate, beside its strength.
 
@@ -392,9 +392,27 @@ Both runs are copies of k1 at 275 (seed 2 on the plateau, its optimizer and leag
 | 2 | If the bonus is the cause, k4 reads the same 22.5% or more | 30% |
 | 3 | k4's entropy falls below 1.5 | 85% |
 | 4 | k3, no longer trained against them, still wins 90% or more alone among four GD Defensive (argmax) | 80% |
-| 5 | Neither clears 22.5%: both within two points of 19.3%, which rules out both causes in this form | 45% |
+| 5 | Neither clears 22.5%: both within two points of 19.3% | 45% |
 
-What follows: a run that clears its mark is the next base, and its change goes into a seed pair before anything is built on it. If neither does, the remaining causes are the representation (an evening's imitation-ceiling test exists from stage 1), the improvement operator, and the problem itself; stage 3's search is the planned answer to the second, so the brief to the owner is whether to stop stage 2 there. The cost is one session, about 11.5 of the week's 30 GPU-hours.
+What follows: a run that clears its mark is the next base, and its change goes into a seed pair before anything is built on it. A run that doesn't clear it doesn't rule its cause out on its own: the action space's buckets (below) may be the ceiling both runs meet, so a null result here is read again on the exact action space before either cause is dropped.
+
+**The action space, rebuilt (the representation, cause 4).** The buckets can't express 22% of the teacher's moves (46% of its attacks, 15% of its trades), and stage 2 has now plateaued, so the cap is a suspect in its own right, and the owner has ruled to remove it. A second action space, "exact", sits beside the buckets: the same main choices, then an exact number (armies placed, kept back by a blitz, moved in, fortified) or the trade's set and bonus, scored by one head over a fixed set of legal candidates. Old checkpoints keep the buckets, so the anchors and learned-v1 play as before: s2-2-150 decides exactly as it did on 1,889 positions, greedy and sampled, with the same probabilities and values. The TypeScript bot that plays it is `net-v2` (`bots/net-v2/`), a harness label only until a weight set is trained and measured.
+
+Its first reading, the share of the teacher's moves it can express, on every held-out game of the recording (3,920 games, 3.1 million moves; `imitate.py measure`):
+
+| Kind | Moves | Buckets can't express | Exact can't express |
+|---|---|---|---|
+| all | 3,119,327 | 22.0% [21.9, 22.1] | 0.03% |
+| place | 406,260 | 11.7% [11.6, 11.8] | 0 |
+| trade | 91,926 | 14.8% [14.6, 15.1] | 0 |
+| attack: blitz | 1,122,570 | 51.4% [50.9, 51.9] | 0.08% [0.07, 0.09] |
+| attack: battle | 137,140 | 0 | 0 |
+| move-in | 774,929 | 4.2% [4.1, 4.3] | 0 |
+| fortify | 266,956 | 5.9% [5.8, 6.0] | 0 |
+
+The argument has 48 slots. A range wider than that (4% of blitzes, 5% of move-ins, 6% of fortifies, ranges up to 610 armies) keeps every count within twelve of either end, both halves, and the rest spread evenly between, so the misses left are mid-range keep-backs of very large stacks; every such decision is counted as `overflow` in training. Two things are unmeasured until it runs on a GPU: that its step still captures as one CUDA graph, and its memory at the trainer's batch. And its entropy is over up to 48 arguments where the buckets had three, so the entropy bonus weighs differently on it.
+
+Then an imitation on it (imit-2, from the same recordings) read against imit-1's agreement and panel, then stage 2 from imit-2. The prediction: imit-2's move agreement with the teacher beats imit-1's on attacks by ten points or more (imit-1: 34% on attacks, where it chose the main move right 65% of the time). The cost is one session, about 11.5 of the week's 30 GPU-hours.
 
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 

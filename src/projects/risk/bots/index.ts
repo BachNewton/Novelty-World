@@ -26,6 +26,8 @@ import { V7_1_PARAMS } from "./rule-v7.1/params";
 import { learnedV1Bot } from "./learned-v1";
 import { DEFAULT_WEIGHTS as NET_DEFAULT_WEIGHTS, isPick, netV1, netV1Bot, PICKS } from "./net-v1";
 import { WEIGHT_SETS as NET_WEIGHT_SETS } from "./net-v1/weights";
+import { netV2 } from "./net-v2";
+import { WEIGHT_SETS as NET_V2_WEIGHT_SETS } from "./net-v2/weights";
 import { ruleV8Bot } from "./rule-v8";
 import { DEFAULT_WEIGHTS, studentBot, studentV1Bot } from "./student-v1";
 import { scorer } from "./student-v1/network";
@@ -200,15 +202,25 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
   },
 };
 
+const NET_V2_WEIGHTS = Object.keys(NET_V2_WEIGHT_SETS);
+
 /** The network bots a measuring run may seat with settings of their own, each one of a list: a
  *  weight set, and how it picks a move (sampling, as trained, or its most likely move):
- *  `net-v1~{"weights":"m1a-25","pick":"argmax"}` (`bots/net-v1/`). */
+ *  `net-v1~{"weights":"m1a-25","pick":"argmax"}` (`bots/net-v1/`). net-v2 (`bots/net-v2/`) is
+ *  seated only this way, by a weight set: it has no plain label until one earns it. */
 export const WEIGHTED_BOTS: Readonly<Record<string, { settings: Readonly<Record<string, { value: string; options: readonly string[] }>>; build: (settings: Readonly<Record<string, string>>) => Bot }>> = {
   "net-v1": {
     settings: { weights: { value: NET_DEFAULT_WEIGHTS, options: Object.keys(NET_WEIGHT_SETS) }, pick: { value: "sample", options: PICKS } },
     build: ({ weights, pick }) => {
       if (!isPick(pick)) throw new Error(`net-v1's pick is one of ${PICKS.join(", ")}, not ${JSON.stringify(pick)}`);
       return netV1(weights, pick);
+    },
+  },
+  "net-v2": {
+    settings: { weights: { value: NET_V2_WEIGHTS.length > 0 ? NET_V2_WEIGHTS[0] : "", options: NET_V2_WEIGHTS }, pick: { value: "sample", options: PICKS } },
+    build: ({ weights, pick }) => {
+      if (!isPick(pick)) throw new Error(`net-v2's pick is one of ${PICKS.join(", ")}, not ${JSON.stringify(pick)}`);
+      return netV2(weights, pick);
     },
   },
 };

@@ -23,7 +23,7 @@ const TOKENS = COUNT + SEATS + 1;
 const KEY = 64;
 const EPS = 1e-5;
 
-interface Linear {
+export interface Linear {
   inputs: number;
   outputs: number;
   weight: Float32Array;
@@ -45,7 +45,9 @@ interface Block {
   border: Float32Array;
 }
 
-export interface Net {
+/** What every network of this trainer has, whatever its action space: the trunk, the main
+ *  choices' heads and the value head (`net-v2` adds its own argument head to it). */
+export interface Core {
   width: number;
   heads: number;
   nodeIn: Linear;
@@ -61,10 +63,13 @@ export interface Net {
   edgeBias: Float32Array;
   fortifySrc: Linear;
   fortifyDst: Linear;
+  value: Linear;
+}
+
+export interface Net extends Core {
   placeAmount: Linear;
   attackAmount: Linear;
   fortifyAmount: Linear;
-  value: Linear;
 }
 
 /** `[i * 42 + j]`: whether territories i and j share a border (the attention's map). */
@@ -83,13 +88,21 @@ function floats(base64: string): Float32Array {
   return out;
 }
 
-/** The network of a weight set, every tensor checked against the shape its name has in `Net`. */
-export function loadNet(w: NetWeights): Net {
+/** Reads a weight set's tensors for `bot`, each checked against the size its name has, and in the
+ *  end that every tensor was read. */
+export interface WeightReader {
+  tensor: (name: string, size: number) => Float32Array;
+  linear: (name: string, inputs: number, outputs: number) => Linear;
+  /** Throws if any tensor of the set was never read. */
+  done: () => void;
+}
+
+export function weightReader(w: NetWeights, bot: string): WeightReader {
   const used = new Set<string>();
   const tensor = (name: string, size: number): Float32Array => {
-    if (!Object.hasOwn(w.tensors, name)) throw new Error(`net-v1's weights have no "${name}"`);
+    if (!Object.hasOwn(w.tensors, name)) throw new Error(`${bot}'s weights have no "${name}"`);
     const t = floats(w.tensors[name]);
-    if (t.length !== size) throw new Error(`net-v1's "${name}" has ${t.length.toString()} weights, not ${size.toString()}`);
+    if (t.length !== size) throw new Error(`${bot}'s "${name}" has ${t.length.toString()} weights, not ${size.toString()}`);
     used.add(name);
     return t;
   };
@@ -99,10 +112,20 @@ export function loadNet(w: NetWeights): Net {
     weight: tensor(`${name}.weight`, inputs * outputs),
     bias: tensor(`${name}.bias`, outputs),
   });
+  const done = (): void => {
+    const unknown = Object.keys(w.tensors).filter((name) => !used.has(name));
+    if (unknown.length > 0) throw new Error(`${bot} doesn't know the weights ${unknown.join(", ")}`);
+  };
+  return { tensor, linear, done };
+}
+
+/** The trunk, main and value heads of a weight set (`Core`). */
+export function loadCore(w: NetWeights, r: WeightReader, bot: string): Core {
+  const { tensor, linear } = r;
   const norm = (name: string, width: number): Norm => ({ weight: tensor(`${name}.weight`, width), bias: tensor(`${name}.bias`, width) });
   const { width, heads, ff } = w;
-  if (width % heads !== 0) throw new Error(`net-v1's width ${width.toString()} doesn't split into ${heads.toString()} heads`);
-  const net: Net = {
+  if (width % heads !== 0) throw new Error(`${bot}'s width ${width.toString()} doesn't split into ${heads.toString()} heads`);
+  const core: Core = {
     width,
     heads,
     nodeIn: linear("node_in", NODE, width),
@@ -126,20 +149,30 @@ export function loadNet(w: NetWeights): Net {
     edgeBias: tensor("edge_bias", EDGES.length),
     fortifySrc: linear("fortify_src", width, KEY),
     fortifyDst: linear("fortify_dst", width, KEY),
-    placeAmount: linear("place_amount", width, 3),
-    attackAmount: linear("attack_amount", 2 * width, 3),
-    fortifyAmount: linear("fortify_amount", 2 * width, 3),
     value: linear("value", width, 1),
   };
   // The auxiliary head is training's alone; it is checked, not kept.
   linear("aux", width, 1);
-  const unknown = Object.keys(w.tensors).filter((name) => !used.has(name));
-  if (unknown.length > 0) throw new Error(`net-v1 doesn't know the weights ${unknown.join(", ")}`);
+  return core;
+}
+
+/** The network of a weight set, every tensor checked against the shape its name has in `Net`. */
+export function loadNet(w: NetWeights): Net {
+  const r = weightReader(w, "net-v1");
+  const core = loadCore(w, r, "net-v1");
+  const { width } = w;
+  const net: Net = {
+    ...core,
+    placeAmount: r.linear("place_amount", width, 3),
+    attackAmount: r.linear("attack_amount", 2 * width, 3),
+    fortifyAmount: r.linear("fortify_amount", 2 * width, 3),
+  };
+  r.done();
   return net;
 }
 
 /** `out[outAt + o] = bias[o] + Σ_q weight[o, q] · x[xAt + q]`. */
-function apply(l: Linear, x: ArrayLike<number>, xAt: number, out: Float64Array, outAt: number): void {
+export function apply(l: Linear, x: ArrayLike<number>, xAt: number, out: Float64Array, outAt: number): void {
   const { inputs, outputs, weight, bias } = l;
   for (let o = 0; o < outputs; o++) {
     let s = bias[o];
@@ -166,7 +199,7 @@ function layerNorm(n: Norm, x: Float64Array, out: Float64Array, width: number): 
 }
 
 /** The trunk: `[49 × width]`, territories, then slots, then the global token, after the last norm. */
-export function trunk(net: Net, obs: Observation): Float64Array {
+export function trunk(net: Core, obs: Observation): Float64Array {
   const { width: w, heads } = net;
   const x = new Float64Array(TOKENS * w);
   for (let t = 0; t < COUNT; t++) apply(net.nodeIn, obs.node, t * NODE, x, t * w);
@@ -247,7 +280,7 @@ function project(l: Linear, y: Float64Array, width: number): Float64Array {
 /** The main logits (`heads_main`) of the legal choices, −∞ elsewhere: a place logit per
  *  territory, an attack logit per border and a fortify logit per pair (each the scaled dot product
  *  of the source's and the target's projections), the other choices from the global token. */
-export function mainLogits(net: Net, y: Float64Array, legal: Uint8Array): Float64Array {
+export function mainLogits(net: Core, y: Float64Array, legal: Uint8Array): Float64Array {
   const w = net.width;
   const z = new Float64Array(MAIN).fill(-Infinity);
   const one = new Float64Array(6);
@@ -282,7 +315,7 @@ export function mainLogits(net: Net, y: Float64Array, legal: Uint8Array): Float6
 }
 
 /** The value vector: each slot's expected final score, read from its slot token. */
-export function values(net: Net, y: Float64Array): Float64Array {
+export function values(net: Core, y: Float64Array): Float64Array {
   const out = new Float64Array(SEATS);
   const scalar = new Float64Array(1);
   for (let k = 0; k < SEATS; k++) {

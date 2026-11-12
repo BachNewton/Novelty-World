@@ -11,6 +11,10 @@ epochs over the learner's decisions, their observations and masks rebuilt from t
 The value head is a vector over slots: slot 0 learns the GAE return, the other slots their seat's
 final score where the game ended inside the rollout; the auxiliary head learns each slot's board
 share `aux_steps` steps on.
+
+`--actions` chooses a new network's action space (`actions.py`): the buckets, or the exact space,
+which `--init` may start from a bucket-space checkpoint's trunk and main heads, its argument head
+fresh. The league, the evaluations and the panel seat each network in its own space.
 """
 
 import argparse
@@ -30,7 +34,7 @@ from ..state import LAYOUT, State
 from ..tables import BlitzTables
 from .actions import legal_main
 from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfig
-from .net import Net, evaluate
+from .net import Net, evaluate, init_from, shape_of
 from .obs import observe, slots
 from .verdict import panel_readings, verdict
 
@@ -130,7 +134,7 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
                 s = rebuild(buf, t, b)
                 with torch.no_grad():
                     o = options(s, board)
-                    legal = legal_main(o)
+                    legal = legal_main(o, net.exact)
                     node, slot, glob = observe(s, o, buf["placed_on"][t, b], buf["attacks"][t, b], buf["captured"][t, b], board)
                     seat_of_slot, _ = slots(s)
                     adv = (targets["adv"][t, b] - adv_mean) / adv_std
@@ -143,7 +147,8 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
                     aux_target = by_slot(buf["share"][ahead, b], seat_of_slot)
                     aux_mask = aux_ok[:, None] & (seat_of_slot >= 0)
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
-                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b])
+                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b],
+                                                         s, o, board)
                 value, aux = value.float(), aux.float()
                 entropy = entropy.mean()
                 ratio = torch.exp(logp - buf["logp"][t, b])
@@ -171,7 +176,7 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
 
 def summarize(stats: dict, kinds: list[str]) -> dict:
     out = {"games": stats["games"], "capped": stats["capped"] / max(stats["games"], 1), "stalled": stats["stalled"],
-           "turns": stats["turns"] / max(stats["games"], 1)}
+           "overflow": stats["overflow"], "turns": stats["turns"] / max(stats["games"], 1)}
     for k, name in enumerate(kinds):
         seats = stats["seats"][k]
         if seats > 0:
@@ -358,10 +363,22 @@ class Ladder:
 
     def run(self, past: list[tuple[str, str]], current: str) -> dict:
         """`past`: (label, state-dict path) of earlier checkpoints, oldest first."""
+        from .ladder import load_net
         env = self.env
         past = past[-self.slots:]
+        recapture = False
         for k, (_, path) in enumerate(past):
-            env.snapshots[k].load_state_dict(torch.load(path, map_location=self.device, weights_only=False))
+            state = torch.load(path, map_location=self.device, weights_only=False)
+            state = state.get("net", state)
+            if shape_of(state) == env.snapshots[k].config():
+                env.snapshots[k].load_state_dict(state)
+            else:
+                # Another shape or action space (an earlier run's checkpoint): its own net, and the
+                # step captured again around it.
+                env.snapshots[k] = load_net(path, env.board, self.device)
+                recapture = True
+        if recapture:
+            env.capture()
         labels = [label for label, _ in past] + [current]
         kinds = torch.tensor([SNAPSHOT + k for k in range(len(past))] + [LEARNER])
         env._restore(self.base)
@@ -417,6 +434,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--width", type=int, default=128)
     p.add_argument("--layers", type=int, default=4)
     p.add_argument("--heads", type=int, default=8)
+    p.add_argument("--actions", default="buckets", choices=["buckets", "exact"],
+                   help="a new network's action space: the amount buckets, or exact counts and trades (`actions.py`)")
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--minibatch", type=int, default=8192)
@@ -442,7 +461,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--eval-every", type=int, default=25)
     p.add_argument("--eval-games", type=int, default=2048)
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
-    p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
+    p.add_argument("--init", default=None,
+                   help="start the network from this checkpoint's weights (a bucket-space one's trunk and main heads for an exact-space net)")
     p.add_argument("--ladder-games", type=int, default=2048)
     p.add_argument("--pair", default="", help="label=checkpoint of each head-to-head test's fixed opponent, comma-separated")
     p.add_argument("--pair-games", type=int, default=1024)
@@ -479,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     board = Board.load(device)
     tables = BlitzTables.load(os.path.join(DATA, "blitz-256"), device)
     tables.scaled_oversize = True
-    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency).to(device)
+    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
     iteration, steps_done, league = 0, 0, []
     # Each own snapshot's record while it held a league slot: [seats won, seats in decisive games].
@@ -502,8 +522,7 @@ def main(argv: list[str] | None = None) -> int:
     sizes = tuple(int(x) for x in args.sizes.split(","))
     weights = tuple(float(x) for x in args.size_weights.split(","))
     if args.init and iteration == 0:
-        init = torch.load(args.init, map_location=device, weights_only=False)
-        net.load_state_dict(init["net"] if "net" in init else init)
+        init_from(net, torch.load(args.init, map_location=device, weights_only=False))
         print(f"initialised from {args.init}", flush=True)
     evals = [(e.split("@")[0], int(e.split("@")[1])) for e in args.eval.split(",")]
     need_gd = args.gd_share > 0 or args.panel > 0 or any(o.startswith("gd-") for o, _ in evals)

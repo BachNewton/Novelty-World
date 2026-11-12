@@ -4,6 +4,7 @@ trained to make the teacher's decisions, its value head to the recorded games' o
     python -m riskgpu.selfplay.imitate extract runs/records/native-v2 --out runs/imitate/native-v2
     python -m riskgpu.selfplay.imitate train --data runs/imitate/native-v2 --name imit-1 [--fraction 1]
     python -m riskgpu.selfplay.imitate read --data runs/imitate/native-v2 --ckpt runs/imitate/imit-1/best.pt
+    python -m riskgpu.selfplay.imitate measure --data runs/imitate/native-v2 [--every 1] [--device cpu]
 
 run from `src/projects/risk/gpu/`.
 
@@ -22,10 +23,14 @@ games, none split.
 with fewer than the most dice, another set or bonus than the trade rule's) is mapped to the nearest
 choice and flagged: the flagged share by kind is a measurement of the action space, and a flagged
 target's decoded move is the move the net would play in its place. Unflagged targets decode to the
-teacher's move exactly.
+teacher's move exactly. The extracted samples keep the bucket space's targets; the exact space's
+(`exact_targets`: the main choice, then the argument slot whose candidate is the teacher's move)
+are made from the kept move as the samples are read, so one extraction serves both spaces.
+`extract` reports the flagged share by kind in both, and `measure` reads it, with intervals, from
+an extraction's held-out games, beside the width of each kind's legal range.
 
-**Train.** Cross-entropy over the legal main choices and over the amount where its group has
-buckets, and the value head (every present slot) fitted to its seat's score in the recorded game
+**Train.** Cross-entropy over the legal main choices and over the amount where it has more than
+one legal choice (a bucket or an argument, by the net's `--actions`), and the value head (every present slot) fitted to its seat's score in the recorded game
 (`env.scores`, the win reward). The observations are rebuilt on the GPU from the kept states each
 minibatch, as PPO's update does. The rate is a fixed schedule over a set budget of samples
 (`--max-samples`): a linear warmup, then a cosine fall to zero. The held-out read, on a fixed sample
@@ -33,7 +38,8 @@ of the held-out decisions, only chooses the checkpoint kept (`best.pt`); it neve
 schedule that cut the rate on that read's noise spread two seeds of one recipe 2 points apart, more
 than the data curve's top gap (`ideas/learned-bot.md`). `--fraction` trains on that share of the
 training games (the same games at every run, nested: a quarter holds the sixteenth), for the data
-curve; every share gets the same budget of samples.
+curve; every share gets the same budget of samples. `--init` starts from a checkpoint (an
+exact-space net from a bucket-space one's trunk and main heads).
 
 **Read.** Held-out agreement over every held-out decision, by the teacher's move kind and by the
 decision's kind as the crate's `agree` tallies it, the main choice alone and the whole move, with
@@ -58,17 +64,20 @@ from ..canonical import hash_bytes, state_ints
 from ..data import DATA, load_best
 from ..engine import ATTACK as K_ATTACK
 from ..engine import BLITZ as K_BLITZ
+from ..engine import OCCUPY as K_OCCUPY
 from ..engine import PLACE as K_PLACE
 from ..engine import TRADE as K_TRADE
 from ..engine import IllegalMove, step
 from ..options import KIND_ATTACK, KIND_OCCUPY, KIND_REINFORCE, Options, options
+from ..bots.greedy import first_true
 from ..records import read_records
 from ..runner import TurnLog
 from ..state import LAYOUT, State, new_games
-from .actions import (ATTACK, END_ATTACK, END_TURN, FORTIFY, OCCUPY, TRADE, amount_group, decode, legal_amount,
+from .actions import (ATTACK, C_BATTLE, C_BLITZ, C_FORTIFY, C_NONE, C_OCCUPY, C_PLACE, C_TRADE, END_ATTACK, END_TURN,
+                      FORTIFY, OCCUPY, SLOTS, TRADE, Candidates, candidate_moves, candidates, decode, decode_exact,
                       legal_main)
 from .env import KEPT, scores
-from .net import Net, masked
+from .net import Net, amount_choice, init_from, masked
 from .obs import observe, slots
 
 GPU = os.path.dirname(DATA)
@@ -149,6 +158,41 @@ def targets(s: State, o: Options, move: torch.Tensor, board: Board, edge_of: tor
     played = decode(main, amount, s, o, board)
     flagged = (normalize(played, s, o) != normalize(move, s, o)).any(1)
     return main, amount, flagged
+
+
+# The candidate kind (`actions.C_*`) each engine move kind is.
+CANDIDATE_OF = torch.tensor([C_PLACE, C_TRADE, C_BATTLE, C_BLITZ, C_OCCUPY, C_NONE, C_FORTIFY, C_NONE])
+
+
+def exact_targets(s: State, o: Options, move: torch.Tensor, board: Board, edge_of: torch.Tensor):
+    """`(main, slot, flagged, candidates)` in the exact space for the teacher's moves `[N, 5]`
+    int64: the slot of the candidate that is the teacher's move; where none is (a battle with fewer
+    than the most dice, a count a wide range's slots skip), the nearest candidate of its kind,
+    flagged."""
+    rows = torch.arange(s.batch, device=s.device)
+    kind, x, y, z = move[:, 0], move[:, 1], move[:, 2], move[:, 3]
+    xc, yc = x.clamp(0, TERRITORIES - 1), y.clamp(0, TERRITORIES - 1)
+    edge = edge_of[xc, yc]
+    by_kind = torch.stack([x, torch.full_like(x, TRADE), ATTACK + edge, torch.full_like(x, END_ATTACK),
+                           torch.full_like(x, OCCUPY), FORTIFY + xc * TERRITORIES + yc, torch.full_like(x, END_TURN)], 1)
+    main = by_kind.gather(1, MOVE_KIND_OF.to(s.device)[kind][:, None])[:, 0]
+    bad = ~legal_main(o, exact=True)[rows, main]
+    assert not bool(bad.any()), f"a teacher's move maps to an illegal choice: {move[bad][:4].tolist()}"
+    c = candidates(main, s, o, board)
+    have = candidate_moves(main, c, board)
+    want = normalize(move, s, o)
+    trading = (have[..., 0] == K_TRADE)[..., None]
+    have = torch.cat([have[..., :1], torch.where(trading, have[..., 1:4].sort(-1).values, have[..., 1:4]), have[..., 4:]], -1)
+    match = (have == want[:, None, :]).all(-1) & c.legal
+    flagged = ~match.any(1)
+    # The nearest candidate of the teacher's kind: by count, or for a trade by its cards.
+    value = torch.where(kind == K_PLACE, y, torch.where(kind == K_OCCUPY, x, z))
+    same_kind = c.kind == CANDIDATE_OF.to(s.device)[kind][:, None]
+    distance = torch.where(c.kind == C_TRADE, (have[..., 1:4] != want[:, None, 1:4]).any(-1).to(torch.int64),
+                           (c.number - value[:, None]).abs())
+    distance = torch.where(c.legal & same_kind, distance, torch.iinfo(torch.int64).max)
+    slot = torch.where(flagged, distance.argmin(1), first_true(match))
+    return main, slot, flagged, c
 
 
 def decision_kind(o: Options) -> torch.Tensor:
@@ -251,6 +295,7 @@ def replay(records: list[dict], teacher, board: Board, tables, device: str, chec
         if idx.numel():
             sb, ob = before.select(idx), o.select(idx)
             main, amount, flagged = targets(sb, ob, move[idx], board, edge_of)
+            exact_flagged = exact_targets(sb, ob, move[idx], board, edge_of)[2]
             lb = log.select(idx)
             sample = {name: getattr(sb, name) for name in KEPT}
             sample["armies"] = sample["armies"].to(torch.int16)
@@ -265,6 +310,7 @@ def replay(records: list[dict], teacher, board: Board, tables, device: str, chec
             })
             for k, v in sample.items():
                 out.setdefault(k, []).append(v.cpu())
+            out.setdefault("_exact_flagged", []).append(exact_flagged.cpu())
         log.update(before, s, move, live)
         d += 1
         ending = live & ((d >= n_moves) | (s.phase == 3) | (s.turn > max_turns))
@@ -322,6 +368,7 @@ def extract(folder: str, out: str, teacher_label: str, device: str, batch: int, 
                     cuts.append({"seed": chunk[g]["seed"], "kept": v, "of": len(chunk[g]["moves"]), "why": why})
             print(f"{seating}: games {at + len(chunk)}/{len(games)}, samples {sum(len(p['game']) for p in parts)}, "
                   f"{time.time() - t0:.0f}s", flush=True)
+        exact_flagged = torch.cat([p.pop("_exact_flagged") for p in parts])
         data = {k: torch.cat([p[k] for p in parts]) for k in parts[0]}
         data["games"] = {
             "seed": [r["seed"] for r in games],
@@ -332,11 +379,13 @@ def extract(folder: str, out: str, teacher_label: str, device: str, batch: int, 
         }
         data["cuts"] = cuts
         torch.save(data, target)
-        flagged = {MOVE_KINDS[k]: [int((data["flagged"] & (data["move_kind"] == k)).sum()), int((data["move_kind"] == k).sum())]
-                   for k in range(len(MOVE_KINDS))}
+        def flagged_of(flags: torch.Tensor) -> dict:
+            return {MOVE_KINDS[k]: [int((flags & (data["move_kind"] == k)).sum()), int((data["move_kind"] == k).sum())]
+                    for k in range(len(MOVE_KINDS))}
+
         summary[seating] = {"games": len(games), "moves": int(sum(len(r["moves"]) for r in games)),
-                            "samples": int(len(data["game"])), "cut": len(cuts), "flagged": flagged,
-                            "seconds": round(time.time() - t0)}
+                            "samples": int(len(data["game"])), "cut": len(cuts), "flagged": flagged_of(data["flagged"]),
+                            "flagged_exact": flagged_of(exact_flagged), "seconds": round(time.time() - t0)}
         print(json.dumps({seating: summary[seating]}), flush=True)
         for c in cuts[:20]:
             print(f"  cut {c['seed']}: kept {c['kept']} of {c['of']} decisions ({c['why']})", flush=True)
@@ -385,8 +434,9 @@ class Dataset:
             chosen[order[: math.ceil(fraction * len(order))]] = True
         return chosen
 
-    def inputs(self, idx: torch.Tensor, board: Board, device: str):
-        """The rebuilt states' options, observation and targets for samples `idx`."""
+    def inputs(self, idx: torch.Tensor, board: Board, device: str, actions: str = "buckets"):
+        """The rebuilt states' options, observation and targets for samples `idx`, in the action
+        space `actions`."""
         game_scores = self.scores[self.x["game"][idx]].to(device)
         x = {k: v[idx].to(device, non_blocking=True) for k, v in self.x.items()}
         n = idx.shape[0]
@@ -396,30 +446,33 @@ class Dataset:
         fields["deck"] = torch.full((n, LAYOUT["deck"][0][0]), -1, dtype=torch.int8, device=device)
         s = State(**{name: fields[name] for name in LAYOUT})
         o = options(s, board)
-        legal = legal_main(o)
+        exact = actions == "exact"
+        legal = legal_main(o, exact)
         node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board)
         seat_of_slot, _ = slots(s)
         value = game_scores.gather(1, seat_of_slot.clamp(min=0))
         value_ok = seat_of_slot >= 0
-        return {"s": s, "o": o, "legal": legal, "node": node, "slot": slot, "glob": glob_, "value": value,
-                "value_ok": value_ok, "main": x["main"].to(torch.int64), "amount": x["amount"].to(torch.int64),
-                "x": x}
+        if exact:
+            main, amount, flagged, c = exact_targets(s, o, x["move"].to(torch.int64), board, edge_index(board))
+        else:
+            main, amount, flagged, c = x["main"].to(torch.int64), x["amount"].to(torch.int64), x["flagged"], None
+        return {"s": s, "o": o, "board": board, "legal": legal, "node": node, "slot": slot, "glob": glob_, "value": value,
+                "value_ok": value_ok, "main": main, "amount": amount, "flagged": flagged, "candidates": c, "x": x}
 
 
 def forward(net: Net, b: dict, bf16: bool):
+    """`(main logits, amount logits, amount legal, value, trunk)`, the logits masked."""
     with torch.autocast("cuda", dtype=torch.bfloat16, enabled=bf16):
         t = net.trunk(b["node"], b["slot"], b["glob"])
         logits, value, _ = net.heads_main(t)
-        amount_logits = net.amount_logits(t, b["main"])
-    return masked(logits, b["legal"]), amount_logits.float(), value.float(), t
+        za, amount_legal, _ = amount_choice(net, t, b["main"], b["s"], b["o"], b["board"])
+    return masked(logits, b["legal"]), za.float(), amount_legal, value.float(), t
 
 
 def losses(net: Net, b: dict, bf16: bool) -> dict:
-    z, za, value, _ = forward(net, b, bf16)
+    z, za, amount_legal, value, _ = forward(net, b, bf16)
     main_ce = F.cross_entropy(z, b["main"])
-    group_legal = legal_amount(amount_group(b["main"]))
-    has = group_legal[:, 1]
-    za = masked(za, group_legal)
+    has = amount_legal.sum(1) > 1
     amount_ce = F.cross_entropy(za[has], b["amount"][has]) if bool(has.any()) else z.sum() * 0
     v = (((value - b["value"]) ** 2) * b["value_ok"]).sum() / b["value_ok"].sum()
     with torch.no_grad():
@@ -434,29 +487,34 @@ def predict(net: Net, b: dict, bf16: bool, board: Board):
         t = net.trunk(b["node"], b["slot"], b["glob"])
         logits, value, _ = net.heads_main(t)
         main = masked(logits.float(), b["legal"]).argmax(1)
-        za = net.amount_logits(t, main).float()
-    amount = masked(za, legal_amount(amount_group(main))).argmax(1)
-    move = decode(main, amount, b["s"], b["o"], board)
+        za, _, c = amount_choice(net, t, main, b["s"], b["o"], board)
+    amount = za.float().argmax(1)
+    if net.exact:
+        move = decode_exact(main, amount, b["s"], b["o"], board, c)
+    else:
+        move = decode(main, amount, b["s"], b["o"], board)
     return main, amount, move, value.float()
 
 
 @torch.no_grad()
 def agreement(net: Net, data: Dataset, idx: torch.Tensor, board: Board, device: str, bf16: bool, chunk: int = 8192):
     """Per sample in `idx`: whether the net's main choice and its whole move agree with the
-    teacher's, and the value's squared error on the present slots (summed, with the count)."""
+    teacher's, whether the target was flagged in the net's action space, and the value's squared
+    error on the present slots (summed, with the count)."""
     net.eval()
-    main_ok, move_ok, verr, vcount = [], [], 0.0, 0
+    main_ok, move_ok, flagged, verr, vcount = [], [], [], 0.0, 0
     for at in range(0, len(idx), chunk):
         part = idx[at:at + chunk]
-        b = data.inputs(part, board, device)
+        b = data.inputs(part, board, device, net.actions)
         main, _, move, value = predict(net, b, bf16, board)
         teacher_move = b["x"]["move"].to(torch.int64)
         main_ok.append((main == b["main"]).cpu())
         move_ok.append((normalize(move, b["s"], b["o"]) == normalize(teacher_move, b["s"], b["o"])).all(1).cpu())
+        flagged.append(b["flagged"].cpu())
         verr += float((((value - b["value"]) ** 2) * b["value_ok"]).sum())
         vcount += int(b["value_ok"].sum())
     net.train()
-    return torch.cat(main_ok), torch.cat(move_ok), verr / max(vcount, 1)
+    return torch.cat(main_ok), torch.cat(move_ok), torch.cat(flagged), verr / max(vcount, 1)
 
 
 # --- training ----------------------------------------------------------------------------------
@@ -490,7 +548,10 @@ def train(args) -> None:
     print(f"{args.name}: {int(chosen.sum())} training games, {len(train_idx)} samples; "
           f"{int(data.held_out.sum())} held-out games, {len(held_idx)} samples (monitor {len(monitor)})", flush=True)
 
-    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency).to(device)
+    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions).to(device)
+    if args.init:
+        init_from(net, torch.load(args.init, map_location=device, weights_only=False))
+        print(f"initialised from {args.init}", flush=True)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.wd, eps=1e-6)
     total_steps = math.ceil(args.max_samples / args.minibatch)
 
@@ -510,7 +571,7 @@ def train(args) -> None:
         for at in range(0, len(perm) - args.minibatch + 1, args.minibatch):
             for group in opt.param_groups:
                 group["lr"] = lr_at(step_)
-            b = data.inputs(perm[at:at + args.minibatch], board, device)
+            b = data.inputs(perm[at:at + args.minibatch], board, device, args.actions)
             parts = losses(net, b, args.bf16)
             loss = parts["main"] + args.amount_weight * parts["amount"] + args.vf * parts["value"]
             opt.zero_grad(set_to_none=True)
@@ -523,7 +584,7 @@ def train(args) -> None:
             step_ += 1
             samples += args.minibatch
             if step_ % args.read_every == 0 or step_ >= total_steps:
-                main_ok, move_ok, verr = agreement(net, data, monitor, board, device, args.bf16)
+                main_ok, move_ok, _, verr = agreement(net, data, monitor, board, device, args.bf16)
                 held = float(main_ok.float().mean())
                 record = {"step": step_, "samples": samples, "epoch": round(samples / len(train_idx), 3),
                           "lr": lr_at(step_), **{f"train_{k}": round(v / count, 5) for k, v in sums.items()},
@@ -577,20 +638,13 @@ def read(args) -> dict:
             seeds = {line.strip() for line in f if line.strip()}
         wanted = torch.tensor([seed in seeds for seed in data.seeds])
         idx = torch.nonzero(wanted[games])[:, 0]
-    main_ok, move_ok, verr = agreement(net, data, idx, board, device, args.bf16)
-    g = games[idx].numpy()
-    uniq, inverse = np.unique(g, return_inverse=True)
-
-    def read_of(hit: torch.Tensor, mask: torch.Tensor) -> dict | None:
-        m = mask.numpy()
-        hits = np.bincount(inverse[m], weights=hit.numpy()[m].astype(np.float64), minlength=len(uniq))
-        ns = np.bincount(inverse[m], minlength=len(uniq)).astype(np.float64)
-        return bootstrap(hits, ns)
-
-    x = {k: data.x[k][idx] for k in ("move_kind", "decision_kind", "turn_start", "flagged")}
+    main_ok, move_ok, flagged, verr = agreement(net, data, idx, board, device, args.bf16)
+    read_of = share_reader(games[idx])
+    x = {k: data.x[k][idx] for k in ("move_kind", "decision_kind", "turn_start")}
+    x["flagged"] = flagged
     seating_of = data.seat_of_game[games[idx]]
     all_ = torch.ones(len(idx), dtype=torch.bool)
-    report = {"ckpt": args.ckpt, "held_out_games": len(uniq), "value_mse": round(verr, 5),
+    report = {"ckpt": args.ckpt, "actions": net.actions, "held_out_games": len(np.unique(games[idx].numpy())), "value_mse": round(verr, 5),
               "main": {"all": read_of(main_ok, all_)}, "move": {"all": read_of(move_ok, all_)},
               "flagged": {"all": read_of(x["flagged"], all_)}}
     for k, name in enumerate(MOVE_KINDS):
@@ -606,6 +660,61 @@ def read(args) -> dict:
     report["main"]["all but turn-start"] = read_of(main_ok, ~ts)
     report["by_decision"] = {name: read_of(move_ok, x["decision_kind"] == k) for k, name in enumerate(DECISION_KINDS)}
     report["by_seating"] = {name: read_of(main_ok, seating_of == i) for i, (name, _, _) in enumerate(data.seatings)}
+    return report
+
+
+def share_reader(games: torch.Tensor):
+    """`read_of(hit, mask)`: the share of `hit` among the samples in `mask`, by bootstrap over
+    `games`, each sample's game."""
+    uniq, inverse = np.unique(games.numpy(), return_inverse=True)
+
+    def read_of(hit: torch.Tensor, mask: torch.Tensor) -> dict | None:
+        m = mask.numpy()
+        hits = np.bincount(inverse[m], weights=hit.numpy()[m].astype(np.float64), minlength=len(uniq))
+        ns = np.bincount(inverse[m], minlength=len(uniq)).astype(np.float64)
+        return bootstrap(hits, ns)
+
+    return read_of
+
+
+# --- the measurement of the action spaces --------------------------------------------------------
+
+
+def measure(args) -> dict:
+    """Over the held-out games (every `--every`-th of them), the share of the teacher's moves each
+    action space can't express, by kind, with 95% intervals by bootstrap over games; and for the
+    exact space, each kind's legal range (its width) and how often it outgrows the slots."""
+    board = Board.load(args.device)
+    data = Dataset(args.data)
+    games = data.x["game"]
+    idx = torch.nonzero(data.held_out[games] & (games % args.every == 0))[:, 0]
+    exact_flagged, overflow, width = [], [], []
+    for at in range(0, len(idx), args.chunk):
+        b = data.inputs(idx[at:at + args.chunk], board, args.device, "exact")
+        c: Candidates = b["candidates"]
+        exact_flagged.append(b["flagged"].cpu())
+        overflow.append(c.overflow.cpu())
+        width.append((c.hi - c.lo + 1).cpu())
+    exact_flagged, overflow, width = torch.cat(exact_flagged), torch.cat(overflow), torch.cat(width)
+    read_of = share_reader(games[idx])
+    move = data.x["move"][idx].to(torch.int64)
+    move_kind = data.x["move_kind"][idx].to(torch.int64)
+    # The attacks split in two: their kinds of argument differ.
+    kinds = {name: move_kind == k for k, name in enumerate(MOVE_KINDS)}
+    kinds["attack: battle"] = move[:, 0] == K_ATTACK
+    kinds["attack: blitz"] = move[:, 0] == K_BLITZ
+    report = {"data": args.data, "games": len(np.unique(games[idx].numpy())), "samples": len(idx), "slots": SLOTS,
+              "buckets": {"all": read_of(data.x["flagged"][idx], torch.ones_like(move_kind, dtype=torch.bool))},
+              "exact": {"all": read_of(exact_flagged, torch.ones_like(move_kind, dtype=torch.bool))}, "range": {}}
+    for name, m in kinds.items():
+        report["buckets"][name] = read_of(data.x["flagged"][idx], m)
+        report["exact"][name] = read_of(exact_flagged, m)
+        if name in ("end-attack", "end-turn", "attack: battle") or not bool(m.any()):
+            continue
+        w = width[m].numpy()
+        report["range"][name] = {"n": int(m.sum()), "width percentiles 50/90/99/99.9/max": [
+            int(v) for v in np.percentile(w, [50, 90, 99, 99.9, 100], method="lower")],
+            "overflow": int(overflow[m].sum()), "overflow share": round(float(overflow[m].float().mean()), 5)}
     return report
 
 
@@ -627,6 +736,9 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--width", type=int, default=128)
     t.add_argument("--layers", type=int, default=4)
     t.add_argument("--heads", type=int, default=8)
+    t.add_argument("--actions", default="buckets", choices=["buckets", "exact"],
+                   help="the net's action space: the amount buckets, or exact counts and trades (`actions.py`)")
+    t.add_argument("--init", default=None, help="start from this checkpoint's weights")
     t.add_argument("--lr", type=float, default=5e-4)
     t.add_argument("--wd", type=float, default=0.01)
     t.add_argument("--warmup", type=int, default=500)
@@ -647,6 +759,12 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--device", default="cuda")
     r.add_argument("--out", default="", help="write the report as JSON here too")
     r.add_argument("--no-bf16", dest="bf16", action="store_false")
+    m = sub.add_parser("measure")
+    m.add_argument("--data", required=True)
+    m.add_argument("--every", type=int, default=1, help="read every this-many-th held-out game")
+    m.add_argument("--device", default="cpu")
+    m.add_argument("--chunk", type=int, default=32768)
+    m.add_argument("--out", default="", help="write the report as JSON here too")
     args = p.parse_args(argv)
     if args.cmd == "extract":
         require_cuda(args.device)
@@ -654,7 +772,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "train":
         train(args)
     else:
-        report = read(args)
+        report = read(args) if args.cmd == "read" else measure(args)
         text = json.dumps(report, indent=1)
         print(text)
         if args.out:

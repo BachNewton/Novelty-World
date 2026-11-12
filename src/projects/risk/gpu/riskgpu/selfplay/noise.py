@@ -41,10 +41,10 @@ def mean_grad(net, env, targets, rows: torch.Tensor, minibatch: int) -> torch.Te
         s = rebuild(buf, t, b)
         with torch.no_grad():
             o = options(s, board)
-            legal = legal_main(o)
+            legal = legal_main(o, net.exact)
             node, slot, glob = observe(s, o, buf["placed_on"][t, b], buf["attacks"][t, b], buf["captured"][t, b], board)
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
-            logp, _, _, _ = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b])
+            logp, _, _, _ = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b], s, o, board)
         loss = -(logp.float() * targets["adv_n"][t, b]).sum()
         grads = torch.autograd.grad(loss, params, allow_unused=True)
         for acc, g in zip(total, grads):

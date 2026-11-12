@@ -30,11 +30,11 @@ import torch
 from ..board import MAX_SEATS, Board
 from ..bots.greedy import greedy_bot
 from ..engine import step
-from ..options import Options, options
+from ..options import Options, on_device, options
 from ..runner import Decision, TurnLog
 from ..state import LAYOUT, State, new_games
 from ..tables import BlitzTables
-from .actions import decode, legal_main
+from .actions import EXACT_MAIN, decode, decode_exact, legal_main
 from .net import Net, act
 from .obs import observe, slots
 
@@ -127,6 +127,8 @@ class Env:
         counts[0] += B - int(counts.sum())
         self.size_index = torch.repeat_interleave(torch.arange(len(cfg.sizes)), counts).to(device)
         self.players_of_slot = torch.tensor(cfg.sizes, device=device)[self.size_index]
+        # The run's own snapshots, of the learner's shape and space; an anchor of another shape or
+        # space replaces its slot's net (`ladder.load_net`) before the step is captured.
         self.snapshots = [Net(**learner.config(), edges=board.edges, adjacency=board.adjacency).to(device)
                           for _ in range(cfg.snapshots)]
         self.active_snapshots = 0  # how many of them the captured step runs
@@ -156,6 +158,8 @@ class Env:
         self.stats = torch.zeros(8, kinds, dtype=torch.float64, device=device)
         self.t = torch.zeros((), dtype=torch.int64, device=device)
         self.stalled = torch.zeros((), dtype=torch.int64, device=device)
+        # Exact-space decisions whose range had more choices than the argument's slots (`spread`).
+        self.overflow = torch.zeros((), dtype=torch.int64, device=device)
         if cfg.record:
             T = cfg.horizon
             self.buf = {name: torch.zeros(T, B, *LAYOUT[name][0], dtype=LAYOUT[name][1], device=device) for name in KEPT}
@@ -238,13 +242,25 @@ class Env:
         learner_rows = torch.zeros(B, dtype=torch.bool, device=self.device)
         nets = [(LEARNER, self.learner, cfg.cap_learner, cfg.learner_greedy)]
         nets += [(SNAPSHOT + k, net, cfg.cap_snapshot, cfg.snapshot_greedy) for k, net in enumerate(self.snapshots[: self.active_snapshots])]
+        # The networks of the exact action space decode their own rows; the bucket space's are
+        # decoded together below. A step with no exact network computes nothing for them.
+        exact = any(net.exact for _, net, _, _ in nets)
+        if exact:
+            exact_legal = legal & on_device("exact_main", EXACT_MAIN, self.device)
+            exact_move = torch.zeros(B, 5, dtype=torch.int64, device=self.device)
+            exact_rows = torch.zeros(B, dtype=torch.bool, device=self.device)
         for kind, net, share, greedy_pick in nets:
             idx, ok = pick(live & (kind_now == kind), max(1, int(share * B)))
-            sub = s.select(idx)
-            node, slot, glob = observe(sub, subset_options(idx), self.log.placed_on[idx], self.log.attacks[idx],
+            sub, sub_o = s.select(idx), subset_options(idx)
+            node, slot, glob = observe(sub, sub_o, self.log.placed_on[idx], self.log.attacks[idx],
                                        self.log.captured[idx], board)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=cfg.bf16):
-                m, a, lp, v = act(net, node, slot, glob, legal[idx], greedy_pick)
+                m, a, lp, v, c = act(net, node, slot, glob, (exact_legal if net.exact else legal)[idx], greedy_pick,
+                                     sub, sub_o, board)
+            if net.exact:
+                exact_move.index_copy_(0, idx, torch.where(ok[:, None], decode_exact(m, a, sub, sub_o, board, c), exact_move[idx]))
+                exact_rows.index_copy_(0, idx, exact_rows[idx] | ok)
+                self.overflow.add_((ok & c.overflow).sum())
             main.index_copy_(0, idx, torch.where(ok, m, main[idx]))
             amount.index_copy_(0, idx, torch.where(ok, a, amount[idx]))
             if kind == LEARNER:
@@ -253,6 +269,8 @@ class Env:
                 learner_rows.index_copy_(0, idx, ok)
             served.index_copy_(0, idx, served[idx] | ok)
         net_move = decode(main, amount, s, o, board)
+        if exact:
+            net_move = torch.where(exact_rows[:, None], exact_move, net_move)
         idx, ok = pick(live & (kind_now == GREEDY), max(1, int(cfg.cap_greedy * B)))
         humans = torch.zeros(idx.shape[0], MAX_SEATS, dtype=torch.bool, device=self.device)
         decision = Decision(s.select(idx), subset_options(idx), board, self.tables, None, None, humans, [])
@@ -385,7 +403,8 @@ class Env:
         log = self.log
         return ([getattr(self.state, n) for n in LAYOUT]
                 + [log.attacks, log.captured, log.placed_on, log.traded, log.stacker_swapped]
-                + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t, self.stalled])
+                + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t, self.stalled,
+                   self.overflow])
 
     def _save(self) -> list[torch.Tensor]:
         return [x.clone() for x in self._tensors()]
@@ -429,8 +448,10 @@ class Env:
     def take_stats(self) -> dict:
         st = self.stats.cpu()
         stalled = int(self.stalled)
+        overflow = int(self.overflow)
         self.stats.zero_()
         self.stalled.zero_()
+        self.overflow.zero_()
         return {"seats": st[0].tolist(), "wins": st[1].tolist(), "score": st[2].tolist(), "games": float(st[3, 0]),
                 "capped": float(st[4, 0]), "turns": float(st[5, 0]), "decisive_seats": st[6].tolist(),
-                "stalled": stalled}
+                "stalled": stalled, "overflow": overflow}

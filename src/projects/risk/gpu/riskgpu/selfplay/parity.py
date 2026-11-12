@@ -1,10 +1,12 @@
-"""The parity fixture of the TypeScript bot `net-v1` (`bots/net-v1/`): GPU-engine games with the
-network in some seats and greedy in the rest, the network choosing its most likely main choice and
-amount in fp32 on the CPU, kept as game records with, for every network decision, a digest of what
-the Python network computed. `bots/net-v1/parity.test.ts` replays the records on the reference
-engine and holds the TypeScript bot to every digest and every move.
+"""The parity fixture of the TypeScript bots `net-v1` (`bots/net-v1/`, the bucket space) and
+`net-v2` (`bots/net-v2/`, the exact space): GPU-engine games with the network in some seats and
+greedy in the rest, the network choosing its most likely main choice and amount in fp32 on the CPU,
+kept as game records with, for every network decision, a digest of what the Python network
+computed. Each bot's `parity.test.ts` replays the records on the reference engine and holds the
+TypeScript bot to every digest and every move.
 
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-tiny.json.gz --random 32,2,4,2
+    python -m riskgpu.selfplay.parity --out ../bots/net-v2/__fixtures__/parity-tiny.json.gz --random 32,2,4,2 --actions exact
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-m1a-25.json.gz \\
         --ckpt latest-copy.pt --weights m1a-25
 
@@ -15,8 +17,9 @@ names the exported weight set (`--weights`) the test loads instead.
 
 A digest is the decision's index in its game, the five highest legal main logits (index and value,
 highest first, ties to the lower index), the value vector, the chosen main choice and amount, the
-amount logits of the legal buckets, a weighted checksum of the observation and, for every
-`--obs-every`-th network decision of the fixture, the observation itself.
+amount logits of the legal buckets or argument slots, a weighted checksum of the observation and, for every
+`--obs-every`-th network decision of the fixture, the observation itself. An exact-space fixture
+also keeps `spread`'s counts over many ranges, since its games seldom outgrow the slots.
 """
 
 import argparse
@@ -34,9 +37,9 @@ from ..bots.greedy import greedy_bot
 from ..data import load_best
 from ..options import Options
 from ..runner import Decision, play_games
-from .actions import amount_group, decode, legal_amount, legal_main
-from .export import config_of, load_state_dict, weights_object
-from .net import Net, masked
+from .actions import SLOTS, decode, decode_exact, legal_main, spread
+from .export import load_state_dict, weights_object
+from .net import Net, amount_choice, masked, shape_of
 from .obs import observe
 
 SEATINGS = [
@@ -63,9 +66,9 @@ def checksum(flat: torch.Tensor) -> float:
     return total
 
 
-def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, seed: int) -> Net:
+def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, seed: int, actions: str = "buckets") -> Net:
     torch.manual_seed(seed)
-    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency)
+    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency, actions=actions)
     with torch.no_grad():
         for name, p in net.named_parameters():
             if name.endswith("border") or name == "edge_bias":
@@ -93,13 +96,12 @@ def net_bot(net: Net, board: Board, digests: dict, obs_every: int):
         with torch.no_grad():
             x = net.trunk(node, slot, glob)
             logits, value, _ = net.heads_main(x)
-            legal = legal_main(o)
+            legal = legal_main(o, net.exact)
             z = masked(logits, legal)
             main = z.argmax(1)
-            amount_legal = legal_amount(amount_group(main))
-            za = masked(net.amount_logits(x, main), amount_legal)
+            za, amount_legal, c = amount_choice(net, x, main, s, o, board)
             amount = za.argmax(1)
-        moves[idx] = decode(main, amount, s, o, board)
+        moves[idx] = decode_exact(main, amount, s, o, board, c) if net.exact else decode(main, amount, s, o, board)
         decision = d.decision[idx].tolist()
         for r, g in enumerate(idx.tolist()):
             legal_idx = legal[r].nonzero()[:, 0]
@@ -130,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     p.add_argument("--random", help="width,layers,heads,ff_mult of a random network")
     p.add_argument("--seed", type=int, default=7, help="the random network's seed")
+    p.add_argument("--actions", default="buckets", choices=["buckets", "exact"], help="the random network's action space")
     p.add_argument("--ckpt", help="a checkpoint to play")
     p.add_argument("--weights", help="the exported weight set of --ckpt")
     p.add_argument("--prefix", default="net-parity")
@@ -147,11 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     tables = load_best(device)
     if args.random is not None:
         width, layers, heads, ff_mult = (int(x) for x in args.random.split(","))
-        net = random_net(width, layers, heads, ff_mult, board, args.seed)
+        net = random_net(width, layers, heads, ff_mult, board, args.seed, args.actions)
         net_spec = {"inline": weights_object({k: v.detach().clone() for k, v in net.state_dict().items()})}
     else:
         state = load_state_dict(args.ckpt)
-        net = Net(**config_of(state), edges=board.edges, adjacency=board.adjacency)
+        net = Net(**shape_of(state), edges=board.edges, adjacency=board.adjacency)
         net.load_state_dict(state)
         net_spec = {"weights": args.weights}
     net.eval()
@@ -166,6 +169,15 @@ def main(argv: list[str] | None = None) -> int:
         record["net"] = digests.get(g, [])
         record.pop("provenance", None)
     fixture = {"net": net_spec, "records": records}
+    if net.exact:
+        # The games rarely reach a range wider than the slots, so `spread` is pinned on its own.
+        hi = torch.tensor([w for w in range(1, 121)] + list(range(150, 701, 50)))
+        fixture["spread"] = []
+        for slots in (SLOTS - 1, SLOTS):
+            for lo in (1, 3):
+                values, legal, _ = spread(torch.full_like(hi, lo), hi + lo - 1, slots)
+                fixture["spread"] += [{"lo": lo, "hi": int(h) + lo - 1, "slots": slots, "values": values[r][legal[r]].tolist()}
+                                      for r, h in enumerate(hi)]
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with gzip.open(args.out, "wt", encoding="utf-8", compresslevel=9) as f:
         json.dump(fixture, f, separators=(",", ":"))

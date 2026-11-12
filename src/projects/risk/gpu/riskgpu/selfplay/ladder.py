@@ -5,7 +5,7 @@
 run from `src/projects/risk/gpu/`. Each game's five seats are drawn from the checkpoints (with
 repeats only while fewer than five), every seat sampling its moves as in training, and a Luce fit
 over who won each decisive game gives each its win Elo, the first at 0. A checkpoint's size is read
-from its weights' shapes.
+from its weights' shapes, and its action space from which amount head it has.
 """
 
 import argparse
@@ -17,18 +17,14 @@ from ..board import Board
 from ..data import DATA
 from ..tables import BlitzTables
 from .env import Env, EnvConfig, LEARNER, SNAPSHOT
-from .net import Net
+from .net import Net, shape_of
 from .ppo import luce_elo, seat_draw
 
 
 def load_net(path: str, board: Board, device: str) -> Net:
     sd = torch.load(path, map_location=device, weights_only=False)
     sd = sd.get("net", sd)
-    width = sd["node_in.weight"].shape[0]
-    layers = len({k.split(".")[1] for k in sd if k.startswith("blocks.")})
-    heads = sd["blocks.0.border"].shape[0]
-    ff_mult = sd["blocks.0.ff1.weight"].shape[0] // width
-    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency).to(device)
+    net = Net(**shape_of(sd), edges=board.edges, adjacency=board.adjacency).to(device)
     net.load_state_dict(sd)
     net.requires_grad_(False)
     return net

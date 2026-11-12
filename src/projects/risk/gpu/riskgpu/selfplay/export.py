@@ -1,13 +1,15 @@
-"""Exports a self-play checkpoint as a weight set of the TypeScript bot `net-v1`
-(`bots/net-v1/`, `ideas/gpu-engine.md`, phase 3):
+"""Exports a self-play checkpoint as a weight set of the TypeScript bot that plays its action
+space: `net-v1` for the buckets, `net-v2` for the exact space (`bots/net-v1/`, `bots/net-v2/`,
+`ideas/gpu-engine.md`, phase 3):
 
     python -m riskgpu.selfplay.export --ckpt runs/selfplay/m1a/latest.pt --name m1a-25
 
-run from `src/projects/risk/gpu/`. Writes `bots/net-v1/weights/<name>.ts` (the net's shape and
+run from `src/projects/risk/gpu/`. Writes `bots/<bot>/weights/<name>.ts` (the net's shape and
 every tensor of its state dict as little-endian float32 in base64, by its PyTorch name) and
-rewrites `bots/net-v1/weights/index.ts` to list every weight set there. The checkpoint is either a
-trainer's `latest.pt` (its `net`) or a bare state dict (`snap-<iter>.pt`); the shape is read from
-the tensors themselves. Only fp32 weights go out: the bf16 autocast is the trainer's, not the net's.
+rewrites `bots/<bot>/weights/index.ts` to list every weight set there. The checkpoint is either a
+trainer's `latest.pt` (its `net`) or a bare state dict (`snap-<iter>.pt`); the shape and the action
+space are read from the tensors themselves. Only fp32 weights go out: the bf16 autocast is the
+trainer's, not the net's.
 """
 
 import argparse
@@ -19,24 +21,20 @@ import sys
 import torch
 
 from ..board import DATA
+from .net import shape_of
 
-WEIGHTS_DIR = os.path.join(os.path.dirname(os.path.dirname(DATA)), "bots", "net-v1", "weights")
+BOTS = os.path.join(os.path.dirname(os.path.dirname(DATA)), "bots")
+BOT_OF_SPACE = {"buckets": "net-v1", "exact": "net-v2"}
+
+
+def weights_dir(state: dict[str, torch.Tensor]) -> str:
+    return os.path.join(BOTS, BOT_OF_SPACE[shape_of(state)["actions"]], "weights")
 
 
 def load_state_dict(path: str) -> dict[str, torch.Tensor]:
     ck = torch.load(path, map_location="cpu", weights_only=False)
     state = ck["net"] if isinstance(ck, dict) and "net" in ck else ck
     return {name: t.detach().to(torch.float32).contiguous() for name, t in state.items()}
-
-
-def config_of(state: dict[str, torch.Tensor]) -> dict[str, int]:
-    """`Net`'s shape, read from its tensors."""
-    width = state["node_in.weight"].shape[0]
-    layers = len({name.split(".")[1] for name in state if name.startswith("blocks.")})
-    heads = state["blocks.0.border"].shape[0]
-    ff = state["blocks.0.ff1.weight"].shape[0]
-    assert ff % width == 0, (ff, width)
-    return {"width": width, "layers": layers, "heads": heads, "ff_mult": ff // width}
 
 
 def b64(t: torch.Tensor) -> str:
@@ -46,14 +44,14 @@ def b64(t: torch.Tensor) -> str:
 
 def weights_object(state: dict[str, torch.Tensor]) -> dict:
     """The weight set as the TypeScript reads it (`NetWeights` in `bots/net-v1/network.ts`)."""
-    c = config_of(state)
+    c = shape_of(state)
     return {"width": c["width"], "layers": c["layers"], "heads": c["heads"], "ff": c["ff_mult"] * c["width"],
             "tensors": {name: b64(t) for name, t in state.items()}}
 
 
-def module_text(name: str, source: str, w: dict) -> str:
+def module_text(bot: str, source: str, w: dict) -> str:
     lines = [
-        f"// A net-v1 weight set, written by `python -m riskgpu.selfplay.export` from {source}; never edited by hand.",
+        f"// A {bot} weight set, written by `python -m riskgpu.selfplay.export` from {source}; never edited by hand.",
         "",
         'import type { NetWeights } from "../network";',
         "",
@@ -73,9 +71,9 @@ def identifier(name: str) -> str:
     return "w" + re.sub(r"[^A-Za-z0-9]", "_", name)
 
 
-def index_text(names: list[str]) -> str:
+def index_text(bot: str, names: list[str]) -> str:
     lines = [
-        "// Every net-v1 weight set, by name: rewritten by `python -m riskgpu.selfplay.export`; never edited by hand.",
+        f"// Every {bot} weight set, by name: rewritten by `python -m riskgpu.selfplay.export`; never edited by hand.",
         "",
         'import type { NetWeights } from "../network";',
     ]
@@ -95,13 +93,15 @@ def main(argv: list[str] | None = None) -> int:
         p.error(f"a weight set's name is letters, digits, '-' and '.', not {args.name!r}")
     state = load_state_dict(args.ckpt)
     w = weights_object(state)
-    os.makedirs(WEIGHTS_DIR, exist_ok=True)
-    out = os.path.join(WEIGHTS_DIR, f"{args.name}.ts")
+    folder = weights_dir(state)
+    bot = os.path.basename(os.path.dirname(folder))
+    os.makedirs(folder, exist_ok=True)
+    out = os.path.join(folder, f"{args.name}.ts")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
-        f.write(module_text(args.name, os.path.basename(args.ckpt), w))
-    names = sorted(f[:-3] for f in os.listdir(WEIGHTS_DIR) if f.endswith(".ts") and f != "index.ts")
-    with open(os.path.join(WEIGHTS_DIR, "index.ts"), "w", encoding="utf-8", newline="\n") as f:
-        f.write(index_text(names))
+        f.write(module_text(bot, os.path.basename(args.ckpt), w))
+    names = sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".ts") and f != "index.ts")
+    with open(os.path.join(folder, "index.ts"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(index_text(bot, names))
     params = sum(t.numel() for t in state.values())
     print(f"{args.name}: width {w['width']}, {w['layers']} layers, {w['heads']} heads, ff {w['ff']}, "
           f"{params:,} weights -> {out}")
