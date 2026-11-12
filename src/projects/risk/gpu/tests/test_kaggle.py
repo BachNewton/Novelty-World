@@ -47,7 +47,7 @@ def test_every_gpu_works_through_the_queue(tmp_path, monkeypatch):
     monkeypatch.setattr(kernel, "WORKING", str(tmp_path))
     for name in ("a", "b", "c"):
         run_folder(tmp_path / name, readings=[250, 275, 300], snaps=[250, 275, 300])
-    job = {"runs": [{"name": n, "args": ["--stop-key", "k"]} for n in ("a", "b", "c")]}
+    job = {"runs": [{"name": n, "args": ["--stop-key", "k"]} for n in ("a", "b", "c")], "read_hours": 0}
     session = kernel.Session(job, str(tmp_path), gpus=2, deadline=time.time() + 3600)
     done = []
     monkeypatch.setattr(session, "command", lambda task: done.append((task["name"], task["kind"])) or
@@ -60,8 +60,42 @@ def test_every_gpu_works_through_the_queue(tmp_path, monkeypatch):
 
 
 def test_no_task_starts_once_the_hours_are_up(tmp_path):
-    job = {"runs": [{"name": "a", "args": []}]}
+    job = {"runs": [{"name": "a", "args": []}], "read_hours": 0}
     assert kernel.Session(job, str(tmp_path), gpus=2, deadline=0.0).next_task() is None
+
+
+def test_the_readings_hours_go_to_the_newest_checkpoints_first(tmp_path, monkeypatch):
+    # The first session that ran two runs started a run's second reading before the other run's first,
+    # and the hours ran out on it.
+    monkeypatch.setattr(kernel, "WORKING", str(tmp_path))
+    for name in ("a", "b"):
+        run_folder(tmp_path / name, readings=[250, 275, 300], snaps=[250, 275, 300])
+    job = {"runs": [{"name": n, "args": ["--stop-key", "k"]} for n in ("a", "b")], "read_hours": 1}
+    session = kernel.Session(job, str(tmp_path), gpus=1, deadline=time.time() + 7200)
+    done = []
+
+    def command(task):
+        done.append((task["name"], task.get("iter")))
+        if task["kind"] == "train":
+            # The trainer is given the hours up to the readings' share, not the session's.
+            assert 0.9 < float(kernel.Session.command(session, task)[-1]) <= 1.0
+        return [sys.executable, "-c", "pass"]
+    monkeypatch.setattr(session, "command", command)
+    session.run()
+    assert done == [("a", None), ("b", None), ("a", 300), ("b", 300), ("a", 275), ("b", 275), ("a", 250), ("b", 250)]
+
+
+def test_a_reading_cut_at_the_sessions_end_is_not_a_failure(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(kernel, "WORKING", str(tmp_path))
+    monkeypatch.setattr(kernel, "GRACE_S", 0)
+    run_folder(tmp_path / "a", readings=[300], snaps=[300])
+    session = kernel.Session({"runs": [], "read_hours": 0}, str(tmp_path), gpus=1, deadline=time.time())
+    # Past the session's hours, so the stopper kills the reading at once.
+    monkeypatch.setattr(session, "command", lambda task: [sys.executable, "-c", "import time; time.sleep(60)"])
+    session.perform({"kind": "read", "name": "a", "iter": 300, "rank": 0, "bf16": False}, device=0)
+    session.run()
+    assert session.failed == [] and session.cut == ["a read 300"]
+    assert "a read 300" in capsys.readouterr().out
 
 
 def test_a_bundle_lands_where_the_trainers_read(tmp_path):

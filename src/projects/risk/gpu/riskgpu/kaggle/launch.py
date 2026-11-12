@@ -168,6 +168,7 @@ def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool) -> 
 def push(args: argparse.Namespace) -> int:
     names = args.names
     assert len(set(names)) == len(names), "a run can't share a session with itself"
+    assert 0 <= args.read_hours < args.session_hours, "the readings' hours are the end of the session's, not more"
     extras = dict(x.split("=", 1) for x in args.run_args)
     assert set(extras) <= set(names), f"--run-args names a run not pushed: {sorted(set(extras) - set(names))}"
     runs = [{"name": n, "args": run_args(list(args.trainer), extras.get(n, ""), args.accelerator, args.no_stop)}
@@ -200,7 +201,8 @@ def push(args: argparse.Namespace) -> int:
     kernel_dir = os.path.join(STAGING, job_name, "kernel")
     shutil.rmtree(kernel_dir, ignore_errors=True)
     os.makedirs(kernel_dir)
-    job = {"commit": commit, "bundle": bundle_id, "runs": runs, "session_hours": args.session_hours}
+    job = {"commit": commit, "bundle": bundle_id, "runs": runs, "session_hours": args.session_hours,
+           "read_hours": args.read_hours}
     with open(KERNEL) as f:
         source = f.read()
     with open(os.path.join(kernel_dir, "run.py"), "w") as f:
@@ -304,6 +306,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="one run's own trainer arguments, after the shared ones (e.g. k2='--seed 1')")
     s.add_argument("--accelerator", default="NvidiaTeslaT4")
     s.add_argument("--session-hours", type=float, default=11.0, help="under Kaggle's 12-hour session, with room to set up")
+    s.add_argument("--read-hours", type=float, default=3.0,
+                   help="the session's last hours, kept for the stopped runs' sharp readings (a T4 takes 2 to 3 a reading, two at once)")
     s.add_argument("--no-stop", action="store_true", help="let the session run its hours without a plateau stop")
     for sub_command in ("status", "fetch"):
         sub.add_parser(sub_command).add_argument("name")

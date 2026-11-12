@@ -10,8 +10,12 @@ the checkpoints of its last three headline readings, which tells a flat run from
 slowly for the training panel's intervals to resolve. A task's output goes to its run's `out.txt` and
 `err.txt` and to the session's log, which Kaggle's page shows live, each line prefixed with its task.
 
-No task starts after the session's hours are up, and a reading still going half an hour past them is
-stopped, so the session ends inside Kaggle's own limit with its output kept.
+The session's last hours (the job's `read_hours`, sized from a reading's measured cost) are kept for
+the readings: a training run is given the hours up to them, and the readings are taken newest first
+across every run, so what the hours can't fit is the oldest checkpoints' readings. No task starts
+after the session's hours are up, and a reading still going half an hour past them is stopped, so the
+session ends inside Kaggle's own limit with its output kept. A reading stopped there is a reading the
+plan didn't fit, not a failure: it is reported with the tasks left, and the session ends cleanly.
 """
 
 import json
@@ -83,10 +87,10 @@ def sharp_readings(name: str, args: list[str], run_dir: str) -> list[dict]:
             if key in record.get("panel", {}):
                 iters.append(record["iter"])
     tasks = []
-    for it in reversed(list(dict.fromkeys(iters))[-3:]):
+    for rank, it in enumerate(reversed(list(dict.fromkeys(iters))[-3:])):
         out = os.path.join(run_dir, f"panel-{it}-g{SHARP_GAMES}.json")
         if os.path.exists(os.path.join(run_dir, f"snap-{it}.pt")) and not os.path.exists(out):
-            tasks.append({"kind": "read", "name": name, "iter": it, "bf16": "--no-bf16" not in args})
+            tasks.append({"kind": "read", "name": name, "iter": it, "rank": rank, "bf16": "--no-bf16" not in args})
     return tasks
 
 
@@ -98,21 +102,26 @@ def run(cmd: list[str], **kw) -> None:
 class Session:
     def __init__(self, job: dict, gpu_dir: str, gpus: int, deadline: float):
         self.job, self.gpu_dir, self.gpus, self.deadline = job, gpu_dir, gpus, deadline
+        self.train_deadline = deadline - job["read_hours"] * 3600
         self.queue = [{"kind": "train", **r} for r in job["runs"]]
         self.lock = threading.Lock()
         self.failed: list[str] = []
+        self.cut: list[str] = []
 
     def next_task(self) -> dict | None:
         with self.lock:
-            if not self.queue or time.time() > self.deadline:
+            now = time.time()
+            # A run that couldn't start before the readings' hours waits for the next session.
+            self.queue = [t for t in self.queue if t["kind"] == "read" or now < self.train_deadline]
+            if not self.queue or now > self.deadline:
                 return None
             return self.queue.pop(0)
 
     def command(self, task: dict) -> list[str]:
         name = task["name"]
         if task["kind"] == "train":
-            # The session's hours left when the run starts, which the trainer stops itself at.
-            hours = max(0.0, (self.deadline - time.time()) / 3600)
+            # The hours left before the readings' share when the run starts, which the trainer stops itself at.
+            hours = max(0.0, (self.train_deadline - time.time()) / 3600)
             return [sys.executable, "-u", "-m", "riskgpu.selfplay.ppo", "--name", name, "--resume", *task["args"],
                     "--session-hours", f"{hours:.3f}"]
         it = task["iter"]
@@ -140,14 +149,19 @@ class Session:
             code = proc.wait()
             if task["kind"] == "read":
                 stopper.cancel()
-        if code != 0:
+        if task["kind"] == "read" and code != 0 and time.time() > self.deadline + GRACE_S:
+            with self.lock:
+                self.cut.append(label)
+        elif code != 0:
             with open(os.path.join(run_dir, "err.txt")) as f:
                 print(f"[{label}] failed ({code}):\n" + f.read()[-4000:], file=sys.stderr, flush=True)
             with self.lock:
                 self.failed.append(f"{label} ({code})")
         if task["kind"] == "train" and code == 0:
             with self.lock:
-                self.queue += sharp_readings(name, task["args"], run_dir)
+                # Newest checkpoints first across every run; sorted() keeps runs in order within a rank.
+                self.queue = sorted(self.queue + sharp_readings(name, task["args"], run_dir),
+                                    key=lambda t: t.get("rank", -1))
 
     def worker(self, device: int) -> None:
         while (task := self.next_task()) is not None:
@@ -160,7 +174,7 @@ class Session:
         for w in workers:
             w.join()
         with self.lock:
-            left = [f"{t['name']} {t['kind']}" for t in self.queue]
+            left = self.cut + [f"{t['name']} {t['kind']}" + (f" {t['iter']}" if "iter" in t else "") for t in self.queue]
         if left:
             print(f"the session's hours ran out with tasks left: {left}", flush=True)
         if self.failed:

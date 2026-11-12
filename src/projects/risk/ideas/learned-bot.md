@@ -376,6 +376,26 @@ The sharp readings (4,096 games; 2,048 decisive where a lone seat is read):
 
 **Health.** KL stayed at 0.003 to 0.004 a step and the clipped share at 0.02 to 0.03, smaller steps than stage 2's first night; the value head explained 96% to 97% of the return's variance; the training games' cap rate stayed under a quarter of a percent. Seed 2's entropy rose again, from 1.8 at 225 to 2.2 at 275, and its games lengthened (66 player-turns on average at 200, 76 at 275), with its first capped mirror games at 275. Seed 1's entropy sat at 1.8 to 1.9. A resumed run starts fresh games, so its first ten or so iterations train on openings (entropy about 0.5, the value head explaining 71%), then return to where they were; the optimizer's state is restored.
 
+**The diagnosis: k3 and k4, one session.** The causes the session's own records rule out (the skill's `references/diagnosis.md`): the ruler (sharp intervals of about ±1.8 points, the seeds' spread at the plateau about a point, the anchor at par rather than a ceiling), the infrastructure (a resume restores the optimizer), noisy targets (the value head explains 96% to 97%) and steps too large (KL about 0.003; the run is held cold). A run held cold that doesn't climb points at its data or its objective, and the records show a sign of each:
+
+- **The league (cause 3).** About 38% of the non-learner seats in training are greedy and GD's personas, and the learner wins 97% to 99% of the games it plays them; only its own snapshots and the two anchors contest it.
+- **The entropy bonus (cause 2).** Seed 2's entropy rose late, from 1.8 to 2.2, while its games lengthened and its strength dipped. The bonus of 0.01 holds a policy near an entropy of 2 (stage 2's first night), well above where its best checkpoints were.
+
+Both runs are copies of k1 at 275 (seed 2 on the plateau, its optimizer and league intact), one change each, trained together on one session to iteration 350 at matched samples and read sharply there:
+
+- **k3**: no greedy or GD personas in the league (`--gd-share 0 --snapshot-share 0.85`), their seats to the snapshots and anchors.
+- **k4**: the entropy bonus at 0.003 (`--ent 0.003`).
+
+| # | Prediction, at iteration 350 (sharp, 4,096 games) | Confidence |
+|---|---|---|
+| 1 | If the league is the cause, k3 alone among four s2-2-150, sampling, reads 22.5% or more (k1 at 275: 19.3% [17.7, 21.1]), its interval clear of par | 30% |
+| 2 | If the bonus is the cause, k4 reads the same 22.5% or more | 30% |
+| 3 | k4's entropy falls below 1.5 | 85% |
+| 4 | k3, no longer trained against them, still wins 90% or more alone among four GD Defensive (argmax) | 80% |
+| 5 | Neither clears 22.5%: both within two points of 19.3%, which rules out both causes in this form | 45% |
+
+What follows: a run that clears its mark is the next base, and its change goes into a seed pair before anything is built on it. If neither does, the remaining causes are the representation (an evening's imitation-ceiling test exists from stage 1), the improvement operator, and the problem itself; stage 3's search is the planned answer to the second, so the brief to the owner is whether to stop stage 2 there. The cost is one session, about 11.5 of the week's 30 GPU-hours.
+
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 
 ### Kill rule, cost, and what follows
