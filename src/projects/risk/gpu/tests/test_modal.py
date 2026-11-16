@@ -178,3 +178,15 @@ def test_fetch_refuses_to_overwrite_local_work_and_brings_the_run_back(tmp_path,
     local = tmp_path / "runs" / "selfplay" / "r"
     assert sorted(os.listdir(local)) == sorted(["latest.pt", "log.jsonl", launch.SESSIONS])
     assert (local / "latest.pt").read_text() == "trained"
+
+
+def test_an_imitations_size_and_device_are_checked_before_anything_is_uploaded():
+    shared = ["--data", "runs/imitate/d", "--max-samples", "5"]
+    assert launch.run_args(shared, "--width 384 --layers 8", "A10", no_stop=False, trainer="imitate")[-4:] == \
+        ["--width", "384", "--layers", "8"]
+    # A width the heads don't divide fails only at the net's first step, after the container's start-up.
+    with pytest.raises(AssertionError, match="--heads"):
+        launch.run_args(shared, "--width 100", "A10", no_stop=False, trainer="imitate")
+    # A container on the CPU pays for its GPU and trains tens of times slower.
+    with pytest.raises(AssertionError, match="--device"):
+        launch.run_args(shared, "--device cpu", "A10", no_stop=False, trainer="imitate")

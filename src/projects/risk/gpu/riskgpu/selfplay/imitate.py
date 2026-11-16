@@ -34,7 +34,11 @@ one legal choice (a bucket or an argument, by the net's `--actions`), and the va
 (`env.scores`, the win reward). The observations are rebuilt on the GPU from the kept states each
 minibatch, as PPO's update does. The rate is a fixed schedule over a set budget of samples
 (`--max-samples`): a linear warmup, then a cosine fall to zero. The held-out read, on a fixed sample
-of the held-out decisions, only chooses the checkpoint kept (`best.pt`); it never moves the rate. A
+of the held-out decisions, only chooses the checkpoint kept (`best.pt`); it never moves the rate.
+Beside it, the same read on a fixed sample of the run's own training decisions (`fit_main`,
+`fit_move`) says how well the net fits what it trains on, at the weights of that moment, the same
+way for any size of net; `train_agree` is the running mean over the minibatches since the last
+read, taken while the weights moved. A
 schedule that cut the rate on that read's noise spread two seeds of one recipe 2 points apart, more
 than the data curve's top gap (`ideas/learned-bot.md`). `--fraction` trains on that share of the
 training games (the same games at every run, nested: a quarter holds the sixteenth), for the data
@@ -548,6 +552,9 @@ def train(args) -> None:
     held_idx = torch.nonzero(data.held_out[sample_game])[:, 0]
     gen = torch.Generator().manual_seed(7)
     monitor = held_idx[torch.randperm(len(held_idx), generator=gen)[: args.monitor]].sort().values
+    # Its own generator, so the held-out sample stays the one earlier runs read.
+    fit_gen = torch.Generator().manual_seed(11)
+    fit_monitor = train_idx[torch.randperm(len(train_idx), generator=fit_gen)[: args.monitor]].sort().values
     print(f"{args.name}: {int(chosen.sum())} training games, {len(train_idx)} samples; "
           f"{int(data.held_out.sum())} held-out games, {len(held_idx)} samples (monitor {len(monitor)})", flush=True)
 
@@ -590,8 +597,11 @@ def train(args) -> None:
             if step_ % args.read_every == 0 or step_ >= total_steps or out_of_time:
                 main_ok, move_ok, _, verr = agreement(net, data, monitor, board, device, args.bf16)
                 held = float(main_ok.float().mean())
+                fit_main, fit_move, _, _ = agreement(net, data, fit_monitor, board, device, args.bf16)
                 record = {"step": step_, "samples": samples, "epoch": round(samples / len(train_idx), 3),
                           "lr": lr_at(step_), **{f"train_{k}": round(v / count, 5) for k, v in sums.items()},
+                          "fit_main": round(float(fit_main.float().mean()), 5),
+                          "fit_move": round(float(fit_move.float().mean()), 5),
                           "held_main": round(held, 5), "held_move": round(float(move_ok.float().mean()), 5),
                           "held_value_mse": round(verr, 5), "seconds": round(time.time() - t0, 1),
                           "samples_per_s": round(samples / (time.time() - t0))}

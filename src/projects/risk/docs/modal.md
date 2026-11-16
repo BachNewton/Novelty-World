@@ -9,14 +9,16 @@ A Modal account with a card on file (no GPU runs without one), and the client in
 ## A run
 
 ```bash
-python -m riskgpu.modalgpu.launch push <name> [--gpu A10] [--hours 8] [--read-hours 2] -- <trainer arguments>
-python -m riskgpu.modalgpu.launch status <name>
-python -m riskgpu.modalgpu.launch stop <name>
-python -m riskgpu.modalgpu.launch fetch <name>
-python -m riskgpu.modalgpu.launch report <name>
+python -m riskgpu.modalgpu.launch push <name> [<name>] [--imitate] [--gpu A10] [--hours 8] [--read-hours 2] [--dry-run] -- <trainer arguments>
+python -m riskgpu.modalgpu.launch status <name> [<name>]
+python -m riskgpu.modalgpu.launch stop <name> [<name>]
+python -m riskgpu.modalgpu.launch fetch <name> [<name>]
+python -m riskgpu.modalgpu.launch report <name> [<name>]
 ```
 
-- **`push`** starts each run it names on a GPU container of its own (`--gpu`: T4, L4, A10, A100-40GB, A100-80GB or H100; A10 by default), all in one app, and returns. Its trainer arguments are checked first by the trainers' own parsers, and the plateau stop is required as on Kaggle (`--stop-when` and `--stop-key`, or `--no-stop`). Each run's own arguments follow the shared ones (`--run-args <name>="<args>"`), so a seed pair is one push.
+- **`push`** starts each run it names on a GPU container of its own (`--gpu`: T4, L4, A10, A100-40GB, A100-80GB or H100; A10 by default), all in one app, and returns. Its trainer arguments are checked first by the trainers' own parsers, and the plateau stop is required as on Kaggle (`--stop-when` and `--stop-key`, or `--no-stop`). Each run's own arguments follow the shared ones (`--run-args <name>="<args>"`), so a seed pair, or the same recipe at several sizes of net, is one push. All of a push's runs share its `--hours`, so runs whose lengths differ by much go in separate pushes.
+- **`--dry-run`** checks the arguments as a push would and prints each run's arguments, the inputs it would upload and its worst case in dollars, then stops without asking Modal anything: the way to see a sweep's exact cost before spending.
+- **`status`, `stop`, `fetch` and `report`** take several names, one run after another, so a sweep is followed with one command.
 - **Detached.** The push starts an ephemeral app in detached mode (the Python form of `modal run --detach`) and spawns the runs in it, so nothing of the laptop's is needed once the command returns: the app lives while its runs do and stops by itself when the last ends. One app per push, rather than a deployed app the pushes share, keeps each push's code in its own image and leaves nothing to tidy up.
 - **The code** is this checkout's GPU package at HEAD (its code and committed data), put in the image as it stands there; the push refuses a GPU package with changes not committed, and the run records the commit it trained on. Nothing has to reach GitHub first, unlike a Kaggle session. `--uncommitted` ships the working tree instead, for testing the launcher itself, and the run records its commit as uncommitted.
 - **Two Volumes.** A run's folder lives on the `risk-runs` Volume at its local path (`runs/selfplay/<name>` or `runs/imitate/<name>`), where the trainer writes its checkpoints as it always does, so whatever ends the container, the run's work up to its last checkpoint is kept. The push replaces that folder with the local one, which stays the run's source of truth, so a run resumes on Modal from wherever it was trained last. Everything else the run reads that git doesn't carry (the blitz tables, every checkpoint its arguments name, the panel's anchors, an imitation's data) goes to the `risk-data` Volume, which keeps a manifest of each file's hash: a push uploads only what is missing there or changed, so an imitation's gigabytes of data go up once.
@@ -28,6 +30,14 @@ python -m riskgpu.modalgpu.launch report <name>
 ## After training, the readings
 
 The container reads its run once it stops, as a Kaggle session does (`kaggle.md`), with the session's own code: a PPO run's sharp readings (its checkpoints at its last three headline readings, newest first, on the panel at `--sharp-games` a check, 4,096 by default), an imitation's held-out agreement and its panel. One GPU does both, in turn.
+
+## An imitation
+
+`push --imitate` runs `imitate.py train` with its arguments after `--`, each run in `runs/imitate/<name>/`, as Kaggle's imitation sessions do: a fresh run every time (a name whose folder already holds a trained net is refused), its data on the data Volume, its training capped by the container's hours. Its network's size is the trainer's own `--width`, `--layers` and `--heads`; a width the heads don't divide and a `--device` other than the GPU are refused before anything is uploaded, since either would fail or idle a container that is already paid for.
+
+- **A comparison of sizes reads the fit.** Beside the held-out read that keeps `best.pt`, the trainer reads a fixed sample of the run's own training decisions at every checkpoint, the same decisions for any size of net at the same `--fraction`, and logs its agreement (`fit_main`, `fit_move`). That is the capacity reading: a net that can't fit what it trains on is short of size or of steps. `train_agree` is kept, the mean over the minibatches since the last read while the weights moved, which is what runs from before the fixed read have. `report` and `fetch` print the net's size, its epochs, the fit and `train_agree` after Kaggle's report.
+- **`--no-panel`** reads a trained imitation on its held-out agreement alone. The panel's games cost GPU time that a comparison of fits doesn't need, and the panel can be read later, on the laptop or in another push, from the fetched `best.pt`.
+- **The readings' hours are the push's `--read-hours`**: the agreement read alone is one pass over the held-out decisions without training, so a push without the panel needs far less than the default two.
 
 ## What a run costs and when it stops
 

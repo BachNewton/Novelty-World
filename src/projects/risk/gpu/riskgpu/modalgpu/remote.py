@@ -38,6 +38,21 @@ image = (modal.Image.debian_slim(python_version="3.12").pip_install("torch==2.11
 app = modal.App("risk-train", image=image, include_source=False)
 
 
+class RunSession(Session):
+    """Kaggle's session on one GPU, with an imitation's panel reading left out when the push said so
+    (a comparison of nets read on their agreement alone)."""
+
+    def __init__(self, *args, panel: bool, **kw):
+        super().__init__(*args, **kw)
+        self.panel = panel
+
+    def perform(self, task: dict, device: int) -> None:
+        super().perform(task, device)
+        if not self.panel:
+            with self.lock:
+                self.queue = [t for t in self.queue if t.get("reading") != "panel"]
+
+
 @app.function(gpu="A10", cpu=(CORES, CORES), memory=MEMORY_GIB["ppo"] * 1024, timeout=int(MAX_HOURS * 3600),
               retries=0, volumes={RUNS_MOUNT: runs_volume, DATA_MOUNT: data_volume})
 def train(job: dict) -> dict:
@@ -68,9 +83,9 @@ def train(job: dict) -> dict:
                             "restart": first is not None, "run": run}) + "\n")
     runs_volume.commit()
 
-    session = Session({"runs": [run], "read_hours": job["read_hours"], "sharp_games": job["sharp_games"]},
-                      GPU_DIR, gpus=1, deadline=deadline(first or started, job["hours"]),
-                      working=os.path.dirname(own), grace=0)
+    session = RunSession({"runs": [run], "read_hours": job["read_hours"], "sharp_games": job["sharp_games"]},
+                         GPU_DIR, gpus=1, deadline=deadline(first or started, job["hours"]),
+                         working=os.path.dirname(own), grace=0, panel=job.get("panel", True))
     try:
         session.run()
     except SystemExit as e:

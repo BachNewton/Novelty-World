@@ -1,11 +1,12 @@
 """Training runs on Modal's GPUs, launched and read from here:
 
     python -m riskgpu.modalgpu.launch push <name> [<name>] [--run-args <name>="<its own args>"] [--imitate]
-                                      [--gpu A10] [--hours 8] [--read-hours 2] -- <shared trainer args>
-    python -m riskgpu.modalgpu.launch status <name>
-    python -m riskgpu.modalgpu.launch fetch <name>
-    python -m riskgpu.modalgpu.launch stop <name>
-    python -m riskgpu.modalgpu.launch report <name> [--key "sample s2-2-150 one-in"]
+                                      [--no-panel] [--gpu A10] [--hours 8] [--read-hours 2] [--dry-run]
+                                      -- <shared trainer args>
+    python -m riskgpu.modalgpu.launch status <name> [<name>]
+    python -m riskgpu.modalgpu.launch fetch <name> [<name>]
+    python -m riskgpu.modalgpu.launch stop <name> [<name>]
+    python -m riskgpu.modalgpu.launch report <name> [<name>] [--key "sample s2-2-150 one-in"]
 
 run from `src/projects/risk/gpu/` (`docs/modal.md`). The jobs and their terms are the Kaggle launcher's
 (`kaggle/launch.py`), whose argument checks, bundle, readings and report this reuses: a run is trained
@@ -82,7 +83,15 @@ def run_args(shared: list[str], extra: str, gpu: str, no_stop: bool, trainer: st
     else:
         assert bf16(args), (f"a Modal run on a {gpu} trains in bf16, its recipe here (comparable with the eGPU's): "
                             "drop --no-bf16, or push to a T4")
-    return kaggle.trainer_args(args, no_stop, trainer)
+    args = kaggle.trainer_args(args, no_stop, trainer)
+    if trainer == "imitate":
+        from ..selfplay.imitate import parser
+        parsed = parser().parse_args(["train", "--name", "check", *args])
+        # A container pays for its GPU whatever the run trains on.
+        assert parsed.device == "cuda", f"a Modal run trains on its GPU: drop --device {parsed.device}"
+        assert parsed.width % parsed.heads == 0, \
+            f"--width {parsed.width} doesn't split into --heads {parsed.heads}: the net would fail on its first step"
+    return args
 
 
 def train_hours(hours: float, read_hours: float) -> float:
@@ -262,7 +271,20 @@ def stage_code(uncommitted: bool) -> str:
 def job_for(run: dict, inputs: list[str], push_id: str, commit: str, args: argparse.Namespace) -> dict:
     """What a run's container is given: everything it does is read from this."""
     return {"push": push_id, "commit": commit, "run": run, "inputs": inputs, "gpu": args.gpu, "hours": args.hours,
-            "read_hours": args.read_hours, "sharp_games": args.sharp_games}
+            "read_hours": args.read_hours, "sharp_games": args.sharp_games, "panel": not args.no_panel}
+
+
+def dry_run(args: argparse.Namespace, runs: list[dict], rate: float) -> int:
+    """What a push would start and upload, its arguments already checked, without asking Modal anything."""
+    for r in runs:
+        print(f"{run_folder(r)}: {shlex.join(r['args'])}")
+    inputs = list(dict.fromkeys(f for r in runs for f in split_files(r, kaggle.needed_files(r))[1]))
+    size = sum(os.path.getsize(os.path.join(gpu_dir(), f)) for f in inputs)
+    print(f"inputs: {len(inputs)} files, {size / 1e6:,.0f} MB, uploaded to {DATA_VOLUME} where missing or changed")
+    print(f"{len(runs)} x {args.gpu} at ${rate:.3f} an hour for at most {args.hours:g} hours each "
+          f"({train_hours(args.hours, args.read_hours):.2f} training): at most ${rate * args.hours * len(runs):.2f}, "
+          f"before the month's spend, which a dry run doesn't ask")
+    return 0
 
 
 def push(args: argparse.Namespace) -> int:
@@ -273,6 +295,7 @@ def push(args: argparse.Namespace) -> int:
     extras = dict(x.split("=", 1) for x in args.run_args)
     assert set(extras) <= set(names), f"--run-args names a run not pushed: {sorted(set(extras) - set(names))}"
     trainer = "imitate" if args.imitate else "ppo"
+    assert not args.no_panel or args.imitate, "--no-panel is an imitation's: a PPO run's readings are its panel"
     runs = [{"name": n, "trainer": trainer,
              "args": run_args(list(args.trainer), extras.get(n, ""), args.gpu, args.no_stop, trainer)}
             for n in names]
@@ -284,6 +307,8 @@ def push(args: argparse.Namespace) -> int:
             f"{run_folder(r)} already holds a trained imitation, which the run would replace: name a new run"
 
     rate = hourly(args.gpu, trainer)
+    if args.dry_run:
+        return dry_run(args, runs, rate)
     check_budget(month_spend(), in_flight(push_records(), time.time()), rate * args.hours * len(runs))
     commit = stage_code(args.uncommitted)
     files = {r["name"]: split_files(r, kaggle.needed_files(r)) for r in runs}
@@ -392,7 +417,31 @@ def fetch(args: argparse.Namespace) -> int:
     bring_back(record, modal.Volume.from_name(RUNS_VOLUME))
     print(f"fetched into {run_folder(record['run'])}")
     kaggle.report_run(record["run"], None)
+    if trainer_of(record["run"]) == "imitate":
+        print(f"  {imitation_fit(kaggle.local_dir(record['run']))}")
     return 0
+
+
+def report(args: argparse.Namespace) -> int:
+    """Kaggle's report, and for an imitation its fit to its own training decisions and its size, which a
+    comparison of sizes reads."""
+    kaggle.report(args)
+    run_dir = kaggle.local_dir({"name": args.name, "trainer": "imitate"})
+    if os.path.exists(os.path.join(run_dir, "args.json")):
+        print(f"  {imitation_fit(run_dir)}")
+    return 0
+
+
+def imitation_fit(run_dir: str) -> str:
+    with open(os.path.join(run_dir, "args.json")) as f:
+        a = json.load(f)
+    with open(os.path.join(run_dir, "log.jsonl")) as f:
+        last = [json.loads(line) for line in f][-1]
+    size = f"{a['width']} x {a['layers']} ({a['heads']} heads), fraction {a['fraction']:g}, epoch {last['epoch']:g}"
+    # Runs from before the trainer read its fit have only the running mean.
+    fit = (f"training-set main agreement {last['fit_main']:.4f}, move {last['fit_move']:.4f}"
+           if "fit_main" in last else "no fixed training-set read")
+    return f"{size}: {fit}; running train_agree {last['train_agree']:.4f}"
 
 
 def stop(args: argparse.Namespace) -> int:
@@ -424,20 +473,28 @@ def main(argv: list[str] | None = None) -> int:
                    help="the container's last hours, kept for the stopped run's readings")
     s.add_argument("--sharp-games", type=int, default=SHARP_GAMES, help="a PPO run's sharp readings' games a check")
     s.add_argument("--no-stop", action="store_true", help="let a PPO run spend its hours without a plateau stop")
+    s.add_argument("--no-panel", action="store_true",
+                   help="read a trained imitation on its held-out agreement alone, without the panel's games")
     s.add_argument("--uncommitted", action="store_true",
                    help="ship the GPU package's working tree, not HEAD: for testing the launcher itself")
+    s.add_argument("--dry-run", action="store_true",
+                   help="check the runs' arguments and show what the push would start, upload and cost, then stop")
     for sub_command in ("status", "fetch", "stop"):
-        sub.add_parser(sub_command).add_argument("name")
+        sub.add_parser(sub_command).add_argument("names", nargs="+")
     r = sub.add_parser("report")
-    r.add_argument("name")
+    r.add_argument("names", nargs="+")
     r.add_argument("--key", default=None, help="a PPO run's panel reading to show (default: the run's --stop-key)")
     argv = sys.argv[1:] if argv is None else argv
     # The trainer's arguments follow `--`, kept apart so the launcher's own options never mix with them.
     split = argv.index("--") if "--" in argv else len(argv)
     args = p.parse_args(argv[:split])
     args.trainer = argv[split + 1:]
-    commands = {"push": push, "status": status, "fetch": fetch, "stop": stop, "report": kaggle.report}
-    return commands[args.command](args)
+    if args.command == "push":
+        return push(args)
+    one = {"status": status, "fetch": fetch, "stop": stop, "report": report}[args.command]
+    for name in args.names:
+        one(argparse.Namespace(**{**vars(args), "name": name}))
+    return 0
 
 
 if __name__ == "__main__":
