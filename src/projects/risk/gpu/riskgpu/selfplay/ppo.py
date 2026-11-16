@@ -12,6 +12,16 @@ The value head is a vector over slots: slot 0 learns the GAE return, the other s
 final score where the game ended inside the rollout; the auxiliary head learns each slot's board
 share `aux_steps` steps on.
 
+**A seat's chain crosses the rollout's end** (`--bootstrap carry`, the default). A learner seat's
+last decision in a rollout, its game still running, has no successor yet: it is held back (`Carry`)
+and trained in the rollout where the seat decides again or its game ends, with the target a long
+rollout would give it. So every target is built from slot-0 values, the ones the net gives for the
+seat deciding, and from real scores. `--bootstrap acting`, the old reading, instead closes every
+seat's chain at the rollout's end with the value the net gives that seat from the view of whichever
+seat is acting there: an other-slot value whenever another seat is, which slot 0 was never trained
+to agree with. A resumed run keeps the bootstrap it was trained with (a checkpoint from before the
+choice existed was trained with `acting`).
+
 `--actions` chooses a new network's action space (`actions.py`): the buckets, or the exact space,
 which `--init` may start from a bucket-space checkpoint's trunk and main heads, its argument head
 fresh. The league, the evaluations and the panel seat each network in its own space.
@@ -33,7 +43,7 @@ from ..options import options
 from ..state import LAYOUT, State
 from ..tables import BlitzTables
 from .actions import legal_main
-from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfig
+from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, LOG_FIELDS, SNAPSHOT, Env, EnvConfig
 from .net import Net, evaluate, init_from, shape_of
 from .obs import observe, slots
 from .verdict import panel_readings, verdict
@@ -43,11 +53,62 @@ RUNS = os.path.join(GPU, "runs", "selfplay")
 
 
 def rebuild(buf: dict, t: torch.Tensor, b: torch.Tensor) -> State:
+    return state_of(lambda name: buf[name][t, b], t)
+
+
+def state_of(at, t: torch.Tensor) -> State:
+    """The kept state of the rows `t` indexes, each field read by `at(name)`."""
     n = t.shape[0]
-    fields = {name: buf[name][t, b] for name in KEPT}
+    fields = {name: at(name) for name in KEPT}
     fields["rng"] = torch.zeros(n, dtype=torch.int64, device=t.device)
     fields["deck"] = torch.full((n, CARDS), -1, dtype=torch.int8, device=t.device)
     return State(**{name: fields[name] for name in LAYOUT})
+
+
+# What a held-back decision keeps of the buffer: what `update` rebuilds it from and trains it on.
+CARRIED = KEPT + list(LOG_FIELDS) + ["main", "amount", "logp", "value"]
+
+
+class Carry:
+    """Each learner seat's pending decision, `[6 seats, B rows]`: its last decision in a rollout
+    whose game ran on past the rollout's end, held until a later rollout gives it a successor (the
+    seat's next own decision, or its game's end). A seat has at most one: its next decision either
+    completes it or comes after a game end that does. `age` counts the rollout ends it has crossed,
+    so a decision trained at age k was taken by the policy of k updates ago."""
+
+    def __init__(self, buf: dict, batch: int, device):
+        self.fields = {name: torch.zeros(MAX_SEATS, *buf[name].shape[1:], dtype=buf[name].dtype, device=device)
+                       for name in CARRIED}
+        self.held = torch.zeros(MAX_SEATS, batch, dtype=torch.bool, device=device)
+        self.age = torch.zeros(MAX_SEATS, batch, dtype=torch.int64, device=device)
+
+    def at(self, buf: dict, name: str, t: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        """A field of the samples `(t, b)` index in the buffer and the carry together: `t` below
+        the horizon is a buffer step, `horizon + k` seat k's held decision."""
+        T = buf[name].shape[0]
+        mine = buf[name][t.clamp(max=T - 1), b]
+        held = self.fields[name][(t - T).clamp(min=0), b]
+        return torch.where((t < T).view(-1, *([1] * (mine.dim() - 1))), mine, held)
+
+    def hold(self, env: Env, targets: dict) -> dict:
+        """After the update: drops the decisions just trained, ages the rest, and holds this
+        rollout's newly pending ones. Returns the carry's readings for the log."""
+        trained = targets["complete"]
+        out = {"carried": int(targets["hold"].sum()), "carried_trained": int(trained.sum())}
+        if out["carried_trained"]:
+            ages = self.age[trained].float()
+            out["carried_age"] = float(ages.mean())
+            out["carried_age_max"] = int(ages.max())
+        self.held &= ~trained
+        self.age += self.held
+        t, b = targets["hold"].nonzero(as_tuple=True)
+        seat = env.buf["active"][t, b].to(torch.int64)
+        assert not bool(self.held[seat, b].any()), "a seat held two pending decisions at once"
+        for name in CARRIED:
+            self.fields[name][seat, b] = env.buf[name][t, b]
+        self.held[seat, b] = True
+        self.age[seat, b] = 1
+        return out
 
 
 def by_slot(values: torch.Tensor, seat_of_slot: torch.Tensor) -> torch.Tensor:
@@ -66,22 +127,41 @@ def potential(owner: torch.Tensor, armies: torch.Tensor) -> torch.Tensor:
     return 0.5 * land + 0.5 * troops / troops.sum(1, keepdim=True).clamp(min=1)
 
 
-def advantages(env: Env, boot: torch.Tensor, lam: float, shaping: float = 0.0) -> dict:
+def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float = 0.0,
+               carry: Carry | None = None) -> dict:
     """GAE over each seat's chain of learner decisions. With `shaping`, each link also earns
     shaping × (Φ at the seat's next decision − Φ at this one), Φ 0 once the game has ended: over a
     game the extra rewards sum to −shaping × Φ at its first decision, so they move credit earlier
-    without changing which policy is best (Ng et al., potential-based shaping)."""
+    without changing which policy is best (Ng et al., potential-based shaping).
+
+    Where a chain is cut at the rollout's end, one of two things (the module's docstring):
+    `boot` (`[B, 6]` by seat, `Env.bootstrap`) closes every chain with its value, or `carry`
+    holds each chain's last decision back (`hold`, the decisions newly held) and completes the
+    ones held from earlier rollouts whose successor this rollout reached (`complete`, `[6, B]`).
+    With the carry the λ-return of the decisions before a held one is truncated at it, its value
+    their bootstrap, as a single rollout ending on that decision would be. `train` marks the
+    samples the update takes: `[T, B]` buffer steps, then with the carry `[6, B]` held decisions
+    as steps `T + seat` (`Carry.at`)."""
+    assert (boot is None) != (carry is None), "close the chains with a bootstrap or carry them, one of the two"
     buf, T, B = env.buf, env.cfg.horizon, env.cfg.batch
-    rows = torch.arange(B, device=boot.device)
-    next_v = boot.clone()
-    next_a = torch.zeros_like(boot)
-    next_phi = shaping * potential(env.state.owner, env.state.armies) if shaping else None
-    pending = torch.zeros_like(boot)
-    final = torch.zeros_like(boot)
-    final_ok = torch.zeros(B, dtype=torch.bool, device=boot.device)
-    adv = torch.zeros(T, B, device=boot.device)
-    mc = torch.zeros(T, B, MAX_SEATS, device=boot.device)
-    mc_ok = torch.zeros(T, B, dtype=torch.bool, device=boot.device)
+    device = buf["value"].device
+    rows = torch.arange(B, device=device)
+    next_v = boot.clone() if boot is not None else torch.zeros(B, MAX_SEATS, device=device)
+    next_a = torch.zeros_like(next_v)
+    next_phi = None
+    if shaping:
+        next_phi = (shaping * potential(env.state.owner, env.state.armies) if boot is not None
+                    else torch.zeros_like(next_v))
+    pending = torch.zeros_like(next_v)
+    final = torch.zeros_like(next_v)
+    final_ok = torch.zeros(B, dtype=torch.bool, device=device)
+    adv = torch.zeros(T, B, device=device)
+    mc = torch.zeros(T, B, MAX_SEATS, device=device)
+    mc_ok = torch.zeros(T, B, dtype=torch.bool, device=device)
+    # With the carry: the seats whose chain is still open at the rollout's end, reached by
+    # neither a decision of theirs nor a game end since step t.
+    open_ = torch.ones(B, MAX_SEATS, dtype=torch.bool, device=device) if carry is not None else None
+    hold = torch.zeros(T, B, dtype=torch.bool, device=device)
     for t in reversed(range(T)):
         ended = buf["ended"][t]
         reward = buf["reward"][t]
@@ -99,9 +179,16 @@ def advantages(env: Env, boot: torch.Tensor, lam: float, shaping: float = 0.0) -
             phi = shaping * potential(buf["owner"][t], buf["armies"][t])[rows, a]
             delta = delta + torch.where(buf["learner"][t], next_phi[rows, a] - phi, 0.0)
         advantage = delta + lam * next_a[rows, a]
-        adv[t] = advantage
         # Only the learner's own decisions are links in a seat's chain; other rows pass through.
         mine = buf["learner"][t]
+        if open_ is not None:
+            open_ = open_ & ~ended[:, None]
+            last = mine & open_[rows, a]
+            hold[t] = last
+            # Held back: nothing past it is known, so the links before it stop their λ-sum here.
+            advantage = torch.where(last, 0.0, advantage)
+            open_[rows, a] = open_[rows, a] & ~mine
+        adv[t] = advantage
         next_v[rows, a] = torch.where(mine, v, next_v[rows, a])
         next_a[rows, a] = torch.where(mine, advantage, next_a[rows, a])
         if next_phi is not None:
@@ -109,13 +196,83 @@ def advantages(env: Env, boot: torch.Tensor, lam: float, shaping: float = 0.0) -
         pending[rows, a] = torch.where(mine, 0.0, pending[rows, a])
         mc[t] = final
         mc_ok[t] = final_ok
-    return {"adv": adv, "ret": adv + buf["value"], "mc": mc, "mc_ok": mc_ok}
+    if carry is None:
+        return {"adv": adv, "ret": adv + buf["value"], "mc": mc, "mc_ok": mc_ok, "train": buf["learner"]}
+
+    # The held decisions: at step 0 each one's game is still the row's, so the chain's state there
+    # (by seat, `[B, 6]`, turned to `[6, B]`) is what follows it.
+    complete = carry.held & ~open_.T
+    v_c = carry.fields["value"]
+    adv_c = pending.T + next_v.T - v_c + lam * next_a.T
+    if next_phi is not None:
+        seats = torch.arange(MAX_SEATS, device=device)
+        held_phi = potential(carry.fields["owner"].flatten(0, 1), carry.fields["armies"].flatten(0, 1))
+        phi_c = shaping * held_phi.view(MAX_SEATS, B, MAX_SEATS)[seats, :, seats]
+        adv_c = adv_c + next_phi.T - phi_c
+    adv_c = torch.where(complete, adv_c, 0.0)
+    return {"adv": torch.cat([adv, adv_c]), "ret": torch.cat([adv + buf["value"], adv_c + v_c]),
+            "mc": torch.cat([mc, final[None].expand(MAX_SEATS, -1, -1)]),
+            "mc_ok": torch.cat([mc_ok, final_ok[None].expand(MAX_SEATS, -1)]),
+            "train": torch.cat([buf["learner"] & ~hold, complete]), "hold": hold, "complete": complete}
 
 
-def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) -> dict:
+def value_health(env: Env, targets: dict) -> dict:
+    """The value head read against real outcomes, beside the trainer's explained variance (which is
+    read against the GAE returns, themselves mostly the head's own predictions):
+
+    - `fresh_value`: the mean slot-0 value at each learner seat's first decision in a game dealt
+      inside this rollout, overall and by table size (`fresh_value_<players>`). Read beside
+      `learner_score`, the mean real score of the learner seats whose games ended: an unbiased head
+      brings the two together.
+    - `ended_explained`: the explained variance of slot 0 against the seat's real final score, over
+      the learner decisions whose game ended inside this rollout. It covers only a game's last steps
+      (at most one rollout before its end), where the outcome is nearly settled: it says nothing of
+      the head's reading of a game's opening.
+
+    A reading with no decisions this rollout is left out, and the explained variance where every
+    outcome was the same, since it has none to explain."""
+    buf, T, B = env.buf, env.cfg.horizon, env.cfg.batch
+    rows = torch.arange(B, device=env.device)
+    sizes = len(env.cfg.sizes)
+    seen = torch.zeros(B, MAX_SEATS, dtype=torch.bool, device=env.device)
+    fresh = torch.zeros(B, dtype=torch.bool, device=env.device)
+    total = torch.zeros(sizes, device=env.device)
+    count = torch.zeros(sizes, device=env.device)
+    for t in range(T):
+        if t > 0:
+            dealt = buf["game_id"][t] != buf["game_id"][t - 1]
+            fresh = fresh | dealt
+            seen = seen & ~dealt[:, None]
+        a = buf["active"][t].to(torch.int64)
+        mine = buf["learner"][t]
+        first = mine & fresh & ~seen[rows, a]
+        seen[rows, a] = seen[rows, a] | mine
+        total.index_add_(0, env.size_index, torch.where(first, buf["value"][t], 0.0))
+        count.index_add_(0, env.size_index, first.float())
+    out = {}
+    if count.sum() > 0:
+        out["fresh_value"] = float(total.sum() / count.sum())
+        out["fresh_n"] = int(count.sum())
+        for k, players in enumerate(env.cfg.sizes):
+            if count[k] > 0:
+                out[f"fresh_value_{players}"] = float(total[k] / count[k])
+    ended = buf["learner"] & targets["mc_ok"][:T]
+    seat = buf["active"].to(torch.int64)
+    y = targets["mc"][:T].gather(2, seat[..., None])[..., 0][ended]
+    if y.numel() > 1 and float(y.var()) > 0:
+        v = buf["value"][ended]
+        out["ended_explained"] = float(1 - (y - v).var() / y.var())
+        out["ended_n"] = y.numel()
+    return out
+
+
+def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, carry: Carry | None = None) -> dict:
+    """PPO epochs over `targets["train"]`'s samples. A held decision (with the carry) is trained on
+    its own target and its value targets; it has no auxiliary target, its look-ahead lying in a
+    rollout no longer kept."""
     buf, board, H = env.buf, env.board, env.cfg.aux_steps
     T = env.cfg.horizon
-    idx = buf["learner"].nonzero()
+    idx = targets["train"].nonzero()
     n = idx.shape[0]
     sums = {"pg": 0.0, "v": 0.0, "vo": 0.0, "aux": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
     count = 0
@@ -131,27 +288,33 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
                 part = mb[c0:c0 + args.chunk]
                 weight = part.shape[0] / mb.shape[0]
                 t, b = part[:, 0], part[:, 1]
-                s = rebuild(buf, t, b)
+
+                def at(name: str) -> torch.Tensor:
+                    return buf[name][t, b] if carry is None else carry.at(buf, name, t, b)
+
+                s = state_of(at, t)
                 with torch.no_grad():
                     o = options(s, board)
                     legal = legal_main(o, net.exact)
-                    node, slot, glob = observe(s, o, buf["placed_on"][t, b], buf["attacks"][t, b], buf["captured"][t, b], board)
+                    node, slot, glob = observe(s, o, at("placed_on"), at("attacks"), at("captured"), board)
                     seat_of_slot, _ = slots(s)
                     adv = (targets["adv"][t, b] - adv_mean) / adv_std
                     ret = targets["ret"][t, b]
                     mc = by_slot(targets["mc"][t, b], seat_of_slot)
                     mc_ok = targets["mc_ok"][t, b][:, None] & (seat_of_slot >= 0)
                     mc_ok[:, 0] = False
+                    # A held decision's step is past the buffer (`t` ≥ T), so it has no look-ahead.
                     ahead = (t + H).clamp(max=T - 1)
-                    aux_ok = ((t + H) < T) & (buf["game_id"][ahead, b] == buf["game_id"][t, b])
+                    aux_ok = ((t + H) < T) & (buf["game_id"][ahead, b] == buf["game_id"][t.clamp(max=T - 1), b])
                     aux_target = by_slot(buf["share"][ahead, b], seat_of_slot)
                     aux_mask = aux_ok[:, None] & (seat_of_slot >= 0)
+                    logp_then = at("logp")
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
-                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b],
+                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, at("main"), at("amount"),
                                                          s, o, board)
                 value, aux = value.float(), aux.float()
                 entropy = entropy.mean()
-                ratio = torch.exp(logp - buf["logp"][t, b])
+                ratio = torch.exp(logp - logp_then)
                 pg = -torch.minimum(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv).mean()
                 v_loss = ((value[:, 0] - ret) ** 2).mean()
                 vo_loss = (((value - mc) ** 2) * mc_ok).sum() / mc_ok.sum().clamp(min=1)
@@ -164,7 +327,7 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
                     sums["vo"] += float(vo_loss) * weight
                     sums["aux"] += float(aux_loss) * weight
                     sums["ent"] += float(entropy) * weight
-                    sums["kl"] += float((buf["logp"][t, b] - logp).mean()) * weight
+                    sums["kl"] += float((logp_then - logp).mean()) * weight
                     sums["clip"] += float(((ratio - 1).abs() > args.clip).float().mean()) * weight
             torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
             opt.step()
@@ -421,6 +584,17 @@ def trained_from_log(out_dir: str, iteration: int) -> float:
     return max(r["time"] for r in records if r["iter"] <= iteration) - start
 
 
+def bootstrap_of(asked: str | None, trained: dict | None) -> str:
+    """The run's `--bootstrap`: a new run's is the one asked for, `carry` by default; a resumed
+    run's is the one its checkpoint's arguments (`trained`) record, `acting` for a checkpoint from
+    before the choice existed, and asking for the other is refused."""
+    if trained is None:
+        return asked or "carry"
+    trained_with = trained.get("bootstrap") or "acting"
+    assert asked in (None, trained_with), f"the run was trained with --bootstrap {trained_with}: a resumed run keeps its recipe"
+    return trained_with
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--name", required=True)
@@ -443,6 +617,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--clip", type=float, default=0.2)
     p.add_argument("--lam", type=float, default=0.95)
     p.add_argument("--shaping", type=float, default=0.0, help="weight of the territory-and-army potential's shaping reward (0: the win alone)")
+    p.add_argument("--bootstrap", default=None, choices=["carry", "acting"],
+                   help="where a learner seat's chain meets the rollout's end: carry its last decision into the next "
+                        "rollout (a new run's default), or close it with the value read from the acting seat's view (the "
+                        "old reading); a resumed run keeps the one it was trained with")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -515,7 +693,10 @@ def main(argv: list[str] | None = None) -> int:
         league = [p.replace("\\", "/") for p in ck["league"]]
         record_of = {p.replace("\\", "/"): r for p, r in ck.get("record_of", {}).items()}
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
+        args.bootstrap = bootstrap_of(args.bootstrap, ck.get("args", {}))
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
+    else:
+        args.bootstrap = bootstrap_of(args.bootstrap, None)
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -537,6 +718,8 @@ def main(argv: list[str] | None = None) -> int:
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
               gd_bots=gd_bots if args.gd_share > 0 else None)
     kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
+    # Empty at every start: a resumed run deals fresh games, so no chain runs on from before.
+    carry = Carry(env.buf, cfg.batch, device) if args.bootstrap == "carry" else None
     if fixed:
         from .ladder import load_net
         for k, path in enumerate(fixed):
@@ -608,14 +791,20 @@ def main(argv: list[str] | None = None) -> int:
             for group in opt.param_groups:
                 group["lr"] = args.lr + (args.lr_end - args.lr) * iteration / args.iters
         env.run(args.horizon)
-        boot = env.bootstrap()
-        targets = advantages(env, boot, args.lam, args.shaping)
-        mine = env.buf["learner"]
-        # The value head's explained variance on the learner's decisions: 1 − Var(ret − v) / Var(ret).
+        if carry is None:
+            targets = advantages(env, env.bootstrap(), args.lam, args.shaping)
+        else:
+            targets = advantages(env, None, args.lam, args.shaping, carry=carry)
+        mine = targets["train"]
+        # The value head's explained variance on the learner's decisions: 1 − Var(ret − v) / Var(ret),
+        # against the GAE returns, so mostly against its own predictions (`value_health` reads real outcomes).
         explained = float(1 - targets["adv"][mine].var() / targets["ret"][mine].var().clamp(min=1e-8))
+        health = value_health(env, targets)
         torch.cuda.synchronize()
         t1 = time.time()
-        losses = update(net, opt, env, targets, args)
+        losses = update(net, opt, env, targets, args, carry)
+        if carry is not None:
+            health.update(carry.hold(env, targets))
         t2 = time.time()
         iteration += 1
         steps_done += args.batch * args.horizon
@@ -629,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
             record_of[path][1] += stats["decisive_seats"][first_own + k]
         record = {"iter": iteration, "steps": steps_done, "time": time.time(), "rollout_s": t1 - t0, "update_s": t2 - t1,
                   "steps_per_s": args.batch * args.horizon / (t1 - t0), "params": n_params, "lr": opt.param_groups[0]["lr"],
-                  "explained": explained, **summarize(stats, kinds), **losses}
+                  "explained": explained, **health, **summarize(stats, kinds), **losses}
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
             torch.save(net.state_dict(), path)
@@ -660,7 +849,7 @@ def main(argv: list[str] | None = None) -> int:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
                  if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "gd-stacker_score", "capped",
-                          "turns", "ent", "kl", "clip", "explained", "v", "stalled", "samples")}
+                          "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_explained", "v", "stalled", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)

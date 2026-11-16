@@ -466,6 +466,17 @@ The tests, on Modal's credit, since the eGPU is away:
 
 A cause is in the trainer's code, its effect on the plateau not yet measured: `Env.bootstrap` reads every seat's value from the acting seat's view at the rollout's end. When another seat is acting there (about four times in five at 5 players) the learner's bootstrap is an other-slot value, and the other slots are trained only on the final scores of the seats beside a deciding learner, mostly the league's weak bots, and only where a game ended inside the rollout. A game is ten to fifteen rollouts long, so nearly every return is chained through that reading, and the 96% the trainer logs is agreement with it. The cheapest test: bootstrap each learner seat from its own view (or carry its last decision into the next rollout, the usual way in a turn-based game), train on from s2-2-150 on one seed, and read the fresh-deal value and `calibrate.py` again before the panel.
 
+**The bootstrap's test: b1 and b0.** One change, the bootstrap, on stage 2's recipe as k1 ran it, from s2-2-150, one seed, 100 iterations on Modal in bf16: b1 with a learner seat's bootstrap taken only from values the net gives for that seat, b0 the control with the old reading. The value head has to learn its targets again, about 0.4 higher early in a game, so the first tens of iterations may dip.
+
+| # | Prediction, at iteration 100 | Confidence |
+|---|---|---|
+| 1 | b1's slot-0 value on fresh 5-player deals is within 0.15 of its learner seats' mean score there (s2-2-150: −0.56 against about +0.28 across the league's tables); b0's stays below −0.4 | 80% |
+| 2 | `calibrate.py` on b1 in the mirror: 20% or more of the outcome's variance explained in a game's first third, from 9.6% | 55% |
+| 3 | b1 is not below b0: sampling alone among four s2-2-150, b1's reading is not under b0's by more than their interval | 75% |
+| 4 | b1 breaks the plateau: 23% or more alone among four s2-2-150, its interval clear of par, where b0 reads par | 35% |
+
+What follows: 1 and 4 hold, the fix is the base of every later run and a seed pair runs on from b1. 1 holds and 4 fails, the defect was real and not the plateau's cause; the fix stays, and tests 1 and 4 above decide between size and search. 1 fails, the mechanism is wrong or the fix is, and the fresh-deal value is traced before anything else trains.
+
 What follows. 1 holds: the next imitation is a larger net on the exact space, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 1 fails with the control repeating: size isn't the lever at this data. 4 holds: stage 3 is the next line and `search.py` its first piece, with the hours going to distilling the search's choices. 4 fails while 2 holds: the search is no better than its leaf, so the value head is fitted to real outcomes (more of the loss, every seat's score, a larger net if 1 held) and 4 read again with rollouts to the game's end. 3 gaining three points or more says part of the plateau is a constant rate's jitter, and stage 2's recipe gets a falling rate.
 
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.

@@ -427,7 +427,9 @@ class Env:
 
     def bootstrap(self) -> torch.Tensor:
         """`[B, 6]` by seat: the learner's value vector for every seat, read from the acting seat's
-        view of the current state, for the games still running at the buffer's end."""
+        view of the current state, for the games still running at the buffer's end. A seat not acting
+        gets an other-slot value, which slot 0 is never trained to agree with: the trainer's
+        `--bootstrap acting`, kept as its control (`ppo.py`)."""
         with torch.no_grad():
             s = self.state
             o = options(s, self.board)
