@@ -433,7 +433,18 @@ Its first reading, the share of the teacher's moves it can express, on every hel
 
 The argument has 48 slots. A range wider than that (4% of blitzes, 5% of move-ins, 6% of fortifies, ranges up to 610 armies) keeps every count within twelve of either end, both halves, and the rest spread evenly between, so the misses left are mid-range keep-backs of very large stacks; every such decision is counted as `overflow` in training. Two things are unmeasured until it runs on a GPU: that its step still captures as one CUDA graph, and its memory at the trainer's batch. And its entropy is over up to 48 arguments where the buckets had three, so the entropy bonus weighs differently on it.
 
-Then an imitation on it (imit-2, from the same recordings) read against imit-1's agreement and panel, then stage 2 from imit-2. The prediction: imit-2's move agreement with the teacher beats imit-1's on attacks by ten points or more (imit-1: 34% on attacks, where it chose the main move right 65% of the time). The cost is one session, about 11.5 of the week's 30 GPU-hours.
+**The imitation on it: imit-x and imit-y (pushed, not yet read).** One Kaggle session (`risk-train-imit-x-imit-y`, 9 hours) trains a seed pair of exact-space nets on the same recordings (`runs/imitate/native-v2`), each started from imit-1's trunk and main heads with the argument head fresh (`--init runs/imitate/imit-1/best.pt`), in full precision, up to 100 million samples (imit-1's budget), seeds 1 and 2; then reads each one's held-out agreement and its panel at 1,024 games. `python -m riskgpu.kaggle.launch fetch imit-x` (from `gpu/`) brings both back once `kaggle quota` and `launch status imit-x` show the session over. They are read against imit-1's `read.json` and `panel.json`.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | Move agreement on attacks beats imit-1's 34% by ten points or more, on both seeds | 70% |
+| 2 | Main-choice agreement stays within two points of imit-1's 65% (the trunk and main heads start from it) | 80% |
+| 3 | Sampled alone among four sw128b-450 at or above imit-1's 14.3% [11.5, 17.5]: sampling no longer pays for amounts the buckets forced | 60% |
+| 4 | The two seeds' attack agreements within two points of each other | 75% |
+
+What follows: if 1 holds, stage 2 runs from the better seed on the exact space, base recipe (k1's league, the entropy bonus read again there, since k4's reading was on the buckets), against s2-2-150 as the headline anchor. If 1 fails, the amounts weren't what the copy got wrong, and cause 4 in this form is ruled out.
+
+**Where it runs.** Kaggle's week refreshes on Saturday at 00:00 UTC (`kaggle quota`), so stage 2's first exact-space session belongs in the week the imitation lands. Modal's monthly credit (the skill's `budget.md`) runs this trainer at the eGPU's speed in bf16 on an A10; a launcher for it beside Kaggle's, running detached and writing to a Volume, is the next piece of tooling, not yet built. Still unmeasured on any host: the share of an iteration the GPU sits idle (`nvidia-smi`'s busy share through the rollout and the update), which decides whether two runs should share one GPU.
 
 So M4, better than rule-v7.1 at every table in both mixtures, holds for s2-2-150. That was measured on the TypeScript export, which plays at net-v1's cost (about 119 ms a decision on one loaded core). The goal remains the brief's ("Mastery"): M4 is a rung on that ladder, not the end of it. What followed, by "Seating" above: the owner ruled the runtime acceptable, the export passed the parity test, and the seatable ratings run put it first, so it is seated as learned-v1.
 
