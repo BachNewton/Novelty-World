@@ -48,11 +48,12 @@ A learner that games its objective shows it in these before the strength reading
 
 ## The daily contract
 
-Every night ends with the panel reading of every checkpoint, the best checkpoint kept, and one of three verdicts:
+Every night ends with the panel reading of every checkpoint, the best checkpoint kept, and a verdict:
 
-- **climbing**: the latest readings are above the earlier ones by more than their intervals;
+- **climbing**: the latest reading is above every earlier one by more than its interval;
 - **flat**: the last three readings are within one interval of each other;
-- **falling**: the latest is below the best by more than one interval, twice.
+- **falling**: the latest is below the best by more than one interval, twice;
+- **unsettled**: none of these. The readings moved further than flat allows but not far enough to call a direction. It is no reason to stop and no evidence of a gain; a sharper reading settles it. It is never reported as climbing (a run once slid from 20% to 14% while read as climbing, and was).
 
 Flat for two readings' worth of the gain the plan predicted (two nights for a self-play run, an hour for a fine-tune) means the method is in question, not the learning rate: go to the diagnosis (`diagnosis.md`) before the next launch. Count progress in samples trained, never in hours: the laptop throttles and the eGPU drops out, so a night's work varies and a clock-based curve lies.
 

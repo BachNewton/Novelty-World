@@ -396,6 +396,27 @@ Both runs are copies of k1 at 275 (seed 2 on the plateau, its optimizer and leag
 
 What follows: a run that clears its mark is the next base, and its change goes into a seed pair before anything is built on it. A run that doesn't clear it doesn't rule its cause out on its own: the action space's buckets (below) may be the ceiling both runs meet, so a null result here is read again on the exact action space before either cause is dropped.
 
+**k3 and k4: what they read.** Both trained from k1 at 275 to 350 on one session and were read sharply at 350 (k3 also at 325; the session's reading hours ran out before k3's 300). Against k1 at 275:
+
+| Sharp, 4,096 games | k1, 275 | k3, 325 | k3, 350 | k4, 350 |
+|---|---|---|---|---|
+| Sampling alone among four s2-2-150 (par 20%) | 19.3% [17.7, 21.1] | 15.9% [14.4, 17.6] | 12.7% [11.3, 14.2] | 20.6% [18.9, 22.4] |
+| Argmax alone among four s2-2-150 | 18.4% [16.8, 20.2] | 17.2% [15.7, 18.9] | 11.7% [10.4, 13.2] | 21.8% [20.1, 23.7] |
+| Sampling, four against one s2-2-150 (par 80%) | 77.2% [75.3, 79.0] | 75.8% [73.9, 77.6] | 55.5% [53.3, 57.6] | 79.8% [78.0, 81.5] |
+| Argmax alone among four sw128b-450 | 35.1% [33.0, 37.1] | 28.0% [26.1, 30.0] | 18.1% [16.5, 19.8] | 36.5% [34.5, 38.6] |
+| Argmax alone among four GD Defensive | 94.9% [94.2, 95.5] | 88.9% [87.9, 89.8] | 75.6% [74.3, 76.9] | 94.6% [93.8, 95.2] |
+| Argmax mirror capped | 1.2% [0.9, 1.6] | 0% | 0% | 0% |
+
+| # | Prediction | Reading | |
+|---|---|---|---|
+| 1 | k3 reads 22.5% or more | 12.7% [11.3, 14.2] | **failed**: it fell |
+| 2 | k4 reads 22.5% or more | 20.6% [18.9, 22.4] | **failed** |
+| 3 | k4's entropy falls below 1.5 | 1.65 at 350, from 2.21 | **failed** narrowly |
+| 4 | k3 still wins 90% or more alone among four GD Defensive | 75.6% [74.3, 76.9] | **failed** |
+| 5 | neither clears 22.5%, both within two points of 19.3% | k4 within it; k3 seven points below | **failed** as written |
+
+**What it settles.** The league's weak opponents are load-bearing, not wasted: without them the learner lost to everything, GD Defensive and its own anchor included, within 50 iterations, against only its own snapshots and two anchors. Training only among its own kind lets the policy drift into play that beats its recent selves and nothing else, the failure a fixed, diverse league exists to prevent. So cause 3 in that form is ruled out, and its opposite is confirmed: the league's breadth is what holds the policy. The entropy bonus at 0.003 kept everything as it was, with the argmax read three points up on k1's (21.8% against 18.4%, intervals just touching) and the mirror's capped games gone, a direction rather than a result. Neither change breaks the plateau, and both read on the bucket action space, whose cap the next line removes: the entropy reading is to be repeated there before it is dropped. The trainer's verdict called k3 climbing while it slid from 20.3% to 14.4% (a fall smaller than "falling" needs at 512 games); the verdict now calls such a run unsettled, as the daily contract always defined climbing.
+
 **The action space, rebuilt (the representation, cause 4).** The buckets can't express 22% of the teacher's moves (46% of its attacks, 15% of its trades), and stage 2 has now plateaued, so the cap is a suspect in its own right, and the owner has ruled to remove it. A second action space, "exact", sits beside the buckets: the same main choices, then an exact number (armies placed, kept back by a blitz, moved in, fortified) or the trade's set and bonus, scored by one head over a fixed set of legal candidates. Old checkpoints keep the buckets, so the anchors and learned-v1 play as before: s2-2-150 decides exactly as it did on 1,889 positions, greedy and sampled, with the same probabilities and values. The TypeScript bot that plays it is `net-v2` (`bots/net-v2/`), a harness label only until a weight set is trained and measured.
 
 Its first reading, the share of the teacher's moves it can express, on every held-out game of the recording (3,920 games, 3.1 million moves; `imitate.py measure`):

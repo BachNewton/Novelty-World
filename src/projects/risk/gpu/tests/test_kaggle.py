@@ -18,11 +18,13 @@ def reading(win: float, half: float = 0.02) -> dict:
 def test_verdicts_follow_the_daily_contract():
     assert verdict([reading(0.3), reading(0.31)]) == "early"
     assert verdict([reading(0.30), reading(0.35), reading(0.40)]) == "climbing"
+    # k3's readings slid down by less than "falling" needs: neither falling nor climbing.
+    assert verdict([reading(0.203, 0.05), reading(0.160, 0.045), reading(0.144, 0.043)]) == "unsettled"
     assert verdict([reading(0.40), reading(0.41), reading(0.405)]) == "flat"
     # Below the best by more than an interval, twice running.
     assert verdict([reading(0.40), reading(0.45), reading(0.30), reading(0.31)]) == "falling"
     # Once is not falling.
-    assert verdict([reading(0.40), reading(0.45), reading(0.44), reading(0.30)]) == "climbing"
+    assert verdict([reading(0.40), reading(0.45), reading(0.44), reading(0.30)]) == "unsettled"
 
 
 def run_folder(path, readings: list[int], snaps: list[int], key: str = "k") -> str:

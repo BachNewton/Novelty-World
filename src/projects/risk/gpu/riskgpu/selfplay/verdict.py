@@ -1,7 +1,9 @@
 """A run's verdict on one panel reading, by the daily contract (the machine-learning skill's
-`references/ruler.md`): **climbing**, **flat** (the last three readings within one interval of each
-other) or **falling** (the latest below the best by more than one interval, twice). Fewer than three
-readings is **early**. A reading is the panel's `{"win", "interval": [low, high], ...}`; "one
+`references/ruler.md`): **climbing** (the latest above every earlier reading by more than its
+interval), **flat** (the last three readings within one interval of each other) or **falling** (the
+latest below the best by more than one interval, twice). A run that is none of these is
+**unsettled**: it moved, but further than the readings can call in either direction, which is no
+reason to stop it and no evidence that it gains. Fewer than three readings is **early**. A reading is the panel's `{"win", "interval": [low, high], ...}`; "one
 interval" is a reading's half-width, the ± of its 95% interval.
 
 The trainer stops on it (`--stop-when`), so a session on a GPU quota isn't spent on a plateau, and
@@ -27,7 +29,10 @@ def verdict(readings: list[dict]) -> str:
     spread = max(r["win"] for r in last) - min(r["win"] for r in last)
     if spread <= sum(half_width(r) for r in last) / 3:
         return "flat"
-    return "climbing"
+    latest = readings[-1]
+    if latest["win"] - max(r["win"] for r in readings[:-1]) > half_width(latest):
+        return "climbing"
+    return "unsettled"
 
 
 def panel_readings(log_path: str, key: str) -> list[dict]:
