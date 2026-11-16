@@ -61,19 +61,146 @@ def gpu_tree(root, files: dict[str, str]) -> None:
         (root / rel).write_text(text)
 
 
-def test_a_push_the_months_credit_cant_cover_is_refused():
-    # An A10 with its four cores and 16 GiB: $1.42 an hour, so 8 hours is $11.35 at worst.
-    assert launch.hourly("A10", "ppo") == pytest.approx(1.419, abs=1e-3)
-    launch.check_budget(spent=10.0, committed=0.0, cost=8 * launch.hourly("A10", "ppo"))
-    with pytest.raises(AssertionError, match="past"):
-        launch.check_budget(spent=17.0, committed=0.0, cost=8 * launch.hourly("A10", "ppo"))
-    # A run still in flight counts the hours its container may yet hold, which billing hasn't seen.
+def flying(name: str, trainer: str, now: float, rate: float = 1.5, hours_ago: float = 2, hours: float = 8) -> dict:
+    return {"run": {"name": name, "trainer": trainer, "args": []}, "rate": rate, "pushed": now - hours_ago * 3600,
+            "hours": hours, "call": f"fc-{name}"}
+
+
+def test_a_push_that_cant_resume_must_fit_the_months_credit():
+    # An imitation's A10 with its four cores and 32 GiB: $1.55 an hour, so 8 hours is $12.37 at worst.
+    imitation = 8 * launch.hourly("A10", "imitate")
+    assert imitation == pytest.approx(12.37, abs=1e-2)
     now = time.time()
-    running = {"rate": 1.5, "pushed": now - 2 * 3600, "hours": 8}
-    ended = {"rate": 1.5, "pushed": now - 9 * 3600, "hours": 8}
+    launch.check_budget(spent=17.5, flight=[], now=now, cost=imitation, can_resume=False)
+    with pytest.raises(AssertionError, match="past"):
+        launch.check_budget(spent=18.0, flight=[], now=now, cost=imitation, can_resume=False)
+    # A run still in flight counts the hours its container may yet hold, which billing hasn't seen.
+    running, ended = flying("a", "imitate", now), flying("b", "imitate", now, hours_ago=9)
     assert launch.in_flight([running, ended], now) == pytest.approx(9.0)
-    with pytest.raises(AssertionError):
-        launch.check_budget(spent=10.0, committed=launch.in_flight([running], now), cost=10.0)
+    with pytest.raises(AssertionError, match="past"):
+        launch.check_budget(spent=10.0, flight=[running], now=now, cost=12.0, can_resume=False)
+    # A reading is no more resumable than an imitation.
+    reading = {"reading": {"name": "r"}, "rate": 1.5, "pushed": now, "hours": 2}
+    assert not launch.resumable(reading) and not launch.resumable(running)
+
+
+def test_a_resumable_run_may_run_into_the_cap(capsys):
+    now = time.time()
+    # 24 hours on an A10 is $34, past the whole month's credit, and a PPO run is still pushed.
+    launch.check_budget(spent=20.0, flight=[flying("a", "ppo", now)], now=now, cost=24 * launch.hourly("A10", "ppo"),
+                        can_resume=True)
+    assert "pushing it again" in capsys.readouterr().out
+    # A month already spent would stop it at once.
+    with pytest.raises(AssertionError, match="next month"):
+        launch.check_budget(spent=30.0, flight=[], now=now, cost=1.0, can_resume=True)
+
+
+def test_a_push_that_cant_resume_is_refused_beside_a_resumable_run_that_could_take_whats_left():
+    now = time.time()
+    # m1 may still spend $9 and runs to the cap if it must, so a $10 imitation beside it could be cut off.
+    trainer = flying("m1", "ppo", now)
+    with pytest.raises(AssertionError, match="m1 in flight can resume"):
+        launch.check_budget(spent=15.0, flight=[trainer], now=now, cost=10.0, can_resume=False)
+    # Where m1's worst case leaves the imitation room, both fit.
+    launch.check_budget(spent=5.0, flight=[trainer], now=now, cost=10.0, can_resume=False)
+
+
+def test_a_dry_run_refuses_only_what_cant_resume_past_the_whole_credit(capsys):
+    launch.worst_alone(34.0, can_resume=True)
+    assert "no refusal" in capsys.readouterr().out
+    launch.worst_alone(30.0, can_resume=False)
+    with pytest.raises(AssertionError, match="can't resume"):
+        launch.worst_alone(30.5, can_resume=False)
+
+
+def test_the_volume_is_committed_on_the_line_the_trainer_prints_after_each_checkpoint():
+    every = launch.ckpt_every(["--ckpt-every", "5", "--panel", "64"])
+    assert every == 5 and launch.ckpt_every([]) == 25
+    assert launch.saved_checkpoint(json.dumps({"iter": 10, "steps_per_s": 1.0}) + "\n", every)
+    for line in (json.dumps({"iter": 11}), "  eval [1, 2]", "resumed m1 at iteration 10, 1.00 h trained",
+                 "{not json", json.dumps([10])):
+        assert not launch.saved_checkpoint(line + "\n", every)
+
+
+def test_a_session_hands_each_line_of_a_tasks_output_to_its_host(tmp_path):
+    (tmp_path / "r").mkdir()
+    heard = []
+
+    class Host(kernel.Session):
+        def on_line(self, task, line):
+            heard.append((task["name"], line))
+
+    session = Host({"runs": [{"name": "r", "args": []}], "read_hours": 0}, str(tmp_path), gpus=1,
+                   deadline=time.time() + 60, working=str(tmp_path), grace=0)
+    session.command = lambda task: [sys.executable, "-c", "print('{\"iter\": 25}'); print('done')"]
+    session.perform({"kind": "train", "name": "r", "trainer": "ppo", "args": []}, device=0)
+    assert heard == [("r", '{"iter": 25}\n'), ("r", "done\n")]
+
+
+def test_a_ppo_runs_container_commits_its_folder_at_each_checkpoint_and_at_the_trainers_end(tmp_path, monkeypatch):
+    pytest.importorskip("modal")
+    from riskgpu.modalgpu import remote
+    commits = []
+    monkeypatch.setattr(remote, "runs_volume", SimpleNamespace(commit=lambda: commits.append(len(heard))))
+    heard = []
+    run = {"name": "r", "trainer": "ppo", "args": ["--ckpt-every", "2"]}
+    (tmp_path / "r").mkdir()
+    session = remote.RunSession({"runs": [run], "read_hours": 0}, str(tmp_path), gpus=1, deadline=time.time() + 60,
+                                working=str(tmp_path), grace=0, panel=True)
+    lines = [json.dumps({"iter": i}) for i in (1, 2, 3, 4)] + ["stopped: flat"]
+    script = "; ".join(f"print({line!r})" for line in lines)
+    session.command = lambda task: [sys.executable, "-c", script]
+    session.on_line = (lambda hear: lambda task, line: (heard.append(line), hear(task, line)))(session.on_line)
+    session.perform(session.next_task(), device=0)
+    # After iterations 2 and 4's lines, and once more when the trainer exits.
+    assert commits == [2, 4, 5]
+
+
+def test_a_push_again_resumes_the_run_from_its_folder_on_the_volume(tmp_path, monkeypatch):
+    from riskgpu.selfplay import ppo
+    monkeypatch.setattr(kaggle, "GPU", str(tmp_path))
+    run = {"name": "r", "trainer": "ppo", "args": ["--stop-when", "flat", "--stop-key", "k", "--panel", "64"]}
+    assert launch.resume_of(run) is None
+    gpu_tree(tmp_path, {"runs/selfplay/r/latest.pt": "fetched once"})
+    record = {"run": run, "runs": [run], "call": "fc-1",
+              "guard_sha256": {"r": launch.sha256(str(tmp_path / "runs/selfplay/r/latest.pt"))}}
+    (tmp_path / "runs/selfplay/r" / launch.PUSHED).write_text(json.dumps(record))
+    assert launch.resume_of(run) == record
+    volume = FakeVolume({"runs/selfplay/r/latest.pt": b"trained on", f"runs/selfplay/r/{launch.SESSIONS}": b"{}\n"})
+    launch.check_resume(record, "failed", volume)
+    # Never two containers on one folder.
+    with pytest.raises(AssertionError, match="still running"):
+        launch.check_resume(record, "running", volume)
+    # A plateau's stop is read, not pushed past.
+    with pytest.raises(AssertionError, match="plateau"):
+        launch.check_resume(record, "ended", FakeVolume({**volume.files, "runs/selfplay/r/stopped.txt": b"flat"}))
+    # Trained here since the push: the Volume's folder and this one have forked.
+    (tmp_path / "runs/selfplay/r/latest.pt").write_text("trained here meanwhile")
+    with pytest.raises(AssertionError, match="changed here"):
+        launch.check_resume(record, "ended", volume)
+    # An imitation can't resume, so its push must be fetched first.
+    imitation = {"name": "i", "trainer": "imitate", "args": []}
+    gpu_tree(tmp_path, {f"runs/imitate/i/{launch.PUSHED}": "{}"})
+    with pytest.raises(AssertionError, match="can't resume"):
+        launch.resume_of(imitation)
+
+    # The container's trainer continues the run: --resume, the run's own recipe, and the session's hours.
+    session = kernel.Session({"runs": [run], "read_hours": 0}, str(tmp_path), gpus=1, deadline=time.time() + 3600,
+                             working=str(tmp_path), grace=0)
+    command = session.command({"kind": "train", **run})
+    parsed = ppo.parser().parse_args(command[command.index("riskgpu.selfplay.ppo") + 1:])
+    assert parsed.resume and parsed.name == "r" and parsed.stop_key == "k" and parsed.session_hours > 0
+
+
+def test_a_resume_keeps_the_bootstrap_its_checkpoint_was_trained_with(tmp_path, monkeypatch):
+    import torch
+    monkeypatch.setattr(kaggle, "GPU", str(tmp_path))
+    (tmp_path / "runs/selfplay/r").mkdir(parents=True)
+    torch.save({"args": {"bootstrap": "acting"}}, tmp_path / "runs/selfplay/r/latest.pt")
+    launch.check_recipe({"name": "r", "trainer": "ppo", "args": []})
+    launch.check_recipe({"name": "r", "trainer": "ppo", "args": ["--bootstrap", "acting"]})
+    with pytest.raises(AssertionError, match="keeps its recipe"):
+        launch.check_recipe({"name": "r", "trainer": "ppo", "args": ["--bootstrap", "carry"]})
 
 
 def test_the_hours_are_split_so_the_readings_get_theirs(tmp_path):

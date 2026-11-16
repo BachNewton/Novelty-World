@@ -203,6 +203,11 @@ class Session:
         return [*python, "riskgpu.selfplay.panel", "--ckpt", f"{folder}/snap-{it}.pt", "--games", str(games),
                 "--out", f"{folder}/panel-{it}-g{games}.json", precision]
 
+    def on_line(self, task: dict, line: str) -> None:
+        """Each line a task prints, once it is written to the task's output. Nothing here: Kaggle keeps
+        a session's folder only at its end; another host may act on a line (Modal commits its Volume
+        on a checkpoint's)."""
+
     def perform(self, task: dict, device: int) -> None:
         name = task["name"]
         run_dir = os.path.join(self.working, name)
@@ -219,6 +224,7 @@ class Session:
                 out.write(line)
                 out.flush()
                 print(f"[{label(task)}] {line}", end="", flush=True)
+                self.on_line(task, line)
             code = proc.wait()
             if task["kind"] == "read":
                 stopper.cancel()

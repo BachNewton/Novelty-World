@@ -3,13 +3,15 @@
 The image holds the GPU package as `launch.py` staged it (HEAD's code and committed data), with the
 runs Volume and the data Volume mounted beside it. The container links the job's inputs into the
 package's folder from the data Volume and the run's own folder to its folder on the runs Volume, so
-the trainers read and write the paths they always do, and everything the run writes is on the Volume
-whether the container ends, fails or is stopped. Then the run trains and is read as a Kaggle
+the trainers read and write the paths they always do, and a PPO run's folder is committed to the
+Volume at every checkpoint it saves, so whatever ends the container (the workspace's spend cap
+included) leaves its last checkpoint for a push to resume. Then the run trains and is read as a Kaggle
 session's runs are (`kaggle/kernel.py`'s `Session`, on one GPU): training given the hours up to the
 readings' share, the readings after, any still going at the deadline stopped. Each start is recorded
 in the run folder's `modal-sessions.jsonl`; a container Modal restarts (a preempted one) keeps its first
 start's deadline, a PPO run resuming from its last checkpoint and an imitation, which can't resume,
-failing.
+failing. A push of a PPO run whose last push ended unfetched starts a container on the folder the
+Volume already holds, the trainer resuming from its `latest.pt` there.
 
 A reading (`read`) starts the same way in its folder under `runs/readings/`, then runs the session with
 that reading alone in its queue: no training, no league, no sharp readings after it. It is stopped at
@@ -27,7 +29,8 @@ import time
 import modal
 
 from ..kaggle.kernel import Session, reading_folder, run_folder, trainer_of
-from .launch import CORES, DATA_VOLUME, MAX_HOURS, MEMORY_GIB, RUNS_VOLUME, SESSIONS, deadline, first_start
+from .launch import (CORES, DATA_VOLUME, MAX_HOURS, MEMORY_GIB, RUNS_VOLUME, SESSIONS, ckpt_every, deadline,
+                     first_start, saved_checkpoint)
 
 LOCAL_GPU = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CODE = os.path.join(LOCAL_GPU, "runs", "modal", "code")
@@ -44,14 +47,26 @@ app = modal.App("risk-train", image=image, include_source=False)
 
 class RunSession(Session):
     """Kaggle's session on one GPU, with an imitation's panel reading left out when the push said so
-    (a comparison of nets read on their agreement alone)."""
+    (a comparison of nets read on their agreement alone), and a PPO run's folder committed to the
+    Volume at every checkpoint: the line the trainer prints after each save, and its end, which
+    follows its last save. Modal commits in the background every few seconds and once more at a
+    container's shutdown, but a container stopped by the workspace's spend cap or killed may never
+    shut down cleanly, and a run that runs into the cap must resume from its last checkpoint."""
 
     def __init__(self, *args, panel: bool, **kw):
         super().__init__(*args, **kw)
         self.panel = panel
+        self.ckpt_every = {r["name"]: ckpt_every(r["args"]) for r in self.job["runs"] if trainer_of(r) == "ppo"}
+
+    def on_line(self, task: dict, line: str) -> None:
+        if task["kind"] == "train" and task["name"] in self.ckpt_every \
+                and saved_checkpoint(line, self.ckpt_every[task["name"]]):
+            runs_volume.commit()
 
     def perform(self, task: dict, device: int) -> None:
         super().perform(task, device)
+        if task["kind"] == "train":
+            runs_volume.commit()
         if not self.panel:
             with self.lock:
                 self.queue = [t for t in self.queue if t.get("reading") != "panel"]

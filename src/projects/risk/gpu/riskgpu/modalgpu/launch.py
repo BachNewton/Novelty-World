@@ -17,9 +17,11 @@ and read in the same container once it stops. Each run has a GPU container of it
 detached app per push, so it goes on with this laptop off; its folder lives on the `risk-runs`
 Volume, and the inputs that don't change on the `risk-data` Volume, uploaded once and again only when
 their hash changes. The code is this checkout's committed GPU package, put in the image as it stands
-at HEAD. `--hours` bounds the container, and so the money: before anything is uploaded, the push's
-worst case at Modal's rates, with what this month has spent and what runs still in flight could, must
-stay under the month's credit.
+at HEAD. `--hours` bounds the container, and so the money. A PPO run can resume, so it may run into
+the workspace's spend cap, its folder committed to the Volume at every checkpoint, and pushing it
+again resumes it; an imitation or a reading can't, so before anything is uploaded its worst case at
+Modal's rates, with what this month has spent and what runs still in flight could, must stay under
+the month's credit.
 
 A push of readings (`--read`) runs no trainer: each is one reading of existing checkpoints by a
 reading tool (`search`, `calibrate` or `panel`), its arguments checked by the tool's own parser, on a
@@ -55,8 +57,9 @@ CORES = 4.0
 MEMORY_GIB = {"ppo": 16, "imitate": 32, "read": 16}
 # Older than Ampere: no native bfloat16.
 FULL_PRECISION = {"T4"}
-# The month's credit is $30 and the workspace's cap $30; the billing summary lags, so a push leaves $2.
-CEILING = 28.0
+# The month's credit and the workspace's spend cap, both $30: a run that can't resume must fit under it
+# at its worst case, and one that can runs into the cap, which stops it.
+CEILING = 30.0
 MAX_HOURS = 24.0  # Modal's longest timeout
 # The container's last minutes, after the readings are stopped, for the last commit to the Volume.
 END_S = 300
@@ -126,23 +129,112 @@ def first_start(sessions_log: str, push: str) -> float | None:
     return min(starts) if starts else None
 
 
+def ckpt_every(args: list[str]) -> int:
+    """How often a PPO run saves `latest.pt`, as its trainer's parser reads its arguments."""
+    from ..selfplay.ppo import parser
+    return parser().parse_args(["--name", "check", *args]).ckpt_every
+
+
+def saved_checkpoint(line: str, every: int) -> bool:
+    """Whether a line of a PPO trainer's output follows a save of `latest.pt`. The trainer prints one
+    JSON line per iteration, after that iteration's checkpoint is written, among other text."""
+    if not line.startswith("{"):
+        return False
+    try:
+        record = json.loads(line)
+    except ValueError:  # text that merely starts with a brace; the trainer's own lines are JSON
+        return False
+    return isinstance(record, dict) and "iter" in record and record["iter"] % every == 0
+
+
+def resume_of(run: dict) -> dict | None:
+    """The push a run resumes from on the Volume: its last Modal push, ended and never fetched, whose
+    folder there is ahead of the local one. None for a run pushed afresh from its local folder."""
+    local = kaggle.local_dir(run)
+    assert not os.path.exists(os.path.join(local, "kaggle-push.json")), \
+        f"{run_folder(run)} has a Kaggle push not yet fetched"
+    path = os.path.join(local, PUSHED)
+    if not os.path.exists(path):
+        return None
+    assert trainer_of(run) == "ppo", f"{run_folder(run)} has a push not yet fetched, and an imitation can't resume"
+    with open(path) as f:
+        return json.load(f)
+
+
+def check_resume(record: dict, state: str, volume) -> None:
+    """A resume push continues the run's folder on the Volume, so only once its container has ended,
+    only if this checkout hasn't trained it since, and not past a plateau stop, which is a diagnosis."""
+    name = record["run"]["name"]
+    assert state != "running", f"{name} is still running on Modal: `stop` it first, or let it end"
+    kaggle.check_guards(record)
+    assert not exists(volume, f"{run_folder(record['run'])}/stopped.txt"), \
+        f"{name} stopped on its plateau: `fetch` it and read why, rather than pushing more hours"
+
+
+def check_recipe(run: dict) -> None:
+    """A resumed run keeps the bootstrap its checkpoint was trained with, as its trainer insists;
+    refused here, so a changed recipe costs no container."""
+    latest = os.path.join(kaggle.local_dir(run), "latest.pt")
+    if trainer_of(run) != "ppo" or not os.path.exists(latest):
+        return
+    import torch
+    from ..selfplay.ppo import bootstrap_of
+    bootstrap_of(kaggle.last_value(run["args"], "--bootstrap"),
+                 torch.load(latest, map_location="cpu", weights_only=False).get("args", {}))
+
+
 def hourly(gpu: str, trainer: str) -> float:
     """A container's dollars an hour: its GPU, its cores and its memory, which it holds whatever it uses."""
     return (GPU_RATE[gpu] + CORES * CORE_RATE + MEMORY_GIB[trainer] * GIB_RATE) * 3600
 
 
+def resumable(record: dict) -> bool:
+    """A push record's work can resume: a PPO run, which checkpoints as it goes. An imitation starts
+    afresh and a reading writes its output only at its end."""
+    return "run" in record and trainer_of(record["run"]) == "ppo"
+
+
+def left(record: dict, now: float) -> float:
+    """The hours a pushed container may yet hold."""
+    return max(0.0, record["pushed"] + record["hours"] * 3600 - now) / 3600
+
+
 def in_flight(records: list[dict], now: float) -> float:
     """The worst case still to come of runs pushed and not fetched: each one's rate over the hours its
     container may yet hold. The billing summary has the rest of their cost."""
-    return sum(r["rate"] * max(0.0, r["pushed"] + r["hours"] * 3600 - now) / 3600 for r in records)
+    return sum(r["rate"] * left(r, now) for r in records)
 
 
-def check_budget(spent: float, committed: float, cost: float, ceiling: float = CEILING) -> None:
+def check_budget(spent: float, flight: list[dict], now: float, cost: float, can_resume: bool,
+                 ceiling: float = CEILING) -> None:
+    """A push that can resume runs until it ends or the workspace's cap stops it, so only a month
+    already spent refuses it. One that can't must fit at its worst case beside everything in flight;
+    a resumable run in flight may take every dollar left, so while its worst case leaves no room
+    the push is refused, naming it."""
+    committed = in_flight(flight, now)
     worst = spent + committed + cost
     print(f"the month has spent ${spent:.2f}; runs in flight may spend ${committed:.2f} more; this push at most "
           f"${cost:.2f}: ${worst:.2f} of ${ceiling:.2f}", flush=True)
-    assert worst <= ceiling, (f"this push could take the month's spend to ${worst:.2f}, past ${ceiling:.2f}: "
-                              "fewer hours or runs, a cheaper GPU, or wait for the month")
+    if can_resume:
+        assert spent < ceiling, (f"the month has spent ${spent:.2f} of ${ceiling:.2f}: the workspace's cap would stop "
+                                 "the run at once; push it next month")
+        if worst > ceiling:
+            print(f"this push may run into the workspace's ${ceiling:.0f} cap, which stops it: its folder on the Volume "
+                  "keeps its last checkpoint, and pushing it again (next month) resumes it there", flush=True)
+        return
+    if worst <= ceiling:
+        return
+    racing = [r["run"]["name"] for r in flight if resumable(r) and left(r, now) > 0]
+    beside = (f"; {', '.join(racing)} in flight can resume, so may run to the cap and cut this push off: wait for "
+              "them to end, or `stop` them and push them again once this one has run") if racing else ""
+    raise AssertionError(f"this push can't resume and could take the month's spend to ${worst:.2f}, past "
+                         f"${ceiling:.2f}{beside}; otherwise fewer hours or runs, a cheaper GPU, or wait for the month")
+
+
+def live(records: list[dict], now: float) -> list[dict]:
+    """The push records whose containers may still spend: hours left, and Modal saying still running.
+    A run stopped, failed or cut by the cap spends nothing more, fetched or not."""
+    return [r for r in records if left(r, now) > 0 and call_state(r["call"])[0] == "running"]
 
 
 def month_spend() -> float:
@@ -280,17 +372,32 @@ def job_for(run: dict, inputs: list[str], push_id: str, commit: str, args: argpa
             "read_hours": args.read_hours, "sharp_games": args.sharp_games, "panel": not args.no_panel}
 
 
-def dry_run(args: argparse.Namespace, runs: list[dict], rate: float) -> int:
+def dry_run(args: argparse.Namespace, runs: list[dict], rate: float, resumes: dict[str, dict | None]) -> int:
     """What a push would start and upload, its arguments already checked, without asking Modal anything."""
     for r in runs:
         print(f"{run_folder(r)}: {shlex.join(r['args'])}")
+        if resumes[r["name"]] is not None:
+            print(f"  resumes from its folder on {RUNS_VOLUME}, once Modal says its last push has ended")
     inputs = list(dict.fromkeys(f for r in runs for f in split_files(r, kaggle.needed_files(r))[1]))
     size = sum(os.path.getsize(os.path.join(gpu_dir(), f)) for f in inputs)
     print(f"inputs: {len(inputs)} files, {size / 1e6:,.0f} MB, uploaded to {DATA_VOLUME} where missing or changed")
+    cost = rate * args.hours * len(runs)
     print(f"{len(runs)} x {args.gpu} at ${rate:.3f} an hour for at most {args.hours:g} hours each "
-          f"({train_hours(args.hours, args.read_hours):.2f} training): at most ${rate * args.hours * len(runs):.2f}, "
+          f"({train_hours(args.hours, args.read_hours):.2f} training): at most ${cost:.2f}, "
           f"before the month's spend, which a dry run doesn't ask")
+    worst_alone(cost, runs[0]["trainer"] == "ppo")
     return 0
+
+
+def worst_alone(cost: float, can_resume: bool) -> None:
+    """A dry run's share of the budget's rule: the push's worst case alone, the month's spend unasked."""
+    if can_resume:
+        if cost > CEILING:
+            print(f"it can resume, so a worst case past ${CEILING:.0f} is no refusal: the workspace's cap stops it, "
+                  "its last checkpoint kept on the Volume, and pushing it again resumes it")
+        return
+    assert cost <= CEILING, (f"this push can't resume, and its worst case alone, ${cost:.2f}, is past the month's "
+                             f"${CEILING:.2f}: fewer hours or runs, or a cheaper GPU")
 
 
 def push(args: argparse.Namespace) -> int:
@@ -310,26 +417,32 @@ def push(args: argparse.Namespace) -> int:
     runs = [{"name": n, "trainer": trainer,
              "args": run_args(list(args.trainer), extras.get(n, ""), args.gpu, args.no_stop, trainer)}
             for n in names]
+    resumes = {r["name"]: resume_of(r) for r in runs}
     for r in runs:
-        for pending in (PUSHED, "kaggle-push.json"):
-            assert not os.path.exists(os.path.join(kaggle.local_dir(r), pending)), \
-                f"{run_folder(r)} has a push not yet fetched ({pending})"
         assert trainer != "imitate" or not os.path.exists(os.path.join(kaggle.local_dir(r), "best.pt")), \
             f"{run_folder(r)} already holds a trained imitation, which the run would replace: name a new run"
+        check_recipe(r)
 
     rate = hourly(args.gpu, trainer)
     if args.dry_run:
-        return dry_run(args, runs, rate)
-    check_budget(month_spend(), in_flight(push_records(), time.time()), rate * args.hours * len(runs))
+        return dry_run(args, runs, rate, resumes)
+    now = time.time()
+    check_budget(month_spend(), live(push_records(), now), now, rate * args.hours * len(runs), trainer == "ppo")
     commit = stage_code(args.uncommitted)
     files = {r["name"]: split_files(r, kaggle.needed_files(r)) for r in runs}
 
     import modal
     runs_volume = modal.Volume.from_name(RUNS_VOLUME, create_if_missing=True)
     data_volume = modal.Volume.from_name(DATA_VOLUME, create_if_missing=True)
+    for r in runs:
+        if resumes[r["name"]] is not None:
+            check_resume(resumes[r["name"]], call_state(resumes[r["name"]]["call"])[0], runs_volume)
     upload_inputs(data_volume, list(dict.fromkeys(f for r in runs for f in files[r["name"]][1])))
     for r in runs:
-        upload_own(runs_volume, run_folder(r), files[r["name"]][0])
+        if resumes[r["name"]] is None:
+            upload_own(runs_volume, run_folder(r), files[r["name"]][0])
+        else:
+            print(f"{run_folder(r)}: resuming from its folder on {RUNS_VOLUME}, where its last push left it", flush=True)
     guards = {r["name"]: kaggle.sha256(os.path.join(kaggle.local_dir(r), kaggle.GUARDED[trainer])) for r in runs}
     for r in runs:
         # Made before the runs start, so nothing can stop their records being written once they have.
@@ -385,10 +498,13 @@ def push_readings(args: argparse.Namespace) -> int:
         files = list(dict.fromkeys(f for r in readings for f in inputs[r["name"]]))
         size = sum(os.path.getsize(os.path.join(gpu_dir(), f)) for f in files)
         print(f"inputs: {len(files)} files, {size / 1e6:,.0f} MB, uploaded to {DATA_VOLUME} where missing or changed")
+        cost = rate * args.hours * len(readings)
         print(f"{len(readings)} x {args.gpu} at ${rate:.3f} an hour for at most {args.hours:g} hours each: at most "
-              f"${rate * args.hours * len(readings):.2f}, before the month's spend, which a dry run doesn't ask")
+              f"${cost:.2f}, before the month's spend, which a dry run doesn't ask")
+        worst_alone(cost, False)
         return 0
-    check_budget(month_spend(), in_flight(push_records(), time.time()), rate * args.hours * len(readings))
+    now = time.time()
+    check_budget(month_spend(), live(push_records(), now), now, rate * args.hours * len(readings), False)
     commit = stage_code(args.uncommitted)
 
     import modal
