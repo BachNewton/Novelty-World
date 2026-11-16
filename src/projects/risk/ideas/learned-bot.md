@@ -49,6 +49,7 @@ The rules the chart rests on:
 |---|---|---|---|
 | imit-x, imit-y | Kaggle, one session | the exact action space's copy of the teacher (its predictions below) | `python -m riskgpu.kaggle.launch fetch imit-x` |
 | big-256x6 | Modal | whether the larger net copies the teacher better on the whole recording (its predictions below) | `python -m riskgpu.modalgpu.launch fetch big-256x6`, then `report big-256x6` |
+| probe-1 | Kaggle's TPU (its queue can take hours) | what a TPU session is worth on the net and on engine-shaped work (`tpu.md`, "The probe") | `python -m riskgpu.tpu.launch fetch probe-1` |
 | search reading, on the laptop | `runs/readings/search-cpu/` | the search gate, on s2-2-150 (test 4 below); its control read par, 20.2% [17.9, 22.8] | `own-k3r6.json` there, once written |
 | b1, b0 | Modal | whether the trainer is trusted with the carried bootstrap, and whether that was the plateau (its predictions below) | `python -m riskgpu.modalgpu.launch fetch b1 b0`, then `report`; then `calibrate.py` on b1's last checkpoint |
 
