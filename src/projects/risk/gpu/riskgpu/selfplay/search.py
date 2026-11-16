@@ -1,7 +1,7 @@
 """Does a shallow search that uses a network play better than the network alone? (the
 `machine-learning` skill's diagnosis, cause 7: the improvement operator's strength):
 
-    python -m riskgpu.selfplay.search --ckpt runs/selfplay/s2-2/snap-150.pt [--k 4] [--r 8] [--leaf turn]
+    python -m riskgpu.selfplay.search --ckpt runs/selfplay/s2-2/snap-150.pt [--k 4] [--r 8] [--leaf own]
         [--games 1024] [--mixtures one-in,one-out] [--raw argmax,sample] [--device cuda] [--out search.json]
 
 run from `src/projects/risk/gpu/`. A measuring tool, not a bot that ships.
@@ -13,12 +13,17 @@ with `argmax`), then the most likely of the rest of the grid of its K most likel
 their K most likely amounts, by joint probability. A decision with one legal move, or whose first
 choice holds `--skip-mass` of the probability or more, isn't searched: the first choice is played.
 Each candidate is played in R copies of the game, then the network samples every seat's moves in
-every copy until the leaf: the searching seat's turn has ended (`turn`), N player-turns have ended
-counting the one under way (`turns:N`; `turns:1` is `turn`), or the game's end or cap (`end`). A
-copy scores the searching seat's real score (`env.scores`, the training reward) where the game ended
-or the seat is out, and otherwise the network's value for that seat's slot, read from the view of
-the seat to move at the leaf. The candidate with the best mean is played if it beats the first
-choice's mean by more than `--margin`; otherwise the first choice is.
+every copy until the leaf: the searching seat is deciding again in a later turn of its own, after
+every other seat's turn (`own`, the default), the searching seat's turn has ended (`turn`), N
+player-turns have ended counting the one under way (`turns:N`; `turns:1` is `turn`), or the game's
+end or cap (`end`). A copy scores the searching seat's real score (`env.scores`, the training
+reward) where the game ended or the seat is out, and otherwise the network's value for that seat's
+slot, read from the view of the seat to move at the leaf. `own` is the default because it reads
+the searcher's value from its own view (slot 0), the one slot the trainer fits; the other leaves
+read it from another seat's view, a slot fitted only to neighbours' final scores, so a search
+read on them can't tell a weak search from a badly trained slot. The candidate with the best mean
+is played if it beats the first choice's mean by more than `--margin`; otherwise the first choice
+is.
 
 **No cheating.** A copy never sees the real game's future dice: its random stream is replaced by
 one hashed from the game's seed, the decision's index, the copy's index and (with `--no-crn`) the
@@ -73,13 +78,17 @@ from .panel import wilson
 KINDS = {"reinforce": KIND_REINFORCE, "attack": KIND_ATTACK, "occupy": KIND_OCCUPY, "fortify": KIND_FORTIFY}
 KIND_NAMES = {v: k for k, v in KINDS.items()}
 MIXTURES = ("one-in", "one-out")
+OWN_LEAF = ("leaf=own: a copy is scored when the searcher is next deciding, by its value from its own view (slot 0), "
+            "the slot the trainer fits")
+OTHER_LEAF = ("leaf={leaf}: most copies are scored by the searcher's value from another seat's view, a slot fitted only "
+              "to neighbours' final scores, so a weak reading may be the slot, not the search")
 
 
 @dataclass
 class SearchConfig:
     k: int = 4
     r: int = 8
-    leaf: str = "turn"  # "turn", "turns:N" or "end"
+    leaf: str = "own"  # "own", "turn", "turns:N" or "end"
     kinds: tuple[str, ...] = ("reinforce", "attack")
     skip_mass: float = 0.95
     margin: float = 0.02
@@ -99,12 +108,13 @@ class SearchConfig:
         self.leaf_turns()
 
     def leaf_turns(self) -> int | None:
-        """Player-turns a copy plays to its leaf, counting the one under way; None to the end."""
+        """Player-turns a copy plays to its leaf, counting the one under way; None where the leaf
+        isn't a count of player-turns (`own`, `end`)."""
         if self.leaf == "turn":
             return 1
-        if self.leaf == "end":
+        if self.leaf in ("own", "end"):
             return None
-        assert self.leaf.startswith("turns:"), f"--leaf is turn, turns:N or end, not {self.leaf}"
+        assert self.leaf.startswith("turns:"), f"--leaf is own, turn, turns:N or end, not {self.leaf}"
         n = int(self.leaf.split(":", 1)[1])
         assert n >= 1, self.leaf
         return n
@@ -377,6 +387,18 @@ class Searcher:
         places.copy_(torch.where(newly_out, in_game[:, None], places))
         in_game.sub_(newly_out.sum(1))
 
+    def leaf_values(self, s: State, log: TurnLog, seat: torch.Tensor) -> torch.Tensor:
+        """`[N]`: the network's value for `seat [N]` in each leaf state, read from the view of the
+        seat to move there (slot 0 under `own`, where that is the searcher)."""
+        _, _, value, _ = self.heads(s, options(s, self.board), log)
+        self.work.leaf += s.batch
+        _, slot_of_seat = slots(s)
+        ar = torch.arange(s.batch, device=self.device)
+        slot = slot_of_seat[ar, seat]
+        if self.cfg.leaf == "own":
+            assert bool((slot == 0).all()), "an own leaf where the searcher isn't the seat deciding"
+        return value.float()[ar, slot]
+
     def rollout(self, s: State, log: TurnLog, places, in_game, seat, turn0, first: torch.Tensor,
                 dead: torch.Tensor) -> torch.Tensor:
         """`[N]`: each copy's score for `seat` after `first` and the network's sampled play to the
@@ -395,18 +417,17 @@ class Searcher:
                 real = scores(s.players, places, s.eliminated, won, in_game)[rows, seat]
                 out[home[final]] = real[final]
             leaf = open_ & ~final
-            if self.leaf_turns is not None:
+            if cfg.leaf == "own":
+                # The turn counter moves with the acting seat, so the searcher acting in a later turn
+                # is its next turn, however many seats are out.
+                leaf = leaf & (s.active.to(torch.int64) == seat) & (s.turn.to(torch.int64) > turn0)
+            elif self.leaf_turns is not None:
                 leaf = leaf & (s.turn.to(torch.int64) - turn0 >= self.leaf_turns)
             else:
                 leaf = leaf & False
             if bool(leaf.any()):
                 at = leaf.nonzero()[:, 0]
-                sub = s.select(at)
-                _, _, value, _ = self.heads(sub, options(sub, self.board), log.select(at))
-                self.work.leaf += at.shape[0]
-                _, slot_of_seat = slots(sub)
-                ar = torch.arange(at.shape[0], device=dev)
-                out[home[at]] = value.float()[ar, slot_of_seat[ar, seat[at]]]
+                out[home[at]] = self.leaf_values(s.select(at), log.select(at), seat[at])
             open_ = open_ & ~final & ~leaf
             if not bool(open_.any()):
                 return out
@@ -507,7 +528,9 @@ def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
         won = searcher[rows][decisive].gather(1, w[decisive][:, None])[:, 0]
         d, wins = int(decisive.sum()), int(won.sum())
         par = 1 / players if name == "one-in" else (players - 1) / players
-        out[name] = {"win": round(wins / max(d, 1), 4), "par": round(par, 4), "interval": wilson(wins, d), "decisive": d,
+        lo, hi = wilson(wins, d)
+        interval = (max(0.0, lo), min(1.0, hi))  # max(0.0, -0.0) is 0.0: no "-0.000" printed
+        out[name] = {"win": round(wins / max(d, 1), 4), "par": round(par, 4), "interval": interval, "decisive": d,
                      "capped": int((~decisive).sum()), "games": int(w.shape[0])}
     searched = sum(s.searched.values())
     out["searched"] = {name: {"searched": s.searched[name], "overruled": s.overruled[name],
@@ -524,6 +547,7 @@ def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
 def print_table(out: dict) -> None:
     print(f"\n{out['ckpt']}: K={out['config']['k']} R={out['config']['r']} leaf={out['config']['leaf']} "
           f"kinds={','.join(out['config']['kinds'])} hidden={out['config']['hidden']}")
+    print(f"  NOTE: {out['leaf_note']}")
     if out["config"]["hidden"] == "real":
         print("  NOTE: hidden=real: the copies hold the real hidden cards (the other hands, the deck's order): optimistic")
     for r in out["readings"]:
@@ -545,7 +569,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ckpt", required=True)
     p.add_argument("--k", type=int, default=4)
     p.add_argument("--r", type=int, default=8)
-    p.add_argument("--leaf", default="turn", help="turn, turns:N or end")
+    p.add_argument("--leaf", default="own", help="own (the searcher's next decision of a later turn), turn, turns:N or end")
     p.add_argument("--kinds", default="reinforce,attack", help="decision kinds searched, comma-separated, or all")
     p.add_argument("--skip-mass", type=float, default=0.95,
                    help="a first choice with this much probability or more isn't searched (0: search nothing, the control)")
@@ -596,7 +620,8 @@ def main(argv: list[str] | None = None) -> int:
     tables.scaled_oversize = True
     net = load_net(args.ckpt, board, device)
     out = {"ckpt": args.ckpt, "device": str(torch.device(device)), "config": asdict(cfg), "games": args.games,
-           "mixtures": mixtures, "readings": []}
+           "mixtures": mixtures, "readings": [],
+           "leaf_note": OWN_LEAF if cfg.leaf == "own" else OTHER_LEAF.format(leaf=cfg.leaf)}
     if cfg.hidden == "real":
         out["warning"] = "hidden=real: copies hold the real other hands and deck order (optimistic)"
     with torch.inference_mode():

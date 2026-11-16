@@ -83,8 +83,8 @@ def test_one_candidate_plays_exactly_as_the_raw_networks_first_choice():
     board, tables = setup()
     net = random_net(32, 1, 4, 2, board, seed=3)
     seeds, searcher, _ = seating(["one-in"], 3, 5)
-    searched = SearchConfig(k=1, r=2, kinds=("reinforce", "attack", "occupy", "fortify"), skip_mass=2.0, cap=7)
-    control = SearchConfig(k=1, r=2, kinds=searched.kinds, skip_mass=0.0, cap=7)
+    searched = SearchConfig(k=1, r=1, leaf="own", kinds=("reinforce", "attack", "occupy", "fortify"), skip_mass=2.0, cap=7)
+    control = SearchConfig(k=1, r=1, leaf="own", kinds=searched.kinds, skip_mass=0.0, cap=7)
     with torch.inference_mode():
         a = Searcher(net, board, tables, searched, "cpu")
         played = a.play(seeds, 5, searcher, raw_greedy=False)
@@ -136,3 +136,81 @@ def test_a_candidate_that_throws_away_the_win_is_not_chosen():
     assert torch.equal(moves[0], detail["candidates"][0][0, int(means.argmax())])
     assert int(moves[0, 0]) in (K_ATTACK, K_BLITZ) and int(moves[0, 2]) == target
     assert searcher.overruled["attack"] == 1
+
+
+class LeafRecorder(Searcher):
+    """Keeps every leaf state the rollouts score, with the seat each is scored for."""
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.leaves = []
+
+    def leaf_values(self, s, log, seat):
+        self.leaves.append((s.clone(), seat.clone()))
+        return super().leaf_values(s, log, seat)
+
+
+def test_an_own_leaf_is_the_searchers_next_decision_after_every_other_seats_turn():
+    board, tables = setup()
+    net = random_net(32, 1, 4, 2, board, seed=7)
+    s = new_games(["search-own"], [5], board, "cpu")
+    me = int(s.active[0])
+    turn0 = int(s.turn[0])
+    cfg = SearchConfig(k=2, r=2, leaf="own", kinds=("reinforce",), skip_mass=2.0)
+    with torch.inference_mode():
+        searcher = LeafRecorder(net, board, tables, cfg, "cpu")
+        o = options(s, board)
+        log = TurnLog.empty(1, "cpu")
+        x, logits, _, legal = searcher.heads(s, o, log)
+        first = searcher.policy(x, logits, legal, s, o, None)
+        searcher.choose(s, o, log, torch.ones(1, 6, dtype=torch.int64), s.players.to(torch.int64),
+                        torch.tensor([game_base("search-own")]), torch.zeros(1, dtype=torch.int64), x, logits, legal, first)
+    assert sum(searcher.searched.values()) == 1
+    leaves = [(state.select(torch.tensor([i])), int(seat[i])) for state, seat in searcher.leaves for i in range(state.batch)]
+    # Nobody is out after one round of a fresh 5-player deal, so every copy reaches its leaf.
+    assert len(leaves) == cfg.k * cfg.r == searcher.work.leaf
+    for leaf, seat in leaves:
+        assert seat == me
+        assert int(leaf.active[0]) == me and int(leaf.phase[0]) != 3
+        assert not bool(leaf.eliminated[0].any())
+        assert int(leaf.turn[0]) == turn0 + 5  # its own turn, then each of the other four
+
+
+def test_a_searcher_knocked_out_in_the_rollout_scores_its_real_place():
+    """Three seats; the seat before the searcher blitzes its one territory from 29 armies. The
+    value head is rigged high, so only the real score (third of three, −1) reads −1."""
+    board, tables = setup()
+    net = random_net(32, 1, 4, 2, board, seed=5)
+    with torch.no_grad():
+        net.value.weight.zero_()
+        net.value.bias.fill_(0.5)
+    s = new_games(["search-out"], [3], board, "cpu")
+    attacker, me, third = (int(x) for x in s.turn_order[0, :3])
+    target = 0
+    frm = int(board.adjacent[target, 0])
+    far = next(t for t in range(42) if t not in (target, frm) and not bool(board.adjacency[target, t]))
+    s.owner[0] = attacker
+    s.owner[0, target] = me
+    s.owner[0, far] = third
+    s.armies[0] = 30
+    s.armies[0, target] = 1
+    s.active[0] = attacker
+    s.phase[0] = 1
+    s.reinf_present[0] = False
+    s.reinf_to_place[0] = 0
+    cfg = SearchConfig(k=1, r=4, leaf="own")
+    seat = torch.tensor([me])
+    with torch.inference_mode():
+        searcher = Searcher(net, board, tables, cfg, "cpu")
+        cs = copy_states(s, seat, torch.tensor([game_base("search-out")]), torch.zeros(1, dtype=torch.int64), 1, cfg.r,
+                         cfg.hidden, cfg.crn)
+        n = cs.batch
+        log = TurnLog.empty(1, "cpu").select(torch.zeros(n, dtype=torch.int64))
+        places = torch.ones(n, 6, dtype=torch.int64)
+        in_game = cs.players.to(torch.int64).clone()
+        blitz = torch.tensor([[K_BLITZ, frm, target, 1, 0]]).expand(n, -1)
+        out = searcher.rollout(cs, log, places, in_game, seat.expand(n), cs.turn.to(torch.int64), blitz,
+                               torch.zeros(n, dtype=torch.bool))
+    assert bool(cs.eliminated[:, me].all()) and not bool(cs.eliminated[:, third].any())
+    assert out.tolist() == [-1.0] * n
+    assert searcher.work.leaf == 0
