@@ -48,7 +48,8 @@ The rules the chart rests on:
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
 | imit-x, imit-y | Kaggle, one session | the exact action space's copy of the teacher (its predictions below) | `python -m riskgpu.kaggle.launch fetch imit-x` |
-| cap-128x4, cap-256x6, cap-384x8 | Modal | the capacity gate (test 1 below) | `python -m riskgpu.modalgpu.launch fetch cap-128x4 cap-256x6 cap-384x8`, then `report` with the same names |
+| big-256x6 | Modal | whether the larger net copies the teacher better on the whole recording (its predictions below) | `python -m riskgpu.modalgpu.launch fetch big-256x6`, then `report big-256x6` |
+| search reading, on the laptop | `runs/readings/search-cpu/` | the search gate, on s2-2-150 (test 4 below); its control read par, 20.2% [17.9, 22.8] | `own-k3r6.json` there, once written |
 | b1, b0 | Modal | whether the trainer is trusted with the carried bootstrap, and whether that was the plateau (its predictions below) | `python -m riskgpu.modalgpu.launch fetch b1 b0`, then `report`; then `calibrate.py` on b1's last checkpoint |
 
 **Not yet run, no GPU path yet.** The search gate's reading (`search.py`, test 4 below) and the averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3) need a GPU, and neither launcher runs a tool that isn't a trainer: a launcher entry for a one-off reading is the next piece of tooling. Until b1 is read, the exact space's stage 2 waits: it would train on the old bootstrap otherwise.
@@ -516,6 +517,26 @@ The tests, on Modal's credit, since the eGPU is away:
 **Test 2 read: held, and it found a defect.** `calibrate.py` on s2-2-150, 128 five-player games on the laptop's CPU, sampling, none capped, intervals by bootstrap over games. Against the real final score the value head explains 45.6% [43.7, 47.7] of the variance in the mirror (79,440 decisions) and 31.2% [19.2, 40.6] alone among four sw128b-450; in a game's first third 9.6% [7.3, 11.9] and 1.0% [−6.1, 8.1], in its first fifth 5.0% [3.0, 6.9] and −1.7%. A least-squares fit of the outcome on the seat's territory share and army share does as well in every bucket (46.7% overall in the mirror). And it is pessimistic: in the mirror's first fifth it predicts −0.61 where the outcome averages −0.18, and every calibration bin from −0.8 to 0 sits 0.2 to 0.5 under the outcome; on fresh 5-player deals its slots sum to −2.98 where a decisive game's scores sum to −1.
 
 A cause is in the trainer's code, its effect on the plateau not yet measured: `Env.bootstrap` reads every seat's value from the acting seat's view at the rollout's end. When another seat is acting there (about four times in five at 5 players) the learner's bootstrap is an other-slot value, and the other slots are trained only on the final scores of the seats beside a deciding learner, mostly the league's weak bots, and only where a game ended inside the rollout. A game is ten to fifteen rollouts long, so nearly every return is chained through that reading, and the 96% the trainer logs is agreement with it. The cheapest test: bootstrap each learner seat from its own view (or carry its last decision into the next rollout, the usual way in a turn-based game), train on from s2-2-150 on one seed, and read the fresh-deal value and `calibrate.py` again before the panel.
+
+**Test 1 read: held; the capacity gate is open.** On the sixteenth of the recording (980 games, 758,000 decisions), 18.8 million samples on today's cosine schedule, on Modal's A10s:
+
+| Net | Weights | Fit on its own training decisions (main, move) | Held-out main, best checkpoint, 3,920 games |
+|---|---|---|---|
+| 128 × 4 (the control) | 842,000 | 61.5%, 47.2% | 56.3% [56.1, 56.5] |
+| 256 × 6 | 4.84 million | 79.7%, 60.4% | 57.0% [56.8, 57.3] |
+
+The control repeats the old trainer's 60.0% within a point and a half. The larger net fits eighteen points more of what it is shown, so the small net's two thirds was capacity, not steps. On this little data the larger net then overfits (its last checkpoint reads 54.3% held out, its best 57.0%), which is the data's size and not the net's fault: the full recording is sixteen times this one, and there the small net fits training and held-out decisions alike (65.6% and 64.8%), short of both. 384 × 8 was refused by the month's ceiling beside the runs in flight and isn't needed to open the gate.
+
+**The gate's run: big-256x6.** One change from imit-1: the net's size, 256 × 6, on the whole recording, bucket space, 100 million samples, seed 1, on Modal, with its agreement and panel read as imit-1's were.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | Held-out main agreement 68% or more (imit-1: 64.8%; the fixed schedule's imit-2: 64.0%) | 65% |
+| 2 | Turn-start placement 45% or more (imit-1: 41.5%) | 55% |
+| 3 | Its fit on training decisions is above its held-out agreement by under three points: not yet overfitting at this data | 60% |
+| 4 | On the panel, argmax alone among four sw128b-450, 36% or more (imit-1: 31.0% [27.2, 35.2]) | 50% |
+
+What follows: 1 holds, the larger net is the base of the next learned bot: it is trained on by PPO with the carried bootstrap (if b1 reads trusted), its turn time in the TypeScript export is measured, and 384 × 8 is read on the full recording to see whether the curve is still rising. 1 fails with 3 holding, the teacher's remaining third isn't capacity at this size: the next read is what the net gets wrong by decision kind. 3 fails, more recorded games come before more weights.
 
 **The bootstrap's test: b1 and b0.** One change, the bootstrap, on stage 2's recipe as k1 ran it, from s2-2-150, one seed, 100 iterations on Modal in bf16: b1 with a learner seat's bootstrap taken only from values the net gives for that seat, b0 the control with the old reading. The value head has to learn its targets again, about 0.4 higher early in a game, so the first tens of iterations may dip.
 
