@@ -91,9 +91,9 @@ def last_value(args: list[str], flag: str) -> str | None:
     return args[len(args) - 1 - args[::-1].index(flag) + 1]
 
 
-def sharp_readings(name: str, args: list[str], run_dir: str) -> list[dict]:
+def sharp_readings(name: str, args: list[str], run_dir: str, games: int = SHARP_GAMES) -> list[dict]:
     """The reading tasks for a stopped run: the checkpoints of its last three headline readings, the
-    window its verdict is read on, newest first, each read once."""
+    window its verdict is read on, newest first, each read once, on the panel at `games` a check."""
     key = last_value(args, "--stop-key")
     if not key or not os.path.exists(os.path.join(run_dir, "log.jsonl")):
         return []
@@ -105,9 +105,10 @@ def sharp_readings(name: str, args: list[str], run_dir: str) -> list[dict]:
                 iters.append(record["iter"])
     tasks = []
     for rank, it in enumerate(reversed(list(dict.fromkeys(iters))[-3:])):
-        out = os.path.join(run_dir, f"panel-{it}-g{SHARP_GAMES}.json")
+        out = os.path.join(run_dir, f"panel-{it}-g{games}.json")
         if os.path.exists(os.path.join(run_dir, f"snap-{it}.pt")) and not os.path.exists(out):
-            tasks.append({"kind": "read", "name": name, "iter": it, "rank": rank, "bf16": "--no-bf16" not in args})
+            tasks.append({"kind": "read", "name": name, "iter": it, "rank": rank, "games": games,
+                          "bf16": "--no-bf16" not in args})
     return tasks
 
 
@@ -134,8 +135,14 @@ def run(cmd: list[str], **kw) -> None:
 
 
 class Session:
-    def __init__(self, job: dict, gpu_dir: str, gpus: int, deadline: float):
+    """`working` holds each run's folder (by its name), and a reading still going `grace` seconds past
+    the deadline is stopped: Kaggle's by default, another host's given."""
+
+    def __init__(self, job: dict, gpu_dir: str, gpus: int, deadline: float, working: str | None = None,
+                 grace: float | None = None):
         self.job, self.gpu_dir, self.gpus, self.deadline = job, gpu_dir, gpus, deadline
+        self.working = WORKING if working is None else working
+        self.grace = GRACE_S if grace is None else grace
         self.train_deadline = deadline - job["read_hours"] * 3600
         self.queue = [{"kind": "train", **r} for r in job["runs"]]
         self.lock = threading.Lock()
@@ -168,13 +175,13 @@ class Session:
         if trainer_of(task) == "imitate":
             return [*python, "riskgpu.selfplay.panel", "--ckpt", f"{folder}/best.pt", "--games",
                     str(IMITATION_PANEL_GAMES), "--out", f"{folder}/panel.json", precision]
-        it = task["iter"]
-        return [*python, "riskgpu.selfplay.panel", "--ckpt", f"{folder}/snap-{it}.pt", "--games", str(SHARP_GAMES),
-                "--out", f"{folder}/panel-{it}-g{SHARP_GAMES}.json", precision]
+        it, games = task["iter"], task.get("games", SHARP_GAMES)
+        return [*python, "riskgpu.selfplay.panel", "--ckpt", f"{folder}/snap-{it}.pt", "--games", str(games),
+                "--out", f"{folder}/panel-{it}-g{games}.json", precision]
 
     def perform(self, task: dict, device: int) -> None:
         name = task["name"]
-        run_dir = os.path.join(WORKING, name)
+        run_dir = os.path.join(self.working, name)
         cmd = self.command(task)
         print(f"$ [GPU {device}] [{label(task)}]", " ".join(cmd), flush=True)
         with open(os.path.join(run_dir, "out.txt"), "a") as out, open(os.path.join(run_dir, "err.txt"), "a") as err:
@@ -182,7 +189,7 @@ class Session:
                                     env={**os.environ, "CUDA_VISIBLE_DEVICES": str(device)})
             if task["kind"] == "read":
                 # The trainer stops itself at the session's hours; a reading is stopped from here.
-                stopper = threading.Timer(max(0.0, self.deadline + GRACE_S - time.time()), proc.kill)
+                stopper = threading.Timer(max(0.0, self.deadline + self.grace - time.time()), proc.kill)
                 stopper.start()
             for line in proc.stdout:
                 out.write(line)
@@ -191,7 +198,7 @@ class Session:
             code = proc.wait()
             if task["kind"] == "read":
                 stopper.cancel()
-        if task["kind"] == "read" and code != 0 and time.time() > self.deadline + GRACE_S:
+        if task["kind"] == "read" and code != 0 and time.time() > self.deadline + self.grace:
             with self.lock:
                 self.cut.append(label(task))
         elif code != 0:
@@ -200,10 +207,13 @@ class Session:
             with self.lock:
                 self.failed.append(f"{label(task)} ({code})")
         if task["kind"] == "train" and code == 0:
-            readings = imitation_readings if trainer_of(task) == "imitate" else sharp_readings
+            if trainer_of(task) == "imitate":
+                readings = imitation_readings(name, task["args"], run_dir)
+            else:
+                readings = sharp_readings(name, task["args"], run_dir, self.job.get("sharp_games", SHARP_GAMES))
             with self.lock:
                 # Newest checkpoints first across every run; sorted() keeps runs in order within a rank.
-                self.queue = sorted(self.queue + readings(name, task["args"], run_dir), key=lambda t: t.get("rank", -1))
+                self.queue = sorted(self.queue + readings, key=lambda t: t.get("rank", -1))
 
     def worker(self, device: int) -> None:
         while (task := self.next_task()) is not None:

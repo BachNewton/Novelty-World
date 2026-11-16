@@ -48,7 +48,7 @@ KERNEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kernel.py")
 # Kaggle's identifiers for its accelerators; T4s and P100s are older than Ampere, with no native bfloat16.
 PRE_AMPERE = {"NvidiaTeslaT4", "NvidiaTeslaP100"}
 # This checkout's own bookkeeping, never sent.
-LOCAL_ONLY = {"kaggle-push.json", "stopped.txt"}
+LOCAL_ONLY = {"kaggle-push.json", "modal-push.json", "stopped.txt"}
 CHECKPOINT = re.compile(r"runs/[^,=\s]+\.pt")
 # The file a session writes that holds a run's work: a fetch that would overwrite a local one changed
 # since the push refuses.
@@ -177,15 +177,21 @@ def last_value(args: list[str], flag: str) -> str | None:
 
 
 def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool, trainer: str = "ppo") -> list[str]:
-    """One run's trainer arguments: the shared ones, then its own (which win, as argparse takes the
-    last); refused here, before any upload, if a session would refuse them. The session adds the
-    hours it has left when the run starts."""
+    """One run's trainer arguments for a Kaggle session: `trainer_args`, and full precision on a GPU
+    without native bfloat16."""
     args = shared + shlex.split(extra)
     if accelerator in PRE_AMPERE:
         assert "--no-bf16" in args, f"{accelerator} has no native bfloat16: give the trainer --no-bf16"
+    return trainer_args(args, no_stop, trainer)
+
+
+def trainer_args(args: list[str], no_stop: bool, trainer: str) -> list[str]:
+    """One run's trainer arguments (the shared ones, then its own, which win, as argparse takes the
+    last), refused here, before any upload, if a session would refuse them. Every host's launcher
+    checks them so; the session adds the hours it has left when the run starts."""
     assert "--name" not in args, "the run's name is the launcher's"
     if trainer == "imitate":
-        assert "--hours" not in args, "the session's cap is the launcher's --session-hours"
+        assert "--hours" not in args, "the session's cap is the launcher's"
         data = last_value(args, "--data")
         assert data and not os.path.isabs(data) and data.replace("\\", "/").startswith("runs/"), \
             "give the imitation --data as a folder under runs/, relative to the GPU folder, so the bundle carries it"
@@ -198,7 +204,7 @@ def run_args(shared: list[str], extra: str, accelerator: str, no_stop: bool, tra
     if stops:
         assert last_value(args, "--stop-key") and last_value(args, "--panel") not in (None, "0"), \
             "the stop reads --stop-key on the panel: give the trainer both"
-    assert "--session-hours" not in args, "the session's cap is the launcher's --session-hours"
+    assert "--session-hours" not in args, "the session's cap is the launcher's"
     from ..selfplay.ppo import parser
     # The trainer's own parser, as above.
     parser().parse_args(["--name", "check", *args])
@@ -290,11 +296,12 @@ def check_guards(job: dict) -> None:
             f"{r['name']}'s {guarded} changed here since the push: fetching would overwrite that work"
 
 
-def copy_back(job: dict, output: str) -> None:
-    """Each run's folder in the session's output, over its local folder."""
+def copy_back(job: dict, output: str, marker: str = "kaggle-sessions.jsonl") -> None:
+    """Each run's folder in the session's output (the folder of its name holding the host's `marker`),
+    over its local folder."""
     for r in job["runs"]:
         found = [root for root, _, files in os.walk(output)
-                 if os.path.basename(root) == r["name"] and "kaggle-sessions.jsonl" in files]
+                 if os.path.basename(root) == r["name"] and marker in files]
         assert len(found) == 1, f"the session's output holds no run folder for {r['name']}; its log is in {output}"
         os.makedirs(local_dir(r), exist_ok=True)
         for f in os.listdir(found[0]):
