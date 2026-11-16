@@ -1,6 +1,6 @@
 # Training on Kaggle's free GPUs
 
-The GPU trainers (`gpu/riskgpu/selfplay/ppo.py`, and `imitate.py`'s imitation) can run their sessions on Kaggle Notebooks instead of the laptop's eGPU. Kaggle's free tier gives about 30 GPU-hours a week (the figure floats; the account's settings show the current quota), in sessions of at most 12 hours, on a T4. A session runs on Kaggle's machine once pushed, with no browser open and nothing of the laptop's in use, so it serves the days and the weeks the eGPU is away. `gpu/riskgpu/kaggle/launch.py` drives it from here, run from `src/projects/risk/gpu/`.
+The GPU trainers (`gpu/riskgpu/selfplay/ppo.py`, and `imitate.py`'s imitation) can run their sessions on Kaggle Notebooks instead of the laptop's eGPU. Kaggle's free tier gives about 30 GPU-hours a week (and 20 on TPUs), in sessions of at most 12 hours, on a T4. The week is the calendar's, the same for every account: it refreshes on Saturday at 00:00 UTC, and hours left unused then are lost. `kaggle quota` prints what is used, what is left and when it refreshes. A session runs on Kaggle's machine once pushed, with no browser open and nothing of the laptop's in use, so it serves the days and the weeks the eGPU is away. `gpu/riskgpu/kaggle/launch.py` drives it from here, run from `src/projects/risk/gpu/`.
 
 ## The one-time setup (the owner's)
 
