@@ -40,6 +40,7 @@ The rules the chart rests on:
 - **Flat means a gate, never more hours.** Two sharp readings within their interval of the anchor end a recipe. The next run is whichever gate's test is cheapest and unmeasured, then the gate that opened.
 - **One change a run, beside its control,** on the same seed and session, so a host's precision or speed is never the difference.
 - **Seating is automatic** for a checkpoint that clears the bar its design fixes before the gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots"). Everything else at a fork is briefed to the owner in the skill's form.
+- **The quota is the session's to spend** (the owner's ruling): how Kaggle's hours and Modal's credit are used, up to their limits, is decided by the session working the loop, without asking. The owner is briefed at a fork of method or goal, not on a spend.
 - **Spend what expires.** Kaggle's hours are lost at the week's refresh (`kaggle quota`): a week with no gate to test trains the current recipe's seed pair on. Modal's credit is for tests of an hour or two that decide a gate, and for a night the owner wants read by morning.
 
 **Runs in flight.** Removed from here once fetched and read.
