@@ -2,6 +2,56 @@
 
 The design doc for the one line of Risk bots that learn. It is written to the `machine-learning` skill (`.claude/skills/machine-learning/`): the brief first, then the ruler, then the approach, then the plan of the next run with its predictions. It consolidates what the self-play, distillation and learned-evaluation lines found and says what they add up to. Those docs (`gpu-engine.md`, `self-play-league.md`, `distilled-v7.md`, `student-v1.md`, `rule-bot-v8.md`) stay as the record of their measurements; where their next-step sections differ from this doc, this doc is the plan. The direction is decided, and stage 1 has run: its report is under the first night's predictions.
 
+## The loop: how the learned bot keeps improving
+
+Every session that works on the learned bot starts here and follows this, whichever session started the runs. The rest of this doc is the record the loop writes to; the `machine-learning` skill is the method each box is done by.
+
+```mermaid
+flowchart TD
+    S([Session starts]) --> C[Collect: fetch every run in flight,<br/>read each against its predictions,<br/>mark held or failed in this doc]
+    C --> T{Is the trainer trusted?<br/>fresh_value near learner_score,<br/>calibrate.py not worse than a board-share fit}
+    T -- no --> D[Find the defect by the cheapest test<br/>and fix it with a control run.<br/>Nothing else trains on a trainer that fails this]
+    D --> C
+    T -- yes --> B{Did a checkpoint beat the anchor?<br/>sharp reading, interval clear of par,<br/>one-in and one-out}
+    B -- yes --> H[Export, parity test, gauntlet on Actions<br/>against the seated learned bot and rule-v7.1]
+    H --> P{Clears its seating bar?}
+    P -- yes --> Seat[Seat it as a new version, rerun the ratings,<br/>make it the panel's anchor]
+    Seat --> K
+    P -- no --> K
+    B -- no --> F{Flat at two sharp readings?}
+    F -- no, climbing --> K[Keep the recipe: a seed pair on,<br/>read at each doubling of samples]
+    K --> Q
+    F -- yes --> G{Which gate is open?}
+    G -- capacity: a larger net fits<br/>the teacher much better --> N[Imitate again with the larger net,<br/>then train on from it]
+    G -- search: search with the net<br/>beats the net alone --> X[Expert iteration: distil the search's choices<br/>into the net, then check search with the new net<br/>still beats the new net]
+    G -- neither is measured --> M[Measure both: the size sweep<br/>and search.py against the raw net]
+    G -- both measured, both shut --> O[Brief the owner: the causes still open,<br/>what each test costs, stop or change the representation]
+    N --> Q
+    X --> Q
+    M --> Q
+    Q[Queue the next runs with predictions written here first.<br/>Kaggle's week is spent before it refreshes;<br/>Modal's credit goes to short tests that decide a gate] --> E([Session ends: every run in flight is in the table below])
+```
+
+The rules the chart rests on:
+
+- **A run exists only if this doc says so.** Before a push, its plan and predictions are written here; after it, the table below names it, where it runs and the command that fetches it. A session that finds a run in the table fetches it before anything else.
+- **Trust comes before strength.** The trainer's own explained variance is agreement with its own targets and has misled a diagnosis once. A recipe is trusted while `fresh_value` (the value on fresh deals) sits near `learner_score` in its log and `calibrate.py` on its checkpoint explains more of the real outcome than a fit on territory and army share does. A recipe that fails either is repaired before its strength is read.
+- **Progress is one reading.** Sampling and argmax, alone among four of the anchor and four against one, at 4,096 games, read on the same deals. The anchor is the seated learned bot's checkpoint; a new seat moves it.
+- **Flat means a gate, never more hours.** Two sharp readings within their interval of the anchor end a recipe. The next run is whichever gate's test is cheapest and unmeasured, then the gate that opened.
+- **One change a run, beside its control,** on the same seed and session, so a host's precision or speed is never the difference.
+- **Seating is automatic** for a checkpoint that clears the bar its design fixes before the gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots"). Everything else at a fork is briefed to the owner in the skill's form.
+- **Spend what expires.** Kaggle's hours are lost at the week's refresh (`kaggle quota`): a week with no gate to test trains the current recipe's seed pair on. Modal's credit is for tests of an hour or two that decide a gate, and for a night the owner wants read by morning.
+
+**Runs in flight.** Removed from here once fetched and read.
+
+| Run | Where | Decides | Fetch, from `gpu/` |
+|---|---|---|---|
+| imit-x, imit-y | Kaggle, one session | the exact action space's copy of the teacher (its predictions below) | `python -m riskgpu.kaggle.launch fetch imit-x` |
+| cap-128x4, cap-256x6, cap-384x8 | Modal | the capacity gate (test 1 below) | `python -m riskgpu.modalgpu.launch fetch cap-128x4 cap-256x6 cap-384x8`, then `report` with the same names |
+| b1, b0 | Modal | whether the trainer is trusted with the carried bootstrap, and whether that was the plateau (its predictions below) | `python -m riskgpu.modalgpu.launch fetch b1 b0`, then `report`; then `calibrate.py` on b1's last checkpoint |
+
+**Not yet run, no GPU path yet.** The search gate's reading (`search.py`, test 4 below) and the averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3) need a GPU, and neither launcher runs a tool that isn't a trainer: a launcher entry for a one-off reading is the next piece of tooling. Until b1 is read, the exact space's stage 2 waits: it would train on the old bootstrap otherwise.
+
 ## The brief
 
 1. **The goal.** The owner's ruling: a bot that masters the game, whose skill keeps rising as it is trained, until with enough training it beats any person. Not a bot better than rule-v7.1: v7.1 is the strongest hand-written bot, and the one expert who plays here beats it every time. As a measurement that goal is two curves and a judge. The first curve is strength against a fixed panel as a function of training compute, and the claim it has to keep making is that no ceiling is in sight: each doubling of samples gains on the panel by more than the interval. The second is the budget curve at play time, the same bot at several search budgets, because a bot that has mastered a game gets stronger when it thinks longer, and one that doesn't has stopped learning the game and started learning its opponents. The judge is people, the expert first, in logged games; a person reads a win share to about ±20 points in twenty games, so the panel carries the daily reading and must span up to and past the strongest things that exist here (rule-v7.1, native-v2, vulture-v1 as the model of the expert's play) and be shown to order bots as the expert's results do. The milestones (`gpu-engine.md`, and "Beyond M4" below) are rungs on that ladder; M4, better than v7.1 at every table in both mixtures, is one of them and not the goal.
