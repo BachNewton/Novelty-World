@@ -2,6 +2,7 @@
 
     python -m riskgpu.kaggle.launch push <name> [<name>] [--run-args <name>="<its own args>"] [--imitate]
                                     [--accelerator NvidiaTeslaT4] [--session-hours 11] -- <shared trainer args>
+    python -m riskgpu.kaggle.launch push --read <name>="<tool> <its args>" [--read ...] [--session-hours 11]
     python -m riskgpu.kaggle.launch status <name>
     python -m riskgpu.kaggle.launch fetch <name>
     python -m riskgpu.kaggle.launch report <name> [--key "sample s2-2-150 one-in"]
@@ -23,6 +24,10 @@ push. `report` reads a PPO run's panel readings with their intervals and the ver
 A PPO session must stop on a plateau (`--stop-when` with `--stop-key`) unless `--no-stop` says it may
 spend its hours regardless, so the week's quota isn't spent on a flat run. An imitation stops at its
 budget of samples (`--max-samples`).
+
+A push of readings (`--read`) trains nothing: its session's queue is one-off readings of existing
+checkpoints by a reading tool (`search`, `calibrate` or `panel`), each checked by the tool's own
+parser before anything is uploaded and written to `runs/readings/<name>/`.
 """
 
 import argparse
@@ -40,7 +45,7 @@ import uuid
 
 from ..board import DATA
 from ..selfplay.verdict import panel_readings, verdict
-from .kernel import TRAINERS, run_folder, trainer_of
+from .kernel import READING_TOOLS, READINGS, TRAINERS, reading_folder, run_folder, trainer_of
 
 GPU = os.path.dirname(DATA)
 STAGING = os.path.join(GPU, "runs", "kaggle")
@@ -50,6 +55,7 @@ PRE_AMPERE = {"NvidiaTeslaT4", "NvidiaTeslaP100"}
 # This checkout's own bookkeeping, never sent.
 LOCAL_ONLY = {"kaggle-push.json", "modal-push.json", "stopped.txt"}
 CHECKPOINT = re.compile(r"runs/[^,=\s]+\.pt")
+READING_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 # The file a session writes that holds a run's work: a fetch that would overwrite a local one changed
 # since the push refuses.
 GUARDED = {"ppo": "latest.pt", "imitate": "best.pt"}
@@ -57,6 +63,88 @@ GUARDED = {"ppo": "latest.pt", "imitate": "best.pt"}
 
 def local_dir(run: dict) -> str:
     return os.path.join(GPU, *run_folder(run).split("/"))
+
+
+def reading_dir(reading: dict) -> str:
+    return os.path.join(GPU, *reading_folder(reading).split("/"))
+
+
+def reading_spec(spec: str) -> dict:
+    """`<name>=<tool> <its arguments>` as a reading, the arguments kept verbatim."""
+    name, sep, rest = spec.partition("=")
+    words = shlex.split(rest)
+    assert sep and words, f"a reading is <name>=<tool> <its arguments>: {spec!r}"
+    assert READING_NAME.fullmatch(name), f"{name!r}: a reading's name is letters, digits, '.', '_' and '-'"
+    assert words[0] in READING_TOOLS, f"{name}: {words[0]} isn't a reading tool ({', '.join(READING_TOOLS)})"
+    return {"name": name, "tool": words[0], "args": words[1:]}
+
+
+class _Parsed(Exception):
+    def __init__(self, namespace: argparse.Namespace):
+        self.namespace = namespace
+
+
+def tool_namespace(tool: str, args: list[str]) -> argparse.Namespace:
+    """`args` as the tool's own parser reads them, exiting loudly on any it would refuse. The tools
+    build their parser inside `main`, before anything else, so `main` is run up to its parse and
+    stopped there, before it touches a device."""
+    import importlib
+    from unittest import mock
+    module = importlib.import_module(f"..selfplay.{tool}", __package__)
+    parse = argparse.ArgumentParser.parse_args
+
+    def parse_then_stop(parser, argv=None, namespace=None):
+        raise _Parsed(parse(parser, argv, namespace))
+    with mock.patch.object(argparse.ArgumentParser, "parse_args", parse_then_stop):
+        try:
+            module.main(args)
+        except _Parsed as parsed:
+            return parsed.namespace
+    raise AssertionError(f"{tool}'s main returned without parsing its arguments")
+
+
+def check_reading(reading: dict, full_precision: bool) -> None:
+    """A reading's arguments, refused here, before any upload, if its tool would refuse them or they
+    would idle or fail a GPU that is already paid for."""
+    ns = tool_namespace(reading["tool"], reading["args"])
+    name = reading["name"]
+    assert not ns.out, f"{name}: a reading's output is the launcher's ({reading['tool']}.json in its folder): drop --out"
+    assert getattr(ns, "device", "cuda") == "cuda", f"{name}: a reading runs on its GPU: drop --device {ns.device}"
+    # search's default (None) is bf16 on CUDA, as the others' True is.
+    bf16 = ns.bf16 is not False
+    if full_precision:
+        assert not bf16, f"{name}: this GPU has no native bfloat16: give the reading --no-bf16"
+
+
+def reading_files(reading: dict) -> list[str]:
+    """Every file a reading reads that the repo doesn't carry: the blitz tables, every checkpoint its
+    arguments name and, for the panel, its anchors, as paths relative to the GPU folder."""
+    files = ["data/blitz-256.bin", "data/blitz-256.json"]
+    for arg in reading["args"]:
+        for word in re.split(r"[,=]", arg):
+            if word.endswith(".pt"):
+                assert CHECKPOINT.fullmatch(word), \
+                    f"{reading['name']}: give {word} as a path under runs/, relative to the GPU folder, with '/'"
+                files.append(word)
+    if reading["tool"] == "panel":
+        from ..selfplay.panel import ANCHORS
+        files += [os.path.relpath(path, GPU).replace("\\", "/") for _, path in ANCHORS]
+    unique = list(dict.fromkeys(files))
+    missing = [f for f in unique if not os.path.exists(os.path.join(GPU, f))]
+    assert not missing, f"{reading['name']} would read files this checkout lacks: {missing}"
+    return unique
+
+
+def check_new_reading(reading: dict) -> None:
+    folder = reading_dir(reading)
+    assert not (os.path.isdir(folder) and os.listdir(folder)), \
+        f"{reading_folder(reading)} already holds a reading: name a new one"
+
+
+def check_reading_unmoved(reading: dict, marker: str) -> None:
+    """Refuses, before anything is fetched, if the reading's folder here holds more than its push."""
+    here = sorted(os.listdir(reading_dir(reading)))
+    assert here == [marker], f"{reading_folder(reading)} holds {here} besides its push: fetching would overwrite it"
 
 
 def needed_files(run: dict) -> list[str]:
@@ -212,7 +300,10 @@ def trainer_args(args: list[str], no_stop: bool, trainer: str) -> list[str]:
 
 
 def push(args: argparse.Namespace) -> int:
+    if args.read:
+        return push_readings(args)
     names = args.names
+    assert names, "name the runs to train, or give --read for readings"
     assert len(set(names)) == len(names), "a run can't share a session with itself"
     assert 0 <= args.read_hours < args.session_hours, "the readings' hours are the end of the session's, not more"
     extras = dict(x.split("=", 1) for x in args.run_args)
@@ -225,10 +316,44 @@ def push(args: argparse.Namespace) -> int:
         assert trainer != "imitate" or not os.path.exists(os.path.join(local_dir(r), "best.pt")), \
             f"{run_folder(r)} already holds a trained imitation, which the session would replace: name a new run"
     commit = checkout_commit()
-    user = username()
-    job_name = "-".join(names)
-    dataset, kernel = slugs(user, job_name)
     files = list(dict.fromkeys(f for r in runs for f in needed_files(r)))
+    job = {"commit": commit, "runs": runs, "session_hours": args.session_hours, "read_hours": args.read_hours}
+    guards = {r["name"]: sha256(os.path.join(local_dir(r), GUARDED[r["trainer"]])) for r in runs}
+    record = start_session(args, "-".join(names), files, job)
+    for r in runs:
+        os.makedirs(local_dir(r), exist_ok=True)
+        with open(os.path.join(local_dir(r), "kaggle-push.json"), "w") as f:
+            json.dump({**record, "guard_sha256": guards}, f, indent=1)
+    print(f"pushed {record['kernel']} at {commit[:8]}: `status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
+    return 0
+
+
+def push_readings(args: argparse.Namespace) -> int:
+    """A session whose queue is readings of existing checkpoints, each GPU taking the next as it frees."""
+    assert not (args.names or args.run_args or args.imitate or args.no_stop or args.trainer), \
+        "a push of readings names no runs and takes no trainer arguments: each --read carries its own"
+    readings = [reading_spec(spec) for spec in args.read]
+    names = [r["name"] for r in readings]
+    assert len(set(names)) == len(names), "two readings share a name"
+    for r in readings:
+        check_reading(r, full_precision=args.accelerator in PRE_AMPERE)
+        check_new_reading(r)
+    commit = checkout_commit()
+    files = list(dict.fromkeys(f for r in readings for f in reading_files(r)))
+    job = {"commit": commit, "runs": [], "readings": readings, "session_hours": args.session_hours, "read_hours": 0}
+    record = start_session(args, "-".join(names), files, job)
+    for r in readings:
+        os.makedirs(reading_dir(r), exist_ok=True)
+        with open(os.path.join(reading_dir(r), "kaggle-push.json"), "w") as f:
+            json.dump({**record, "guard_sha256": {}}, f, indent=1)
+    print(f"pushed {record['kernel']} at {commit[:8]}: `status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
+    return 0
+
+
+def start_session(args: argparse.Namespace, job_name: str, files: list[str], job: dict) -> dict:
+    """Uploads the bundle of `files` and starts the session that runs `job`; returns the push's record."""
+    user = username()
+    dataset, kernel = slugs(user, job_name)
 
     bundle_id = uuid.uuid4().hex
     bundle_dir = os.path.join(STAGING, job_name, "bundle")
@@ -249,8 +374,7 @@ def push(args: argparse.Namespace) -> int:
     kernel_dir = os.path.join(STAGING, job_name, "kernel")
     shutil.rmtree(kernel_dir, ignore_errors=True)
     os.makedirs(kernel_dir)
-    job = {"commit": commit, "bundle": bundle_id, "runs": runs, "session_hours": args.session_hours,
-           "read_hours": args.read_hours}
+    job = {**job, "bundle": bundle_id}
     with open(KERNEL) as f:
         source = f.read()
     with open(os.path.join(kernel_dir, "run.py"), "w") as f:
@@ -262,18 +386,11 @@ def push(args: argparse.Namespace) -> int:
                    "kernel_sources": [], "model_sources": []}, f, indent=1)
     print(kaggle("kernels", "push", "-p", kernel_dir, "--accelerator", args.accelerator,
                  "-t", str(int((args.session_hours + 0.75) * 3600))).stdout.strip())
-    guards = {r["name"]: sha256(os.path.join(local_dir(r), GUARDED[r["trainer"]])) for r in runs}
-    for r in runs:
-        os.makedirs(local_dir(r), exist_ok=True)
-        with open(os.path.join(local_dir(r), "kaggle-push.json"), "w") as f:
-            json.dump({**job, "kernel": kernel, "dataset": dataset, "accelerator": args.accelerator, "pushed": time.time(),
-                       "guard_sha256": guards}, f, indent=1)
-    print(f"pushed {kernel} at {commit[:8]}: `status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
-    return 0
+    return {**job, "kernel": kernel, "dataset": dataset, "accelerator": args.accelerator, "pushed": time.time()}
 
 
 def pushed(name: str) -> dict:
-    found = [path for folder in TRAINERS.values()
+    found = [path for folder in [*TRAINERS.values(), READINGS]
              if os.path.exists(path := os.path.join(GPU, *folder.split("/"), name, "kaggle-push.json"))]
     assert found, f"{name} was never pushed from this checkout"
     assert len(found) == 1, f"{name} has a push waiting in more than one folder: {found}"
@@ -289,7 +406,7 @@ def status(args: argparse.Namespace) -> int:
 def check_guards(job: dict) -> None:
     """Refuses, before anything is fetched, if a run's guarded file here changed since the push."""
     # A push from before imitation runs kept PPO's guard under its own name.
-    guards = job.get("guard_sha256") or job["latest_sha256"]
+    guards = job["guard_sha256"] if "guard_sha256" in job else job["latest_sha256"]
     for r in job["runs"]:
         guarded = GUARDED[trainer_of(r)]
         assert sha256(os.path.join(local_dir(r), guarded)) == guards[r["name"]], \
@@ -297,15 +414,17 @@ def check_guards(job: dict) -> None:
 
 
 def copy_back(job: dict, output: str, marker: str = "kaggle-sessions.jsonl") -> None:
-    """Each run's folder in the session's output (the folder of its name holding the host's `marker`),
-    over its local folder."""
-    for r in job["runs"]:
+    """Each run's and reading's folder in the session's output (the folder of its name holding the
+    host's `marker`), over its local folder."""
+    folders = [(r["name"], local_dir(r)) for r in job["runs"]] + [(r["name"], reading_dir(r))
+                                                                   for r in job.get("readings", [])]
+    for name, dest in folders:
         found = [root for root, _, files in os.walk(output)
-                 if os.path.basename(root) == r["name"] and marker in files]
-        assert len(found) == 1, f"the session's output holds no run folder for {r['name']}; its log is in {output}"
-        os.makedirs(local_dir(r), exist_ok=True)
+                 if os.path.basename(root) == name and marker in files]
+        assert len(found) == 1, f"the session's output holds no folder for {name}; its log is in {output}"
+        os.makedirs(dest, exist_ok=True)
         for f in os.listdir(found[0]):
-            shutil.copyfile(os.path.join(found[0], f), os.path.join(local_dir(r), f))
+            shutil.copyfile(os.path.join(found[0], f), os.path.join(dest, f))
 
 
 def fetch(args: argparse.Namespace) -> int:
@@ -315,6 +434,9 @@ def fetch(args: argparse.Namespace) -> int:
     print(state)
     assert "running" not in state.lower() and "queued" not in state.lower(), "the session hasn't ended yet"
     check_guards(job)
+    readings = job.get("readings", [])
+    for r in readings:
+        check_reading_unmoved(r, "kaggle-push.json")
     os.makedirs(STAGING, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=STAGING) as tmp:
         kaggle("kernels", "output", job["kernel"], "-p", tmp, "-o", "-q")
@@ -323,15 +445,46 @@ def fetch(args: argparse.Namespace) -> int:
         os.remove(os.path.join(local_dir(r), "kaggle-push.json"))
         print(f"fetched into {run_folder(r)}")
         report_run(r, None)
+    for r in readings:
+        os.remove(os.path.join(reading_dir(r), "kaggle-push.json"))
+        print(f"fetched into {reading_folder(r)}")
+        report_reading(r["name"])
     return 0
 
 
 def report(args: argparse.Namespace) -> int:
     trainers = [t for t in TRAINERS
                 if os.path.exists(os.path.join(local_dir({"name": args.name, "trainer": t}), "args.json"))]
-    assert len(trainers) == 1, f"{args.name}: no single run of that name in {', '.join(TRAINERS.values())}"
-    report_run({"name": args.name, "trainer": trainers[0]}, args.key)
+    reading = os.path.isdir(reading_dir({"name": args.name}))
+    assert len(trainers) + reading == 1, \
+        f"{args.name}: no single run or reading of that name in {', '.join([*TRAINERS.values(), READINGS])}"
+    if reading:
+        report_reading(args.name)
+    else:
+        report_run({"name": args.name, "trainer": trainers[0]}, args.key)
     return 0
+
+
+def report_reading(name: str) -> None:
+    """A fetched reading's output, in its tool's own table."""
+    folder = reading_dir({"name": name})
+    outputs = [t for t in READING_TOOLS if os.path.exists(os.path.join(folder, f"{t}.json"))]
+    assert len(outputs) == 1, (f"{reading_folder({'name': name})} holds no reading's output: it didn't finish, "
+                               "or isn't fetched yet; its out.txt and err.txt say why")
+    tool = outputs[0]
+    with open(os.path.join(folder, f"{tool}.json")) as f:
+        out = json.load(f)
+    print(f"{name}: {tool} on {out['ckpt']}")
+    if tool == "search":
+        from ..selfplay.search import print_table
+        print_table(out)
+    elif tool == "calibrate":
+        from ..selfplay.calibrate import table
+        for which in ("mirror", "mixed"):
+            if which in out:
+                print(table(which, out[which]))
+    else:
+        print_panel(out)
 
 
 def report_run(run: dict, key: str | None) -> None:
@@ -361,14 +514,17 @@ def report_imitation(run: dict) -> None:
     path = os.path.join(run_dir, "panel.json")
     if os.path.exists(path):
         with open(path) as f:
-            panel = json.load(f)
-        print(f"  panel at {panel['games']} games:")
-        for k, r in panel.items():
-            if isinstance(r, dict) and "win" in r:
-                low, high = r["interval"]
-                print(f"    {k:<28} {r['win']:.3f} [{low:.3f}, {high:.3f}]  par {r['par']}")
-            elif isinstance(r, dict) and "share" in r:
-                print(f"    {k:<28} {r['share']:.3f}")
+            print_panel(json.load(f))
+
+
+def print_panel(panel: dict) -> None:
+    print(f"  panel at {panel['games']} games:")
+    for k, r in panel.items():
+        if isinstance(r, dict) and "win" in r:
+            low, high = r["interval"]
+            print(f"    {k:<28} {r['win']:.3f} [{low:.3f}, {high:.3f}]  par {r['par']}")
+        elif isinstance(r, dict) and "share" in r:
+            print(f"    {k:<28} {r['share']:.3f}")
 
 
 def report_ppo(name: str, run_dir: str, key: str | None) -> None:
@@ -409,7 +565,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
     s = sub.add_parser("push")
-    s.add_argument("names", nargs="+", help="the runs, in order: each of the session's GPUs (a T4 session has two) takes the next when it is free")
+    s.add_argument("names", nargs="*", help="the runs, in order: each of the session's GPUs (a T4 session has two) takes the next when it is free")
+    s.add_argument("--read", action="append", default=[], metavar="NAME=TOOL ARGS",
+                   help=f"a reading of existing checkpoints instead of runs: one of {', '.join(READING_TOOLS)} "
+                        "with its own arguments, in runs/readings/NAME/ (repeat for more, in order)")
     s.add_argument("--run-args", action="append", default=[], metavar="NAME=ARGS",
                    help="one run's own trainer arguments, after the shared ones (e.g. k2='--seed 1')")
     s.add_argument("--imitate", action="store_true",

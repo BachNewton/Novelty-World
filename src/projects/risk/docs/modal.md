@@ -1,6 +1,6 @@
 # Training on Modal's GPUs
 
-The GPU trainers (`gpu/riskgpu/selfplay/ppo.py`, and `imitate.py`'s imitation) can run on Modal (modal.com) as well as on the laptop's eGPU and Kaggle (`kaggle.md`). Modal bills by the second for the GPU, the cores and the memory a container holds; the free plan gives $30 of credit a month, and the owner's workspace caps its usage at $30, so a month's credit is the budget. On the Risk trainer an A10 gives the most training per dollar (the machine-learning skill's `references/budget.md`, from `gpu/riskgpu/modalgpu/bench.py`), at about the eGPU's speed; an H100 the most per hour. `gpu/riskgpu/modalgpu/launch.py` drives it from here, run from `src/projects/risk/gpu/`, with the Kaggle launcher's jobs in the Kaggle launcher's terms, so a session can use either.
+The GPU trainers (`gpu/riskgpu/selfplay/ppo.py`, and `imitate.py`'s imitation), and one-off readings of checkpoints by the diagnostic tools, can run on Modal (modal.com) as well as on the laptop's eGPU and Kaggle (`kaggle.md`). Modal bills by the second for the GPU, the cores and the memory a container holds; the free plan gives $30 of credit a month, and the owner's workspace caps its usage at $30, so a month's credit is the budget. On the Risk trainer an A10 gives the most training per dollar (the machine-learning skill's `references/budget.md`, from `gpu/riskgpu/modalgpu/bench.py`), at about the eGPU's speed; an H100 the most per hour. `gpu/riskgpu/modalgpu/launch.py` drives it from here, run from `src/projects/risk/gpu/`, with the Kaggle launcher's jobs in the Kaggle launcher's terms, so a session can use either.
 
 ## The one-time setup (the owner's)
 
@@ -30,6 +30,21 @@ python -m riskgpu.modalgpu.launch report <name> [<name>]
 ## After training, the readings
 
 The container reads its run once it stops, as a Kaggle session does (`kaggle.md`), with the session's own code: a PPO run's sharp readings (its checkpoints at its last three headline readings, newest first, on the panel at `--sharp-games` a check, 4,096 by default), an imitation's held-out agreement and its panel. One GPU does both, in turn.
+
+## A reading of existing checkpoints
+
+Some questions need a GPU but no training: a reading of checkpoints already trained, by one of the diagnostic tools (`selfplay/search.py`, a rollout search against the raw net; `selfplay/calibrate.py`, the value head against real outcomes; `selfplay/panel.py`, the stage-0 panel on any checkpoint). A push of readings runs those on Modal instead of the eGPU.
+
+```bash
+python -m riskgpu.modalgpu.launch push --read <name>="<tool> <its arguments>" [--read ...] [--gpu A10] [--hours 2] [--dry-run]
+```
+
+- **Each `--read` is one reading on a container of its own**, named, its tool one of `search`, `calibrate` and `panel` (any other module is refused), and its arguments the tool's own, passed through verbatim. A push is either runs or readings, never both, and a push of readings takes none of the training options.
+- **Its arguments are checked by the tool's own parser** before Modal is asked anything or anything is uploaded, so an argument the tool would refuse costs no container. The launcher also refuses what would waste one: a `--device` other than the GPU, bf16 on a T4 (each tool's default is bf16 on CUDA, so a T4 reading names `--no-bf16`), and an `--out`, since the output is the launcher's. On every other GPU the reading's precision is its own: it is a measurement, and precision may be what it compares.
+- **Its inputs are the checkpoints its arguments name**, given as paths under `runs/` relative to the GPU folder, with the blitz tables and, for the panel, its anchors. Each must be in this checkout; they go to the data Volume where missing or changed, as a run's inputs do. A checkpoint of a run still on Modal is read once it has been fetched.
+- **It runs in `runs/readings/<name>/`** on the runs Volume: the tool's output as `<tool>.json`, its captured output as `out.txt` and `err.txt`, and the container's record of its starts. A name whose local folder already holds anything is refused: a reading is never redone in place, a new one gets a new name.
+- **The container runs the session with that reading alone in its queue**: no training, no league, no sharp readings after it. The reading is stopped five minutes before `--hours`, as a run's readings are, leaving the last write to the Volume; the tools write their output only at the end, so a reading stopped there has no output, and its hours are sized from the tool's measured cost with room to spare. A restarted container reads again from the start, inside its first start's deadline.
+- **The same commands follow it.** `status` shows the container and the last line of the reading's output; `stop` kills it; `fetch` brings its folder into `runs/readings/<name>/` here once it has ended, refusing if that folder has gained anything since the push, and prints the report; `report` prints the reading in its tool's own table (the search's sides and overrules, calibration's tables, the panel's readings). The budget, the dry run, the CUDA check at start and the refusal of uncommitted code are the training push's, unchanged; a reading holds four cores and 16 GiB.
 
 ## An imitation
 

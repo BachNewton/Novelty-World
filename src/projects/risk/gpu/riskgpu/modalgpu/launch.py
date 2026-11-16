@@ -3,6 +3,8 @@
     python -m riskgpu.modalgpu.launch push <name> [<name>] [--run-args <name>="<its own args>"] [--imitate]
                                       [--no-panel] [--gpu A10] [--hours 8] [--read-hours 2] [--dry-run]
                                       -- <shared trainer args>
+    python -m riskgpu.modalgpu.launch push --read <name>="<tool> <its args>" [--read ...] [--gpu A10] [--hours 2]
+                                      [--dry-run]
     python -m riskgpu.modalgpu.launch status <name> [<name>]
     python -m riskgpu.modalgpu.launch fetch <name> [<name>]
     python -m riskgpu.modalgpu.launch stop <name> [<name>]
@@ -18,6 +20,10 @@ their hash changes. The code is this checkout's committed GPU package, put in th
 at HEAD. `--hours` bounds the container, and so the money: before anything is uploaded, the push's
 worst case at Modal's rates, with what this month has spent and what runs still in flight could, must
 stay under the month's credit.
+
+A push of readings (`--read`) runs no trainer: each is one reading of existing checkpoints by a
+reading tool (`search`, `calibrate` or `panel`), its arguments checked by the tool's own parser, on a
+container of its own, its output and captured output in `runs/readings/<name>/`.
 """
 
 import argparse
@@ -35,7 +41,7 @@ import time
 import uuid
 
 from ..kaggle import launch as kaggle
-from ..kaggle.kernel import SHARP_GAMES, TRAINERS, run_folder, trainer_of
+from ..kaggle.kernel import READINGS, SHARP_GAMES, TRAINERS, reading_folder, reading_output, run_folder, trainer_of
 
 GPUS = ("T4", "L4", "A10", "A100-40GB", "A100-80GB", "H100")
 # Modal's published rates, dollars a second: each GPU, and a physical core and a GiB of memory
@@ -45,8 +51,8 @@ GPU_RATE = {"T4": 0.000164, "L4": 0.000222, "A10": 0.000306, "A100-40GB": 0.0005
 CORE_RATE = 0.0000131
 GIB_RATE = 0.00000222
 CORES = 4.0
-# An imitation holds its whole data set in memory (5.2 GB for native-v2), a PPO run little.
-MEMORY_GIB = {"ppo": 16, "imitate": 32}
+# An imitation holds its whole data set in memory (5.2 GB for native-v2), a PPO run and a reading little.
+MEMORY_GIB = {"ppo": 16, "imitate": 32, "read": 16}
 # Older than Ampere: no native bfloat16.
 FULL_PRECISION = {"T4"}
 # The month's credit is $30 and the workspace's cap $30; the billing summary lags, so a push leaves $2.
@@ -54,6 +60,7 @@ CEILING = 28.0
 MAX_HOURS = 24.0  # Modal's longest timeout
 # The container's last minutes, after the readings are stopped, for the last commit to the Volume.
 END_S = 300
+READ_HOURS = 2.0  # a training push's default --read-hours
 RUNS_VOLUME, DATA_VOLUME = "risk-runs", "risk-data"
 MANIFEST = "MANIFEST.json"  # the data Volume's record of each file's hash
 SESSIONS = "modal-sessions.jsonl"  # a run folder's record of the containers that ran it
@@ -145,7 +152,7 @@ def month_spend() -> float:
 
 def push_records() -> list[dict]:
     records = []
-    for folder in TRAINERS.values():
+    for folder in [*TRAINERS.values(), READINGS]:
         root = os.path.join(gpu_dir(), *folder.split("/"))
         if os.path.isdir(root):
             for name in sorted(os.listdir(root)):
@@ -211,10 +218,9 @@ def upload_inputs(volume, files: list[str]) -> None:
                        f"/{MANIFEST}")
 
 
-def upload_own(volume, run: dict, files: list[str]) -> None:
-    """The run's own folder, fresh on the runs Volume: what is there from an earlier push goes, so the
-    local folder stays the run's source of truth."""
-    folder = run_folder(run)
+def upload_own(volume, folder: str, files: list[str]) -> None:
+    """A run's or reading's own folder, fresh on the runs Volume: what is there from an earlier push
+    goes, so the local folder stays its source of truth."""
     if exists(volume, folder):
         volume.remove_file(folder, recursive=True)
     if files:
@@ -288,9 +294,14 @@ def dry_run(args: argparse.Namespace, runs: list[dict], rate: float) -> int:
 
 
 def push(args: argparse.Namespace) -> int:
+    if args.read:
+        return push_readings(args)
     names = args.names
+    assert names, "name the runs to train, or give --read for readings"
     assert len(set(names)) == len(names), "a run can't be pushed twice at once"
     assert args.gpu in GPUS, f"--gpu is one of {', '.join(GPUS)}"
+    args.read_hours = READ_HOURS if args.read_hours is None else args.read_hours
+    args.sharp_games = SHARP_GAMES if args.sharp_games is None else args.sharp_games
     train_hours(args.hours, args.read_hours)
     extras = dict(x.split("=", 1) for x in args.run_args)
     assert set(extras) <= set(names), f"--run-args names a run not pushed: {sorted(set(extras) - set(names))}"
@@ -318,7 +329,7 @@ def push(args: argparse.Namespace) -> int:
     data_volume = modal.Volume.from_name(DATA_VOLUME, create_if_missing=True)
     upload_inputs(data_volume, list(dict.fromkeys(f for r in runs for f in files[r["name"]][1])))
     for r in runs:
-        upload_own(runs_volume, r, files[r["name"]][0])
+        upload_own(runs_volume, run_folder(r), files[r["name"]][0])
     guards = {r["name"]: kaggle.sha256(os.path.join(kaggle.local_dir(r), kaggle.GUARDED[trainer])) for r in runs}
     for r in runs:
         # Made before the runs start, so nothing can stop their records being written once they have.
@@ -344,8 +355,77 @@ def push(args: argparse.Namespace) -> int:
     return 0
 
 
+def readings_of(args: argparse.Namespace) -> list[dict]:
+    """A push's readings, each checked by its tool's own parser and for this GPU, before anything is
+    asked of Modal or uploaded."""
+    assert not (args.names or args.run_args or args.imitate or args.no_panel or args.no_stop or args.trainer
+                or args.read_hours is not None or args.sharp_games is not None), \
+        "a push of readings names no runs and takes no trainer options: each --read carries its tool's arguments"
+    assert args.gpu in GPUS, f"--gpu is one of {', '.join(GPUS)}"
+    assert 0 < args.hours <= MAX_HOURS, f"a container's hours are Modal's timeout: more than 0, at most {MAX_HOURS:g}"
+    assert args.hours * 3600 > END_S, f"--hours {args.hours:g} leaves a reading no time before the container's end"
+    readings = [kaggle.reading_spec(spec) for spec in args.read]
+    names = [r["name"] for r in readings]
+    assert len(set(names)) == len(names), "two readings share a name"
+    for r in readings:
+        kaggle.check_reading(r, full_precision=args.gpu in FULL_PRECISION)
+        kaggle.check_new_reading(r)
+    return readings
+
+
+def push_readings(args: argparse.Namespace) -> int:
+    """Readings of existing checkpoints, each on a GPU container of its own, in one detached app."""
+    readings = readings_of(args)
+    inputs = {r["name"]: kaggle.reading_files(r) for r in readings}
+    rate = hourly(args.gpu, "read")
+    if args.dry_run:
+        for r in readings:
+            command = ["python", "-m", f"riskgpu.selfplay.{r['tool']}", *r["args"], "--out", reading_output(r)]
+            print(f"{reading_folder(r)}: {shlex.join(command)}")
+        files = list(dict.fromkeys(f for r in readings for f in inputs[r["name"]]))
+        size = sum(os.path.getsize(os.path.join(gpu_dir(), f)) for f in files)
+        print(f"inputs: {len(files)} files, {size / 1e6:,.0f} MB, uploaded to {DATA_VOLUME} where missing or changed")
+        print(f"{len(readings)} x {args.gpu} at ${rate:.3f} an hour for at most {args.hours:g} hours each: at most "
+              f"${rate * args.hours * len(readings):.2f}, before the month's spend, which a dry run doesn't ask")
+        return 0
+    check_budget(month_spend(), in_flight(push_records(), time.time()), rate * args.hours * len(readings))
+    commit = stage_code(args.uncommitted)
+
+    import modal
+    runs_volume = modal.Volume.from_name(RUNS_VOLUME, create_if_missing=True)
+    data_volume = modal.Volume.from_name(DATA_VOLUME, create_if_missing=True)
+    upload_inputs(data_volume, list(dict.fromkeys(f for r in readings for f in inputs[r["name"]])))
+    for r in readings:
+        upload_own(runs_volume, reading_folder(r), [])
+        # Made before the readings start, so nothing can stop their records being written once they have.
+        os.makedirs(kaggle.reading_dir(r), exist_ok=True)
+
+    from . import remote
+    push_id = uuid.uuid4().hex
+    read = remote.read.with_options(gpu=args.gpu, timeout=int(args.hours * 3600),
+                                    memory=(MEMORY_GIB["read"] * 1024, MEMORY_GIB["read"] * 1024))
+    with modal.enable_output(), remote.app.run(detach=True):
+        app_id = remote.app.app_id
+        for r in readings:
+            job = {"push": push_id, "commit": commit, "reading": r, "inputs": inputs[r["name"]], "gpu": args.gpu,
+                   "hours": args.hours}
+            call = read.spawn(job).object_id
+            record = {**job, "app": app_id, "call": call, "rate": rate, "pushed": time.time()}
+            with open(os.path.join(kaggle.reading_dir(r), PUSHED), "w") as f:
+                json.dump(record, f, indent=1)
+    names = [r["name"] for r in readings]
+    print(f"pushed {', '.join(names)} on {args.gpu} at {commit[:8]} as {app_id}, detached: "
+          f"`status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
+    return 0
+
+
+def record_folder(record: dict) -> str:
+    """The folder a push record's run or reading lives in, relative to the GPU folder."""
+    return reading_folder(record["reading"]) if "reading" in record else run_folder(record["run"])
+
+
 def pushed(name: str) -> dict:
-    found = [r for r in push_records() if r["run"]["name"] == name]
+    found = [r for r in push_records() if (r["reading"] if "reading" in r else r["run"])["name"] == name]
     assert found, f"{name} has no Modal push waiting to be fetched in this checkout"
     assert len(found) == 1, f"{name} has a Modal push waiting in more than one folder"
     return found[0]
@@ -383,7 +463,7 @@ def status(args: argparse.Namespace) -> int:
     if detail:
         print(f"  {detail}")
     volume = modal.Volume.from_name(RUNS_VOLUME)
-    folder = run_folder(record["run"])
+    folder = record_folder(record)
     # The trainer's log reaches the Volume line by line; its output only once a task ends, since the
     # Volume keeps a file still open for writing from the commits the container makes as it runs.
     for line in tail(volume, f"{folder}/log.jsonl", 1):
@@ -408,12 +488,25 @@ def bring_back(record: dict, volume) -> None:
     os.remove(os.path.join(kaggle.local_dir(record["run"]), PUSHED))
 
 
+def bring_back_reading(record: dict, volume) -> None:
+    """The reading's folder on the runs Volume into its local folder, which holds nothing but its push."""
+    local = kaggle.reading_dir(record["reading"])
+    kaggle.check_reading_unmoved(record["reading"], PUSHED)
+    download_folder(volume, reading_folder(record["reading"]), local)
+    os.remove(os.path.join(local, PUSHED))
+
+
 def fetch(args: argparse.Namespace) -> int:
     import modal
     record = pushed(args.name)
     state, detail = call_state(record["call"])
     print(f"{args.name}: {state} {detail}".rstrip())
-    assert state != "running", "the run hasn't ended yet: `stop` it first to fetch it now"
+    assert state != "running", "it hasn't ended yet: `stop` it first to fetch it now"
+    if "reading" in record:
+        bring_back_reading(record, modal.Volume.from_name(RUNS_VOLUME))
+        print(f"fetched into {reading_folder(record['reading'])}")
+        kaggle.report_reading(args.name)
+        return 0
     bring_back(record, modal.Volume.from_name(RUNS_VOLUME))
     print(f"fetched into {run_folder(record['run'])}")
     kaggle.report_run(record["run"], None)
@@ -423,8 +516,8 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 def report(args: argparse.Namespace) -> int:
-    """Kaggle's report, and for an imitation its fit to its own training decisions and its size, which a
-    comparison of sizes reads."""
+    """Kaggle's report (a reading's in its tool's own table), and for an imitation its fit to its own
+    training decisions and its size, which a comparison of sizes reads."""
     kaggle.report(args)
     run_dir = kaggle.local_dir({"name": args.name, "trainer": "imitate"})
     if os.path.exists(os.path.join(run_dir, "args.json")):
@@ -461,7 +554,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
     s = sub.add_parser("push")
-    s.add_argument("names", nargs="+", help="the runs, each on a GPU container of its own")
+    s.add_argument("names", nargs="*", help="the runs, each on a GPU container of its own")
+    s.add_argument("--read", action="append", default=[], metavar="NAME=TOOL ARGS",
+                   help=f"a reading of existing checkpoints instead of runs: one of {', '.join(kaggle.READING_TOOLS)} "
+                        "with its own arguments, on a GPU container of its own, in runs/readings/NAME/ (repeat for more)")
     s.add_argument("--run-args", action="append", default=[], metavar="NAME=ARGS",
                    help="one run's own trainer arguments, after the shared ones (e.g. k2='--seed 1')")
     s.add_argument("--imitate", action="store_true",
@@ -469,9 +565,10 @@ def main(argv: list[str] | None = None) -> int:
                         "held-out agreement and the panel once it is trained")
     s.add_argument("--gpu", default="A10", choices=GPUS, help="A10: the most training per dollar measured")
     s.add_argument("--hours", type=float, default=8.0, help="the container's whole time, its Modal timeout and cost")
-    s.add_argument("--read-hours", type=float, default=2.0,
-                   help="the container's last hours, kept for the stopped run's readings")
-    s.add_argument("--sharp-games", type=int, default=SHARP_GAMES, help="a PPO run's sharp readings' games a check")
+    s.add_argument("--read-hours", type=float, default=None,
+                   help=f"the container's last hours, kept for the stopped run's readings ({READ_HOURS:g})")
+    s.add_argument("--sharp-games", type=int, default=None,
+                   help=f"a PPO run's sharp readings' games a check ({SHARP_GAMES})")
     s.add_argument("--no-stop", action="store_true", help="let a PPO run spend its hours without a plateau stop")
     s.add_argument("--no-panel", action="store_true",
                    help="read a trained imitation on its held-out agreement alone, without the panel's games")

@@ -211,6 +211,22 @@ def test_fetch_guards_and_fills_an_imitations_own_folder(tmp_path, monkeypatch):
         launch.check_guards(job)
 
 
+def test_a_readings_session_is_fetched_into_each_readings_own_folder(tmp_path, monkeypatch):
+    from riskgpu.kaggle import launch
+    monkeypatch.setattr(launch, "GPU", str(tmp_path))
+    readings = [{"name": n, "tool": "panel", "args": []} for n in ("p", "q")]
+    job = {"runs": [], "readings": readings, "guard_sha256": {}}
+    gpu_tree(tmp_path, ["runs/readings/p/kaggle-push.json", "runs/readings/q/kaggle-push.json"])
+    gpu_tree(tmp_path / "output", [f"{n}/{f}" for n in ("p", "q") for f in ("kaggle-sessions.jsonl", "panel.json")])
+
+    launch.check_guards(job)
+    for r in readings:
+        launch.check_reading_unmoved(r, "kaggle-push.json")
+    launch.copy_back(job, str(tmp_path / "output"))
+    for n in ("p", "q"):
+        assert (tmp_path / "runs" / "readings" / n / "panel.json").read_text() == f"{n}/panel.json"
+
+
 def test_an_imitation_push_is_refused_before_upload_if_its_trainer_would_refuse_its_arguments():
     import pytest
     from riskgpu.kaggle.launch import run_args

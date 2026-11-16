@@ -31,6 +31,10 @@ python -m riskgpu.kaggle.launch report <name>
 - **Once trained, it is read twice**: its held-out agreement with the teacher (`imitate read`, saved as `read.json`) and the panel at 1,024 games a check (`panel.json`), both on its best net, one on each GPU.
 - **`fetch`** guards the run's `best.pt` as a PPO fetch guards `latest.pt`, and `report` prints the imitation's last log line (its samples, held-out main agreement and seconds) and the headline numbers of its two readings.
 
+## A session of readings
+
+`push --read <name>="<tool> <its arguments>"` (repeated) makes the session's queue one-off readings of existing checkpoints instead of runs, by the diagnostic tools Modal's readings use (`modal.md`: `search`, `calibrate` or `panel`, any other module refused), each GPU taking the next as it frees, so two readings on a T4 session cost what one would. Their arguments are the tools' own, checked by the tools' own parsers before anything is uploaded, with the same refusals as on Modal: a `--device` other than the GPU, an `--out` (the output is the launcher's), and bf16 on a GPU without it, so a T4 session's readings each name `--no-bf16`. The bundle carries the checkpoints the readings name (paths under `runs/`), the blitz tables and, for the panel, its anchors. Each reading writes its output, `<tool>.json`, and its captured output into `runs/readings/<name>/`; `fetch` brings every reading of the session back into those folders (refusing one that has gained anything since the push), and `report` prints a reading in its tool's own table. A reading still going half an hour past the session's hours is stopped, as any reading is, and has no output, since the tools write theirs at the end.
+
 ## What a session costs and when it stops
 
 - **Its precision is its own recipe.** A T4 has no native bfloat16, so its sessions train with `--no-bf16`, in full precision (the launcher refuses a T4 push without it, and the trainer refuses to emulate bf16 on any GPU without it). A run in full precision is not comparable with the eGPU's bf16 runs until a measurement shows the precision makes no difference, so a Kaggle line gets its own base run and seed spread.

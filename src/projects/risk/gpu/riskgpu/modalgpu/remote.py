@@ -11,6 +11,10 @@ in the run folder's `modal-sessions.jsonl`; a container Modal restarts (a preemp
 start's deadline, a PPO run resuming from its last checkpoint and an imitation, which can't resume,
 failing.
 
+A reading (`read`) starts the same way in its folder under `runs/readings/`, then runs the session with
+that reading alone in its queue: no training, no league, no sharp readings after it. It is stopped at
+the container's deadline, and a restarted container reads again from the start.
+
 This module is registered at import, as Modal requires: the container imports it by its name from
 the staged package, so it must never be pushed from a module the container can't import.
 """
@@ -22,7 +26,7 @@ import time
 
 import modal
 
-from ..kaggle.kernel import Session, run_folder, trainer_of
+from ..kaggle.kernel import Session, reading_folder, run_folder, trainer_of
 from .launch import CORES, DATA_VOLUME, MAX_HOURS, MEMORY_GIB, RUNS_VOLUME, SESSIONS, deadline, first_start
 
 LOCAL_GPU = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,19 +57,10 @@ class RunSession(Session):
                 self.queue = [t for t in self.queue if t.get("reading") != "panel"]
 
 
-@app.function(gpu="A10", cpu=(CORES, CORES), memory=MEMORY_GIB["ppo"] * 1024, timeout=int(MAX_HOURS * 3600),
-              retries=0, volumes={RUNS_MOUNT: runs_volume, DATA_MOUNT: data_volume})
-def train(job: dict) -> dict:
-    started = time.time()
-    run = job["run"]
-    folder = run_folder(run)
-    own = os.path.join(RUNS_MOUNT, *folder.split("/"))
-    os.makedirs(own, exist_ok=True)
-    sessions = os.path.join(own, SESSIONS)
-    first = first_start(sessions, job["push"])
-    if first is not None and trainer_of(run) == "imitate":
-        raise RuntimeError(f"{run['name']}'s container was restarted, and an imitation can't resume: push it again")
-
+def start(job: dict, folder: str, first: float | None, started: float, what: dict) -> str:
+    """The container's start, shared by a run and a reading: the GPU checked, the job's inputs linked
+    in from the data Volume and its folder from the runs Volume, the start recorded. Returns the
+    folder's path on the runs Volume."""
     subprocess.run(["nvidia-smi"], check=True)
     import torch
     assert torch.cuda.is_available(), "no CUDA device in this container"
@@ -74,18 +69,19 @@ def train(job: dict) -> dict:
         link = os.path.join(GPU_DIR, *rel.split("/"))
         os.makedirs(os.path.dirname(link), exist_ok=True)
         os.symlink(os.path.join(DATA_MOUNT, *rel.split("/")), link)
+    own = os.path.join(RUNS_MOUNT, *folder.split("/"))
     link = os.path.join(GPU_DIR, *folder.split("/"))
     os.makedirs(os.path.dirname(link), exist_ok=True)
     os.symlink(own, link)
-    with open(sessions, "a") as f:
+    with open(os.path.join(own, SESSIONS), "a") as f:
         f.write(json.dumps({"push": job["push"], "commit": job["commit"], "started": started, "gpu": job["gpu"],
                             "device": torch.cuda.get_device_name(0), "torch": torch.__version__,
-                            "restart": first is not None, "run": run}) + "\n")
+                            "restart": first is not None, **what}) + "\n")
     runs_volume.commit()
+    return own
 
-    session = RunSession({"runs": [run], "read_hours": job["read_hours"], "sharp_games": job["sharp_games"]},
-                         GPU_DIR, gpus=1, deadline=deadline(first or started, job["hours"]),
-                         working=os.path.dirname(own), grace=0, panel=job.get("panel", True))
+
+def work(session: Session) -> None:
     try:
         session.run()
     except SystemExit as e:
@@ -93,4 +89,43 @@ def train(job: dict) -> dict:
         raise RuntimeError(str(e)) from None
     finally:
         runs_volume.commit()
+
+
+def own_folder(folder: str, push: str) -> tuple[str, float | None]:
+    own = os.path.join(RUNS_MOUNT, *folder.split("/"))
+    os.makedirs(own, exist_ok=True)
+    return own, first_start(os.path.join(own, SESSIONS), push)
+
+
+@app.function(gpu="A10", cpu=(CORES, CORES), memory=MEMORY_GIB["ppo"] * 1024, timeout=int(MAX_HOURS * 3600),
+              retries=0, volumes={RUNS_MOUNT: runs_volume, DATA_MOUNT: data_volume})
+def train(job: dict) -> dict:
+    started = time.time()
+    run = job["run"]
+    folder = run_folder(run)
+    own, first = own_folder(folder, job["push"])
+    if first is not None and trainer_of(run) == "imitate":
+        raise RuntimeError(f"{run['name']}'s container was restarted, and an imitation can't resume: push it again")
+    start(job, folder, first, started, {"run": run})
+    session = RunSession({"runs": [run], "read_hours": job["read_hours"], "sharp_games": job["sharp_games"]},
+                         GPU_DIR, gpus=1, deadline=deadline(first or started, job["hours"]),
+                         working=os.path.dirname(own), grace=0, panel=job.get("panel", True))
+    work(session)
     return {"cut": session.cut, "left": [t["name"] for t in session.queue]}
+
+
+@app.function(gpu="A10", cpu=(CORES, CORES), memory=MEMORY_GIB["read"] * 1024, timeout=int(MAX_HOURS * 3600),
+              retries=0, volumes={RUNS_MOUNT: runs_volume, DATA_MOUNT: data_volume})
+def read(job: dict) -> dict:
+    """One reading of existing checkpoints, the session's queue holding it alone: its output and its
+    captured output in its folder, stopped at the container's deadline (a restarted container reads
+    again from the start, inside its first start's deadline)."""
+    started = time.time()
+    reading = job["reading"]
+    folder = reading_folder(reading)
+    own, first = own_folder(folder, job["push"])
+    start(job, folder, first, started, {"reading": reading})
+    session = Session({"runs": [], "readings": [reading], "read_hours": 0}, GPU_DIR, gpus=1,
+                      deadline=deadline(first or started, job["hours"]), working=os.path.dirname(own), grace=0)
+    work(session)
+    return {"cut": session.cut}

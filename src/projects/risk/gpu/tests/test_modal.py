@@ -1,9 +1,11 @@
 """The Modal launcher's guards on money and work: a push the month's credit can't cover, hours split
 so a run's readings never get their time, a run reading or writing the wrong folder, a fetch that
-overwrites local work, or an upload of gigabytes already on the Volume each waste money or a run."""
+overwrites local work, an upload of gigabytes already on the Volume, or a one-off reading whose tool
+would refuse it on the GPU each waste money or a run."""
 
 import json
 import os
+import sys
 import time
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -156,7 +158,7 @@ def test_a_runs_folder_on_the_volume_is_replaced_by_the_local_one(tmp_path, monk
     gpu_tree(tmp_path, {"runs/selfplay/r/latest.pt": "new"})
     volume = FakeVolume({"runs/selfplay/r/latest.pt": b"old", "runs/selfplay/r/snap-9.pt": b"gone here",
                          "runs/selfplay/other/latest.pt": b"kept"})
-    launch.upload_own(volume, {"name": "r", "trainer": "ppo"}, ["runs/selfplay/r/latest.pt"])
+    launch.upload_own(volume, "runs/selfplay/r", ["runs/selfplay/r/latest.pt"])
     assert volume.files == {"runs/selfplay/r/latest.pt": b"new", "runs/selfplay/other/latest.pt": b"kept"}
 
 
@@ -190,3 +192,88 @@ def test_an_imitations_size_and_device_are_checked_before_anything_is_uploaded()
     # A container on the CPU pays for its GPU and trains tens of times slower.
     with pytest.raises(AssertionError, match="--device"):
         launch.run_args(shared, "--device cpu", "A10", no_stop=False, trainer="imitate")
+
+
+def test_a_reading_is_one_of_the_reading_tools():
+    assert kaggle.reading_spec("p=panel --ckpt runs/a/b.pt --games 64") == \
+        {"name": "p", "tool": "panel", "args": ["--ckpt", "runs/a/b.pt", "--games", "64"]}
+    for spec in ("p=ppo --iters 1", "p=riskgpu.selfplay.panel --ckpt runs/a/b.pt", "p=", "panel --ckpt runs/a/b.pt",
+                 "../p=panel --ckpt runs/a/b.pt"):
+        with pytest.raises(AssertionError):
+            kaggle.reading_spec(spec)
+
+
+def test_a_readings_arguments_are_checked_by_its_own_parser_before_anything_is_uploaded():
+    def check(spec: str, full_precision: bool = False) -> None:
+        kaggle.check_reading(kaggle.reading_spec(spec), full_precision)
+
+    check("p=panel --ckpt runs/a/b.pt --games 64")
+    check("s=search --ckpt runs/a/b.pt --k 2 --no-bf16", full_precision=True)
+    # A value its parser refuses would fail the container after its start-up.
+    with pytest.raises(SystemExit):
+        check("p=panel --ckpt runs/a/b.pt --games many")
+    with pytest.raises(SystemExit):
+        check("c=calibrate --ckpt runs/a/b.pt --no-such-flag")
+    # The output is the launcher's, in the reading's folder, however it is spelled.
+    with pytest.raises(AssertionError, match="--out"):
+        check("p=panel --ckpt runs/a/b.pt --ou elsewhere.json")
+    # A reading on the CPU pays for a GPU it never uses.
+    with pytest.raises(AssertionError, match="--device"):
+        check("c=calibrate --ckpt runs/a/b.pt --device cpu")
+    # Each tool's own default is bf16 on CUDA, which a T4 lacks.
+    for tool in ("panel", "calibrate", "search"):
+        with pytest.raises(AssertionError, match="bfloat16"):
+            check(f"r={tool} --ckpt runs/a/b.pt", full_precision=True)
+
+
+def test_the_checkpoints_a_reading_names_are_its_inputs(tmp_path, monkeypatch):
+    from riskgpu.selfplay import panel
+    monkeypatch.setattr(kaggle, "GPU", str(tmp_path))
+    anchors = ["runs/selfplay/sw/snap-1.pt", "runs/imitate/imit-1/best.pt"]
+    gpu_tree(tmp_path, {f: "" for f in ["data/blitz-256.bin", "data/blitz-256.json", "runs/selfplay/a/snap-5.pt",
+                                        "runs/selfplay/b/snap-9.pt", *anchors]})
+    monkeypatch.setattr(panel, "ANCHORS", tuple((rel, str(tmp_path / rel)) for rel in anchors))
+
+    calibrate = kaggle.reading_spec("c=calibrate --ckpt runs/selfplay/a/snap-5.pt --mixed=runs/selfplay/b/snap-9.pt")
+    assert kaggle.reading_files(calibrate) == ["data/blitz-256.bin", "data/blitz-256.json",
+                                               "runs/selfplay/a/snap-5.pt", "runs/selfplay/b/snap-9.pt"]
+    reading = kaggle.reading_spec("p=panel --ckpt runs/selfplay/a/snap-5.pt")
+    assert kaggle.reading_files(reading)[-2:] == anchors
+    with pytest.raises(AssertionError, match="lacks"):
+        kaggle.reading_files(kaggle.reading_spec("p=panel --ckpt runs/selfplay/a/snap-6.pt"))
+    # A path the container can't open where the launcher would find it.
+    for path in (str(tmp_path / "runs/selfplay/a/snap-5.pt"), "../runs/selfplay/a/snap-5.pt"):
+        with pytest.raises(AssertionError, match="under runs/"):
+            kaggle.reading_files({"name": "p", "tool": "panel", "args": ["--ckpt", path]})
+
+
+def test_a_reading_writes_its_output_and_captured_output_in_its_own_folder(tmp_path):
+    reading = {"name": "p", "tool": "panel", "args": ["--ckpt", "runs/a/b.pt", "--games", "64"]}
+    (tmp_path / "p").mkdir()
+    session = kernel.Session({"runs": [], "readings": [reading], "read_hours": 0}, str(tmp_path), gpus=1,
+                             deadline=time.time() + 60, working=str(tmp_path), grace=0)
+    task = session.next_task()
+    assert " ".join(session.command(task)[3:]) == \
+        "riskgpu.selfplay.panel --ckpt runs/a/b.pt --games 64 --out runs/readings/p/panel.json"
+    session.command = lambda task: [sys.executable, "-c", "print('read')"]
+    session.perform(task, device=0)
+    assert session.failed == [] and session.queue == []
+    assert (tmp_path / "p" / "out.txt").read_text() == "read\n"
+
+
+def test_fetch_brings_a_reading_back_only_into_a_folder_holding_just_its_push(tmp_path, monkeypatch):
+    monkeypatch.setattr(kaggle, "GPU", str(tmp_path))
+    reading = {"name": "p", "tool": "panel", "args": []}
+    gpu_tree(tmp_path, {f"runs/readings/p/{launch.PUSHED}": "{}"})
+    volume = FakeVolume({"runs/readings/p/panel.json": b"{}", "runs/readings/p/out.txt": b"read\n",
+                         f"runs/readings/p/{launch.SESSIONS}": b"{}\n"})
+    with pytest.raises(AssertionError, match="name a new one"):
+        kaggle.check_new_reading(reading)
+
+    (tmp_path / "runs/readings/p/panel.json").write_text("read here meanwhile")
+    with pytest.raises(AssertionError, match="overwrite"):
+        launch.bring_back_reading({"reading": reading}, volume)
+    (tmp_path / "runs/readings/p/panel.json").unlink()
+
+    launch.bring_back_reading({"reading": reading}, volume)
+    assert sorted(os.listdir(tmp_path / "runs/readings/p")) == sorted(["panel.json", "out.txt", launch.SESSIONS])

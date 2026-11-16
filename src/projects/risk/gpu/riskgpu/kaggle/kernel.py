@@ -14,6 +14,10 @@ teacher (`imitate read`) and the panel on its best checkpoint. A task's output g
 `out.txt` and `err.txt` and to the session's log, which Kaggle's page shows live, each line prefixed
 with its task.
 
+A job may instead be readings of existing checkpoints (`readings`): each one tool of
+`READING_TOOLS` with its arguments, queued as the GPUs free, writing its output to `<tool>.json` in a
+folder of its own under `READINGS`, with nothing trained and nothing read after it.
+
 The session's last hours (the job's `read_hours`, sized from a reading's measured cost) are kept for
 the readings: a training run is given the hours up to them, and the readings are taken newest first
 across every run, so what the hours can't fit is the oldest checkpoints' readings. No task starts
@@ -40,6 +44,10 @@ GRACE_S = 1800  # how long past the session's hours a reading may run before it 
 IMITATION_PANEL_GAMES = 1024
 # Each trainer's folder of runs, under the GPU folder.
 TRAINERS = {"ppo": "runs/selfplay", "imitate": "runs/imitate"}
+# A one-off reading of existing checkpoints by one of these tools (`riskgpu.selfplay.<tool>`), each in a
+# folder of its own under READINGS, its output `<tool>.json` there.
+READINGS = "runs/readings"
+READING_TOOLS = ("search", "calibrate", "panel")
 
 
 def trainer_of(run: dict) -> str:
@@ -50,6 +58,15 @@ def trainer_of(run: dict) -> str:
 def run_folder(run: dict) -> str:
     """The run's folder, relative to the GPU folder."""
     return f"{TRAINERS[trainer_of(run)]}/{run['name']}"
+
+
+def reading_folder(reading: dict) -> str:
+    """A reading's folder, relative to the GPU folder."""
+    return f"{READINGS}/{reading['name']}"
+
+
+def reading_output(reading: dict) -> str:
+    return f"{reading_folder(reading)}/{reading['tool']}.json"
 
 
 def find_bundle(input_dir: str, bundle_id: str) -> str:
@@ -126,6 +143,8 @@ def imitation_readings(name: str, args: list[str], run_dir: str) -> list[dict]:
 def label(task: dict) -> str:
     if task["kind"] == "train":
         return task["name"]
+    if "tool" in task:
+        return f"{task['name']} {task['tool']}"
     return f"{task['name']} read {task['iter'] if 'iter' in task else task['reading']}"
 
 
@@ -144,7 +163,10 @@ class Session:
         self.working = WORKING if working is None else working
         self.grace = GRACE_S if grace is None else grace
         self.train_deadline = deadline - job["read_hours"] * 3600
-        self.queue = [{"kind": "train", **r} for r in job["runs"]]
+        # A job's own readings (checked by the launcher, each in its folder of its name in `working`)
+        # queue after its training runs, taken as GPUs free.
+        self.queue = ([{"kind": "train", **r} for r in job["runs"]]
+                      + [{"kind": "read", "rank": 0, **r} for r in job.get("readings", [])])
         self.lock = threading.Lock()
         self.failed: list[str] = []
         self.cut: list[str] = []
@@ -159,8 +181,10 @@ class Session:
             return self.queue.pop(0)
 
     def command(self, task: dict) -> list[str]:
-        name, folder = task["name"], run_folder(task)
         python = [sys.executable, "-u", "-m"]
+        if "tool" in task:
+            return [*python, f"riskgpu.selfplay.{task['tool']}", *task["args"], "--out", reading_output(task)]
+        name, folder = task["name"], run_folder(task)
         if task["kind"] == "train":
             # The hours left before the readings' share when the run starts, which the trainer stops itself at.
             hours = f"{max(0.0, (self.train_deadline - time.time()) / 3600):.3f}"
@@ -250,17 +274,20 @@ def main(job: dict) -> int:
     run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=CLONE)
     gpu_dir = os.path.join(CLONE, GPU_PATH)
 
-    for r in job["runs"]:
+    readings = job.get("readings", [])
+    for r in job["runs"] + readings:
         os.makedirs(os.path.join(WORKING, r["name"]), exist_ok=True)
     placed = restore(find_bundle(INPUT, job["bundle"]), gpu_dir, WORKING, job["runs"])
     print(f"restored {len(placed)} files", flush=True)
-    for r in job["runs"]:
-        link = os.path.join(gpu_dir, *run_folder(r).split("/"))
+    for r in job["runs"] + readings:
+        folder = reading_folder(r) if "tool" in r else run_folder(r)
+        link = os.path.join(gpu_dir, *folder.split("/"))
         os.makedirs(os.path.dirname(link), exist_ok=True)
         os.symlink(os.path.join(WORKING, r["name"]), link)
         with open(os.path.join(WORKING, r["name"], "kaggle-sessions.jsonl"), "a") as f:
             f.write(json.dumps({"commit": job["commit"], "bundle": job["bundle"], "device": torch.cuda.get_device_name(0),
-                                "gpus": gpus, "torch": torch.__version__, "runs": job["runs"]}) + "\n")
+                                "gpus": gpus, "torch": torch.__version__, "runs": job["runs"],
+                                "readings": readings}) + "\n")
 
     Session(job, gpu_dir, gpus, started + job["session_hours"] * 3600).run()
     return 0
