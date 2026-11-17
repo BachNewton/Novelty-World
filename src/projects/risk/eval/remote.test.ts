@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { inlineRunner } from "@/shared/lib/bot-lab/pool";
 import { fakeGame } from "./fake-game";
 import { planRiskGauntlet, runRiskGauntlet, type RiskGauntletOptions, type RiskGauntletReport } from "./gauntlet";
+import { filledRound } from "./ladder-rounds";
 import { playLadder, walkLadder, type LadderOptions } from "./ratings";
 import { playRemotely } from "./remote-kit";
+import type { RiskGameSpec } from "./runner";
 
 // A run played in rounds on several machines (GitHub Actions) must report exactly
 // what it reports played here at once: the same verdicts at the same stop points, the
@@ -71,6 +73,17 @@ describe("a ladder played remotely", () => {
     expect(rounds.length).toBeGreaterThan(1);
     expect(Math.max(...rounds)).toBe(4);
     expect(await playLadder({ ...ladder, stepwise: true, pool: games.store.runner() })).toEqual(local);
+  });
+
+  it("rates the same with small rounds filled past what the evidence asks, in no more rounds", async () => {
+    const local = await playLadder({ ...ladder, pool: inlineRunner(fakeGame) });
+    const sized = await playRemotely((g) => walkLadder(ladder, (s) => g.store.get(s), true).specs, fakeGame, 4, 10);
+    const filled = await playRemotely((g) => {
+      const played = (s: RiskGameSpec) => g.store.get(s);
+      return filledRound(ladder, walkLadder(ladder, played, true), played, 120);
+    }, fakeGame, 4, 10);
+    expect(filled.rounds.length).toBeLessThanOrEqual(sized.rounds.length);
+    expect(await playLadder({ ...ladder, stepwise: true, pool: filled.games.store.runner() })).toEqual(local);
   });
 
   it("rates the same played a group at a time", async () => {

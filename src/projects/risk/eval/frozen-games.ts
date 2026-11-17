@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { riskBot } from "../bots";
+import type { Bot } from "../bots/bot";
 import type { RowBotId } from "../online/seat-roster";
-import { keptRecording, replayMoves, type Recording } from "./replay";
+import { keptRecording, recordMoves, replayMoves, type Recording } from "./replay";
 
 // The fixed games every seated bot is held to (`bots/frozen.test.ts`): each kept as its moves in
 // `bots/__fixtures__/frozen/`, played and kept the first time a newly seated bot's tests collect.
@@ -15,7 +17,7 @@ const TABLES: readonly { seed: string; seats: (bot: string) => string[] }[] = [
 ];
 const MAX_TURNS = 300;
 
-const FIXTURES = join(__dirname, "..", "bots", "__fixtures__", "frozen");
+const FIXTURES = fileURLToPath(new URL("../bots/__fixtures__/frozen/", import.meta.url));
 
 /** Seated bots whose decisions are too dear for the regular suite: a search's take seconds
  *  (rule-v7.1), a network's a tenth of one (learned-v1, learned-v2), so asking a whole game again takes
@@ -45,6 +47,24 @@ export function fingerprint({ seed, seats, kept }: FrozenGame): string {
   return hash.digest("hex").slice(0, 32);
 }
 
+/** The fingerprints of the frozen games played now with `label` in the seats a seated bot's
+ *  are kept with: the same as a seated bot's kept games' exactly when the two make the same
+ *  moves in them. A gauntlet records its candidate's, so a bot seated later can be shown to be
+ *  the bot it measured. */
+export function playedFingerprints(label: string): Record<string, string> {
+  return Object.fromEntries(
+    TABLES.map(({ seed, seats: seatsOf }) => {
+      const seats = seatsOf(label);
+      return [seed, fingerprint({ seed, seats, kept: recordMoves(seed, seats.map(riskBot), MAX_TURNS) })];
+    }),
+  );
+}
+
+/** The fingerprints of a seated bot's kept frozen games. */
+export function keptFingerprints(bot: RowBotId): Record<string, string> {
+  return Object.fromEntries(frozenGames(bot).map((game) => [game.seed, fingerprint(game)]));
+}
+
 /** The bot's own decisions in the game, cut into slices of at most `size`, each asked again in a
  *  test of its own. */
 export function ownSlices({ seats, kept }: FrozenGame, bot: RowBotId, size: number): number[][] {
@@ -58,10 +78,15 @@ export function ownSlices({ seats, kept }: FrozenGame, bot: RowBotId, size: numb
 }
 
 /** Replays the game, asking the bot again at each decision of the slice; `check` compares its
- *  answer with the kept move. */
-export function askAgain({ seed, seats, kept }: FrozenGame, bot: RowBotId, slice: readonly number[], check: (decision: number, again: unknown, move: unknown) => void): void {
+ *  answer with the kept move. `play` asks another bot in its place, to show the two play alike. */
+export function askAgain(
+  { seed, seats, kept }: FrozenGame,
+  bot: RowBotId,
+  slice: readonly number[],
+  check: (decision: number, again: unknown, move: unknown) => void,
+  play: Bot = riskBot(bot),
+): void {
   const asked = new Set(slice);
-  const play = riskBot(bot);
   replayMoves(seed, seats.length, MAX_TURNS, kept, (input, move, decision) => {
     if (asked.has(decision)) check(decision, play(input), move);
   });

@@ -119,6 +119,79 @@ export function mergeLadderCache(file: string): number {
   return Object.keys(added).length;
 }
 
+/** A record's code: the game's, then each bot's, the lone bot's first. */
+export interface RecordCode {
+  game: string;
+  lone: string;
+  rest: string;
+}
+
+function partsOf(code: string): RecordCode | null {
+  const parts = code.split(".");
+  if (code.startsWith(NATIVE) || parts.length !== 3) return null;
+  return { game: parts[0], lone: parts[1], rest: parts[2] };
+}
+
+/** The code a record keyed `was` holds under now, with the bots of `carried` taken to play
+ *  as they did (their frozen games show it: `frozen-check.ts`), or null when it can't be
+ *  carried: the game's code changed, or a bot's that isn't carried. A record played wholly
+ *  in the crate is never carried. */
+export function carriedCode(was: string, now: RecordCode, matchup: Matchup, carried: ReadonlySet<string>): string | null {
+  const parts = partsOf(was);
+  if (parts === null || parts.game !== now.game) return null;
+  for (const side of ["lone", "rest"] as const) {
+    if (parts[side] !== now[side] && !carried.has(matchup[side])) return null;
+  }
+  return `${now.game}.${now.lone}.${now.rest}`;
+}
+
+/** A record whose code has changed since it was played. */
+export interface StaleRecord extends Matchup {
+  /** The bots whose code changed; empty when only the game's did. */
+  changed: string[];
+  /** Whether the game's own code (engine, runner, dealing) changed: no bot can carry it. */
+  game: boolean;
+  groups: number;
+}
+
+/** The TypeScript runner's records whose code has changed, among matchups of `labels` (all
+ *  when none are named): what a ladder over them would play again. */
+export function staleRecords(labels?: readonly string[]): StaleRecord[] {
+  const among = labels === undefined ? () => true : (l: string) => labels.includes(l);
+  return Object.values(read()).flatMap((entry): StaleRecord[] => {
+    if (entry.code.startsWith(NATIVE) || !among(entry.lone) || !among(entry.rest)) return [];
+    const was = partsOf(entry.code);
+    const now = codeOf(entry.lone, entry.rest);
+    if (was === null || now === null || entry.code === now) return [];
+    const parts = partsOf(now) as RecordCode;
+    const changed = (["lone", "rest"] as const).filter((side) => was[side] !== parts[side]).map((side) => entry[side]);
+    return [{ lone: entry.lone, rest: entry.rest, players: entry.players, changed, game: was.game !== parts.game, groups: entry.groups.length }];
+  });
+}
+
+/** The stale records only frozen bots' edits made stale (`frozen`: the seated and retired
+ *  bots, whose kept games pin their play): those `carryRecords` may keep, once each changed
+ *  bot is shown to play its frozen games as kept. Any other bot's change, or the game's, keeps
+ *  the rule that a changed closure plays again. */
+export function carryable(records: readonly StaleRecord[], frozen: (label: string) => boolean): StaleRecord[] {
+  return records.filter((r) => !r.game && r.changed.every(frozen));
+}
+
+/** Carries every record that `carried`'s bots alone have made stale over to their code now,
+ *  so a ladder finds them again. The caller has shown each of those bots plays its frozen
+ *  games as it did. Returns how many records it carried. */
+export function carryRecords(carried: ReadonlySet<string>): number {
+  const added: Record<string, Entry> = {};
+  for (const [key, entry] of Object.entries(read())) {
+    const now = codeOf(entry.lone, entry.rest);
+    if (now === null || entry.code === now) continue;
+    const code = carriedCode(entry.code, partsOf(now) as RecordCode, entry, carried);
+    if (code !== null) added[key] = { ...entry, code };
+  }
+  writeMerged(added);
+  return Object.keys(added).length;
+}
+
 /** The cache on disk, read once: the TypeScript runner's records, or with `native` those of
  *  ladders played wholly in the crate. Each new record is written at once, merged into the
  *  file as it is then, so a run that stops keeps what it played and two runs at once keep

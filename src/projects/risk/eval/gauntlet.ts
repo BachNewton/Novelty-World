@@ -1,4 +1,4 @@
-import { fitElo, pairsFromFinishes, pairsFromWinner, topRated, type PairResult } from "@/shared/lib/bot-lab/elo";
+import { eloGapVariance, fitElo, pairsFromFinishes, pairsFromWinner, topRated, type ComparisonSource, type PairResult } from "@/shared/lib/bot-lab/elo";
 import {
   crownGate,
   planSprtRound,
@@ -97,6 +97,9 @@ export interface RiskGauntletReport extends CrownGate {
   /** Win Elo across [candidate, ...field], the base at 0: the Luce strengths
    *  behind who wins, the model the SPRT tests. The champion is its top. */
   elo: Record<string, number>;
+  /** The standard error of each label's win Elo gap to the base: the sandwich error the
+   *  ladder's precision uses (`eloGapVariance`), each game counted once. */
+  eloError: Record<string, number>;
   /** Finishing-order Elo, the same fit over every pair of places: more evidence
    *  per game, but it rewards outlasting as well as winning. Reported alongside. */
   finishElo: Record<string, number>;
@@ -299,12 +302,23 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
   // 3. Elo across the field, the base at 0, and the verdict.
   const labels = [opts.candidate, ...opts.field];
   const elo = fitElo(labels, winPairs, { anchor: opts.base });
+  // The fit's comparisons by where they came from: a candidate side's win beats every
+  // opponent seat, a loss is an opponent seat beating every candidate seat.
+  const sources: ComparisonSource[] = [
+    ...pairings.map((p): ComparisonSource => {
+      const k = candidateSeats(p.format, p.players);
+      return { a: opts.candidate, b: p.opponent, aWins: p.wins * (p.players - k), bWins: p.losses * k, aPerWin: p.players - k, bPerWin: k };
+    }),
+    ...ladder.tallies.map((t): ComparisonSource => ({ a: t.lone, b: t.rest, aWins: t.wins * (t.players - 1), bWins: t.losses, aPerWin: t.players - 1, bPerWin: 1 })),
+  ];
+  const variance = eloGapVariance(labels, elo, sources);
   return {
     candidate: opts.candidate,
     base: opts.base,
     field: opts.field,
     pairings,
     elo,
+    eloError: Object.fromEntries(labels.map((l) => [l, Math.sqrt(variance(l, opts.base))])),
     finishElo: fitElo(labels, finishPairs, { anchor: opts.base }),
     champion: topRated(elo, labels),
     errors,

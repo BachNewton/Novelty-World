@@ -297,8 +297,10 @@ jobs:
           set -f
           mkdir results
           before=$(wc -l < src/projects/risk/eval/runs.jsonl)
+          gauntlets=$(wc -l < src/projects/risk/eval/gauntlets.jsonl)
           npm run -s "risk:$TOOL" -- $ARGS --games-from games | tee results/summary.txt
           tail -n +"$((before + 1))" src/projects/risk/eval/runs.jsonl > results/runs.jsonl
+          tail -n +"$((gauntlets + 1))" src/projects/risk/eval/gauntlets.jsonl > results/gauntlets.jsonl
           cp src/projects/risk/eval/ratings-cache.json results/
           if ! git diff --quiet -- src/projects/risk/bots/ratings.json; then cp src/projects/risk/bots/ratings.json results/; fi
           { echo '```'; cat results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

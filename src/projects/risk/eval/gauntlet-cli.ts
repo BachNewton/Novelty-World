@@ -27,6 +27,9 @@ import {
   runRiskGauntlet,
   type RiskGauntletProgress,
 } from "./gauntlet";
+import { playedFingerprints } from "./frozen-games";
+import { appendGauntlet, gauntletRecord } from "./gauntlet-log";
+import { isNativeSeat } from "./native/bot";
 import { candidateSeats, FORMATS, type Format } from "./parallel";
 import { fileLadderCache } from "./ratings-cache";
 import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
@@ -249,6 +252,10 @@ Risk — gauntlet
     console.log(`
 ${formatRunRecord(record)}
 `);
+    // The result as data, with the candidate's fingerprints of the frozen games, which a bot
+    // seated from it must share (`gauntlet-log.ts`, `provisional.ts`).
+    const run = { run: record.started, commit: record.commit, players: args.players, formats: args.formats, prefix: args.prefix, margin: args.margin, alpha: args.alpha, beta: args.beta };
+    appendGauntlet(gauntletRecord(report, run, isNativeSeat(args.candidate) ? {} : playedFingerprints(args.candidate)));
     if (report.errors > 0) process.exitCode = 1;
   } catch (e) {
     await live.fail(e);

@@ -1,4 +1,5 @@
 import RATINGS from "../bots/ratings.json";
+import type { RatingsFile } from "../eval/provisional";
 import { RETIRED_BOTS, SEAT_BOTS, type BotId, type RetiredBotId, type RowBotId, type SeatBot } from "./seat-roster";
 
 export { RETIRED_BOTS, SEAT_BOTS, type BotId, type RetiredBotId, type RowBotId, type SeatBot } from "./seat-roster";
@@ -31,9 +32,16 @@ export const RANKS = [
 
 export type Rank = (typeof RANKS)[number];
 
+const FILE: RatingsFile = RATINGS;
+
 /** The bots' measured strength (`bots/ratings.json`, written by `risk:ratings -- --seatable`):
- *  each seatable bot's win Elo from one ratings run over all of them, greedy anchored at 1000. */
-export const ELO: Readonly<Partial<Record<BotId, number>>> = RATINGS.elo;
+ *  each seatable bot's win Elo from one ratings run over all of them, greedy anchored at 1000,
+ *  and a bot seated since on its gauntlets at its provisional Elo (`eval/provisional.ts`), shown
+ *  as any other until the next ladder measures it. */
+export const ELO: Readonly<Partial<Record<BotId, number>>> = {
+  ...FILE.elo,
+  ...Object.fromEntries(Object.entries(FILE.provisional ?? {}).map(([bot, entry]) => [bot, entry.elo])),
+};
 
 export function isBotId(id: string): id is BotId {
   return Object.hasOwn(SEAT_BOTS, id);
