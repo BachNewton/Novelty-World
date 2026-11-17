@@ -2,13 +2,17 @@
 
 A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot that masters the game: one whose strength keeps rising with the training it is given, until it beats any person (`learned-bot.md`). The rule bots are its floor, its teachers and its yardsticks, and the seated best is the bot players feel meanwhile.
 
-## learned-v1 seated: the strongest bot, and the first that learned
+## learned-v2 seated: the strongest bot
 
-learned-v1 (`bots/learned-v1/`) is net-v1's network with the weight set s2-2-150, playing its most likely move: imit-1's copy of native-v2, improved by PPO (`learned-bot.md`). It passed M4, better than rule-v7.1 at every table in both mixtures on train and holdout seeds, and rates 1694 on the seatable ladder, 64 above v7.1's 1629, first of every seatable bot (`bot-log.md`, "learned-v1 seated"). It is the lobby's default and the bot to beat.
+learned-v2 (`bots/learned-v2/`) is net-v1's network with the weight set b1-100, playing its most likely move: s2-2-150 trained on by PPO with the carried bootstrap, the fix for the defect that had flattened stage 2 (`learned-bot.md`). It is better than learned-v1 and rule-v7.1 at every table by the gauntlet, and rates 1964 on the seatable ladder, 252 above learned-v1 and 330 above v7.1 (`bot-log.md`, "learned-v2 seated"). It is the lobby's default and the bot to beat. Its open fault is the stall: tables of several learned-v2s sometimes run to the turn cap.
+
+## learned-v1: the first bot that learned, seated below learned-v2
+
+learned-v1 (`bots/learned-v1/`) is net-v1's network with the weight set s2-2-150, playing its most likely move: imit-1's copy of native-v2, improved by PPO (`learned-bot.md`). It passed M4, better than rule-v7.1 at every table in both mixtures on train and holdout seeds, and rates 1694 on the seatable ladder, 64 above v7.1's 1629, first of every seatable bot at the time (`bot-log.md`, "learned-v1 seated"), and is now second, below learned-v2.
 
 ## rule-v7.1: v7's search on v6.1, seated
 
-v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is seated: better than v6, v6.1 and the weak bots at every table on train seeds, and second on the seatable ladder (1629), below learned-v1 and above v6.1's 1504 (`bot-log.md`, "v7.1's train gauntlet", "v7.1 seated" and "learned-v1 seated"). It is the strongest rule bot, and the yardstick the learned line's M4 was read against.
+v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is seated: better than v6, v6.1 and the weak bots at every table on train seeds, and third on the seatable ladder (1634), below the two learned bots and above v6.1's 1509 (`bot-log.md`, "v7.1's train gauntlet", "v7.1 seated" and "learned-v1 seated"). It is the strongest rule bot, and the yardstick the learned line's M4 was read against.
 
 ## Stalled games: fixed and seated, at a cost at 6 players
 

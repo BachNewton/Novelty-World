@@ -1533,3 +1533,35 @@ Finishing-order Elo puts learned-v1 first too, +436.5 over greedy against v7.1's
 - **The whole ladder sits closer to greedy than before**, the rule bots 25 to 39 lower than on the last ladder, GD Defensive 42 higher. These are new deals (the setup and shuffle changed), so every number is a fresh sample; the order of everything more than a margin apart is unchanged.
 
 16,056 games and 10.4 million decisions in 6.6 hours, over 191 play jobs in 14 rounds. Seated per `learned-bot.md` ("Seating"), on the TypeScript export at net-v1's cost, the runtime the owner ruled acceptable.
+
+## learned-v2 seated: 1964 on the seatable ladder, 252 above learned-v1 (2026-11-17)
+
+`risk:ratings -- --seatable` with learned-v2 (`net-v1~{"weights":"b1-100","pick":"argmax"}`, `bots/learned-v2/`) among the seatable bots. b1-100 is iteration 100 of the first PPO run with the carried bootstrap (`learned-bot.md`), started from s2-2-150. On GitHub Actions (run 44118076388, from `risk/learned-v2-seat`): every learned-v1 and learned-v2 matchup was played, since an edit to the network's code had made learned-v1's cached matchups stale; the rule and GD bots' matchups with each other came from the cache.
+
+**The run stopped at its 16-round limit without a fit**, after 11,880 games in 6.8 hours. What it had left were the learned bots' matchups with the weak bots: a bot that wins 95% to 100% of its games never brings its gap into focus, so those matchups were at 22 to 25 seed groups and heading for the cap of 100. The fit below is the same tool run on the laptop with `--max-groups 25`, which reads every game the run played and plays none (19,584 games in 4,352 groups, all from the cache). The lopsided pairs are therefore less precise than the ladder's 18.2 Elo; the pairs that decide the order at the top (learned-v2, learned-v1, rule-v7.1) all finished inside it.
+
+| Rank | Bot | Elo (greedy = 1000) | Last ladder |
+|---|---|---|---|
+| Lieutenant Colonel | **learned-v2** | **1963.5** | new |
+| Major | learned-v1 | 1711.6 | 1693.7 |
+| Captain | rule-v7.1 | 1633.9 | 1629.4 |
+| First Lieutenant | rule-v6.1 | 1508.6 | 1504.3 |
+| Second Lieutenant | rule-v5.1 | 1481.8 | 1478.1 |
+| Warrant Officer | rule-v4.1 | 1462.5 | 1458.5 |
+| Sergeant Major | rule-v2 | 1400.8 | 1392.7 |
+| Master Sergeant | rule-v3 | 1397.7 | 1389.6 |
+| Sergeant First Class | rule-v1 | 1292.1 | 1287.1 |
+| Staff Sergeant | gd-stacker | 1073.5 | 1071.0 |
+| Sergeant | gd-continental | 1065.5 | 1064.7 |
+| Corporal | gd-aggressive | 1019.0 | 1016.1 |
+| Private | greedy | 1000 | 1000 |
+| Recruit | gd-defensive | 992.0 | 1017.1 |
+
+- **learned-v2 is the strongest seatable bot**, 252 above learned-v1 and 330 above rule-v7.1, so it is the lobby's default. The ladder's gap matches the gauntlet's head-to-head reading (about +250 win Elo over learned-v1 on train and holdout seeds). Alone among learned-v1s it won 38.9%, 50.0%, 40.0% and 41.7% at 3 to 6 players (par 33.3, 25, 20, 16.7%); a lone learned-v1 among learned-v2s won 27.8%, 4.2%, 0% and 2.8%. Alone among rule-v7.1s it won 72.2%, 66.7%, 86.2% and 63.9%.
+- **By finishing order the two learned bots are level**: +406.9 for learned-v2 over greedy against learned-v1's +417.3. learned-v2 wins far more and, when it doesn't win, finishes lower.
+- **Tables of several learned-v2s sometimes reach the turn cap**, which no game of learned-v1's did: with four or five learned-v2s and one weaker bot, 1 to 9 games of a matchup capped at 5 and 6 players (9 of 144 with greedy at 6 players, the most). It is the trainer's stall (`learned-bot.md`): the last two survivors trading territory without closing. A table with a person in it is unaffected by the cap, but a game left to several learned-v2s can run long.
+- **The bottom moved inside the precision**: GD Defensive below greedy by 8, GD Aggressive above GD Defensive. Everything else kept its order.
+
+Seated per `learned-bot.md` ("Seating"), on the TypeScript export at net-v1's cost. The parity test's tolerance is 5e-5, measured on b1-100's fixture (the trainer's float32 rounding).
+
+**What the ladder cost, and why.** A ladder for one new bot took 6.8 hours and still didn't finish, because every matchup of a near-certain winner runs to the group cap. The fix belongs in the ladder: a pair whose gap can't come into focus stops early, and a run at its round limit still reports its fit.

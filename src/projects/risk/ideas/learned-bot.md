@@ -47,7 +47,6 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| learned-v2's ladder | GitHub Actions, run 44118076388 (`risk:ratings --seatable`), from the branch `risk/learned-v2-seat`, which holds the seating: b1-100 as learned-v2 on the roster, its frozen games, the parity test's measured tolerance. The branch isn't merged before the ladder lands: the lobby and the build need learned-v2's Elo | learned-v2's Elo and rank; then the branch is merged with the imported ratings and its `bot-log.md` entry | `gh run download 44118076388 --name risk-results --dir results`, then `npm run risk:import -- results` on that branch |
 | probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
 | search reading on b1-100, on the laptop's CPU | `gpu/runs/readings/search-cpu/` | whether a shallow search still adds strength on the net with the repaired value head: the control first (`b1-100-control.json`, par expected), then the search (`b1-100-own-k3r6.json`), 1,024 games each, the searcher alone among four of the raw net at its most likely move. Prediction: 25% or more, as on s2-2-150's 30.8% (60%) | the two JSON files there, once written |
 | c0, c3 | Kaggle, one session | whether the stall follows the deal (its predictions below) | `python -m riskgpu.kaggle.launch fetch c0` |
@@ -138,6 +137,8 @@ The rungs past `gpu-engine.md`'s milestones, each fixed before the run that read
 A learned bot that passes M4 is seated as any bot is, after a ruling on its runtime: the TypeScript export of net-v1 fits a real turn (about 119 milliseconds a decision on one loaded core), and a bot that needs the native search needs the Rust seat the native line hasn't decided (`native-v2.md`, "Seating is a separate step").
 
 **learned-v1 is seated** (`bots/learned-v1/`): net-v1's network with the weight set s2-2-150, playing its most likely move, on the TypeScript export at net-v1's cost, a runtime the owner ruled acceptable. Its export passed the parity test, and the game server bundles its weights. On the seatable ladder it rates 1694 (greedy 1000), first of every seatable bot and 64 above rule-v7.1, so it is the lobby's default (`bot-log.md`, "learned-v1 seated"). Later learned bots are seated beside it the same way, each a version of its own.
+
+**learned-v2 is seated** (`bots/learned-v2/`): the weight set b1-100, iteration 100 of the first run with the carried bootstrap, playing its most likely move. On the seatable ladder it rates 1964, 252 above learned-v1 and first of every seatable bot, so it is the lobby's default and the panel's anchor (`bot-log.md`, "learned-v2 seated"). Tables of several learned-v2s sometimes reach the turn cap, which learned-v1's never did: the stall the c-runs are testing.
 
 ## The first night
 
