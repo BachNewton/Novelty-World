@@ -48,6 +48,7 @@ The rules the chart rests on:
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
 | learned-v2's ladder | GitHub Actions, run 44118076388 (`risk:ratings --seatable`), from the branch `risk/learned-v2-seat`, which holds the seating: b1-100 as learned-v2 on the roster, its frozen games, the parity test's measured tolerance. The branch isn't merged before the ladder lands: the lobby and the build need learned-v2's Elo | learned-v2's Elo and rank; then the branch is merged with the imported ratings and its `bot-log.md` entry | `gh run download 44118076388 --name risk-results --dir results`, then `npm run risk:import -- results` on that branch |
+| probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
 | c0, c3 | Kaggle, one session | whether the stall follows the deal (its predictions below) | `python -m riskgpu.kaggle.launch fetch c0` |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
 

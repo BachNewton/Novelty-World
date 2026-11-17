@@ -51,3 +51,5 @@ Its numbers are rates on a dedicated device, meant as ratios against the same sc
 - What is the TPU quota, and how do its sessions behave (length, queueing, what a session keeps)?
 - Which stage of the learned bot's plan would use the compute (`learned-bot.md`'s stages), and is compute what limits progress there? The machine-learning skill (`.claude/skills/machine-learning/`) is the method for weighing that: its budget arithmetic and its rule that a method is fitted to the budget before it is built.
 - What would a port cost, and what would verify that a ported engine plays the rules as written?
+
+**Why the API gave no TPU.** Kaggle gives a TPU only to an account whose identity is verified (its editor says so when the accelerator is chosen: "Scarce resources such as TPU v5e-8 also require identity verification"), and a push through the API from an unverified account is accepted and run on an ordinary machine without a word. The owner's account is verified now; a push since then queues for a TPU where the earlier ones started at once on a CPU.
