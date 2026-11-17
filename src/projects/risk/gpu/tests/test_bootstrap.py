@@ -195,7 +195,7 @@ def test_a_held_decision_is_trained_on_its_own_state(world):
     assert torch.equal(carry.at(env.buf, "armies", steps, rows), env.buf["armies"][steps, rows])
 
     args = type("Args", (), dict(epochs=1, minibatch=64, chunk=32, clip=0.2, vf=0.5, vo=0.25, aux=0.25, ent=0.01,
-                                 grad_clip=1.0))
+                                 grad_clip=1.0, carry_policy_age=0))
     losses = update(net, torch.optim.Adam(net.parameters(), lr=1e-4), env, targets, args, carry)
     assert losses["samples"] == int(targets["train"].sum()) and int(targets["complete"].sum()) > 0
 

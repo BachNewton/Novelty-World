@@ -29,6 +29,7 @@ fresh. The league, the evaluations and the panel seat each network in its own sp
 
 import argparse
 import json
+import math
 import os
 import random
 import sys
@@ -266,20 +267,53 @@ def value_health(env: Env, targets: dict) -> dict:
     return out
 
 
+def minibatches(perm: torch.Tensor, size: int) -> tuple[torch.Tensor, ...]:
+    """`perm`'s samples in ⌈n / size⌉ minibatches of nearly equal size. Never a short remainder: each
+    minibatch normalises its own advantages, and one of a single sample has no spread to normalise
+    by (b1's iteration 194: 524,289 samples, a last minibatch of one, whose NaN took every weight)."""
+    n = perm.shape[0]
+    assert n != 1, "one sample has no advantage spread to normalise by"
+    return torch.tensor_split(perm, max(1, -(-n // size)))
+
+
+class NonFinite(RuntimeError):
+    """A loss or gradient that isn't finite, caught before the optimizer step. `report` says where
+    (JSON); `tensors` hold what reproduces it: the chunk's samples as the update read them and the
+    minibatch's indices and advantages."""
+
+    def __init__(self, report: dict, tensors: dict):
+        super().__init__(json.dumps(report))
+        self.report, self.tensors = report, tensors
+
+
+def policy_ages(carry: Carry | None, t: torch.Tensor, b: torch.Tensor, T: int) -> torch.Tensor:
+    """How many updates old the policy that took each sample is: 0 for this rollout's, a held
+    decision's age for one from the carry."""
+    if carry is None:
+        return torch.zeros_like(t)
+    return torch.where(t >= T, carry.age[(t - T).clamp(min=0, max=MAX_SEATS - 1), b], 0)
+
+
 def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, carry: Carry | None = None) -> dict:
     """PPO epochs over `targets["train"]`'s samples. A held decision (with the carry) is trained on
     its own target and its value targets; it has no auxiliary target, its look-ahead lying in a
-    rollout no longer kept."""
+    rollout no longer kept. One taken more than `args.carry_policy_age` updates ago (0: no limit)
+    trains the value only: PPO's ratio is a correction for a policy an update or so old, and a
+    stale decision's ratio, unclipped wherever it falls on the pessimistic side, is a gradient from
+    a policy that no longer exists.
+
+    A loss or gradient that isn't finite raises `NonFinite` before the optimizer steps, so the
+    weights stay the last finite ones."""
     buf, board, H = env.buf, env.board, env.cfg.aux_steps
     T = env.cfg.horizon
     idx = targets["train"].nonzero()
     n = idx.shape[0]
     sums = {"pg": 0.0, "v": 0.0, "vo": 0.0, "aux": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
     count = 0
-    for _ in range(args.epochs):
+    limit = args.carry_policy_age
+    for epoch in range(args.epochs):
         perm = idx[torch.randperm(n, device=idx.device)]
-        for start in range(0, n, args.minibatch):
-            mb = perm[start:start + args.minibatch]
+        for k, mb in enumerate(minibatches(perm, args.minibatch) if n else ()):
             mb_adv = targets["adv"][mb[:, 0], mb[:, 1]]
             adv_mean, adv_std = mb_adv.mean(), mb_adv.std() + 1e-8
             opt.zero_grad(set_to_none=False)
@@ -309,31 +343,67 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
                     aux_target = by_slot(buf["share"][ahead, b], seat_of_slot)
                     aux_mask = aux_ok[:, None] & (seat_of_slot >= 0)
                     logp_then = at("logp")
+                    policy = policy_ages(carry, t, b, T) <= limit if limit else None
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
-                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, at("main"), at("amount"),
-                                                         s, o, board)
+                    logp, entropy_rows, value, aux = evaluate(net, node, slot, glob, legal, at("main"), at("amount"),
+                                                              s, o, board)
                 value, aux = value.float(), aux.float()
-                entropy = entropy.mean()
+                entropy = entropy_rows.mean()
                 ratio = torch.exp(logp - logp_then)
-                pg = -torch.minimum(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv).mean()
+                pg_rows = -torch.minimum(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv)
+                pg = (pg_rows if policy is None else torch.where(policy, pg_rows, 0.0)).mean()
                 v_loss = ((value[:, 0] - ret) ** 2).mean()
                 vo_loss = (((value - mc) ** 2) * mc_ok).sum() / mc_ok.sum().clamp(min=1)
                 aux_loss = (((aux - aux_target) ** 2) * aux_mask).sum() / aux_mask.sum().clamp(min=1)
+                terms = {"pg": float(pg), "v": float(v_loss), "vo": float(vo_loss), "aux": float(aux_loss),
+                         "ent": float(entropy)}
+                if not all(math.isfinite(x) for x in terms.values()):
+                    rows = {"adv": adv, "ret": ret, "logp_then": logp_then, "logp": logp, "entropy": entropy_rows,
+                            "value": value, "aux": aux, "mc": mc}
+                    raise NonFinite(
+                        {"term": [k for k, x in terms.items() if not math.isfinite(x)], "epoch": epoch, "minibatch": k,
+                         "minibatch_size": mb.shape[0], "chunk_start": c0, "adv_mean": float(adv_mean),
+                         "adv_std": float(adv_std), "rows": offending(rows, t, b, T, carry, buf)},
+                        {"mb": mb.cpu(), "mb_adv": mb_adv.cpu(), "chunk": part.cpu(),
+                         "samples": {name: at(name).cpu() for name in CARRIED},
+                         "ret": ret.cpu(), "mc": targets["mc"][t, b].cpu(), "mc_ok": targets["mc_ok"][t, b].cpu()})
                 loss = pg + args.vf * v_loss + args.vo * vo_loss + args.aux * aux_loss - args.ent * entropy
                 (loss * weight).backward()
                 with torch.no_grad():
-                    sums["pg"] += float(pg) * weight
-                    sums["v"] += float(v_loss) * weight
-                    sums["vo"] += float(vo_loss) * weight
-                    sums["aux"] += float(aux_loss) * weight
-                    sums["ent"] += float(entropy) * weight
+                    for name, x in terms.items():
+                        sums[name] += x * weight
                     sums["kl"] += float((logp_then - logp).mean()) * weight
                     sums["clip"] += float(((ratio - 1).abs() > args.clip).float().mean()) * weight
-            torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
+            norm = float(torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip))
+            if not math.isfinite(norm):
+                bad = [name for name, p in net.named_parameters() if p.grad is not None and not bool(torch.isfinite(p.grad).all())]
+                raise NonFinite({"term": ["gradient"], "epoch": epoch, "minibatch": k, "minibatch_size": mb.shape[0],
+                                 "grad_norm": norm, "parameters": bad},
+                                {"mb": mb.cpu(), "mb_adv": mb_adv.cpu()})
             opt.step()
             count += 1
     out = {k: v / max(count, 1) for k, v in sums.items()}
     out["samples"] = n
+    if limit:
+        out["carried_value_only"] = int((policy_ages(carry, idx[:, 0], idx[:, 1], T) > limit).sum())
+    return out
+
+
+def offending(rows: dict, t: torch.Tensor, b: torch.Tensor, T: int, carry: Carry | None, buf: dict) -> list[dict]:
+    """The samples of a chunk where any per-row quantity isn't finite, by identity: the buffer step
+    and row (with the game), or the held seat and its age; the quantities each fails on."""
+    bad = {name: ~torch.isfinite(x).reshape(x.shape[0], -1).all(1) for name, x in rows.items()}
+    out = []
+    for i in torch.stack(list(bad.values())).any(0).nonzero()[:, 0].tolist():
+        step, row = int(t[i]), int(b[i])
+        where = {"step": step, "row": row}
+        if step >= T:
+            seat = step - T
+            where.update(held_seat=seat, age=int(carry.age[seat, row]))
+        else:
+            where.update(game_id=int(buf["game_id"][step, row]))
+        where["fails"] = [name for name, m in bad.items() if bool(m[i])]
+        out.append(where)
     return out
 
 
@@ -595,6 +665,30 @@ def bootstrap_of(asked: str | None, trained: dict | None) -> str:
     return trained_with
 
 
+def carry_policy_age_of(asked: int | None, trained: dict | None) -> int:
+    """The run's `--carry-policy-age`: a new run's is the one asked for, 1 by default; a resumed
+    run's is the one its checkpoint's arguments record, 0 (no limit) for a checkpoint from before
+    the limit existed, and asking for another is refused."""
+    if trained is None:
+        return 1 if asked is None else asked
+    trained_with = trained.get("carry_policy_age") or 0
+    assert asked in (None, trained_with), \
+        f"the run was trained with --carry-policy-age {trained_with}: a resumed run keeps its recipe"
+    return trained_with
+
+
+def finite_weights(net: Net) -> bool:
+    return all(bool(torch.isfinite(x).all()) for x in net.state_dict().values() if x.is_floating_point())
+
+
+def save_net(obj, net: Net, path: str) -> None:
+    """Saves a checkpoint of `net` (atomically), refused when any weight isn't finite."""
+    if not finite_weights(net):
+        raise RuntimeError(f"refusing to write {path}: the network has non-finite weights")
+    torch.save(obj, path + ".tmp")
+    os.replace(path + ".tmp", path)
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--name", required=True)
@@ -621,6 +715,9 @@ def parser() -> argparse.ArgumentParser:
                    help="where a learner seat's chain meets the rollout's end: carry its last decision into the next "
                         "rollout (a new run's default), or close it with the value read from the acting seat's view (the "
                         "old reading); a resumed run keeps the one it was trained with")
+    p.add_argument("--carry-policy-age", type=int, default=None,
+                   help="with --bootstrap carry, a held decision taken more than this many updates ago trains the value "
+                        "only (0: no limit; a new run's default 1); a resumed run keeps the one it was trained with")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -694,9 +791,11 @@ def main(argv: list[str] | None = None) -> int:
         record_of = {p.replace("\\", "/"): r for p, r in ck.get("record_of", {}).items()}
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
         args.bootstrap = bootstrap_of(args.bootstrap, ck.get("args", {}))
+        args.carry_policy_age = carry_policy_age_of(args.carry_policy_age, ck.get("args", {}))
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     else:
         args.bootstrap = bootstrap_of(args.bootstrap, None)
+        args.carry_policy_age = carry_policy_age_of(args.carry_policy_age, None)
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -802,7 +901,18 @@ def main(argv: list[str] | None = None) -> int:
         health = value_health(env, targets)
         torch.cuda.synchronize()
         t1 = time.time()
-        losses = update(net, opt, env, targets, args, carry)
+        try:
+            losses = update(net, opt, env, targets, args, carry)
+        except NonFinite as stop:
+            # `latest.pt` stays the last checkpoint written, from finite weights.
+            stop.report["iteration"] = iteration + 1
+            with open(os.path.join(out_dir, "nonfinite.json"), "w") as f:
+                json.dump(stop.report, f, indent=1)
+            torch.save({"net": net.state_dict(), "opt": opt.state_dict(), **stop.tensors},
+                       os.path.join(out_dir, "nonfinite.pt"))
+            print(f"stopped: non-finite {', '.join(stop.report['term'])} in iteration {iteration + 1}'s update "
+                  f"(nonfinite.json, nonfinite.pt): {json.dumps(stop.report)}", file=sys.stderr, flush=True)
+            return 1
         if carry is not None:
             health.update(carry.hold(env, targets))
         t2 = time.time()
@@ -821,7 +931,7 @@ def main(argv: list[str] | None = None) -> int:
                   "explained": explained, **health, **summarize(stats, kinds), **losses}
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
-            torch.save(net.state_dict(), path)
+            save_net(net.state_dict(), net, path)
             # Kept relative to the GPU folder, so a run resumes in any checkout of the repo.
             league.append(os.path.relpath(path, GPU).replace("\\", "/"))
             set_league()
@@ -841,10 +951,9 @@ def main(argv: list[str] | None = None) -> int:
                 past = extra + own[max(0, len(own) - (ladder.slots - len(extra))):]
                 record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
-            torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                        "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
-                        "trained_s": time.time() - started}, latest + ".tmp")
-            os.replace(latest + ".tmp", latest)
+            save_net({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
+                      "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
+                      "trained_s": time.time() - started}, net, latest)
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
@@ -865,9 +974,9 @@ def main(argv: list[str] | None = None) -> int:
                 if record["verdict"] in stops_on:
                     stopped = record["verdict"]
                     break
-    torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
-                "trained_s": time.time() - started}, latest)
+    save_net({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
+              "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
+              "trained_s": time.time() - started}, net, latest)
     if stopped:
         print(f"stopped: {stopped}", flush=True)
         with open(os.path.join(out_dir, "stopped.txt"), "w") as f:
