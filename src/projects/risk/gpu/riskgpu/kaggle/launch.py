@@ -552,7 +552,11 @@ def report_ppo(name: str, run_dir: str, key: str | None) -> None:
         print(f"{key}, sharp readings:")
         for it, file in sharp:
             with open(os.path.join(run_dir, file)) as f:
-                r = json.load(f)[key]
+                r = json.load(f).get(key)
+            if r is None:
+                # Read before the panel had this anchor.
+                print(f"  iter {it:>5}  not read against this anchor")
+                continue
             low, high = r["interval"]
             print(f"  iter {it:>5}  {r['win']:.3f} [{low:.3f}, {high:.3f}]  ({r['decisive']} decisive games)")
     stopped = os.path.join(run_dir, "stopped.txt")
