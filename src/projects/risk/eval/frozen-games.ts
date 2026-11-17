@@ -18,10 +18,10 @@ const MAX_TURNS = 300;
 const FIXTURES = join(__dirname, "..", "bots", "__fixtures__", "frozen");
 
 /** Seated bots whose decisions are too dear for the regular suite: a search's take seconds
- *  (rule-v7.1), a network's a tenth of one (learned-v1), so asking a whole game again takes
+ *  (rule-v7.1), a network's a tenth of one (learned-v1, learned-v2), so asking a whole game again takes
  *  minutes and no slice fits the regular suite's timeout. They are asked again in
  *  `bots/frozen.slow.test.ts` while their fingerprints stay in the regular suite. */
-export const SEARCHING: ReadonlySet<RowBotId> = new Set(["rule-v7.1", "learned-v1"]);
+export const SEARCHING: ReadonlySet<RowBotId> = new Set(["rule-v7.1", "learned-v1", "learned-v2"]);
 
 export interface FrozenGame {
   seed: string;

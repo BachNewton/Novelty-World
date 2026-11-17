@@ -16,11 +16,16 @@ import { WEIGHT_SETS } from "./weights";
 // record replays on the reference engine, and at every network decision the TypeScript bot, given
 // the input the harness builds, must see the same observation (exactly, as float32), compute the
 // same logits, values and amount logits (within `TOLERANCE`: the trainer's pass is float32, this
-// one float64) and play the recorded move. Each game is checked a slice of decisions at a time.
+// one float64 over the float32 weights) and play the recorded move. Each game is checked a slice of
+// decisions at a time.
 
-/** How far a logit or value may sit from the trainer's float32 pass: absolute, or relative past 1. The
- *  measured gap is about 2e-6 on the trained net, 5e-7 on the tiny one. */
-const TOLERANCE = 1e-5;
+/** How far a logit or value may sit from the trainer's float32 pass: absolute, or relative past 1. It
+ *  bounds the trainer's own rounding, not this pass's: the trainer's network run in float64 agrees with
+ *  this one to within its outputs' final cast to float32 (at most 5e-7), while its float32 pass sits
+ *  up to 1.6e-5 from either (b1-100's fixture; 1.9e-6 on m1a-25's, 5e-7 on the tiny net's) and even
+ *  moves by 6e-6 with how many rows its batch holds. The gap grows as training enlarges the heads'
+ *  weights and narrows a token's spread before a layer norm, so the bound is three times b1-100's. */
+const TOLERANCE = 5e-5;
 /** Network decisions a test checks: a slice must stay well under a second alone. */
 const SLICE: Record<string, number> = { "parity-tiny.json.gz": 20, "parity-m1a-25.json.gz": 3 };
 
