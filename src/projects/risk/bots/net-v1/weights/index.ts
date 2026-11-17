@@ -1,6 +1,7 @@
 // Every net-v1 weight set, by name: rewritten by `python -m riskgpu.selfplay.export`; never edited by hand.
 
 import type { NetWeights } from "../network";
+import { WEIGHTS as wb1_100 } from "./b1-100";
 import { WEIGHTS as wimit_1 } from "./imit-1";
 import { WEIGHTS as wm1a_25 } from "./m1a-25";
 import { WEIGHTS as wm1a_50 } from "./m1a-50";
@@ -11,6 +12,7 @@ import { WEIGHTS as wsw128b_125 } from "./sw128b-125";
 import { WEIGHTS as wsw128b_450 } from "./sw128b-450";
 
 export const WEIGHT_SETS: Readonly<Record<string, NetWeights>> = {
+  "b1-100": wb1_100,
   "imit-1": wimit_1,
   "m1a-25": wm1a_25,
   "m1a-50": wm1a_50,
