@@ -48,6 +48,7 @@ The rules the chart rests on:
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
 | learned-v2's ladder | GitHub Actions, run 44118076388 (`risk:ratings --seatable`), from the branch `risk/learned-v2-seat`, which holds the seating: b1-100 as learned-v2 on the roster, its frozen games, the parity test's measured tolerance. The branch isn't merged before the ladder lands: the lobby and the build need learned-v2's Elo | learned-v2's Elo and rank; then the branch is merged with the imported ratings and its `bot-log.md` entry | `gh run download 44118076388 --name risk-results --dir results`, then `npm run risk:import -- results` on that branch |
+| c0, c3 | Kaggle, one session | whether the stall follows the deal (its predictions below) | `python -m riskgpu.kaggle.launch fetch c0` |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
@@ -635,6 +636,17 @@ Two changes the reading points at, beyond c1's: a preference for the sooner win 
 What follows: 1 and 2 hold, the cap's score was paying for the stall and `loss` is the base; whether strength then climbs is 3, and c0 beside it on Kaggle says how much of that is the change. 1 or 2 fails, the stall isn't a seat choosing the cap's score, and c2, c3 and `stall.py`'s reading say which of the other two it is.
 
 **c1 read: all three predictions failed, behind a restart.** Modal restarted c1's container near iteration 49; it resumed from its checkpoint at 25 with every game dealt again, and ran out of its hours at iteration 86. Before the restart it showed the deal's usual wave: games lengthening from 60 player-turns to 135, 8.8% capped at 40 and 3.3% by 49, the argmax mirror capping 26% at 25. After it, the run collapsed: 51% to 80% of its training games capped from 50 to 75, 20 to 340 games finished an iteration where a thousand is usual, the mirror capped 99.6% at 50 and 85% at 75, and sampling alone among four b1-100 it won 2.2% [0.9, 5.0] at 50 and 4.5% [2.5, 8.2] at 75 (four against one: 8.5% and 14.5%, par 80%). From 80 it was recovering, 5% capped at 86 and games finishing again, at 250 player-turns a game. Prediction 1 (under 3% capped over 75 to 100), 2 (the mirror under 5% at every reading) and 3 (25% or more against b1-100) **failed**. With no control beside it and a restart inside it, it doesn't say what scoring the cap as a loss does. What it adds is a third stall that follows a deal: b1's first fifty iterations, b1 twenty-five iterations after its resume, and c1 twenty-five after its restart, each a stretch of updates on openings alone and then late games played badly. That is c3's cause, so c3 and its control are the next session on Kaggle, ahead of c1's pair; and a run on Modal now needs its games spread at every restart, since a restart there is a deal.
+
+**c0 and c3, one Kaggle session.** Both from b1-100, b1's recipe, 75 iterations in full precision, the cap scored as before and the lowest rows served first in both; c3 alone spreads its games over 30 rollouts before training.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | c0 shows the wave: its argmax mirror caps 25% or more of its games at iteration 25 or 50 | 80% |
+| 2 | c3 doesn't: its argmax mirror caps under 10% at 25 and at 50 | 55% |
+| 3 | c3's training games cap under 3% at every iteration | 50% |
+| 4 | c3 gains on b1-100: sampling alone among four, 25% or more at its last reading | 30% |
+
+What follows: 1 and 2 hold, the deal is the stall's driver; every run spreads its games, at a start and at every resume, and whether the climb then resumes is 4 and the sessions after. 2 fails with 1 holding, the stall isn't the deal's alone and the cap's score and the service order are read next, as a pair each. 1 fails, the wave isn't a property of the recipe from b1-100 on these GPUs and b1's and c1's are read again before anything is concluded.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
