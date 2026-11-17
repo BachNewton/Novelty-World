@@ -34,6 +34,8 @@ The numbers, per checkpoint and mode:
   (the hoarding signature).
 - By **standing** and by **stage**, over the turns that had an attack phase: the share of such turns
   whose attack phase ended without one attack (`no-atk`), the attacks made per such turn (`atk/t`),
+  of them the single battles (`1bt/t`, the rest blitzes) and the territories captured (`cap/t`): many
+  attacks that capture little is a war of attrition that doesn't close, rather than passivity;
   `P(end)` at the turn's first attack decision (`P(end)`: the sampled policy's probability on ending
   the attack phase there, in either mode's games), the entropy in nats of the main choice there
   (`H`), the net's value for the seat there (slot 0, `v`) and the seat's real final score (`y`,
@@ -90,6 +92,8 @@ class Decisions:
     turn: np.ndarray  # [N] player-turns since the game's first
     kind: np.ndarray  # [N] the options' kind (KIND_*)
     main: np.ndarray  # [N] the main choice played
+    amount: np.ndarray  # [N] its amount bucket (an attack's: 0 blitz keeping 1, 1 blitz keeping half, 2 one battle)
+    captured: np.ndarray  # [N] territories the seat had captured this turn before the decision
     value: np.ndarray  # [N] the seat's value, slot 0
     p_end: np.ndarray  # [N] the sampled policy's probability on END_ATTACK (0 where it isn't legal)
     entropy: np.ndarray  # [N] the main choice's entropy, nats
@@ -191,7 +195,8 @@ def collect(env, net: Net) -> Decisions:
                                torch.where(buf["occ_present"][t, b], KIND_OCCUPY, KIND_ATTACK)))
             parts.append({"game": b, "step": t + steps, "seat": seat,
                           "turn": buf["turn"][t, b].to(torch.int64) - first_turn[b], "kind": kind,
-                          "main": buf["main"][t, b], "value": buf["value"][t, b], "p_end": p_end[t, b],
+                          "main": buf["main"][t, b], "amount": buf["amount"][t, b],
+                          "captured": buf["captured"][t, b].to(torch.int64), "value": buf["value"][t, b], "p_end": p_end[t, b],
                           "entropy": entropy[t, b], "standing": standing.gather(1, seat[:, None])[:, 0],
                           "armies": buf["armies"][t, b].to(torch.int64).sum(1)})
             ended = buf["ended"]
@@ -219,6 +224,8 @@ class Turns:
     turn: np.ndarray
     standing: np.ndarray  # at the first attack decision
     attacks: np.ndarray  # attack moves (a battle or a blitz) made in the turn
+    battles: np.ndarray  # of them, single battles (the rest blitzes)
+    captures: np.ndarray  # territories captured in the turn
     p_end: np.ndarray  # at the first attack decision
     entropy: np.ndarray
     value: np.ndarray
@@ -234,11 +241,17 @@ def turns(d: Decisions) -> Turns:
     starts = np.flatnonzero(np.r_[True, key[1:] != key[:-1]])
     attacked = (d.main[o] >= ATTACK) & (d.main[o] < END_ATTACK)
     count = np.add.reduceat(attacked.astype(np.int64), starts) if len(o) else np.zeros(0, dtype=np.int64)
+    battles = np.add.reduceat((attacked & (d.amount[o] == 2)).astype(np.int64), starts) if len(o) else count
     first = o[starts]
+    # Captures: the most the turn's log shows at any of its decisions (a capture shows from the next).
+    all_key = d.game[order] * 100000 + d.turn[order]
+    runs = np.flatnonzero(np.r_[True, all_key[1:] != all_key[:-1]])
+    most = np.maximum.reduceat(d.captured[order], runs)
+    captures = most[np.searchsorted(all_key[runs], key[starts])]
     # One turn is one seat's: a key never repeats once its run ends.
     assert len(np.unique(key[starts])) == len(starts), "a turn's attack decisions are not contiguous"
     return Turns(game=d.game[first], seat=d.seat[first], turn=d.turn[first], standing=d.standing[first],
-                 attacks=count, p_end=d.p_end[first], entropy=d.entropy[first], value=d.value[first],
+                 attacks=count, battles=battles, captures=captures, p_end=d.p_end[first], entropy=d.entropy[first], value=d.value[first],
                  final=d.final[d.game[first], d.seat[first]])
 
 
@@ -258,11 +271,11 @@ def means(game: np.ndarray, games: int, columns: list[np.ndarray], mask: np.ndar
     return int(count.sum()), out
 
 
-FIELDS = ("no_attack", "attacks", "p_end", "entropy", "value", "final")
+FIELDS = ("no_attack", "attacks", "battles", "captures", "p_end", "entropy", "value", "final")
 
 
 def bucket_table(t: Turns, games: int, weights: np.ndarray) -> dict:
-    cols = [(t.attacks == 0).astype(np.float64), t.attacks, t.p_end, t.entropy, t.value, t.final]
+    cols = [(t.attacks == 0).astype(np.float64), t.attacks, t.battles, t.captures, t.p_end, t.entropy, t.value, t.final]
     third, stage = standing_third(t.standing), stage_band(t.turn)
     masks = {"all": np.ones_like(third, dtype=bool)}
     for i, name in enumerate(STANDINGS):
@@ -362,11 +375,11 @@ def table(label: str, mode: str, r: dict) -> str:
     lines = [f"== {label} {mode}: {r['games']} games, capped {iv(c, '{:.0%}')}, decisive games' turns "
              f"{r['decisive_turns']}, {r['attack_turns']} attack turns, mean main entropy {r['entropy_all']:.3f}",
              "armies on the board at turn " + ", ".join(f"{k}: {v['armies']} ({v['games']} g)" for k, v in r["armies_at"].items()),
-             f"{'bucket':22s} {'turns':>6s} {'no-atk':>20s} {'atk/t':>20s} {'P(end)':>20s} {'H':>6s} {'v':>7s} {'y':>7s}"]
+             f"{'bucket':22s} {'turns':>6s} {'no-atk':>20s} {'atk/t':>20s} {'1bt/t':>6s} {'cap/t':>20s} {'P(end)':>20s} {'H':>6s} {'v':>7s} {'y':>7s}"]
     for name, b in r["buckets"].items():
         if not b["turns"]:
             continue
-        lines.append(f"{name:22s} {b['turns']:6d} {iv(b['no_attack']):>20s} {iv(b['attacks'], '{:.2f}'):>20s} "
+        lines.append(f"{name:22s} {b['turns']:6d} {iv(b['no_attack']):>20s} {iv(b['attacks'], '{:.2f}'):>20s} {b['battles'][0]:6.2f} {iv(b['captures'], '{:.2f}'):>20s} "
                      f"{iv(b['p_end']):>20s} {b['entropy'][0]:6.3f} {b['value'][0]:+7.3f} {b['final'][0]:+7.3f}")
     g = r["behind_minus_ahead_no_attack"]
     lines.append("no-attack rate, behind less ahead: " + ", ".join(f"{k} {iv(v, '{:+.3f}')}" for k, v in g.items()))

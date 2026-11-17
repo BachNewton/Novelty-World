@@ -47,7 +47,10 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| c1 | Modal | whether scoring a cap as a loss ends the stall (its predictions below) | `python -m riskgpu.modalgpu.launch fetch c1`, then `report c1 --key "sample b1-100 one-in"` |
+| learned-v2's ladder | GitHub Actions, run 44118076388 (`risk:ratings --seatable`), from the branch `risk/learned-v2-seat`, which holds the seating: b1-100 as learned-v2 on the roster, its frozen games, the parity test's measured tolerance. The branch isn't merged before the ladder lands: the lobby and the build need learned-v2's Elo | learned-v2's Elo and rank; then the branch is merged with the imported ratings and its `bot-log.md` entry | `gh run download 44118076388 --name risk-results --dir results`, then `npm run risk:import -- results` on that branch |
+| probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
+| search reading on b1-100, on the laptop's CPU | `gpu/runs/readings/search-cpu/` | whether a shallow search still adds strength on the net with the repaired value head: the control first (`b1-100-control.json`, par expected), then the search (`b1-100-own-k3r6.json`), 1,024 games each, the searcher alone among four of the raw net at its most likely move. Prediction: 25% or more, as on s2-2-150's 30.8% (60%) | the two JSON files there, once written |
+| c0, c3 | Kaggle, one session | whether the stall follows the deal (its predictions below) | `python -m riskgpu.kaggle.launch fetch c0` |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
@@ -614,6 +617,16 @@ On holdout seeds (run 44092048811, kept in `gpu/runs/gauntlets/b1-100-learned-v1
 
 Not known: whether the stalling is a losing seat turtling, every seat growing passive, or argmax play alone; `stall.py` reads that on the checkpoints at 50 to 175 on the laptop. The runs that follow it, each one change beside a control from b1-100: capped survivors scored as a loss, the longest-waiting rows served first, and a start whose games are spread through their stages.
 
+**What kind of stall: `stall.py`'s reading.** Seven checkpoints (s2-2-150, b1 at 50 to 175), 56 five-player mirror games each on the same deals, sampling and argmax, on the laptop; intervals by bootstrap over games; the tables are in `gpu/runs/readings/stall/`.
+
+- **Not argmax alone.** b1-125 caps 79% [68, 89] of its sampled games and 86% [75, 95] of its argmax ones; b1-150 caps more sampled (38% [25, 52]) than argmax (5% [0, 12]). At every checkpoint the share of turns that end without an attack in argmax games equals the sampled policy's own probability of ending there to within three points.
+- **Not a losing seat turtling.** Seats behind attack less than seats ahead at every checkpoint, the old net that never stalls included (a gap of 0.35 [0.29, 0.40] for s2-2-150, 0.28 [0.23, 0.34] for b1-125). And the net doesn't expect the cap's score: the survivors of b1-125's capped games read +0.27 and +0.39 on their last decisions and scored −0.77 and −0.66.
+- **Not passivity, at 125.** b1-125 ends the fewest turns without an attack of any checkpoint (15.5% sampled, 10.7% argmax). Past turn 400 it makes about five attacks a turn and captures four to five territories a turn (b1-100: 1.7), and the armies on the board fall to 155 to 290 by turn 400, the opposite of hoarding. Most of its capped games end with two seats left (37 of 48 argmax, 23 of 44 sampled).
+- **So b1-125's stall is a churn between two survivors**: territories change hands every turn and neither closes the game. Its value head reads +0.41 to +0.54 past turn 400, about what an even fight for the win is worth, in games that end at the cap. The net can't see the cap coming: a training game's cap is drawn between 150 and 600 player-turns so that a policy can't count to it, and the turn isn't among its inputs, so the cap is a hazard it can't condition on, and nothing in the win reward prefers a win now to a win later.
+- **b1-150 and b1-175 are a second change**: seats that aren't leading attack less (26.0% [23.1, 28.6] of turns without an attack at 150, 17.7% [15.4, 19.9] at 100; seats in the middle from 8% to 17%, seats behind from 23% to 43% or more, seats ahead unchanged), with a hundred more armies on the board at turn 100. Whether that is seats expecting to lose or a standoff among the non-leaders this reading can't tell.
+
+Two changes the reading points at, beyond c1's: a preference for the sooner win (a discount on the terminal score by the game's length: a time preference on the goal itself, not a reward for a proxy), and the turn among the net's inputs, with the cap scored as a loss so that seeing it coming can only teach finishing. Each waits on c1's reading, since c1 tests the plainest of the three.
+
 **The stall's runs: c0 to c3.** Each is b1's recipe from b1-100 for 100 iterations on a fresh optimizer, read against b1-100, with the repaired update: c0 the control (the cap scored as before, the lowest rows served first, one deal), c1 with a capped game's survivors scored −1 (`--cap-score loss`), c2 with the longest-waiting rows served first (`--serve oldest`), c3 with its games spread through their stages before training (`--deal-spread 30`). c1 runs first, alone, on what is left of Modal's month, for a direction by morning; c0 and c1 then run as a pair on one Kaggle session, the comparison that counts, and c2 and c3 on the session after.
 
 | # | Prediction for c1 | Confidence |
@@ -623,6 +636,19 @@ Not known: whether the stalling is a losing seat turtling, every seat growing pa
 | 3 | Sampling alone among four b1-100, 25% or more at iteration 100 | 35% |
 
 What follows: 1 and 2 hold, the cap's score was paying for the stall and `loss` is the base; whether strength then climbs is 3, and c0 beside it on Kaggle says how much of that is the change. 1 or 2 fails, the stall isn't a seat choosing the cap's score, and c2, c3 and `stall.py`'s reading say which of the other two it is.
+
+**c1 read: all three predictions failed, behind a restart.** Modal restarted c1's container near iteration 49; it resumed from its checkpoint at 25 with every game dealt again, and ran out of its hours at iteration 86. Before the restart it showed the deal's usual wave: games lengthening from 60 player-turns to 135, 8.8% capped at 40 and 3.3% by 49, the argmax mirror capping 26% at 25. After it, the run collapsed: 51% to 80% of its training games capped from 50 to 75, 20 to 340 games finished an iteration where a thousand is usual, the mirror capped 99.6% at 50 and 85% at 75, and sampling alone among four b1-100 it won 2.2% [0.9, 5.0] at 50 and 4.5% [2.5, 8.2] at 75 (four against one: 8.5% and 14.5%, par 80%). From 80 it was recovering, 5% capped at 86 and games finishing again, at 250 player-turns a game. Prediction 1 (under 3% capped over 75 to 100), 2 (the mirror under 5% at every reading) and 3 (25% or more against b1-100) **failed**. With no control beside it and a restart inside it, it doesn't say what scoring the cap as a loss does. What it adds is a third stall that follows a deal: b1's first fifty iterations, b1 twenty-five iterations after its resume, and c1 twenty-five after its restart, each a stretch of updates on openings alone and then late games played badly. That is c3's cause, so c3 and its control are the next session on Kaggle, ahead of c1's pair; and a run on Modal now needs its games spread at every restart, since a restart there is a deal.
+
+**c0 and c3, one Kaggle session.** Both from b1-100, b1's recipe, 75 iterations in full precision, the cap scored as before and the lowest rows served first in both; c3 alone spreads its games over 30 rollouts before training.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | c0 shows the wave: its argmax mirror caps 25% or more of its games at iteration 25 or 50 | 80% |
+| 2 | c3 doesn't: its argmax mirror caps under 10% at 25 and at 50 | 55% |
+| 3 | c3's training games cap under 3% at every iteration | 50% |
+| 4 | c3 gains on b1-100: sampling alone among four, 25% or more at its last reading | 30% |
+
+What follows: 1 and 2 hold, the deal is the stall's driver; every run spreads its games, at a start and at every resume, and whether the climb then resumes is 4 and the sessions after. 2 fails with 1 holding, the stall isn't the deal's alone and the cap's score and the service order are read next, as a pair each. 1 fails, the wave isn't a property of the recipe from b1-100 on these GPUs and b1's and c1's are read again before anything is concluded.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 

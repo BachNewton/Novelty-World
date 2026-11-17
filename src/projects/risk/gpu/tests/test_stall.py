@@ -39,7 +39,12 @@ def decisions(rows, final, capped):
     d = {n: np.array(c) for n, c in zip(names, cols)}
     n = len(rows)
     games = final.shape[0]
-    return Decisions(**d, entropy=np.zeros(n), armies=np.zeros(n, dtype=np.int64), final=final, capped=capped,
+    # Game 0's turn 0 captured on its first attack: its log shows it from the next decision on.
+    captured = ((d["game"] == 0) & np.isin(d["step"], [3, 4, 5])).astype(np.int64)
+    # Its second attack (step 3) a single battle, every other move bucket 0.
+    amount = np.where((d["game"] == 0) & (d["step"] == 3), 2, 0)
+    return Decisions(**d, amount=amount, captured=captured, entropy=np.zeros(n), armies=np.zeros(n, dtype=np.int64),
+                     final=final, capped=capped,
                      length=np.zeros(games), alive_end=np.ones((games, 6), dtype=bool), standing_end=np.ones((games, 6)))
 
 
@@ -68,6 +73,9 @@ def test_a_turn_is_joined_to_its_own_first_attack_decision_and_its_seats_score()
                      t.value.tolist(), t.final.tolist(), t.standing.tolist()))
     assert got == [(0, 0, 0, 2, 0.3, 0.2, 1.0, 1.5), (0, 1, 1, 0, 0.6, -0.7, -1.0, 0.6),
                    (1, 0, 2, 0, 0.8, -0.45, -0.5, 0.5)]
+    # Game 0's turn 0: one capture, and its second attack (step 3) a single battle.
+    by_turn = {(g, tn): (bt, c) for g, tn, bt, c in zip(t.game, t.turn, t.battles, t.captures)}
+    assert by_turn == {(0, 0): (1, 1), (0, 1): (0, 0), (1, 0): (0, 0)}
     last = last_values(d)
     assert last[0, 0] == 0.3 and last[0, 1] == -0.7 and last[1, 2] == -0.45 and last[1, 0] == -0.5
     assert np.isnan(last[1, 1])
