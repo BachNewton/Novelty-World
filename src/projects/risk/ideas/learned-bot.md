@@ -565,9 +565,11 @@ b1's headline climbed at every sharp reading: 37.7% [35.6, 39.8] at 50, 42.0% [3
 | # | Prediction | Reading | |
 |---|---|---|---|
 | 1 | b1's fresh-deal value within 0.15 of its learner seats' score; b0's below −0.4 | b1 +0.41 against +0.32; b0 −0.39 (−0.61 at 5 players) | **held** for b1; b0 a hundredth short of the mark |
-| 2 | `calibrate.py` on b1: 20% or more explained in a game's first third | being read on the laptop | open |
+| 2 | `calibrate.py` on b1: 20% or more explained in a game's first third | 2.2% [−4.8, 9.0] in the mirror's first third; 36.5% [30.1, 42.6] overall | **failed** |
 | 3 | b1 is not below b0 | 44.9% against 17.6% | **held** |
 | 4 | b1 reads 23% or more alone among four s2-2-150, its interval clear of par | 44.9% [42.8, 47.1] | **held** |
+
+The value head on b1-100 (`calibrate.py`, 128 five-player mirror games on the laptop, sampling): the pessimism is gone, every calibration bin below zero within a tenth of the outcome where s2-2-150's sat 0.2 to 0.5 under, and it now beats the board-share fit overall (36.5% against 30.7%). It reads a little high between +0.2 and +0.6 (predicting +0.30 where the outcome averages +0.09), as a head trained among the league's weak bots would among its equals. And early in a game it still tells nothing apart: 2.2% in the first third, where the share fit explains 6.5% and the stage of the game alone 5%. Whether anything can be told there, among five equal seats, isn't known; a search that plays a turn out is one way to find out. The same games carry the stall's warning: b1-100's sampled mirror games run 1,580 decisions each, s2-2-150's 620, and 5 of the 128 reached the cap where none of s2-2-150's did.
 
 What it settles: every PPO run of this line, the from-scratch ones included, trained on returns bootstrapped from another seat's view. The carried bootstrap is the base of every run from here, and s2-2-150's plateau was the defect's, not the method's, the league's, the entropy bonus's or the buckets'. b1-100 is the panel's new anchor beside s2-2-150, which it has nearly outgrown (four against one reads 96%).
 
