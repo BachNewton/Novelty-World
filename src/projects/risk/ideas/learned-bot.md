@@ -48,6 +48,7 @@ The rules the chart rests on:
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
 | c1 | Modal | whether scoring a cap as a loss ends the stall (its predictions below) | `python -m riskgpu.modalgpu.launch fetch c1`, then `report c1 --key "sample b1-100 one-in"` |
+| learned-v2's ladder | GitHub Actions, run 44118076388 (`risk:ratings --seatable`), from the branch `risk/learned-v2-seat`, which holds the seating: b1-100 as learned-v2 on the roster, its frozen games, the parity test's measured tolerance. The branch isn't merged before the ladder lands: the lobby and the build need learned-v2's Elo | learned-v2's Elo and rank; then the branch is merged with the imported ratings and its `bot-log.md` entry | `gh run download 44118076388 --name risk-results --dir results`, then `npm run risk:import -- results` on that branch |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
