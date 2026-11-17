@@ -95,7 +95,8 @@ def sizes(text: str) -> list[tuple[int, int]]:
 
 
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    # A pushed kernel puts its arguments above this file's text, so the module there has no docstring.
+    p = argparse.ArgumentParser(description=(__doc__ or "The TPU probe.").split("\n\n")[0])
     p.add_argument("--require", choices=sorted(PLATFORMS), required=True,
                    help="the device kind to measure; finding any other fails the run")
     p.add_argument("--out", required=True, help="the JSON document, rewritten after every measurement")

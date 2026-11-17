@@ -47,13 +47,11 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| imit-x, imit-y | Kaggle, one session | the exact action space's copy of the teacher (its predictions below) | `python -m riskgpu.kaggle.launch fetch imit-x` |
-| big-256x6 | Modal | whether the larger net copies the teacher better on the whole recording (its predictions below) | `python -m riskgpu.modalgpu.launch fetch big-256x6`, then `report big-256x6` |
-| probe-1 | Kaggle's TPU (its queue can take hours) | what a TPU session is worth on the net and on engine-shaped work (`tpu.md`, "The probe") | `python -m riskgpu.tpu.launch fetch probe-1` |
-| search reading, on the laptop | `runs/readings/search-cpu/` | the search gate, on s2-2-150 (test 4 below); its control read par, 20.2% [17.9, 22.8] | `own-k3r6.json` there, once written |
-| b1, b0 | Modal | whether the trainer is trusted with the carried bootstrap, and whether that was the plateau (its predictions below) | `python -m riskgpu.modalgpu.launch fetch b1 b0`, then `report`; then `calibrate.py` on b1's last checkpoint |
+| b1 (resumed) | Modal | whether the carried bootstrap keeps climbing, read against b1-100 | `python -m riskgpu.modalgpu.launch fetch b1`, then `report b1 --key "sample b1-100 one-in"` |
+| b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
+| probe-2 | Kaggle's TPU | what a TPU session is worth on the net and on engine-shaped work (`tpu.md`, "The probe") | `python -m riskgpu.tpu.launch fetch probe-2` |
 
-**Not yet run, no GPU path yet.** The search gate's reading (`search.py`, test 4 below) and the averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3) need a GPU, and neither launcher runs a tool that isn't a trainer: a launcher entry for a one-off reading is the next piece of tooling. Until b1 is read, the exact space's stage 2 waits: it would train on the old bootstrap otherwise.
+**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; b1-100's gauntlet on GitHub Actions.
 
 ## The brief
 
@@ -549,6 +547,53 @@ What follows: 1 holds, the larger net is the base of the next learned bot: it is
 | 4 | b1 breaks the plateau: 23% or more alone among four s2-2-150, its interval clear of par, where b0 reads par | 35% |
 
 What follows: 1 and 4 hold, the fix is the base of every later run and a seed pair runs on from b1. 1 holds and 4 fails, the defect was real and not the plateau's cause; the fix stays, and tests 1 and 4 above decide between size and search. 1 fails, the mechanism is wrong or the fix is, and the fresh-deal value is traced before anything else trains.
+
+**b1 and b0 read: the bootstrap was the plateau.** Both trained 100 iterations (105 million decisions) from s2-2-150 on Modal's A10s, same recipe and seed, and were read sharply (4,096 games a reading) at 50, 75 and 100.
+
+| Sharp, at iteration 100 | b1 (carried) | b0 (the old reading) |
+|---|---|---|
+| Sampling alone among four s2-2-150 (par 20%) | 44.9% [42.8, 47.1] | 17.6% [16.0, 19.3] |
+| Argmax alone among four s2-2-150 | 45.5% [43.3, 47.6] | 17.0% [15.4, 18.7] |
+| Sampling, four against one s2-2-150 (par 80%) | 96.3% [95.4, 97.1] | 68.2% [66.2, 70.2] |
+| Argmax alone among four sw128b-450 | 77.7% [75.8, 79.4] | 29.1% [27.2, 31.2] |
+| Argmax alone among four imit-1 | 92.3% [91.0, 93.4] | 75.3% [73.4, 77.1] |
+| Argmax alone among four GD Defensive | 98.9% [98.5, 99.1] | 92.3% [91.4, 93.1] |
+| Value on fresh deals, beside the learner seats' mean score | +0.41, +0.32 | −0.39, +0.31 |
+
+b1's headline climbed at every sharp reading: 37.7% [35.6, 39.8] at 50, 42.0% [39.9, 44.2] at 75, 44.9% at 100, and was still climbing when the run ended. By the Luce model that is about +200 win Elo a seat over s2-2-150 alone among it and about +320 four against one. b0 slid below its start, as k1 did after 200. Health in b1: KL 0.005, the carried decisions 4% of each update and a rollout old on average (1.09), entropy 1.46 at 100 after 2.27 at 50. Two readings to watch: its training games lengthened (85 player-turns a game at 100, b0's 61) and 1.6% reached the cap (b0's 0.1%).
+
+| # | Prediction | Reading | |
+|---|---|---|---|
+| 1 | b1's fresh-deal value within 0.15 of its learner seats' score; b0's below −0.4 | b1 +0.41 against +0.32; b0 −0.39 (−0.61 at 5 players) | **held** for b1; b0 a hundredth short of the mark |
+| 2 | `calibrate.py` on b1: 20% or more explained in a game's first third | being read on the laptop | open |
+| 3 | b1 is not below b0 | 44.9% against 17.6% | **held** |
+| 4 | b1 reads 23% or more alone among four s2-2-150, its interval clear of par | 44.9% [42.8, 47.1] | **held** |
+
+What it settles: every PPO run of this line, the from-scratch ones included, trained on returns bootstrapped from another seat's view. The carried bootstrap is the base of every run from here, and s2-2-150's plateau was the defect's, not the method's, the league's, the entropy bonus's or the buckets'. b1-100 is the panel's new anchor beside s2-2-150, which it has nearly outgrown (four against one reads 96%).
+
+**The search gate read: open.** `search.py` on s2-2-150, on the laptop's CPU: the net's top three moves at each placement and attack played out six times each to the searcher's own next turn, fresh dice and resampled hidden cards, scored by slot 0. The searcher alone among four of the raw net at its most likely move won 30.8% [28.0, 33.7] of 1,024 games; the control, the same seat and deals with no search, 20.2% [17.9, 22.8]. Prediction 4 of the tests above (25% or more) **held**: about +100 win Elo a seat from a shallow search, on a net whose value head was the defective one. The search overruled the net's first choice at 32% of the placements it searched and 25% of the attacks. It cost 535 net evaluations a searched decision, 26,000 a game.
+
+**imit-x and imit-y read (the exact action space).** Held-out agreement with the teacher, both seeds within a tenth of a point:
+
+| | imit-1 (buckets) | imit-x, imit-y (exact) | big-256x6 (buckets, 256 × 6) |
+|---|---|---|---|
+| Main choice, all decisions | 64.8% | 72.4% [72.2, 72.5] | 68.2% [68.0, 68.4] |
+| Whole move, all decisions | 49.4% | 63.9% [63.7, 64.1] | 52.0% [51.8, 52.2] |
+| Whole move, attacks | 33.8% | 66.7% | 36.2% |
+| Turn-start placement, main | 41.5% | 42.2% | 43.2% |
+| Argmax alone among four sw128b-450 | 31.0% [27.2, 35.2] | 29.9%, 31.5% | 32.0% [28.1, 36.2] |
+| Argmax alone among four imit-1 | | 50.4%, 52.6% | 48.6% [44.3, 53.0] |
+| Argmax mirror capped | 37.0% | 25.3%, 27.1% | 10.6% |
+
+imit-x's predictions: 1 (attacks' move agreement up ten points or more) **held**, by 33; 2 (main within two points of 65%) **failed** upward, at 72.4%, the exact amounts and a second hundred million samples on imit-1's trunk together; 3 (sampling alone among four sw128b-450 at or above 14.3%) **held** on both seeds (19.0%, 15.6%); 4 (seeds within two points) **held**. big-256x6's: 1 (68% or more) **held**, at the mark; 2 (turn-start placement 45% or more) **failed**, 43.2%; 3 (fit within three points of held-out) **held**, 70.7% against 68.3%; 4 (36% or more alone among four sw128b-450) **failed**, 32.0%. So both levers copy the teacher better, the exact space by more, and neither copy plays much better than imit-1 by itself: a copy's strength is set by what PPO then makes of it, which is what b1 shows. Both remain what the next base is built from: the exact space at 256 × 6 is the copy to make next.
+
+**The next runs, by the chart.** A checkpoint beat the anchor, so b1-100 goes to the gauntlet and, clearing its bar, is seated as a new version; and the recipe is climbing, so it trains on:
+
+- **b1 resumed on Modal**, the same run, to iteration 400 or the month's cap, with b1-100 in the panel. Prediction: alone among four b1-100, sampling, 25% or more at its next sharp reading, its interval clear of par (60%); the training games' cap rate stays under 5% (65%).
+- **b2 on Kaggle**: b1's recipe on seed 1, from s2-2-150, in full precision. The seed the result is checked on before anything is built on it. Prediction: 35% or more alone among four s2-2-150 at its last sharp reading (80%).
+- **x1 on Kaggle**, beside b2: the same recipe on the exact action space, from imit-x, the run the plateau was once expected to wait for. Prediction: by its last reading it is above imit-x's own start against s2-2-150 (argmax 11.7% alone among four) by more than its interval (85%), and at or past par against s2-2-150 (50%): whether a better copy on a larger action space ends higher than b2 from a weaker one is the question its later sessions answer.
+
+**The seating bar for b1-100**, fixed before its gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots"): the TypeScript export passes the parity test, and `net-v1~{"weights":"b1-100","pick":"argmax"}` reads better than learned-v1 (s2-2-150) one-in and not worse one-out at 5 players on train and holdout seeds, and not worse than rule-v7.1 at any table of 3 to 6 in either mixture. It runs on GitHub Actions.
 
 What follows. 1 holds: the next imitation is a larger net on the exact space, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 1 fails with the control repeating: size isn't the lever at this data. 4 holds: stage 3 is the next line and `search.py` its first piece, with the hours going to distilling the search's choices. 4 fails while 2 holds: the search is no better than its leaf, so the value head is fitted to real outcomes (more of the loss, every seat's score, a larger net if 1 held) and 4 read again with rollouts to the game's end. 3 gaining three points or more says part of the plateau is a constant rate's jitter, and stage 2's recipe gets a falling rate.
 
