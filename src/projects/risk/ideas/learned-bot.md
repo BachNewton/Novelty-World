@@ -47,6 +47,7 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
+| c1 | Modal | whether scoring a cap as a loss ends the stall (its predictions below) | `python -m riskgpu.modalgpu.launch fetch c1`, then `report c1 --key "sample b1-100 one-in"` |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
 | b1-100's gauntlet | GitHub Actions, run 44082108627 (against rule-v7.1 at 3 to 6, train seeds), from the branch `risk/b1-reads`, which holds the exported weight set | whether b1-100 clears its seating bar; holdout seeds follow a pass | `gh run download <run id> --name risk-results --dir results`, then `npm run risk:import` (`docs/actions.md`) |
 
@@ -611,6 +612,16 @@ On holdout seeds (run 44092048811, kept in `gpu/runs/gauntlets/b1-100-learned-v1
 - **Every game is dealt at once** at a start and at a resume, so the first twenty iterations hold no late-game positions and then a wave of them; b1's first session shows the same wave after its own deal (games lengthening to 120 turns by iteration 55, the mirror capping 11.5% at 50, recovered by 75), the resumed one a larger one and a second rise at 165 to 193.
 
 Not known: whether the stalling is a losing seat turtling, every seat growing passive, or argmax play alone; `stall.py` reads that on the checkpoints at 50 to 175 on the laptop. The runs that follow it, each one change beside a control from b1-100: capped survivors scored as a loss, the longest-waiting rows served first, and a start whose games are spread through their stages.
+
+**The stall's runs: c0 to c3.** Each is b1's recipe from b1-100 for 100 iterations on a fresh optimizer, read against b1-100, with the repaired update: c0 the control (the cap scored as before, the lowest rows served first, one deal), c1 with a capped game's survivors scored −1 (`--cap-score loss`), c2 with the longest-waiting rows served first (`--serve oldest`), c3 with its games spread through their stages before training (`--deal-spread 30`). c1 runs first, alone, on what is left of Modal's month, for a direction by morning; c0 and c1 then run as a pair on one Kaggle session, the comparison that counts, and c2 and c3 on the session after.
+
+| # | Prediction for c1 | Confidence |
+|---|---|---|
+| 1 | Its training games' cap rate over iterations 75 to 100 stays under 3% (b1 resumed: 6% to 15% over its matching stretch) | 60% |
+| 2 | Its argmax mirror caps under 5% of its games at every panel reading (b1 resumed: 86% at its first) | 55% |
+| 3 | Sampling alone among four b1-100, 25% or more at iteration 100 | 35% |
+
+What follows: 1 and 2 hold, the cap's score was paying for the stall and `loss` is the base; whether strength then climbs is 3, and c0 beside it on Kaggle says how much of that is the change. 1 or 2 fails, the stall isn't a seat choosing the cap's score, and c2, c3 and `stall.py`'s reading say which of the other two it is.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
