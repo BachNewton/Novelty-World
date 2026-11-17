@@ -49,9 +49,9 @@ The rules the chart rests on:
 |---|---|---|---|
 | b1 (resumed) | Modal | whether the carried bootstrap keeps climbing, read against b1-100 | `python -m riskgpu.modalgpu.launch fetch b1`, then `report b1 --key "sample b1-100 one-in"` |
 | b2, x1 | Kaggle, one session | b1's result on a second seed; the exact action space trained on from imit-x | `python -m riskgpu.kaggle.launch fetch b2` |
-| probe-2 | Kaggle's TPU | what a TPU session is worth on the net and on engine-shaped work (`tpu.md`, "The probe") | `python -m riskgpu.tpu.launch fetch probe-2` |
+| b1-100's gauntlets | GitHub Actions, runs 44082103385 (against learned-v1 at 5 players) and 44082108627 (against rule-v7.1 at 3 to 6), train seeds, from the branch `risk/b1-reads`, which holds the exported weight set | whether b1-100 clears its seating bar; holdout seeds follow a pass | `gh run download <run id> --name risk-results --dir results`, then `npm run risk:import` (`docs/actions.md`) |
 
-**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; b1-100's gauntlet on GitHub Actions.
+**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
 
 ## The brief
 
@@ -596,6 +596,8 @@ imit-x's predictions: 1 (attacks' move agreement up ten points or more) **held**
 - **x1 on Kaggle**, beside b2: the same recipe on the exact action space, from imit-x, the run the plateau was once expected to wait for. Prediction: by its last reading it is above imit-x's own start against s2-2-150 (argmax 11.7% alone among four) by more than its interval (85%), and at or past par against s2-2-150 (50%): whether a better copy on a larger action space ends higher than b2 from a weaker one is the question its later sessions answer.
 
 **The seating bar for b1-100**, fixed before its gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots"): the TypeScript export passes the parity test, and `net-v1~{"weights":"b1-100","pick":"argmax"}` reads better than learned-v1 (s2-2-150) one-in and not worse one-out at 5 players on train and holdout seeds, and not worse than rule-v7.1 at any table of 3 to 6 in either mixture. It runs on GitHub Actions.
+
+Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
 What follows. 1 holds: the next imitation is a larger net on the exact space, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 1 fails with the control repeating: size isn't the lever at this data. 4 holds: stage 3 is the next line and `search.py` its first piece, with the hours going to distilling the search's choices. 4 fails while 2 holds: the search is no better than its leaf, so the value head is fitted to real outcomes (more of the loss, every seat's score, a larger net if 1 held) and 4 read again with rollouts to the game's end. 3 gaining three points or more says part of the plateau is a constant rate's jitter, and stage 2's recipe gets a falling rate.
 
