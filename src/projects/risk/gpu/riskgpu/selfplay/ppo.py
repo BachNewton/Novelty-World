@@ -408,9 +408,14 @@ def offending(rows: dict, t: torch.Tensor, b: torch.Tensor, T: int, carry: Carry
 
 
 def summarize(stats: dict, kinds: list[str]) -> dict:
-    out = {"games": stats["games"], "capped": stats["capped"] / max(stats["games"], 1), "stalled": stats["stalled"],
+    # `unserved`: the decisions due that waited a step past their controller's capacity, by
+    # controller (logs from before it split them call the total `stalled`).
+    out = {"games": stats["games"], "capped": stats["capped"] / max(stats["games"], 1),
+           "unserved": int(sum(stats["unserved"])), "longest_wait": stats["longest_wait"],
            "overflow": stats["overflow"], "turns": stats["turns"] / max(stats["games"], 1)}
     for k, name in enumerate(kinds):
+        if stats["unserved"][k] > 0:
+            out[f"{name}_unserved"] = int(stats["unserved"][k])
         seats = stats["seats"][k]
         if seats > 0:
             out[f"{name}_score"] = stats["score"][k] / seats
@@ -654,27 +659,36 @@ def trained_from_log(out_dir: str, iteration: int) -> float:
     return max(r["time"] for r in records if r["iter"] <= iteration) - start
 
 
-def bootstrap_of(asked: str | None, trained: dict | None) -> str:
-    """The run's `--bootstrap`: a new run's is the one asked for, `carry` by default; a resumed
-    run's is the one its checkpoint's arguments (`trained`) record, `acting` for a checkpoint from
-    before the choice existed, and asking for the other is refused."""
-    if trained is None:
-        return asked or "carry"
-    trained_with = trained.get("bootstrap") or "acting"
-    assert asked in (None, trained_with), f"the run was trained with --bootstrap {trained_with}: a resumed run keeps its recipe"
-    return trained_with
+# The choices a resumed run keeps: each one's default for a new run, and what a checkpoint from
+# before the choice existed was trained with.
+RECIPE = {
+    "bootstrap": ("carry", "acting"),
+    "carry_policy_age": (1, 0),  # 0: no limit
+    "cap_score": ("loss", "survivors"),
+    "serve": ("oldest", "lowest"),
+    "deal_spread": (0, 0),
+}
 
 
-def carry_policy_age_of(asked: int | None, trained: dict | None) -> int:
-    """The run's `--carry-policy-age`: a new run's is the one asked for, 1 by default; a resumed
-    run's is the one its checkpoint's arguments record, 0 (no limit) for a checkpoint from before
-    the limit existed, and asking for another is refused."""
+def kept(key: str, asked, trained: dict | None):
+    """The run's value of a `RECIPE` choice: a new run's is the one asked for, else its default; a
+    resumed run's is the one its checkpoint's arguments (`trained`) record, the old behaviour for a
+    checkpoint from before the choice existed, and asking for another is refused."""
+    new, old = RECIPE[key]
     if trained is None:
-        return 1 if asked is None else asked
-    trained_with = trained.get("carry_policy_age") or 0
+        return new if asked is None else asked
+    trained_with = trained.get(key)
+    if trained_with is None:
+        trained_with = old
     assert asked in (None, trained_with), \
-        f"the run was trained with --carry-policy-age {trained_with}: a resumed run keeps its recipe"
+        f"the run was trained with --{key.replace('_', '-')} {trained_with}: a resumed run keeps its recipe"
     return trained_with
+
+
+def resolve_recipe(args: argparse.Namespace, trained: dict | None) -> None:
+    """Every `RECIPE` choice of `args`, resolved in place by `kept`."""
+    for key in RECIPE:
+        setattr(args, key, kept(key, getattr(args, key), trained))
 
 
 def finite_weights(net: Net) -> bool:
@@ -718,6 +732,16 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--carry-policy-age", type=int, default=None,
                    help="with --bootstrap carry, a held decision taken more than this many updates ago trains the value "
                         "only (0: no limit; a new run's default 1); a resumed run keeps the one it was trained with")
+    p.add_argument("--cap-score", default=None, choices=["loss", "survivors"],
+                   help="what a capped game's seats still in it score: -1, as finishing last (a new run's default), or "
+                        "their place among the survivors less 0.5 (the old rule); a resumed run keeps the one it was trained with")
+    p.add_argument("--serve", default=None, choices=["oldest", "lowest"],
+                   help="which due rows a controller over its capacity serves: those that have waited longest (a new "
+                        "run's default), or the lowest rows (the old order); a resumed run keeps the one it was trained with")
+    p.add_argument("--deal-spread", type=int, default=None,
+                   help="at every start and resume, play this many rollouts untrained, the first deal's games cut at "
+                        "times spread through them, so training starts on games at every stage (0: none, a new run's "
+                        "default); a resumed run keeps the one it was trained with")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -790,12 +814,11 @@ def main(argv: list[str] | None = None) -> int:
         league = [p.replace("\\", "/") for p in ck["league"]]
         record_of = {p.replace("\\", "/"): r for p, r in ck.get("record_of", {}).items()}
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
-        args.bootstrap = bootstrap_of(args.bootstrap, ck.get("args", {}))
-        args.carry_policy_age = carry_policy_age_of(args.carry_policy_age, ck.get("args", {}))
+        resolve_recipe(args, ck.get("args", {}))
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     else:
-        args.bootstrap = bootstrap_of(args.bootstrap, None)
-        args.carry_policy_age = carry_policy_age_of(args.carry_policy_age, None)
+        resolve_recipe(args, None)
+    assert args.deal_spread >= 0, "--deal-spread is a count of rollouts"
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -811,7 +834,7 @@ def main(argv: list[str] | None = None) -> int:
         from ..bots.gd import gd_bot_graphable
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
-                    reward=args.reward, snapshots=args.snapshots, bf16=args.bf16)
+                    reward=args.reward, cap_score=args.cap_score, serve=args.serve, snapshots=args.snapshots, bf16=args.bf16)
     fixed = [x for x in args.league_fixed.split(",") if x]
     assert len(fixed) < cfg.snapshots, "leave the league a slot for this run's own snapshots"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
@@ -873,6 +896,12 @@ def main(argv: list[str] | None = None) -> int:
     log_path = os.path.join(out_dir, "log.jsonl")
     headline = panel_readings(log_path, args.stop_key) if args.stop_key else []
     session_started = time.time()
+    if args.deal_spread:
+        # Counts against the session's hours, which are the host's, but not as training time.
+        env.spread(args.deal_spread)
+        print(f"spread the deals over {args.deal_spread} untrained rollouts "
+              f"({args.deal_spread * args.batch * args.horizon:,} decisions) in {time.time() - session_started:.0f}s",
+              flush=True)
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time() - trained_s
     print(f"{args.name}: batch {args.batch} x horizon {args.horizon}, {sum(x.numel() for x in net.parameters()):,} weights",
@@ -958,7 +987,7 @@ def main(argv: list[str] | None = None) -> int:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
                  if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "gd-stacker_score", "capped",
-                          "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_explained", "v", "stalled", "samples")}
+                          "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_explained", "v", "unserved", "longest_wait", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)

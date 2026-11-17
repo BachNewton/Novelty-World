@@ -9,12 +9,21 @@ deal from a pool. Nothing in the step reads a value back to the host, so the who
 one graph; the host only launches it and, between rollouts, refills the pool and trains.
 
 **Scores** (`scores`). By default the winner scores +1 and the other places run from 0 (second) to
-−1 (the first out); the `place` reward is linear in the place. The survivors of a capped game all score as k-th of n (k survivors) less 0.5, never below
-−1: a draw at the cap is never better than placing just behind the survivors, so no table can
-settle into the stall and call it a result (`ideas/stalled-games.md`).
+−1 (the first out); the `place` reward is linear in the place. A capped game's seats still in it
+score by `cap_score`: `loss`, −1 each, the same as finishing last, so no finish is worse than a cap;
+or `survivors` (the rule before the choice existed), each as k-th of n (k survivors) less 0.5, never
+below −1, which pays two survivors −0.5 each, above the bottom half of real finishes, so a seat that
+expects to lose does better by never finishing. The seats out before the cap keep their place's score.
 
 **The turn cap is drawn per game** (`cap_low` to `cap_high` player-turns), so a policy can't count
 on outlasting a clock it knows.
+
+**Service under saturation** (`serve`). Each controller runs on at most its capacity of rows a step;
+a row due past it waits the step (`waited` counts the steps in a row it has waited, by controller in
+the stats' `unserved` row). `lowest` serves the lowest rows first, and the rows are laid out by table
+size, so a saturated controller freezes the same games (the 6-player, then the 5-player) step after
+step. `oldest` serves the rows that have waited longest, ties to the lowest row: a row waits at most
+⌈due / capacity⌉ − 1 steps, and a step with room for every due row is the same step as `lowest`'s.
 
 **The league.** Each seat of a new game is a controller kind: 0 the learner, 1 greedy, 2 to 5 GD's
 personas (their graphable port: exact inside the blitz table, approximate past it, with their
@@ -66,21 +75,24 @@ class EnvConfig:
     snapshot_greedy: bool = False  # likewise the snapshots (evaluation)
     bf16: bool = True  # the networks' forward pass in bfloat16 autocast
     # The most rows each controller is run on per step, as a share of the batch; a decision past it
-    # waits a step (counted as `stalled`). Sized to the league's mix.
+    # waits a step (counted as `unserved`, by controller). Sized to the league's mix.
     cap_learner: float = 0.5
     cap_snapshot: float = 0.12
     cap_greedy: float = 1.0
+    serve: str = "lowest"  # which due rows a saturated controller serves: "lowest" or "oldest"
     reward: str = "win"  # `scores`: "win" or "place"
+    cap_score: str = "survivors"  # `scores`: a capped game's survivors, "survivors" or "loss"
     gd: bool = False  # build the GD personas (slow to build: their odds tables)
     cap_gd: tuple[float, ...] = (0.2, 0.2, 0.2, 0.08)  # by persona; Stacker's walk is the costly one
 
 
 def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor, won: torch.Tensor,
-           in_game: torch.Tensor, reward: str = "win") -> torch.Tensor:
+           in_game: torch.Tensor, reward: str = "win", cap_score: str = "survivors") -> torch.Tensor:
     """`[B, 6]` float32, each seat's score for a game that just ended (0 for absent seats).
     `place`: linear in the place, +1 first to −1 last. `win`: +1 for the win, the other places
     linear from 0 (second) to −1 (last), so second place is worth nothing over a loss in the way a
-    win is (placement alone taught m2a to settle for a place)."""
+    win is (placement alone taught m2a to settle for a place). A capped game's survivors score by
+    `cap_score` (the module's docstring)."""
     n = players.to(torch.float32)[:, None]
     seats = torch.arange(MAX_SEATS, device=players.device)[None, :]
     present = seats < players.to(torch.int64)[:, None]
@@ -91,7 +103,12 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
             return 1 - 2 * (p - 1) / (n - 1)
         return torch.where(p <= 1, 1.0, -(p - 2) / (n - 2))
 
-    survivors = (score(in_game[:, None].expand(-1, MAX_SEATS)) - 0.5).clamp(min=-1)
+    if cap_score == "loss":
+        survivors = torch.full((players.shape[0], MAX_SEATS), -1.0, device=players.device)
+    elif cap_score == "survivors":
+        survivors = (score(in_game[:, None].expand(-1, MAX_SEATS)) - 0.5).clamp(min=-1)
+    else:
+        raise ValueError(f"cap_score is 'survivors' or 'loss', not {cap_score!r}")
     capped_score = torch.where(eliminated, score(places), survivors)
     out = torch.where(won[:, None], score(places), capped_score)
     return torch.where(present, out, 0.0)
@@ -114,6 +131,8 @@ class Env:
     def __init__(self, cfg: EnvConfig, board: Board, tables: BlitzTables, learner: Net, device: str = "cuda",
                  seed_prefix: str = "sp", gd_bots: list | None = None):
         assert tables.scaled_oversize, "training resolves oversize fights on the device"
+        assert cfg.serve in ("lowest", "oldest"), f"serve is 'lowest' or 'oldest', not {cfg.serve!r}"
+        assert cfg.cap_score in ("survivors", "loss"), f"cap_score is 'survivors' or 'loss', not {cfg.cap_score!r}"
         if cfg.bf16 and torch.device(device).type == "cuda" and torch.cuda.get_device_capability(device) < (8, 0):
             # Before Ampere there is no native bfloat16: PyTorch emulates it, slowly, without saying so.
             raise RuntimeError(f"{torch.cuda.get_device_name(device)} has no native bfloat16: run with --no-bf16")
@@ -157,7 +176,10 @@ class Env:
         self._draw_seats(torch.ones(B, dtype=torch.bool, device=device))
         self.stats = torch.zeros(8, kinds, dtype=torch.float64, device=device)
         self.t = torch.zeros((), dtype=torch.int64, device=device)
-        self.stalled = torch.zeros((), dtype=torch.int64, device=device)
+        # Steps in a row each row has waited past its controller's capacity, and the most since the
+        # stats were last taken.
+        self.waited = torch.zeros(B, dtype=torch.int64, device=device)
+        self.longest_wait = torch.zeros((), dtype=torch.int64, device=device)
         # Exact-space decisions whose range had more choices than the argument's slots (`spread`).
         self.overflow = torch.zeros((), dtype=torch.int64, device=device)
         if cfg.record:
@@ -226,7 +248,13 @@ class Env:
 
         def pick(need: torch.Tensor, capacity: int) -> tuple[torch.Tensor, torch.Tensor]:
             # The rows that need a controller first, then the first `capacity` of them: a static
-            # shape for the graph. A row past the capacity sits this step out (`stalled`).
+            # shape for the graph. A row past the capacity sits this step out (`unserved`).
+            if cfg.serve == "oldest":
+                # The `capacity` rows that have waited longest, ties to the lowest row; then taken
+                # in row order as `lowest` takes its rows, so when every due row fits, the rows and
+                # their order (which the samplers' random draws follow) are `lowest`'s.
+                longest = torch.argsort(torch.where(need, -self.waited, 1), stable=True)[:capacity]
+                need = torch.zeros_like(need).index_fill_(0, longest, True) & need
             order = torch.argsort((~need).to(torch.int8), stable=True)
             chosen = order[:capacity]
             return chosen, need[chosen]
@@ -290,7 +318,11 @@ class Env:
             rows_k = torch.zeros(B, dtype=torch.bool, device=self.device).index_copy_(0, idx, ok)
             moves = torch.where(rows_k[:, None], theirs, moves)
             moving = moving | rows_k
-        self.stalled.add_((live & ~moving).sum())
+        unserved = live & ~moving
+        by_kind = torch.nn.functional.one_hot(kind_now, self.stats.shape[1]).to(torch.float64)
+        self.stats[7] += (by_kind * unserved.to(torch.float64)[:, None]).sum(0)
+        self.waited.copy_(torch.where(unserved, self.waited + 1, 0))
+        self.longest_wait.copy_(torch.maximum(self.longest_wait, self.waited.max()))
 
         if cfg.record:
             t = self.t.view(1)
@@ -316,7 +348,7 @@ class Env:
         self.in_game.sub_(newly_out.sum(1))
         won = s.phase == 3
         ended = ~self.done & (won | (s.turn.to(torch.int64) > self.cap))
-        reward = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward)
+        reward = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward, cfg.cap_score)
         reward = torch.where(ended[:, None], reward, 0.0)
 
         # Board shares, per seat, for the auxiliary target.
@@ -333,7 +365,7 @@ class Env:
             self.buf["share"].index_copy_(0, t, share[None])
 
         # statistics, by controller kind: seats, wins, score, games (row 3, kind 0 column only),
-        # capped games, turns, oversize-free games
+        # capped games, turns, seats in decisive games; row 7, the rows each left unserved, above
         kinds = self.stats.shape[1]
         present = seats[None, :] < s.players.to(torch.int64)[:, None]
         onehot = torch.nn.functional.one_hot(self.seat_kind, kinds).to(torch.float64)  # [B, 6, K]
@@ -403,8 +435,8 @@ class Env:
         log = self.log
         return ([getattr(self.state, n) for n in LAYOUT]
                 + [log.attacks, log.captured, log.placed_on, log.traded, log.stacker_swapped]
-                + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t, self.stalled,
-                   self.overflow])
+                + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t,
+                   self.waited, self.longest_wait, self.overflow])
 
     def _save(self) -> list[torch.Tensor]:
         return [x.clone() for x in self._tensors()]
@@ -447,13 +479,30 @@ class Env:
             by_seat.scatter_(1, torch.where(seat_of_slot >= 0, seat_of_slot, MAX_SEATS), value)
             return by_seat[:, :MAX_SEATS]
 
+    def spread(self, rollouts: int) -> None:
+        """Plays `rollouts` rollouts that are neither kept nor trained on, each game of the batch's
+        first deal cut (by its cap, set below every turn) at the start of a rollout drawn uniformly
+        among them, unless it has ended by then: the deals that replace them start spread through
+        that window, so the first rollouts trained on hold games at every stage rather than a batch
+        dealt at once. Their statistics are dropped."""
+        assert self.cfg.reset, "a spread replaces the games it cuts"
+        first = self.game_id.clone()
+        cut_at = (torch.rand(self.cfg.batch, device=self.device) * rollouts).floor().to(torch.int64)
+        for k in range(rollouts):
+            self.cap.copy_(torch.where((cut_at == k) & (self.game_id == first), -1, self.cap))
+            self.run(self.cfg.horizon)
+            if int(self.cursor.max()) > self.cfg.pool // 2:
+                self.refill_pool()
+        self.take_stats()
+
     def take_stats(self) -> dict:
-        st = self.stats.cpu()
-        stalled = int(self.stalled)
+        # A copy: on the CPU `.cpu()` is the tensor itself, which the zeroing below would empty.
+        st = self.stats.to("cpu", copy=True)
+        longest_wait = int(self.longest_wait)
         overflow = int(self.overflow)
         self.stats.zero_()
-        self.stalled.zero_()
+        self.longest_wait.zero_()
         self.overflow.zero_()
         return {"seats": st[0].tolist(), "wins": st[1].tolist(), "score": st[2].tolist(), "games": float(st[3, 0]),
                 "capped": float(st[4, 0]), "turns": float(st[5, 0]), "decisive_seats": st[6].tolist(),
-                "stalled": stalled, "overflow": overflow}
+                "unserved": st[7].tolist(), "longest_wait": longest_wait, "overflow": overflow}

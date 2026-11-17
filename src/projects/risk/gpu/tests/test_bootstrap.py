@@ -13,7 +13,7 @@ from riskgpu.board import MAX_SEATS, Board
 from riskgpu.data import load_best
 from riskgpu.selfplay.env import GREEDY, Env, EnvConfig
 from riskgpu.selfplay.net import Net
-from riskgpu.selfplay.ppo import Carry, advantages, bootstrap_of, update, value_health
+from riskgpu.selfplay.ppo import Carry, advantages, kept, update, value_health
 
 # Neither is a score any table can give (`env.scores`), so a target shows which reached it.
 OWN, OTHER = 0.3, -0.6
@@ -163,13 +163,13 @@ def test_a_chain_carried_across_the_cut_matches_one_long_rollout(world, lam, sha
 
 
 def test_a_resumed_run_keeps_its_bootstrap():
-    assert bootstrap_of(None, None) == "carry"
-    assert bootstrap_of("acting", None) == "acting"
-    assert bootstrap_of(None, {"lr": 1e-4}) == "acting"  # trained before the choice existed
-    assert bootstrap_of(None, {"bootstrap": "carry"}) == "carry"
-    assert bootstrap_of("acting", {}) == "acting"
+    assert kept("bootstrap", None, None) == "carry"
+    assert kept("bootstrap", "acting", None) == "acting"
+    assert kept("bootstrap", None, {"lr": 1e-4}) == "acting"  # trained before the choice existed
+    assert kept("bootstrap", None, {"bootstrap": "carry"}) == "carry"
+    assert kept("bootstrap", "acting", {}) == "acting"
     with pytest.raises(AssertionError):
-        bootstrap_of("carry", {"lr": 1e-4})
+        kept("bootstrap", "carry", {"lr": 1e-4})
 
 
 def test_a_held_decision_is_trained_on_its_own_state(world):

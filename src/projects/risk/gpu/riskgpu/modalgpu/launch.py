@@ -172,15 +172,15 @@ def check_resume(record: dict, state: str, volume) -> None:
 
 
 def check_recipe(run: dict) -> None:
-    """A resumed run keeps the bootstrap its checkpoint was trained with, as its trainer insists;
-    refused here, so a changed recipe costs no container."""
+    """A resumed run keeps the recipe its checkpoint was trained with (`ppo.RECIPE`), as its trainer
+    insists; refused here, so a changed recipe costs no container."""
     latest = os.path.join(kaggle.local_dir(run), "latest.pt")
     if trainer_of(run) != "ppo" or not os.path.exists(latest):
         return
     import torch
-    from ..selfplay.ppo import bootstrap_of
-    bootstrap_of(kaggle.last_value(run["args"], "--bootstrap"),
-                 torch.load(latest, map_location="cpu", weights_only=False).get("args", {}))
+    from ..selfplay.ppo import parser, resolve_recipe
+    resolve_recipe(parser().parse_args(["--name", "check", *run["args"]]),
+                   torch.load(latest, map_location="cpu", weights_only=False).get("args", {}))
 
 
 def hourly(gpu: str, trainer: str) -> float:

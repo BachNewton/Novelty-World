@@ -12,8 +12,7 @@ from riskgpu.board import Board
 from riskgpu.data import load_best
 from riskgpu.selfplay.env import GREEDY, Env, EnvConfig
 from riskgpu.selfplay.net import Net
-from riskgpu.selfplay.ppo import (Carry, NonFinite, advantages, carry_policy_age_of, minibatches, save_net,
-                                  update)
+from riskgpu.selfplay.ppo import Carry, NonFinite, advantages, kept, minibatches, save_net, update
 
 T = 24
 
@@ -129,9 +128,9 @@ def test_a_stale_held_decision_trains_the_value_only(world):
 
 
 def test_a_resumed_run_keeps_its_carry_policy_age():
-    assert carry_policy_age_of(None, None) == 1
-    assert carry_policy_age_of(3, None) == 3
-    assert carry_policy_age_of(None, {"bootstrap": "carry"}) == 0  # trained before the limit existed
-    assert carry_policy_age_of(None, {"carry_policy_age": 1}) == 1
+    assert kept("carry_policy_age", None, None) == 1
+    assert kept("carry_policy_age", 3, None) == 3
+    assert kept("carry_policy_age", None, {"bootstrap": "carry"}) == 0  # trained before the limit existed
+    assert kept("carry_policy_age", None, {"carry_policy_age": 1}) == 1
     with pytest.raises(AssertionError):
-        carry_policy_age_of(1, {"bootstrap": "carry"})
+        kept("carry_policy_age", 1, {"bootstrap": "carry"})

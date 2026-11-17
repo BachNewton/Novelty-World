@@ -1,8 +1,10 @@
 """Training sessions on Kaggle's free GPUs, launched and read from here:
 
     python -m riskgpu.kaggle.launch push <name> [<name>] [--run-args <name>="<its own args>"] [--imitate]
-                                    [--accelerator NvidiaTeslaT4] [--session-hours 11] -- <shared trainer args>
+                                    [--accelerator NvidiaTeslaT4] [--session-hours 11] [--dry-run]
+                                    -- <shared trainer args>
     python -m riskgpu.kaggle.launch push --read <name>="<tool> <its args>" [--read ...] [--session-hours 11]
+                                    [--dry-run]
     python -m riskgpu.kaggle.launch status <name>
     python -m riskgpu.kaggle.launch fetch <name>
     python -m riskgpu.kaggle.launch report <name> [--key "sample s2-2-150 one-in"]
@@ -315,6 +317,8 @@ def push(args: argparse.Namespace) -> int:
     for r in runs:
         assert trainer != "imitate" or not os.path.exists(os.path.join(local_dir(r), "best.pt")), \
             f"{run_folder(r)} already holds a trained imitation, which the session would replace: name a new run"
+    if args.dry_run:
+        return dry_run(args, runs, [f for r in runs for f in needed_files(r)])
     commit = checkout_commit()
     files = list(dict.fromkeys(f for r in runs for f in needed_files(r)))
     job = {"commit": commit, "runs": runs, "session_hours": args.session_hours, "read_hours": args.read_hours}
@@ -338,6 +342,10 @@ def push_readings(args: argparse.Namespace) -> int:
     for r in readings:
         check_reading(r, full_precision=args.accelerator in PRE_AMPERE)
         check_new_reading(r)
+    if args.dry_run:
+        for r in readings:
+            print(f"{reading_folder(r)}: {shlex.join([r['tool'], *r['args']])}")
+        return dry_run(args, [], [f for r in readings for f in reading_files(r)])
     commit = checkout_commit()
     files = list(dict.fromkeys(f for r in readings for f in reading_files(r)))
     job = {"commit": commit, "runs": [], "readings": readings, "session_hours": args.session_hours, "read_hours": 0}
@@ -347,6 +355,21 @@ def push_readings(args: argparse.Namespace) -> int:
         with open(os.path.join(reading_dir(r), "kaggle-push.json"), "w") as f:
             json.dump({**record, "guard_sha256": {}}, f, indent=1)
     print(f"pushed {record['kernel']} at {commit[:8]}: `status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
+    return 0
+
+
+def dry_run(args: argparse.Namespace, runs: list[dict], files: list[str]) -> int:
+    """What a push would queue and upload, its arguments already checked, without asking Kaggle
+    anything or needing the checkout's commit on GitHub."""
+    for r in runs:
+        print(f"{run_folder(r)}: {shlex.join(r['args'])}")
+    files = list(dict.fromkeys(files))
+    size = sum(os.path.getsize(os.path.join(GPU, rel)) for rel in files)
+    print(f"bundle: {len(files)} files, {size / 1e6:,.0f} MB")
+    if runs:
+        print(f"one {args.accelerator} session of {args.session_hours:g} hours: each GPU takes the next run in this "
+              f"order while one is free, until {args.session_hours - args.read_hours:g} hours in; a run not started "
+              f"by then waits for the next push, and the last {args.read_hours:g} hours are the stopped runs' readings")
     return 0
 
 
@@ -583,6 +606,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--read-hours", type=float, default=3.0,
                    help="the session's last hours, kept for the stopped runs' readings (a T4 takes 2 to 3 a sharp reading, two at once)")
     s.add_argument("--no-stop", action="store_true", help="let a PPO session run its hours without a plateau stop")
+    s.add_argument("--dry-run", action="store_true",
+                   help="check the runs' arguments and show what the session would queue and upload, then stop")
     for sub_command in ("status", "fetch"):
         sub.add_parser(sub_command).add_argument("name")
     r = sub.add_parser("report")

@@ -201,6 +201,9 @@ def test_a_resume_keeps_the_bootstrap_its_checkpoint_was_trained_with(tmp_path, 
     launch.check_recipe({"name": "r", "trainer": "ppo", "args": ["--bootstrap", "acting"]})
     with pytest.raises(AssertionError, match="keeps its recipe"):
         launch.check_recipe({"name": "r", "trainer": "ppo", "args": ["--bootstrap", "carry"]})
+    # Every choice a resumed run keeps, not only the bootstrap: this checkpoint predates the cap score.
+    with pytest.raises(AssertionError, match="--cap-score survivors"):
+        launch.check_recipe({"name": "r", "trainer": "ppo", "args": ["--cap-score", "loss"]})
 
 
 def test_the_hours_are_split_so_the_readings_get_theirs(tmp_path):

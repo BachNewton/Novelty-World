@@ -225,7 +225,7 @@ def test_a_league_of_both_spaces_plays_only_legal_moves(monkeypatch):
     assert bool((seats == LEARNER).any()) and bool((seats == SNAPSHOT).any())
     env.run(300)
     stats = env.take_stats()
-    assert stats["stalled"] == 0
+    assert sum(stats["unserved"]) == 0
 
 
 if __name__ == "__main__":
