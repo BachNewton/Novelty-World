@@ -52,3 +52,18 @@ def test_a_dry_run_pushes_nothing_and_a_refusal_comes_before_any_push(no_kaggle,
     with pytest.raises(AssertionError, match="the launcher's"):
         launch.main(["push", "p1", "--session-hours", "1", "--", "--require", "cpu"])
     assert [c[0] for c in no_kaggle] == ["quota", "quota"]
+
+
+def test_a_session_kaggle_ran_without_its_device_is_named_at_fetch(no_kaggle, tmp_path):
+    assert launch.main(["push", "p1", "--session-hours", "1.5", "--dry-run"]) == 0
+    meta = json.loads((tmp_path / "staging" / "tpu-p1" / "kernel-metadata.json").read_text())
+    assert meta["machine_shape"] == "TpuV5E8" and meta["docker_image_pinning_type"] == "latest"
+    # A Kaggle log is a JSON list of output lines; these are the ones a CPU machine gave a TPU push.
+    log = json.dumps([
+        {"stream_name": "stderr", "time": 9.6, "data": '  File "/usr/local/lib/python3.13/dist-packages/jax/_src/xla_bridge.py"\n'},
+        {"stream_name": "stderr", "time": 9.7, "data": "RuntimeError: Unable to initialize backend 'tpu': INTERNAL: "
+                                                     "Failed to open libtpu.so (set JAX_PLATFORMS='' to choose)\n"},
+    ])
+    missing = launch.missing_device(log)
+    assert missing.startswith("Unable to initialize backend 'tpu'") and "Python is 3.13" in missing
+    assert launch.missing_device(json.dumps([{"stream_name": "stdout", "time": 1, "data": "phase x32: ...\n"}])) is None

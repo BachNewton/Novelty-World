@@ -30,10 +30,12 @@ GPU = os.path.dirname(DATA)
 RUNS = os.path.join(GPU, "runs", "tpu")
 STAGING = os.path.join(GPU, "runs", "kaggle")
 BENCH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bench.py")
-# Kaggle's identifiers, the quota each draws on, and its session limit in hours. TpuV5E8 is Kaggle's
-# default TPU; TpuV6E8 is listed by the CLI but documented as possibly limited to some competitions,
-# and a public probe pushed on it got a CPU machine, which is why the probe fails without its device.
+# Kaggle's identifiers, the quota each draws on, and its session limit in hours. Kaggle accepts a TPU
+# push and may still run it on a plain CPU machine in its standard image (`ideas/tpu.md`), which is
+# why the probe fails without its device and `fetch` says so.
 ACCELERATORS = {"TpuV5E8": ("TPU", 9.0), "TpuV6E8": ("TPU", 9.0), "NvidiaTeslaT4": ("GPU", 12.0)}
+# JAX's own words when the device it is pinned to isn't there, and `bench.py`'s when it finds another.
+NO_DEVICE = re.compile(r"Unable to initialize backend '(\w+)'[^\n]*|--require (\w+), but JAX found (\w+)[^\n]*")
 REQUIRE = {"TPU": "tpu", "GPU": "gpu"}
 OUTPUT = "tpu-bench.json"
 WORKING = "/kaggle/working"
@@ -106,6 +108,10 @@ def push(args: argparse.Namespace) -> int:
             "enable_tpu": resource == "TPU", "enable_internet": resource == "GPU",
             "machine_shape": args.accelerator, "dataset_sources": [], "competition_sources": [],
             "kernel_sources": [], "model_sources": []}
+    if resource == "TPU":
+        # Without it Kaggle pins a new kernel to its CPU/GPU image, which a TPU VM doesn't run
+        # (Kaggle/kaggle-cli#1197); with it the kernel is left unpinned.
+        meta["docker_image_pinning_type"] = "latest"
     with open(os.path.join(kernel_dir, "kernel-metadata.json"), "w") as f:
         json.dump(meta, f, indent=1)
     cmd = ["kernels", "push", "-p", kernel_dir, "--accelerator", args.accelerator,
@@ -149,11 +155,30 @@ def fetch(args: argparse.Namespace) -> int:
         for root, _, files in os.walk(tmp):
             for f in files:
                 shutil.copyfile(os.path.join(root, f), os.path.join(folder, f))
+    log = os.path.join(folder, f"{job['kernel'].split('/')[1]}.log")
+    if os.path.exists(log):
+        with open(log, encoding="utf-8") as f:
+            missing = missing_device(f.read())
+        assert missing is None, (
+            f"Kaggle ran {job['kernel']} on a machine without the {job['accelerator']} it was pushed for, so the "
+            f"probe measured nothing: {missing}. Such a session doesn't draw on the accelerator's quota "
+            f"(`kaggle quota`); see ideas/tpu.md. Its log is in runs/tpu/{args.name}")
     path = os.path.join(folder, OUTPUT)
     assert os.path.exists(path), f"the session wrote no {OUTPUT}; its log and partial phases are in runs/tpu/{args.name}"
     with open(path) as f:
         summarize(json.load(f))
     return 0
+
+
+def missing_device(log: str) -> str | None:
+    """What a Kaggle session's log (its JSON list of output lines) says when the probe found no device
+    of the kind it required, with the machine's Python; None when it says nothing of the kind."""
+    text = "".join(line["data"] for line in json.loads(log))
+    found = NO_DEVICE.search(text)
+    if found is None:
+        return None
+    python = re.search(r"/python(3\.\d+)/", text)
+    return found.group(0).strip() + (f" (the machine's Python is {python.group(1)})" if python else "")
 
 
 def summarize(doc: dict) -> None:
