@@ -49,7 +49,6 @@ The rules the chart rests on:
 |---|---|---|---|
 | probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
 | search reading on b1-100, on the laptop's CPU | `gpu/runs/readings/search-cpu/` | whether a shallow search still adds strength on the net with the repaired value head: the control first (`b1-100-control.json`, par expected), then the search (`b1-100-own-k3r6.json`), 1,024 games each, the searcher alone among four of the raw net at its most likely move. Prediction: 25% or more, as on s2-2-150's 30.8% (60%) | the two JSON files there, once written |
-| c0, c3 | Kaggle, one session | whether the stall follows the deal (its predictions below) | `python -m riskgpu.kaggle.launch fetch c0` |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
 
@@ -649,6 +648,22 @@ What follows: 1 and 2 hold, the cap's score was paying for the stall and `loss` 
 | 4 | c3 gains on b1-100: sampling alone among four, 25% or more at its last reading | 30% |
 
 What follows: 1 and 2 hold, the deal is the stall's driver; every run spreads its games, at a start and at every resume, and whether the climb then resumes is 4 and the sessions after. 2 fails with 1 holding, the stall isn't the deal's alone and the cap's score and the service order are read next, as a pair each. 1 fails, the wave isn't a property of the recipe from b1-100 on these GPUs and b1's and c1's are read again before anything is concluded.
+
+**c0 and c3 read: the deal makes a wave, the spread removes it, and c3 gained on b1-100.** One Kaggle session, both to iteration 75, never restarted. The panel is 512 games, 256 where a lone seat is read; the week's hours ran out before a sharp reading.
+
+| # | Prediction | Read | |
+|---|---|---|---|
+| 1 | c0's argmax mirror caps 25% or more at 25 or 50 | 68.0% [63.8, 71.9] at 25 | **held** |
+| 2 | c3's caps under 10% at 25 and at 50 | 1.8% and 3.9% | **held** |
+| 3 | c3's training games cap under 3% at every iteration | under 1.5% to iteration 45, then 3% to 5.9% | **failed** |
+| 4 | c3 gains on b1-100: sampling alone among four, 25% or more at its last reading | 29.0% [23.7, 35.1] | **held** |
+
+- **The deal's wave is real and it passes.** c0, dealt at once, finished no game for two rollouts, then its games lengthened to 148 player-turns with 12% capped at 40, and its argmax mirror capped 68% at 25. By 50 the mirror was at 18.6% and by 75 at 1.6%, with training back near 100 player-turns. It cost c0 its first fifty iterations: against b1-100 it read 13.0% sampling at 25 and never cleared par.
+- **The spread removes it.** c3's training games ran 76 to 95 player-turns from the first rollout, and its mirror stayed under 5%.
+- **c3-75 is past b1-100.** Alone among four b1-100: 29.0% sampling and 30.4% [24.9, 36.5] at its most likely move; four against one, 85.2% and 89.2% [84.7, 92.5] against a par of 80%. Alone among four s2-2-150 at its most likely move, 51.2%. It is the best checkpoint here, and a seating candidate.
+- **The slow stall is still coming.** c3's training games lengthen from 90 player-turns at 55 to 112 at 75, and their cap rate rises from 1.4% to 4.9%: b2's drift, at b2's pace. The spread fixes the deal's wave, not the recipe's stall; d0 to d2 stand as planned, with the spread in all three.
+
+**The seating bar for c3-75**, fixed before its gauntlet: the TypeScript export passes the parity test, and `net-v1~{"weights":"c3-75","pick":"argmax"}` reads better than learned-v2 (b1-100) one-in and not worse one-out at 5 players on train and holdout seeds, and not worse than rule-v7.1 at any table of 3 to 6 in either mixture. One more condition, new with this bot: at tables of several of it against one weak bot, it caps no more games than learned-v2 does (the ladder reads it). It is seated on its gauntlets at a provisional Elo, by `docs/actions.md`, "Seating a bot".
 
 **b2 and x1 read: both predictions held, and b2 stalled with no deal behind it.** One Kaggle session, never restarted, ended by its hours at iteration 79 (b2) and 85 (x1). The panel is 512 games, 256 where a lone seat is read.
 
