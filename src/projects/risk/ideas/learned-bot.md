@@ -47,8 +47,8 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
+| c3-75's gauntlets | GitHub Actions, runs 44264644199 (against learned-v2, train seeds), 44264649767 (holdout) and 44264655212 (against rule-v7.1, 3 to 6 players), from the branch `risk/learned-v3-seat`, which holds c3-75's export (parity passed, worst logit gap 2.0e-5) and its registration as learned-v3 | whether c3-75 clears its seating bar (below); then its provisional Elo, the merge, and its ladder | `gh run download <id> --name risk-results --dir results`, then `npm run risk:import -- results`, in the worktree `.claude/worktrees/seat-v3` |
 | probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
-| search reading on b1-100, on the laptop's CPU | `gpu/runs/readings/search-cpu/` | whether a shallow search still adds strength on the net with the repaired value head: the control first (`b1-100-control.json`, par expected), then the search (`b1-100-own-k3r6.json`), 1,024 games each, the searcher alone among four of the raw net at its most likely move. Prediction: 25% or more, as on s2-2-150's 30.8% (60%) | the two JSON files there, once written |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
 
@@ -648,6 +648,21 @@ What follows: 1 and 2 hold, the cap's score was paying for the stall and `loss` 
 | 4 | c3 gains on b1-100: sampling alone among four, 25% or more at its last reading | 30% |
 
 What follows: 1 and 2 hold, the deal is the stall's driver; every run spreads its games, at a start and at every resume, and whether the climb then resumes is 4 and the sessions after. 2 fails with 1 holding, the stall isn't the deal's alone and the cap's score and the service order are read next, as a pair each. 1 fails, the wave isn't a property of the recipe from b1-100 on these GPUs and b1's and c1's are read again before anything is concluded.
+
+**The search reading on b1-100: held, and the gain is larger than on s2-2-150.** On the laptop's CPU, 1,024 games each, the searcher (three candidates, six rollouts, its own value head at the leaf) alone among four of the raw net at its most likely move. The control, searching nothing, read 21.1% [18.6, 23.7], par. The search read **40.8% [37.8, 43.9]**, against the prediction of 25% or more (60%). That is about +175 Elo a seat by the Luce model, where the same search on s2-2-150 read 30.8% (about +100). It overruled the net's choice at 30% of the decisions it searched, and 29 of its games capped against the control's 41. So a shallow search adds more on the net with the repaired value head, not less: the search gate is open wider, and stage 3 (the search's choices distilled back into the policy) is the line with the most measured headroom here. The reading took 12 hours on eight cores for about 139,000 searched decisions; recording those choices as training targets needs the GPU engine or the TPU, not the laptop.
+
+**Stage 3's first piece is built: the search recorded, and distilled.** `record.py` plays the search with the net in every seat and keeps, for each searched decision, the state, the candidates with their rollout means and the policy's own probabilities, the choice, and every seat's final score. `distil.py` trains a net on a recording from a checkpoint: the policy to the search's choice (or, with `--target soft`, to the candidates' values), the value head to the real outcome, held out by game, on imitate's fixed schedule. It reports held-out agreement with the search split by whether the search overruled the net, which is the number that matters: at the start it is 0 on the overruled decisions and 1 on the kept ones by construction. A Kaggle reading can chain record, distil and panel in one session (`docs/kaggle.md`). By the search reading's own counts, a 5-player self-play game holds about 680 searched decisions at 485 network rows each; what a T4 records in an hour is an assumption until the first session's `record.json` says.
+
+**e1, the first expert iteration, for the week's refresh**, on the second GPU of d2's session: record the search (three candidates, six rollouts) in self-play at 5 players on the seated net for about six hours with the skipped decisions kept, distil it into that net with the hard target, read the result on the panel.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | The recording's games cap under 10% | 65% |
+| 2 | Held out, the distilled net makes the search's move at 30% or more of the decisions where the search overruled it, and at 90% or more of those it kept | 65% |
+| 3 | The distilled net gains on its base: at its most likely move alone among four of it, 25% or more, its interval clear of par | 50% |
+| 4 | Its argmax mirror caps no more than its base's | 55% |
+
+What follows: 3 holds, the loop is closed once, and the next sessions repeat it on the new net (record, distil, read), with the recording grown as long as agreement on the overruled decisions keeps rising. 2 holds and 3 fails: the net copies the search's choices and doesn't play better, so the choices that matter are too rare or the six-rollout choice too noisy; the soft target and a recording with more rollouts are read next. 2 fails: the net can't fit the search's choices from this much data, and the recording is doubled before anything else changes.
 
 **c0 and c3 read: the deal makes a wave, the spread removes it, and c3 gained on b1-100.** One Kaggle session, both to iteration 75, never restarted. The panel is 512 games, 256 where a lone seat is read; the week's hours ran out before a sharp reading.
 

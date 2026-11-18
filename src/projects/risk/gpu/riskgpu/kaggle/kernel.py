@@ -16,7 +16,11 @@ with its task.
 
 A job may instead be readings of existing checkpoints (`readings`): each one tool of
 `READING_TOOLS` with its arguments, queued as the GPUs free, writing its output to `<tool>.json` in a
-folder of its own under `READINGS`, with nothing trained and nothing read after it.
+folder of its own under `READINGS`, with nothing trained and nothing read after it. A reading may be a
+chain (`steps`): its tools one after another on one GPU, in the one folder, each reading what the one
+before it wrote there (`record`, then `distil` on the recording, then `panel` on the distilled
+checkpoint), stopping at the first that fails. A training tool in a chain (`TRAINING_TOOLS`) is given
+the hours up to the readings' share, as a run is, so what follows it has those hours.
 
 The session's last hours (the job's `read_hours`, sized from a reading's measured cost) are kept for
 the readings: a training run is given the hours up to them, and the readings are taken newest first
@@ -47,7 +51,9 @@ TRAINERS = {"ppo": "runs/selfplay", "imitate": "runs/imitate"}
 # A one-off reading of existing checkpoints by one of these tools (`riskgpu.selfplay.<tool>`), each in a
 # folder of its own under READINGS, its output `<tool>.json` there.
 READINGS = "runs/readings"
-READING_TOOLS = ("search", "calibrate", "panel")
+READING_TOOLS = ("search", "calibrate", "panel", "record", "distil")
+# Tools that train, given the session's hours up to the readings' share (`--hours`), as a run is.
+TRAINING_TOOLS = ("distil",)
 
 
 def trainer_of(run: dict) -> str:
@@ -67,6 +73,15 @@ def reading_folder(reading: dict) -> str:
 
 def reading_output(reading: dict) -> str:
     return f"{reading_folder(reading)}/{reading['tool']}.json"
+
+
+def chain_steps(task: dict) -> list[dict]:
+    """A chain's steps, each a reading of its tool in the chain's folder (`steps`: the tools in
+    order, each reading what the one before it wrote there); any other task is its own one step."""
+    if "steps" not in task:
+        return [task]
+    rest = {k: v for k, v in task.items() if k != "steps"}
+    return [{**rest, **step} for step in task["steps"]]
 
 
 def find_bundle(input_dir: str, bundle_id: str) -> str:
@@ -145,6 +160,8 @@ def label(task: dict) -> str:
         return task["name"]
     if "tool" in task:
         return f"{task['name']} {task['tool']}"
+    if "steps" in task:
+        return f"{task['name']} {' then '.join(step['tool'] for step in task['steps'])}"
     return f"{task['name']} read {task['iter'] if 'iter' in task else task['reading']}"
 
 
@@ -183,7 +200,11 @@ class Session:
     def command(self, task: dict) -> list[str]:
         python = [sys.executable, "-u", "-m"]
         if "tool" in task:
-            return [*python, f"riskgpu.selfplay.{task['tool']}", *task["args"], "--out", reading_output(task)]
+            hours = []
+            if task["tool"] in TRAINING_TOOLS:
+                # A chain's training step stops itself at the hours before the readings' share.
+                hours = ["--hours", f"{max(0.0, (self.train_deadline - time.time()) / 3600):.3f}"]
+            return [*python, f"riskgpu.selfplay.{task['tool']}", *task["args"], *hours, "--out", reading_output(task)]
         name, folder = task["name"], run_folder(task)
         if task["kind"] == "train":
             # The hours left before the readings' share when the run starts, which the trainer stops itself at.
@@ -209,6 +230,12 @@ class Session:
         on a checkpoint's)."""
 
     def perform(self, task: dict, device: int) -> None:
+        """A task, or a chain's steps one after another on this GPU, stopping at the first that fails."""
+        for step in chain_steps(task):
+            if not self.perform_one(step, device):
+                return
+
+    def perform_one(self, task: dict, device: int) -> bool:
         name = task["name"]
         run_dir = os.path.join(self.working, name)
         cmd = self.command(task)
@@ -244,6 +271,7 @@ class Session:
             with self.lock:
                 # Newest checkpoints first across every run; sorted() keeps runs in order within a rank.
                 self.queue = sorted(self.queue + readings, key=lambda t: t.get("rank", -1))
+        return code == 0
 
     def worker(self, device: int) -> None:
         while (task := self.next_task()) is not None:
@@ -286,7 +314,7 @@ def main(job: dict) -> int:
     placed = restore(find_bundle(INPUT, job["bundle"]), gpu_dir, WORKING, job["runs"])
     print(f"restored {len(placed)} files", flush=True)
     for r in job["runs"] + readings:
-        folder = reading_folder(r) if "tool" in r else run_folder(r)
+        folder = reading_folder(r) if "tool" in r or "steps" in r else run_folder(r)
         link = os.path.join(gpu_dir, *folder.split("/"))
         os.makedirs(os.path.dirname(link), exist_ok=True)
         os.symlink(os.path.join(WORKING, r["name"]), link)

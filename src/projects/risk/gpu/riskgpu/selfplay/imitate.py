@@ -304,9 +304,7 @@ def replay(records: list[dict], teacher, board: Board, tables, device: str, chec
             main, amount, flagged = targets(sb, ob, move[idx], board, edge_of)
             exact_flagged = exact_targets(sb, ob, move[idx], board, edge_of)[2]
             lb = log.select(idx)
-            sample = {name: getattr(sb, name) for name in KEPT}
-            sample["armies"] = sample["armies"].to(torch.int16)
-            sample.update({name: getattr(lb, name) for name in LOG_FIELDS})
+            sample = kept_fields(sb, lb)
             sample.update({
                 "main": main.to(torch.int16), "amount": amount.to(torch.int8), "flagged": flagged,
                 "move": move[idx].to(torch.int16),
@@ -446,25 +444,43 @@ class Dataset:
         space `actions`."""
         game_scores = self.scores[self.x["game"][idx]].to(device)
         x = {k: v[idx].to(device, non_blocking=True) for k, v in self.x.items()}
-        n = idx.shape[0]
-        fields = {name: x[name] for name in KEPT}
-        fields["armies"] = fields["armies"].to(torch.int32)
-        fields["rng"] = torch.zeros(n, dtype=torch.int64, device=device)
-        fields["deck"] = torch.full((n, LAYOUT["deck"][0][0]), -1, dtype=torch.int8, device=device)
-        s = State(**{name: fields[name] for name in LAYOUT})
-        o = options(s, board)
         exact = actions == "exact"
-        legal = legal_main(o, exact)
-        node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board)
-        seat_of_slot, _ = slots(s)
-        value = game_scores.gather(1, seat_of_slot.clamp(min=0))
-        value_ok = seat_of_slot >= 0
+        b = rebuild(x, game_scores, board, exact)
+        s, o = b["s"], b["o"]
         if exact:
             main, amount, flagged, c = exact_targets(s, o, x["move"].to(torch.int64), board, edge_index(board))
         else:
             main, amount, flagged, c = x["main"].to(torch.int64), x["amount"].to(torch.int64), x["flagged"], None
-        return {"s": s, "o": o, "board": board, "legal": legal, "node": node, "slot": slot, "glob": glob_, "value": value,
-                "value_ok": value_ok, "main": main, "amount": amount, "flagged": flagged, "candidates": c, "x": x}
+        return {**b, "main": main, "amount": amount, "flagged": flagged, "candidates": c, "x": x}
+
+
+def kept_fields(s: State, log) -> dict[str, torch.Tensor]:
+    """What a sample keeps of a decision's state and turn so far to rebuild its observation
+    (`rebuild`): the state's `KEPT` fields, the armies narrowed, and the turn log's."""
+    sample = {name: getattr(s, name) for name in KEPT}
+    sample["armies"] = sample["armies"].to(torch.int16)
+    sample.update({name: getattr(log, name) for name in LOG_FIELDS})
+    return sample
+
+
+def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board, exact: bool) -> dict:
+    """Kept samples `x` (on the device, as `kept_fields` keeps them) back as states, with their
+    options, legal main choices, observation and value targets: `game_scores [N, 6]`, each sample's
+    game's score by seat, read for every present slot."""
+    n, device = x["players"].shape[0], x["players"].device
+    fields = {name: x[name] for name in KEPT}
+    fields["armies"] = fields["armies"].to(torch.int32)
+    fields["rng"] = torch.zeros(n, dtype=torch.int64, device=device)
+    fields["deck"] = torch.full((n, LAYOUT["deck"][0][0]), -1, dtype=torch.int8, device=device)
+    s = State(**{name: fields[name] for name in LAYOUT})
+    o = options(s, board)
+    legal = legal_main(o, exact)
+    node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board)
+    seat_of_slot, _ = slots(s)
+    value = game_scores.gather(1, seat_of_slot.clamp(min=0))
+    value_ok = seat_of_slot >= 0
+    return {"s": s, "o": o, "board": board, "legal": legal, "node": node, "slot": slot, "glob": glob_, "value": value,
+            "value_ok": value_ok}
 
 
 def forward(net: Net, b: dict, bf16: bool):
@@ -562,6 +578,32 @@ def train(args) -> None:
     if args.init:
         init_from(net, torch.load(args.init, map_location=device, weights_only=False))
         print(f"initialised from {args.init}", flush=True)
+
+    def loss_of(b: dict):
+        parts = losses(net, b, args.bf16)
+        return parts["main"] + args.amount_weight * parts["amount"] + args.vf * parts["value"], parts
+
+    def read_of() -> dict:
+        main_ok, move_ok, _, verr = agreement(net, data, monitor, board, device, args.bf16)
+        fit_main, fit_move, _, _ = agreement(net, data, fit_monitor, board, device, args.bf16)
+        return {"fit_main": round(float(fit_main.float().mean()), 5),
+                "fit_move": round(float(fit_move.float().mean()), 5),
+                "held_main": round(float(main_ok.float().mean()), 5), "held_move": round(float(move_ok.float().mean()), 5),
+                "held_value_mse": round(verr, 5), "_best": float(main_ok.float().mean())}
+
+    best, best_step = fit(net, args, out_dir, train_idx, lambda idx: data.inputs(idx, board, device, args.actions),
+                          loss_of, read_of, "held_main")
+    print(f"{args.name}: best held-out main agreement {best:.4f} at step {best_step}", flush=True)
+
+
+def fit(net: Net, args, out_dir: str, train_idx: torch.Tensor, batch_of, loss_of, read_of, best_key: str):
+    """The supervised trainers' loop (imitation's and the search's distillation): AdamW over
+    minibatches of `train_idx` in a fresh order each pass, at a fixed schedule over `--max-samples`
+    (a linear warmup, then a cosine fall to zero), stopped there or at `--hours`. Every
+    `--read-every` steps `read_of()` gives the read's numbers, its `_best` the score the kept
+    checkpoint (`best.pt`, with that score under `best_key`) maximises; the read never moves the
+    rate. `batch_of(idx)` builds a minibatch, `loss_of(b)` its `(loss, parts)`. Returns the best
+    score and its step."""
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.wd, eps=1e-6)
     total_steps = math.ceil(args.max_samples / args.minibatch)
 
@@ -581,9 +623,7 @@ def train(args) -> None:
         for at in range(0, len(perm) - args.minibatch + 1, args.minibatch):
             for group in opt.param_groups:
                 group["lr"] = lr_at(step_)
-            b = data.inputs(perm[at:at + args.minibatch], board, device, args.actions)
-            parts = losses(net, b, args.bf16)
-            loss = parts["main"] + args.amount_weight * parts["amount"] + args.vf * parts["value"]
+            loss, parts = loss_of(batch_of(perm[at:at + args.minibatch]))
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
@@ -595,20 +635,16 @@ def train(args) -> None:
             samples += args.minibatch
             out_of_time = args.hours is not None and time.time() - t0 > args.hours * 3600
             if step_ % args.read_every == 0 or step_ >= total_steps or out_of_time:
-                main_ok, move_ok, _, verr = agreement(net, data, monitor, board, device, args.bf16)
-                held = float(main_ok.float().mean())
-                fit_main, fit_move, _, _ = agreement(net, data, fit_monitor, board, device, args.bf16)
+                read = read_of()
+                score = read.pop("_best")
                 record = {"step": step_, "samples": samples, "epoch": round(samples / len(train_idx), 3),
                           "lr": lr_at(step_), **{f"train_{k}": round(v / count, 5) for k, v in sums.items()},
-                          "fit_main": round(float(fit_main.float().mean()), 5),
-                          "fit_move": round(float(fit_move.float().mean()), 5),
-                          "held_main": round(held, 5), "held_move": round(float(move_ok.float().mean()), 5),
-                          "held_value_mse": round(verr, 5), "seconds": round(time.time() - t0, 1),
+                          **read, "seconds": round(time.time() - t0, 1),
                           "samples_per_s": round(samples / (time.time() - t0))}
                 sums, count = {}, 0
-                if held > best:
-                    best, best_step = held, step_
-                    torch.save({"net": net.state_dict(), "config": net.config(), "step": step_, "held_main": held},
+                if score > best:
+                    best, best_step = score, step_
+                    torch.save({"net": net.state_dict(), "config": net.config(), "step": step_, best_key: score},
                                os.path.join(out_dir, "best.pt"))
                 record["best"] = round(best, 5)
                 if out_of_time and step_ < total_steps:
@@ -622,7 +658,7 @@ def train(args) -> None:
     torch.save({"net": net.state_dict(), "config": net.config(), "step": step_}, os.path.join(out_dir, "last.pt"))
     if step_ < total_steps:
         print(f"{args.name}: stopped on the hours (--hours {args.hours}) at step {step_} of {total_steps}", flush=True)
-    print(f"{args.name}: best held-out main agreement {best:.4f} at step {best_step}", flush=True)
+    return best, best_step
 
 
 # --- the read ----------------------------------------------------------------------------------

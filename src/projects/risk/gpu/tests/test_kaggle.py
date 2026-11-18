@@ -235,3 +235,69 @@ def test_an_imitation_push_is_refused_before_upload_if_its_trainer_would_refuse_
         run_args([*IMITATION, "--max-samples", "5M"], "", "NvidiaTeslaT4", no_stop=False, trainer="imitate")
     with pytest.raises(AssertionError):
         run_args([*IMITATION, "--hours", "3"], "", "NvidiaTeslaT4", no_stop=False, trainer="imitate")
+
+
+CHAIN = ("it1=record --ckpt runs/selfplay/b1/snap-100.pt --dir runs/readings/it1/rec --games 64 --no-bf16 ; "
+         "distil --data runs/readings/it1/rec --init runs/selfplay/b1/snap-100.pt --dir runs/readings/it1/net --no-bf16 ; "
+         "panel --ckpt runs/readings/it1/net/best.pt --no-bf16")
+
+
+def test_a_chain_runs_its_steps_in_turn_on_one_gpu_its_training_step_leaving_the_readings_hours(tmp_path, monkeypatch):
+    import pytest
+    from riskgpu.kaggle import launch
+    chain = launch.reading_spec(CHAIN)
+    assert [s["tool"] for s in chain["steps"]] == ["record", "distil", "panel"]
+    launch.check_reading(chain, full_precision=True)
+    with pytest.raises(AssertionError, match="drop --hours"):
+        launch.check_reading(launch.reading_spec(CHAIN.replace("--dir runs/readings/it1/net", "--hours 2 --dir x")), True)
+    # Only what the chain doesn't make itself is uploaded: the checkpoint it starts from, not the one it trains.
+    gpu_tree(tmp_path, ["data/blitz-256.bin", "data/blitz-256.json", "runs/selfplay/b1/snap-100.pt"])
+    monkeypatch.setattr(launch, "GPU", str(tmp_path))
+    from riskgpu.selfplay import panel
+    monkeypatch.setattr(panel, "ANCHORS", ())
+    assert launch.reading_files(chain) == ["data/blitz-256.bin", "data/blitz-256.json", "runs/selfplay/b1/snap-100.pt"]
+    # A recording an earlier session made goes whole, with what it was made from.
+    gpu_tree(tmp_path, ["runs/readings/r0/rec/recording.json", "runs/readings/r0/rec/shard-00000.pt"])
+    later = launch.reading_spec("d1=distil --data runs/readings/r0/rec --init runs/selfplay/b1/snap-100.pt --dir "
+                                "runs/readings/d1/net --no-bf16")
+    assert set(launch.reading_files(later)) >= {"runs/readings/r0/rec/recording.json",
+                                                 "runs/readings/r0/rec/shard-00000.pt"}
+
+    monkeypatch.setattr(kernel, "WORKING", str(tmp_path))
+    (tmp_path / "it1").mkdir()
+
+    def session_running(fail: str | None):
+        session = kernel.Session({"runs": [], "readings": [chain], "read_hours": 1}, str(tmp_path), gpus=2,
+                                 deadline=time.time() + 7200)
+        done = []
+
+        def command(task):
+            cmd = kernel.Session.command(session, task)
+            done.append(cmd)
+            return [sys.executable, "-c", f"raise SystemExit({int(task['tool'] == fail)})"]
+        monkeypatch.setattr(session, "command", command)
+        return session, done
+
+    session, done = session_running(fail=None)
+    session.run()
+    record, distil, read = [c[3:] for c in done]
+    assert record[0] == "riskgpu.selfplay.record" and record[-2:] == ["--out", "runs/readings/it1/record.json"]
+    assert distil[0] == "riskgpu.selfplay.distil" and distil[-4] == "--hours" and 0.9 < float(distil[-3]) <= 1.0
+    assert read[0] == "riskgpu.selfplay.panel" and read[-1] == "runs/readings/it1/panel.json"
+    assert session.failed == []
+    # A step that fails stops the chain: nothing reads what it didn't write.
+    session, done = session_running(fail="record")
+    with pytest.raises(SystemExit):
+        session.run()
+    assert len(done) == 1 and session.failed == ["it1 record (1)"]
+
+
+def test_a_chains_folders_come_home_whole(tmp_path, monkeypatch):
+    from riskgpu.kaggle import launch
+    monkeypatch.setattr(launch, "GPU", str(tmp_path))
+    job = {"runs": [], "readings": [launch.reading_spec(CHAIN)], "guard_sha256": {}}
+    files = ["kaggle-sessions.jsonl", "record.json", "rec/recording.json", "rec/shard-00000.pt", "net/best.pt"]
+    gpu_tree(tmp_path / "output", [f"it1/{f}" for f in files])
+    launch.copy_back(job, str(tmp_path / "output"))
+    for f in files:
+        assert (tmp_path / "runs" / "readings" / "it1" / f).read_text() == f"it1/{f}"
