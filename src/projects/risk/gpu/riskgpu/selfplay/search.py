@@ -276,12 +276,15 @@ class Searcher:
         for k, name in KIND_NAMES.items():
             self.skipped[name] += int((self.searchable[kind] & ~go & (kind == k)).sum())
         moves = first.clone()
-        detail = {"rows": [], "candidates": [], "means": [], "chosen": []}
+        # `go`, `forced` and `main0`/`a0` (the first choice's main choice and amount) are what a
+        # recording of the decisions not searched keeps.
+        detail = {"rows": [], "candidates": [], "means": [], "chosen": [], "overruled": [], "grid": [],
+                  "go": go, "forced": forced, "main0": main0, "a0": za0.argmax(1)}
         todo = go.nonzero()[:, 0]
         per = max(1, cfg.max_copies // (cfg.k * cfg.r))
         for at in range(0, todo.shape[0], per):
             idx = todo[at:at + per]
-            cand, cand_ok = self.candidates(s.select(idx), o.select(idx), x[idx], z[idx], first[idx])
+            cand, cand_ok, grid = self.candidates(s.select(idx), o.select(idx), x[idx], z[idx], first[idx])
             means = self.score(s.select(idx), log.select(idx), places[idx], in_game[idx], base[idx], decision[idx],
                                cand, cand_ok)
             best = means.argmax(1)
@@ -298,11 +301,16 @@ class Searcher:
             detail["candidates"].append(cand)
             detail["means"].append(means)
             detail["chosen"].append(pick)
+            detail["overruled"].append(better)
+            detail["grid"].append(grid)
         return moves, detail
 
     def candidates(self, s: State, o: Options, x: torch.Tensor, z: torch.Tensor, first: torch.Tensor):
-        """`(moves [E, K, 5], legal [E, K])`: the first choice, then the most likely of the rest of
-        the grid of the K most likely main choices by their K most likely amounts."""
+        """`(moves [E, K, 5], legal [E, K], grid)`: the first choice, then the most likely of the
+        rest of the grid of the K most likely main choices by their K most likely amounts. `grid`
+        holds each candidate in the network's own space (`main`, `amount` [E, K]: the main choice and
+        the amount bucket or argument slot) and the network's probabilities of them (`p_main`,
+        `p_amount` [E, K]: the main choice's, and the amount's given that main choice)."""
         e, k = s.batch, self.cfg.k
         dev = self.device
         lp_main = torch.log_softmax(z, 1)
@@ -353,10 +361,13 @@ class Searcher:
         # The first candidate is the first choice exactly as the real game computed it.
         moves[:, 0] = first
         cand_ok[:, 0] = True
+        grid = {"main": cand_main, "amount": cand_amount, "p_main": lp_main.gather(1, cand_main).exp(),
+                "p_amount": la.gather(1, amounts).view(e, km * ka).gather(1, pick).exp()}
         if n_cand < k:
             moves = torch.cat([moves, moves[:, :1].expand(-1, k - n_cand, -1)], 1)
             cand_ok = torch.cat([cand_ok, torch.zeros(e, k - n_cand, dtype=torch.bool, device=dev)], 1)
-        return moves, cand_ok
+            grid = {name: torch.cat([v, v[:, :1].expand(-1, k - n_cand)], 1) for name, v in grid.items()}
+        return moves, cand_ok, grid
 
     # --- the copies ------------------------------------------------------------------------------
 
@@ -447,14 +458,15 @@ class Searcher:
 
     # --- whole games -----------------------------------------------------------------------------
 
-    def play(self, seeds: list[str], players: int, searcher: torch.Tensor, raw_greedy: bool,
-             progress: bool = False) -> dict:
+    def play(self, seeds: list[str], players: int | list[int], searcher: torch.Tensor, raw_greedy: bool,
+             progress: bool = False, recorder=None) -> dict:
         """Plays every game to its end or cap: the seats in `searcher [G, 6]` search, the rest play
-        the raw network (its first choice, or sampled). Returns each game's winner (−1 capped) and
-        its turns."""
+        the raw network (its first choice, or sampled). Returns each game's winner (−1 capped), its
+        turns and every seat's score (`env.scores`). `players` is every game's table size, or each
+        game's. A `recorder` (`record.py`) is shown every searching seat's decision as it is made."""
         cfg, dev = self.cfg, self.device
         g = len(seeds)
-        s = new_games(seeds, [players] * g, self.board, dev)
+        s = new_games(seeds, [players] * g if isinstance(players, int) else list(players), self.board, dev)
         log = TurnLog.empty(g, dev)
         places = torch.ones(g, MAX_SEATS, dtype=torch.int64, device=dev)
         in_game = s.players.to(torch.int64).clone()
@@ -479,9 +491,13 @@ class Searcher:
             move = torch.where(searching[:, None], first, first if raw_greedy else sampled)
             if bool(searching.any()):
                 w = searching.nonzero()[:, 0]
-                chosen, _ = self.choose(sub.select(w), so.select(w), slog.select(w), places[idx[w]], in_game[idx[w]],
-                                        base[idx[w]], decision[idx[w]], x[w], logits[w], legal[w], first[w])
+                chosen, detail = self.choose(sub.select(w), so.select(w), slog.select(w), places[idx[w]],
+                                             in_game[idx[w]], base[idx[w]], decision[idx[w]], x[w], logits[w], legal[w],
+                                             first[w])
                 move[w] = chosen
+                if recorder is not None:
+                    recorder.decisions(sub.select(w), so.select(w), slog.select(w), idx[w], decision[idx[w]], first[w],
+                                       chosen, detail)
             moves = torch.zeros(g, 5, dtype=torch.int64, device=dev)
             moves[idx] = move
             self.advance(s, log, places, in_game, moves, live)
@@ -491,7 +507,8 @@ class Searcher:
                 print(f"  step {steps}: {int(live.sum())} games running, turn {int(s.turn.max())}, "
                       f"{sum(self.searched.values())} searched, {time.time() - started:.0f}s", flush=True)
         won = s.phase == 3
-        return {"winner": torch.where(won, s.winner.to(torch.int64), -1).cpu(), "turns": s.turn.cpu(), "state": s}
+        return {"winner": torch.where(won, s.winner.to(torch.int64), -1).cpu(), "turns": s.turn.cpu(), "state": s,
+                "scores": scores(s.players, places, s.eliminated, won, in_game).cpu()}
 
 
 # --- the reading ---------------------------------------------------------------------------------

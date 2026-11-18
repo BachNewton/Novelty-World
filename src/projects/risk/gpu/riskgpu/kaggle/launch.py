@@ -27,9 +27,14 @@ A PPO session must stop on a plateau (`--stop-when` with `--stop-key`) unless `-
 spend its hours regardless, so the week's quota isn't spent on a flat run. An imitation stops at its
 budget of samples (`--max-samples`).
 
-A push of readings (`--read`) trains nothing: its session's queue is one-off readings of existing
-checkpoints by a reading tool (`search`, `calibrate` or `panel`), each checked by the tool's own
-parser before anything is uploaded and written to `runs/readings/<name>/`.
+A push of readings (`--read`) trains no run: its session's queue is one-off readings of existing
+checkpoints by a reading tool (`search`, `calibrate`, `panel`, `record` or `distil`), each checked by
+the tool's own parser before anything is uploaded and written to `runs/readings/<name>/`. A reading
+may chain tools with ` ; ` (`--read it1="record --dir runs/readings/it1/rec ... ; distil --data
+runs/readings/it1/rec --dir runs/readings/it1/net ... ; panel --ckpt runs/readings/it1/net/best.pt
+..."`): its steps run one after another on one GPU, each reading what the one before it wrote in the
+chain's folder, and a training step (`distil`) stops `--read-hours` before the session's end, which
+the steps after it then have.
 """
 
 import argparse
@@ -47,7 +52,8 @@ import uuid
 
 from ..board import DATA
 from ..selfplay.verdict import panel_readings, verdict
-from .kernel import READING_TOOLS, READINGS, TRAINERS, reading_folder, run_folder, trainer_of
+from .kernel import (READING_TOOLS, READINGS, TRAINERS, TRAINING_TOOLS, chain_steps, reading_folder, run_folder,
+                     trainer_of)
 
 GPU = os.path.dirname(DATA)
 STAGING = os.path.join(GPU, "runs", "kaggle")
@@ -72,13 +78,22 @@ def reading_dir(reading: dict) -> str:
 
 
 def reading_spec(spec: str) -> dict:
-    """`<name>=<tool> <its arguments>` as a reading, the arguments kept verbatim."""
+    """`<name>=<tool> <its arguments>` as a reading, the arguments kept verbatim; or a chain,
+    `<name>=<tool> <args> ; <tool> <args> ...`, its steps run in order in the reading's one folder."""
     name, sep, rest = spec.partition("=")
     words = shlex.split(rest)
     assert sep and words, f"a reading is <name>=<tool> <its arguments>: {spec!r}"
     assert READING_NAME.fullmatch(name), f"{name!r}: a reading's name is letters, digits, '.', '_' and '-'"
-    assert words[0] in READING_TOOLS, f"{name}: {words[0]} isn't a reading tool ({', '.join(READING_TOOLS)})"
-    return {"name": name, "tool": words[0], "args": words[1:]}
+    steps, at = [], 0
+    for i in [j for j, w in enumerate(words) if w == ";"] + [len(words)]:
+        step = words[at:i]
+        at = i + 1
+        assert step, f"{name}: an empty step in {spec!r}"
+        assert step[0] in READING_TOOLS, f"{name}: {step[0]} isn't a reading tool ({', '.join(READING_TOOLS)})"
+        steps.append({"tool": step[0], "args": step[1:]})
+    tools = [s["tool"] for s in steps]
+    assert len(set(tools)) == len(tools), f"{name}: a chain's steps write <tool>.json in one folder: one of each tool"
+    return {"name": name, **steps[0]} if len(steps) == 1 else {"name": name, "steps": steps}
 
 
 class _Parsed(Exception):
@@ -106,31 +121,42 @@ def tool_namespace(tool: str, args: list[str]) -> argparse.Namespace:
 
 
 def check_reading(reading: dict, full_precision: bool) -> None:
-    """A reading's arguments, refused here, before any upload, if its tool would refuse them or they
-    would idle or fail a GPU that is already paid for."""
-    ns = tool_namespace(reading["tool"], reading["args"])
-    name = reading["name"]
-    assert not ns.out, f"{name}: a reading's output is the launcher's ({reading['tool']}.json in its folder): drop --out"
-    assert getattr(ns, "device", "cuda") == "cuda", f"{name}: a reading runs on its GPU: drop --device {ns.device}"
-    # search's default (None) is bf16 on CUDA, as the others' True is.
-    bf16 = ns.bf16 is not False
-    if full_precision:
-        assert not bf16, f"{name}: this GPU has no native bfloat16: give the reading --no-bf16"
+    """A reading's arguments (each step's, for a chain), refused here, before any upload, if its tool
+    would refuse them or they would idle or fail a GPU that is already paid for."""
+    for step in chain_steps(reading):
+        ns = tool_namespace(step["tool"], step["args"])
+        name = f"{reading['name']} {step['tool']}"
+        assert not ns.out, f"{name}: a reading's output is the launcher's ({step['tool']}.json in its folder): drop --out"
+        assert getattr(ns, "device", "cuda") == "cuda", f"{name}: a reading runs on its GPU: drop --device {ns.device}"
+        if step["tool"] in TRAINING_TOOLS:
+            assert ns.hours is None, f"{name}: a training step's hours are the launcher's: drop --hours"
+        # search's and record's default (None) is bf16 on CUDA, as the others' True is.
+        bf16 = ns.bf16 is not False
+        if full_precision:
+            assert not bf16, f"{name}: this GPU has no native bfloat16: give the reading --no-bf16"
 
 
 def reading_files(reading: dict) -> list[str]:
     """Every file a reading reads that the repo doesn't carry: the blitz tables, every checkpoint its
     arguments name and, for the panel, its anchors, as paths relative to the GPU folder."""
     files = ["data/blitz-256.bin", "data/blitz-256.json"]
-    for arg in reading["args"]:
-        for word in re.split(r"[,=]", arg):
-            if word.endswith(".pt"):
-                assert CHECKPOINT.fullmatch(word), \
-                    f"{reading['name']}: give {word} as a path under runs/, relative to the GPU folder, with '/'"
-                files.append(word)
-    if reading["tool"] == "panel":
-        from ..selfplay.panel import ANCHORS
-        files += [os.path.relpath(path, GPU).replace("\\", "/") for _, path in ANCHORS]
+    # What a chain's steps write into its own folder is read there, never uploaded.
+    own = reading_folder(reading) + "/"
+    for step in chain_steps(reading):
+        for arg in step["args"]:
+            for word in re.split(r"[,=]", arg):
+                folder = os.path.join(GPU, *word.split("/"))
+                if word.startswith("runs/") and not word.startswith(own) and os.path.isdir(folder):
+                    # A folder this checkout holds (an earlier session's recording) goes whole.
+                    files += [f"{word.rstrip('/')}/{f}" for f in sorted(os.listdir(folder))
+                              if os.path.isfile(os.path.join(folder, f)) and f not in LOCAL_ONLY]
+                elif word.endswith(".pt") and not word.startswith(own):
+                    assert CHECKPOINT.fullmatch(word), \
+                        f"{reading['name']}: give {word} as a path under runs/, relative to the GPU folder, with '/'"
+                    files.append(word)
+        if step["tool"] == "panel":
+            from ..selfplay.panel import ANCHORS
+            files += [os.path.relpath(path, GPU).replace("\\", "/") for _, path in ANCHORS]
     unique = list(dict.fromkeys(files))
     missing = [f for f in unique if not os.path.exists(os.path.join(GPU, f))]
     assert not missing, f"{reading['name']} would read files this checkout lacks: {missing}"
@@ -344,11 +370,15 @@ def push_readings(args: argparse.Namespace) -> int:
         check_new_reading(r)
     if args.dry_run:
         for r in readings:
-            print(f"{reading_folder(r)}: {shlex.join([r['tool'], *r['args']])}")
+            print(f"{reading_folder(r)}: {' ; '.join(shlex.join([s['tool'], *s['args']]) for s in chain_steps(r))}")
+        hours = readings_hours(readings, args)
+        if hours:
+            print(f"a chain's training step stops {hours:g} hours before the session's end, kept for the steps after it")
         return dry_run(args, [], [f for r in readings for f in reading_files(r)])
     commit = checkout_commit()
     files = list(dict.fromkeys(f for r in readings for f in reading_files(r)))
-    job = {"commit": commit, "runs": [], "readings": readings, "session_hours": args.session_hours, "read_hours": 0}
+    job = {"commit": commit, "runs": [], "readings": readings, "session_hours": args.session_hours,
+           "read_hours": readings_hours(readings, args)}
     record = start_session(args, "-".join(names), files, job)
     for r in readings:
         os.makedirs(reading_dir(r), exist_ok=True)
@@ -356,6 +386,15 @@ def push_readings(args: argparse.Namespace) -> int:
             json.dump({**record, "guard_sha256": {}}, f, indent=1)
     print(f"pushed {record['kernel']} at {commit[:8]}: `status {names[0]}` while it runs, `fetch {names[0]}` once it ends")
     return 0
+
+
+def readings_hours(readings: list[dict], args: argparse.Namespace) -> float:
+    """The session's last hours a chain's training step leaves to the steps after it (`--read-hours`);
+    none where no reading trains."""
+    if not any(step["tool"] in TRAINING_TOOLS for r in readings for step in chain_steps(r)):
+        return 0
+    assert 0 <= args.read_hours < args.session_hours, "the readings' hours are the end of the session's, not more"
+    return args.read_hours
 
 
 def dry_run(args: argparse.Namespace, runs: list[dict], files: list[str]) -> int:
@@ -445,9 +484,8 @@ def copy_back(job: dict, output: str, marker: str = "kaggle-sessions.jsonl") -> 
         found = [root for root, _, files in os.walk(output)
                  if os.path.basename(root) == name and marker in files]
         assert len(found) == 1, f"the session's output holds no folder for {name}; its log is in {output}"
-        os.makedirs(dest, exist_ok=True)
-        for f in os.listdir(found[0]):
-            shutil.copyfile(os.path.join(found[0], f), os.path.join(dest, f))
+        # A chain's steps leave folders of their own (a recording's shards, a distillation's run).
+        shutil.copytree(found[0], dest, dirs_exist_ok=True)
 
 
 def fetch(args: argparse.Namespace) -> int:
@@ -492,22 +530,32 @@ def report_reading(name: str) -> None:
     """A fetched reading's output, in its tool's own table."""
     folder = reading_dir({"name": name})
     outputs = [t for t in READING_TOOLS if os.path.exists(os.path.join(folder, f"{t}.json"))]
-    assert len(outputs) == 1, (f"{reading_folder({'name': name})} holds no reading's output: it didn't finish, "
-                               "or isn't fetched yet; its out.txt and err.txt say why")
-    tool = outputs[0]
-    with open(os.path.join(folder, f"{tool}.json")) as f:
-        out = json.load(f)
-    print(f"{name}: {tool} on {out['ckpt']}")
-    if tool == "search":
-        from ..selfplay.search import print_table
-        print_table(out)
-    elif tool == "calibrate":
-        from ..selfplay.calibrate import table
-        for which in ("mirror", "mixed"):
-            if which in out:
-                print(table(which, out[which]))
-    else:
-        print_panel(out)
+    assert outputs, (f"{reading_folder({'name': name})} holds no reading's output: it didn't finish, "
+                     "or isn't fetched yet; its out.txt and err.txt say why")
+    for tool in outputs:
+        with open(os.path.join(folder, f"{tool}.json")) as f:
+            out = json.load(f)
+        if tool == "record":
+            print(f"{name}: record of {out['config']['ckpt']}: {out['games']} games, {out['searched']} searched "
+                  f"(overruled {out['overruled_share']:.3f}), {out['work_per_search']:,.0f} work a search")
+        elif tool == "distil":
+            print(f"{name}: distil from {out['init']}, held-out move agreement with the search:")
+            r = out["held_out"]["move"]
+            for what, row in [("searched", r["searched"]), *r["by_source"].items()]:
+                if row is not None:
+                    print(f"    {what:10s} {row['share']:.4f} [{row['lo']:.4f}, {row['hi']:.4f}] of {row['n']}")
+        else:
+            print(f"{name}: {tool} on {out['ckpt']}")
+        if tool == "search":
+            from ..selfplay.search import print_table
+            print_table(out)
+        elif tool == "calibrate":
+            from ..selfplay.calibrate import table
+            for which in ("mirror", "mixed"):
+                if which in out:
+                    print(table(which, out[which]))
+        elif tool == "panel":
+            print_panel(out)
 
 
 def report_run(run: dict, key: str | None) -> None:

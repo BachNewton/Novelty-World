@@ -481,6 +481,7 @@ def readings_of(args: argparse.Namespace) -> list[dict]:
     names = [r["name"] for r in readings]
     assert len(set(names)) == len(names), "two readings share a name"
     for r in readings:
+        assert "steps" not in r, f"{r['name']}: a chain of tools runs on Kaggle; a Modal reading is one tool"
         kaggle.check_reading(r, full_precision=args.gpu in FULL_PRECISION)
         kaggle.check_new_reading(r)
     return readings
