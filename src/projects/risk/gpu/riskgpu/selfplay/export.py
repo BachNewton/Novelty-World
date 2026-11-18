@@ -45,6 +45,7 @@ def b64(t: torch.Tensor) -> str:
 def weights_object(state: dict[str, torch.Tensor]) -> dict:
     """The weight set as the TypeScript reads it (`NetWeights` in `bots/net-v1/network.ts`)."""
     c = shape_of(state)
+    assert not c["clock"], "the TypeScript bots don't read the clock (the turns left before the cap) yet"
     return {"width": c["width"], "layers": c["layers"], "heads": c["heads"], "ff": c["ff_mult"] * c["width"],
             "tensors": {name: b64(t) for name, t in state.items()}}
 

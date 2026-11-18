@@ -25,6 +25,12 @@ choice existed was trained with `acting`).
 `--actions` chooses a new network's action space (`actions.py`): the buckets, or the exact space,
 which `--init` may start from a bucket-space checkpoint's trunk and main heads, its argument head
 fresh. The league, the evaluations and the panel seat each network in its own space.
+
+Two levers on the stall, each off by default: `--time-discount` discounts a win's score by the
+game's length (`env.py`, "A sooner win"), so `learner_score` and the value targets are then on the
+discounted scale and `learner_score_undiscounted` is logged beside them; `--obs-turn` gives a new
+network the clock, the turns left before its game's cap (`obs.py`), which `--init` from a net
+without it starts at zero weight. A resumed run keeps both, as it keeps every `RECIPE` choice.
 """
 
 import argparse
@@ -67,7 +73,7 @@ def state_of(at, t: torch.Tensor) -> State:
 
 
 # What a held-back decision keeps of the buffer: what `update` rebuilds it from and trains it on.
-CARRIED = KEPT + list(LOG_FIELDS) + ["main", "amount", "logp", "value"]
+CARRIED = KEPT + list(LOG_FIELDS) + ["main", "amount", "logp", "value", "cap"]
 
 
 class Carry:
@@ -330,7 +336,8 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
                 with torch.no_grad():
                     o = options(s, board)
                     legal = legal_main(o, net.exact)
-                    node, slot, glob = observe(s, o, at("placed_on"), at("attacks"), at("captured"), board)
+                    node, slot, glob = observe(s, o, at("placed_on"), at("attacks"), at("captured"), board,
+                                               at("cap") if net.clock else None)
                     seat_of_slot, _ = slots(s)
                     adv = (targets["adv"][t, b] - adv_mean) / adv_std
                     ret = targets["ret"][t, b]
@@ -419,6 +426,8 @@ def summarize(stats: dict, kinds: list[str]) -> dict:
         seats = stats["seats"][k]
         if seats > 0:
             out[f"{name}_score"] = stats["score"][k] / seats
+            if "score_undiscounted" in stats:
+                out[f"{name}_score_undiscounted"] = stats["score_undiscounted"][k] / seats
             out[f"{name}_win"] = stats["wins"][k] / max(stats["decisive_seats"][k], 1)
             out[f"{name}_seats"] = seats
     return out
@@ -667,6 +676,8 @@ RECIPE = {
     "cap_score": ("loss", "survivors"),
     "serve": ("oldest", "lowest"),
     "deal_spread": (0, 0),
+    "time_discount": (1.0, 1.0),
+    "obs_turn": (False, False),
 }
 
 
@@ -742,6 +753,14 @@ def parser() -> argparse.ArgumentParser:
                    help="at every start and resume, play this many rollouts untrained, the first deal's games cut at "
                         "times spread through them, so training starts on games at every stage (0: none, a new run's "
                         "default); a resumed run keeps the one it was trained with")
+    p.add_argument("--time-discount", type=float, default=None,
+                   help="a win's score falls by this factor every 100 player-turns of the game, so a sooner win is "
+                        "worth more; losses are not discounted (1: off, a new run's default); a resumed run keeps the "
+                        "one it was trained with")
+    p.add_argument("--obs-turn", action=argparse.BooleanOptionalAction, default=None,
+                   help="the network reads the player-turns left before its game's cap (the turn so far is always an "
+                        "input); --init from a net without it starts the new input's weights at zero (off: a new "
+                        "run's default); a resumed run keeps the one it was trained with")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -798,15 +817,18 @@ def main(argv: list[str] | None = None) -> int:
     board = Board.load(device)
     tables = BlitzTables.load(os.path.join(DATA, "blitz-256"), device)
     tables.scaled_oversize = True
-    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions).to(device)
+    latest = os.path.join(out_dir, "latest.pt")
+    ck = torch.load(latest, map_location=device, weights_only=False) if args.resume and os.path.exists(latest) else None
+    # Before the net is built: the recipe says whether it reads the clock.
+    resolve_recipe(args, None if ck is None else ck.get("args", {}))
+    net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions,
+              clock=args.obs_turn).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
     iteration, steps_done, league = 0, 0, []
     # Each own snapshot's record while it held a league slot: [seats won, seats in decisive games].
     record_of: dict[str, list[float]] = {}
     trained_s = 0.0
-    latest = os.path.join(out_dir, "latest.pt")
-    if args.resume and os.path.exists(latest):
-        ck = torch.load(latest, map_location=device, weights_only=False)
+    if ck is not None:
         net.load_state_dict(ck["net"])
         opt.load_state_dict(ck["opt"])
         iteration, steps_done = ck["iteration"], ck["steps"]
@@ -814,11 +836,9 @@ def main(argv: list[str] | None = None) -> int:
         league = [p.replace("\\", "/") for p in ck["league"]]
         record_of = {p.replace("\\", "/"): r for p, r in ck.get("record_of", {}).items()}
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
-        resolve_recipe(args, ck.get("args", {}))
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
-    else:
-        resolve_recipe(args, None)
     assert args.deal_spread >= 0, "--deal-spread is a count of rollouts"
+    assert 0 < args.time_discount <= 1, "--time-discount is a factor in (0, 1]"
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -834,7 +854,8 @@ def main(argv: list[str] | None = None) -> int:
         from ..bots.gd import gd_bot_graphable
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
-                    reward=args.reward, cap_score=args.cap_score, serve=args.serve, snapshots=args.snapshots, bf16=args.bf16)
+                    reward=args.reward, cap_score=args.cap_score, serve=args.serve, time_discount=args.time_discount,
+                    snapshots=args.snapshots, bf16=args.bf16)
     fixed = [x for x in args.league_fixed.split(",") if x]
     assert len(fixed) < cfg.snapshots, "leave the league a slot for this run's own snapshots"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
@@ -986,7 +1007,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
-                 if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "gd-stacker_score", "capped",
+                 if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_score_undiscounted", "learner_win", "greedy_score", "gd-stacker_score", "capped",
                           "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_explained", "v", "unserved", "longest_wait", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:

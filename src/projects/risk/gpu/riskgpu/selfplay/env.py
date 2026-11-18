@@ -15,8 +15,19 @@ or `survivors` (the rule before the choice existed), each as k-th of n (k surviv
 below −1, which pays two survivors −0.5 each, above the bottom half of real finishes, so a seat that
 expects to lose does better by never finishing. The seats out before the cap keep their place's score.
 
+**A sooner win** (`time_discount`, g; 1 is off). The winner's +1 is g^(turn / 100), the game's
+length in player-turns read off its last turn: g = 0.9 makes a win at turn 100 worth 0.9 and one at
+600 worth 0.53. Only the win is discounted: a loss discounted too would pay a losing seat for
+putting its loss off, the stall again. It sits in the terminal score, not in GAE's γ, so every
+target (the GAE return, a held decision's, the other slots' final scores) reads the same number,
+and since the turn is among the inputs (`obs.py`), the value of a position stays a function of what
+the net sees. γ per decision would also tax a turn by its decisions, so attacking more than ending.
+The win rate in the statistics stays the undiscounted count; the mean score is the discounted one,
+with the undiscounted beside it (`score_undiscounted`).
+
 **The turn cap is drawn per game** (`cap_low` to `cap_high` player-turns), so a policy can't count
-on outlasting a clock it knows.
+on outlasting a clock it knows, unless its net reads the clock (`Net.clock`): then each of its
+decisions sees the turns left before its own game's cap.
 
 **Service under saturation** (`serve`). Each controller runs on at most its capacity of rows a step;
 a row due past it waits the step (`waited` counts the steps in a row it has waited, by controller in
@@ -31,6 +42,7 @@ jitter from a device stream rather than the harness's), 6 + k the k-th snapshot 
 from `kind_probs`, which the trainer may change between rollouts.
 """
 
+import math
 from dataclasses import dataclass, fields
 from types import SimpleNamespace
 
@@ -82,17 +94,20 @@ class EnvConfig:
     serve: str = "lowest"  # which due rows a saturated controller serves: "lowest" or "oldest"
     reward: str = "win"  # `scores`: "win" or "place"
     cap_score: str = "survivors"  # `scores`: a capped game's survivors, "survivors" or "loss"
+    time_discount: float = 1.0  # `scores`: a win's score falls by this factor every 100 player-turns (1: off)
     gd: bool = False  # build the GD personas (slow to build: their odds tables)
     cap_gd: tuple[float, ...] = (0.2, 0.2, 0.2, 0.08)  # by persona; Stacker's walk is the costly one
 
 
 def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor, won: torch.Tensor,
-           in_game: torch.Tensor, reward: str = "win", cap_score: str = "survivors") -> torch.Tensor:
+           in_game: torch.Tensor, reward: str = "win", cap_score: str = "survivors",
+           turn: torch.Tensor | None = None, time_discount: float = 1.0) -> torch.Tensor:
     """`[B, 6]` float32, each seat's score for a game that just ended (0 for absent seats).
     `place`: linear in the place, +1 first to −1 last. `win`: +1 for the win, the other places
     linear from 0 (second) to −1 (last), so second place is worth nothing over a loss in the way a
     win is (placement alone taught m2a to settle for a place). A capped game's survivors score by
-    `cap_score` (the module's docstring)."""
+    `cap_score`, and with `time_discount` below 1 the winner's +1 by the game's length, `turn`
+    (the module's docstring)."""
     n = players.to(torch.float32)[:, None]
     seats = torch.arange(MAX_SEATS, device=players.device)[None, :]
     present = seats < players.to(torch.int64)[:, None]
@@ -111,6 +126,10 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
         raise ValueError(f"cap_score is 'survivors' or 'loss', not {cap_score!r}")
     capped_score = torch.where(eliminated, score(places), survivors)
     out = torch.where(won[:, None], score(places), capped_score)
+    if time_discount != 1.0:
+        assert 0 < time_discount < 1 and turn is not None, "a time discount below 1 is above 0 and reads the game's length"
+        factor = torch.exp(turn.to(torch.float32) * (math.log(time_discount) / 100))
+        out = torch.where(won[:, None] & ~eliminated, out * factor[:, None], out)
     return torch.where(present, out, 0.0)
 
 
@@ -133,6 +152,7 @@ class Env:
         assert tables.scaled_oversize, "training resolves oversize fights on the device"
         assert cfg.serve in ("lowest", "oldest"), f"serve is 'lowest' or 'oldest', not {cfg.serve!r}"
         assert cfg.cap_score in ("survivors", "loss"), f"cap_score is 'survivors' or 'loss', not {cfg.cap_score!r}"
+        assert 0 < cfg.time_discount <= 1, f"time_discount is in (0, 1], not {cfg.time_discount}"
         if cfg.bf16 and torch.device(device).type == "cuda" and torch.cuda.get_device_capability(device) < (8, 0):
             # Before Ampere there is no native bfloat16: PyTorch emulates it, slowly, without saying so.
             raise RuntimeError(f"{torch.cuda.get_device_name(device)} has no native bfloat16: run with --no-bf16")
@@ -175,7 +195,10 @@ class Env:
         self.done = torch.zeros(B, dtype=torch.bool, device=device)
         self._draw_seats(torch.ones(B, dtype=torch.bool, device=device))
         self.stats = torch.zeros(8, kinds, dtype=torch.float64, device=device)
-        self.t = torch.zeros((), dtype=torch.int64, device=device)
+        # By controller kind, the scores the stats' row 2 would hold without the time discount.
+        self.undiscounted = (torch.zeros(kinds, dtype=torch.float64, device=device)
+                             if cfg.time_discount != 1.0 else None)
+        self.t =torch.zeros((), dtype=torch.int64, device=device)
         # Steps in a row each row has waited past its controller's capacity, and the most since the
         # stats were last taken.
         self.waited = torch.zeros(B, dtype=torch.int64, device=device)
@@ -198,6 +221,7 @@ class Env:
             self.buf["reward"] = torch.zeros(T, B, MAX_SEATS, dtype=torch.float32, device=device)
             self.buf["share"] = torch.zeros(T, B, MAX_SEATS, dtype=torch.float32, device=device)
             self.buf["game_id"] = torch.zeros(T, B, dtype=torch.int64, device=device)
+            self.buf["cap"] = torch.zeros(T, B, dtype=torch.int64, device=device)
         self.graph: torch.cuda.CUDAGraph | None = None
 
     # --- dealing -----------------------------------------------------------------------------
@@ -281,7 +305,7 @@ class Env:
             idx, ok = pick(live & (kind_now == kind), max(1, int(share * B)))
             sub, sub_o = s.select(idx), subset_options(idx)
             node, slot, glob = observe(sub, sub_o, self.log.placed_on[idx], self.log.attacks[idx],
-                                       self.log.captured[idx], board)
+                                       self.log.captured[idx], board, self.cap[idx] if net.clock else None)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=cfg.bf16):
                 m, a, lp, v, c = act(net, node, slot, glob, (exact_legal if net.exact else legal)[idx], greedy_pick,
                                      sub, sub_o, board)
@@ -337,6 +361,7 @@ class Env:
             self.buf["learner"].index_copy_(0, t, learner_rows[None])
             self.buf["moved"].index_copy_(0, t, moving[None])
             self.buf["game_id"].index_copy_(0, t, self.game_id[None])
+            self.buf["cap"].index_copy_(0, t, self.cap[None])
 
         before = SimpleNamespace(active=s.active.clone(), turn=s.turn.clone())
         eliminated_before = s.eliminated.clone()
@@ -348,7 +373,8 @@ class Env:
         self.in_game.sub_(newly_out.sum(1))
         won = s.phase == 3
         ended = ~self.done & (won | (s.turn.to(torch.int64) > self.cap))
-        reward = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward, cfg.cap_score)
+        reward = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward, cfg.cap_score,
+                        s.turn, cfg.time_discount)
         reward = torch.where(ended[:, None], reward, 0.0)
 
         # Board shares, per seat, for the auxiliary target.
@@ -374,6 +400,9 @@ class Env:
         self.stats[0] += counted.sum((0, 1))
         self.stats[1] += (counted * winner.to(torch.float64)[:, :, None]).sum((0, 1))
         self.stats[2] += (counted * reward.to(torch.float64)[:, :, None]).sum((0, 1))
+        if self.undiscounted is not None:
+            plain = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward, cfg.cap_score)
+            self.undiscounted += (counted * plain.to(torch.float64)[:, :, None]).sum((0, 1))
         self.stats[3, 0] += ended.sum()
         self.stats[4, 0] += (ended & ~won).sum()
         self.stats[5, 0] += torch.where(ended, s.turn, 0).sum()
@@ -436,7 +465,8 @@ class Env:
         return ([getattr(self.state, n) for n in LAYOUT]
                 + [log.attacks, log.captured, log.placed_on, log.traded, log.stacker_swapped]
                 + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t,
-                   self.waited, self.longest_wait, self.overflow])
+                   self.waited, self.longest_wait, self.overflow]
+                + ([self.undiscounted] if self.undiscounted is not None else []))
 
     def _save(self) -> list[torch.Tensor]:
         return [x.clone() for x in self._tensors()]
@@ -465,7 +495,8 @@ class Env:
         with torch.no_grad():
             s = self.state
             o = options(s, self.board)
-            node, slot, glob = observe(s, o, self.log.placed_on, self.log.attacks, self.log.captured, self.board)
+            node, slot, glob = observe(s, o, self.log.placed_on, self.log.attacks, self.log.captured, self.board,
+                                       self.cap if self.learner.clock else None)
             values = []
             # In chunks: a whole batch through a large network at once outgrows the card.
             for at in range(0, s.batch, 2048):
@@ -503,6 +534,10 @@ class Env:
         self.stats.zero_()
         self.longest_wait.zero_()
         self.overflow.zero_()
-        return {"seats": st[0].tolist(), "wins": st[1].tolist(), "score": st[2].tolist(), "games": float(st[3, 0]),
-                "capped": float(st[4, 0]), "turns": float(st[5, 0]), "decisive_seats": st[6].tolist(),
-                "unserved": st[7].tolist(), "longest_wait": longest_wait, "overflow": overflow}
+        out = {"seats": st[0].tolist(), "wins": st[1].tolist(), "score": st[2].tolist(), "games": float(st[3, 0]),
+               "capped": float(st[4, 0]), "turns": float(st[5, 0]), "decisive_seats": st[6].tolist(),
+               "unserved": st[7].tolist(), "longest_wait": longest_wait, "overflow": overflow}
+        if self.undiscounted is not None:
+            out["score_undiscounted"] = self.undiscounted.tolist()
+            self.undiscounted.zero_()
+        return out

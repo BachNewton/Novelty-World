@@ -12,6 +12,11 @@ marked out.
 
 Three groups, one per kind of token the network reads: per territory `[B, 42, NODE]`, per slot
 `[B, 6, SLOT]`, and the globals `[B, GLOBAL]`.
+
+**The clock** (`clock`, a network's opt-in input: the trainer's `--obs-turn`). The globals already
+carry the turn so far; what a seat can't see is when its game will be cut. With `cap` given, the
+globals gain `CLOCK` more: the player-turns left before the game's cap, `(cap − turn) / 100`. In
+training the cap is drawn per game; at play it is the harness's fixed 600.
 """
 
 import torch
@@ -24,6 +29,12 @@ from ..state import HAND_MAX, State
 NODE = 13
 SLOT = 7
 GLOBAL = 28
+CLOCK = 1
+
+
+def clock(turn: torch.Tensor, cap: torch.Tensor) -> torch.Tensor:
+    """`[B, CLOCK]`: the player-turns left before the cap, after this one (0 on the cap's own turn)."""
+    return ((cap.to(torch.int64) - turn.to(torch.int64)).clamp(min=0).to(torch.float32) / 100)[:, None]
 
 
 def slots(s: State) -> tuple[torch.Tensor, torch.Tensor]:
@@ -42,7 +53,8 @@ def slots(s: State) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def observe(s: State, o: Options, placed_on: torch.Tensor, attacks: torch.Tensor, captured: torch.Tensor,
-            board: Board) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            board: Board, cap: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """`(node, slot, glob)`; with `cap` (each game's turn cap), `glob` ends with the clock."""
     batch, device = s.batch, s.device
     rows = torch.arange(batch, device=device)
     f32 = torch.float32
@@ -109,4 +121,6 @@ def observe(s: State, o: Options, placed_on: torch.Tensor, attacks: torch.Tensor
         torch.nn.functional.one_hot((players - 3).clamp(0, 3), 4).to(f32),
     ], 1)
     assert glob.shape[1] == GLOBAL, glob.shape
+    if cap is not None:
+        glob = torch.cat([glob, clock(s.turn, cap)], 1)
     return node, per_slot, glob
