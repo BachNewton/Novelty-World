@@ -47,6 +47,7 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
+| c3-75's gauntlets | GitHub Actions, runs 44264644199 (against learned-v2, train seeds), 44264649767 (holdout) and 44264655212 (against rule-v7.1, 3 to 6 players), from the branch `risk/learned-v3-seat`, which holds c3-75's export (parity passed, worst logit gap 2.0e-5) and its registration as learned-v3 | whether c3-75 clears its seating bar (below); then its provisional Elo, the merge, and its ladder | `gh run download <id> --name risk-results --dir results`, then `npm run risk:import -- results`, in the worktree `.claude/worktrees/seat-v3` |
 | probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
 | search reading on b1-100, on the laptop's CPU | `gpu/runs/readings/search-cpu/` | whether a shallow search still adds strength on the net with the repaired value head: the control first (`b1-100-control.json`, par expected), then the search (`b1-100-own-k3r6.json`), 1,024 games each, the searcher alone among four of the raw net at its most likely move. Prediction: 25% or more, as on s2-2-150's 30.8% (60%) | the two JSON files there, once written |
 
