@@ -4,6 +4,10 @@ Original full-cast audio stories, written by Claude and performed by AI voices. 
 
 The first focus is the writing, the voices and the performances. Ambience, effects, music and mixing come later: `ideas/production.md`.
 
+**Audio production is paused.** The writing comes first and isn't bent to any model's limits; turning stories into audio is picked up again later. The best result heard so far came from ElevenLabs, which read the novel from a PDF in one voice better than anything made locally, so the next attempt starts by weighing it, not only models that run on this machine. `capabilities.md` holds every local model's verdict, and its tests were run from `stories/citizens-of-the-federation/chapters/01/audio/vibevoice-test/` (ignored by git), whose `LISTEN.md` lists them.
+
+**Quality and consistency decide the model, never speed.** Anything that fits on this machine is fair, even if a chapter renders all night: it's a one-time cost, paid back every time the book is heard. Rendering time is not a reason to pick or reject a model.
+
 ## Three layers
 
 - **Writing craft** doesn't depend on any model: story, character, structure, writing for the ear.
@@ -15,7 +19,7 @@ The first focus is the writing, the voices and the performances. Ambience, effec
 ## How a story gets made
 
 1. **Script.** The owner reviews it before any audio: editing text is cheap, and re-recording is expensive.
-2. **Cast.** The `voice-casting` skill casts each role without auditions. Its clip is locked, and every line is cloned from it, because designing from a description makes a new person each time.
+2. **Cast.** Each role gets a description that is its whole spec (age, sex, origin, pitch, pace, energy, warmth, personality), and one model designs its voice from it in one seeded take, with no judge, no takes to choose from and no audition (`tools/design_voices_qwen.py`, Qwen3-TTS VoiceDesign). The cast keeps changing as the story moves through time and place, so nothing may depend on the owner picking voices: the owner meets each voice first in the story, and a wrong one is fixed by changing its description. The narrator is the one exception: the listener spends hours with him, so the owner casts him by ear, from candidates each heard over a long passage that runs through his range. The clip is locked, and every line is cloned from it, because designing from a description makes a new person each time.
 3. **Render, then listen.** The owner gives notes by line id.
 4. **A line that fails is rewritten, not only re-rendered.** The writer can change the words here, unlike the Nana biography.
 5. **Notes go into `capabilities.md`**, so the next story is written to fit.
