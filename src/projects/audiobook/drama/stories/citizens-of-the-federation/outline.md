@@ -4,7 +4,7 @@ What each chapter is for, so the writing can be free while the book holds its di
 
 ## Using it
 
-Before a chapter is written, fill in its entry, starting with its idea: the one concept the chapter thinks through, which its people and plot exist to serve. Before it goes to audio, test it against that entry:
+Before a chapter is written, fill in its entry, starting with its idea: the one concept the chapter thinks through, which its people and plot exist to serve. Before it goes to the producer, test it against that entry:
 
 1. **Does it answer its question?** Something open at the start has moved by the end.
 2. **Does it go deep on its deep subjects?** Each one must matter to what happens, not only be mentioned.
@@ -74,6 +74,35 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 - **The world it shows:** First Contact from outside the event: the first real hope.
 - **Moves from → to:** to be written with the chapter.
 
-## Across the book
+## The road ahead
 
-Keep an eye on what hasn't had its turn, and let subjects return as the world changes. Food, books, screens and gender all come back later: a world with replicators, a world that has stopped censoring, and how a future child learns any of this was ever fought over.
+The agreed pace and topics. The dates between canon's fixed points are ours, and chapters can be added anywhere. The book won't stay in Finland or America: it moves around Earth and other Federation planets through the centuries, one rung at a time rather than in big leaps.
+
+| Chapter | When | What it covers |
+|---|---|---|
+| 1 | November 2026 | Helsinki: America seen from far away, and the danger reaching the family |
+| 2 | 2027 | Ohio and the Sanctuary District, as things slip |
+| 3 | About 2030 | The Second Civil War |
+| 4 | 2030s to 2040s | The Eugenics Wars, somewhere outside America |
+| 5 | 2053 | World War III, and the Helsinki shelter |
+| 6 | 2063 | First Contact, from the outside |
+
+## Threads
+
+What runs between chapters: something planted in one and paid off or echoed in another. This is the map that keeps the book connected as chapters are added. A thread stays only where it means more each time it returns, and a new chapter is checked against every thread here.
+
+- **Ruth's four bars,** *Finlandia*'s hymn ("Be Still, My Soul"), played at the Sunday call: a mystery in chapter 1, explained in chapter 2 as her message to Anna, sung in the District as hymn number 534 in chapter 3.
+- **"Thank you. That's kind.":** Ruth to the county worker she thinks Anna is, in chapter 1; Carol saying Anna's words to Ruth in chapter 2.
+- **The county's form:** its "known as" field and its "none available" dropdown in chapter 2, which become Carol's ledger and the document behind Anna's permit in chapter 3.
+- **The Henderson boy and the trash bins:** keeping up the house's appearance in chapters 1 and 2, carrying water in chapter 3.
+- **Lucille's shoelace,** tied round Ruth's neck in chapter 2, still missing from her shoe in chapter 3.
+- **The Helsinki shelter:** Ben tells Nora the room under the building is for skis (chapter 1). Chapter 5 pays it off.
+- **Alma,** born in January 2027, would be 26 in 2053 and 36 at First Contact. The book could quietly return to her decades later.
+- **Subjects that return as the world changes:** food in a world with replicators, a future child baffled that a book was ever banned, how the Bell Riots are taught, and gender, screens and censorship once they're no longer fought over.
+
+## Seeds
+
+Ideas kept for chapters not yet planned.
+
+- **The producer's early questions:** what a child does all day in the 24th century, and how it feels when a neighbour's son dies at Wolf 359.
+- **Ordinary citizens as the Federation's test:** the happier centuries still need something to push against. TNG's "Family" is close to the spirit of it.

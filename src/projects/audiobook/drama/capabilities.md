@@ -1,6 +1,6 @@
 # What the actors can do
 
-The sheet Claude writes with open. Only the owner's listening moves a line into "Heard".
+The performance step's notes on each voice model: what it does well and badly, and how to adapt a manuscript to it. The writing never reads this, since a chapter is written for a reader and the performance adapts to it. Only the owner's listening moves a line into "Heard".
 
 ## Breeze TTS 2
 
@@ -26,7 +26,7 @@ Clones from a locked reference clip and takes a delivery note as its instruction
 - A dull reference clip dulls every line, so voices cloned from different clips can sound like different microphones. Casting now checks this.
 - Voices are inconsistent: some hold up, some are bad, and some drift into a different person as a chapter goes on. The owner won't quality-check every voice line by line, so this disqualifies the model for long stories.
 - Fast back-and-forth and interruptions between separately recorded voices are hard to follow: the listener loses track of who's talking.
-- Finnish words come out broken, and that breaks immersion. Write no foreign words to be spoken; the narrator reports them in English.
+- Finnish words come out broken, and that breaks immersion. A performance on it needs foreign words respelled for English speech, or given in English.
 - A reference clip's mood carries into every line. Anna's clip is a complaint ("nobody in this house has ever listened to me"), and her voice came out depressed or annoyed throughout.
 
 ### Unknown, with no line-level notes yet
@@ -46,7 +46,7 @@ Heard by the owner outside this workshop: given the novel as a PDF, one of its v
 
 ## Every model so far
 
-- None reads subtext. Each performs a line's surface, and a performance overwrites whatever was layered under it, so the meaning a scene depends on has to be in the words, usually the narrator's.
+- None reads subtext. Each performs a line's surface, and a performance overwrites whatever was layered under it, which is one more reason the manuscript puts what people feel on the page.
 
 ## Qwen3-TTS CustomVoice (built-in speakers, with direction)
 
@@ -78,7 +78,7 @@ Fixed voices, no cloning and no direction, run on the CPU (`tools/kokoro_render.
 - Far more consistent than Breeze: a voice stays the same person from line to line.
 - Its voices are all adults in their prime: no children and no elderly voices. Those come from Chatterbox clones.
 - `bm_lewis` is the owner's narrator.
-- Voice quality is passable; the performance is what fails. Speech written down as people really talk (repeated words, fillers like "It's, like", fragments, quick throwaway asides) comes out awkward, because every word gets the same careful weight. Write dialogue as a novel does: clean, complete lines, with the throwaway quality carried by the narration ("he says, not really asking").
+- Voice quality is passable; the performance is what fails. Speech written down as people really talk (repeated words, fillers like "It's, like", fragments, quick throwaway asides) comes out awkward, because every word gets the same careful weight.
 
 ## Chatterbox
 
