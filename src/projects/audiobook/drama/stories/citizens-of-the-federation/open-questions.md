@@ -18,10 +18,6 @@ Canon's only source is Data in TNG's "The High Ground" (1990), who cites the Iri
 
 When the book is performed, each era (chapters 1 to 3 are one) could get its own narrator voice from the same description, so a new voice marks a jump in time. The cost is the sense of one companion across all of it, which the voice the producer chose leans toward.
 
-## Chapter 3
-
-The producer hasn't read chapter 3, which was written under handed-over judgement. Joel's death is its biggest choice to check.
-
 ## What comes next for the Dorseys
 
 What happens to them, and whether Anna ever reaches Ruth.
