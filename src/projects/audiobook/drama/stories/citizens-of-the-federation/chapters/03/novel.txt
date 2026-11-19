@@ -1,0 +1,296 @@
+# Chapter 3, "Known As", as a novel read aloud by one directed narrator: the rewrite in notes/chapter-03-audit.md.
+# Every line is "narrator: text", with dialogue in quotes. A blank line ends a paragraph (110 words at most), "---" is a scene break.
+# A "# carries:" comment after a paragraph marks the line that carries a moment's meaning, for the take's direction.
+
+narrator: It is Tuesday, the thirteenth of August, two thousand and thirty. It has been three years and five months since Ruth Dorsey was signed into the Montgomery County Sanctuary District.
+
+narrator: There are two Presidents of the United States, and there have been since January of last year. One took the oath in Washington, and says a President stays until a count can be trusted. The other took it in Philadelphia, and says the count was the count. So in Ohio, people call each other Stays and Counts. It started as a joke. Then it was what you were.
+
+narrator: Tonight nobody governs Dayton. The Safety Board, which ran the city for six months from a Methodist church, left this afternoon with its files. The Ohio Guard reached the Needmore Road exit at sundown, and stopped there for the night. For some hours, nobody at all is in charge of Montgomery County. There is no power. People sit out on their porches in the dark, to see who comes.
+
+narrator: At the visitors' window of the District, down by the river, there is a lantern and a green ledger. Carol Flory is fifty-two. The county hasn't paid her since January. She is still at the window because nobody has told her to stop. A little after nine, someone raps on the counter.
+
+narrator: “Visiting ends at four,” Carol says, without looking up. “Name, and who you're here to see.”
+
+narrator: “Flory,” says the man at the counter. “I'm here to see you.”
+
+narrator: She looks up. He is in uniform, with a sergeant's stripes. “You're thin,” she says.
+
+narrator: “Hi, Carol.”
+
+narrator: “Hi, Joel.”
+
+narrator: Joel Flory is twenty-six, and a sergeant in the Ohio Guard. She named him for her grandfather, years before she was Carol. When she told him who she was, he was nine, and they tried the other words, and none of them would fit in his mouth, so he calls her by her name. On the day he signed up, she looked up the Book of Joel, and found the verse in it where the plowshares are beaten back into swords.
+
+narrator: “The colonel wants three things on his table by eight in the morning,” Joel says. “The keys to the water plant, the keys to the courthouse, and the District's rolls. He asked who had the rolls, and somebody said there's a clerk with a paper book. I said I'd go. I said I knew her.”
+
+narrator: “What does he want them for?”
+
+narrator: “You've got three hundred Stays in there,” Joel says, “behind that fence, on a letter the Board made up. He wants them out. Are you going to tell me that's wrong?”
+
+narrator: “No,” says Carol. “What about the rest?”
+
+narrator: “The R's go to the jail. The D's go north, on buses. There's a facility.”
+
+narrator: “Where?”
+
+narrator: He doesn't answer that. “He's got the buses, Carol. That's what I know.”
+
+narrator: She turns the ledger round to face him. “Here's how this goes. In twenty-six years I have never handed over a record I hadn't audited, and you are not carrying this one anywhere until you've heard it. Sit down. Hold the lantern.”
+
+---
+
+narrator: The ledger has seven columns, ruled by hand, on the right-hand pages only. Carol reads the first line with her finger under it. “Page one. Known as, Mrs. Dorsey. Legal name, Dorsey, Ruth. Letter D. Age seventy-nine. Responsible party, Anna Dorsey. County of residence, Other.”
+
+narrator: “What's known as?” Joel asks.
+
+narrator: “It's an optional field,” says Carol. “On the county's form, everybody tabs right past it. I put it in the first column because it's the one I like.”
+
+narrator: You should know how she came to be keeping a book. In May of two thousand and twenty-seven, a supervisor opened Carol Flory's file. She did nothing cruel. She saw that the state had issued the clerk a new license, with an M on it, and that the hand on the glass no longer agreed with the file. A process existed for that. Carol lost her login, and was moved to the visitors' window, which has no glass, only a pen. She ruled this ledger to give her hands something to do. Then the county forgot her.
+
+narrator: In the first week of this February, nobody paid the company whose servers the Interface ran on, and the Interface went dark. Four thousand two hundred people stopped being on record anywhere, except in a book kept by a clerk who wasn't allowed to log in.
+
+narrator: Mrs. Dorsey's medicine started working again that first spring, or most of it did. She got past the four bars. In Building C she has drawn a keyboard the length of a table on the backs of cereal boxes, and eleven children take lessons on it. The lessons are silent. The children are corrected anyway.
+
+narrator: Her daughter's application to Finland took thirty-two months. Last November the answer was yes, on the strength of a county document that said, none available. The applicant still had to go in person and prove who she was. The embassy in Washington gave Anna Dorsey an appointment on Tuesday, the fifth of February. Carol signed the release. Dolores, the nurse, bought two seats on a bus.
+
+narrator: “Only time anybody ever picked that dropdown,” Carol says, and taps the page. “None available. That's what cost me my glass.”
+
+narrator: Joel is looking at the date. “What happened on the fifth?”
+
+narrator: She says it gently. “You happened. Turn to January.”
+
+---
+
+narrator: On Monday, the fourteenth of January, the Governor of Ohio, who recognizes Washington, sent two companies of his Guard to Gate Twelve-A of Wright-Patterson Air Force Base, off Route Four Forty-Four in Fairborn, to take it. The general inside recognized Philadelphia, and had put his airmen on the gate. The two lines stood forty minutes in the cold, ten feet apart, in the same camouflage.
+
+narrator: At nineteen minutes past seven, somebody fired. Nine seconds later, eleven people were dead, every one of them from Ohio or stationed there. Nobody in Dayton called it the beginning of anything. That morning Route Four Forty-Four was closed, and people were late for work.
+# carries: Nobody in Dayton called it the beginning of anything. That morning Route Four Forty-Four was closed, and people were late for work.
+
+narrator: That Friday the county auditor did what Ohio law told her to do, and issued the payroll. But the county's bank now answered to two federal regulators, with two sets of orders, and it declined to pay anyone anything until somebody told it which set was real. Columbus stopped sending the state's share until the county commissioners said whose county it was. They couldn't say. They voted, two to one, to wait.
+
+narrator: Gary Pruitt, the caseworker, was at the next desk that Friday, telling her it would be the bank, and they'd have it fixed by Monday. Then he turned his phone round to show her. “Carol,” he said. “Isn't this your boy?”
+
+narrator: It was nine seconds of video, shot from a van on the shoulder, and forty million people watched it. It starts too late to show who fired first. It shows a young man's face behind a rifle. To the Stays he was the Hero of Fairborn, and to the Counts he was the Butcher of the Gate. By Wednesday, someone in Kettering had found out who his mother was. The Stays took his picture down. The Counts put hers up beside it.
+
+narrator: “Somebody sent me a picture of your garage door,” Joel says, to the lantern.
+
+narrator: “I painted it,” says Carol. “It's a nice gray now. You know who did that to it? Dale, next door. He plowed my drive for nine winters. And in February, after the door, he plowed it again, at six in the morning, in the dark, so nobody would see him do it. Same man.”
+
+narrator: She turns the page out from under his hand.
+
+---
+
+narrator: “There's a note in the margin against page one,” Carol says. “Spouse deceased, the tenth of February. That's not in any column.”
+
+narrator: In the first week of February the buses to Washington stopped, and then the flights, and then the embassy's telephone. Walter Dorsey's nursing home in Kettering was paid for by Medicaid, most of whose money came from a federal government there were now two of. The home stopped answering its phone on a Friday. On Sunday morning, Carol Flory's rang.
+
+narrator: “Ms. Flory? It's Anna Dorsey. I don't have anybody else in that county who picks up. I told my husband once that flights don't stop. I said that to him, in my kitchen. It's Sunday. I need somebody to go over there and hold up a phone.”
+
+narrator: It took the last of Carol's gas. The staff had gone, unpaid, all but one aide, Marie-Ange Pierre, a Haitian woman from Springfield whom the government had twice ordered to leave. She had moved the residents into the one room with a window. The power had been off since Friday. The mask that did some of Walter Dorsey's breathing at night had run down its battery on Saturday. He was eighty-two.
+
+narrator: Carol held the phone where he could see it. His voice was a thread. “How's she eating?”
+
+narrator: “She's eating, Mr. Dorsey,” Carol told him. “She's got eleven pupils.”
+
+narrator: “Tell Annie everything's fine.”
+
+narrator: “I know, Dad,” said Anna, from Helsinki. “I know it is. Everything's fine here too.”
+
+narrator: Carol's arm got tired, and the phone tipped back. For a few seconds, in Helsinki, Anna Dorsey looked at a ceiling in Kettering. It had no fan.
+# carries: For a few seconds, in Helsinki, Anna Dorsey looked at a ceiling in Kettering. It had no fan.
+
+---
+
+narrator: “Known as, Miss Lucille,” Carol reads. “Odom, Lucille. Letter E. Sixty-five.”
+
+narrator: The company in Indiana that fed the District sent its last truck on the first of February. The guards went home, unpaid. Nobody took the fence down. The gate stood open, and hardly anyone walked out through it, because outside there was no tray. So Lucille Odom took over the kitchen of Building C, with what the co-op on Salem Avenue could carry over on credit, from a neighborhood that had none.
+
+narrator: She has one rule in her line. Carol heard her give it to a man who wanted to know why a ghost was being fed ahead of him. “Nobody is anything in my line, baby,” Lucille told him. “You're hungry or you're not. Move up.”
+
+narrator: Mrs. Dorsey's shot keeps at room temperature, which is how Dolores could stretch a case of it from the old clinic on Wayne Avenue. Insulin doesn't keep long without cold. By June it was gone, and so were nine people in Building C who needed it. Lucille Odom takes insulin. She has a sore on her foot that she doesn't discuss.
+
+narrator: In the third week of February, a grain truck came to the inner door. It had crossed two Stay checkpoints and one of the Board's. The driver wore the white prayer covering of the Old German Baptist Brethren, whose church ruled against the internet in nineteen ninety-six. That winter she may have been the one person in Ohio who had never seen Joel Flory's face. She was Carol's sister, Naomi. They had not spoken in sixteen years.
+
+narrator: “Forty sacks of wheat, and the potatoes,” Naomi said, to the door frame rather than to her sister. “There were forty-eight. The elder says to bring it to the door and ask nobody what they are. Where do you want it?”
+
+narrator: Carol asked her about the other eight. “They asked which side we were on, and Brother Landis said we haven't got one, and they took four. Then the Board's men took four. That's the fare. We don't resist it.”
+
+narrator: “You could say my name, you know,” Carol said. “It's been in the county directory for sixteen years.”
+
+narrator: Naomi looked at her then, for the first time. “I can't say that one. And you've asked me not to say the other. So I don't say anything.” She climbed back up into the cab. “Mother asks if you're eating.”
+
+narrator: Lucille watched the truck go. “Who's that, your people?”
+
+narrator: “My sister,” said Carol. “Forty sacks of wheat, and she thinks I'm going to hell. It's not nothing, Lucille, what she thinks.”
+
+narrator: “No, baby, it's not,” Lucille said. “Get the other end of this.”
+
+---
+
+narrator: Gary Pruitt isn't in the book. For thirty years he made every call he said he would make. Then there was nobody left to call, and his wife went to her sister's in Kentucky. There is one spot in the county lot where a phone still finds a signal. He began sitting there in his car in February. By March it was nine hours a day.
+
+narrator: The phone was the first thing in thirty years to tell him that none of it was his fault. Then it told him whose it was.
+# carries: The phone was the first thing in thirty years to tell him that none of it was his fault. Then it told him whose it was.
+
+narrator: In June he came to her window. “I'm not blaming you,” he told her, kindly. “I'm just keeping track. That green book nobody authorized. Clergy in the visitors' log. Somebody ought to be told, Carol, and I'll tell them. I always do.”
+
+---
+
+narrator: “Page two hundred and sixty-one,” Carol reads, and her voice drops as she reads it. “Known as, Miss Bea. Yancey, Beatrice. Seventy-one. Letter H.”
+
+narrator: “That's the letter,” Joel says. “What did she do?”
+
+narrator: “She ran the children's room at the main library for thirty-one years, and the choir on Salem Avenue. And I wrote that H myself.”
+
+narrator: Much of an Ohio library's money comes from the state. In two thousand and twenty-eight, Columbus attached a list to it. Books with people like Carol Flory in them went into cartons, and so did books about what was done to west Dayton, and on Saturdays Miss Bea drove the cartons to the church basement in her Buick. Then, this April, the Safety Board sent a polite young man with a second list: the generals, the preachers, and the old novels with the old words in them.
+
+narrator: Carol carried the boxes down for her. “Huckleberry Finn is on both lists,” Miss Bea told her. “That child has never had a home. The young man said harm, and so did the man from Columbus, and they both said please. Now the Board wants number five thirty-four out of the hymnal, because it says the Lord is on thy side, and both armies are singing it. Do you know, the Czar's censors banned that tune once? So the Finns played it under other names. Impromptu. Happy Feelings at the Awakening of Finnish Spring. Nobody arrests a spring, dear.”
+
+narrator: “What will it be called on Wednesday?”
+
+narrator: “Number five thirty-four,” said Miss Bea. “Tenors, watch me.”
+
+narrator: Each step had its reason. In February, the Board kept the water running and opened the warehouses, and it was right to. In March, a ration took a signature, to stop the hoarding. In April, a bomb went off at the Needmore Road substation, and the signature became a pledge. Those who wouldn't pledge were asked to wait somewhere, pending review, for sixty days. Downtown there was a fence, with nobody guarding it, and a form.
+
+narrator: “They asked me could the form take one more letter,” Carol says. “They were my people, Joel. They let a tenor in and they didn't ask. I'd have followed them off a roof. It took me four minutes. H, held pending review. Miss Bea wouldn't tell them where she'd put the second pile. She came to this window with her purse on her arm, and she said, which column do you want me in, Carol?”
+# carries: Which column do you want me in, Carol?
+
+---
+
+narrator: “Page two hundred and ninety,” she reads. “Henderson, Caleb. Nineteen. Letter H. I asked him what people call him, and he said, I don't know, ma'am. The Henderson boy, I guess.”
+
+narrator: Three years ago, Caleb Henderson was the boy who found Walter Dorsey on his kitchen floor. In January he signed up with the Governor's reserve, because it was the only thing in the county that still paid. The Board's men took him in April, in a Kroger parking lot. Since the mains in Building C failed, he has carried water up six floors in plastic cans, all day, for people on the other side. Nobody pays him.
+
+narrator: Joel puts the lantern down. “You locked up that kid,” he says, low, because voices carry over the fence. “He's nineteen. He found an old man on a kitchen floor, and you put him behind a fence with a letter on him.”
+
+narrator: “Yes, I did,” Carol says. “And the people you work for took Terri Bowman out of her pharmacy in Troy, over the letter on her license, and put her in the river with wire on her wrists. Same letter as mine. I've been doing that sum since March, Joel. They don't come out even. They don't. And it doesn't get me off.”
+
+narrator: For a while neither of them says anything. West of the fence a dog is barking at the porches. It is past two. Joel turns the lantern down a little, to save it.
+
+narrator: “The video starts too late,” he says. “There was a kid across the barrier. An airman. We'd been standing there forty minutes, and he asked me if I was from around here. Same uniform. The only thing different on him was the thread. The Air Force sews its names on in brown. Ours are black.”
+
+narrator: “Something went off behind me. I think it was behind me. And I shot him. I don't know who fired first, Carol. Nobody does. I know who fired second.”
+
+narrator: “I stayed in because they were the only ones still paying. Then I stayed because of what I'd done with them. I sign for things now. I signed for the buses.”
+
+narrator: “I know you did,” Carol says.
+
+---
+
+narrator: “So burn it,” says Joel. “There's a barrel right out there.”
+
+narrator: “Burn it, and four thousand people were never here,” says Carol. “There are six hundred dead in this book, and it's the only place they died. Burn it, and Ruth Dorsey is a confused old woman who says she's somebody, and her daughter has a permit from the Republic of Finland made out to a person nobody can prove. Nobody finds anybody. Nobody goes home.”
+
+narrator: “And if the colonel gets it,” Joel says, “he can sort them with a pen.”
+
+narrator: She has both hands flat on the open page, the way she began every working day for twenty-three years, on the glass. Seven columns. Six of them she ruled because the county asked for them. The first one, nearest the binding, nobody asked for.
+
+narrator: “Hand me that steel rule,” she says.
+
+narrator: Joel doesn't move. “What for?”
+
+narrator: “What do people call you, when they like you? That's all anybody who's looking for you needs to know. Nobody arrests a spring, Joel. It's no use at all to a man with a bus.”
+
+narrator: A box cutter will go through four pages at a stroke, against a steel rule, if the person holding the rule leans on it. So they work the way two people carry a couch. He leans. She draws the blade down the page, an inch from the binding. Away come the legal names, and the letters, the ages and the next of kin, in long sheaves, and what stays in the spine is a single column: a narrow book of what people are called.
+
+narrator: She has never damaged a record in her life, and she reads every page aloud before she cuts it. “Big Mike. Sister. Miss Odessa. Doc, who never was one. Baby Ray. Grandma Tran. The Reverend. Sugar.”
+
+narrator: Where nobody ever told her a name, the first column is blank, and a blank line is all that is left of that person. Joel stands over the barrel in the Governor's uniform, feeding the sheaves in with a stick. The sky over the river is going gray when there is one page left.
+
+narrator: “That's page one,” Joel says.
+
+narrator: “I told that girl she'd be the only person who could ever get her mother out,” Carol says. “I sat right here and took her signature. Sign with your finger, I said. It looks terrible.”
+
+narrator: She cuts it herself, in one stroke. Then she goes round the counter, on the bad knee, to take it out to the barrel, and she stays out there a little while. Joel stays at the counter, with a ballpoint pen and the narrow book.
+
+narrator: When she comes back he has closed it. “It's light,” he says. “What do you want done with it?”
+
+narrator: “The inner door, on your way out. Miss Lucille, nobody else. In all my years, nobody has ever searched a kitchen.”
+
+narrator: He takes the colonel's receipt from his breast pocket, and reads down it. “What was that thing again, in the dropdown?”
+
+narrator: Carol tells him no. She tells him the Board took the book and he never saw it, and that's what he'll say, and that receipt has his name on it, and he is not to dare. She says all of it at once, faster than she has said anything all night, and he lets her finish.
+
+narrator: Then he puts the receipt back in his pocket, and stands.
+
+narrator: “Eat something,” Carol says.
+
+narrator: “See you, Carol.”
+
+---
+
+narrator: It is Wednesday, the fourteenth of August. At eight, at a folding table in the county building, Sergeant Flory hands the colonel his receipt. The water plant, signed for. The courthouse keys, signed for. On the third line, District rolls, he has written two words, in his own hand. None available.
+
+narrator: At noon, Gary Pruitt comes to the same table with a spiral notebook. He had said he would. It has dates in it, and the green ledger, and who kept it, and who went in to see her the night before.
+
+narrator: They ask the sergeant where the book is. They ask him more than once. He says, none available. The hearing takes eleven minutes. At four in the afternoon, on the levee behind the old Job Center, under the Governor's flag, the Ohio Guard shoots Joel Flory for making a false record. He was twenty-six. His name was sewn on in black thread.
+# carries: His name was sewn on in black thread.
+
+narrator: It is a Wednesday. At seven that evening, in Building F, an old woman with a pencil gives a note, and fourteen people sing number five thirty-four, in four parts, with nobody on the tenor line.
+
+---
+
+narrator: On Thursday they come for the clerk as well. They ask her where the book is, and she says what the sergeant said. A lieutenant tells her about the levee, reading it off a sheet. With the Interface dark, a new resident has to be entered on paper, and there is one man left in the county building who knows the form.
+
+narrator: “Name of applicant,” Gary Pruitt reads, not looking up. “It says to take it from the license.”
+
+narrator: He takes it from the license. He gives her the letter she made up herself. The next field is known as. It is optional, and he leaves it blank, the way most clerks always did.
+
+narrator: “I said I'd tell them,” he says, as if he were asking her something. “I told you I would.”
+
+narrator: “You did, Gary,” Carol says. “You made every call.”
+
+narrator: His hand shakes while he fills in the rest, and that is all anyone will know about what Gary Pruitt made of it.
+
+narrator: Lucille meets the new ones at the inner door. When she sees who it is, she doesn't say anything about it. “That your card, baby? They'll have that off you by supper. Hold still. Let me see your neck.”
+
+narrator: She gets down on the bad foot to do it. Her left shoe has been tied with string since a March three years ago, when its lace went round someone else's neck. Now she takes the lace out of the right one. When the knot is done, she reaches into her apron, where something has been since Wednesday morning, and puts it in Carol Flory's hands.
+
+narrator: “Your boy gave me this over the counter,” Lucille says. “He said you'd want to audit the end of it.”
+
+narrator: It is the narrow book. Four thousand one hundred and six lines, in her own square county hand. Under the last of them is one more, in ballpoint, that she didn't write. It has no page number. It is in the first column. It says,
+
+narrator: Mom.
+# carries: Mom.
+
+narrator: “That field's optional,” Carol says.
+
+narrator: “Yes, ma'am,” says Lucille. “It is.”
+
+---
+
+narrator: The colonel cannot sort them. He has three thousand people and no letters, and each of them, asked, gives a name. His men fill the buses by looking at people, the way people do. A hundred and six go north. What their people called them is in the narrow book, and nothing else of them is anywhere.
+# carries: What their people called them is in the narrow book, and nothing else of them is anywhere.
+
+narrator: The H's are let go on Friday, Carol with them. Miss Bea walks out of the gate and down to the basement on Salem Avenue. The Henderson boy goes home, and on Monday he is back in Building C with the cans. Dolores went out of the gate on the twenty-ninth of June, with her cooler bag, to look for more of the shot. The visitors' log has her going out. It has nothing about her coming back.
+
+narrator: In October, two months on, the Guard's column is needed in the south. Nobody has ever been ordered to close the Montgomery County Sanctuary District, and nobody ever is. It is getting cold, and steel will buy flour. Over nine days the residents take the fence down themselves, a panel at a time, and carry it to the scrap yard on the far side of the river.
+
+narrator: Three thousand people walk out into a city that has no food either. They are free, and most of them are hungry. Lucille Odom keeps the kitchen. It just has no fence round it now.
+
+narrator: That month, the Stay sheriff of Miami County and a man from what is left of the Board meet in a meetinghouse near Covington, because neither will go to the other, and because the elders there have promised that nothing said will be written down. They agree on one thing, which is wheat. A truck with wheat in it may pass. Neither of them calls it peace. It holds.
+
+narrator: In the third week of October, Naomi Garber comes back with the grain truck, because her sister asked her to, and takes north nine old people who have nobody. There is no county left to file with, but she fills in section eleven for each of them anyway, responsible party, in her own name, because a form is what her sister asked for. Ruth Dorsey's last injection was on the twenty-second of May. By now she is a little off.
+
+narrator: The farmhouse has no instruments in it. It never has. On the first evening, Mrs. Dorsey sits down at the kitchen table and spreads her hands on the oilcloth. Naomi's granddaughter, who is seven, is watching her.
+
+narrator: “You're very late for your lesson,” Mrs. Dorsey says. “Come here. Spread your fingers, please. Who told you that you couldn't?”
+
+narrator: The girl looks at the door. Then she puts her fingers down on the oilcloth, beside the old ones, and there is no sound in the kitchen at all.
+
+---
+
+narrator: Carol Flory keeps a folding table on the levee, where people can find it. Nobody pays her. Her prescription ran out in the spring. Her son is on the hill at Woodland Cemetery, the highest ground in Dayton, under a marker she paid for in flour. People come in the mornings with a name a stranger would laugh at, and she runs a finger down the column, and when she finds one, she writes beside it, in pencil, where they went.
+
+narrator: On Sunday, the twenty-seventh of October, a cell tower on Germantown Street gets an hour of somebody's diesel. At eleven in the morning, the hour the Dorseys always called, Carol's phone rings.
+
+narrator: “Ms. Flory? It's Anna Dorsey. I know the rolls are gone. I know what that means. I don't have a single piece of paper left that says who she is. I'm looking for my mother.”
+
+narrator: “I've got a form for that,” Carol says. “There's just the one question. What do people call her, when they like her?”
+
+narrator: For a moment there is only the line, and somewhere near Anna, a child. “Her pupils call her Mrs. Dorsey,” Anna says. “My father called her Ruthie. He wasn't to be encouraged.”
+
+narrator: “Yes, ma'am,” says Carol. “I've got her right here. Page one.”
+
+narrator: It is a very narrow book. It doesn't say what anyone was, or which side they were on, or who did what to whom. Beside the first line, in pencil, it says where Mrs. Dorsey went. It is Sunday, in Ohio, and somebody is still keeping the book.

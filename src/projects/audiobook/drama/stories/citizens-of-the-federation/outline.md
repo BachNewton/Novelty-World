@@ -4,13 +4,13 @@ What each chapter is for, so the writing can be free while the book holds its di
 
 ## Using it
 
-Before a chapter is written, fill in its entry. Before it goes to audio, test it against that entry:
+Before a chapter is written, fill in its entry, starting with its idea: the one concept the chapter thinks through, which its people and plot exist to serve. Before it goes to audio, test it against that entry:
 
 1. **Does it answer its question?** Something open at the start has moved by the end.
 2. **Does it go deep on its deep subjects?** Each one must matter to what happens, not only be mentioned.
 3. **Is there more it could say from the core?** Look at what it barely touches, and add only what fits.
 4. **Does it sit inside the book's truth, and test its values?** However dark it gets, humanity finds a way, and the chapter has something to say about at least one of the nine values.
-5. **Is the world the subject, and the person the lens?** Neither a lecture nor a family story with Star Trek wallpaper.
+5. **Is the idea the subject, and the people and plot its case?** Every scene works the idea through or shows what it costs someone. Neither a lecture nor a family story with Star Trek wallpaper.
 
 An entry guides the chapter and doesn't bind it. If a better idea changes one, change the entry and say why it fits the direction. Deep subjects should rotate, so that over the book every part of the core gets its turn.
 
@@ -18,6 +18,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 1. Dark by Four (November 2026, Helsinki)
 
+- **The idea:** a country is a decision people keep making. Finland's baby box, shelter law, drying cupboard and letter in three languages against Ohio's levy vote, sign on a door and "the dims have to go somewhere", with Finland's own rule shutting Ruth out at the end. Same species; they decided differently.
 - **Question:** Is the danger out there on the news, or already in the family?
 - **Goes deep on:** mental health, politics and government, values, ethics.
 - **Touches:** timeline, geography, society, culture, family, economy, labor, power, education, transit, construction, conflict.
@@ -26,6 +27,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 2. Responsible Party (March 2027, Dayton)
 
+- **The idea:** a form decides what a person is. Ruth's placement form and Carol's license are two cases of it, and Ruth's own declaration, made in a good year, is a person deciding first.
 - **Question:** Where does Ruth end up, and who gets to decide?
 - **Goes deep on:** law and justice, health, gender and sexuality, food (who can get healthy food, and at what price).
 - **Touches:** economy, labor, family, ethics, politics, transit, faith.
@@ -35,6 +37,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 3. Known As (January to October 2030, Dayton)
 
+- **The idea:** a name against a category. What people are called by those who love them can't be sorted; the letters a ledger keeps can.
 - **Question:** How do you keep caring for people when the thing you work for falls apart?
 - **Goes deep on:** conflict and how it's resolved, politics and government, art (book censorship), leisure (screen time and social media).
 - **Touches:** labor, law, economy, resources, society, ethics, family, gender and sexuality, food and health, faith.
@@ -46,6 +49,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 4. (2030s to 2040s, outside America)
 
+- **The idea:** to be chosen with the chapter.
 - **Question:** What is a child who was made better, and what do they owe or deserve?
 - **Goes deep on:** ethics and philosophy, medicine and science, family, geography.
 - **Touches:** faith, values, politics, culture, law.
@@ -54,6 +58,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 5. (2053, Helsinki)
 
+- **The idea:** to be chosen with the chapter.
 - **Question:** Who gets through the door, and what do you carry down?
 - **Goes deep on:** mortality, conflict, construction and resources, how the past is remembered.
 - **Touches:** faith, environment, power, family, ethics, medicine.
@@ -62,6 +67,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 6. (2063, Bozeman)
 
+- **The idea:** to be chosen with the chapter.
 - **Question:** What do ordinary people do on the day everything changes?
 - **Goes deep on:** other species, faith, philosophy, environment.
 - **Touches:** culture, society, technology, values, how the past is remembered.

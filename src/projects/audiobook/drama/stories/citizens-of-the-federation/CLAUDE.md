@@ -42,6 +42,12 @@ The book is about these. They aren't a checklist but a test for each chapter: do
 
 The Federation's own blind spot is fair game: it can be too sure of its goodness, and ordinary citizens can test whether it lives up to these for the people who never leave home.
 
+**Every time jump is stated plainly.** When a chapter opens, or the story moves to another time, the narrator says the new date and year, how much time has passed since the last one, and what changed that matters. The listener can't flip back a page, so nobody should have to work out when they are.
+
+**No foreign words are spoken aloud.** The voices can't pronounce Finnish, or any language but English, and hearing it broken breaks the spell. When a character speaks another language, the narrator says so and gives the meaning in English.
+
+**No "old people can't work technology" jokes.** The grandparents have made the weekly video call for years, and they can manage it. Their age shows in other ways, not in fumbling with a device.
+
 **The book's truth:** People are flawed and can do terrible things, but humanity is good, and over time it finds a way. There's hope, and through technology and people working together we can build a better future. However dark a chapter gets, it sits inside this.
 
 ## The idea
@@ -58,7 +64,9 @@ Star Trek's stories usually happen on a starship. This one looks at the people w
 - **Each story still needs something open at the start that has moved by the end,** however small. A portrait now and then is fine.
 - **Earlier chapters can be refactored.** The book is built like code: mostly additive, but when going back to change an earlier chapter makes the whole better, we do. Nothing published is frozen. The chapter passes the outline's test again, and only changed lines are re-recorded.
 - **It's a rolling story.** Some things resolve, some stay open and new ones open up, so a story doesn't have to end tied off.
-- **A third-party narrator walks us through the facts and the world.** The narrator is a natural, non-judgmental observer. The emotion belongs to the people, and comes through what they say. The model is Jeffrey Wright's Watcher in *What If...?*: someone who sees everything, cares, and doesn't interfere. It's a designed voice in that spirit, never a clone of the actor.
+- **A third-party narrator walks us through the facts and the world, and carries its meaning.** The model is Jeffrey Wright's Watcher in *What If...?*: someone who sees everything, cares, and doesn't interfere. The narrator never judges aloud, but has a tender edge, and holds what a scene means: the voices perform only the surface of their lines, so the weight underneath is the narrator's, given as plain fact that makes the listener feel it. It's a designed voice in that spirit, never a clone of the actor. `notes/author-styles.md` is the reasoning, from comparing Adams, Tolkien and Rowling.
+- **The book's tone is Star Trek's:** hopeful and optimistic, serious and grave when it's appropriate, especially in dark times. The first chapters are dark because their times are, and that doesn't make grave the book's tone or the narrator's style.
+- **It's a novel, read aloud by one directed voice.** Not a radio play: several voices caused too many technical problems. The narrator reads everything, dialogue included, so the writing has to make every speaker clear with tags and context, and give each character a way of speaking of their own on the page (Walt's "fella" and "darn", Ruth's formal "Good morning, miss", Nora's seven-year-old certainty), since one voice can't play their ages. Interruptions and people talking over each other are told, not performed. Every chapter is written this way, the earlier ones included when they're rewritten.
 - **A chapter runs 15 to 30 minutes.**
 - **Chapters are published as they're generated.** The owner reviews by listening, so a script doesn't wait for approval before audio, and a finished chapter goes straight onto the player.
 - **It's fiction.** The story may sit close to the owner's life, but creativity and invention lead, and the owner steers by what feels right. Claude doesn't mine the owner's life for material.
@@ -87,7 +95,15 @@ Memory Alpha pages don't fetch directly: use search results, TrekCore's episode 
 
 ### What the writing has to sound like
 
-Literary, grounded and specific, in the manner of chapter 1 and chapter 2. The narrator's tool is the plain fact set beside a small domestic one, and the narrator is directed with sorrow, tender attention or curiosity, never calm words. People deflect, joke and talk about the dishes rather than the thing itself, with no therapy-speak and no tidy epiphanies. Each chapter finds its own shape from its subject, such as the sections of a form. Running images return only when they earn it. Never state what the listener knows is coming. A small decent act at a cost carries the hope.
+Literary, grounded and specific, in the manner of chapter 1 and chapter 2. How the narrator carries a moment's meaning with a tender edge, how much voice is too much, and when it may confide in the listener or digress, is in `notes/author-styles.md`. The narrator's tool is the plain fact set beside a small domestic one. The narrator's stance stays the same whatever the times: warm, curious attention. It is directed that way by default, with sorrow kept for the moments that earn it, and never with calm words. People deflect, joke and talk about the dishes rather than the thing itself, with no therapy-speak and no tidy epiphanies. Each chapter finds its own shape from its subject, such as the sections of a form. Running images return only when they earn it. Never state what the listener knows is coming. A small decent act at a cost carries the hope.
+
+**The book is philosophically and morally dense, with no filler.** Each chapter thinks through one idea (its outline entry names it), in the way Douglas Adams builds a book: the people and plot serve the idea. Every scene has a stated purpose: how it works that idea through, what it says about the world, which of the values it tests, and how it defines its people or moves the story. Every beat inside it earns its place against that purpose, or is cut. Domestic surface is welcome, but only as the carrier of something underneath, and since a listener can't reread, the thing underneath has to be audible: subtext too quiet to hear by ear is just small talk. The line that carries a scene's question is spoken, never reported.
+
+**The book's one kind of humour is absurdity, never dry British irony.** It's the absurdity of systems and rules followed faithfully to their end, told dead straight, never at a person's expense and never the universe as a joke, and it has to land as both funny and true. What the book takes from Douglas Adams and what it leaves is in `notes/author-styles.md`.
+
+**Humour is funny on the words alone, never on delivery.** The voices can't time sarcasm, and they play it as snark. So a joke has to work read flat, and people's warmth comes from what they do for each other, not from bits they perform for each other: no catchphrases, no sitcom asides. A joke must also be true. Chapter 1's phone mistranslating "funny" as "tall" failed because no phone would make that mistake.
+
+**In audio, the performance chooses the meaning.** A reader holds a line's surface and its subtext at once; a listener hears one delivery, and the voices perform the surface. Parents not understanding their daughter's Finnish comes out as two people missing a word, not as what it means to be immigrants whose child has a language they never will. So the deeper meaning never depends on a performer finding it: the narrator carries it, as plain fact that makes the listener feel it, without judging.
 
 ## Canon
 
@@ -108,7 +124,7 @@ Stay as close to canon as possible, filling gaps only when needed and only where
 
 ## The first family
 
-Chapter 1, "Dark by Four", is set on 8 November 2026, Finnish Father's Day. Each chapter's script is in `chapters/<number>/`. `cast.yaml` and `voices/` sit at the story's top level, shared by every chapter. The book's art and `book.json` are in `book/`: art is drawn as SVG and exported to PNG, the only form the player takes.
+Chapter 1, "Dark by Four", is set on 8 November 2026, Finnish Father's Day. Each chapter's text is `chapters/<number>/novel.txt`, the novel the narrator reads; the `script.yaml` beside it is the superseded radio-play version. Each chapter's purpose audit is `notes/chapter-<number>-audit.md`. `cast.yaml` and `voices/` sit at the story's top level, shared by every chapter. The book's art and `book.json` are in `book/`: art is drawn as SVG and exported to PNG, the only form the player takes.
 
 - **Anna Dorsey**, 41, from Dayton, the only child of Walt and Ruth. She filled in the forms to leave. She is 31 weeks pregnant, and the baby is due in January 2027.
 - **Ben**, 43, from Toledo, a software developer whose parents are dead.
@@ -134,7 +150,7 @@ Chapter 1, "Dark by Four", is set on 8 November 2026, Finnish Father's Day. Each
 - **Carol Flory**, now 52, lost her login in May 2027 when her license changed to M, and kept the District's only record in a paper ledger. The Counts' Safety Board had her add a letter, H, to hold people who wouldn't pledge, and that is her guilt. She cut the ledger down to its "known as" column to save the residents from being sorted. She ends with a folding table on the levee, finding people by what they were called.
 - **Joel Flory**, her son, a Guard sergeant, fired second at the gate. He helped her cut the book, wrote "None available" on the colonel's receipt, and was shot by the Ohio Guard on 14 August, after **Gary Pruitt**, ruined by his phone, reported him. His last line in the book is "Mom."
 - **Walt** died on 10 February 2030 in Kettering when the power failed. Carol held up the phone. **Dolores** went out on 29 June and hasn't been seen since.
-- **Ruth** is alive. The shot worked again, and she taught eleven children on a cereal-box keyboard. Her last injection was on 22 May 2030. **Naomi Garber**, Carol's Old German Baptist sister, who won't say Carol's name, took her north to a house with no instruments.
+- **Ruth** is alive. The shot worked again, and she taught eleven children on a cereal-box keyboard. Her last injection was on 22 May 2030. **Naomi Garber**, Carol's Old German Baptist sister, who won't say Carol's name, took her north to a house with no instruments, naming herself responsible party on a form for a county that no longer exists.
 - **Anna's** Finnish permit came through in November 2029, but the embassy appointment never happened. Carol finds Ruth for her through the narrow book.
 - **Lucille** runs the kitchen. Insulin ran out, and she has a sore on her foot. **Miss Bea Yancey**, librarian and choir director, hid both sides' banned books. **Caleb Henderson**, 19, carries water to Building C. The residents sold the fence for flour in October 2030.
 
@@ -163,6 +179,9 @@ The book won't stay in Finland or America. It jumps around Earth and other Feder
 - **Overlaps:** a minor character can step forward in a later chapter, as Carol does, and a name, place or tune can echo across centuries.
 
 ## Still open
+
+
+- **A narrator voice per era.** The narrator's description stays the same, but each era of the book (chapters 1 to 3, America and Finland 2026 to 2030, is one) gets its own voice designed from it. No single voice carries the whole book, a new voice marks a jump in time, and an archive form would make each era's narrator its own archivist. The cost is the sense of one observer across all of it.
 
 - **Whether the owner keeps what chapter 3 did.** The owner hasn't yet heard chapters 1 to 3; they'll be heard together, and that listen decides the voices and any refactor. Joel's death, written under the owner's handed-over judgement, is the biggest choice to check.
 - **What happens to the Dorseys next,** and whether Anna ever reaches Ruth.
