@@ -33,6 +33,7 @@ Then, in this window or a later one:
 
 - **Checkpoint often.** A window can end at any moment, and a run loses what it trained since its last full checkpoint (`latest.pt`, written whole and then renamed into place, so a kill never leaves it half written). The trainer's default writes it every 25 iterations; here `--ckpt-every 5` costs a few seconds and loses minutes rather than half an hour.
 - **Size the batch to the card.** The recipes are sized for the laptop's 12 GB RTX 4070. A card with more memory can take a bigger `--batch`, but a bigger batch is a change of recipe, so a run that continues a recipe keeps its batch, and a bigger one is its own run, planned and predicted as the `machine-learning` skill asks.
+- **Name the card.** `SPOT_GPU=1 npm run spot -- train <name> ...` starts the run on that card alone (`CUDA_VISIBLE_DEVICES`), and the run keeps its card at every `resume`. Without it every run lands on card 0. Runs that share a card share its speed and its 40 GB.
 - **The machine's numbers are its own.** A run's speed here says nothing about the laptop's, and the reverse, so `budget.md`'s rates are measured again here before a run is planned on them.
 - **No fallback to the CPU.** `setup`, `test`, `train` and `resume` fail loudly when PyTorch sees no CUDA device. The trainer itself is CUDA-only.
 

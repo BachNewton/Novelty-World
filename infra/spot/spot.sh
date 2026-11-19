@@ -128,9 +128,11 @@ launch() {
     mkdir -p $dir
     if [ -f $dir/pid ] && kill -0 \$(cat $dir/pid) 2>/dev/null; then echo 'spot: $name is already running (pid '\$(cat $dir/pid)')' >&2; exit 1; fi
     echo $(printf '%q' "$line") > $dir/cmd.txt
+    [ -z '${SPOT_GPU:-}' ] || echo '${SPOT_GPU:-}' > $dir/gpu
+    gpu=\$(cat $dir/gpu 2>/dev/null || true)
     cd $GPU_REMOTE
-    echo \"== \$(date -Is) start: \$(cat $dir/cmd.txt)\" >> $dir/spot.log
-    setsid nohup $VENV/bin/python -m riskgpu.selfplay.ppo $line >> $dir/out.txt 2>> $dir/err.txt < /dev/null &
+    echo \"== \$(date -Is) start\${gpu:+ on card \$gpu}: \$(cat $dir/cmd.txt)\" >> $dir/spot.log
+    env \${gpu:+CUDA_VISIBLE_DEVICES=\$gpu} setsid nohup $VENV/bin/python -m riskgpu.selfplay.ppo $line >> $dir/out.txt 2>> $dir/err.txt < /dev/null &
     echo \$! > $dir/pid
     echo \"started $name, pid \$(cat $dir/pid)\"
   "
