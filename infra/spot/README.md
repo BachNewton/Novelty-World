@@ -4,10 +4,11 @@ A friend's GPU computer that Novelty World may use while he isn't. It is for GPU
 
 ## What is known, and what isn't
 
+- **What it is:** an instance on vast.ai, the GPU rental market, run by the friend's team; the owner has read-only access to the team. Its SSH is the container's port 22, reached through a port of the instance's own range on the machine's public address (vast.ai's console shows it under the instance's IP & Port Info), never port 22 itself. A new instance gets a new port, which then changes in the alias and in `SPOT_PORT`.
 - **Access:** SSH as `root`, with the key `~/.ssh/id_ed25519_landon`, through the alias `spot` in the owner's dotfiles (`~/.ssh/config`, kept with chezmoi). The alias is the reference, so the machine's address stays out of this public repo; Spot Access reads the same address from its `SPOT_HOST` and `SPOT_PORT` settings.
-- **What we get:** most likely a Linux container with full rights inside it. Its disk persists between windows.
+- **What we get:** a Linux container with full rights inside it, on two NVIDIA A100-SXM4 cards with 40 GB each. Its disk persists between windows.
 - **When its owner wants it back,** the connection closes and everything running is killed, with no warning. Nothing needs doing on our side; whatever was on disk stays.
-- **Not yet known:** the GPU, its memory, the CPU, the disk's size, and whether a run started detached survives our own SSH session ending. `npm run spot -- probe` answers the first four on the first connection. A run's status in a later session answers the last one.
+- **Not yet known:** the CPU, the disk's size, and whether a run started detached survives our own SSH session ending. `npm run spot -- probe` answers the first two on the first connection. A run's status in a later session answers the last one.
 
 ## How it is used
 
