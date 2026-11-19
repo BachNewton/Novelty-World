@@ -72,8 +72,8 @@ cmd_probe() {
 }
 
 cmd_push() {
-  local ckpts=("$@")
-  [[ ${#ckpts[@]} -eq 0 ]] && read -r -a ckpts <<< "$DEFAULT_CKPTS"
+  local ckpts; read -r -a ckpts <<< "$DEFAULT_CKPTS"
+  ckpts+=("$@")
   cd "$REPO/$GPU_LOCAL"
   for f in data/blitz-256.bin data/blitz-256.json "${ckpts[@]}"; do [[ -f "$f" ]] || die "missing locally: $GPU_LOCAL/$f"; done
   [[ -z "$(git status --porcelain -- .)" ]] || echo "spot: note: $GPU_LOCAL has uncommitted changes; the push sends HEAD's code" >&2
