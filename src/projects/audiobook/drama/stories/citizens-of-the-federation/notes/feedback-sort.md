@@ -4,7 +4,7 @@ A working document for the rewrite the producer asked for after reading chapters
 
 ## Order
 
-1. The narrator's reference passage, approved by the producer (`open-questions.md`).
+1. The narrator's reference passage, approved by the producer: done, in `voice.md`. It is the Father's Day dinner, so chapter 1's dinner scene starts from it.
 2. Chapters 1, 2 and 3, each through the `write-fiction` skill, with its cold read.
 3. The threads pass across all three, against `outline.md`.
 4. Delete `chapters/<nn>/script.yaml` and this file.

@@ -2,10 +2,6 @@
 
 What the producer still has to decide, or wants to come back to, each with its context and Claude's recommendation. An answered question moves into the file it belongs to and leaves this list.
 
-## The narrator's reference passage
-
-`voice.md` sets the narrator from the interview, but nobody has read a scene in that voice yet. Next: a scene of about 400 words, written in it from this story's material, for the producer to judge. Once approved, it goes into `voice.md`, and the chapters are rewritten with it.
-
 ## Telling canon from real history
 
 Agreed: the book's 2020s are our real ones, with Star Trek's events happening inside them. Open: how a reader tells which is which without being told.
