@@ -47,9 +47,8 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
 
-**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
+**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net.
 
 ## The brief
 

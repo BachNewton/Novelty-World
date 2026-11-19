@@ -45,6 +45,25 @@ Its numbers are rates on a dedicated device, meant as ratios against the same sc
 
 **Kaggle has so far given this account no TPU through the API.** Every TPU push (script or notebook, TpuV5E8 or TpuV6E8, internet on or off, the image left unpinned as Kaggle's maintainers advise in Kaggle/kaggle-cli#1197, a notebook carrying the editor's own accelerator metadata) and an interactive session requested on the TPU machine shape started at once, without queueing, on a 4-core CPU machine in Kaggle's standard image (Python 3.13, no libtpu), and drew nothing from the TPU quota, which still reports the TPU as never used. A GPU push of the same check queues for a real T4, as the training sessions do. So the push is accepted and the accelerator silently dropped on Kaggle's side. What remains untried is the notebook editor itself: running a notebook once on TPU v5e-8 from Kaggle's web page, which the issue's reporter found does get a TPU, and then pushing again, in case the account needs a first TPU session from the editor. Until a push gets a TPU, the probe isn't worth another session.
 
+## The probe's result: a TPU session is about 24 T4 sessions of network work
+
+probe-3 ran on a real TPU once the account's identity was verified, after a day in Kaggle's queue: a TPU v5 lite, 8 chips of 16 GB, 224 host cores, 40 minutes of the quota. probe-t4 is the same script on a Kaggle T4 session (2 T4s), cut to the 128x4 net by the week's last GPU minutes. Rates are samples a second in bf16 at the best batch measured.
+
+| Workload | One TPU chip | Eight chips | One T4 | Two T4s |
+|---|---|---|---|---|
+| 128x4 training | 37,300 | 297,300 | 6,860 | 12,500 |
+| 128x4 inference | 114,900 | 919,100 | 21,300 | 37,500 |
+| 256x6 training | 16,500 | 132,400 | not measured | |
+| 256x6 inference | 52,600 | 420,500 | not measured | |
+| 512x12 training | 4,900 | about 39,000 | not measured | |
+| Engine-shaped step, game-steps | 403,000 | about 3.2 million | not measured | |
+
+- **Chip for chip the TPU is 5.4 times a T4** on the current net, training and inference alike, and it scales across its eight chips without loss, where the T4 pair loses about 10%. **Session for session it is about 24 times.** The week's 20 TPU hours hold about 16 times the network work of the week's 30 GPU hours.
+- **bf16 is what the TPU is fast at**: full precision trains the 128x4 net at 60% of the bf16 rate and the 512x12 net at 30%. A T4 gains nothing from bf16.
+- **Memory bounds the batch** at 16 GB a chip: 16,384 a chip trains only the 128x4 net, and the larger nets stop at 1,024 to 4,096.
+- **The engine-shaped kernel runs** at 403,000 game-steps a second a chip in 32-bit and 64-bit integers alike, and a quarter of that with 64-bit floats, so the engine's arithmetic is not what a port would lose on. No T4 figure exists for it yet, and a kernel is not the engine.
+- **What it means for the plan.** Network work is where the TPU's advantage is measured, and the learned bot's next stage is network work on recorded choices: distilling a recorded search (`learned-bot.md`, stage 3) and imitation. That is direction 2 above, the network on the TPU and the games elsewhere, and it needs the net and the supervised trainer in JAX, not the engine. The larger nets the capacity gate asks for (256x6 and up) train on the TPU at rates a T4 can't reach. The recording itself is search rollouts, which are network inference fed by engine steps: it moves to the TPU only with the engine (direction 1), and that port is weighed after the first distillation shows what a recording is worth.
+
 ## Questions a first look would answer
 
 - How fast is the TPU on this workload compared with the T4 and the RTX 4070: the network's forward and backward pass at the trainer's batch sizes, and one engine step, if direction 1 is in play? A small kernel run in a single Kaggle session would give a first ratio.
