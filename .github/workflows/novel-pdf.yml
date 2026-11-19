@@ -61,11 +61,14 @@ jobs:
             title="$(jq -r .title "$STORIES/$slug/book/book.json")"
             link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$tag/$slug.pdf"
             notes="The latest draft of *$title*, typeset as a novel from the chapters on main at $commit_url. It is rebuilt whenever the story changes, at the same link: $link"
+            # A novel is never the repo's Latest release. It's created empty and the PDF
+            # uploaded after: given files, gh creates a draft and publishes it without
+            # --latest=false, and GitHub then makes it Latest.
             if gh release view "$tag" > /dev/null 2>&1; then
               gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" -f sha="$GITHUB_SHA" -F force=true > /dev/null
-              gh release upload "$tag" "$pdf" --clobber
-              gh release edit "$tag" --title "$title" --notes "$notes"
+              gh release edit "$tag" --title "$title" --notes "$notes" --latest=false
             else
-              gh release create "$tag" "$pdf" --target "$GITHUB_SHA" --title "$title" --notes "$notes" --latest=false
+              gh release create "$tag" --target "$GITHUB_SHA" --title "$title" --notes "$notes" --latest=false
             fi
+            gh release upload "$tag" "$pdf" --clobber
           done
