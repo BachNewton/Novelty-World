@@ -38,7 +38,7 @@ The `write-fiction` skill is how Claude writes, rewrites and reviews: the steps,
 - `capabilities.md`: every voice model tried, and what it can and can't perform.
 - `ideas/production.md`: ambience, effects, music and mixing, for later.
 
-Every story with chapters is also typeset as a novel, a PDF, by `../novel/build-novel.ts`, and published to a GitHub release of its own (tag `novel-<slug>`, same download link every time): the `novel-pdf` workflow rebuilds it on each push to main that changes a story's chapters or `book/`, or when run by hand. A chapter must open with `# Chapter N: Title`, N being its place in folder order, or the build fails.
+Every story with chapters is also built as a novel by `../novel/build-novel.ts`, a typeset PDF to read and an EPUB for ElevenReader to read aloud (it holds only the text to be spoken, with its chapters as the reader's navigation), and both are published to a GitHub release of its own (tag `novel-<slug>`, the same download links every time): the `novel-pdf` workflow rebuilds them on each push to main that changes a story's chapters or `book/`, or when run by hand. A chapter must open with `# Chapter N: Title`, N being its place in folder order, or the build fails.
 
 ## Performance
 

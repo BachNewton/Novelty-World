@@ -1,21 +1,23 @@
 /**
- * Typesets a drama story's manuscript as a novel, a PDF, with Typst and `novel.typ` beside
- * this file. The chapters are `stories/<slug>/chapters/<nn>/chapter.md` in folder order, each
+ * Builds a drama story's manuscript as a novel: a PDF typeset with Typst and `novel.typ` beside
+ * this file, for reading, or an EPUB (`epub.ts`), for reading apps and text-to-speech readers
+ * such as ElevenReader. The output file's extension picks which. The chapters are `stories/<slug>/chapters/<nn>/chapter.md` in folder order, each
  * opening with `# Chapter N: Title`; the title and author come from `book/book.json`, and its
  * `cover` image, when it names one, is the first page. Nothing else in the story is read.
  *
- *   node src/projects/audiobook/novel/build-novel.ts <slug> <out.pdf>
+ *   node src/projects/audiobook/novel/build-novel.ts <slug> <out.pdf|out.epub>
  *   node src/projects/audiobook/novel/build-novel.ts --list     the slugs of stories with chapters
  *
- * Needs `typst` on the PATH, or its path in the TYPST environment variable. The GitHub
+ * The PDF needs `typst` on the PATH, or its path in the TYPST environment variable. The GitHub
  * workflow `novel-pdf.yml` runs it on every push to main that touches a story's chapters or
- * book, and publishes each story's PDF to its own release.
+ * book, and publishes each story's PDF and EPUB to its own release.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, extname, join, relative, resolve } from "node:path";
 import process from "node:process";
+import { writeEpub } from "./epub.ts";
 
 const HERE = import.meta.dirname;
 const STORIES = resolve(HERE, "../drama/stories");
@@ -127,6 +129,24 @@ function build(slug: string, out: string): void {
   const book = readBook(slug);
   const chapters = files.map((file, i) => readChapter(file, i + 1));
 
+  const format = extname(out).toLowerCase();
+  if (format === ".epub") {
+    if (book.cover) pngAspect(book.cover);
+    const cover = book.cover ? readFileSync(book.cover) : null;
+    try {
+      writeEpub({ slug, title: book.title, author: book.author, edition: edition(slug), cover, chapters }, resolve(out));
+    } catch (error) {
+      fail((error as Error).message);
+    }
+  } else if (format === ".pdf") {
+    typeset(book, chapters, slug, out);
+  } else {
+    fail(`${out}: the output must be a .pdf or an .epub.`);
+  }
+  console.log(`${book.title}: ${chapters.length} chapters -> ${basename(out)}`);
+}
+
+function typeset(book: ReturnType<typeof readBook>, chapters: Chapter[], slug: string, out: string): void {
   const work = mkdtempSync(join(tmpdir(), "novel-"));
   try {
     copyFileSync(TEMPLATE, join(work, "novel.typ"));
@@ -158,7 +178,6 @@ function build(slug: string, out: string): void {
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
-  console.log(`${book.title}: ${chapters.length} chapters -> ${basename(out)}`);
 }
 
 const [first, second] = process.argv.slice(2);
@@ -167,5 +186,5 @@ if (first === "--list") {
 } else if (first && second) {
   build(first, second);
 } else {
-  fail("Usage: build-novel.ts <slug> <out.pdf>  |  build-novel.ts --list");
+  fail("Usage: build-novel.ts <slug> <out.pdf|out.epub>  |  build-novel.ts --list");
 }
