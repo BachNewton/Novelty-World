@@ -23,7 +23,7 @@ export const timeline = {
 
   events: {
     "walt-polio": { date: "1952-07", what: "Walt catches polio, the worst polio year in American history" },
-    "ruth-first-ill": { date: "1974", what: "Ruth's illness begins, in her twenties" },
+    "ruth-first-ill": { date: "1975", what: "Ruth's illness begins, in her twenties" },
     "ruth-hospital": { date: "1996-09", what: "Ruth's eleven weeks in hospital; the county's Thursday visits follow for a year" },
     "dolores-starts": { date: "2007", what: "Dolores starts giving Ruth her monthly injection" },
     "carol-name": { date: "2013", what: "Carol takes her name, at thirty-five" },

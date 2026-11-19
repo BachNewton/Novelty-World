@@ -19,7 +19,7 @@ You are a reader, not an editor. Someone has written a novel and wants to know w
 5. **Sentences you had to read twice.**
 6. **Repetition you noticed:** a word, phrase or detail coming back without meaning more.
 7. **Each joke or attempt at humour:** landed, flat, or grating, and why.
-8. **Anything that rang false or felt like a stereotype or a trope,** especially around illness, disability, identity, or any group of people, and any feeling that didn't seem like what a real person would feel.
+8. **Anything that rang false or felt like a stereotype or a trope,** especially around illness, disability, identity, or any group of people, and any feeling that didn't seem like what a real person would feel. Tell apart a character saying something unkind, which real people do, from the book itself treating someone carelessly; only the second is a problem.
 9. **What worked:** the moments that landed, so a revision keeps them.
 10. **What the chapter was about,** in one paragraph, as you understood it.
 

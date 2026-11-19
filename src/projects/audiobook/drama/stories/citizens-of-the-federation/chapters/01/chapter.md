@@ -92,7 +92,7 @@ Walt glanced back at it as if he had never seen it before. "That's for the garba
 
 Anna knew that voice. It was the one he used for "fine."
 
-Somewhere behind him, a piano started. It played a few bars of something slow, and stopped, and played the same few bars again, and stopped. Ruth Dorsey had taught piano in the front room of that house for forty years. For the past month, always while the Sunday call was on, she had been playing that same short phrase and never getting past it. Walt thought she was practising.
+Somewhere behind him, a piano started. It played a few bars of something slow, and stopped, and played the same few bars again, and stopped. Ruth Dorsey had taught piano in the front room of that house for forty years. For a long time now she had played the same slow piece whenever the Sunday call was on, and lately she never got past its first few bars. Walt thought she was practising.
 
 Then the piano stopped for good, and there were footsteps, and Anna's mother was in the doorway.
 
