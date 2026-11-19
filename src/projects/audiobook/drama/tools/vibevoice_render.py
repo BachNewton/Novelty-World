@@ -8,8 +8,10 @@ runs with --dtype bfloat16.
 
 The scene is "Speaker N: text" lines; Speaker N is cloned from the Nth voice clip, at
 most four. Decoding is greedy (no sampling), so the same scene renders the same way
-every time. Runs in WSL from ~/.venvs/vibevoice, on the community code in
-~/vibevoice-src (Microsoft took its own down).
+every time. VibeVoice is ruled out (capabilities.md) and its environment was removed: to
+run this again, clone github.com/vibevoice-community/VibeVoice (Microsoft took its own
+code down) into ~/vibevoice-src in WSL, and pip install -e it with CPU torch into
+~/.venvs/vibevoice.
 """
 
 import argparse
