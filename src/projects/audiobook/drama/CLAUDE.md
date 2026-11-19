@@ -38,6 +38,8 @@ The `write-fiction` skill is how Claude writes, rewrites and reviews: the steps,
 - `capabilities.md`: every voice model tried, and what it can and can't perform.
 - `ideas/production.md`: ambience, effects, music and mixing, for later.
 
+Every story with chapters is also typeset as a novel, a PDF, by `../novel/build-novel.ts`, and published to a GitHub release of its own (tag `novel-<slug>`, same download link every time): the `novel-pdf` workflow rebuilds it on each push to main that changes a story's chapters or `book/`, or when run by hand. A chapter must open with `# Chapter N: Title`, N being its place in folder order, or the build fails.
+
 ## Performance
 
 **Audio is paused** while the writing is rebuilt. The best performance heard so far came from ElevenLabs, which read a chapter from a PDF in one voice better than anything made locally, so the next attempt starts by weighing it, not only models that run on this machine. Every local model's verdict is in `capabilities.md`, and its tests were run from `stories/citizens-of-the-federation/chapters/01/audio/vibevoice-test/` (ignored by git), whose `LISTEN.md` lists them. The local tools still read an older narrator-line format; the step that turns a `chapter.md` into a performance is built when audio resumes. What holds for it:
