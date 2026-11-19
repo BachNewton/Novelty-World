@@ -44,4 +44,4 @@ What the producer wants from the writing in every story, each with its reason, s
 
 ## The writing comes first
 
-**A chapter is written for a reader, never for a machine.** What the voices can or can't perform plays no part in the manuscript. Good writing performs well: the models learned from audiobooks of good novels, and the performance step adapts to the text, never the other way round.
+**A chapter is written for a reader, never for a machine.** What the voices can or can't perform plays no part in the manuscript, down to the typography: years, numbers, foreign words and punctuation are written the way a printed novel writes them ("in 2026", not the year spelled out as it's spoken). Good writing performs well: the models learned from audiobooks of good novels, and the performance step adapts to the text, never the other way round.

@@ -47,4 +47,5 @@ Each is an instance of a cause; fix the cause, and look for its other instances,
 | Ben's parental leave | Wrong about how Finland's leave works, and does nothing for the story. Check Kela's rules if leave appears at all. | 6 |
 | Ruth's illness | Written like dementia, and romanticized. Rewrite to `people.md`. | 2, 6 |
 | Real or Star Trek technology | The handprint "Interface" with its amber light reads as a 1980s idea of the 2020s. | 5 |
+| Years spelled out ("two thousand and twenty-six") | Written for the TTS, and strange to read. Numerals, as a printed novel writes them. | 4 |
 | Irish unification | A stray fact with its weight lost. Leave as is until `open-questions.md` decides it. | 5 |
