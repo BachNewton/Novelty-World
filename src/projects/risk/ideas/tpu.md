@@ -1,6 +1,6 @@
 # TPUs for the learned bot
 
-An idea to explore, not a plan: nothing here has been measured, and no direction is chosen. It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
+An idea being tried: the probe has measured what a TPU session is worth ("The probe's result"), and the first direction, the network trained on the TPU from games played elsewhere, is built and waiting on its first session ("The network on the TPU"). The engine on the TPU is undecided. It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
 
 ## The goal it would serve
 
@@ -63,6 +63,24 @@ probe-3 ran on a real TPU once the account's identity was verified, after a day 
 - **Memory bounds the batch** at 16 GB a chip: 16,384 a chip trains only the 128x4 net, and the larger nets stop at 1,024 to 4,096.
 - **The engine-shaped kernel runs** at 403,000 game-steps a second a chip in 32-bit and 64-bit integers alike, and a quarter of that with 64-bit floats, so the engine's arithmetic is not what a port would lose on. No T4 figure exists for it yet, and a kernel is not the engine.
 - **What it means for the plan.** Network work is where the TPU's advantage is measured, and the learned bot's next stage is network work on recorded choices: distilling a recorded search (`learned-bot.md`, stage 3) and imitation. That is direction 2 above, the network on the TPU and the games elsewhere, and it needs the net and the supervised trainer in JAX, not the engine. The larger nets the capacity gate asks for (256x6 and up) train on the TPU at rates a T4 can't reach. The recording itself is search rollouts, which are network inference fed by engine steps: it moves to the TPU only with the engine (direction 1), and that port is weighed after the first distillation shows what a recording is worth.
+
+## The network on the TPU: built, its first session a check against a known answer
+
+`gpu/riskgpu/tpu/` holds the network in JAX (`net.py`), checkpoint conversion both ways (`convert.py`), and a supervised trainer for what `imitate.py` and `distil.py` train (`train.py`), on every chip of the session in bf16. On b1-100's weights the JAX net's outputs sit within 8e-6 of PyTorch's with the same choice everywhere, and a checkpoint converted there and back is bit-identical, so a net trained on the TPU loads into every existing tool, the TypeScript export included.
+
+The observation and the rules stay in one place. A **prepare** step runs the PyTorch rebuild on the session's host cores, over the compact states the trainers already keep, and writes plain arrays the JAX trainer streams; nothing of the engine is ported. `launch.py train <name> --task imitate|distil --source <folder>` pushes a session that prepares, trains and writes a PyTorch checkpoint, resumable across sessions; `--data-dataset` reads the source from a Kaggle dataset already uploaded.
+
+What the TPU buys here is imitation and larger nets: 100 million samples of a 256x6 net is under half an hour by the probe's rates, against about nine hours on a T4. A distillation of the current net is minutes on either, since its recording, which needs a GPU, is the cost.
+
+**big-tpu-1, the first session**: the 256x6 imitation of native-v2 in the bucket space, on big-256x6's recipe, whose answer is known (68.2% of held-out decisions copied, on Modal's A10). No real TPU session has run this path, so the first prediction is about the path.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | The session prepares, trains and returns a checkpoint the PyTorch tools load, without a fix | 40% |
+| 2 | Once it runs: held-out agreement within one point of big-256x6's 68.2% | 75% |
+| 3 | It trains at 60,000 samples a second or more over the eight chips | 60% |
+
+What follows: 2 holds, the path is trusted, and the hours go to what a T4 can't train: 384x8 and 512x12 on the exact space, read by the same held-out agreement, as the base the next stage starts from. 2 fails with the session clean: the two trainers differ somewhere the tests didn't reach, found before anything else trains there.
 
 ## Questions a first look would answer
 

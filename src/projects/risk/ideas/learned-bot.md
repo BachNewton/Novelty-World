@@ -47,8 +47,9 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
+| big-tpu-1 | Kaggle's TPU (`tpu.md`, "The network on the TPU") | whether the JAX trainer on the TPU reproduces big-256x6's imitation | `python -m riskgpu.tpu.launch fetch big-tpu-1` |
 
-**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net.
+**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
 ## The brief
 
