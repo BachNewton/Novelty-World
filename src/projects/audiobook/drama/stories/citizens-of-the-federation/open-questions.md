@@ -8,12 +8,6 @@ Agreed: the book's 2020s are our real ones, with Star Trek's events happening in
 
 **Recommended:** what the reader lived through gets a mention; what they didn't gets the story. A real event, place or device can be named in passing, because the reader brings it with them. A canon event or an invented thing is new to the reader, so it arrives the way it arrives to the people in the scene, with what it is and what it does to them. The reader never needs a label, because the difference shows as familiarity: one is remembered, the other is news. The past-tense companion can also place an era in a sentence ("That was the autumn when…"). Reading canon as anchor points (`CLAUDE.md`) helps: a canon event and its real counterpart meet at their seams, as the Bell Riots do beside the real ruling on sleeping outside, so the reader is never asked to keep them apart.
 
-## How the border poll ends
-
-Chapter 6 is Ireland's border poll in 2028. Canon needs unification to come, and the ruling (`CLAUDE.md`) has it come by the vote.
-
-**Recommended:** the vote passes, narrowly, in both parts of the island, and everyone accepts the count. It lands months before America swears in two Presidents over whether its own count can be trusted, which is the whole of what Stays and Counts are named for. The chapter's question, whether violence bought it or the vote did, stays argued over by the people in it.
-
 ## The Bell Riots after chapter 3
 
 The Bell Riots have their own chapter, Labor Day (chapter 3). The ruling (`CLAUDE.md`) says they turned opinion and opinion split. The book now seeds the Districts before it: in chapter 1 Nora waves at a line outside Columbus's new District on the news (autumn 2020), and in chapter 2 the county commissioners are "still arguing" on the front page about whether Dayton needs one. Chapter 3 ends with Dayton voting, the Thursday after the riots, to build its own District by the river. So it is being built, not filled, in 2024 and 2025, while California starts closing its own.
