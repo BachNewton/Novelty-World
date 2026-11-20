@@ -47,7 +47,7 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| d0 to 600, d4 to 300 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock's beside it to 300 | `npm run spot -- pull d0` (and `d4`), from the main checkout |
+| d0 and d4 to 600 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock net beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
 | d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
 | e2: the search recorded on d0-300, its distillation and panel; the sharp panels of d0, d4 and d0b at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2` and `runs/readings` (queued there by `runs/readings/next.sh` and `after.sh`) | e2's predictions; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
 
@@ -743,7 +743,19 @@ What it says. **The mirror's cap rate is a wave, not a state**: every run but d4
 
 **d0 to 300 and d0b to 125 read: the climb stopped near 200, and the second seed gained less.** d0 sampling alone among four b1-100 at 250, 275 and 300: 37%, 31%, 26% [20.9, 31.9]; its most likely move 32%, 35%, 35%. Of "Next, on the spot machine": 2 **failed**, narrowly: no reading past 125 cleared 125's by its half-width (39.5% at 200 against 33.8% and about 6), and the last three fall back. 3 **held**: the mirror capped 30% at 250 and 2.5% at 275, a wave again, with d4's at 56% at 250. 4 **failed**: d0b at 125 samples 23.4% [18.5, 29.1] alone among four b1-100, its most likely move 30.0%. So the control's gain is real on both seeds and smaller than d0's 512-game readings made it look; a run's best checkpoint is chosen on the sharp panel, not its last, and d0's at 175, 200, 250 and 300 are being read at 4,096 games for that.
 
-**Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 stops at 300: the clock earned nothing over the control and a net with it can't be exported.
+**The sharp readings correct that: d0 peaked at 200, and the clock net is the strongest there is.** 4,096 games a check, alone among four b1-100 (par 20%), and four of it against one b1-100 (par 80%):
+
+| Checkpoint | Sampling | Its most likely move | Four against one, at its most likely move | Argmax mirror capped |
+|---|---|---|---|---|
+| d0-125 | 29.9% [28.0, 32.0] | 34.0% [31.9, 36.1] | 85.2% | 0.2% |
+| d0-200 | 36.3% [34.2, 38.5] | 41.1% [38.9, 43.3] | 89.8% | 3.4% |
+| d0-300 | 25.9% [24.0, 27.9] | 36.1% [34.1, 38.3] | 91.2% | 0.0% |
+| d4-125 | 30.7% [28.7, 32.8] | 33.6% [31.5, 35.7] | 88.6% | 0.4% |
+| d4-300 | 40.5% [38.4, 42.7] | 42.6% [40.5, 44.8] | 93.6% | 0.7% |
+
+d0 did climb past 125, to 200, and fell back by 300 in its sampled play while its most likely move held; the 512-game readings had the shape and not the sizes. **d4, the clock alone, kept climbing where the control turned**: level with d0 at 125, 14 points above it sampled at 300, and the only net past 50% alone among four s2-2-150. One seed each, so the clock's edge is a lead and not yet a finding; d4 was wrongly stopped at 300 and trains on to 600 beside d0. A seated bot plays its most likely move, so a candidate is chosen on that column: d0-200 is the best net that can be exported as the bot stands, and goes to the gauntlets as the learned-v3 candidate in c3-75's place; the TypeScript observation is given the clock so d4's can follow.
+
+**Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 was to stop at 300, on its 512-game readings to 225; its sharp reading at 300 reversed that (above).
 
 | # | Prediction | Confidence |
 |---|---|---|
