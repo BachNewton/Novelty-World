@@ -3,8 +3,9 @@ import type { Node, UniformNode, Vector3 } from "three/webgpu";
 import type { RoadWeather } from "./weather";
 
 /*
- * What the weather does to a road's surface: water darkens it and makes it a mirror of the sky at a low angle, fresh
- * snow lies over it but for the wheel tracks worn through each lane, and black ice is a glassier, colder sheen. The
+ * What the weather does to a road's surface: water darkens it and makes it a mirror of the sky at a low angle, snow
+ * lies over it, fresh or packed, but for the wheel tracks worn through each lane, and ice is a glassier, colder sheen,
+ * on the bare road or on packed snow polished by a frost. The
  * shine is light of its own, not the surface's colour, so it goes in after the hour's light has tinted the road and
  * before the haze: `inLand` hands it back as a colour that comes out as itself once the hour's light has had it, as
  * the terrain's sea does.
@@ -49,13 +50,14 @@ export function roadWeather({ weather, skyAlong, toSun, inLand, snow, ice, lying
   /** A road's colour under the weather, before the hour's light: snow over it, and darker where wet. */
   const surface = (colour: Node<"vec3">, cover: Node<"float">) => mix(colour.mul(mix(float(1), float(WET_DARK), weather.wet)), snow, cover);
 
-  /** The shine on a road's surface where it isn't under snow: the sky mirrored, the sun's glint, colder on ice. */
+  /** The shine on a road's surface: the sky mirrored and the sun's glint in water where no snow lies, and colder in ice. */
   const shine = (cover: Node<"float">, light: Node<"float">) => {
     const view = normalize(positionWorld.sub(cameraPosition));
     const mirrored = vec3(view.x, view.y.negate(), view.z);
     const grazing = float(1).sub(view.y.negate().max(0));
     const fresnel = float(FACE_ON).add(float(1 - FACE_ON).mul(pow(grazing, float(5))));
-    const amount = max(weather.wet.mul(WET_SHINE), weather.ice.mul(ICE_SHINE)).mul(float(1).sub(cover));
+    // Water shines only where no snow lies. Ice shines wherever the weather has it: on a winter road it is the snow itself, polished.
+    const amount = max(weather.wet.mul(WET_SHINE).mul(float(1).sub(cover)), weather.ice.mul(ICE_SHINE));
     const sky = mix(skyAlong(mirrored), skyAlong(mirrored).mul(ice), weather.ice);
     const strength = toSun.length();
     const towardSun = toSun.div(max(strength, float(0.0001)));

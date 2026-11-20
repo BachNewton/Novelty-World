@@ -13,8 +13,11 @@ import { snowAt } from "./season";
  *
  * How often it rains, how cloudy it is and how often a morning is foggy are each held to the month's numbers by
  * reading the wandering against its own spread (`calibration`), so the rates come out right whatever shape the
- * wandering has. Rain or snow is the temperature's call. The road remembers: wet for some hours after rain, snowy
- * for a few after snow before the ploughs clear it, and icy where a wet road meets frost.
+ * wandering has. Rain or snow is the temperature's call. The road remembers: wet for some hours after rain, deep in
+ * fresh snow for a few after a fall before the ploughs come, and icy where a wet road meets frost. And while the
+ * season's snow lies, what the ploughs leave is a winter road: Åland salts none of its roads, so its roads are packed
+ * snow from the first lasting fall until a thaw takes it, and a thawed road that freezes again is ice until the snow
+ * packs once more. That is what a winter's tyres are for.
  */
 
 /** When the weather is asked for. `time/day.ts` gives the date and hour; the game days are the world's clock over `GAME_DAY_S`. */
@@ -48,9 +51,9 @@ export interface Weather {
   temperatureC: number;
   /** How wet the road is, 0 to 1, rain or meltwater in the last hours. */
   roadWet: number;
-  /** How much fresh snow lies on the road, 0 to 1, before the ploughs clear it. */
+  /** How much snow lies on the road, 0 to 1: a fresh fall before the ploughs come, over the packed snow they leave while the season's snow lies. */
   roadSnow: number;
-  /** How icy the road is, 0 to 1: a wet road frozen. */
+  /** How icy the road is, 0 to 1: a wet road frozen, or a winter road's packed snow polished by a clear, hard frost. */
   blackIce: number;
   /** How strong an aurora is now, 0 to 1, if the night is dark enough to show it: the sky's darkness is the renderer's. */
   aurora: number;
@@ -161,18 +164,32 @@ export function skyAt(seasonDay: number, hour: number, gameDays: number) {
 /** How many game days back the road remembers rain, and snow before the ploughs. */
 const DRIES_IN = { summer: 5 / 24, winter: 12 / 24 } as const;
 const PLOUGHED_IN = 6 / 24;
+/** How much snow the ploughs leave packed on a road: white, the wheel tracks worn darker, and gripping as snow. */
+const PACKED = 0.55;
+/** The season's snow cover over which the land is white enough for the roads to stay so. */
+const PACKS_OVER = [0.35, 0.8] as const;
+/** The warmth, °C, over which packed snow goes to slush and water: it holds at freezing and is gone by this. */
+const THAWS_BY = 1.5;
+/** The cloud cover under which a frosty road polishes to ice, from wholly to not at all, and the frost, °C, from none of it to all. */
+const POLISHED_UNDER = [0.35, 0.75] as const;
+const POLISHED_BELOW = [-3, -7] as const;
 /** The road's memory is read from samples on a fixed lattice of game time, so every player reads the same ones. */
 const MEMORY_STEP = 1 / 48;
 
 type Sky = ReturnType<typeof skyAt>;
 
+/** How far a mild hour thaws what lies on the road, 0 to 1. */
+const thawing = (sky: Sky) => smoothstep(0, THAWS_BY, sky.temperatureC);
+
 /** Water on the road: rain, falling snow that melts as it lands, and lying snow thawing in a mild hour. */
-const meltwater = (sky: Sky, snowCover: number) => sky.rain + smoothstep(0, 1.5, sky.temperatureC) * (0.5 * sky.snowfall + 0.6 * snowCover);
+const meltwater = (sky: Sky, snowCover: number) => sky.rain + thawing(sky) * (0.5 * sky.snowfall + 0.6 * snowCover);
 
 /**
- * The road: the most rain and the most snow it has had lately, each fading to nothing over the time it takes to dry
- * or be ploughed. The past is read at the lattice's samples and now; a sample comes in at no age, equal to now, and
- * leaves faded to nothing, so the road never jumps.
+ * The road: the most rain and the most fresh snow it has had lately, each fading to nothing over the time it takes to
+ * dry or be ploughed, and under the fresh snow the packed snow of a winter road, as much as the season's snow holds the
+ * land and no thaw has taken lately: a thaw is remembered as long as its water is, so a road it bared stays bare, and
+ * icy in the frost after, until the snow packs again. The past is read at the lattice's samples and now; a sample comes
+ * in at no age, equal to now, and leaves faded to nothing, so the road never jumps.
  */
 function roadAt(sky: Sky, seasonDay: number, hour: number, gameDays: number) {
   const snowCover = snowAt(seasonDay).cover;
@@ -180,22 +197,30 @@ function roadAt(sky: Sky, seasonDay: number, hour: number, gameDays: number) {
   const span = Math.max(driesIn, PLOUGHED_IN);
   let wet = meltwater(sky, snowCover);
   let snow = sky.snowfall;
+  let thawed = thawing(sky);
   for (let at = Math.floor(gameDays / MEMORY_STEP) * MEMORY_STEP; at > gameDays - span; at -= MEMORY_STEP) {
     const age = gameDays - at;
     // Read at the hour it was, as the shared clock's game days carry it; a page whose hour is moved reads it shifted the same.
     const then = skyAt(seasonDay, hour - age * 24, at);
     wet = Math.max(wet, meltwater(then, snowCover) * clamp01(1 - age / driesIn));
     snow = Math.max(snow, then.snowfall * clamp01(1 - age / PLOUGHED_IN));
+    thawed = Math.max(thawed, thawing(then) * clamp01(1 - age / driesIn));
   }
-  return { roadWet: wet, roadSnow: snow };
+  const packed = PACKED * smoothstep(PACKS_OVER[0], PACKS_OVER[1], snowCover) * (1 - thawed);
+  return { roadWet: wet, fresh: snow, packed };
 }
 
 /** The weather at a moment. */
 export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weather {
   const seasonDay = seasonDayOf(date, through);
   const sky = skyAt(seasonDay, hour, gameDays);
-  const { roadWet, roadSnow } = roadAt(sky, seasonDay, hour, gameDays);
-  const blackIce = roadWet * smoothstep(0.5, -1.5, sky.temperatureC) * (1 - smoothstep(0.1, 0.4, roadSnow));
+  const { roadWet, fresh, packed } = roadAt(sky, seasonDay, hour, gameDays);
+  const roadSnow = Math.max(fresh, packed);
+  // A wet road frozen, unless snow lies over it. And under a clear sky in a hard frost the packed snow itself is worn and
+  // polished to ice, still white, until cloud and a fresh fall give it its grip back.
+  const frozen = roadWet * smoothstep(0.5, -1.5, sky.temperatureC) * (1 - smoothstep(0.1, 0.4, roadSnow));
+  const polished = (packed / PACKED) * (1 - smoothstep(POLISHED_UNDER[0], POLISHED_UNDER[1], sky.cloudCover)) * smoothstep(-POLISHED_BELOW[0], -POLISHED_BELOW[1], -sky.temperatureC) * (1 - smoothstep(0.1, 0.4, fresh));
+  const blackIce = Math.max(frozen, polished);
 
   return withReading({
     cloudCover: sky.cloudCover,
@@ -215,7 +240,8 @@ export function weatherAt({ date, through, hour, gameDays }: ClimateTime): Weath
 /** The weather's values with what they read as: the ground's condition and the state's name. */
 export function withReading(values: Omit<Weather, "condition" | "state">): Weather {
   const { cloudCover, rain, snowfall, fog, roadWet, roadSnow, blackIce } = values;
-  const condition: Condition = roadSnow > 0.15 ? "snow" : blackIce > 0.3 ? "ice" : roadWet > 0.1 ? "wet" : "dry";
+  // Ice first: what snow lies on an icy road is the packed snow that was polished, a fresh fall having covered any other ice.
+  const condition: Condition = blackIce > 0.3 ? "ice" : roadSnow > 0.15 ? "snow" : roadWet > 0.1 ? "wet" : "dry";
   const state: WeatherState = fog > 0.2 ? "fog" : snowfall > 0.1 ? "snowfall" : rain > 0.1 ? "rain" : cloudCover > 0.85 ? "overcast" : cloudCover > 0.35 ? "cloud" : "clear";
   return { ...values, condition, state };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dateOfDayNumber, dayNumberOf } from "./calendar";
 import { MONTHLY } from "./climate";
 import { seaIceAt, snowAt } from "./season";
-import { SAMPLES_PER_GAME_DAY, skyAt, wetGameDay } from "./weather";
+import { SAMPLES_PER_GAME_DAY, skyAt, weatherAt, wetGameDay } from "./weather";
 
 /*
  * The weather's rates against the climate it's drawn from, over simulated years: a change to how the fronts wander or
@@ -82,6 +82,31 @@ describe("the weather's rates", () => {
     expect(baysFrozen / winters).toBeGreaterThan(2 / 3);
     expect(openSeaFrozen / winters).toBeGreaterThan(0.1);
     expect(openSeaFrozen / winters).toBeLessThan(0.5);
+  });
+
+  it("keeps the road a winter road while snow holds the land, icy in a share of it, and never in summer", () => {
+    // What a winter's tyres are for: retuned so the ploughs bare the road again, winter drives as summer with nothing else noticing.
+    const count = { winter: 0, snowOrIce: 0, ice: 0 };
+    for (const year of YEARS) {
+      for (const [month, last] of [[1, 31], [2, 28], [7, 31]] as const) {
+        for (let day = dayNumberOf({ year, month, day: 1 }); day < dayNumberOf({ year, month, day: last }); day++) {
+          for (let sample = 0; sample < SAMPLES_PER_GAME_DAY; sample++) {
+            const hour = (sample / SAMPLES_PER_GAME_DAY) * 24;
+            const { condition } = weatherAt({ date: dateOfDayNumber(day), through: 0.5, hour, gameDays: day * 24 + sample / SAMPLES_PER_GAME_DAY });
+            if (month === 7) {
+              expect(condition === "snow" || condition === "ice", `a winter road on ${year}-07-${day}`).toBe(false);
+            } else if (snowAt(day + 0.5).cover >= 0.9) {
+              count.winter++;
+              if (condition === "snow" || condition === "ice") count.snowOrIce++;
+              if (condition === "ice") count.ice++;
+            }
+          }
+        }
+      }
+    }
+    expect(count.snowOrIce / count.winter).toBeGreaterThan(0.85);
+    expect(count.ice / count.winter).toBeGreaterThan(0.04);
+    expect(count.ice / count.winter).toBeLessThan(0.3);
   });
 
   it("lays no snow and no sea ice in summer", () => {
