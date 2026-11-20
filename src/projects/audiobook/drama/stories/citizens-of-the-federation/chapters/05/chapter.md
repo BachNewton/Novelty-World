@@ -1,4 +1,4 @@
-# Chapter 2: Responsible Party
+# Chapter 5: Responsible Party
 
 On a Tuesday night in March 2027, Walt Dorsey got up in the dark for a glass of water, and his good leg, which had carried him since he was five, did not hold. He went down on the kitchen floor, and his hip broke under him.
 

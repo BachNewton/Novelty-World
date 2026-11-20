@@ -16,14 +16,14 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ## Chapters
 
-### 1. Leaving (spring 2020 to spring 2021, Dayton and Toledo)
+### 1. Leaving (29 January to 6 February 2021, Dayton)
 
 - **The idea:** what makes someone leave their country. Not one reason but a year of them, each reasonable, until staying is the decision that needs defending.
 - **Question:** Who goes, and who stays behind?
 - **Goes deep on:** health (a pandemic, a vaccine, an injection that can't wait), family, mortality, labor (work that moves to a screen, work that can't).
 - **Touches:** timeline, geography, politics, faith, technology, society, how the past is remembered.
 - **The world it shows:** COVID in an Ohio town, where the same shot is a miracle to one neighbour and a threat to the next.
-- **Its people:** Ben's parents die in Toledo in the first winter, before the vaccine, and are buried with a funeral on a screen. Walt, who caught polio in 1952, three years before its vaccine, is 73 when Ohio opens the COVID vaccine to people over seventy, the first week of February 2021, and waits in line beside neighbours who won't. Dolores keeps giving Ruth her injection all through lockdown, masked, and her daughter, a nurse too, takes a job in Toronto.
+- **Its shape:** one week, lived through, with the year before it arriving only in what people remember and say. Anna, Ben and Nora have lived in Walt and Ruth's house since March 2020, so that the old people never have to go into a store. Anna books her parents' vaccine the Friday the appointments open; on Monday Dolores gives Ruth her shot in the front hall, and Joy, her daughter, a COVID nurse, is leaving for Toronto; on Wednesday Walt and Ruth are vaccinated downtown, while Gene across the street, who remembers the Cutter batches of 1955, won't be; that night Ben says his dead parents would have been in that day's line, and asks for another year; on Thursday Anna fills in the Finnish forms anyway, to the sound of Ruth's lesson over an iPad; on Saturday, on the porch, Walt and Ruth say no.
 - **Moves from → to:** the family is whole in Ohio, with no plan to go anywhere → Anna, Ben and Nora are leaving for Helsinki, and Walt and Ruth, asked to come, have said no, for good reasons. Nobody knows yet what that no will cost.
 
 ### 2. The launch (April 2024, Dayton)
@@ -110,7 +110,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 - **Question:** What is a child who was made better, and what do they owe or deserve?
 - **Goes deep on:** ethics and philosophy, medicine and science, family, geography.
 - **Touches:** faith, values, politics, culture, law.
-- **The world it shows:** the Eugenics Wars away from the West, through Dolores's daughter, who cared for Khan as a small child in Toronto and meets what he has grown into.
+- **The world it shows:** the Eugenics Wars away from the West, through Joy, Dolores's daughter, who cared for Khan as a small child in Toronto and meets what he has grown into.
 - **Moves from → to:** to be written with the chapter.
 
 ### 11. (2053, Helsinki)
@@ -137,7 +137,7 @@ The agreed pace and topics. The dates between canon's fixed points are ours, and
 
 | Chapter | When | What it covers |
 |---|---|---|
-| 1 | 2020 to 2021 | COVID in Ohio, and the family's decision to leave |
+| 1 | February 2021 | The COVID vaccine week in Dayton, and the family's decision to leave |
 | 2 | April 2024 | The eclipse and Renée Picard's launch: the family whole, once |
 | 3 | September 2024 | Ben in San Francisco at the Bell Riots |
 | 4 | November 2026 | Helsinki: America seen from far away, and the danger reaching the family |
@@ -161,10 +161,16 @@ What runs between chapters: something planted in one and paid off or echoed in a
 - **Lucille's shoelace,** tied round Ruth's neck in chapter 5, still missing from her shoe in chapter 9.
 - **The Helsinki shelter:** Ben tells Nora the room under the building is for skis (chapter 4). Chapter 11 pays it off.
 - **The no in chapter 1:** Walt and Ruth decline to come to Helsinki, and in chapter 4 Finland's rule, that a parent's permit is meant for one who moved with her child, shuts Ruth out.
-- **Ben's two headstones in Toledo:** his parents' deaths in chapter 1, said in a line in chapter 4.
-- **Two vaccines:** Walt caught polio three years before its vaccine; in chapter 1 he lines up for COVID's.
+- **Ben's two headstones in Toledo:** his parents' deaths in chapter 1, a funeral watched on a laptop and a grave he hasn't yet visited when he hands over his passport; said in a line in chapter 4.
+- **Gene Kessler across the street:** won't have the vaccine in chapter 1, but salts the Dorseys' steps. He must be gone (dead, moved or in care) before Walt lies seventeen hours on the floor in chapter 5; chapter 2 or 4 settles which, without making him a lesson.
+- **Two vaccines:** Walt caught polio three years before its vaccine; in chapter 1 he lines up for COVID's and is "on time", while Gene, who remembers the Cutter batches, won't.
+- **The Sunday call:** Walt sets it on the porch in chapter 1, "Eleven o'clock, after church. Your mother'll play you something": the call of chapter 4, Ruth's four bars on it explained in chapter 5, and the hour Anna rings Carol in chapter 9.
+- **A screen tipping to a ceiling:** a nurse's iPad tips back while Ben says goodbye to his father in chapter 1; Walt's tablet tips to the ceiling fan in chapter 4; Carol's phone tips to a ceiling with no fan as Walt dies in chapter 9.
+- **Who holds the screen:** Joy holds up iPads for goodbyes all December (chapter 1); Carol holds up her phone for Walt's (chapter 9).
+- **Windows:** Walt's mother at the window of his polio ward in 1952, and Nora at the front window waving to him at the end of chapter 1; the family he will know through a screen from then on.
+- **Ruth's arm:** "That one's Dolores's" (chapter 1), the arm it took Dolores years to earn (chapter 4), "Give me your arm" inside the District (chapter 5).
 - **Nora's Europa:** the launch on her fifth birthday in chapter 2, the orange crayon drawing on the fridge in chapter 4, the homecoming in chapter 8.
-- **Dolores's daughter:** leaves for Toronto in chapter 1, while her mother stays with Ruth; cared for Khan as a child, and meets him grown in chapter 10. Dolores walks out of the District's gate in June 2030 and isn't seen again, which stays open.
+- **Joy, Dolores's daughter:** leaves for Toronto in chapter 1, for a job nursing children, while her mother stays to "do the arms"; cared for Khan as a child, and meets him grown in chapter 10. Dolores walks out of the District's gate in June 2030 and isn't seen again, which stays open.
 - **Ben's colleague from Belfast:** beside him at the Bell Riots in chapter 3, voting in chapter 6.
 - **Joel Flory:** met at Gate 12A in chapter 7, shot on the levee in chapter 9.
 - **Alma,** born in January 2027, would be 26 in 2053 and 36 at First Contact. The book could quietly return to her decades later.
