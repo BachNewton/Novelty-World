@@ -16,7 +16,7 @@ Anna watched them from the porch steps. She and Ben had brought the children hom
 
 The whole street was out. That afternoon the moon would pass exactly in front of the sun, and Dayton lay just inside the narrow band of country where the sun would be covered completely. Walt had read the time out at breakfast from the paper, as if it were a train: two minutes and forty-three seconds of dark, starting a little after three. The neighbours had set out folding chairs on their lawns and driveways. Everybody had cardboard glasses with black film in them. Nora had worn hers since lunch, and kept walking into things.
 
-The eclipse wasn't the only thing on the front page that morning. Below it was a photograph of a ship's crew in their flight suits. The ship was called the Shango, and in a week it was leaving for Jupiter.
+The eclipse wasn't the only thing on the front page that morning. Below it was a photograph of a ship's crew in their flight suits. The ship was called the Shango, and in a week it was leaving for Jupiter. At the bottom of the page, the county commissioners were still arguing about whether Dayton needed a Sanctuary District of its own, like the big cities.
 
 Walt had followed the Europa Mission in the paper for years, half believing it, as he half believed most promises made on television. In the whole history of the world, nobody had ever gone anywhere but the moon, and nobody had been even that far since he was twenty-five. Now there was a crew, with names and faces, and a date, and a dinner for them on Friday night. He had read that out too, and then read it again to himself, and kept looking at the photograph to see if it would turn out to be something else.
 

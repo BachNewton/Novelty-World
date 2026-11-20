@@ -180,7 +180,7 @@ Ben's company had a dozen engineers in Helsinki, and in October it had told its 
 
 She had made a spreadsheet, because that was how she thought. In the whole of the year, Finland had lost fewer people to the virus than Ohio had lost in December.
 
-She had not put on the spreadsheet the night in January when men climbed the walls of the Capitol in Washington on the television, and Nora, eating her supper on the floor in front of it, waved at them. Nora waved at everyone on a screen. Anna had picked her up and carried her out of the room, and her heart had not slowed down until bedtime.
+She had not put on the spreadsheet the night in January when men climbed the walls of the Capitol in Washington on the television, and Nora, eating her supper on the floor in front of it, waved at them. Nora waved at everyone on a screen. Anna had picked her up and carried her out of the room, and her heart had not slowed down until bedtime. Nora had waved that autumn, too, at a line of people with their bags outside the gate of the new Sanctuary District in Columbus, an hour up the road, waiting to be let in. Anna hadn't carried her out of the room for that.
 
 The application was long, and Anna was good at long. Their marriage certificate would need an apostille: a seal from the State of Ohio to prove that the State of Ohio's certificate was real. She filled in every box she could and made a list of the rest.
 

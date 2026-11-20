@@ -16,9 +16,9 @@ Chapter 6 is Ireland's border poll in 2028. Canon needs unification to come, and
 
 ## The Bell Riots after chapter 3
 
-The Bell Riots have their own chapter, The feed. The ruling (`CLAUDE.md`) says they turned opinion and opinion split, so Dayton keeps filling its District while California starts closing its own.
+The Bell Riots have their own chapter, Labor Day (chapter 3). The ruling (`CLAUDE.md`) says they turned opinion and opinion split. The book now seeds the Districts before it: in chapter 1 Nora waves at a line outside Columbus's new District on the news (autumn 2020), and in chapter 2 the county commissioners are "still arguing" on the front page about whether Dayton needs one. Chapter 3 ends with Dayton voting, the Thursday after the riots, to build its own District by the river. So it is being built, not filled, in 2024 and 2025, while California starts closing its own.
 
-**Recommended:** chapter 4 or 5 carries one trace where the District first comes up: Gabriel Bell's name as one half of America says it and the other half says it, now something Ben has seen for himself. Chapter 9 needs nothing more: its residents tearing the fence down is Sisko's "They'll be torn down".
+**Recommended:** chapter 4 meets Dayton's District as finished and full: Walt's "Nobody we know, Annie" from chapter 3 under the man on television saying "the dims have to go somewhere". Gabriel Bell's name can come up once, the way each half of America says it, now something Ben has seen for himself. Chapter 9 needs nothing more: its residents tearing the fence down is Sisko's "They'll be torn down".
 
 ## The immigrant Sanctuary Districts
 
