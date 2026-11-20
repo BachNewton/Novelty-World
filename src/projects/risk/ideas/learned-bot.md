@@ -47,9 +47,9 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| d0, d4 to 300 | the spot machine (`infra/spot/README.md`) | whether the control's climb past 125 goes on, and the clock's beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
+| d0 to 600, d4 to 300 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock's beside it to 300 | `npm run spot -- pull d0` (and `d4`), from the main checkout |
 | d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
-| e1's distillation and its panel, d0-125's and d4-125's sharp panels | the spot machine, `runs/distil/e1` and `runs/readings` | e1's predictions 2 to 4; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders |
+| e2: the search recorded on d0-300, its distillation and panel; the sharp panels of d0, d4 and d0b at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2` and `runs/readings` (queued there by `runs/readings/next.sh` and `after.sh`) | e2's predictions; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
@@ -735,7 +735,22 @@ What it says. **The mirror's cap rate is a wave, not a state**: every run but d4
 | 3 | d0's mirror passes 25% at some reading between 150 and 300, and is under 10% again within 50 iterations | 40% |
 | 4 | d0b at 125: sampling alone among four b1-100, 28% or more | 60% |
 
-**e1's recording** ran beside them: one shard of 1,024 five-player games in about nine hours on a shared card, 1.07 million decisions, 499,000 searched and 30% of those overruled. Its prediction 1 **held**: 5 games of 1,024 capped. The distillation and its panel are in flight.
+**e1's recording** ran beside them: one shard of 1,024 five-player games in about nine hours on a shared card, 1.07 million decisions, 499,000 searched and 30% of those overruled. Its prediction 1 **held**: 5 games of 1,024 capped.
+
+**e1 read: one distillation of the search made the net stronger, with no self-play.** The hard target into b1-100, its best step at 3,500, then the 4,096-game panel. 2 **failed**, on its second half: held out, the distilled net makes the search's move at 34.1% [33.5, 34.8] of the decisions where the search overruled the net (30% asked) and at 87.8% [87.5, 88.1] of those it kept (90% asked); 95.4% of the skipped. 3 **held**: its most likely move alone among four b1-100, 26.8% [24.8, 28.8], and sampling 25.3% [23.4, 27.3]; four of it against one b1-100, 85.6% (par 80%). 4 **held**: its argmax mirror caps 3.4% [2.9, 4.1], b1-100's own 4.4% [3.8, 5.0]. So the loop closes once: about a quarter of the search's measured edge over the raw net (40.8% against 21.1% on this table) is in the weights after one shard. It is a smaller step than 125 iterations of self-play made on the same base (d0-125: 29.9% [28.0, 32.0] sampling, 34.0% at its most likely move, on the same sharp panel; d4-125 30.7% and 33.6%), and the two aren't exclusive: the search reads whatever net it is given.
+
+**d0 past 125, so far** (512 games a reading): sampling alone among four b1-100, 33% at 150, 39% at 175, 40% at 200, 37% at 225, its mirror under 3% throughout; d4 35, 37, 33, 35%. The sharp reading at 125 holds prediction 1 above (28% or more: 29.9%).
+
+**Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 stops at 300: the clock earned nothing over the control and a net with it can't be exported.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | The search still overrules d0-300 at a quarter or more of its searched decisions (30% on b1-100) | 65% |
+| 2 | e2's distilled net gains on d0-300: against b1-100 on the sharp panel, its most likely move alone among four above d0-300's own by more than the two intervals' overlap | 40% |
+| 3 | d0 between 300 and 600: a 512-game reading of 45% or more sampling alone among four b1-100 | 35% |
+| 4 | d0's mirror stays under 25% at every reading to 600 | 60% |
+
+What follows: 2 holds, self-play and the search stack, and the recipe becomes a cycle of the two with the search recorded on each new best. 2 fails with 1 holding: the search's edge over a stronger net is there but one shard doesn't carry it, read next with the soft target and a longer recording before the cycle is dropped. 3 fails with d0 flat past 300: the 128x4 net on the bucket space has reached what this recipe gives it, and the next base is the exact space and a larger net, as planned.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
