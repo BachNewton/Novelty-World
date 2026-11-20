@@ -56,6 +56,21 @@ class GiveWay(unittest.TestCase):
         self.assertGreater(min(line.distance(house), line.distance(barn)), drawn_half_width(street))
         self.assertAlmostEqual(line.interpolate(line.project(Point(-4.65, 6))).x, -4.65, delta=0.3)
 
+    def test_a_road_through_a_gap_too_tight_for_its_class_stays_in_it_and_narrows(self):
+        # Kullskär: the road passes between a shed and a barn 5 m apart, nearer the barn. Pushed off the barn at its
+        # class's width it landed in the shed, and was cut in two there.
+        shed, barn = box(-8, 0, -3, 18), box(2, 0, 14, 26)
+        street = road("unclassified", [[0.5, -200], [0.5, 200]])
+        meetings = give_way([street], [shed, barn])
+        self.assertEqual(len(meetings.roads), 1)
+        line = LineString(meetings.roads[0]["line"])
+        self.assertAlmostEqual(line.interpolate(line.project(Point(-0.5, 9))).x, -0.5, delta=0.3)
+        # The gap leaves each side 2.5 m, less the eaves' room and the road's strip: a lane's width and a little more.
+        halves = [half for _, north, half in meetings.roads[0]["pinches"] if 2 < north < 16]
+        self.assertTrue(halves)
+        self.assertGreater(min(halves), 1.4)
+        self.assertLess(max(halves), 1.75)
+
     def test_a_junction_inside_a_building_moves_out_with_every_road_meeting_there(self):
         street = road("residential", [[-30, 1], [5, 1], [40, -10]])
         drive = road("service", [[5, 1], [5, -30]], id=2)
@@ -111,7 +126,7 @@ class GiveWay(unittest.TestCase):
         # mustn't reach the crossing, even by the millimetre a centimetre's rounding of the moved road would take it.
         street = road("unclassified", [[-400, 2.003], [400, 37.71]])
         west = give_way([street], []).roads[0]["line"]
-        east = give_way([street], [box(380, 42, 390, 52)]).roads[0]["line"]
+        east = give_way([street], [box(380, 40, 390, 50)]).roads[0]["line"]
         self.assertNotEqual(west, east)
         crossings = [clip_line(np.array(line), Bounds(-6000, -3000, 0, 3000))[0][-1] for line in (west, east)]
         self.assertEqual(crossings[0].tolist(), crossings[1].tolist())

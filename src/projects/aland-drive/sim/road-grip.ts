@@ -15,7 +15,7 @@ import { SURFACES, type Surface } from "./surfaces";
  * as asphalt.
  */
 
-/** Past this across a way is its shoulder. The carriageway's edge is 1, and the paving stores its points there up to a couple of hundredths past it: the outline is kept within 2 cm, over a shoulder of a metre or so, and across is rounded to 1/1024. `pipeline/roadside.py` reads the same edge. */
+/** Past this across a way is its shoulder. The carriageway's edge is 1, where the paving stores the edge's own points, and across is rounded to 1/1024, so this leaves room to spare. `pipeline/roadside.py` reads the same edge. */
 const CARRIAGEWAY_EDGE_ACROSS = CARRIAGEWAY.edgeAcross;
 
 const CLASS_SURFACES: Record<SurfaceClass, Surface | null> = {

@@ -44,6 +44,11 @@ UNDER_ANOTHER_ROAD_M = 0.3
 SHOULDER_LONGEST_DROP_M = 1.0
 BENEATH_GREATER_ROAD_M = 0.05
 
+# A pinch (`give_way`) is its way's own within this of one of its stations: the way's rounding moves a station that far.
+PINCH_ON_M = 4.0
+# A carriageway narrowed for a gap opens out again by this many metres of half-width for every metre along the road.
+PINCH_TAPER = 0.08
+
 # A roundabout's ring keeps its real shape: a road's rounding would pull a ring this small out of true.
 RING_CORNER_M = 2.0
 # A way that closes on itself, not a roundabout, runs on through where it closes only if its ends turn less than this
@@ -137,17 +142,21 @@ class RoadClass:
     wavelength_m: float  # Height detail shorter than this leaves the profile.
     crown: float
     bank_limit: float
+    # Past the carriageway's edge, the hard strip a road has in the country, from half a metre on a main road down to a
+    # quarter, as Åland's road plans have them. The verge beyond it is land.
     shoulder_m: float
     blend_m: float
+    # The same in town, where a street's kerb and paving take the strip's place and are as wide as this.
+    kerbed_m: float
 
 
-_PRIMARY = RoadClass(0, "main", 7.5, 14, 280, 0.025, 0.05, 2.5, 16)
-_SECONDARY = RoadClass(1, "main", 7, 12, 240, 0.025, 0.05, 2.5, 14)
-_TERTIARY = RoadClass(2, "main", 6, 10, 180, 0.025, 0.04, 2, 12)
-_MINOR = RoadClass(3, "minor", 4.5, 8, 120, 0.02, 0.03, 1.5, 8)
-_SERVICE = RoadClass(4, "minor", 3.5, 5, 70, 0.02, 0, 1.2, 6)
-_TRACK = RoadClass(5, "track", 2.5, 4, 50, 0.015, 0, 1, 5)
-_PATH = RoadClass(6, "track", 2, 3, 30, 0.01, 0, 0.8, 4)
+_PRIMARY = RoadClass(0, "main", 7.5, 14, 280, 0.025, 0.05, 0.5, 16, 2.5)
+_SECONDARY = RoadClass(1, "main", 7, 12, 240, 0.025, 0.05, 0.5, 14, 2.5)
+_TERTIARY = RoadClass(2, "main", 6, 10, 180, 0.025, 0.04, 0.4, 12, 2)
+_MINOR = RoadClass(3, "minor", 4.5, 8, 120, 0.02, 0.03, 0.3, 8, 1.5)
+_SERVICE = RoadClass(4, "minor", 3.5, 5, 70, 0.02, 0, 0.3, 6, 1.2)
+_TRACK = RoadClass(5, "track", 2.5, 4, 50, 0.015, 0, 0.25, 5, 1)
+_PATH = RoadClass(6, "track", 2, 3, 30, 0.01, 0, 0.8, 4, 0.8)
 CLASSES = {
     "motorway": _PRIMARY,
     "trunk": _PRIMARY,
@@ -168,13 +177,18 @@ CLASSES = {
 class Ground:
     """Heights on the corners of the 2 m samples, with a rim beyond the tile."""
 
-    def __init__(self, corners: np.ndarray, west: float, north: float, rim: int, spacing: float = STATION_M, water: np.ndarray | None = None):
+    def __init__(self, corners: np.ndarray, west: float, north: float, rim: int, spacing: float = STATION_M, water: np.ndarray | None = None, built_up=None):
         self.corners = corners
         self.west = west
         self.north = north
         self.rim = rim
         self.spacing = spacing
         self.water = water  # True on 2 m samples of lake or sea, with a rim of one sample more than the corners.
+        self.built_up = built_up  # How built up each place is, 0 to 1 (`built_up.Share`); country everywhere without one.
+
+    def in_town(self, xy: np.ndarray) -> np.ndarray:
+        """How far each place is a town's, 0 to 1: there a street has its kerb and paving, where a country road has a strip."""
+        return np.zeros(len(xy)) if self.built_up is None else self.built_up(xy)
 
     def sample(self, xy: np.ndarray) -> np.ndarray:
         columns = (xy[..., 0] - self.west) / self.spacing + self.rim
@@ -492,6 +506,24 @@ def _seam_at(edge: Edge, point: np.ndarray, ground: Ground) -> np.ndarray | None
     return None
 
 
+def _through_gaps(chain: Chain, xy: np.ndarray) -> np.ndarray:
+    """How wide a half its carriageway may be at each station, where the way passes through a gap too tight for its class
+    (`give_way` marks them on the road): the gap's own width there, opening out along the road at a gentle taper."""
+    allowed = np.full(len(xy), np.inf)
+    pinches = np.array([pinch for edge in chain.edges for pinch in edge.road.get("pinches", ())], dtype=float).reshape(-1, 3)
+    if not len(pinches):
+        return allowed
+    distance, station = cKDTree(xy).query(pinches[:, :2])
+    near = distance <= PINCH_ON_M
+    np.minimum.at(allowed, station[near], pinches[near, 2])
+    step = PINCH_TAPER * STATION_M
+    for index in range(1, len(allowed)):
+        allowed[index] = min(allowed[index], allowed[index - 1] + step)
+    for index in range(len(allowed) - 2, -1, -1):
+        allowed[index] = min(allowed[index], allowed[index + 1] + step)
+    return allowed
+
+
 def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     """A chain's stations: where they stand, how wide, and at what height."""
     points = np.concatenate([edge.points[(0 if index == 0 else 1) :] for index, edge in enumerate(chain.edges)])
@@ -544,8 +576,11 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     half = smooth([kind.width_m / 2 for kind in kinds], 6)
     crown = smooth([kind.crown for kind in kinds], 6)
     bank_limit = smooth([kind.bank_limit for kind in kinds], 6)
-    shoulder = smooth([kind.shoulder_m for kind in kinds], 6)
+    shoulder_of = lambda kind, town: kind.shoulder_m + town * (kind.kerbed_m - kind.shoulder_m)
+    town = ground.in_town(xy)
+    shoulder = smooth([shoulder_of(kind, share) for kind, share in zip(kinds, town)], 6)
     blend = smooth([kind.blend_m for kind in kinds], 6)
+    half = np.minimum(half, _through_gaps(chain, xy))
 
     heading = np.unwrap(np.arctan2(tangent[:, 1], tangent[:, 0]))
     curvature = np.gradient(heading, STATION_M)
@@ -556,7 +591,7 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
         kind = kinds[station]
         half += share * (kind.width_m / 2 - half)
         crown += share * (kind.crown - crown)
-        shoulder += share * (kind.shoulder_m - shoulder)
+        shoulder += share * (shoulder_of(kind, town[station]) - shoulder)
         blend += share * (kind.blend_m - blend)
         bank *= 1 - share
 

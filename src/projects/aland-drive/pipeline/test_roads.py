@@ -7,7 +7,10 @@ quietly break, and `road_audit.py` measures the real thing.
 """
 
 import gzip
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import shapely
@@ -393,6 +396,21 @@ class RoadMap(unittest.TestCase):
     def test_a_closed_loop_keeps_its_shape_when_thinned(self):
         loop = np.array([(0.0, 0.0), (10, 0), (10, 10), (0, 10), (0.0, 0.0)])
         self.assertGreater(len(road_map._thin(loop)), 2)
+
+    def test_the_map_is_the_roads_as_the_tiles_were_built_from_them(self):
+        # One way: stopped either side of a building on the west tile, so in two parts there, and carrying on over the edge
+        # into the east tile. The map keeps the gap, so no route runs through the building, and joins the halves at the edge.
+        way = lambda line: {"id": 1, "kind": "unclassified", "motor": True, "name": "Byvägen", "line": line}
+        parts = {"west": [way([[0.0, 0.0], [40.0, 0.0]]), way([[60.0, 0.0], [100.0, 0.0]])], "east": [way([[100.0, 0.0], [200.0, 0.0]])]}
+        with tempfile.TemporaryDirectory() as folder:
+            for name, built in parts.items():
+                (Path(folder) / name).mkdir()
+                (Path(folder) / name / "roads.json").write_text(json.dumps({"roads": built}), encoding="utf-8")
+            road_map.build(Path(folder), ["west", "east"])
+            graph = json.loads(gzip.decompress((Path(folder) / road_map.MAP_FILE).read_bytes()))
+        nodes = (np.array(graph["nodes"]).reshape(-1, 2) * graph["unitM"])[:, 0].tolist()
+        joined = sorted(sorted((nodes[first], nodes[last])) for first, last in zip(graph["from"], graph["to"]))
+        self.assertEqual(joined, [[0.0, 40.0], [60.0, 100.0], [100.0, 200.0]])
 
 
 if __name__ == "__main__":

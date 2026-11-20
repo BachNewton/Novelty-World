@@ -21,7 +21,10 @@ from rasterio.windows import from_bounds
 
 from grid import Tile
 
-RAW = Path(__file__).resolve().parent.parent / ".data" / "raw"
+# The `.data` folder the raw downloads are kept in: this checkout's, or another's a worktree builds from (`run.py --data`).
+DATA_FOLDER = "ALAND_DRIVE_DATA"
+DATA = Path(os.environ.get(DATA_FOLDER) or Path(__file__).resolve().parent.parent / ".data")
+RAW = DATA / "raw"
 MIRROR = "https://mirrors.nic.funet.fi/index/geodata/mml/"
 DEM_MIRROR = f"{MIRROR}dem2m/2008_latest/"
 # OSM's own API rather than Overpass, whose public servers are often down. It answers a

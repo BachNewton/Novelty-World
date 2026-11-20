@@ -1,9 +1,13 @@
 """The island's roads as a network for the maps and the GPS: one small file, whatever the tile count.
 
-Every motor way in OSM's kept answers, whole, cut at each node two ways share,
-with its line thinned to what a map needs. The file is the game's only knowledge
-of roads it hasn't loaded, so it's fetched once the drive has started, not before.
-Ways are matched by OSM's node, so nothing here depends on where a tile's edge cuts.
+Every motor way as the tiles were built from it (each tile's `roads.json`), cut at
+each point two ways share, with its line thinned to what a map needs. Those are
+the ways once they've given way to buildings (`give_way.py`): moved clear of one,
+kept between two, or stopped at a wall. Made from OSM's ways as they come, the map
+drew a road through a farmyard the built road goes round, and routed along a road
+a building cuts in two. The file is the game's only knowledge of roads it hasn't
+loaded, so it's fetched once the drive has started, not before. A way's two halves
+either side of a tile's edge end on one point there, so they join as any two ways do.
 """
 
 import gzip
@@ -12,10 +16,6 @@ from pathlib import Path
 
 import numpy as np
 
-from grid import lonlat_to_grid, tile_at, to_local
-from sources import RAW
-from vectors import FOOT_OR_BIKE, NOT_A_ROAD
-
 MAP_FILE = "map.json.gz"
 UNIT_M = 0.1
 THIN_WITHIN_M = 1.0
@@ -23,8 +23,8 @@ ONE_WAY, CAN_ROUTE = 1, 2
 ONE_WAY_TAGS = ("yes", "true", "1")
 
 
-def _node(point: dict) -> tuple[float, float]:
-    return (round(point["lon"], 7), round(point["lat"], 7))
+def _node(point: list[float]) -> tuple[float, float]:
+    return (round(point[0], 2), round(point[1], 2))
 
 
 def _thin(line: np.ndarray) -> np.ndarray:
@@ -48,29 +48,23 @@ def _thin(line: np.ndarray) -> np.ndarray:
     return line[keep]
 
 
-def motor_ways(tiles: list[str]) -> dict[int, dict]:
-    ways: dict[int, dict] = {}
+def motor_ways(output: Path, tiles: list[str]) -> list[dict]:
+    """Every part of a motor way the tiles were built from, in the scene's metres."""
+    ways: list[dict] = []
     for name in tiles:
-        path = RAW / "osm" / f"{name}.json"
-        for element in json.loads(path.read_text(encoding="utf-8"))["elements"]:
-            kind = element.get("tags", {}).get("highway")
-            if element["type"] == "way" and kind is not None and kind not in NOT_A_ROAD and kind not in FOOT_OR_BIKE:
-                ways[element["id"]] = element
+        path = output / name / "roads.json"
+        # A tile of open sea has no roads.
+        if path.exists():
+            ways += [road for road in json.loads(path.read_text(encoding="utf-8"))["roads"] if road["motor"] and len(road["line"]) > 1]
     return ways
 
 
-def _pieces(way: dict, inside: set[str], uses: dict[tuple, int]) -> list[list[dict]]:
-    """A way's points cut at every junction, leaving out any stretch beyond the tiles built."""
-    east, north = lonlat_to_grid([point["lon"] for point in way["geometry"]], [point["lat"] for point in way["geometry"]])
-    pieces: list[list[dict]] = []
-    current: list[dict] = []
-    for point, x, y in zip(way["geometry"], east, north):
-        if tile_at(float(x), float(y)).name not in inside:
-            if len(current) > 1:
-                pieces.append(current)
-            current = []
-            continue
-        current.append({**point, "x": float(x), "y": float(y)})
+def _pieces(way: dict, uses: dict[tuple, int]) -> list[list[list[float]]]:
+    """A way's points cut at every junction."""
+    pieces: list[list[list[float]]] = []
+    current: list[list[float]] = []
+    for point in way["line"]:
+        current.append(point)
         if len(current) > 1 and uses[_node(point)] > 1:
             pieces.append(current)
             current = [current[-1]]
@@ -80,11 +74,10 @@ def _pieces(way: dict, inside: set[str], uses: dict[tuple, int]) -> list[list[di
 
 
 def build(output: Path, tiles: list[str]) -> dict:
-    ways = motor_ways(tiles)
-    inside = set(tiles)
+    ways = motor_ways(output, tiles)
     uses: dict[tuple, int] = {}
-    for way in ways.values():
-        for point in way["geometry"]:
+    for way in ways:
+        for point in way["line"]:
             uses[_node(point)] = uses.get(_node(point), 0) + 1
 
     names: dict[str, int] = {"": 0}
@@ -93,25 +86,23 @@ def build(output: Path, tiles: list[str]) -> dict:
     node_xy: list[tuple[float, float]] = []
     edges: list[tuple] = []
 
-    def node_id(point: dict) -> int:
+    def node_id(point: list[float]) -> int:
         key = _node(point)
         if key not in nodes:
             nodes[key] = len(node_xy)
-            node_xy.append(to_local(point["x"], point["y"]))
+            node_xy.append(key)
         return nodes[key]
 
-    for way in ways.values():
-        tags = way["tags"]
-        name = names.setdefault(tags.get("name") or tags.get("ref") or "", len(names))
-        kind = kinds.setdefault(tags["highway"], len(kinds))
+    for way in ways:
+        name = names.setdefault(way.get("name") or way.get("ref") or "", len(names))
+        kind = kinds.setdefault(way["kind"], len(kinds))
         one_way = 0
-        if tags.get("oneway") in ONE_WAY_TAGS or tags.get("junction") == "roundabout":
+        if way.get("oneway") in ONE_WAY_TAGS or way.get("junction") == "roundabout":
             one_way = 1
-        for piece in _pieces(way, inside, uses):
-            ordered = piece[::-1] if tags.get("oneway") == "-1" else piece
-            flags = ONE_WAY if one_way or tags.get("oneway") == "-1" else 0
-            line = _thin(np.array(to_local(np.array([point["x"] for point in ordered]), np.array([point["y"] for point in ordered]))).T)
-            edges.append((node_id(ordered[0]), node_id(ordered[-1]), kind, name, flags, line))
+        for piece in _pieces(way, uses):
+            ordered = piece[::-1] if way.get("oneway") == "-1" else piece
+            flags = ONE_WAY if one_way or way.get("oneway") == "-1" else 0
+            edges.append((node_id(ordered[0]), node_id(ordered[-1]), kind, name, flags, _thin(np.array(ordered, dtype=float))))
 
     # What can be routed to is the largest joined network, the main island: the rest is past a ferry.
     joined: dict[int, list[int]] = {}

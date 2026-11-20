@@ -20,6 +20,7 @@ from scipy import ndimage, sparse
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
+from give_way import EAVES_ROOM_M
 from path_surfaces import NONE, SLAB, WAY_SURFACES, way_class
 from roads import (
     APRON_ACROSS,
@@ -57,9 +58,9 @@ JUNCTION = -1
 AREA = -2
 AREA_RANK = 6
 JUNCTION_RANK = 99
-# Past this across a way is its shoulder: the carriageway's edge is 1, and its points are stored up to a couple of
-# hundredths past it (the outline is kept within `OUTLINE_WITHIN_M` over a shoulder of a metre or so, and across is
-# written in 1024ths). The game reads the same edge (`sim/road-grip.ts`), from the one file both share.
+# Past this across a way is its shoulder: the carriageway's edge is 1, where its own points are stored (`EDGE_WITHIN_M`),
+# and across is written in 1024ths, so this leaves room to spare. The game reads the same edge (`sim/road-grip.ts`), from
+# the one file both share.
 CARRIAGEWAY_EDGE_ACROSS = json.loads((Path(__file__).resolve().parent.parent / "render" / "carriageway.json").read_text(encoding="utf-8"))["edgeAcross"]
 # Where a piece wears a path's own surface, its points stand this far across: inside an edge, where nothing is painted.
 OWN_SURFACE_ACROSS = 0.5
@@ -74,11 +75,15 @@ RUN_STEP = np.pi / 64
 
 # Paving's outline is kept within this of each way's, which drops the 2 m stations along a straight run.
 OUTLINE_WITHIN_M = 0.02
+# A point this near a carriageway's edge is one of the edge's own, moved by the outline's simplifying and its grid.
+EDGE_WITHIN_M = 0.03
 # Joins found by closing the shape: a sliver thinner than this is the closing's own rounding, not a gap.
 SLIVER_M = 0.02
 GRID_M = 0.02
 # A point this near a triangle lies on it: a few times the millimetre points are rounded to.
 ON_EDGE_M = 0.005
+# A point of a span this near the line it ends on, or the ground's paving there, lands on it: the outlines' own tolerance.
+LANDING_WITHIN_M = 0.05
 # How far into a triangle of cut ground the paving it borders is looked for.
 BESIDE_STEP_M = 0.01
 # Twice the area under which a triangle is a fold, not paving.
@@ -121,6 +126,8 @@ SIDEWALK_SEAM_RUN_M = 40.0
 WORN_NEIGHBOURS = 32
 # Of a street's shoulder beside a sidewalk, the kerb's strip: past it, to the sidewalk, is the sidewalk's.
 KERB_STRIP_M = 0.3
+# How far along a road its strip eases in and out beside a wall, in stations.
+WALL_SMOOTH_STATIONS = 2.0
 # Narrower than this, a sidewalk is the smoothing's own tail, not a band of paving.
 LEAST_WALK_M = 0.01
 # A sidewalk OSM maps on its street's own way rather than as a way of its own: this wide where it gives no width, and at
@@ -138,6 +145,11 @@ DECK_DEPTH_M = 0.6
 
 # Beside the paving the land may rise or fall away no faster than this: a bank or a cutting.
 EMBANKMENT_SLOPE = 0.6
+# And nearer the paving than this no faster than one in four, the verge a road's side is built with: a wheel off the
+# carriageway's edge finds grass it can come back from, and the bank or cutting starts past it. As wide as a cell of the
+# height grid, the least the drawn ground can show.
+VERGE_SLOPE = 0.25
+VERGE_M = 4.0
 # How far out a bank can reach, in passes of a corner each.
 EMBANKMENT_PASSES = 24
 CUT_BLOCK_CELLS = 16
@@ -235,6 +247,30 @@ def cross_of(chain: Chain) -> Cross:
     reach = chain.half + np.where(motor, chain.shoulder, 0)
     none = np.zeros(len(chain.half))
     return Cross(chain.half.copy(), chain.half.copy(), reach.copy(), reach.copy(), none, none.copy())
+
+
+def beside_walls(chains: list[Chain], crosses: dict[int, Cross], walls: list[shapely.Polygon]) -> None:
+    """A road's strip, and a street's kerb and paving, stop short of a building beside them: a street's paving runs from
+    its kerb to the facade, never through it. The carriageway is `give_way`'s to keep clear, by moving or narrowing it."""
+    if not walls:
+        return
+    tree = shapely.STRtree(walls)
+    for chain in chains:
+        if not chain.motor or chain.index not in crosses:
+            continue
+        cross = crosses[chain.index]
+        sides = []
+        for sign, half, reach, walk in ((1, cross.half_left, cross.reach_left, cross.walk_left), (-1, cross.half_right, cross.reach_right, cross.walk_right)):
+            edge = chain.xy + sign * half[:, None] * chain.normal
+            # Only a wall nearer than the paving reaches can stop it.
+            (at, _), near = tree.query_nearest(shapely.points(edge), max_distance=float((reach - half).max()) + EAVES_ROOM_M, return_distance=True, all_matches=False)
+            room = np.full(len(edge), np.inf)
+            room[at] = np.maximum(near - EAVES_ROOM_M, 0)
+            # Eased along the road, and never past what the wall leaves.
+            room = np.minimum(room, ndimage.gaussian_filter1d(room, WALL_SMOOTH_STATIONS, mode="nearest"))
+            reach = np.minimum(reach, half + room)
+            sides.append((reach, np.minimum(walk, np.maximum(reach - half, 0))))
+        crosses[chain.index] = Cross(cross.half_left, cross.half_right, sides[0][0], sides[1][0], sides[0][1], sides[1][1])
 
 
 def tagged_sidewalks(chain: Chain) -> tuple[np.ndarray, np.ndarray]:
@@ -710,25 +746,27 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     borrows = ((owner == JUNCTION) & ~shapely.contains(street_corners.buffer(SLIVER_M), middles)) | walk
     if borrows.any():
         xy = shapely.get_coordinates(middles[borrows])
-        look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, crosses, owner[borrows], xy), on_paving)
+        look[borrows] = _paths_worn(chains, crosses, xy, _streets_run(chains, ground_prints, owner[borrows], xy), on_paving)
     found = [Piece(face, int(who), GROUND, bool(on_walk), int(worn)) for face, who, on_walk, worn in zip(faces, owner, walk, look)]
     found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, BELOW)
     found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, ABOVE)
     return found
 
 
-def _streets_run(chains: list[Chain], crosses: dict[int, Cross], owner: np.ndarray, xy: np.ndarray) -> np.ndarray:
-    """The way the street a piece lies beside runs: its owner's, or the nearest motor way's whose paving is within a closed
-    gap of it; none, (0, 0), where no street is."""
-    streets = [chains[index] for index in crosses if chains[index].motor]
+def _streets_run(chains: list[Chain], prints: dict[int, shapely.Geometry], owner: np.ndarray, xy: np.ndarray) -> np.ndarray:
+    """The way the street a piece lies beside runs: its owner's, or that of the motor way whose paving is nearest, within a
+    closed gap of it; none, (0, 0), where no street is.
+
+    By its paving, not its stations: a side street's last station stands on the line of the street it joins, so a piece
+    across that street from the side street's mouth was as near one's station as the other's, and beside either."""
+    streets = [chains[index] for index in prints if chains[index].motor]
     runs = np.zeros((len(xy), 2))
-    if not streets:
+    if not streets or not len(xy):
         return runs
-    tangents = np.concatenate([chain.tangent for chain in streets])
-    reach = np.concatenate([np.maximum(*crosses[chain.index].paving) for chain in streets])
-    distance, nearest = cKDTree(np.concatenate([chain.xy for chain in streets])).query(xy)
-    beside = distance <= reach[nearest] + GAP_PAVED_M + STATION_M
-    runs[beside] = tangents[nearest[beside]]
+    at, nearest = shapely.STRtree([prints[chain.index] for chain in streets]).query_nearest(shapely.points(xy), max_distance=GAP_PAVED_M + STATION_M, all_matches=False)
+    for street in np.unique(nearest):
+        mine = at[nearest == street]
+        runs[mine] = streets[street].tangent[streets[street].tree.query(xy[mine])[1]]
     for who in np.unique(owner[owner >= 0]):
         mine = owner == who
         runs[mine] = chains[who].tangent[chains[who].tree.query(xy[mine])[1]]
@@ -895,11 +933,36 @@ class Surfaces:
         return heights
 
 
-def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground, sections: list[SeamSection]) -> np.ndarray:
+def span_ends(mesh: Mesh, chains: list[Chain], levels: dict[int, np.ndarray], crosses: dict[int, Cross]) -> np.ndarray:
+    """The points of a deck, or of an underpass's floor, on the lines where its span ends: where it lands on the ground's
+    paving, its own way's carrying on or the road it joins."""
+    lines = []
+    for chain in chains:
+        if chain.index not in levels or chain.index not in crosses:
+            continue
+        cross, last = crosses[chain.index], len(chain.xy) - 1
+        for level in (ABOVE, BELOW):
+            for first, final in _runs(levels[chain.index] == level):
+                # A way's outline on a level reaches a station either side of its run there.
+                for station in (max(first - 1, 0), min(final + 1, last)):
+                    middle, normal = chain.xy[station], chain.normal[station]
+                    lines.append(shapely.LineString([middle + cross.reach_left[station] * normal, middle - cross.reach_right[station] * normal]))
+    off = np.flatnonzero(mesh.level != GROUND)
+    if not lines or not len(off):
+        return np.zeros(0, dtype=int)
+    at, _ = shapely.STRtree(lines).query(shapely.points(mesh.xy[off]), predicate="dwithin", distance=LANDING_WITHIN_M)
+    return off[np.unique(at)]
+
+
+def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground, sections: list[SeamSection], landings: np.ndarray = np.zeros(0, dtype=int)) -> np.ndarray:
     """One height per point of paving, from one least-squares solve: levels share no points, so each solves on its own.
 
     Each point leans towards its owner's surface, as stiffly as its owner's rank allows; each edge keeps the difference the
     greater of its ends' owners has between them. A point no way owns only follows its neighbours.
+
+    A span off the ground is then solved again with its `landings`, the points on the lines where it ends, held to the
+    ground's paving there: by its own surface alone a deck's end stood off the road it lands on, by a hand's width where
+    that road slopes across it and by more than a metre where a greater road had bent its approach.
     """
     chains = surfaces.chains
     count = len(mesh.xy)
@@ -939,10 +1002,19 @@ def solve_heights(mesh: Mesh, surfaces: Surfaces, ground: Ground, sections: list
     difference[read] = surfaces.of(by[read], mesh.xy[first[read]]) - surfaces.of(by[read], mesh.xy[second[read]])
     rows = np.arange(len(pairs))
     steps = sparse.csr_matrix((np.concatenate((np.ones(len(pairs)), -np.ones(len(pairs)))), (np.concatenate((rows, rows)), np.concatenate((first, second)))), shape=(len(pairs), count))
-    system = sparse.diags(weight) + SMOOTHNESS * (steps.T @ steps)
-    right = weight * target + SMOOTHNESS * (steps.T @ difference)
-    heights = spsolve(system.tocsc(), right)
+    smooth = SMOOTHNESS * (steps.T @ steps)
+    kept = SMOOTHNESS * (steps.T @ difference)
+    heights = spsolve((sparse.diags(weight) + smooth).tocsc(), weight * target + kept)
     heights[on_edge] = target[on_edge]
+    if len(landings):
+        met = Cover(_level_triangles(mesh, heights, GROUND)).at(mesh.xy[landings], LANDING_WITHIN_M)
+        landed = landings[~np.isnan(met)]
+        if len(landed):
+            weight, target = weight.copy(), target.copy()
+            weight[landed], target[landed] = PIN_WEIGHT, met[~np.isnan(met)]
+            off = np.flatnonzero(mesh.level != GROUND)
+            system = (sparse.diags(weight) + smooth).tocsr()[off][:, off]
+            heights[off] = spsolve(system.tocsc(), (weight * target + kept)[off])
     return heights
 
 
@@ -953,7 +1025,7 @@ class Cover:
         self.triangles = triangles
         self.tree = shapely.STRtree(shapely.polygons(np.concatenate((triangles[:, :, :2], triangles[:, :1, :2]), axis=1))) if len(triangles) else None
 
-    def at(self, xy: np.ndarray) -> np.ndarray:
+    def at(self, xy: np.ndarray, within: float = ON_EDGE_M) -> np.ndarray:
         height = np.full(len(xy), np.nan)
         if self.tree is None or not len(xy):
             return height
@@ -962,7 +1034,7 @@ class Cover:
         # A point rounded to the millimetre can land just off the edge it lies on: it takes the nearest triangle's plane.
         off = np.setdiff1d(np.arange(len(xy)), at)
         if len(off):
-            near_at, near = self.tree.query_nearest(points[off], max_distance=ON_EDGE_M)
+            near_at, near = self.tree.query_nearest(points[off], max_distance=within)
             at, which = np.concatenate((at, off[near_at])), np.concatenate((which, near))
         planes = _on_planes(self.triangles[which], xy[at])
         found = ~np.isnan(planes)
@@ -1067,26 +1139,31 @@ def dipped_under_decks(chains: list[Chain], levels: dict[int, np.ndarray], print
             chain.height = _smoothed_profile(chain.height, np.ones(len(chain.height)), chain.kind.wavelength_m, pins, [])
 
 
-def _envelope(paving: np.ndarray, spacing: float, upwards: bool) -> tuple[np.ndarray, np.ndarray]:
-    """How high (or low) the land may stand at every corner by the paving's edges, and the edge height each limit comes from.
+def _envelope(paving: np.ndarray, spacing: float, upwards: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """How high (or low) the land may stand at every corner by the paving's edges, the edge height each limit comes from,
+    and how far off that edge is.
 
-    The limit grows by the bank's slope with distance, out from every corner under the paving.
+    The limit grows with distance, out from every corner under the paving: by the verge's slope on the verge, and by the
+    bank's past it.
     """
     sign = 1.0 if upwards else -1.0
     under = ~np.isnan(paving)
     limit = np.where(under, paving, sign * np.inf).astype(np.float64)
     source = np.where(under, paving, np.nan)
+    far = np.where(under, 0.0, np.inf)
+    slope = np.where(ndimage.distance_transform_edt(~under) * spacing <= VERGE_M, VERGE_SLOPE, EMBANKMENT_SLOPE)
     size = paving.shape[0]
-    shifts = [(row, column, np.hypot(row, column) * spacing * EMBANKMENT_SLOPE) for row in (-1, 0, 1) for column in (-1, 0, 1) if row or column]
+    shifts = [(row, column, np.hypot(row, column) * spacing) for row in (-1, 0, 1) for column in (-1, 0, 1) if row or column]
     for _ in range(EMBANKMENT_PASSES):
-        for row, column, rise in shifts:
+        for row, column, length in shifts:
             here = (slice(max(row, 0), size + min(row, 0)), slice(max(column, 0), size + min(column, 0)))
             there = (slice(max(-row, 0), size + min(-row, 0)), slice(max(-column, 0), size + min(-column, 0)))
-            reached = limit[there] + sign * rise
+            reached = limit[there] + sign * length * slope[here]
             better = sign * reached < sign * limit[here]
             limit[here] = np.where(better, reached, limit[here])
             source[here] = np.where(better, source[there], source[here])
-    return limit, source
+            far[here] = np.where(better, far[there] + length, far[here])
+    return limit, source, far
 
 
 def embanked(raw: np.ndarray, paving: np.ndarray, spacing: float) -> np.ndarray:
@@ -1097,12 +1174,10 @@ def embanked(raw: np.ndarray, paving: np.ndarray, spacing: float) -> np.ndarray:
     the other, rather than either digging the other's land away.
     """
     under = ~np.isnan(paving)
-    upper, upper_from = _envelope(paving, spacing, upwards=True)
-    lower, lower_from = _envelope(paving, spacing, upwards=False)
+    upper, upper_from, to_upper = _envelope(paving, spacing, upwards=True)
+    lower, lower_from, to_lower = _envelope(paving, spacing, upwards=False)
     with np.errstate(invalid="ignore", divide="ignore"):
-        to_upper = (upper - upper_from) / EMBANKMENT_SLOPE
-        to_lower = (lower_from - lower) / EMBANKMENT_SLOPE
-        between = (upper * to_lower + lower * to_upper) / (to_upper + to_lower)
+        between = (upper_from * to_lower + lower_from * to_upper) / (to_upper + to_lower)
     shaped = np.where(lower > upper, between, np.clip(raw, lower, upper))
     shaped = np.where(under, paving - CLEARANCE_M, shaped)
     size = raw.shape[0]
@@ -1340,8 +1415,10 @@ def _own_across(chain: Chain, cross: Cross, xy: np.ndarray, station: np.ndarray)
     # them, so the kerb is drawn where it stands.
     kerbed = np.where(left, cross.walk_left[station], cross.walk_right[station]) > 0
     shoulder = np.where(kerbed, chain.shoulder[station], np.where(left, cross.reach_left[station], cross.reach_right[station]) - half)
-    # With no shoulder (a path, a deck), a point a hair past the edge, where the outline is simplified, is on the edge.
-    past = np.where(shoulder > OUTLINE_WITHIN_M, np.maximum(np.abs(offset) - half, 0) / np.maximum(shoulder, OUTLINE_WITHIN_M), 0)
+    # A point a hair past the edge, where the outline is simplified, is on the edge: over a country road's strip that hair
+    # is a fifteenth of the way across it, which read as shoulder. With no shoulder (a path, a deck) every point is.
+    beyond = np.abs(offset) - half
+    past = np.where((shoulder > OUTLINE_WITHIN_M) & (beyond > EDGE_WITHIN_M), beyond / np.maximum(shoulder, OUTLINE_WITHIN_M), 0)
     return np.sign(offset) * np.clip(np.minimum(np.abs(offset), half) / half + past, 0, 2)
 
 
@@ -1449,8 +1526,9 @@ def _paint_along(chain: Chain) -> np.ndarray:
     return distance - length if ends else distance
 
 
-def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), whole: dict[int, list] | None = None) -> Paved:
-    """Every road on the tile as one paved surface on each level, and the ground built round it."""
+def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), whole: dict[int, list] | None = None, walls: list[shapely.Polygon] | None = None) -> Paved:
+    """Every road on the tile as one paved surface on each level, and the ground built round it. `walls` are the buildings
+    standing by: a road's strip stops short of them."""
     areas = shapely.union_all(list(paved))
     reached = areas.buffer(PAVED_REACH_M)
     chains = chains_from(split_at_junctions([part for road in roads for part in _off_paved(road, areas, reached, whole or {})]))
@@ -1461,6 +1539,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     levels = {chain.index: station_levels(chain) for chain in laid}
     crosses = {chain.index: cross_of(chain) for chain in laid}
     sidewalks = along_sidewalks(laid, crosses)
+    beside_walls(laid, crosses, walls or [])
     under_others(laid, levels, crosses, tile)
     prints = {chain.index: footprints(chain, levels[chain.index], tile, crosses[chain.index].paving) for chain in laid}
     bare_decks(laid, levels, crosses, prints, tile)
@@ -1476,7 +1555,7 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile))
     surfaces = Surfaces(chains, ground)
     # To the millimetre, as the tile holds it, so the ground cut against the paving takes the very heights drawn.
-    heights = np.round(solve_heights(mesh, surfaces, ground, sections), 3)
+    heights = np.round(solve_heights(mesh, surfaces, ground, sections, span_ends(mesh, chains, levels, crosses)), 3)
     on_ground = _level_triangles(mesh, heights, GROUND)
     outline = outline_of(on_ground)
     points, triangles, junction_points, area_points = point_attributes(mesh, heights, chains, surfaces, crosses, carriageways, outline.boundary)

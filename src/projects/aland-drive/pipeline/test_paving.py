@@ -20,14 +20,15 @@ from vectors import clip_line, seam_direction
 TILE_M = 1200.0
 
 
-def land(height=None, west=0.0):
-    """A square of 2 m corners, 1.2 km across, its north edge at 1200."""
+def land(height=None, west=0.0, town=1.0):
+    """A square of 2 m corners, 1.2 km across, its north edge at 1200: a town's, whose streets have their kerbs and paving,
+    unless `town` says how far it is one."""
     rim = 100
     count = int(TILE_M / 2) + 2 * rim + 1
     rows, columns = np.mgrid[0:count, 0:count]
     east, north = west + (columns - rim) * 2.0, TILE_M - (rows - rim) * 2.0
     corners = height(east, north) if height else np.full((count, count), 10.0)
-    return Ground(corners.astype(np.float32), 0.0, TILE_M, rim)
+    return Ground(corners.astype(np.float32), 0.0, TILE_M, rim, built_up=lambda xy: np.full(len(xy), town))
 
 
 def road(line, kind="residential", motor=True, **tags):
@@ -194,6 +195,24 @@ class OneSurface(unittest.TestCase):
         self.assertTrue((strip[:, :, 6].astype(int) == footway.index).all())
         self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
         self.assertTrue((np.abs(strip[:, :, 3]) < 1).all())
+
+    def test_a_strip_across_a_street_from_a_side_street_s_mouth_is_still_its_own_street_s_sidewalk(self):
+        """A side street's last station stands on the line of the street it joins, so the strip between that street and its
+        sidewalk, across from the mouth, lay beside the side street as nearly as its own, and wore a path running the
+        side street's way: a footpath meeting the sidewalk there painted the strip dark all along the block."""
+        street = road([(500, 600), (601, 600), (702, 600)])
+        side = road([(601, 500), (601, 600)])
+        sidewalk = road([(500, 606.75), (601, 606.75), (702, 606.75)], "footway", motor=False, footway="sidewalk")
+        footpath = road([(606, 700), (601, 606.75)], "footway", motor=False)
+        paved = paving.lay([street, side, sidewalk, footpath], land())
+        through = next(chain for chain in paved.chains if chain.kind_name == "residential" and np.ptp(chain.xy[:, 0]) > 100)
+        walk = next(chain for chain in paved.chains if chain.tag("footway") == "sidewalk")
+        kerb = 600 + through.half.max() + paving.KERB_STRIP_M
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        strip = corners[(middle[:, 1] > kerb + 0.05) & (middle[:, 1] < 606.75 - walk.half.max() - 0.05) & (np.abs(middle[:, 0] - 601) < 80)]
+        self.assertGreater(len(strip), 10)
+        self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
 
     def test_a_sidewalk_carries_on_across_a_driveway(self):
         """A driveway's asphalt cut every sidewalk it crossed; real ones carry their slabs across the drive's mouth."""
@@ -448,6 +467,54 @@ class OneSurface(unittest.TestCase):
             self.assertTrue(np.array_equal(paved.conformed[edge], raw[edge]))
 
 
+class RealWidth(unittest.TestCase):
+    def test_a_country_road_has_a_strip_and_a_town_street_its_kerb_and_paving(self):
+        for town, strip in ((0.0, 0.3), (1.0, 1.5)):
+            paved = paving.lay([road([[100, 600], [1100, 600]])], land(town=town))
+            cross = paved.crosses[0]
+            middle = len(cross.reach_left) // 2
+            self.assertAlmostEqual(float(cross.reach_left[middle] - cross.half_left[middle]), strip, delta=0.01)
+
+    def test_a_carriageway_narrows_through_a_gap_and_opens_out_again(self):
+        street = road([[100, 600], [1100, 600]], pinches=[[600.0, 600.0, 1.7]])
+        chain = paving.lay([street], land(town=0.0)).chains[0]
+        half = lambda east: float(chain.half[np.abs(chain.xy[:, 0] - east).argmin()])
+        self.assertAlmostEqual(half(600), 1.7, delta=0.02)
+        self.assertAlmostEqual(half(300), 2.25, delta=0.02)
+        self.assertTrue(1.7 < half(603) < half(606) < 2.25)
+
+    def test_a_strip_stops_short_of_a_wall_beside_it(self):
+        # A town street 3 m from a house on its left: its paving runs to the eaves' room and no further, and its other side keeps its own.
+        wall = shapely.box(500, 600 + 2.25 + 0.8, 520, 620)
+        paved = paving.lay([road([[100, 600], [1100, 600]])], land(), walls=[wall])
+        chain, cross = paved.chains[0], paved.crosses[0]
+        beside = int(np.abs(chain.xy[:, 0] - 510).argmin())
+        left_is_north = chain.normal[beside][1] > 0
+        near, far = (cross.reach_left, cross.reach_right) if left_is_north else (cross.reach_right, cross.reach_left)
+        self.assertAlmostEqual(float(near[beside] - chain.half[beside]), 0.8 - 0.5, delta=0.02)
+        self.assertAlmostEqual(float(far[beside] - chain.half[beside]), 1.5, delta=0.02)
+
+    def test_the_land_beside_the_paving_is_a_verge_before_it_is_a_bank(self):
+        # A 10 m wall of land standing right beside the paving: the land may rise one in four over the verge's 4 m, and
+        # only then as steeply as a bank.
+        raw = np.full((61, 61), 20.0)
+        laid = np.full((61, 61), np.nan)
+        laid[:, :30] = 10.0
+        row = paving.embanked(raw, laid, 2.0)[30]
+        self.assertAlmostEqual(float(row[30]), 10.5, places=6)
+        self.assertAlmostEqual(float(row[31]), 11.0, places=6)
+        self.assertAlmostEqual(float(row[32]), 12.2, places=6)
+
+    def test_a_point_on_a_carriageways_edge_is_stored_on_it_however_narrow_the_strip(self):
+        # The outline is kept within 2 cm, which is a fifteenth of a country road's strip: read as that far across it, half a
+        # carriageway's triangles counted as shoulder.
+        paved = paving.lay([road([[100, 600], [600, 640], [1100, 600]])], land(town=0.0))
+        across = np.abs(paved.points[:, paving.ACROSS])
+        own = paved.points[:, paving.WAY] >= 0
+        self.assertFalse(((across > 1) & (across < 1 + 0.03 / 0.3) & own).any())
+        self.assertTrue((across[own] > 1.5).any())
+
+
 class Seams(unittest.TestCase):
     def test_a_road_built_apart_on_two_tiles_meets_on_the_same_points_along_their_edge(self):
         def world(east, north):
@@ -523,6 +590,23 @@ class Seams(unittest.TestCase):
         np.testing.assert_array_equal(west_points, east_points)
         both = ~np.isnan(west_surface) & ~np.isnan(east_surface)
         np.testing.assert_allclose(west_surface[both], east_surface[both], atol=0.002)
+
+
+class Bridges(unittest.TestCase):
+    def test_a_deck_lands_on_the_road_it_joins(self):
+        """A bridge that reaches a junction ended on its own surface, level across, where the main road it joins climbs
+        across the deck's end: a step of a hand's width at one corner and twice that at the other."""
+        ground = land(lambda east, north: 10 + 0.06 * (north - 600))
+        ways = [road([(600, 200), (600, 1000)], "primary"), road([(600, 600), (700, 600)], "tertiary", bridge="yes"), road([(700, 600), (1100, 600)], "tertiary")]
+        paved = paving.lay(ways, ground)
+        primary = next(chain.index for chain in paved.chains if chain.kind_name == "primary")
+        way = paved.points[:, paving.WAY].astype(int)
+        corners = paved.points[paved.triangles]
+        main_road = paving.Cover(corners[(corners[:, :, paving.WAY].astype(int) == primary).all(axis=1)][:, :, :3])
+        end = (way != primary) & (np.abs(paved.points[:, 0] - 600) < 0.06) & (np.abs(paved.points[:, 1] - 600) < 4)
+        self.assertGreaterEqual(int(end.sum()), 2)
+        step = paved.points[end, 2] - main_road.at(paved.points[end, :2], paving.LANDING_WITHIN_M)
+        self.assertLess(float(np.abs(step).max()), 0.002)
 
 
 class Underpasses(unittest.TestCase):
