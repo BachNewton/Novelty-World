@@ -71,6 +71,8 @@ The book's 2020s are our real 2020s: the phones, video calls, apps and machines 
 
 **Canon's events are anchor points, and the story threads through them.** Where canon touches the world, or the world of a story, the book goes there and lives in it, telling a story wherever it would be interesting, and tries never to contradict it. Each canon fact is read in the context of when it was written, as what its writers feared or hoped in their own year, and the book asks how that lands on our world today. Often it has landed: the Sanctuary Districts of 1995 arrive as real law and policy on homelessness in 2024 and 2025.
 
+**Real results stand as they fell.** Where the book reaches a real event that has already happened, it happened as it did: Ohio elected a Democratic governor, the doctor who led its pandemic briefings, in November 2026, and she governs from January 2027. So when the country splits, Ohio's statehouse stands with Philadelphia and the count, while the federal bases answer to Washington and much of the legislature and the counties lean its way. Each side's acts in the war follow from the politics it is drawn from, and neither gets off.
+
 **Canon about a future that is now our past is translated, not transplanted.** The book keeps what it was about, and its real counterpart in our world carries it: the genetic supermen 1967 feared for the 1990s are carried by the gene-edited children of 2018, not by a war the reader knows didn't happen.
 
 ## Canon

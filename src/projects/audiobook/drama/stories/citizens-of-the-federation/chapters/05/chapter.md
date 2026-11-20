@@ -10,7 +10,7 @@ The Henderson boy found him. He was sixteen and lived two doors down, and for tw
 
 ---
 
-Anna couldn't go. Alma was nine weeks old and wouldn't take a bottle from anyone, so Ben went. He landed in Ohio the next Monday, with a return ticket for Sunday and a list Anna had typed on her phone at four in the morning.
+Anna couldn't go. Alma was eight weeks old and wouldn't take a bottle from anyone, so Ben went. He landed in Ohio the next Monday, with a return ticket for Sunday and a list Anna had typed on her phone at four in the morning.
 
 The house was cold and very clean. Walt was in a nursing home in Kettering, the next town over, with a pinned hip and a surgeon's opinion that the leg would not hold him again. Ruth was in the hospital, where the ambulance had taken her too, because nobody could leave her alone in that house.
 
@@ -328,6 +328,6 @@ The visitors' log had three boxes: family, legal and clergy. Dolores was none of
 
 It had been seven months since the last injection. After that long, the medicine had to be started again from the beginning: one dose now and a second a week later, so Dolores would come back next Monday too. It would be weeks before anyone knew how well it would work this time, and it might not work as well as before. Ruth had signed for that as well, in a good year, at the bank.
 
-In Helsinki, Anna had filled in an application to Finland's immigration service. It had a county document attached, in English, that said *none available*. The applicant would still have to come in person, to prove who she was. And in an office in Dayton, a supervisor had a file to open.
+In Helsinki, Anna had booked the language exam, and filled in every box of an application she couldn't yet send, because Finland would only hear it from one of its citizens. In the folder with it was a county document, in English, that said *none available*. The applicant would still have to come in person, to prove who she was. And in an office in Dayton, a supervisor had a file to open.
 
 There was nobody living in the Dorseys' house now, and no garbage to take down. On Tuesday night the Henderson boy walked the empty cans down to the street anyway, and on Wednesday after school he brought them back up the drive, so that from the street it would look as if somebody was home.
