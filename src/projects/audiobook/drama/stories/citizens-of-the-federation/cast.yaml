@@ -2,27 +2,26 @@ narrator:
   role: Sees everything in this family's life and the world around it, cares about all of it, and cannot step in. Carries the facts, never the feelings.
   seed: 202
   design: >
-    A deep, measured American man in his late fifties, resonant and interested.
+    A man in his late fifties with a deep, resonant, measured voice, warm and
+    quietly fascinated, a voice that notices everything and cares about all of it.
   reference_text: >
     I walked down to the harbour this morning, before anyone else was awake. The boats were still tied up, the water was perfectly flat, and somebody had left a thermos on the wall. I stood there for a while, thinking about what she said, and then I went home.
 anna:
   role: Forty-one, seven months pregnant, from Dayton, Ohio. Dry and capable, and the one who filled in the forms to leave. Only child of Walt and Ruth.
   seed: 32
   design: >
-    A woman of about forty with a clear, low, Midwestern American voice, dry and quick,
-    a little tired, intelligent, with warmth under the dryness. A clear, crisp,
-    close-microphone studio recording.
+    A woman of about forty with a clear, warm, Midwestern American voice, quick and
+    intelligent, with a dry sense of humour and an easy laugh.
   reference_text: >
-    No, leave it, I've got it. I always end up doing it anyway. Honestly, if you put
-    the big pot on the bottom we'd have room for the rest, but nobody in this house
-    has ever listened to me about the big pot.
+    We walked down to the market on Saturday, and the kids picked out apples. Nora
+    wanted the green ones, Theo wanted whatever Nora didn't want, and we came home with
+    both. Honestly, it was the best morning we've had in weeks.
 ben:
   role: Forty-three, from Toledo, Ohio. A software developer. Funny when he's frightened, kind, and practical to a fault.
   seed: 23
   design: >
     A man in his early forties with a light, friendly, Midwestern American baritone,
-    easy and wry, a voice that is usually about to make a joke. A clear, crisp,
-    close-microphone studio recording.
+    easy and wry.
   reference_text: >
     Okay, so here's what I'm thinking. We get the kids down, I'll deal with the
     recycling, and then we sit for five minutes like actual adults. I'm not saying it's
@@ -32,8 +31,7 @@ nora:
   seed: 24
   design: >
     A bright, clear seven-year-old American girl, matter-of-fact and a little bit
-    bossy, speaking naturally, not performing. A clear, crisp, close-microphone studio
-    recording.
+    bossy, speaking naturally, not performing.
   reference_text: >
     That one goes there, and this one goes here, because I already told you. My
     friend has a cat but it isn't allowed outside. I'm going to draw it, and then I'm
@@ -43,7 +41,7 @@ theo:
   seed: 25
   design: >
     A small, clear four-year-old boy with a high, slightly husky voice, speaking
-    plainly and a little stubbornly. A clear, crisp, close-microphone studio recording.
+    plainly and a little stubbornly.
   reference_text: >
     I don't want that one. I want the blue one. The blue one is mine. Where's my
     truck? It was here and now it isn't here. Can I have the blue one, and can I have
@@ -54,7 +52,7 @@ walt:
   design: >
     A clearly elderly American man of nearly eighty, a thin, dry, slightly gravelly
     voice with some breath in it, an old Ohio factory man, wry and stubborn, with the
-    age plain in every word. A clear, crisp, close-microphone studio recording.
+    age plain in every word.
   reference_text: >
     Well, we had some rain Tuesday, so I didn't get to the gutters, but they'll keep.
     The Hendersons' boy came by with the mower one last time. No, no, we're all right
@@ -63,7 +61,7 @@ ruth:
   role: Seventy-six, a piano teacher for forty years. Has lived with schizoaffective disorder since her twenties. Gracious, proud, sharp-eyed, and a person first.
   seed: 120
   design: >
-    A clearly elderly, well-spoken woman in her mid-seventies, gracious and exact, with crisp consonants and a bright, forward tone. A condenser microphone close to the mouth.
+    A clearly elderly, well-spoken woman in her mid-seventies, gracious and exact, with crisp consonants and a bright, forward tone.
   reference_text: >
     I walked down to the harbour this morning, before anyone else was awake. The boats were still tied up, the water was perfectly flat, and somebody had left a thermos on the wall. I stood there for a while, thinking about what she said, and then I went home.
 carol:
@@ -72,8 +70,7 @@ carol:
   design: >
     A woman in her late forties with a low, warm, slightly husky Ohio voice, dry and
     quick, a voice that has told ten thousand people where to sign and can still make
-    a joke of it. Tired, wry and direct. A clear, crisp, close-microphone studio
-    recording.
+    a joke of it. Tired, wry and direct.
   reference_text: >
     All right, here's how this goes. I ask you the questions, you tell me what you can,
     and whatever you can't, we leave it and nobody dies. I've got a bad knee and a
@@ -83,8 +80,7 @@ pruitt:
   seed: 41
   design: >
     A man in his mid-fifties with a flat, tired, decent Midwestern American voice,
-    slightly hoarse, a man who apologizes for a living. A clear, crisp, close-microphone
-    studio recording.
+    slightly hoarse, a man who apologizes for a living.
   reference_text: >
     I can tell you what the rule says, and I can tell you what I've tried. I called
     them again on Tuesday, and I'll call them again this Tuesday. I wish I had something
@@ -94,8 +90,7 @@ lucille:
   seed: 40
   design: >
     An American woman in her early sixties from Dayton, with a warm, full, lived-in
-    alto voice, plain-spoken and quick to take charge, used to feeding children. A
-    clear, crisp, close-microphone studio recording.
+    alto voice, plain-spoken and quick to take charge, used to feeding children.
   reference_text: >
     Come on now, you're holding up my line. Take a tray, take a milk, and don't tell me
     you're not hungry, because I can see you. There you go, baby. Sit down by the
@@ -106,7 +101,6 @@ dolores:
   design: >
     A woman of about seventy with a brisk, warm, slightly gravelly American voice, a
     nurse who has said give me your arm a hundred thousand times and meant it kindly.
-    A clear, crisp, close-microphone studio recording.
   reference_text: >
     Roll that sleeve up for me. There we go. You've been eating? Don't tell me yes if
     it's no, I can read a chart. Little pinch now. All done. Same time next month, and
@@ -116,8 +110,7 @@ joel:
   seed: 42
   design: >
     A man in his middle twenties with a clear, plain, slightly husky Ohio voice, young
-    but tired beyond it, dry like his mother's, and quiet. A clear, crisp,
-    close-microphone studio recording.
+    but tired beyond it, dry like his mother's, and quiet.
   reference_text: >
     I'm just telling you what they told me. We got in around dark, and nobody knows
     where the trucks are, and I've been up since Sunday. It's fine. I can sleep in the
@@ -128,7 +121,7 @@ naomi:
   design: >
     A woman in her late fifties with a plain, slow, level country Ohio voice, modest and
     unhurried in rhythm but warm underneath, a woman who has never needed to raise her
-    voice. A clear, crisp, close-microphone studio recording.
+    voice.
   reference_text: >
     We put the beans up in August, the same as always. There's enough for us and for
     whoever comes. I don't know that it's for me to say who ought to have it. You'll want
@@ -139,7 +132,7 @@ bea:
   design: >
     An American woman of about seventy from Dayton with a crisp, bright, well-read
     voice, amused and exacting, a retired librarian who has silenced three generations
-    with one look. A clear, crisp, close-microphone studio recording.
+    with one look.
   reference_text: >
     We do not bend the corners of the pages, young man, not in my room. Now, sit up.
     Altos, that is a rest, and I will thank you to observe it. You may have the book
@@ -149,8 +142,7 @@ henderson:
   seed: 48
   design: >
     A young American man of nineteen with a light, shy, polite Ohio voice, a little
-    unsure of itself, speaking plainly. A clear, crisp, close-microphone studio
-    recording.
+    unsure of itself, speaking plainly.
   reference_text: >
     Yes, ma'am, I can get that. It's no trouble, I was coming by anyway. I don't really
     know what time it was. I just saw the light on, is all, and I figured I'd go around

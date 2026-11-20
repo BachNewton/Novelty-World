@@ -4,10 +4,11 @@ A friend's GPU computer that Novelty World may use while he isn't. It is for GPU
 
 ## What is known, and what isn't
 
+- **What it is:** an instance on vast.ai, the GPU rental market, run by the friend's team; the owner has read-only access to the team. Its SSH is the container's port 22, reached through a port of the instance's own range on the machine's public address (vast.ai's console shows it under the instance's IP & Port Info), never port 22 itself. A new instance gets a new port, which then changes in the alias and in `SPOT_PORT`.
 - **Access:** SSH as `root`, with the key `~/.ssh/id_ed25519_landon`, through the alias `spot` in the owner's dotfiles (`~/.ssh/config`, kept with chezmoi). The alias is the reference, so the machine's address stays out of this public repo; Spot Access reads the same address from its `SPOT_HOST` and `SPOT_PORT` settings.
-- **What we get:** most likely a Linux container with full rights inside it. Its disk persists between windows.
+- **What we get:** a Linux container with full rights inside it, on two NVIDIA A100-SXM4 cards with 40 GB each. Its disk persists between windows.
 - **When its owner wants it back,** the connection closes and everything running is killed, with no warning. Nothing needs doing on our side; whatever was on disk stays.
-- **Not yet known:** the GPU, its memory, the CPU, the disk's size, and whether a run started detached survives our own SSH session ending. `npm run spot -- probe` answers the first four on the first connection. A run's status in a later session answers the last one.
+- **Not yet known:** the CPU, the disk's size, and whether a run started detached survives our own SSH session ending. `npm run spot -- probe` answers the first two on the first connection. A run's status in a later session answers the last one.
 
 ## How it is used
 
@@ -32,6 +33,7 @@ Then, in this window or a later one:
 
 - **Checkpoint often.** A window can end at any moment, and a run loses what it trained since its last full checkpoint (`latest.pt`, written whole and then renamed into place, so a kill never leaves it half written). The trainer's default writes it every 25 iterations; here `--ckpt-every 5` costs a few seconds and loses minutes rather than half an hour.
 - **Size the batch to the card.** The recipes are sized for the laptop's 12 GB RTX 4070. A card with more memory can take a bigger `--batch`, but a bigger batch is a change of recipe, so a run that continues a recipe keeps its batch, and a bigger one is its own run, planned and predicted as the `machine-learning` skill asks.
+- **Name the card.** `SPOT_GPU=1 npm run spot -- train <name> ...` starts the run on that card alone (`CUDA_VISIBLE_DEVICES`), and the run keeps its card at every `resume`. Without it every run lands on card 0. Runs that share a card share its speed and its 40 GB.
 - **The machine's numbers are its own.** A run's speed here says nothing about the laptop's, and the reverse, so `budget.md`'s rates are measured again here before a run is planned on them.
 - **No fallback to the CPU.** `setup`, `test`, `train` and `resume` fail loudly when PyTorch sees no CUDA device. The trainer itself is CUDA-only.
 

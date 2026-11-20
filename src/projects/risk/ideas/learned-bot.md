@@ -47,10 +47,11 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| c3-75's gauntlets | GitHub Actions, runs 44264644199 (against learned-v2, train seeds), 44264649767 (holdout) and 44264655212 (against rule-v7.1, 3 to 6 players), from the branch `risk/learned-v3-seat`, which holds c3-75's export (parity passed, worst logit gap 2.0e-5) and its registration as learned-v3 | whether c3-75 clears its seating bar (below); then its provisional Elo, the merge, and its ladder | `gh run download <id> --name risk-results --dir results`, then `npm run risk:import -- results`, in the worktree `.claude/worktrees/seat-v3` |
-| probe-3 | Kaggle's TPU, queued: the account's identity is now verified, which Kaggle requires for a TPU (`tpu.md`) | what a TPU session is worth on the net and on engine-shaped work | `python -m riskgpu.tpu.launch fetch probe-3` |
+| d0 and d4 to 600 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock net beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
+| d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
+| e2: the search recorded on d0-300, its distillation and panel; the sharp panels of d0, d4 and d0b at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2` and `runs/readings` (queued there by `runs/readings/next.sh` and `after.sh`) | e2's predictions; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
 
-**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest; the search read again on b1's net; the TPU probe, which waits on a session Kaggle actually gives a TPU (`tpu.md`, "The probe").
+**Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
 ## The brief
 
@@ -651,6 +652,15 @@ What follows: 1 and 2 hold, the deal is the stall's driver; every run spreads it
 
 **The search reading on b1-100: held, and the gain is larger than on s2-2-150.** On the laptop's CPU, 1,024 games each, the searcher (three candidates, six rollouts, its own value head at the leaf) alone among four of the raw net at its most likely move. The control, searching nothing, read 21.1% [18.6, 23.7], par. The search read **40.8% [37.8, 43.9]**, against the prediction of 25% or more (60%). That is about +175 Elo a seat by the Luce model, where the same search on s2-2-150 read 30.8% (about +100). It overruled the net's choice at 30% of the decisions it searched, and 29 of its games capped against the control's 41. So a shallow search adds more on the net with the repaired value head, not less: the search gate is open wider, and stage 3 (the search's choices distilled back into the policy) is the line with the most measured headroom here. The reading took 12 hours on eight cores for about 139,000 searched decisions; recording those choices as training targets needs the GPU engine or the TPU, not the laptop.
 
+**c3-75's gauntlets: stronger than learned-v2 everywhere, and it caps more games in numbers.** On Actions (runs 44264644199, 44264649767, 44264655212), `net-v1~{"weights":"c3-75","pick":"argmax"}`:
+
+- **Against learned-v2 at 5 players: better alone and better in numbers, train and holdout.** Alone among four, 32.1% [25.5, 39.5] and 29.2% [23.7, 35.3] (par 20%); four against one, 88.9% and 88.1% (par 80%). Win Elo over learned-v2 +116 and +96; by finishing order +53 and +49. The panel's reading (29.0% and 85.2%) was the harness's.
+- **Against rule-v7.1: better at all eight tables**, +433 win Elo (learned-v2's gauntlet read +419).
+- **The cap.** In numbers against one rule-v7.1 its games cap 5.2%, 9.4%, 4.8% and 23.6% at 3 to 6 players, where learned-v2's capped 0%, 2.2%, 0.9% and 6.1%. Against learned-v2 at 5 players, 3% to 4% either way round.
+- **Its provisional Elo is 2068 ± 14** from the three gauntlets (`risk:ratings -- --provisional`), about 100 above learned-v2's 1964.
+
+So the bar's first three conditions hold and its last doesn't: several c3-75s at a table reach the cap about four times as often as several learned-v2s. **Ruled by the owner: c3-75 is held, not seated.** The next seat waits for the stall's fix (d0 to d2). The branch `risk/learned-v3-seat` keeps it (registered as learned-v3, its provisional Elo written, its checks green) in case it is wanted later; a bot seated after the fix takes the name learned-v3 instead.
+
 **Stage 3's first piece is built: the search recorded, and distilled.** `record.py` plays the search with the net in every seat and keeps, for each searched decision, the state, the candidates with their rollout means and the policy's own probabilities, the choice, and every seat's final score. `distil.py` trains a net on a recording from a checkpoint: the policy to the search's choice (or, with `--target soft`, to the candidates' values), the value head to the real outcome, held out by game, on imitate's fixed schedule. It reports held-out agreement with the search split by whether the search overruled the net, which is the number that matters: at the start it is 0 on the overruled decisions and 1 on the kept ones by construction. A Kaggle reading can chain record, distil and panel in one session (`docs/kaggle.md`). By the search reading's own counts, a 5-player self-play game holds about 680 searched decisions at 485 network rows each; what a T4 records in an hour is an assumption until the first session's `record.json` says.
 
 **e1, the first expert iteration, for the week's refresh**, on the second GPU of d2's session: record the search (three candidates, six rollouts) in self-play at 5 players on the seated net for about six hours with the skipped decisions kept, distil it into that net with the hard target, read the result on the panel.
@@ -699,6 +709,62 @@ What follows: 3 holds, the loop is closed once, and the next sessions repeat it 
 | 4 | One of d1 and d2 gains on b1-100: sampling alone among four, 25% or more at its last reading with the mirror under 10% | 35% |
 
 What follows: a lever that holds its mirror while d0 stalls joins the recipe, and the next base (the exact space, a larger net) trains with it; if both hold, the discount is preferred, since it needs no change to the seated bot's observation. Neither holds: the stall isn't the reward's or the clock's, and the two-survivor endgame is read directly (the league's share of endgame positions, the entropy bonus at two players) before another lever is built.
+
+**The cap itself, read before the levers: most capped games are live, and slow** (`selfplay.stall --cap`, the argmax mirror on the CPU, 64 five-player games on the same deals to 600 player-turns and to 2400; `runs/readings/stall/`). The owner's question was whether 600 cuts off games that would have ended. Predicted: at least half of the games capped at 600 still cap at 2400 (60%). **Failed.** b2-75, the stalled checkpoint, caps 84% [75, 92] at 600 and 25% [16, 36] at 2400: 38 of its 54 capped games end given the turns, at a mean of 1007 player-turns, and every game still running at 2400 has two survivors (53 of the 54 at 600 did). The board holds 2100 armies at turn 400 where b1-100's holds about 500. c3-75, c3-25 and b1-100 cap 0 to 5% at 600 and none at 2400. So the stall is a two-survivor duel of hoarded armies that mostly ends, several times too late, and a quarter of the time not at all; it is not five seats waiting on each other. What it changes: a capped game is not proof of a dead position, so the mirror's cap rate at 600 overstates a deadlock and is read beside the same games' length at a longer cap; and the duel is where the levers must show their effect, so d0 to d2 are also read on the two-survivor games' length, not on the cap rate alone. The 600 cap stays as the harness's, since a game a person plays has to end, and what a longer one would do to training is not measured.
+
+**d0 to d4 read: the control didn't stall and climbed furthest; neither lever earned its place.** Run on the spot machine's two A100s in bf16 (not the week's Kaggle refresh), with d2's two changes also run apart: d3 the cap scored as a loss alone, d4 the clock alone. All five from b1-100, seed 2, 125 iterations, never restarted. The panel is 512 games a check, so a lone seat's reading is ±5 points.
+
+| Run | Argmax mirror capped at 25 / 50 / 75 / 100 / 125 | Sampling alone among four b1-100, at 125 | Its most likely move, at 125 |
+|---|---|---|---|
+| d0, control | 11% / 20% / 11% / 1% / 0% | 33.8% [28.1, 40.0] | 33.3% |
+| d1, later wins worth less | 99% / 41% / 30% / 3% / 0% | 26.0% [20.9, 31.8] | 30.6% |
+| d2, clock and cap as a loss | 12% / 14% / 4% / 37% / 0% | 19.6% [15.2, 25.0] | 27.2% |
+| d3, cap as a loss | 6% / 6% / 2% / 1% / 36% | 21.9% [17.2, 27.5] | 22.3% |
+| d4, clock | 6% / 1% / 3% / 5% / 0% | 28.9% [23.6, 34.8] | 35.4% |
+
+1. d0 stalls, 25% or more at some reading (75%): **failed**, its worst 19.7% at 50, and it fell to none. 2. d1 under 10% throughout (50%): **failed**, and badly: 98.6% at 25, the discount's first effect the opposite of its purpose. 3. d2 under 10% throughout (45%): **failed**, 36.9% at 100. 4. One of d1 and d2 at 25% or more with its mirror under 10% at its last reading (35%): **held** by d1, at 26.0%, below the control.
+
+What it says. **The mirror's cap rate is a wave, not a state**: every run but d4 passed 10% and came back, d2 and d3 from under 1% to over a third and (d2) back within 25 iterations, so one reading of it says little about a run, and the readings that ended b2 at 75 and judged b1 past 100 may have caught a wave's crest. With the cap's own reading above (capped games mostly end), the stall as a wall is not supported; what is left is that the two-survivor endgame is slow at times. **The control is the best run**: d0 rose at every reading (19, 23, 25, 29, 34% sampling against b1-100) and hadn't flattened at 125, past c3-75's 29.0%. Scoring the cap as a loss cost strength both times it was tried (d2, d3), the discount cost it early, and the clock alone neither helped nor hurt within the reading's width. So no lever joins the recipe; the recipe is b1's with the spread, and the question is how far it climbs.
+
+**Next, on the spot machine while it lasts**: d0 and d4 continued to 300, and d0b, the control on seed 3 for 300, since one seed's 34% at 512 games is what everything above rests on. d0-125 and d4-125 are read again at 4,096 games.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | d0's sharp reading at 125 holds the gain: sampling alone among four b1-100, 28% or more | 70% |
+| 2 | d0 climbs past 125: a reading between 150 and 300 above 125's on the same panel, by more than its interval's half-width | 45% |
+| 3 | d0's mirror passes 25% at some reading between 150 and 300, and is under 10% again within 50 iterations | 40% |
+| 4 | d0b at 125: sampling alone among four b1-100, 28% or more | 60% |
+
+**e1's recording** ran beside them: one shard of 1,024 five-player games in about nine hours on a shared card, 1.07 million decisions, 499,000 searched and 30% of those overruled. Its prediction 1 **held**: 5 games of 1,024 capped.
+
+**e1 read: one distillation of the search made the net stronger, with no self-play.** The hard target into b1-100, its best step at 3,500, then the 4,096-game panel. 2 **failed**, on its second half: held out, the distilled net makes the search's move at 34.1% [33.5, 34.8] of the decisions where the search overruled the net (30% asked) and at 87.8% [87.5, 88.1] of those it kept (90% asked); 95.4% of the skipped. 3 **held**: its most likely move alone among four b1-100, 26.8% [24.8, 28.8], and sampling 25.3% [23.4, 27.3]; four of it against one b1-100, 85.6% (par 80%). 4 **held**: its argmax mirror caps 3.4% [2.9, 4.1], b1-100's own 4.4% [3.8, 5.0]. So the loop closes once: about a quarter of the search's measured edge over the raw net (40.8% against 21.1% on this table) is in the weights after one shard. It is a smaller step than 125 iterations of self-play made on the same base (d0-125: 29.9% [28.0, 32.0] sampling, 34.0% at its most likely move, on the same sharp panel; d4-125 30.7% and 33.6%), and the two aren't exclusive: the search reads whatever net it is given.
+
+**d0 past 125, so far** (512 games a reading): sampling alone among four b1-100, 33% at 150, 39% at 175, 40% at 200, 37% at 225, its mirror under 3% throughout; d4 35, 37, 33, 35%. The sharp reading at 125 holds prediction 1 above (28% or more: 29.9%).
+
+**d0 to 300 and d0b to 125 read: the climb stopped near 200, and the second seed gained less.** d0 sampling alone among four b1-100 at 250, 275 and 300: 37%, 31%, 26% [20.9, 31.9]; its most likely move 32%, 35%, 35%. Of "Next, on the spot machine": 2 **failed**, narrowly: no reading past 125 cleared 125's by its half-width (39.5% at 200 against 33.8% and about 6), and the last three fall back. 3 **held**: the mirror capped 30% at 250 and 2.5% at 275, a wave again, with d4's at 56% at 250. 4 **failed**: d0b at 125 samples 23.4% [18.5, 29.1] alone among four b1-100, its most likely move 30.0%. So the control's gain is real on both seeds and smaller than d0's 512-game readings made it look; a run's best checkpoint is chosen on the sharp panel, not its last, and d0's at 175, 200, 250 and 300 are being read at 4,096 games for that.
+
+**The sharp readings correct that: d0 peaked at 200, and the clock net is the strongest there is.** 4,096 games a check, alone among four b1-100 (par 20%), and four of it against one b1-100 (par 80%):
+
+| Checkpoint | Sampling | Its most likely move | Four against one, at its most likely move | Argmax mirror capped |
+|---|---|---|---|---|
+| d0-125 | 29.9% [28.0, 32.0] | 34.0% [31.9, 36.1] | 85.2% | 0.2% |
+| d0-200 | 36.3% [34.2, 38.5] | 41.1% [38.9, 43.3] | 89.8% | 3.4% |
+| d0-300 | 25.9% [24.0, 27.9] | 36.1% [34.1, 38.3] | 91.2% | 0.0% |
+| d4-125 | 30.7% [28.7, 32.8] | 33.6% [31.5, 35.7] | 88.6% | 0.4% |
+| d4-300 | 40.5% [38.4, 42.7] | 42.6% [40.5, 44.8] | 93.6% | 0.7% |
+
+d0 did climb past 125, to 200, and fell back by 300 in its sampled play while its most likely move held; the 512-game readings had the shape and not the sizes. **d4, the clock alone, kept climbing where the control turned**: level with d0 at 125, 14 points above it sampled at 300, and the only net past 50% alone among four s2-2-150. One seed each, so the clock's edge is a lead and not yet a finding; d4 was wrongly stopped at 300 and trains on to 600 beside d0. A seated bot plays its most likely move, so a candidate is chosen on that column: d0-200 is the best net that can be exported as the bot stands, and goes to the gauntlets as the learned-v3 candidate in c3-75's place; the TypeScript observation is given the clock so d4's can follow.
+
+**Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 was to stop at 300, on its 512-game readings to 225; its sharp reading at 300 reversed that (above).
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | The search still overrules d0-300 at a quarter or more of its searched decisions (30% on b1-100) | 65% |
+| 2 | e2's distilled net gains on d0-300: against b1-100 on the sharp panel, its most likely move alone among four above d0-300's own by more than the two intervals' overlap | 40% |
+| 3 | d0 between 300 and 600: a 512-game reading of 45% or more sampling alone among four b1-100 | 35% |
+| 4 | d0's mirror stays under 25% at every reading to 600 | 60% |
+
+What follows: 2 holds, self-play and the search stack, and the recipe becomes a cycle of the two with the search recorded on each new best. 2 fails with 1 holding: the search's edge over a stronger net is there but one shard doesn't carry it, read next with the soft target and a longer recording before the cycle is dropped. 3 fails with d0 flat past 300: the 128x4 net on the bucket space has reached what this recipe gives it, and the next base is the exact space and a larger net, as planned.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 

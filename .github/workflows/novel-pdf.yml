@@ -1,0 +1,76 @@
+# Builds every drama story that has chapters as a novel (src/projects/audiobook/novel/), a PDF
+# to read and an EPUB for reading apps and text-to-speech readers such as ElevenReader, and
+# publishes both to a release of its own, tagged novel-<slug>. The assets are replaced each
+# time, so their download links never change, and the tag moves to the commit
+# the PDF was built from. Runs when a story's chapters or book change on main, or by hand.
+
+name: Novel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - src/projects/audiobook/drama/stories/*/chapters/**/chapter.md
+      - src/projects/audiobook/drama/stories/*/book/**
+      - src/projects/audiobook/novel/**
+      - .github/workflows/novel-pdf.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One run at a time, so two pushes never race to replace the same asset; a queued run
+# builds from the newer commit.
+concurrency:
+  group: novel-pdf
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BUILD: src/projects/audiobook/novel/build-novel.ts
+      STORIES: src/projects/audiobook/drama/stories
+    steps:
+      - uses: actions/checkout@v4
+      # Node 24 runs the TypeScript build script as it is, with no install.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: typst-community/setup-typst@v5
+        with:
+          typst-version: 0.15.1
+
+      - name: Build every story
+        run: |
+          mkdir -p dist
+          slugs="$(node "$BUILD" --list)"
+          for slug in $slugs; do
+            node "$BUILD" "$slug" "dist/$slug.pdf"
+            node "$BUILD" "$slug" "dist/$slug.epub"
+          done
+
+      - name: Publish each to its release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          commit_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+          for pdf in dist/*.pdf; do
+            slug="$(basename "$pdf" .pdf)"
+            tag="novel-$slug"
+            title="$(jq -r .title "$STORIES/$slug/book/book.json")"
+            download="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$tag"
+            notes="The latest draft of *$title*, built from the chapters on main at $commit_url, as a novel to read ($download/$slug.pdf) and as an EPUB for reading apps and text-to-speech readers such as ElevenReader ($download/$slug.epub). Both are rebuilt whenever the story changes, at the same links."
+            # A novel is never the repo's Latest release. It's created empty and the PDF
+            # uploaded after: given files, gh creates a draft and publishes it without
+            # --latest=false, and GitHub then makes it Latest.
+            if gh release view "$tag" > /dev/null 2>&1; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+              gh release edit "$tag" --title "$title" --notes "$notes" --latest=false
+            else
+              gh release create "$tag" --target "$GITHUB_SHA" --title "$title" --notes "$notes" --latest=false
+            fi
+            gh release upload "$tag" "$pdf" "dist/$slug.epub" --clobber
+          done

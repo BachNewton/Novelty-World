@@ -1,6 +1,6 @@
 # TPUs for the learned bot
 
-An idea to explore, not a plan: nothing here has been measured, and no direction is chosen. It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
+An idea being tried: the probe has measured what a TPU session is worth ("The probe's result"), and the first direction, the network trained on the TPU from games played elsewhere, is built and waiting on its first session ("The network on the TPU"). The engine on the TPU is undecided. It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
 
 ## The goal it would serve
 
@@ -44,6 +44,45 @@ Its numbers are rates on a dedicated device, meant as ratios against the same sc
 `gpu/riskgpu/tpu/launch.py` pushes it, run from `src/projects/risk/gpu/`: `push <name>` (with `--dry-run` to stage it and check the quota without pushing, `--accelerator` to choose the TPU, or a T4 for the GPU side of the ratio, and the probe's own arguments after `--`), then `status <name>` and `fetch <name>`, which brings the document into `runs/tpu/<name>/` and prints the rates. It prints the TPU quota before pushing and refuses a session longer than the hours left or than Kaggle's session limit. A session that finds no TPU fails at once instead of measuring the CPU, and `fetch` says that Kaggle ran it without its device.
 
 **Kaggle has so far given this account no TPU through the API.** Every TPU push (script or notebook, TpuV5E8 or TpuV6E8, internet on or off, the image left unpinned as Kaggle's maintainers advise in Kaggle/kaggle-cli#1197, a notebook carrying the editor's own accelerator metadata) and an interactive session requested on the TPU machine shape started at once, without queueing, on a 4-core CPU machine in Kaggle's standard image (Python 3.13, no libtpu), and drew nothing from the TPU quota, which still reports the TPU as never used. A GPU push of the same check queues for a real T4, as the training sessions do. So the push is accepted and the accelerator silently dropped on Kaggle's side. What remains untried is the notebook editor itself: running a notebook once on TPU v5e-8 from Kaggle's web page, which the issue's reporter found does get a TPU, and then pushing again, in case the account needs a first TPU session from the editor. Until a push gets a TPU, the probe isn't worth another session.
+
+## The probe's result: a TPU session is about 24 T4 sessions of network work
+
+probe-3 ran on a real TPU once the account's identity was verified, after a day in Kaggle's queue: a TPU v5 lite, 8 chips of 16 GB, 224 host cores, 40 minutes of the quota. probe-t4 is the same script on a Kaggle T4 session (2 T4s), cut to the 128x4 net by the week's last GPU minutes. Rates are samples a second in bf16 at the best batch measured.
+
+| Workload | One TPU chip | Eight chips | One T4 | Two T4s |
+|---|---|---|---|---|
+| 128x4 training | 37,300 | 297,300 | 6,860 | 12,500 |
+| 128x4 inference | 114,900 | 919,100 | 21,300 | 37,500 |
+| 256x6 training | 16,500 | 132,400 | not measured | |
+| 256x6 inference | 52,600 | 420,500 | not measured | |
+| 512x12 training | 4,900 | about 39,000 | not measured | |
+| Engine-shaped step, game-steps | 403,000 | about 3.2 million | not measured | |
+
+- **Chip for chip the TPU is 5.4 times a T4** on the current net, training and inference alike, and it scales across its eight chips without loss, where the T4 pair loses about 10%. **Session for session it is about 24 times.** The week's 20 TPU hours hold about 16 times the network work of the week's 30 GPU hours.
+- **bf16 is what the TPU is fast at**: full precision trains the 128x4 net at 60% of the bf16 rate and the 512x12 net at 30%. A T4 gains nothing from bf16.
+- **Memory bounds the batch** at 16 GB a chip: 16,384 a chip trains only the 128x4 net, and the larger nets stop at 1,024 to 4,096.
+- **The engine-shaped kernel runs** at 403,000 game-steps a second a chip in 32-bit and 64-bit integers alike, and a quarter of that with 64-bit floats, so the engine's arithmetic is not what a port would lose on. No T4 figure exists for it yet, and a kernel is not the engine.
+- **What it means for the plan.** Network work is where the TPU's advantage is measured, and the learned bot's next stage is network work on recorded choices: distilling a recorded search (`learned-bot.md`, stage 3) and imitation. That is direction 2 above, the network on the TPU and the games elsewhere, and it needs the net and the supervised trainer in JAX, not the engine. The larger nets the capacity gate asks for (256x6 and up) train on the TPU at rates a T4 can't reach. The recording itself is search rollouts, which are network inference fed by engine steps: it moves to the TPU only with the engine (direction 1), and that port is weighed after the first distillation shows what a recording is worth.
+
+## The network on the TPU: built, its first session a check against a known answer
+
+`gpu/riskgpu/tpu/` holds the network in JAX (`net.py`), checkpoint conversion both ways (`convert.py`), and a supervised trainer for what `imitate.py` and `distil.py` train (`train.py`), on every chip of the session in bf16. On b1-100's weights the JAX net's outputs sit within 8e-6 of PyTorch's with the same choice everywhere, and a checkpoint converted there and back is bit-identical, so a net trained on the TPU loads into every existing tool, the TypeScript export included.
+
+The observation and the rules stay in one place. A **prepare** step runs the PyTorch rebuild on the session's host cores, over the compact states the trainers already keep, and writes plain arrays the JAX trainer streams; nothing of the engine is ported. `launch.py train <name> --task imitate|distil --source <folder>` pushes a session that prepares, trains and writes a PyTorch checkpoint, resumable across sessions; `--data-dataset` reads the source from a Kaggle dataset already uploaded.
+
+What the TPU buys here is imitation and larger nets: 100 million samples of a 256x6 net is under half an hour by the probe's rates, against about nine hours on a T4. A distillation of the current net is minutes on either, since its recording, which needs a GPU, is the cost.
+
+**big-tpu-1, the first session**: the 256x6 imitation of native-v2 in the bucket space, on big-256x6's recipe, whose answer is known (68.2% of held-out decisions copied, on Modal's A10). No real TPU session has run this path, so the first prediction is about the path.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | The session prepares, trains and returns a checkpoint the PyTorch tools load, without a fix | 40% |
+| 2 | Once it runs: held-out agreement within one point of big-256x6's 68.2% | 75% |
+| 3 | It trains at 60,000 samples a second or more over the eight chips | 60% |
+
+What follows: 2 holds, the path is trusted, and the hours go to what a T4 can't train: 384x8 and 512x12 on the exact space, read by the same held-out agreement, as the base the next stage starts from. 2 fails with the session clean: the two trainers differ somewhere the tests didn't reach, found before anything else trains there.
+
+**big-tpu-1 read: all three held, and the path is trusted.** One session, never restarted, after about a day in Kaggle's queue. 1 held: it prepared the 15.5 million decisions in 518 s on the host's CPUs (33,800 a second), trained, and returned a checkpoint the PyTorch loader reads. 2 held: 68.1% [67.9, 68.3] of 3.1 million held-out decisions copied, big-256x6's 68.2%. 3 held: 100 million samples in 913 s, 109,500 a second over the eight chips, against the 132,400 the probe measured for the network alone, so the loader costs about a sixth. A 256x6 imitation is a quarter of an hour of a TPU session where it was nine hours of a T4. The queue is the cost: a session waits about a day, so what trains there is planned a day ahead and can't sit inside a loop that needs its answer the same night.
 
 ## Questions a first look would answer
 
