@@ -741,6 +741,8 @@ What it says. **The mirror's cap rate is a wave, not a state**: every run but d4
 
 **d0 past 125, so far** (512 games a reading): sampling alone among four b1-100, 33% at 150, 39% at 175, 40% at 200, 37% at 225, its mirror under 3% throughout; d4 35, 37, 33, 35%. The sharp reading at 125 holds prediction 1 above (28% or more: 29.9%).
 
+**d0 to 300 and d0b to 125 read: the climb stopped near 200, and the second seed gained less.** d0 sampling alone among four b1-100 at 250, 275 and 300: 37%, 31%, 26% [20.9, 31.9]; its most likely move 32%, 35%, 35%. Of "Next, on the spot machine": 2 **failed**, narrowly: no reading past 125 cleared 125's by its half-width (39.5% at 200 against 33.8% and about 6), and the last three fall back. 3 **held**: the mirror capped 30% at 250 and 2.5% at 275, a wave again, with d4's at 56% at 250. 4 **failed**: d0b at 125 samples 23.4% [18.5, 29.1] alone among four b1-100, its most likely move 30.0%. So the control's gain is real on both seeds and smaller than d0's 512-game readings made it look; a run's best checkpoint is chosen on the sharp panel, not its last, and d0's at 175, 200, 250 and 300 are being read at 4,096 games for that.
+
 **Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 stops at 300: the clock earned nothing over the control and a net with it can't be exported.
 
 | # | Prediction | Confidence |
