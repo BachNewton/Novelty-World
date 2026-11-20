@@ -49,6 +49,7 @@ The rules the chart rests on:
 |---|---|---|---|
 | d0 and d4 to 600 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock net beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
 | d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
+| d4b | the spot machine | whether the clock's edge over the control repeats on seed 3 | `npm run spot -- pull d4b` |
 | e2: the search recorded on d0-300, its distillation and panel; the sharp panels of d0, d4 and d0b at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2` and `runs/readings` (queued there by `runs/readings/next.sh` and `after.sh`) | e2's predictions; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
@@ -754,6 +755,8 @@ What it says. **The mirror's cap rate is a wave, not a state**: every run but d4
 | d4-300 | 40.5% [38.4, 42.7] | 42.6% [40.5, 44.8] | 93.6% | 0.7% |
 
 d0 did climb past 125, to 200, and fell back by 300 in its sampled play while its most likely move held; the 512-game readings had the shape and not the sizes. **d4, the clock alone, kept climbing where the control turned**: level with d0 at 125, 14 points above it sampled at 300, and the only net past 50% alone among four s2-2-150. One seed each, so the clock's edge is a lead and not yet a finding; d4 was wrongly stopped at 300 and trains on to 600 beside d0. A seated bot plays its most likely move, so a candidate is chosen on that column: d0-200 is the best net that can be exported as the bot stands, and goes to the gauntlets as the learned-v3 candidate in c3-75's place; the TypeScript observation is given the clock so d4's can follow.
+
+**d4b, the clock on seed 3**, 300 iterations beside d0b, the control on that seed: one seed each is all the clock's edge rests on. d0-175 read sharp at 33.8% sampled and 38.2% at its most likely move, so 200 stays d0's best; d0 from 300 to 400 is flat near 30% sampled. Prediction: at 300 on the sharp panel, d4b's most likely move alone among four b1-100 is above d0b's by more than the two intervals' overlap (50%).
 
 **Queued on the spot machine itself**, since the laptop's connection drops for hours and a step that waits on the laptop leaves the cards idle: d0 trains on from 300 to 600; and **e2**, the second expert iteration, on the strongest net there is: the search recorded on d0-300 at 5 players (4,096 games asked, shards of 512, ten hours), distilled into d0-300 with the hard target, read on the sharp panel. d4 was to stop at 300, on its 512-game readings to 225; its sharp reading at 300 reversed that (above).
 
