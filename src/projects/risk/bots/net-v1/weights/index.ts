@@ -3,6 +3,7 @@
 import type { NetWeights } from "../network";
 import { WEIGHTS as wb1_100 } from "./b1-100";
 import { WEIGHTS as wc3_75 } from "./c3-75";
+import { WEIGHTS as wd0_200 } from "./d0-200";
 import { WEIGHTS as wimit_1 } from "./imit-1";
 import { WEIGHTS as wm1a_25 } from "./m1a-25";
 import { WEIGHTS as wm1a_50 } from "./m1a-50";
@@ -15,6 +16,7 @@ import { WEIGHTS as wsw128b_450 } from "./sw128b-450";
 export const WEIGHT_SETS: Readonly<Record<string, NetWeights>> = {
   "b1-100": wb1_100,
   "c3-75": wc3_75,
+  "d0-200": wd0_200,
   "imit-1": wimit_1,
   "m1a-25": wm1a_25,
   "m1a-50": wm1a_50,
