@@ -30,7 +30,7 @@ Who tells this book, and how. It came from an interview with the producer; every
 
 ## Reference passage
 
-The producer-approved scene every chapter is drafted beside: the Father's Day dinner from chapter 1.
+The producer-approved scene every chapter is drafted beside: the Father's Day dinner from chapter 4.
 
 Across the street, the school had its flag up. Finland keeps Father's Day in November, in the dark, with the flags out, and five years in, Ben Novak still found that faintly wonderful.
 
