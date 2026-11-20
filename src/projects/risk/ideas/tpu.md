@@ -82,6 +82,8 @@ What the TPU buys here is imitation and larger nets: 100 million samples of a 25
 
 What follows: 2 holds, the path is trusted, and the hours go to what a T4 can't train: 384x8 and 512x12 on the exact space, read by the same held-out agreement, as the base the next stage starts from. 2 fails with the session clean: the two trainers differ somewhere the tests didn't reach, found before anything else trains there.
 
+**big-tpu-1 read: all three held, and the path is trusted.** One session, never restarted, after about a day in Kaggle's queue. 1 held: it prepared the 15.5 million decisions in 518 s on the host's CPUs (33,800 a second), trained, and returned a checkpoint the PyTorch loader reads. 2 held: 68.1% [67.9, 68.3] of 3.1 million held-out decisions copied, big-256x6's 68.2%. 3 held: 100 million samples in 913 s, 109,500 a second over the eight chips, against the 132,400 the probe measured for the network alone, so the loader costs about a sixth. A 256x6 imitation is a quarter of an hour of a TPU session where it was nine hours of a T4. The queue is the cost: a session waits about a day, so what trains there is planned a day ahead and can't sit inside a loop that needs its answer the same night.
+
 ## Questions a first look would answer
 
 - How fast is the TPU on this workload compared with the T4 and the RTX 4070: the network's forward and backward pass at the trainer's batch sizes, and one engine step, if direction 1 is in play? A small kernel run in a single Kaggle session would give a first ratio.

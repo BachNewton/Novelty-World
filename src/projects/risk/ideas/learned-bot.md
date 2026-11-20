@@ -47,7 +47,9 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| big-tpu-1 | Kaggle's TPU (`tpu.md`, "The network on the TPU") | whether the JAX trainer on the TPU reproduces big-256x6's imitation | `python -m riskgpu.tpu.launch fetch big-tpu-1` |
+| d0, d4 to 300 | the spot machine (`infra/spot/README.md`) | whether the control's climb past 125 goes on, and the clock's beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
+| d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
+| e1's distillation and its panel, d0-125's and d4-125's sharp panels | the spot machine, `runs/distil/e1` and `runs/readings` | e1's predictions 2 to 4; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
@@ -709,6 +711,31 @@ What follows: 3 holds, the loop is closed once, and the next sessions repeat it 
 What follows: a lever that holds its mirror while d0 stalls joins the recipe, and the next base (the exact space, a larger net) trains with it; if both hold, the discount is preferred, since it needs no change to the seated bot's observation. Neither holds: the stall isn't the reward's or the clock's, and the two-survivor endgame is read directly (the league's share of endgame positions, the entropy bonus at two players) before another lever is built.
 
 **The cap itself, read before the levers: most capped games are live, and slow** (`selfplay.stall --cap`, the argmax mirror on the CPU, 64 five-player games on the same deals to 600 player-turns and to 2400; `runs/readings/stall/`). The owner's question was whether 600 cuts off games that would have ended. Predicted: at least half of the games capped at 600 still cap at 2400 (60%). **Failed.** b2-75, the stalled checkpoint, caps 84% [75, 92] at 600 and 25% [16, 36] at 2400: 38 of its 54 capped games end given the turns, at a mean of 1007 player-turns, and every game still running at 2400 has two survivors (53 of the 54 at 600 did). The board holds 2100 armies at turn 400 where b1-100's holds about 500. c3-75, c3-25 and b1-100 cap 0 to 5% at 600 and none at 2400. So the stall is a two-survivor duel of hoarded armies that mostly ends, several times too late, and a quarter of the time not at all; it is not five seats waiting on each other. What it changes: a capped game is not proof of a dead position, so the mirror's cap rate at 600 overstates a deadlock and is read beside the same games' length at a longer cap; and the duel is where the levers must show their effect, so d0 to d2 are also read on the two-survivor games' length, not on the cap rate alone. The 600 cap stays as the harness's, since a game a person plays has to end, and what a longer one would do to training is not measured.
+
+**d0 to d4 read: the control didn't stall and climbed furthest; neither lever earned its place.** Run on the spot machine's two A100s in bf16 (not the week's Kaggle refresh), with d2's two changes also run apart: d3 the cap scored as a loss alone, d4 the clock alone. All five from b1-100, seed 2, 125 iterations, never restarted. The panel is 512 games a check, so a lone seat's reading is ±5 points.
+
+| Run | Argmax mirror capped at 25 / 50 / 75 / 100 / 125 | Sampling alone among four b1-100, at 125 | Its most likely move, at 125 |
+|---|---|---|---|
+| d0, control | 11% / 20% / 11% / 1% / 0% | 33.8% [28.1, 40.0] | 33.3% |
+| d1, later wins worth less | 99% / 41% / 30% / 3% / 0% | 26.0% [20.9, 31.8] | 30.6% |
+| d2, clock and cap as a loss | 12% / 14% / 4% / 37% / 0% | 19.6% [15.2, 25.0] | 27.2% |
+| d3, cap as a loss | 6% / 6% / 2% / 1% / 36% | 21.9% [17.2, 27.5] | 22.3% |
+| d4, clock | 6% / 1% / 3% / 5% / 0% | 28.9% [23.6, 34.8] | 35.4% |
+
+1. d0 stalls, 25% or more at some reading (75%): **failed**, its worst 19.7% at 50, and it fell to none. 2. d1 under 10% throughout (50%): **failed**, and badly: 98.6% at 25, the discount's first effect the opposite of its purpose. 3. d2 under 10% throughout (45%): **failed**, 36.9% at 100. 4. One of d1 and d2 at 25% or more with its mirror under 10% at its last reading (35%): **held** by d1, at 26.0%, below the control.
+
+What it says. **The mirror's cap rate is a wave, not a state**: every run but d4 passed 10% and came back, d2 and d3 from under 1% to over a third and (d2) back within 25 iterations, so one reading of it says little about a run, and the readings that ended b2 at 75 and judged b1 past 100 may have caught a wave's crest. With the cap's own reading above (capped games mostly end), the stall as a wall is not supported; what is left is that the two-survivor endgame is slow at times. **The control is the best run**: d0 rose at every reading (19, 23, 25, 29, 34% sampling against b1-100) and hadn't flattened at 125, past c3-75's 29.0%. Scoring the cap as a loss cost strength both times it was tried (d2, d3), the discount cost it early, and the clock alone neither helped nor hurt within the reading's width. So no lever joins the recipe; the recipe is b1's with the spread, and the question is how far it climbs.
+
+**Next, on the spot machine while it lasts**: d0 and d4 continued to 300, and d0b, the control on seed 3 for 300, since one seed's 34% at 512 games is what everything above rests on. d0-125 and d4-125 are read again at 4,096 games.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | d0's sharp reading at 125 holds the gain: sampling alone among four b1-100, 28% or more | 70% |
+| 2 | d0 climbs past 125: a reading between 150 and 300 above 125's on the same panel, by more than its interval's half-width | 45% |
+| 3 | d0's mirror passes 25% at some reading between 150 and 300, and is under 10% again within 50 iterations | 40% |
+| 4 | d0b at 125: sampling alone among four b1-100, 28% or more | 60% |
+
+**e1's recording** ran beside them: one shard of 1,024 five-player games in about nine hours on a shared card, 1.07 million decisions, 499,000 searched and 30% of those overruled. Its prediction 1 **held**: 5 games of 1,024 capped. The distillation and its panel are in flight.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
