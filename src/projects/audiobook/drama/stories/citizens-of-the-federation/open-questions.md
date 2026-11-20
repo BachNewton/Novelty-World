@@ -14,12 +14,6 @@ The Bell Riots have their own chapter, Labor Day (chapter 3). The ruling (`CLAUD
 
 **Recommended:** chapter 4 meets Dayton's District as finished and full: Walt's "Nobody we know, Annie" from chapter 3 under the man on television saying "the dims have to go somewhere". Gabriel Bell's name can come up once, the way each half of America says it, now something Ben has seen for himself. Chapter 9 needs nothing more: its residents tearing the fence down is Sisko's "They'll be torn down".
 
-## The immigrant Sanctuary Districts
-
-*Picard*'s 2024 sends detained immigrants "to a sanctuary district on the border". Its real counterpart is in the book's own geography: Springfield, Ohio, about 25 miles from Dayton and about a quarter Haitian. A false claim about its Haitians made national news in September 2024, the week of the Bell Riots, and in June 2026 they lost their protected status.
-
-**Recommended:** a thread rather than a chapter. Haitian names among the Sanctuary District's residents in chapter 9, or a character from Springfield who steps forward later.
-
 ## Khan in chapter 10
 
 Khan is a small child in Toronto around 2022, so the Eugenics Wars of chapter 10 (the 2030s to 2040s, outside America) are his rise. In "Space Seed" he ruled from Asia through the Middle East. The real counterpart of 1967's fear is the gene-edited twins of 2018. Dolores's daughter, who cared for him in Toronto, carries the chapter.

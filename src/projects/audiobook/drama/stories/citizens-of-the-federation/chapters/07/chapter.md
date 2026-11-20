@@ -148,6 +148,8 @@ Other people put her picture up too, the ID one, with a heart beside it and a fl
 
 For sixteen years, the work of Carol Flory's life had been to be a file nobody had any reason to open. That week forty million people opened it.
 
+That night Miss Bea Yancey rang. She ran the choir at the Methodist church on Salem Avenue, where Carol sang tenor on Wednesdays, and she said the tenors had been flat without her, and that she was to come next week if she had to be carried.
+
 On Friday morning, when she went out to the car, someone had sprayed her old name across her garage door, in red, in letters as tall as she was. On the front step, someone else had left a bunch of supermarket flowers, still in their cellophane, with a card tucked in that said THANK YOU FOR YOUR SON. It was impossible to tell which had come first.
 
 Carol took the flowers inside and put them in water, because they were flowers, and put the card in her coat pocket, and drove to work.

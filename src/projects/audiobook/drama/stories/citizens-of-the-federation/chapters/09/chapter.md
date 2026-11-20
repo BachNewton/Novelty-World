@@ -1,18 +1,20 @@
 # Chapter 9: Known As
 
-By the summer of 2030, there had been two Presidents of the United States for a year and a half. One had taken the oath in Washington, and said a President stays until a count can be trusted. The other had taken it in Philadelphia, and said the count was the count. In Ohio people called each other Stays and Counts. It had started as a joke. Then it was what you were.
+On the night of Tuesday the thirteenth of August, 2030, nobody governed Dayton.
 
-On the night of the thirteenth of August, nobody governed Dayton. The Safety Board, which had run the city for the Counts since February, had left that afternoon with its files. The Ohio Guard, which answered to a Governor who stood with Washington, had stopped for the night at the edge of town and would come in at first light. In between, for a few hours, nobody was in charge of anything. There was no power. People sat out on their porches in the dark, to see who came.
+Carol Flory was at the visitors' window of the Sanctuary District, down by the river, with a camping lantern and a green ledger. The county hadn't paid her since January. She was at the window because nobody had told her to stop.
 
-At the visitors' window of the Sanctuary District, down by the river, there was a lantern, and a green ledger, and Carol Flory. The county hadn't paid her since January. She was still at the window because nobody had told her to stop.
+The Stays were coming, from the north and from the air base on the east side of town. Since the winter Dayton had been the Governor's, run for her by a Safety Board of commissioners and pastors, and that afternoon the Board had driven to Columbus with its files, because it was no use in a fight. The Governor's own soldiers would hold the city for her instead. A column of the Ohio Guard had stopped for the night at the edge of town and would come in at first light, and Carol's son was with it. Until then the city was between hands. There was no power, and all over Dayton people sat out on their porches in the dark, to see who came first. On Carol's own street, Dale Hutto sat beside his STAY sign with a flashlight in his lap, hoping it would be his side.
 
-A little after nine, someone rapped on the counter.
+The only other light Carol could see was a phone, glowing blue in a car in the far corner of the parking lot.
 
-"Visiting ends at four," Carol said, without looking up. "Name, and who you're here to see."
+A little after nine, somebody rapped on the counter.
 
-"Flory," said the man at the counter. "I'm here to see you."
+"Visiting ends at four," said Carol, without looking up. "Name, and who you're here to see."
 
-She looked up. He was in uniform, with a sergeant's stripes, and thinner than he should have been.
+"Flory," said a man's voice. "I'm here to see you."
+
+She looked up. He was in uniform, with a sergeant's stripes and no hat, and thinner than he should have been.
 
 "Hi, Carol," said her son.
 
@@ -20,243 +22,207 @@ She looked up. He was in uniform, with a sergeant's stripes, and thinner than he
 
 ---
 
-He had a list from his colonel. By eight in the morning the colonel wanted three things on his table: the keys to the water plant, the keys to the courthouse, and the District's rolls.
+He laid a typed list on the counter. By eight in the morning the colonel in charge of the column wanted three things on his table: the keys to the water plant, the keys to the courthouse, and the rolls of the Sanctuary District.
 
-"He asked who had the rolls," Joel said, "and somebody told him there's a clerk down here with a paper book. I said I'd go. I said I knew her."
+"Somebody told him there's a clerk down here who keeps them in a book," Joel said. "I said I'd come. I said I knew her."
 
-"What does he want them for?"
+Carol looked past him at the blue glow in the parked car. She knew who had told him.
 
-"You've got three hundred Stays in there, behind that fence, on a letter the Board made up. He wants them out. Are you going to tell me that's wrong?"
+That corner was the one place in the lot where a phone could still find a signal, and Gary Pruitt had sat in it most days since his wife went to her sister's in Kentucky. In June he had come to the window with his phone in his hand, to show her what it had been showing him: whose fault all this was, which was the Stays', and anybody's who was soft on them. "I'm not blaming you, Carol," he'd said. "I'm just keeping track. That green book nobody authorized. A nurse in the visitors' log as clergy. Somebody ought to be told."
 
-"No," said Carol. "What about the rest?"
+"What does he want with the rolls?" Carol asked.
 
-"The R's go to the jail. The D's go north, on buses. There's a facility."
+The District lay between the river and the railroad tracks, Joel said, right on the line the colonel meant to hold, and he wanted it empty before the Stays got there. He would clear it by its letters. The H's, the people the Board had locked up in there for refusing to sign its pledge, would go east on buses as prisoners. "The Stays have got some of ours up in Troy," Joel said. "He wants something to trade." The R's would go to the county jail. The D's would go east too, to the state hospital in Columbus, for their own safety. The E's could go wherever they liked, as long as it was out.
 
-"Where?"
+"Nobody's paid that hospital since January either," said Carol.
 
-He didn't answer that. "He's got the buses, Carol. That's what I know."
+"He's got eleven school buses. I signed for them this afternoon."
 
-Carol turned the ledger round to face him.
+After the gate, the Guard had kept Joel off the line. A hero who wouldn't say the other side fired first was no use to anybody. So he had guarded warehouses for the Board and signed for things, and on Sunday his company had been sent up to its armory in Springfield to join the colonel's column.
 
-"Here's how this goes," she said. "In twenty-six years I have never handed over a record I hadn't audited, and you're not carrying this one anywhere until you've heard it. Sit down. Hold the lantern."
+"What's he like?" said Carol. "This colonel."
 
----
+"While we were at Springfield, two of his drivers sold a tank of the column's diesel to a farmer. He had them shot in the yard before supper. He said a column that steals from itself is finished." Joel looked at the list.
 
-The ledger had seven columns, ruled by hand. She had ruled it herself, three years before, in the week a supervisor opened her file. The supervisor hadn't been cruel. She had seen that the state had issued the clerk a new license with an M on it, and that the county's records no longer agreed with the state's, and there was a process for that. Carol lost her login and was moved to the visitors' window, where there was no computer, only a pen. She had ruled the ledger to give her hands something to do. Then the county forgot her.
+Carol unlocked the side door of the booth and let him in. There was one stool, and she had it.
 
-That February, nobody paid the company whose servers ran the county's records, and the screens went dark. After that, the four thousand people inside the fence were written down nowhere but in a green book kept by a clerk who wasn't allowed to log in.
-
-Carol put her finger under the first line. "Page one. Known as, Mrs. Dorsey. Legal name, Dorsey, Ruth. Letter D. Age seventy-nine. Responsible party, Anna Dorsey. County of residence, Other."
-
-"What's 'known as'?" said Joel.
-
-"An optional box on the county form. Everybody tabs right past it. I put it in the first column because it's the one I like."
-
-She told him about Mrs. Dorsey. The shot had worked again that first spring, most of it. In Building C, Mrs. Dorsey had drawn a piano keyboard the length of a table on the backs of cereal boxes, and eleven children took lessons on it. The lessons were silent. The children were corrected anyway.
-
-"Her daughter's application to Finland took two and a half years," Carol said. "Last November the answer was yes, on the strength of a county paper that said 'none available.' The only time anybody ever picked that box. That's what cost me my login." She tapped the page. "The daughter still had to go in person, to the embassy in Washington, and prove who she was. They gave her an appointment for the fifth of February. I signed the release. Dolores, the nurse, bought two seats on a bus."
-
-Joel was looking at the date. "What happened on the fifth?"
-
-She said it gently. "You happened. Turn to January."
+"Here's how this goes," she said. "I've been a clerk for twenty-six years, and I have never handed over a record I hadn't audited. You're not carrying this one anywhere until you've heard it. Hold the lantern."
 
 ---
 
-In January, the Governor of Ohio sent two companies of his Guard to a gate of Wright-Patterson, the big Air Force base outside Dayton, to take it for Washington. The general inside had his orders from Philadelphia, and had put his airmen on the gate. The two lines stood ten feet apart in the cold for forty minutes, in the same camouflage.
+The ledger had seven columns, ruled by her own hand three years before. The first column, nearest the spine, said *Known as*. The six after it were the county's: the name on a person's papers, their letter, their age, their building, who was responsible for them, and anything else. Since the county's computers went dark in the winter, it was the only record anywhere of who was inside the fence. She had begun it with the one resident she already knew, so Mrs. Dorsey was page one.
 
-Then somebody fired, and nine seconds later eleven people were dead. Every one of them was from Ohio or stationed there. Nobody in Dayton called it the beginning of anything. That morning the road was closed, and people were late for work.
+"Known as, Mrs. Dorsey," Carol read. "Dorsey, Ruth. D. Seventy-nine. Building C. Responsible party, Anna Dorsey. County of residence, Other."
 
-That Friday the county's bank refused to pay anyone, because it now answered to two governments with two sets of orders and didn't know which was real. The state stopped sending money until the county said whose county it was. Nobody could say.
+In the margin, in pencil, it said: *Spouse deceased, 10 February.*
 
-Gary Pruitt had come down to her window that Friday, telling Carol it would be the bank and they'd have it fixed by Monday. Then he turned his phone round to show her.
+Joel read it over her shoulder. "That's the lady whose husband you held the phone for."
 
-"Carol," he said. "Isn't this your boy?"
+"That's her."
 
-It was nine seconds of video, shot from a van on the shoulder of the road, and forty million people watched it. It started too late to show who fired first. It showed a young man's face behind a rifle. To the Stays he was the hero of the gate, and to the Counts he was its butcher. By the next Wednesday, someone had found out who his mother was, and her picture went up beside his.
+She told him about Mrs. Dorsey instead. That same week she had gone up to Building C to show her a drawing her granddaughter had sent from Finland, on Carol's phone: one small orange mark in the middle of a white sheet. Mrs. Dorsey looked at it for a long time. Then she said that the child had left the rest of the paper alone, and good, and went back to her lesson. It was at a long table in the old loading bay, with a piano keyboard drawn in marker on the backs of cereal boxes, taped end to end. A boy of about eight was playing it very seriously, and the only sound in the room was the cardboard creaking under his hands. Mrs. Dorsey stopped him. "That was a B flat," she said. "Again."
 
-"Somebody sent me a picture of your garage door," Joel said, to the lantern.
+"Her last shot was in May," Carol said. "In June the nurse went out of the gate to look for more of it." She turned to the visitors' pages at the back and showed him: *Dolores, out.* There was no line for her coming back. "Every Monday Mrs. Dorsey comes to the window and asks me if it's Dolores's day. Now she'll only eat what she hears being opened. Lucille opens the cans in front of her."
 
-"I painted it. It's a nice gray now."
+"And she's a D."
 
-She turned the page out from under his hand.
-
----
-
-There was a note in the margin of page one, in pencil. *Spouse deceased, 10 February.*
-
-In the first week of February, the buses to Washington had stopped, and then the flights, and then the embassy's telephone. Walt Dorsey's nursing home in Kettering was paid for by a government there were now two of. The home stopped answering its phone on a Friday. On the Sunday morning, Carol's rang.
-
-"Ms. Flory? It's Anna Dorsey. I don't have anybody else in that county who picks up. I told my husband once that flights don't stop. I said that to him, in my kitchen." She stopped. "It's Sunday. I need somebody to go over there and hold up a phone."
-
-It took the last of Carol's gas. The staff had gone home unpaid, all but one aide, who had moved the residents into the one room with a window. The power had been off since Friday. The mask that did some of Walt Dorsey's breathing at night had run its battery down on Saturday.
-
-Carol held the phone where he could see it. His voice was a thread.
-
-"How's she eating?"
-
-"She's eating, Mr. Dorsey," Carol told him. "She's got eleven pupils."
-
-"Tell Annie everything's fine."
-
-"I know, Dad," said Anna, from Helsinki. "I know it is. Everything's fine here too."
-
-Carol's arm got tired, and the phone tipped back. For a few seconds, in Helsinki, Anna Dorsey looked at a ceiling in Kettering. It had no fan.
+"Her daughter got her a permit for Finland in November. All she had to do was go to Washington in person and prove who she was. Now your colonel's going to put her on a bus to the front of a list in Columbus. She's been on it nearly four years."
 
 ---
 
-"Known as, Miss Lucille," Carol read. "Odom, Lucille. Letter E. Sixty-six."
+"Known as, Miss Lucille. Odom, Lucille. E. Sixty-six. Building C."
 
-The company in Indiana that fed the District had sent its last truck on the first of February. The guards went home unpaid. Nobody took the fence down, and the gate stood open, but hardly anyone walked out through it, because outside there was no food either. So Lucille Odom took over the kitchen of Building C, with whatever the neighbourhood could carry over on credit.
+When the food trucks stopped, the Board had opened the county's warehouses, and Lucille Odom, who had once run a school kitchen, ran the kitchen of Building C on whatever came out of them and whatever the neighbourhood could carry over. She had one rule in her line. Carol had heard her give it to a man who didn't see why a ghost should be fed ahead of him.
 
-She had one rule in her line. Carol had heard her give it to a man who wanted to know why one of the people the county called ghosts was being fed ahead of him.
+"Nobody is anything in my line, baby. You're hungry or you're not. Move up."
 
-"Nobody is anything in my line, baby," Lucille had told him. "You're hungry or you're not. Move up."
+At three every afternoon, whatever was happening, she sat down outside the kitchen door with a cup of whatever there was and her book of crosswords, and did one in pen. The line waited. She was on the last few pages, and had told Carol she meant to make it last. When this was over, she said, she was going to eat a whole can of peaches by herself, standing up, and not tell a soul.
 
-In the third week of February, a grain truck came to the inner door. It had come through two checkpoints of one side and one of the other. The driver wore the white prayer covering of the Old German Baptist Brethren, whose church had ruled against the internet in 1996, so that winter she may have been the one person in Ohio who had never seen Joel Flory's face. She was Carol's sister, Naomi. They had not spoken in sixteen years.
+The insulin had needed cold, and by June there was no cold and no insulin. Nine people in Building C had died of that. Lucille had a sore on her foot now that she didn't discuss.
 
-"Forty sacks of wheat, and the potatoes," Naomi had said, to the door frame rather than to her sister. "There were forty-eight. The elder says to bring it to the door and ask nobody what they are. Where do you want it?"
+Carol turned to the visitors' pages again, to February. *Garber, Naomi. Here to see: nobody. Forty sacks of wheat.*
 
-Carol asked about the other eight.
+"Aunt Naomi?" said Joel. He had been nine the last time he saw her.
 
-"They asked which side we were on, and Brother Landis said we haven't got one, and they took four. Then the other side took four. That's the fare. We don't resist it."
+Naomi had brought the grain down from the north in a truck, through two checkpoints of one side and one of the other, in the white head covering of the Old German Baptist Brethren. Her church didn't hold with television or the internet, so that winter she may have been the one person in Ohio who had never seen Joel Flory's face. She and Carol hadn't spoken since the summer Carol's two names went into the newspaper.
 
-"You could say my name, you know," Carol said. "It's been in the county directory for sixteen years."
+"Forty sacks of wheat, and the potatoes," Naomi had said, to the door frame rather than to her sister. "There were forty-eight. The elder says to bring it to the door and ask nobody what they are."
+
+Carol had asked about the other eight.
+
+"They asked which side we were on, and Brother Landis said we haven't got one, so they took four. Then the other side took four. That's the fare. We don't resist it."
+
+"You could say my name, you know," Carol had said.
 
 Naomi looked at her then, for the first time. "I can't say that one. And you've asked me not to say the other. So I don't say anything." She climbed back up into the cab. "Mother asks if you're eating."
 
-Lucille had watched the truck go. "Who's that, your people?"
+---
 
-"My sister. Forty sacks of wheat, and she thinks I'm going to hell. It's not nothing, Lucille, what she thinks."
+"Known as, Ti Jak. Pierre-Louis, Jacques. E. Forty-one. Building A. He's from Springfield." It was twenty-five miles up the road. "He told me Jak, so I'd manage it. I asked him what they called him at home, and he laughed at me and said Ti Jak. Little Jak. He's six foot three."
 
-"No, baby, it's not," said Lucille. "Get the other end of this."
+She read Big Mike, who had driven a forklift, and Sister, and the Reverend. Then she turned toward the back of the book, and her voice went lower.
 
-Mrs. Dorsey's medicine could be kept at room temperature, which was how Dolores had stretched a case of it from the old clinic. Insulin needed cold. By June it was gone, and so were nine people in Building C who had needed it. Lucille was one of the people who needed it. She had a sore on her foot now that she didn't discuss.
+"Page two hundred and sixty-one. Known as, Miss Bea. Yancey, Beatrice. H. Seventy-one. Building F."
+
+"That's one of the colonel's," said Joel. "What did she do?"
+
+"She ran the children's room at the main library for thirty-one years, and she runs the choir I sing in. When they started taking books off the shelves, she hid them in our church basement, and I carried the boxes down the stairs for her myself." Carol kept her finger on the line. "And I wrote that H."
+
+The legislature in Columbus had sent the libraries a list first, and then the Board sent a polite young man with its own. *Huckleberry Finn* was on both. "One says he teaches children to break the law," Miss Bea had said on the basement stairs, "and the other says he hurts people. That child has never had a home in his life." The Board wanted number five thirty-four out of the hymnal too, because it began *Be still, my soul: the Lord is on thy side*, and both armies were singing it. When Finland belonged to the Czar, she told Carol, his censors wouldn't have that tune either, so the Finns played it under other names. *Impromptu.* *Happy Feelings at the Awakening of Finnish Spring.* "Let them try and arrest a spring," she said.
+
+"The Board were my people, Joel," said Carol. "Half of them sing on Wednesday nights. In February they kept the water running and opened the warehouses, and they were right to. In March they wanted a signature for a ration, because people were taking twice. Somebody bombed the substation in April, and the signature turned into a pledge to the count. And the ones who wouldn't sign it had to wait somewhere while their cases were reviewed."
+
+Somewhere turned out to be here. The District already had a fence, and a form, and the Board had soldiers to put on its gate.
+
+"They asked me could the form take one more letter. H, for held. It took me four minutes." She put her finger back on Miss Bea's line. "They asked her where she'd put the second lot of books, and she wouldn't say, and she wouldn't sign. She came to this window with her purse on her arm and said, which column do you want me in, Carol?"
 
 ---
 
-Gary Pruitt was not in the ledger.
+"Page two hundred and ninety," she read. "Henderson, Caleb. H. Nineteen. Building C. I asked him what people call him, and he said, I don't know, ma'am. The Henderson boy, I guess." So the first column said *The Henderson boy*.
 
-For thirty years he had made every call he said he would make. Then there was nobody left to call, and his wife went to her sister's in Kentucky. There was one corner of the county lot where a phone could still find a signal, and in February he began sitting there in his car. By March it was nine hours a day. The phone was the first thing in thirty years to tell him that none of it was his fault. Then it told him whose fault it was.
+He was the boy who had found Walt Dorsey on his kitchen floor, three years before. His father worked on the base, and when the pledge came round, Caleb wouldn't sign a paper against him. The Board's men had taken him in a supermarket parking lot. Since the pumps stopped, he had carried water up six floors of Building C in plastic cans, all day, for anyone who asked.
 
-In June he had come to Carol's window.
+"You locked up that kid," he said, low. "He's nineteen. He wouldn't sign against his dad, and you put him behind a fence with a letter on him."
 
-"I'm not blaming you," he told her, kindly. "I'm just keeping track. That green book nobody authorized. Clergy in the visitors' log. Somebody ought to be told, Carol, and I'll tell them. I always do."
+"Yes, I did," said Carol. "And in March, up in Troy, twenty miles north of here, some men pulled a woman out of her own pharmacy because her license said M. Ohio puts an M on mine now too. They put her in the river with wire on her wrists, and the sheriff up there didn't charge anybody. I've been doing that sum since March. Their Troy against my H."
 
----
+"Everybody's got a sum, Carol."
 
-Carol turned to the back of the book, and her voice dropped.
+"I know they have. Mine doesn't come out even. And it doesn't let me off."
 
-"Page two hundred and sixty-one. Known as, Miss Bea. Yancey, Beatrice. Seventy-one. Letter H."
+It was past two.
 
-"That's the letter," said Joel. "What did she do?"
+"I signed for those buses before I asked what they were for," he said. "I didn't ask."
 
-"She ran the children's room at the main library for thirty-one years, and the choir I sing in. And I wrote that H myself."
-
-Two years before, the state had sent the library a list of books to take off the shelves, and Miss Bea had packed them into cartons and driven them on Saturdays to the basement of the church on Salem Avenue, in her Buick. In April, the Safety Board sent a polite young man with a second list, of different books. Carol had carried those boxes down the basement stairs for her.
-
-"*Huckleberry Finn* is on both lists," Miss Bea had told her. "That child has never had a home. The young man said harm, and so did the man from Columbus, and they both said please. Now the Board wants number five thirty-four out of the hymnal, because it says the Lord is on thy side, and both armies are singing it." She had smiled. "Do you know, the Czar's censors banned that tune once? So the Finns played it under other names. *Impromptu.* *Happy Feelings at the Awakening of Finnish Spring.* Nobody arrests a spring, dear."
-
-"What will we call it on Wednesday?" Carol had asked.
-
-"Number five thirty-four," said Miss Bea. "Tenors, watch me."
-
-Each step had had its reason. In February the Board kept the water running and opened the warehouses, and it was right to. In March a ration took a signature, to stop the hoarding. In April someone bombed a power substation, and the signature became a pledge. People who wouldn't pledge were asked to wait somewhere, pending review, for sixty days. Downtown there was a fence that nobody was guarding any more, and a form.
-
-"They asked me could the form take one more letter," Carol said. "H, for held. The Board were my people, Joel. Half of them sang in my choir. They let a tenor in and never asked. I'd have followed them off a roof. It took me four minutes to add it. Miss Bea wouldn't tell them where she'd put the second pile of books. She came to this window with her purse on her arm, and she said, which column do you want me in, Carol?"
+"You've asked now."
 
 ---
 
-"Page two hundred and ninety," she read. "Henderson, Caleb. Nineteen. Letter H. I asked him what people call him, and he said, I don't know, ma'am. The Henderson boy, I guess."
+"So burn it," said Joel. "There's a barrel out back."
 
-He was the boy who had found Walt Dorsey on his kitchen floor, three years before. In January he had joined the Governor's reserve, because it was the only thing in the county that still paid, and in April the Board's men took him in a supermarket parking lot. Since the water mains in Building C failed, he had carried water up six floors in plastic cans, all day, for anyone who asked. Nobody paid him.
+"Burn it, and four thousand people were never here. There are people in this book who died in this place, and it's the only thing anywhere that says so. Burn it, and Ruth Dorsey is an old woman who says she's somebody, and her daughter has a permit from Finland for a woman nobody can prove exists."
 
-Joel put the lantern down.
+"And if the colonel gets it, he sorts them with a pen."
 
-"You locked up that kid," he said, low, because voices carried over the fence. "He's nineteen. He found an old man on a kitchen floor, and you put him behind a fence with a letter on him."
-
-"Yes, I did," said Carol. "And the people you work for pulled a woman out of her pharmacy in Troy because of the letter on her license. Same letter as mine. They put her in the river with wire on her wrists. I've been doing that sum since March, Joel. They don't come out even. They don't. And it doesn't get me off."
-
-For a while neither of them said anything. West of the fence a dog was barking at the porches. It was past two. Joel turned the lantern down a little, to save it.
-
-"The video starts too late," he said. "There was a kid across the barrier. An airman. We'd been standing there forty minutes, and he asked me if I was from around here. Same uniform as mine. The only thing different was the thread they sew the names on with. The Air Force's is brown. Ours is black.
-
-"Something went off behind me. I think it was behind me. And I shot him. I don't know who fired first, Carol. Nobody does. I know who fired second.
-
-"I stayed in because they were the only ones still paying. Then I stayed because of what I'd done with them. I sign for things now. I signed for the buses."
-
-"I know you did," said Carol.
-
----
-
-"So burn it," said Joel. "There's a barrel right outside."
-
-"Burn it, and four thousand people were never here. There are six hundred dead in this book, and it's the only place they died. Burn it, and Ruth Dorsey is a confused old woman who says she's somebody, and her daughter has a permit from Finland for a person nobody can prove exists. Nobody finds anybody. Nobody goes home."
-
-"And if the colonel gets it," said Joel, "he can sort them with a pen."
-
-She had both hands flat on the open page. Seven columns. She had ruled six of them because the county asked for them. The first one, nearest the binding, nobody had asked for.
+Carol had both hands flat on the open book, one on either side of the first column.
 
 "Hand me that steel rule," she said.
 
-Joel didn't move. "What for?"
+"What for?"
 
-"What do people call you, when they like you? That's all anybody who's looking for you needs to know. Nobody arrests a spring, Joel. It's no use at all to a man with a bus."
+"What do people call you, when they like you? That's all anybody who comes looking for you needs to know. It's no use at all to a man with a bus."
 
-A box cutter will go through four pages at a stroke against a steel rule, if the person holding the rule leans on it, so they worked the way two people carry a couch. He leaned. She drew the blade down the page an inch from the binding, and away came the legal names, the letters, the ages and the next of kin, in long strips. What stayed in the spine was a single column: a narrow book of what people were called.
+It took two of them. A box cutter will go through four pages at a stroke against a steel rule, but only if somebody is leaning on the rule. Joel leaned. Carol drew the blade down the page an inch from the binding, and away came everything the county had ever asked for, in long strips. What stayed in the spine was one column, a narrow book of what people were called.
 
-She had never damaged a record in her life, and she read every page aloud before she cut it. "Big Mike. Sister. Miss Odessa. Doc, who never was one. Baby Ray. Grandma Tran. The Reverend. Sugar."
+She had never damaged a record in her life. She read every page aloud before she cut it.
 
-Where nobody had ever told her a name, the first column was blank, and a blank line was all that was left of that person. Joel stood over the barrel in the Governor's uniform, feeding the strips in with a stick. The sky over the river was going gray when there was one page left.
+"Big Mike. Sister. Miss Odessa. Doc. Baby Ray. Grandma Tran. Ti Jak. The Reverend. Sugar."
 
-"That's page one," Joel said.
+Where she had never been told a name, the first column was blank, and a blank line was all that was left of that person. Every few pages Joel carried the strips out to the barrel behind the building, in the Governor's uniform, and fed them in with a stick.
 
-"I told that girl she'd be the only person who could ever get her mother out," said Carol. "I sat right here and took her signature."
+At the very back of the book, where Carol kept the things that had no column, there was a card. Joel picked it up to move it out of the blade's way, and turned it over. THANK YOU FOR YOUR SON, it said on the front. On the back, in Carol's square county hand, it said *Kasprzak, Eli*, and *20*.
 
-She cut it herself, in one stroke, and took it out to the barrel, and stayed out there a little while. Joel waited at the counter with a ballpoint pen and the narrow book.
+He said the name aloud, once, as the boy's mother had said it on the news. Then he put the card back where it had been.
 
-When she came back he had closed it. "It's light," he said. "What do you want done with it?"
+The sky over the river was going grey when there was one page left.
 
-"The inner door, on your way out. Miss Lucille, nobody else. In all my years, nobody has ever searched a kitchen."
+"That's page one," said Joel.
 
-He took the colonel's receipt out of his breast pocket and read down it. "What was that thing again, in the dropdown?"
+"I told that girl she'd be the only person who could ever get her mother out," said Carol. "I sat at this counter and took her signature."
 
-Carol told him no. She told him the Board had taken the book and he had never seen it, and that was what he would say, and the receipt had his name on it, and he was not to dare. She said all of it at once, faster than she had said anything all night, and he let her finish.
+She cut it herself, in one stroke, and carried the strip out to the barrel, and stayed out there a while. Joel waited at the counter with a ballpoint pen and the narrow book.
 
-Then he put the receipt back in his pocket and stood up.
+When she came back, he had closed it.
 
-"Eat something," Carol said.
+"It's light," he said. "What do you want done with this?"
+
+"The inner door, on your way out. Give it to Miss Lucille. In twenty-six years nobody has ever searched a kitchen."
+
+He took the colonel's list out of his breast pocket and read down it. "What was that thing again, in the dropdown? The one you told me you picked for the old lady."
+
+Carol told him no. She told him the Board had taken the book to Columbus and he had never seen it, and that was what he would say, and the list had his name on it, and she had heard what he said about Springfield, and he was not to dare. She said all of it at once, faster than she had said anything all night, and he let her finish.
+
+Then he folded the list and put it back in his pocket.
+
+"Eat something," said Carol.
 
 "See you, Carol."
 
 ---
 
-At eight on Wednesday morning, at a folding table in the county building, Sergeant Flory handed the colonel his receipt. The water plant, signed for. The courthouse keys, signed for. On the third line, beside *District rolls*, he had written two words in his own hand: *None available.*
+At eight on Wednesday morning, at a folding table in the lobby of the county building, Sergeant Flory, shaved, with his boots done, handed the colonel his list. Beside the keys to the water plant he had signed his name, and beside the keys to the courthouse. Beside the District's rolls he had written two words in his own hand: *None available.*
 
-At noon, Gary Pruitt came to the same table with a spiral notebook, because he had said he would. It had dates in it, and the green ledger, and who had kept it, and who had gone in to see her the night before.
+At noon Gary Pruitt came to the same table with a spiral notebook. It had dates in it, and the green book, and who had kept it, and the sergeant at her window the night before, and a fire in a barrel.
 
-They asked the sergeant where the book was. They asked him more than once. He said none available. The hearing took eleven minutes. The colonel had a city to hold, and on his first morning in it a famous sergeant had lied to him in writing, and he needed Dayton to see that a famous name bought nothing. At four in the afternoon, on the levee behind the county building, under the Governor's flag, the Ohio Guard shot Joel Flory for making a false record. He was twenty-six. His name was sewn on in black thread.
+They asked the sergeant where the book was. Each time, he said none available. The hearing took eleven minutes. The colonel had a city to hold and a fight coming to it, and on his first morning in it a famous sergeant had lied to him in writing. He needed Dayton to see that a famous name bought nothing.
 
-It was a Wednesday. At seven that evening, in Building F, an old woman with a pencil gave a note, and fourteen people sang number five thirty-four in four parts, with nobody on the tenor line.
+At four in the afternoon, on the levee behind the county building, soldiers of the Ohio Guard shot Joel Flory for making a false record. They were his own side. On the telephone poles along Third Street there were still posters of his face with HERO under it. He was twenty-six. His name was sewn on in black thread.
+
+It was a Wednesday. At seven that evening, in Building F, Miss Bea hummed the first note, and fourteen people sang number five thirty-four in four parts, with no one on the tenor line.
 
 ---
 
-On Thursday they came for the clerk as well. They asked her where the book was, and she said what the sergeant had said. A lieutenant told her about the levee, reading it off a sheet, and had her sign that she'd been told. Her hand was steady. It surprised her. With the county's screens dark, a new resident had to be entered on paper, and there was one man left in the building who knew the form.
+Carol sat at the window all Wednesday, and nobody came to it. On Thursday they came for the clerk.
+
+They asked her where the book was, and she said what the sergeant had said. A lieutenant told her about the levee, reading it off a sheet, and had her sign to say she had been told. Her hand was steady, which surprised her. The colonel could shoot his own soldiers. A county clerk was a civilian, and for civilians there was the District.
+
+With the county's screens dark, a new resident had to be entered on paper, and there was one man left in the building who knew the form.
 
 "Name of applicant," Gary Pruitt read, without looking up. "It says to take it from the license."
 
-He took it from the license. Then, for the letter, he wrote H, the one she had made up herself, the one the colonel had come to let go. Not the one for what she had done. The next box was "known as." It was optional, and he left it blank, the way most clerks always had.
+He took it from her license, which had said Carol since the summer Joel was nine. Then, for the letter, he wrote H, the one she had added to the form herself, the one the colonel had come to collect. The next box was "known as". It was optional, and he left it blank.
 
-"I said I'd tell them," he said, as if he were asking her something. "I told you I would."
+"I said I'd tell them," he said. "I told you I would."
 
-"You did, Gary," Carol said. "You made every call."
+"You did, Gary," said Carol. "You made every call."
 
-His hand shook while he filled in the rest, and that was all anyone would ever know about what Gary Pruitt made of it.
+His hand shook while he filled in the rest. That was all anyone would ever know about what Gary Pruitt made of it.
 
 Lucille met the new ones at the inner door. When she saw who it was, she didn't say anything about it.
 
 "That your card, baby? They'll have that off you by supper. Hold still. Let me see your neck."
 
-She got down on the bad foot to do it. Her left shoe had been tied with string since a March three years before, when its lace went round someone else's neck. Now she took the lace out of the right one. When the knot was done, she reached into her apron, where something had been since Wednesday morning, and put it in Carol Flory's hands.
+She bent down on the bad foot and took the lace out of her right shoe. The left had been tied with string since a March three years before, when its lace went round someone else's neck. Carol bent her head for her. When the knot was done, she reached into her apron, where something had been since Wednesday morning, and put it in Carol's hands.
 
 "Your boy gave me this over the counter," Lucille said. "He said you'd want to audit the end of it."
 
@@ -264,42 +230,52 @@ It was the narrow book: four thousand one hundred and six lines in Carol's own s
 
 *Mom.*
 
-"That box is optional," Carol said.
+"That box is optional," said Carol.
 
 "Yes, ma'am," said Lucille. "It is."
 
 ---
 
-The colonel couldn't sort them. The letters had decided people's buildings once, but three winters of moving to wherever the water still ran had mixed everyone up, and every one of them, when asked, gave a name. His men filled the buses by looking at people, the way people do. Fewer than a hundred went north. Mrs. Dorsey was not among them: Lucille had put her in an apron that morning and sat her down to peel potatoes, and nobody looks twice at a kitchen. What their people had called them was in the narrow book, and nothing else of them was anywhere.
+The colonel couldn't sort them. The letters had decided people's buildings once, but months of moving to wherever the water still ran had mixed everyone up, and every one of them, when a soldier asked, gave a name. So the soldiers filled the buses by looking at people, the way people do. They took men who looked to them like Stays, and people who looked to them like they belonged in a hospital, and Ti Jak, because he looked to somebody like he came from somewhere else. Fewer than a hundred went east. Mrs. Dorsey was not among them. Lucille had put her in an apron that morning and sat her down to peel potatoes with the others at the sinks.
 
-The people the Board had held were let go on Friday, on their word, and Carol with them, because of the letter on her form. Miss Bea walked out of the gate and down to the church basement on Salem Avenue. The Henderson boy went home, and on Monday he was back in Building C with his water cans. Dolores had gone out of the gate on the twenty-ninth of June, with her cooler bag, to look for more of the shot. The visitors' log had her going out. It had nothing about her coming back.
+By the weekend the fighting had reached the north side of town, and the buses never came back for the rest.
 
-In October the Guard's column was needed in the south. Nobody had ever been ordered to close the Montgomery County Sanctuary District, and nobody ever was. It was getting cold, and steel would buy flour. Over nine days the residents took the fence down themselves, a panel at a time, and carried it to the scrap yard across the river. Three thousand people walked out into a city that had no food either. They were free, and most of them were hungry. Lucille Odom kept the kitchen, from a stool now, because of the foot. It just had no fence round it.
+In October the column was needed somewhere else. No one had ever been ordered to close the Montgomery County Sanctuary District, and no one ever was. It was getting cold, and steel would buy flour. Over nine days the residents took the fence down themselves, a panel at a time, and carried it across the river to the scrap yard. Three thousand people walked out into a city with no food in it either. They were free, and most of them were hungry. Miss Bea walked down to the church basement on Salem Avenue. Lucille kept the kitchen, from a stool now, because of the foot. It just had no fence round it.
 
-That month, the Stay sheriff of the next county north and a man from what was left of the Board met in a meetinghouse of Naomi's church, because neither would go to the other, and because the elders had promised that nothing said there would be written down. They agreed on one thing, which was wheat. A truck with wheat in it could pass. Neither of them called it peace. It held.
+That month the sheriff of the county to the north, who was a Stay, and who had charged no one in Troy, met a man from what was left of the Board in a meetinghouse of Naomi's church. Neither would go to the other, and the elders had promised that nothing said there would be written down. They agreed on one thing, which was wheat. A truck with wheat in it could pass. Neither of them called it peace. It held.
 
-In the third week of October, Naomi came back with the grain truck, because her sister had asked her to, and took north nine old people who had nobody. There was no county left to file with, but she filled in the last section of the form for each of them anyway, "responsible party," in her own name, because a form was what her sister had asked for. Ruth Dorsey's last injection had been in May. By now she was a little off.
+Carol walked out to the meetinghouse on the day of the truce and waited at the door until Naomi came out.
 
-Naomi's farmhouse had no instruments in it. It never had. On the first evening, Mrs. Dorsey sat down at the kitchen table and spread her hands on the oilcloth. Naomi's granddaughter, who was seven, was watching her.
+"There are old people in there who haven't got anybody," she said.
+
+Naomi looked at the ground between them for a long time. "Then they'll have us," she said.
+
+She came back with the grain truck in the third week of October and took nine of them north. There was no county left to file with, but she filled in the last section of the form for each of them anyway, responsible party, in her own name, because a form was what her sister had asked for.
+
+Mrs. Dorsey hadn't had her shot since May. By October she had stopped teaching, and most days she took Lucille for a woman from the county and was very polite to her. On the truck she told Naomi that she knew perfectly well who had sent her, and she ate nothing on the way that she hadn't heard being opened. Naomi's farmhouse had no instruments in it. It never had. On the first evening Mrs. Dorsey sat down at the kitchen table and spread her hands on the oilcloth. Naomi's granddaughter, who was seven, was watching her from the doorway.
 
 "You're very late for your lesson," said Mrs. Dorsey. "Come here. Spread your fingers, please. Who told you that you couldn't?"
 
-The girl looked at the door. Then she put her fingers down on the oilcloth, beside the old ones, and there was no sound in the kitchen at all.
+The girl looked toward the next room, where her grandmother was. Then she came and put her fingers down on the oilcloth, beside the old ones, and there was no sound in the kitchen at all.
 
 ---
 
-Carol Flory kept a folding table on the levee, where people could find it. Nobody paid her. Her prescription had run out in the spring. Her son was on the hill at Woodland Cemetery, the highest ground in Dayton, under a marker she had paid for in flour. People came in the mornings with a name a stranger would laugh at, and she ran a finger down the column, and when she found it, she wrote beside it, in pencil, where they had gone.
+Carol kept a folding table on the levee behind the county building, where people could find it. She wasn't paid. Her own prescription had run out in the spring. Her son was on the hill at Woodland Cemetery, the highest ground in Dayton, under a marker she had paid for in flour. People came in the mornings with a name a stranger would laugh at, and she ran a finger down the column, and when she found it, she wrote beside it in pencil where they had gone.
 
-On Sunday, the twenty-seventh of October, a cell tower on Germantown Street got an hour of somebody's diesel. At eleven in the morning, the hour the Dorseys had always called, Carol's phone rang.
+On Sunday the twenty-seventh of October, a cell tower on Germantown Street got an hour of somebody's diesel. At eleven in the morning, the hour the Dorseys had always called, Carol's phone rang.
 
-"Ms. Flory? It's Anna Dorsey. I know the rolls are gone. I know what that means. I don't have a single piece of paper left that says who she is. I'm looking for my mother."
+"Ms. Flory? It's Anna Dorsey." The line was bad, and there was a child somewhere near her. "I heard about your son. I'm so sorry."
+
+"Thank you."
+
+"There isn't anybody left to ask. There isn't a piece of paper anywhere that says who she is." Anna stopped, and started again. "I'm looking for my mother."
 
 "I've got a form for that," said Carol. "There's just the one question. What do people call her, when they like her?"
-
-For a moment there was only the line, and somewhere near Anna, a child.
 
 "Her pupils call her Mrs. Dorsey," Anna said. "My father called her Ruthie. She always said he wasn't to be encouraged."
 
 "Yes, ma'am," said Carol. "I've got her right here. Page one."
 
-It was a very narrow book. Beside the first line, in pencil, it said where Mrs. Dorsey had gone. It was Sunday, in Ohio, and somebody was still keeping the book.
+She ran her finger along to the pencil.
+
+"She went north with my sister, to the farm," she said. "It says here she's eating."
