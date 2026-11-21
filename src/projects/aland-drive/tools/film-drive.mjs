@@ -1,5 +1,5 @@
-// A video of a drive, for judging a road by eye as a driver meets it: the car is put on the road nearest the first place,
-// the GPS routes it to the second, and the scripted driver follows that route while the video's frames are drawn one
+// A video of a drive, for judging a road by eye as a driver meets it: the GPS routes the car from the first place to
+// the second, facing the way it goes, and the scripted driver follows that route while the video's frames are drawn one
 // after another, each exactly a frame's time and a frame's steps of the simulation after the last, waiting for the
 // stream. So the video plays at real speed however slowly the machine renders, and two builds filmed alike show the
 // same drive. The frames are encoded with ffmpeg, which must be on the PATH. Every step runs through `game-page.mjs`,
@@ -46,11 +46,8 @@ await step("routing the drive", () =>
       probe.hold(true);
       probe.loadAround({ x: places[0][0], z: places[0][1] });
       await settle();
-      probe.placeNear(places[0][0], places[0][1]);
-      if (!probe.setDestination(places[1][0], places[1][1])) throw new Error("no road leads there");
-      const line = probe.routePoints();
       probe.setCamera(camera);
-      probe.startLine(line, cruise);
+      probe.startLine(probe.routeThrough(places), cruise);
       probe.loadAround(null);
       await settle();
     },
