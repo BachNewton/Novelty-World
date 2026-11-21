@@ -17,7 +17,7 @@ Read the workshop's `CLAUDE.md` (`src/projects/audiobook/drama/CLAUDE.md`), then
      - **The ethical shape,** by its name where it has one (a Ulysses contract, the lesser evil, dirty hands), as the writer's lens, never a word on the page.
      - **The hole check:** whether every option means something real, whether a sensible person in the scene could find a way round it, whether the kind choice and the right one each have a price, and how the cost lands on the page.
 
-     A dilemma with a hole lets the reader off the hook, and the producer will find it. Once agreed, it goes in the outline entry as the chapter's **choice**.
+     A dilemma with a hole lets the reader off the hook, and the producer will find it. The walk-through is the writer's preparation, never the page: the chapter carries only as much as a reader needs to feel the stakes, and lets the story carry it. Once agreed, it goes in the outline entry as the chapter's **choice**.
 2. **Facts.** Check every canon and real-world fact online before drafting, never from memory, and keep the sources for the hand-over. Add every date the chapter rests on to the story's timeline (`timeline.ts`), then compute each date, weekday, age, interval and time of day from it with the date tool. Never do date arithmetic in your head.
 
    ```
