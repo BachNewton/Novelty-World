@@ -82,7 +82,7 @@ def test_a_prepared_sample_is_the_pytorch_rebuild_and_the_jax_loss_and_read_are_
     source = imitate.Dataset(folder) if task == "imitate" else distil.Recording(folder)
     idx = torch.arange(data.n)
     space = actions or "buckets"
-    b = source.inputs(idx, board, "cpu", space) if task == "imitate" else source.inputs(idx, board, "cpu")
+    b = source.inputs(idx, board, "cpu", space) if task == "imitate" else source.inputs(idx, board, "cpu", False)
     a = data.arrays
     for k in ("node", "slot", "glob"):
         assert np.array_equal(a[k], b[k].numpy().astype(np.float16)), k
@@ -168,7 +168,7 @@ def test_a_distillation_lowers_its_loss_and_its_read_splits_add_up(recording, bo
     def loss(path: str) -> float:
         from riskgpu.selfplay.ladder import load_net
         with torch.no_grad():
-            parts = distil.losses(load_net(path, board, "cpu"), source.inputs(idx, board, "cpu"), d_args)
+            parts = distil.losses(load_net(path, board, "cpu"), source.inputs(idx, board, "cpu", False), d_args)
         return float(parts["main"] + parts["amount"])
 
     before = loss(ckpt)

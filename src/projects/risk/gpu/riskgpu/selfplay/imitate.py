@@ -51,6 +51,10 @@ rate still above zero.
 **Read.** Held-out agreement over every held-out decision, by the teacher's move kind and by the
 decision's kind as the crate's `agree` tallies it, the main choice alone and the whole move, with
 95% intervals by bootstrap over games.
+
+**The clock.** An extraction keeps no game's turn cap, so imitation trains and reads only nets
+without the clock (`obs.py`); `rebuild` adds the clock where its caller knows the cap, as the
+search's distillation does.
 """
 
 import argparse
@@ -463,10 +467,12 @@ def kept_fields(s: State, log) -> dict[str, torch.Tensor]:
     return sample
 
 
-def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board, exact: bool) -> dict:
+def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board, exact: bool,
+            cap: torch.Tensor | None = None) -> dict:
     """Kept samples `x` (on the device, as `kept_fields` keeps them) back as states, with their
     options, legal main choices, observation and value targets: `game_scores [N, 6]`, each sample's
-    game's score by seat, read for every present slot."""
+    game's score by seat, read for every present slot. With `cap [N]` (each sample's game's turn
+    cap), the observation ends with the clock, read from the kept turn."""
     n, device = x["players"].shape[0], x["players"].device
     fields = {name: x[name] for name in KEPT}
     fields["armies"] = fields["armies"].to(torch.int32)
@@ -475,7 +481,7 @@ def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board,
     s = State(**{name: fields[name] for name in LAYOUT})
     o = options(s, board)
     legal = legal_main(o, exact)
-    node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board)
+    node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board, cap)
     seat_of_slot, _ = slots(s)
     value = game_scores.gather(1, seat_of_slot.clamp(min=0))
     value_ok = seat_of_slot >= 0
@@ -685,6 +691,7 @@ def read(args) -> dict:
     data = Dataset(args.data, args.seatings.split(",") if args.seatings else None)
     from .ladder import load_net
     net = load_net(args.ckpt, board, device)
+    assert not net.clock, "an extraction keeps no game's turn cap, so a net that reads the clock can't be read on it"
     games = data.x["game"]
     idx = torch.nonzero(data.held_out[games])[:, 0]
     if args.games_file:

@@ -24,7 +24,7 @@ GPU_REMOTE="$ROOT/risk-gpu"
 VENV="$ROOT/venv"
 TORCH="torch==2.5.1"            # the laptop's versions: the engine is held bit-exact across machines
 PINS="numpy==1.26.4 pytest==9.0.2"
-DEFAULT_CKPTS="runs/imitate/imit-1/best.pt runs/selfplay/sw128b/snap-450.pt runs/selfplay/s2-2/snap-150.pt"
+DEFAULT_CKPTS="runs/imitate/imit-1/best.pt runs/selfplay/sw128b/snap-450.pt runs/selfplay/s2-2/snap-150.pt runs/selfplay/b1/snap-100.pt runs/selfplay/d4/snap-500.pt"
 
 # Runs a bash script on the machine. The script travels base64-encoded: wsl.exe drops the double
 # quotes inside its arguments and SSH hands them to whatever login shell the machine has, so no
