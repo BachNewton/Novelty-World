@@ -11,6 +11,7 @@ Before a chapter is written, fill in its entry, starting with its idea: the one 
 3. **Is there more it could say from the core?** Look at what it barely touches, and add only what fits.
 4. **Does it sit inside the book's truth, and test its values?** However dark it gets, humanity finds a way, and the chapter has something to say about at least one of the nine values.
 5. **Is the idea the subject, and the people and plot its case?** Every scene works the idea through or shows what it costs someone. Neither a lecture nor a family story with Star Trek wallpaper.
+6. **Does someone face a choice that costs?** The entry's **choice** names it: who chooses, between what, which values pull against each other, and what each road costs whom. It is agreed with the producer before drafting, and no option has a way round it.
 
 An entry guides the chapter and doesn't bind it. If a better idea changes one, change the entry and say why it fits the direction. Deep subjects should rotate, so that over the book every part of the core gets its turn.
 
