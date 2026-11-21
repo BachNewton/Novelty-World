@@ -16,5 +16,17 @@
     "gd-continental": 1065.5,
     "gd-aggressive": 1019,
     "gd-stacker": 1073.5
+  },
+  "provisional": {
+    "learned-v3": {
+      "elo": 2101.2,
+      "error": 15.9,
+      "as": "net-v1~{\"weights\":\"d0-200\",\"pick\":\"argmax\"}",
+      "gauntlets": [
+        "2026-11-20T17:31:37.468Z",
+        "2026-11-20T17:31:38.708Z",
+        "2026-11-20T17:32:00.935Z"
+      ]
+    }
   }
 }
