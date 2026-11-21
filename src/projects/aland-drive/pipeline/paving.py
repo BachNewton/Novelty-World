@@ -85,12 +85,13 @@ END_BLOCK_PAST_M = 1.0
 # Across at a carriageway's edge where more carriageway lies beyond it: short of where an edge line is painted
 # (`LINE_INSET` in `render/game.ts`), so none is, and the road's wear lies a hand's width nearer its middle there.
 OPEN_EDGE_ACROSS = 0.87
-# How far past its edge a carriageway is read for what lies beyond.
-OPEN_EDGE_PROBE_M = 0.3
+# How far past its edge a carriageway is read for more asphalt beyond: as far as a wedge is filled from either side.
+OPEN_EDGE_REACH_M = GORE_M / 2
 # What a piece is to a junction's mouth or a way's round end: nothing, its fill of carriageway, or the strip round its
-# arc. A mouth lies between two roads and follows both; a round end is its own way's alone, and stands on its profile.
-NO_MOUTH, MOUTH_FILL, MOUTH_RING, END_FILL, END_RING = 0, 1, 2, 3, 4
-FILLS, ENDS, RING_MOUTHS = (MOUTH_FILL, END_FILL), (END_FILL, END_RING), (MOUTH_RING, END_RING)
+# arc. A mouth lies between two roads and follows both; a round end is its own way's alone, and stands on its profile;
+# a wedge between two roads that merge is a fill with no line painted round it.
+NO_MOUTH, MOUTH_FILL, MOUTH_RING, END_FILL, END_RING, WEDGE_FILL = 0, 1, 2, 3, 4, 5
+FILLS, ENDS, RING_MOUTHS = (MOUTH_FILL, END_FILL, WEDGE_FILL), (END_FILL, END_RING), (MOUTH_RING, END_RING)
 # A stretch of one surface smaller than this, with other surfaces all round it, is a speck: it wears its neighbour's.
 SPECK_M2 = 3.0
 # A piece no wider than this anywhere is a sliver, and wears the surface along its longer side, when that side is
@@ -229,6 +230,7 @@ class Corner:
     arc: shapely.Geometry  # The fill's outline where it isn't a carriageway's edge: the junction's own edge of asphalt.
     way: int  # The road that ends here.
     end: bool = False  # A way's round end, with no other road to it.
+    wedge: bool = False  # The wedge between two roads that merge.
 
 
 @dataclass
@@ -650,7 +652,12 @@ def _less(shape: shapely.Geometry, other: shapely.Geometry) -> shapely.MultiPoly
     """One shape less another, cut on the paving's grid so the two share the edge between them, without the hairs left
     where their edges ran together. Kept a hair apart instead, the two had a gap between them all along that edge, and
     the gap's own outline: ninety points to the strip round one junction's mouth, where a dozen draw it."""
-    return shapely.MultiPolygon([part for part in _flat(shapely.difference(shape, other, grid_size=GRID_M / 20)) if not part.buffer(-CORNER_LEAST_M / 2).is_empty])
+    return shapely.MultiPolygon(_solid(shapely.difference(shape, other, grid_size=GRID_M / 20)))
+
+
+def _solid(shape: shapely.Geometry) -> list[shapely.Polygon]:
+    """A shape's parts that are more than a hair wide."""
+    return [part for part in _flat(shape) if not part.buffer(-CORNER_LEAST_M / 2).is_empty]
 
 
 def _closed_in(shape: shapely.Geometry, radius: float, segments: int = 4) -> shapely.Geometry:
@@ -888,24 +895,30 @@ def carriageway_corners(chains: list[Chain], carriageways: dict[int, shapely.Geo
     return found
 
 
-def gores(chains: list[Chain], carriageways: dict[int, shapely.Geometry], prints: dict[int, dict[int, shapely.Geometry]], mouths: list[Corner], tile: shapely.Polygon) -> list[Corner]:
+def gores(chains: list[Chain], carriageways: dict[int, shapely.Geometry], prints: dict[int, dict[int, shapely.Geometry]], paved: shapely.Geometry, mouths: list[Corner], tile: shapely.Polygon) -> list[Corner]:
     """The wedge between two roads' carriageways where they run together, as asphalt back to where it is `GORE_M` wide,
     ended there on a round nose.
 
     Two roads that merge at a slant share their paving long before their carriageways meet, and the shoulder between them
     ran on to the meeting as a needle metres long, a pale spike down the middle of the asphalt. A built merge is asphalt
     right across the wedge, back to a nose wide enough to stand a kerb or a post on. The wedge is the lesser road's
-    surface, and its nose is the edge of the asphalt, as a mouth's arc is.
+    surface, with no line painted round its nose: the two roads' edge lines stop where the wedge begins.
 
-    Only between two roads: a carriageway's own bend closes nothing. Only where the wedge is those roads' paving already,
-    so it changes what the paving wears and paves nothing new: two roads a bank apart stay apart. Never over a path, which
-    keeps its own paving; and not near a tile's edge, where each tile sees only its own side."""
+    Only between two roads: a carriageway's own bend closes nothing. Only where the wedge is paved already, by the roads'
+    own paving or a gap closed between them, so it changes what the paving wears and paves nothing new: two roads a bank
+    apart stay apart. Cut to the roads' own paving alone, it stopped short where their strips did, on a ragged end with a
+    line painted round it. Never over a path, which keeps its own paving; and not near a tile's edge, where each tile
+    sees only its own side.
+
+    A hole left in the asphalt smaller than a speck is asphalt too, the nearest road's: three carriageways meeting at a
+    roundabout's arm left pinholes of shoulder between them, each with an edge line painted round it."""
     roads = [index for index in carriageways if chains[index].motor]
     if len(roads) < 2:
         return []
     asphalt = shapely.union_all([*(carriageways[index] for index in roads), *(found.fill for found in mouths)], grid_size=GRID_M / 20)
     paths = shapely.union_all([by_level[GROUND] for index, by_level in prints.items() if GROUND in by_level and not chains[index].motor], grid_size=GRID_M / 20)
-    wedges = shapely.intersection(_closed_in(asphalt, GORE_M / 2, CORNER_ARC_SEGMENTS), tile.buffer(-EDGE_BAND_M, join_style="mitre")).difference(paths.buffer(SLIVER_M, quad_segs=1))
+    inner = tile.buffer(-EDGE_BAND_M, join_style="mitre")
+    wedges = shapely.intersection(_closed_in(asphalt, GORE_M / 2, CORNER_ARC_SEGMENTS), inner).difference(paths.buffer(SLIVER_M, quad_segs=1))
     wedges = wedges.buffer(-CORNER_TIP_M / 2, join_style="mitre").buffer(CORNER_TIP_M / 2, join_style="mitre")
     tree = shapely.STRtree([carriageways[index] for index in roads])
     found = []
@@ -914,12 +927,32 @@ def gores(chains: list[Chain], carriageways: dict[int, shapely.Geometry], prints
         if len(between) < 2:
             continue
         lesser = max(between, key=lambda chain: (chain.kind.rank, chain.index))
-        laid = shapely.union_all([prints[chain.index][GROUND] for chain in between], grid_size=GRID_M / 20)
-        for part in _flat(shapely.intersection(wedge, laid, grid_size=GRID_M / 20)):
-            arc = part.boundary.difference(asphalt.buffer(SLIVER_M * 2))
-            if not arc.is_empty and not part.buffer(-CORNER_LEAST_M / 2).is_empty:
-                found.append(Corner(part, shapely.MultiPolygon(), arc, lesser.index))
+        found += [Corner(part, shapely.MultiPolygon(), shapely.LineString(), lesser.index, wedge=True) for part in _solid(shapely.intersection(wedge, paved, grid_size=GRID_M / 20))]
+    whole = shapely.union_all([asphalt, *(corner.fill for corner in found)], grid_size=GRID_M / 20)
+    for hole in (shapely.Polygon(ring) for part in _flat(whole) for ring in part.interiors):
+        if hole.area < SPECK_M2 and inner.contains(hole):
+            filled = shapely.intersection(hole, paved, grid_size=GRID_M / 20).difference(paths.buffer(SLIVER_M, quad_segs=1))
+            found += [Corner(part, shapely.MultiPolygon(), shapely.LineString(), roads[int(tree.nearest(hole))], wedge=True) for part in _solid(filled)]
     return found
+
+
+def asphalt_edges(chains: list[Chain], carriageways: dict[int, shapely.Geometry], mouths: list[Corner]) -> None:
+    """Makes each mouth's arc the stretch of its fill's outline that is the outline of all the asphalt round it: every
+    road's carriageway and every mouth's fill together.
+
+    A mouth is measured from its arc, where an edge line is painted. Found against its own two roads alone, the arc ran
+    on along a third road's carriageway and along the next mouth's fill, so where a roundabout's arm met the ring a line
+    was painted across the asphalt wherever two fills met. The asphalt's outline is taken with its hair-wide slits
+    closed and its pinholes filled: a slit left where a fill's edge ran a hair off a carriageway's was outline too, and
+    had a tick of line painted along it."""
+    if not mouths:
+        return
+    asphalt = shapely.union_all([*(shape for index, shape in carriageways.items() if chains[index].motor), *(found.fill for found in mouths)], grid_size=GRID_M / 20)
+    closed = asphalt.buffer(SLIVER_M * 2, join_style="mitre").buffer(-SLIVER_M * 2, join_style="mitre")
+    whole = shapely.union_all([shapely.Polygon(part.exterior, [ring for ring in part.interiors if shapely.Polygon(ring).area >= SPECK_M2]) for part in _flat(closed)])
+    edge = whole.boundary.buffer(SLIVER_M * 3, quad_segs=1)
+    for found in mouths:
+        found.arc = shapely.intersection(found.fill.boundary, edge)
 
 
 def ground_shape(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], areas: shapely.Geometry, tile: shapely.Polygon, mouths: list[Corner] = ()) -> tuple[shapely.Geometry, shapely.Geometry]:
@@ -991,8 +1024,10 @@ def open_edges(chains: list[Chain], carriageways: dict[int, shapely.Geometry], m
         chain = chains[index]
         sides = []
         for sign in (1, -1):
-            beyond = chain.xy + sign * (chain.half + OPEN_EDGE_PROBE_M)[:, None] * chain.normal
-            at, which = tree.query(shapely.points(beyond), predicate="within")
+            # Anywhere from the edge out to the reach, not at one place: a sliver of shoulder between two carriageways,
+            # drawn as asphalt for being too thin to read, is no edge of the asphalt.
+            beyond = chain.xy + sign * (chain.half + OPEN_EDGE_REACH_M / 2)[:, None] * chain.normal
+            at, which = tree.query(shapely.buffer(shapely.points(beyond), OPEN_EDGE_REACH_M / 2 - SLIVER_M, quad_segs=2), predicate="intersects")
             opened = np.zeros(len(chain.xy), dtype=bool)
             opened[at[owners[which] != index]] = True
             sides.append(opened)
@@ -1212,7 +1247,7 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
             held, at = held[free[held]], at[free[held]]
             owner[held], walk[held] = JUNCTION, False
             look[held] = [mouths[index].way for index in at]
-            mouth[held] = [(END_RING if ring else END_FILL) if mouths[index].end else (MOUTH_RING if ring else MOUTH_FILL) for index in at]
+            mouth[held] = [(END_RING if ring else END_FILL) if mouths[index].end else WEDGE_FILL if mouths[index].wedge else (MOUTH_RING if ring else MOUTH_FILL) for index in at]
     # A piece drawn as the shoulders round it carries one way's class whole, the nearest to its middle: read point by
     # point, a corner between a street and a sidewalk carried slabs at some points and none at others, a smear across it.
     beside = np.full(len(faces), JUNCTION)
@@ -1907,6 +1942,9 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
         # A point a hair off the arc, where the outline is kept, is on it, as a carriageway's edge is stored.
         from_arc = np.where(from_arc <= EDGE_WITHIN_M, 0, from_arc)
         within = np.maximum(1 - from_arc / np.maximum(half, OUTLINE_WITHIN_M), CORNER_LEAST_ACROSS)
+        # A wedge's nose has no line round it: the two roads' own lines stop where the wedge begins. Cut to what was paved,
+        # a wedge's outline can be any shape, and a line that followed it was a white blot on the asphalt.
+        within = np.where(mouth[at_mouth] == WEDGE_FILL, np.minimum(within, OPEN_EDGE_ACROSS), within)
         across[at_mouth] = np.where(np.isin(mouth[at_mouth], FILLS), within, np.minimum(1 + from_arc / np.maximum(strip, OUTLINE_WITHIN_M), 2))
         carriageways = dict(carriageways)
         for found in mouths:
@@ -2084,8 +2122,9 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     areas = shapely.MultiPolygon(_flat(shapely.simplify(shapely.intersection(areas, tile), OUTLINE_WITHIN_M)))
     carriageways = ground_carriageways(laid, levels, crosses, prints, sections, tile)
     mouths = carriageway_corners(chains, carriageways, prints, crosses, tile) + end_caps(laid, crosses, prints)
-    mouths += gores(chains, carriageways, prints, mouths, tile)
     shape, street_corners = ground_shape(chains, prints, areas, tile, mouths)
+    mouths += gores(chains, carriageways, prints, shape, mouths, tile)
+    asphalt_edges(chains, carriageways, mouths)
     kerbs = ground_kerbs(laid, levels, crosses, prints, sections, tile)
     looks = edge_looks(chains)
     mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile, looks, mouths))
