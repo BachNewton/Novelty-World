@@ -200,3 +200,30 @@ def test_the_minibatch_split_over_two_devices_is_the_one_device_update(imitation
     b = torch.load(tmp_path / "two" / "last.pt", weights_only=False)["net"]
     for k, v in a.items():
         assert torch.allclose(v, b[k], atol=1e-5, rtol=1e-4), k
+
+
+def test_a_net_s_own_play_prepared_with_the_clock_trains_a_fresh_net_that_reads_it(board, tmp_path):
+    """`own.py`'s recording (`test_own`'s, of a net with the clock) into a fresh net on the JAX side."""
+    from riskgpu.selfplay import own
+    from test_own import ARGS
+    tables = load_best("cpu")
+    tables.scaled_oversize = True
+    net = random_net(32, 1, 4, 2, board, seed=3, clock=True)
+    net.requires_grad_(False)
+    ckpt = str(tmp_path / "net.pt")
+    torch.save({"net": net.state_dict(), "config": net.config()}, ckpt)
+    folder = str(tmp_path / "rec")
+    own.record(own.parse(["--ckpt", ckpt, "--dir", folder, *ARGS]), net, board, tables, "cpu")
+    data_dir = str(tmp_path / "set")
+    prepare.prepare(prepare.parser().parse_args(["distil", "--data", folder, "--out", data_dir, "--clock", "--chunk", "100"]))
+    data = prepare.Prepared(data_dir)
+    b = distil.Recording(folder).inputs(torch.arange(data.n), board, "cpu", True)
+    assert data.clock and np.array_equal(data.arrays["glob"], b["glob"].numpy().astype(np.float16))
+    assert int((data.arrays["group"] == 1).sum()) == data.n  # every target the net's own first choice
+
+    out = train.train(train.parser().parse_args(run_args(data_dir, tmp_path / "d", "--max-samples", str(32 * 40))))
+    from riskgpu.selfplay.ladder import load_net
+    trained = load_net(str(tmp_path / "d" / "last.pt"), board, "cpu")
+    assert trained.clock and trained.width == 32 and trained.layers == 1
+    read = out["held_out"]["main"]["searched"]
+    assert read["n"] == out["held_out"]["samples"] and read["share"] > 0

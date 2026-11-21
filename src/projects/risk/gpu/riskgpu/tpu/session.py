@@ -2,7 +2,8 @@
 as `JOB`): standard library only, since it starts before the repo is there.
 
 It fetches the repo's GPU package at the job's commit and puts the bundle's files at their paths: the
-compact training set (an imitation's extraction or a search recording) and the `--init` checkpoint,
+compact training set (an imitation's extraction, or a recording of a search or of a net's own play)
+and the `--init` checkpoint,
 read where Kaggle mounted them, and the run's own folder (an earlier session's state, to resume it)
 copied into `/kaggle/working/<name>`, which is what the session keeps. A set too large to upload
 again may come from another dataset already on Kaggle (`external` files, found by name under

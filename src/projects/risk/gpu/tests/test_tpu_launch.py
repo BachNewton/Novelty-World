@@ -112,11 +112,13 @@ def test_a_training_session_s_arguments_are_refused_before_anything_is_uploaded(
     root, calls, _ = gpu
     assert launch.main([*IMITATE, "--dry-run", "--", "--width", "256", "--layers", "6", "--minibatch", "32768"]) == 0
     assert launch.main([*DISTIL, "--dry-run", "--", "--init", "runs/selfplay/b1/snap-100.pt"]) == 0
+    # A copy from random weights, the set prepared with the clock its net reads.
+    assert launch.main([*DISTIL, "--clock", "--dry-run", "--", "--width", "256", "--layers", "6"]) == 0
     for argv, refusal in [
         ([*IMITATE, "--", "--data", "runs/x"], "the launcher's"),
         ([*IMITATE, "--", "--hours", "2"], "the launcher's"),
         ([*IMITATE, "--", "--minibatch", "4100"], "split over the session's 8 chips"),
-        ([*DISTIL, "--"], "starts from --init"),
+        ([*IMITATE, "--clock", "--"], "no turn cap"),
         (["train", "i1", "--task", "imitate", "--source", "runs/readings/e1/rec", "--"], "folders under runs/imitate/"),
         ([*DISTIL, "--", "--init", "runs/selfplay/b1/none.pt"], "lacks"),
         ([*IMITATE, "--session-hours", "10", "--"], "at most 9"),
@@ -127,8 +129,8 @@ def test_a_training_session_s_arguments_are_refused_before_anything_is_uploaded(
     (root / "runs" / "tpu" / "i2" / "last.pt").write_bytes(b"x")
     with pytest.raises(AssertionError, match="finished run"):
         launch.main(["train", "i2", *IMITATE[2:], "--"])
-    # Only the quota was asked, by the two dry runs and the session too long for it.
-    assert [c[0] for c in calls] == ["quota", "quota", "quota"]
+    # Only the quota was asked, by the three dry runs and the session too long for it.
+    assert [c[0] for c in calls] == ["quota", "quota", "quota", "quota"]
 
 
 def test_a_set_already_on_kaggle_is_checked_by_name_and_size_and_not_uploaded_again(gpu, capsys):
@@ -146,7 +148,7 @@ def test_a_pushed_session_carries_its_job_the_bundle_and_the_tpu(gpu):
     run = root / "runs" / "tpu" / "d1"
     run.mkdir(parents=True)
     (run / "resume.json").write_text("{}")
-    assert launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt", "--minibatch", "8192"]) == 0
+    assert launch.main([*DISTIL, "--clock", "--", "--init", "runs/selfplay/b1/snap-100.pt", "--minibatch", "8192"]) == 0
     staged = root / "runs" / "kaggle" / "tpu-d1"
     meta = json.loads((staged / "kernel" / "kernel-metadata.json").read_text())
     assert meta["enable_tpu"] and not meta["enable_gpu"] and meta["machine_shape"] == "TpuV5E8"
@@ -156,7 +158,7 @@ def test_a_pushed_session_carries_its_job_the_bundle_and_the_tpu(gpu):
                                                   "runs/selfplay/b1/snap-100.pt", "runs/tpu/d1/resume.json"]
     run_py = (staged / "kernel" / "run.py").read_text()
     job = json.loads(run_py.split("\n", 1)[0][len("JOB = "):])
-    assert job["task"] == "distil" and job["source"] == "runs/readings/e1/rec" and job["prepare_args"] == []
+    assert job["task"] == "distil" and job["source"] == "runs/readings/e1/rec" and job["prepare_args"] == ["--clock"]
     assert "--init" in job["train_args"] and "def main(job" in run_py
     pushed = json.loads((run / "kaggle-push.json").read_text())
     assert pushed["kind"] == "train" and pushed["guard_sha256"]["best.pt"] is None

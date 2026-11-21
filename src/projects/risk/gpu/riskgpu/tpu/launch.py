@@ -2,20 +2,21 @@
 the network on recorded choices (`train.py`):
 
     python -m riskgpu.tpu.launch push <name> [--accelerator TpuV5E8] [--session-hours 3] [--dry-run] [-- <bench args>]
-    python -m riskgpu.tpu.launch train <name> --task imitate|distil --source <runs/... folder> [--data-dataset owner/slug]
-        [--session-hours 8.5] [--dry-run] -- <train.py args>
+    python -m riskgpu.tpu.launch train <name> --task imitate|distil --source <runs/... folder> [--clock]
+        [--data-dataset owner/slug] [--session-hours 8.5] [--dry-run] -- <train.py args>
     python -m riskgpu.tpu.launch status <name>
     python -m riskgpu.tpu.launch fetch <name>
 
 run from `src/projects/risk/gpu/` (`ideas/tpu.md`).
 
-**A training session** (`train`) uploads the compact set (an imitation's extraction or a search
-recording, a fraction of the prepared set's size), `--init` and the run's own folder as a private
-dataset, and pushes `session.py`, which clones the GPU package at this checkout's commit (on GitHub,
-the package committed, as `kaggle/launch.py` requires), prepares the set on the TPU VM's CPUs and
-trains on its chips (`session.py`). A set already on Kaggle in an earlier bundle is read from there
-instead (`--data-dataset`, each file checked by name and size first), so the slow upload happens
-once. The run lives in `runs/tpu/<name>/`; a session that stops on its hours saves its state there,
+**A training session** (`train`) uploads the compact set (an imitation's extraction, or a recording:
+a search's or a net's own play, a fraction of the prepared set's size), `--init` and the run's own
+folder as a private dataset, and pushes `session.py`, which clones the GPU package at this checkout's
+commit (on GitHub, the package committed, as `kaggle/launch.py` requires), prepares the set on the TPU
+VM's CPUs and trains on its chips (`session.py`). A distillation with `--clock` prepares its set with
+the clock, and its net, `--init`'s or a fresh one of the trainer's `--width` and `--layers`, reads
+it. A set already on Kaggle in an earlier bundle is read from there instead (`--data-dataset`, each
+file checked by name and size first), so the slow upload happens once. The run lives in `runs/tpu/<name>/`; a session that stops on its hours saves its state there,
 and pushing the same name again carries on. `fetch` brings the folder back, refusing if `best.pt` or
 the saved state changed here since the push. Every argument is checked by the tools' own parsers,
 and the quota asked, before anything is uploaded; `--dry-run` stops there.
@@ -205,10 +206,11 @@ def check_train(args: argparse.Namespace) -> tuple[list[str], list[str]]:
     assert source and not os.path.isabs(source) and all(f.startswith(TASK_SOURCES[args.task]) for f in source.split(",")), \
         f"give --source as folders under {TASK_SOURCES[args.task]}, relative to the GPU folder"
     ns = train_parser().parse_args(["--data", "x", "--dir", "y", *args.trainer])
-    assert args.task == "imitate" or ns.init, "a distillation starts from --init"
+    assert args.task == "distil" or not args.clock, "an imitation's extraction keeps no turn cap: --clock is a distillation's"
     chips = CHIPS[args.accelerator]
     assert ns.minibatch % chips == 0, f"--minibatch {ns.minibatch} doesn't split over the session's {chips} chips"
-    prepare_args = (["--actions", ns.actions] if ns.actions else []) + (["--fraction", str(args.fraction)] if args.task == "imitate" else [])
+    prepare_args = ((["--actions", ns.actions] if ns.actions else []) + (["--fraction", str(args.fraction)] if args.task == "imitate" else [])
+                    + (["--clock"] if args.clock else []))
     prepare_parser().parse_args([args.task, "--data", source, "--out", "x", *prepare_args])
     own = os.path.join(RUNS, args.name)
     assert not os.path.exists(os.path.join(own, "last.pt")), f"runs/tpu/{args.name} holds a finished run: name a new one"
@@ -417,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--source", required=True,
                    help="the compact set: an imitation's extraction folder, or a recording's (several, comma-separated)")
     t.add_argument("--fraction", type=float, default=1.0, help="an imitation's share of the training games")
+    t.add_argument("--clock", action="store_true", help="a distillation's set prepared with the clock, which its net reads")
     t.add_argument("--data-dataset", default=None, metavar="OWNER/SLUG",
                    help="a Kaggle dataset already holding the source's files (an earlier bundle), read instead of uploading them")
     t.add_argument("--accelerator", choices=sorted(CHIPS), default="TpuV5E8")
