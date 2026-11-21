@@ -39,7 +39,7 @@ The rules the chart rests on:
 - **Progress is one reading.** Sampling and argmax, alone among four of the anchor and four against one, at 4,096 games, read on the same deals. The anchor is the seated learned bot's checkpoint; a new seat moves it.
 - **Flat means a gate, never more hours.** Two sharp readings within their interval of the anchor end a recipe. The next run is whichever gate's test is cheapest and unmeasured, then the gate that opened.
 - **One change a run, beside its control,** on the same seed and session, so a host's precision or speed is never the difference.
-- **Seating is automatic** for a checkpoint that clears the bar its design fixes before the gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots"). Everything else at a fork is briefed to the owner in the skill's form.
+- **Seating is the owner's ruling.** A checkpoint that clears the bar its design fixes before the gauntlet (`src/projects/risk/CLAUDE.md`, "Measuring bots") is a candidate for the seat, kept ready on a branch of its own. Everything else at a fork is briefed to the owner in the skill's form.
 - **The quota is the session's to spend** (the owner's ruling): how Kaggle's hours and Modal's credit are used, up to their limits, is decided by the session working the loop, without asking. The owner is briefed at a fork of method or goal, not on a spend.
 - **Spend what expires.** Kaggle's hours are lost at the week's refresh (`kaggle quota`): a week with no gate to test trains the current recipe's seed pair on. Modal's credit is for tests of an hour or two that decide a gate, and for a night the owner wants read by morning.
 
@@ -47,9 +47,10 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| d4 to 900, d0c to 300 | the spot machine (`infra/spot/README.md`) | where the clock net's climb ends, and the control on seed 4 beside d4c | `npm run spot -- pull d4` (and `d0c`), from the main checkout |
-| g0, g1 | the spot machine | the next rung: the clock recipe started again from d4-500, two seeds | `npm run spot -- pull g0` (and `g1`) |
-| e2b: e2's recording grown by twelve hours, distilled again and read; the sharp panels of d4 at 800 and 900 and d0c at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2b`, `runs/readings` (queued there by `runs/readings/day.sh`) | whether a longer recording carries more of the search into the net | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
+| d4 to 900, d0c to 300, and their sharp panels | the spot machine (`infra/spot/README.md`), `runs/readings` (queued there by `runs/readings/day.sh`) | where the clock net's climb ends, and the control on seed 4 beside d4c | `npm run spot -- pull d4` (and `d0c`), from the main checkout; the readings by `ssh spot`, as tar of the folder |
+| g0, g1, and their sharp panels with d4-500 an anchor | the spot machine (`~/novelty/risk-gpu2/runs/readings2`, the panel that knows d4-500) and the laptop's eGPU (`runs/readings2`) | the next rung: the clock recipe started again from d4-500, two seeds | `npm run spot -- pull g0` (and `g1`) |
+| e2b: e2's recording at two shards, distilled again and read | the spot machine, `runs/distil/e2b`, `runs/readings/panel-e2b-g4096.json` | whether a longer recording carries more of the search into the net | by `ssh spot`, as tar of those folders |
+| d4-500's gauntlets, and the two at 2,400 turns | GitHub Actions, branch `risk/clock-gauntlet` | whether the clock net clears learned-v3's bar, and how it plays past the turn its clock runs out | `gh run download`, then `npm run risk:import`, on that branch |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
@@ -791,6 +792,19 @@ The clock's prediction on seed 3 **held** (d4b above d0b clear of both intervals
 | 3 | Neither falls below 40% at any sharp reading: a restart from a strong net doesn't lose what it had | 70% |
 
 What follows: 1 or 2 holds, the recipe climbs by rungs, each started from the last one's best checkpoint, and the cycle is run until a rung fails to gain. Both fail with 3 holding: this net and action space have given what the recipe gets from them, and the next base is the exact space and a larger net, started from the clock net by distillation.
+
+**The night the rung is read.** Each card of the spot machine is given to one of g0 and g1 until 300, so e2's recording stops at its two shards (1,024 games, 1.14 million decisions) and e2b is distilled from those. The search, the recorder and the panel take a net with the clock (`risk/clock-search`), and the panel has d4-500 among its anchors, so the rung is read against the net it started from: g0 and g1 at every 50 iterations from 100, on the laptop's eGPU as each snapshot is copied home and on the two cards once training ends. When the readings are done, card 1 records **e3**: the search (k3 r6, 5 players, shards of 512 games, no shard started past nine hours) on d4-500, the first recording on a net with the clock, distilled and read by the next session.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 4 | Either run at 300, its most likely move alone among four d4-500, reads above 20% clear of its interval | 30% |
+| 5 | Four of either run at 300 hold one d4-500 under par (above 80%, clear of the interval) | 35% |
+| 6 | e2b, two shards: its most likely move alone among four b1-100 above d0-300's 36.1% by more than the two intervals' overlap (its interval's low end above 38.3%) | 30% |
+| 7 | e2b's held-out agreement with the search where it overruled the net is above e2's 43.0% | 70% |
+| 8 | d4-500 in its gauntlets at 2,400 turns: against rule-v7.1 it wins alone at every table size within three points of its share at 600 turns, and its one-out games cap no more than at 600 | 60% |
+| 9 | e3: the search overrules d4-500 at a quarter or more of its searched decisions | 55% |
+
+What follows. 4 or 5 holds: the rung gained, the next starts from its best snapshot, and the seat waits for a rung that doesn't. 4 and 5 fail with 3 holding: the plateau of this net and action space is read on two seeds, the candidate for learned-v3 is the best clock snapshot the sharp panel names (d4-500 unless a g snapshot is clear of it), and the next base is the larger net on the exact space. 6 fails with 7 holding: the net copies more of the search and plays no better for it, so the search's edge at this strength isn't in which bucket it picks, and e3 is read for the same before any cycle is built on it. 8 fails: a clock net isn't seated until its clock is given a meaning past the cap (the turns left before a horizon that moves with the game).
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
