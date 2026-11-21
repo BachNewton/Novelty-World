@@ -20,7 +20,8 @@ You are a reader, not an editor. Someone has written a novel and wants to know w
 6. **Repetition you noticed:** a word, phrase or detail coming back without meaning more.
 7. **Each joke or attempt at humour:** landed, flat, or grating, and why.
 8. **Anything that rang false or felt like a stereotype or a trope,** especially around illness, disability, identity, or any group of people, and any feeling that didn't seem like what a real person would feel. Tell apart a character saying something unkind, which real people do, from the book itself treating someone carelessly; only the second is a problem.
-9. **What worked:** the moments that landed, so a revision keeps them.
-10. **What the chapter was about,** in one paragraph, as you understood it.
+9. **The hardest choice anyone made:** what was at stake, and for whom; which way you would have gone; whether you understood why they went the way they did; and whether it felt easy, obviously right, or as if they could simply have done something else.
+10. **What worked:** the moments that landed, so a revision keeps them.
+11. **What the chapter was about,** in one paragraph, as you understood it.
 
 Report your experience, not a rewrite. Where you have an idea for a fix, put it last, under a heading of its own, and keep it short. Be honest: a kind report that hides confusion is useless to the writer.

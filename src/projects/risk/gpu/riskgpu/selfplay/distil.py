@@ -32,6 +32,14 @@ amount outside its own top three is never a candidate, and the kinds the search 
 (move-in, fortify, by default) are taught only as the network already plays them, from `--skipped`
 decisions. In the exact space the amount is the argument slot, rebuilt from the state.
 
+**The clock.** A net that reads the clock (`obs.py`) is shown it in every sample, counted from the
+sample's kept turn down to its recording's cap (the search's `cap`, which every `recording.json`
+holds). That is a fact of the game, not of the net that recorded it, so a recording made on a net
+with or without the clock distils into either: a net without it is shown what it always is, and a
+net with it the turns that were left in the game the search played. A searcher without the clock
+played as if it didn't know them, so its targets carry no use of them; the distilled net learns its
+use of the clock only from the net it starts from.
+
 **Skipped decisions** (a recording made with `--skipped`): their target is the network's own first
 choice, weighted by `--skipped-weight` (0 leaves them out), so the net isn't pulled off its play
 where the search didn't look. The value head trains on every decision kept.
@@ -80,7 +88,7 @@ class Recording:
     held out when g % 5 == 4."""
 
     def __init__(self, folders: str):
-        parts, scores, held_out, self.configs = [], [], [], []
+        parts, scores, held_out, caps, self.configs = [], [], [], [], []
         offset = 0
         for folder in [f for f in folders.split(",") if f]:
             with open(os.path.join(folder, CONFIG)) as f:
@@ -94,6 +102,7 @@ class Recording:
                 d.pop("meta")
                 d["game"] = d["game"].to(torch.int64) + offset
                 parts.append(d)
+                caps.append(torch.full((len(d["game"]),), self.configs[-1]["search"]["cap"], dtype=torch.int64))
             index = torch.cat([g["index"] for g in games])
             count = int(index.max()) + 1
             mine = torch.zeros(count, 6)
@@ -102,7 +111,7 @@ class Recording:
             held_out.append(torch.arange(count) % HELD_OUT_EVERY == HELD_OUT_EVERY - 1)
             offset += count
         self.x = {k: torch.cat([p[k] for p in parts]) for k in parts[0]}
-        self.scores, self.held_out = torch.cat(scores), torch.cat(held_out)
+        self.scores, self.held_out, self.cap = torch.cat(scores), torch.cat(held_out), torch.cat(caps)
         self.n = len(self.x["game"])
         spaces = {c["actions"] for c in self.configs}
         assert len(spaces) == 1, f"recordings in more than one action space: {spaces}"
@@ -116,10 +125,12 @@ class Recording:
         searched = self.x["source"] == SEARCHED
         return torch.where(searched & self.x["overruled"], 0, torch.where(searched, 1, 2))
 
-    def inputs(self, idx: torch.Tensor, board: Board, device: str) -> dict:
+    def inputs(self, idx: torch.Tensor, board: Board, device: str, clock: bool) -> dict:
+        """Samples `idx` rebuilt for a net that reads the clock (`clock`), counted down to their
+        recording's cap, or for one that doesn't."""
         game_scores = self.scores[self.sample_game()[idx]].to(device)
         x = {k: v[idx].to(device, non_blocking=True) for k, v in self.x.items()}
-        b = rebuild(x, game_scores, board, self.actions == "exact")
+        b = rebuild(x, game_scores, board, self.actions == "exact", self.cap[idx].to(device) if clock else None)
         rows = torch.arange(idx.shape[0], device=device)
         chosen = x["chosen"].to(torch.int64)
         b.update({"main": x["cand_main"].to(torch.int64)[rows, chosen], "amount": x["cand_amount"].to(torch.int64)[rows, chosen],
@@ -178,7 +189,7 @@ def agreement(net: Net, data: Recording, idx: torch.Tensor, board: Board, device
     net.eval()
     main_ok, move_ok, verr, vcount = [], [], 0.0, 0
     for at in range(0, len(idx), chunk):
-        b = data.inputs(idx[at:at + chunk], board, device)
+        b = data.inputs(idx[at:at + chunk], board, device, net.clock)
         main, _, move, value = predict(net, b, bf16, board)
         target = b["x"]["move"].to(torch.int64)
         main_ok.append((main == b["main"]).cpu())
@@ -221,7 +232,6 @@ def train(args) -> dict:
     shape = shape_of(state.get("net", state))
     assert shape["actions"] == data.actions, \
         f"--init is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
-    assert not shape["clock"], "the search observes no clock: a net that reads it can't be distilled from it"
     net = Net(**shape, edges=board.edges, adjacency=board.adjacency).to(device)
     init_from(net, state)
 
@@ -253,7 +263,7 @@ def train(args) -> dict:
                 **{f"held_{name}": share(src == i) for i, name in enumerate(FROM)},
                 "held_value_mse": round(verr, 5), "_best": float(move_ok[searched].float().mean())}
 
-    best, best_step = fit(net, args, args.dir, train_idx, lambda idx: data.inputs(idx, board, device), loss_of,
+    best, best_step = fit(net, args, args.dir, train_idx, lambda idx: data.inputs(idx, board, device, net.clock), loss_of,
                           read_of, "held_move")
     print(f"{args.name}: best held-out move agreement on searched decisions {best:.4f} at step {best_step}", flush=True)
     init_from(net, torch.load(os.path.join(args.dir, "best.pt"), map_location=device, weights_only=False))
