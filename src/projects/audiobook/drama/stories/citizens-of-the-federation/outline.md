@@ -151,49 +151,63 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 
 ### 14. Toronto (about 2033, Toronto)
 
-- **The idea:** who consents for a child.
+- **The idea:** who consents for a child, and who speaks for one who can't yet speak.
 - **Question:** What may be done to a child who can't say no, or yes?
 - **Goes deep on:** medicine and science, ethics, law, technology (AI).
-- **Touches:** faith, values, politics, geography, other species of mind.
+- **Touches:** faith, values, politics, geography.
 - **The world it shows:** Carol and Joy at the Noonien-Singh Institute (canon's Toronto lab); AI-designed gene editing that works; Canada's own law against editing embryos; Khan, a young man. The Eugenics Wars begin.
 - **The choice:** Carol's. She keeps the consent forms for children who can't consent. Expose the Institute, or protect it: it saves children and it is Joy's life's work, and if Carol exposes it, the cure Alma will need is gone.
-- **Moves from → to:** to be written with the chapter.
+- **Moves from → to:** Carol keeps a record nobody reads → she knows what the Institute is, and has decided what her silence is for, and what it costs.
 
 ### 15. Alma (about 2034, Helsinki and Toronto)
 
 - **The idea:** what a child who is made better is, and what she is owed.
 - **Question:** What would you make your child into, to keep her?
-- **Goes deep on:** ethics and philosophy, medicine, family, other species (the first augmented people).
+- **Goes deep on:** ethics and philosophy, medicine, family.
 - **Touches:** faith, values, politics, law, education.
 - **The world it shows:** Alma is diagnosed at six with an inherited illness fatal by her teens; Ben learns why his sister died. The era's AI-designed cure installs an engineered gene network that repairs the failing cells and strengthens everything else, and can't yet be separated; the law of her time classes anyone treated as an Augment, whatever their age. Decades later medicine learns to cure without enhancing, which is canon's later rule.
 - **The choice:** Ben and Anna's, with Nora, fifteen, holding a view of her own. Let Alma die an ordinary girl, or save her as an Augment: treated outside the law, registered, barred from Finnish school, a target, the family perhaps exiled.
-- **Moves from → to:** to be written with the chapter.
+- **Moves from → to:** a girl who is dying → a girl who will live as something her world is learning to fear.
 
-### 16. The Eugenics Wars (about 2045)
+### 16. Counted (about 2045, Helsinki)
 
-- **The idea:** to be chosen with the chapter.
-- **The world it shows:** Alma, about eighteen, an Augment in a war over Augments; countries taking sides by what their laws allow; the war widening toward World War III, which makes America one people again.
-- **The choice:** Alma's, to be found: her family, or her kind.
+- **The idea:** to be counted is to be seen and to be marked.
+- **Question:** What do you owe a country that fears you?
+- **Goes deep on:** law, politics, family, other kinds of human.
+- **Touches:** conflict, values, technology, education, faith.
+- **The world it shows:** Alma, eighteen, an Augment in a war over Augments; countries taking sides by what their laws allow; Finland ordering every Augment to register; Khan's people offering passage east to lands where Augments rule; the war widening toward World War III.
+- **The choice:** Alma's. Go east to safety among her kind, and serve a tyranny; hide, and make her family criminals; or register, and be counted in the country that fears her. She registers. Values 2, 5, 9.
+- **Moves from → to:** a young woman who could pass → a name on a register, by her own choice.
 
 ### 17. The Shelter (2053, Helsinki)
 
-- **The idea:** to be chosen with the chapter.
+- **The idea:** a door has a number, and every number leaves someone outside.
 - **Question:** Who gets through the door?
-- **The world it shows:** World War III ends in nuclear attacks (canon). The shelter under the building Nora once held the door of, and a building that doesn't want an Augment inside. Nora is thirty-four, Theo thirty-one, Alma twenty-six; Anna and Ben in their sixties.
-- **The choice:** to be found.
+- **Goes deep on:** mortality, conflict, construction and resources, how the past is remembered.
+- **Touches:** faith, environment, power, family, ethics, medicine.
+- **The world it shows:** World War III ends in nuclear attacks (canon). The shelter under the building Nora once held the door of, and a building that knows from the register what Alma is. Nora is thirty-four, Theo thirty-one, Alma twenty-six; Anna and Ben in their sixties.
+- **The choice:** Anna's. The shelter's air is rated for the people the building holds; neighbours with two small children are at the door; the residents say Alma is built to survive outside. Alma offers to go. Anna must decide whether to let her daughter take the children's place outside. Nora holds the door, as she did at seven. Values 1, 2, 7.
+- **Moves from → to:** a family that has always got through → one door, and a choice no one can unmake.
 
 ### 18. The Sea (the 2050s, the Baltic)
 
 - **The idea:** whether something that might be someone may be used, even to save the world.
-- **The world it shows:** Theo, a marine scientist, and the organism from Io, which can heal the sea and the air (canon) and which Renée believed was someone.
+- **Question:** What do we owe a stranger who can save us?
+- **Goes deep on:** environment, other species, science, ethics.
+- **Touches:** family (Nora and Theo), economy, politics, how the past is remembered (Renée).
+- **The world it shows:** after the war, the poisoned Baltic; Theo, a marine scientist, and the organism from Io, which can heal the sea and the air (canon) and which Renée believed was someone.
 - **The choice:** Theo's. Use a being that may think as a tool to heal his seas. Nora, looking to the stars, and Theo, fixing what's here, want the same thing and go about it differently; both are right.
+- **Moves from → to:** a dying sea and a creature in a jar → the sea healing, and a question Theo carries for the rest of his life.
 
 ### 19. First Contact (5 April 2063, Bozeman)
 
-- **The idea:** to be chosen with the chapter.
+- **The idea:** curiosity first: the first step toward the unknown is one ordinary people take with their own hands.
 - **Question:** What do ordinary people do on the day everything changes?
-- **The world it shows:** Cochrane's warp flight and the Vulcans (canon), from beside it. Nora, forty-three, near Cochrane's work but not on his ship.
-- **The choice:** to be found.
+- **Goes deep on:** other species, faith, philosophy, environment.
+- **Touches:** culture, society, technology, values, how the past is remembered.
+- **The world it shows:** Cochrane's warp flight and the Vulcans (canon), from beside it, in a camp that lived through the war by keeping its rifles close. Nora, forty-three, near Cochrane's work but not on his ship; Alma with her.
+- **The choice:** Nora's. When the Vulcan ship lands, stay back with the crowd, or walk forward with nothing in her hands, and take her sister, an Augment who has been feared all her life, with her. Values 3, 2, 4.
+- **Moves from → to:** a species that has spent a century fearing its own → strangers, met first by curiosity.
 
 ## The road ahead
 
@@ -216,7 +230,7 @@ The agreed pace and topics. The dates between canon's fixed points are ours, and
 | 13 | About 2032 | How America's war ends on paper |
 | 14 | About 2033 | Toronto: the Institute, and consent |
 | 15 | About 2034 | Alma |
-| 16 | About 2045 | The Eugenics Wars |
+| 16 | About 2045 | The Eugenics Wars: Alma counted |
 | 17 | 2053 | World War III, and the Helsinki shelter |
 | 18 | The 2050s | The sea, and the organism from Io |
 | 19 | 2063 | First Contact, from beside it |

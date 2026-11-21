@@ -19,7 +19,7 @@ export const timeline = {
     nora: { name: "Nora Novak", born: "2019-04-15" },
     theo: { name: "Theo Novak", born: "2022-02-18" },
     alma: { name: "Alma Novak", born: "2027-01-14" },
-    "ben-sister": { name: "Ben's older sister (name to choose)", born: "1980-08-20", died: "1989-10-03" },
+    "ben-sister": { name: "Katie Novak, Ben's older sister", born: "1980-08-20", died: "1989-10-03" },
     dennis: { name: "Dennis Novak, Ben's father", born: "1955-11-02", died: "1990-10-20" },
     joanne: { name: "Joanne Novak, Ben's mother", born: "1957-05-27", died: "1990-10-20" },
     carol: { name: "Carol Flory", born: "1978-04-09" },
