@@ -268,6 +268,7 @@ class Chain:
     full_right: np.ndarray = field(default=None)
     landings: list = field(default_factory=list)  # (the chain landed on, the station of the cut, whether it's the chain's start).
     seam_stations: list = field(default_factory=list)  # Those ending on a tile's edge, which a junction nearby can't move.
+    round_ends: dict = field(default_factory=dict)  # Each end station where the way ends free, and how far back from it its round end is centred (`paving.round_ends`).
     tree: cKDTree = field(default=None)
     kept_shape: shapely.Geometry = field(default=None)  # What its kept sections cover, made once it's asked for.
     centre_tree: cKDTree = field(default=None)

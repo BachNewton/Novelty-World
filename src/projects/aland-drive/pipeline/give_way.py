@@ -79,6 +79,8 @@ PUSH_TAPER = 12.0
 PUSH_STEP_M = 2.0
 # A road between two buildings is pushed from each in turn, this many times.
 PUSH_ROUNDS = 3
+# A road that ends free moves as one over its last metres, so it ends pointing the way it runs.
+END_STRAIGHT_M = 6.0
 
 
 @dataclass
@@ -272,7 +274,7 @@ def _clear_of(road: dict, outlines: list[Polygon], tree: shapely.STRtree, throug
         strongest = fade.argmax(axis=1)
         share = fade[np.arange(len(points)), strongest] / size[giving][strongest]
         # A neighbour's larger move is eased in along the road, but never takes a point out of the open ground it fits through.
-        move = np.clip(target[giving][strongest] * share, least_move, most_move)
+        move = _straight_to_its_end(np.clip(target[giving][strongest] * share, least_move, most_move), along, fixed)
         points = points + (move * np.clip(pinned / PUSH_FADE_M, 0, 1))[:, None] * across
         moved = True
     # Where it ends up nearer a wall than its class's carriageway fits past, the gap's own width is all it has.
@@ -281,6 +283,17 @@ def _clear_of(road: dict, outlines: list[Polygon], tree: shapely.STRtree, throug
     leaves = np.maximum(room[tight] - EAVES_ROOM_M - strip_width(road), LANE_HALF_M)
     pinches = [[round(float(x), 2), round(float(y), 2), round(float(width), 2)] for (x, y), width in zip(points[tight], leaves) if width < half_width(road)]
     return (points.tolist() if moved else None), pinches
+
+
+def _straight_to_its_end(move: np.ndarray, along: np.ndarray, fixed: np.ndarray) -> np.ndarray:
+    """Each point's move, with a road's free end moving as its last metres begin to: wanted only at the very tip, beside a
+    building the road ends at, a move swung the last few metres round into a hook and left the end cut askew."""
+    move = move.copy()
+    for end in (0, -1):
+        last = np.flatnonzero(np.abs(along - along[end]) <= END_STRAIGHT_M)
+        if not fixed[end] and 0 < len(last) < len(move):
+            move[last] = move[last[-1] + 1 if end == 0 else last[0] - 1]
+    return move
 
 
 def _place(offsets: np.ndarray, room: np.ndarray, wants: float, fits: float) -> tuple[float, float, float]:

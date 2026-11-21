@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from pyproj import Transformer
-from shapely.geometry import LineString, Point, box
+from shapely.geometry import LineString, Point, Polygon, box
 
 import vectors
 from buildings import Face, RoofFrame
@@ -101,6 +101,18 @@ class GiveWay(unittest.TestCase):
         meetings = give_way([road("service", [[-30, -0.5], [40, -0.5]])], [SHED])
         self.assertEqual(meetings.pushed, 1)
         self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), drawn_half_width(meetings.roads[0]))
+
+    def test_a_road_that_ends_among_buildings_still_ends_pointing_the_way_it_runs(self):
+        # A service lane off Hamngatan, as OSM draws it, and the two buildings its ends pass between. Moved a point at a
+        # time into the open ground it fits through, its last metres swung from side to side and its end was cut askew.
+        lane = road("service", [[0, 0], [-1.4, -5.8], [-1.9, -12.5], [1.9, -49], [13.9, -90.9]])
+        hall = Polygon([(-9.7, -42.2), (6.2, -40.8), (5.7, -35.5), (18.2, -34.2), (20.3, -51.5), (7.6, -52.9), (7, -47.6), (-8.9, -49.3)])
+        wing = Polygon([(-22, -32.2), (-12.9, -31.1), (-13.5, -24), (-10.7, -23.6), (-10, -29.6), (-8.1, -29.4), (-6.8, -41.6), (-9.7, -42), (-8.9, -49.3), (-11, -48.6), (-12.5, -34.6), (-17, -35), (-21.7, -34.6)])
+        line = np.array(give_way([lane], [hall, wing]).roads[0]["line"])
+        for last in (line[:4], line[-4:]):
+            steps = np.diff(last, axis=0)
+            headings = np.degrees(np.unwrap(np.arctan2(steps[:, 0], steps[:, 1])))
+            self.assertLess(float(np.ptp(headings)), 1.0)
 
     def test_where_roads_meet_nothing_moves(self):
         drive = road("service", [[-30, -0.5], [5, -0.5], [40, -0.5]])

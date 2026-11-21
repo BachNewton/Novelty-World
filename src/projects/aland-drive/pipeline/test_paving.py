@@ -214,6 +214,40 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(len(strip), 10)
         self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
 
+    def test_where_a_way_s_surface_changes_the_paving_is_cut_and_no_triangle_wears_two(self):
+        """Read point by point, slabs and tarmac met in a smear across whichever triangles spanned the change, on the
+        sidewalk and on the street's band beside it."""
+        street = road([(100, 600), (1100, 600)])
+        sidewalk = [
+            road([(100, 606.75), (600, 606.75)], "footway", motor=False, footway="sidewalk", surface="paving_stones"),
+            road([(600, 606.75), (1100, 606.75)], "footway", motor=False, footway="sidewalk", surface="asphalt"),
+        ]
+        paved = paving.lay([street, *sidewalk], land())
+        kerb = 600 + next(chain for chain in paved.chains if chain.motor).half.max() + paving.KERB_STRIP_M
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        walked = corners[(middle[:, 1] > kerb + 0.05) & (np.abs(middle[:, 0] - 600) < 60)]
+        surfaces = walked[:, :, 7]
+        self.assertTrue((surfaces.min(axis=1) == surfaces.max(axis=1)).all())
+        east = walked[:, :, 0].mean(axis=1)
+        self.assertTrue((surfaces[east < 598.9, 0] == path_surfaces.SLAB).all())
+        self.assertTrue((surfaces[east > 601.1, 0] == path_surfaces.TARMAC).all())
+        # On both the sidewalk itself and the street's band beside it.
+        for rows in (walked[:, :, 1].mean(axis=1) > 606, walked[:, :, 1].mean(axis=1) < 605):
+            self.assertEqual(set(surfaces[rows, 0].astype(int)), {path_surfaces.SLAB, path_surfaces.TARMAC})
+
+    def test_a_road_that_turns_from_asphalt_to_gravel_says_so_on_each_side_of_a_cut_across_it(self):
+        """Drawn as whichever most of its length was, a road of both was asphalt or gravel all the way."""
+        sealed = road([(100, 600), (600, 600)], "unclassified", surface="asphalt")
+        loose = road([(600, 600), (1100, 600)], "unclassified", surface="gravel")
+        paved = paving.lay([sealed, loose], land(town=0.0))
+        corners = paved.points[paved.triangles]
+        said = corners[:, :, 7].astype(int)
+        self.assertTrue((said.min(axis=1) == said.max(axis=1)).all())
+        east = corners[:, :, 0].mean(axis=1)
+        self.assertEqual(set(said[east < 598.9, 0]), {paving.SEALED_WAY})
+        self.assertEqual(set(said[east > 601.1, 0]), {paving.LOOSE_WAY})
+
     def test_a_sidewalk_carries_on_across_a_driveway(self):
         """A driveway's asphalt cut every sidewalk it crossed; real ones carry their slabs across the drive's mouth."""
         street = road([(100, 600), (1100, 600)])
@@ -404,7 +438,7 @@ class OneSurface(unittest.TestCase):
 
     def test_a_road_joining_another_keeps_its_carriageway_through_the_greater_road_s_shoulder(self):
         """A main road's shoulder painted across the mouth of a side road shows as a pale band across that road."""
-        main = road([(100, 600), (1100, 600)], "primary")
+        main = road([(100, 600), (600, 600), (1100, 600)], "primary")
         side = road([(600, 600), (600, 900)], "residential")
         paved = paving.lay([main, side], land())
         chains = {chain.kind_name: chain for chain in paved.chains}
@@ -465,6 +499,110 @@ class OneSurface(unittest.TestCase):
         raw = ground.tile_corners()
         for edge in ((0, ...), (-1, ...), (..., 0), (..., -1)):
             self.assertTrue(np.array_equal(paved.conformed[edge], raw[edge]))
+
+
+def triangle_at(paved, east, north):
+    """The corners of the triangle of paving over a place, each with its attributes."""
+    corners = paved.points[paved.triangles]
+    over = shapely.contains_xy(shapely.polygons(np.concatenate((corners[:, :, :2], corners[:, :1, :2]), axis=1)), east, north)
+    return corners[np.flatnonzero(over)[0]]
+
+
+class Mouths(unittest.TestCase):
+    def junction(self):
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 900)], "tertiary")
+        paved = paving.lay([main, side], land(town=0.0))
+        through, joining = sorted(paved.chains, key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        return paved, through, joining
+
+    def test_where_a_road_ends_on_another_the_corner_of_their_carriageways_is_filled_out_to_an_arc(self):
+        """Two carriageways met at a corner as sharp as the angle between them, a square mouth of asphalt with the
+        rounding all in the shoulder outside it."""
+        paved, through, joining = self.junction()
+        half = float(through.half.max())
+        # A metre and a half out from the corner, a little off its diagonal, which the triangles are cut along: shoulder
+        # before, the joining road's carriageway now.
+        inside = triangle_at(paved, 600 + half + 1.7, 600 + half + 1.3)
+        self.assertTrue((np.abs(inside[:, 3]) <= 1).all())
+        self.assertTrue((inside[:, 6] == joining.index).all())
+        # Past the arc is its strip, drawn as a shoulder, and past that the land.
+        radius = 7.0 + float(joining.shoulder[0])
+        centre = 600 + half + radius
+        towards = np.array([np.cos(np.radians(40)), np.sin(np.radians(40))])
+        strip = triangle_at(paved, *(centre - (radius - 0.2) * towards))
+        self.assertTrue((np.abs(strip[:, 3]) >= 1).all())
+        corners = paved.points[paved.triangles][:, :, :2]
+        self.assertFalse(shapely.contains_xy(shapely.polygons(np.concatenate((corners, corners[:, :1]), axis=1)), *(centre - (radius - 1.5) * towards)).any())
+
+    def test_an_edge_line_stops_where_more_carriageway_lies_beyond_the_edge(self):
+        """Painted at every road's own edge, the line ran on across the mouth of each road that joined, and straight on
+        down the joining road beside its arc."""
+        paved, through, joining = self.junction()
+        points = paved.points
+        east, north, across, way = points[:, 0], points[:, 1], np.abs(points[:, 3]), points[:, 6].astype(int)
+        half = float(through.half.max())
+        near = np.abs(east - 600) < 200
+        mouth_side = near & (way == through.index) & (np.abs(north - (600 + half)) < 0.03)
+        self.assertTrue((across[mouth_side & (np.abs(east - 600) < 8)] <= paving.OPEN_EDGE_ACROSS + 1e-6).all())
+        self.assertTrue((across[mouth_side & (np.abs(east - 600) > 14)] == 1).all())
+        far_side = near & (way == through.index) & (np.abs(north - (600 - half)) < 0.03)
+        self.assertTrue((across[far_side] == 1).all())
+        beside = (way == joining.index) & (np.abs(east - (600 + half)) < 0.03) & (points[:, 3] < 0)
+        self.assertTrue((across[beside & (north > 604) & (north < 608)] <= paving.OPEN_EDGE_ACROSS + 1e-6).all())
+        self.assertTrue((across[beside & (north > 616)] == 1).all())
+
+
+    def test_the_wedge_between_two_roads_that_merge_at_a_slant_is_asphalt_back_to_a_nose(self):
+        """The shoulder between two merging carriageways ran on to where they met as a needle metres long, pale down the
+        middle of the asphalt."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        slip = road([(600, 600), (900, 640)], "tertiary")
+        paved = paving.lay([main, slip], land(town=0.0))
+        half = float(max(chain.half.max() for chain in paved.chains))
+        slope = 40 / 300
+
+        def between(gap):
+            """The triangle half way between the two carriageways' edges, where they stand `gap` apart."""
+            return triangle_at(paved, 600 + (half + half * np.hypot(1, slope) + gap) / slope, 600 + half + gap / 2)
+
+        self.assertTrue((np.abs(between(0.6)[:, 3]) <= 1).all())
+        self.assertTrue((np.abs(between(2.4)[:, 3]) >= 1).all())
+
+
+class Scraps(unittest.TestCase):
+    def test_two_paths_mapped_along_one_line_leave_no_scrap_of_either_s_surface(self):
+        """A square's gravel and a footway's slabs, mapped along one line and then apart, as they are by Mariehamn's
+        library: cut along both outlines where they part at a slant, the paving kept scraps of gravel under a square metre
+        among the slabs."""
+        slabs = road([(644.9, 597.5), (643.3, 596.2), (633.0, 592.0), (620.0, 591.9), (610.8, 593.9), (602.2, 599.0), (598.0, 604.0), (594.8, 606.8)], "footway", motor=False, surface="paving_stones")
+        square = [(609.2, 632.6), (614.9, 630.9), (621.1, 627.6), (627.0, 621.3), (629.4, 616.7), (631.0, 610.4), (630.6, 600.6), (625.3, 597.8), (615.2, 596.5)]
+        gravel = road([*square, (610.8, 593.9), (602.2, 599.0), (598.0, 604.0), (586.6, 637.4), (590.9, 637.2), (599.2, 634.3), (604.4, 633.0), (609.2, 632.6)], "pedestrian", motor=False, surface="fine_gravel")
+        paved = paving.lay([slabs, gravel], land())
+        corners = paved.points[paved.triangles]
+        kinds = (corners[:, :, 7].astype(int) & paving.CLASS_BITS).max(axis=1)
+        over = shapely.polygons(np.concatenate((corners[:, :, :2], corners[:, :1, :2]), axis=1))
+        for kind in (path_surfaces.GRAVEL, path_surfaces.SLAB):
+            stretches = shapely.get_parts(shapely.union_all(over[kinds == kind], grid_size=0.005))
+            self.assertGreater(len(stretches), 0)
+            self.assertGreaterEqual(float(shapely.area(stretches).min()), paving.SPECK_M2)
+
+
+class Ends(unittest.TestCase):
+    def test_a_road_that_ends_free_ends_round_with_its_strip_carried_round_the_end(self):
+        """A way laid by its class ended on a line ruled square across it, strip and all."""
+        paved = paving.lay([road([(100, 600), (600, 600)], "unclassified")], land(town=0.0))
+        chain = paved.chains[0]
+        half, reach = float(chain.half[-1]), float(paved.crosses[chain.index].reach_left[-1])
+        corners = paved.points[paved.triangles][:, :, :2]
+        over = shapely.polygons(np.concatenate((corners, corners[:, :1]), axis=1))
+        # The square end's corner is land, and the paving still reaches the end on the road's line.
+        self.assertFalse(shapely.contains_xy(over, 600 - 0.1, 600 + reach - 0.1).any())
+        self.assertTrue(shapely.contains_xy(over, 600 - 0.05, 600.03).any())
+        # Round the end, carriageway inside its arc and the strip outside it.
+        centre = 600 - reach
+        self.assertTrue((np.abs(triangle_at(paved, centre + half - 0.4, 600.3)[:, 3]) <= 1).all())
+        self.assertTrue((np.abs(triangle_at(paved, centre + half + 0.5 * (reach - half), 600.03)[:, 3]) >= 1).all())
 
 
 class RealWidth(unittest.TestCase):
