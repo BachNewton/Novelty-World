@@ -806,6 +806,31 @@ What follows: 1 or 2 holds, the recipe climbs by rungs, each started from the la
 
 What follows. 4 or 5 holds: the rung gained, the next starts from its best snapshot, and the seat waits for a rung that doesn't. 4 and 5 fail with 3 holding: the plateau of this net and action space is read on two seeds, the candidate for learned-v3 is the best clock snapshot the sharp panel names (d4-500 unless a g snapshot is clear of it), and the next base is the larger net on the exact space. 6 fails with 7 holding: the net copies more of the search and plays no better for it, so the search's edge at this strength isn't in which bucket it picks, and e3 is read for the same before any cycle is built on it. 8 fails: a clock net isn't seated until its clock is given a meaning past the cap (the turns left before a horizon that moves with the game).
 
+**Kaggle's week, pushed the same night**, on what the rung can't answer whichever way it reads. Both are read by the session that fetches them.
+
+**The exploiters (Kaggle's GPUs): a best response to the frozen net**, the brief's stand-in for how exploitable a bot is, and a test of the league as a lever. The current recipe (b1's, the games spread, the clock), 125 iterations in full precision on a T4 pair, with one net the only opponent the learner meets: no copies of itself, no snapshots, no GD personas. **x0 and x1** start from d4-500 and meet only d4-500, seeds 2 and 3. **y0 and y1** start from b1-100 and meet only b1-100, as d4 started from b1-100 into the usual league. Each is then read on the sharp panel with d4-500 among its anchors. Their controls are on the spot machine in bf16 (g0 and g1 near 125 for x, d4-125 and d0-125 for y), so a difference under five points is not read as the league's.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 10 | Either x at 125, its most likely move alone among four d4-500, reads 25% or more: the clock net fails M6's best-response bar (50 Elo a seat) in one night | 75% |
+| 11 | Either x reads 30% or more there | 50% |
+| 12 | The x that gains most reads below d4-500's own 45.5% alone among four b1-100: what it learned is this opponent, not the game | 45% |
+| 13 | Either y at 125, its most likely move alone among four b1-100, reads above d4-125's 33.6% clear of both intervals | 45% |
+| 14 | 125 iterations fit the session's training hours on a T4 | 60% |
+
+What follows. 10 holds with 12 failing (it gained on d4-500 and kept its strength elsewhere): meeting the frozen best is a better league than meeting oneself, and the next rung's league gives the best net a large fixed share. 10 and 12 hold: the clock net has a hole of its own, and the exploiters join the league as fixed members, so the line learns to close it; the hole is also what a person would find, so an exploiter's games against d4-500 are replayed and read before the seat. 10 fails: the clock net stands up to a night of best response, and the plateau isn't for want of opposition, which leaves capacity and the search.
+
+**The clock net in a larger net (Kaggle's TPUs)**, the base the plan names for when a rung stops gaining, made during the day a TPU session waits in its queue. d4-500's own play is recorded on the eGPU with no search (every decision of every kind, at 3 to 6 players in the training mix, about 15 million decisions, the positions from its sampled play and the target its most likely move), and three nets are trained from random weights to copy it, in the bucket space with the clock, 100 million samples each: **big-tpu-2** at 256x6, **big-tpu-3** at 384x8, and **big-tpu-2c** at 128x4, the control that says what a copy alone loses.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 15 | Every session returns a checkpoint the PyTorch tools load, without a fix (a new kind of recording, a net from random weights) | 50% |
+| 16 | The 256x6 copy makes d4-500's most likely move at 90% or more of held-out decisions | 60% |
+| 17 | Its held-out agreement is above the 128x4 control's by a point or more | 55% |
+| 18 | On the sharp panel the 256x6 copy alone among four d4-500 reads 15% or more (a perfect copy reads 20%) | 45% |
+
+What follows. 18 holds: the copy is the base of the next rung at the larger size, trained on by the rung's recipe, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 16 holds with 18 failing: the copy agrees and loses, which is a copy drifting off the positions it was taught on; the recording is grown with positions from the copy's own play, each given the teacher's move, before more size. 17 fails: the size isn't what limits the copy at this data, and the larger net waits for the search's recordings.
+
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
 What follows. 1 holds: the next imitation is a larger net on the exact space, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 1 fails with the control repeating: size isn't the lever at this data. 4 holds: stage 3 is the next line and `search.py` its first piece, with the hours going to distilling the search's choices. 4 fails while 2 holds: the search is no better than its leaf, so the value head is fitted to real outcomes (more of the loss, every seat's score, a larger net if 1 held) and 4 read again with rollouts to the game's end. 3 gaining three points or more says part of the plateau is a constant rate's jitter, and stage 2's recipe gets a falling rate.
