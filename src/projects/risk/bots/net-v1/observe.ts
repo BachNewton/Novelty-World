@@ -3,6 +3,7 @@ import type { CardSymbol, GameEvent, Options, Seat } from "../../contract";
 import { CONTINENTS, TERRITORIES } from "../../map";
 import type { BotInput } from "../bot";
 import { roundsCompleted, turnSoFar } from "../history";
+import { TURN_CAP } from "../turn-cap";
 import { COUNT, IDS, indexOf } from "./actions";
 
 // What net-v1 sees, exactly the trainer's observation (`gpu/riskgpu/selfplay/obs.py`, whose
@@ -12,10 +13,13 @@ import { COUNT, IDS, indexOf } from "./actions";
 // placements, the round, the reinforce phase's bookkeeping) are read from the history, as `sim.ts`
 // reads them. Every value is the float32 the trainer computes: each operation rounded to float32 as
 // it is there (`Math.fround` of a float64 operation on float32 operands is the float32 operation).
+// A net that reads the clock sees `CLOCK` more globals, counting down to the harness's cap
+// (`TURN_CAP`), the cap every evaluation of the trainer plays to.
 
 export const NODE = 13;
 export const SLOT = 7;
 export const GLOBAL = 28;
+export const CLOCK = 1;
 export const SEATS = 6;
 
 export interface Observation {
@@ -23,7 +27,7 @@ export interface Observation {
   node: Float32Array;
   /** `[6 × SLOT]`. */
   slot: Float32Array;
-  /** `[GLOBAL]`. */
+  /** `[GLOBAL]`, or `[GLOBAL + CLOCK]` for a net that reads the clock. */
   glob: Float32Array;
 }
 
@@ -58,10 +62,10 @@ function oneHot(out: Float32Array, at: number, k: number): void {
   out[at + k] = 1;
 }
 
-export function observe({ view, options, history }: BotInput): Observation {
+export function observe({ view, options, history }: BotInput, clock: boolean): Observation {
   const node = new Float32Array(COUNT * NODE);
   const slot = new Float32Array(SEATS * SLOT);
-  const glob = new Float32Array(GLOBAL);
+  const glob = new Float32Array(clock ? GLOBAL + CLOCK : GLOBAL);
   const players = view.seats.length;
   const me = view.active;
   if (view.viewer !== me) throw new Error(`net-v1 decides for the active seat ${me.toString()}, not seat ${String(view.viewer)}`);
@@ -151,5 +155,7 @@ export function observe({ view, options, history }: BotInput): Observation {
   ];
   glob.set(values, 4);
   oneHot(glob, 4 + values.length, Math.min(3, Math.max(0, players - 3)));
+  // The player-turns left before the cap, after this one.
+  if (clock) glob[GLOBAL] = f(Math.max(0, TURN_CAP - view.turn) / 100);
   return { node, slot, glob };
 }

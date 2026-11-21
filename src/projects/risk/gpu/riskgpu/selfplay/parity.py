@@ -7,13 +7,18 @@ TypeScript bot to every digest and every move.
 
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-tiny.json.gz --random 32,2,4,2
     python -m riskgpu.selfplay.parity --out ../bots/net-v2/__fixtures__/parity-tiny.json.gz --random 32,2,4,2 --actions exact
+    python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-tiny-clock.json.gz --random 32,2,4,2 --clock \\
+        --prefix net-parity-clock
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-m1a-25.json.gz \\
         --ckpt latest-copy.pt --weights m1a-25
 
 run from `src/projects/risk/gpu/`. `--random width,layers,heads,ff_mult` makes a random network
 whose every parameter is perturbed off its initial value (a zero border bias would leave the
 attention's map untested) and keeps its weights in the fixture; `--ckpt` plays a checkpoint and
-names the exported weight set (`--weights`) the test loads instead.
+names the exported weight set (`--weights`) the test loads instead. A net that reads the clock
+(`--clock` for a random one; a checkpoint says so itself) observes it with the harness's cap
+(`--cap`, 600, `bots/turn-cap.ts`) whatever cap the fixture's short games stop at, as the
+TypeScript bot does; the fixture keeps that cap, and the test holds it to the TypeScript's.
 
 A digest is the decision's index in its game, the five highest legal main logits (index and value,
 highest first, ties to the lower index), the value vector, the chosen main choice and amount, the
@@ -52,7 +57,8 @@ SEATINGS = [
 
 def f32(x) -> float:
     """A float32 as the shortest decimal that reads back as it."""
-    return float(repr(np.float32(x)))
+    # Formatted explicitly: a numpy scalar's repr changed in numpy 2 (`np.float32(0.5)`).
+    return float(np.format_float_positional(np.float32(x), unique=True))
 
 
 def checksum(flat: torch.Tensor) -> float:
@@ -66,9 +72,10 @@ def checksum(flat: torch.Tensor) -> float:
     return total
 
 
-def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, seed: int, actions: str = "buckets") -> Net:
+def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, seed: int, actions: str = "buckets",
+               clock: bool = False) -> Net:
     torch.manual_seed(seed)
-    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency, actions=actions)
+    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency, actions=actions, clock=clock)
     with torch.no_grad():
         for name, p in net.named_parameters():
             if name.endswith("border") or name == "edge_bias":
@@ -82,7 +89,7 @@ def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, 
     return net
 
 
-def net_bot(net: Net, board: Board, digests: dict, obs_every: int):
+def net_bot(net: Net, board: Board, digests: dict, obs_every: int, cap: int):
     count = [0]
 
     def bot(d: Decision, mask: torch.Tensor) -> torch.Tensor:
@@ -92,7 +99,8 @@ def net_bot(net: Net, board: Board, digests: dict, obs_every: int):
             return moves
         s = d.state.select(idx)
         o = Options(**{f.name: getattr(d.options, f.name)[idx] for f in fields(Options)})
-        node, slot, glob = observe(s, o, d.log.placed_on[idx], d.log.attacks[idx], d.log.captured[idx], board)
+        caps = torch.full((idx.numel(),), cap, dtype=torch.int64) if net.clock else None
+        node, slot, glob = observe(s, o, d.log.placed_on[idx], d.log.attacks[idx], d.log.captured[idx], board, caps)
         with torch.no_grad():
             x = net.trunk(node, slot, glob)
             logits, value, _ = net.heads_main(x)
@@ -133,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--random", help="width,layers,heads,ff_mult of a random network")
     p.add_argument("--seed", type=int, default=7, help="the random network's seed")
     p.add_argument("--actions", default="buckets", choices=["buckets", "exact"], help="the random network's action space")
+    p.add_argument("--clock", action="store_true", help="the random network reads the clock")
+    p.add_argument("--cap", type=int, default=600, help="the turn cap a clock net's observation counts down to")
     p.add_argument("--ckpt", help="a checkpoint to play")
     p.add_argument("--weights", help="the exported weight set of --ckpt")
     p.add_argument("--prefix", default="net-parity")
@@ -150,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     tables = load_best(device)
     if args.random is not None:
         width, layers, heads, ff_mult = (int(x) for x in args.random.split(","))
-        net = random_net(width, layers, heads, ff_mult, board, args.seed, args.actions)
+        net = random_net(width, layers, heads, ff_mult, board, args.seed, args.actions, args.clock)
         net_spec = {"inline": weights_object({k: v.detach().clone() for k, v in net.state_dict().items()})}
     else:
         state = load_state_dict(args.ckpt)
@@ -162,13 +172,15 @@ def main(argv: list[str] | None = None) -> int:
     digests: dict[int, list] = {}
     seatings = [SEATINGS[i % len(SEATINGS)] for i in range(args.games)]
     seeds = [f"{args.prefix}-{i}" for i in range(args.games)]
-    bots = {"net": net_bot(net, board, digests, args.obs_every), "greedy": greedy_bot}
+    bots = {"net": net_bot(net, board, digests, args.obs_every, args.cap), "greedy": greedy_bot}
     results, records = play_games(seeds, seatings, bots=bots, board=board, tables=tables, max_turns=args.turns,
                                   device=device, record=True)
     for g, record in enumerate(records):
         record["net"] = digests.get(g, [])
         record.pop("provenance", None)
     fixture = {"net": net_spec, "records": records}
+    if net.clock:
+        fixture["cap"] = args.cap
     if net.exact:
         # The games rarely reach a range wider than the slots, so `spread` is pinned on its own.
         hi = torch.tensor([w for w in range(1, 121)] + list(range(150, 701, 50)))

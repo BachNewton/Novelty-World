@@ -7,6 +7,7 @@ import { decodeMove, encodeMove } from "../../eval/gpu-canonical";
 import { checkRecord, type GpuGameRecord } from "../../eval/gpu-record";
 import { playGame } from "../../eval/runner";
 import type { BotInput } from "../bot";
+import { TURN_CAP } from "../turn-cap";
 import { decide } from "./index";
 import { loadNet, type Net, type NetWeights } from "./network";
 import { WEIGHT_SETS } from "./weights";
@@ -17,7 +18,8 @@ import { WEIGHT_SETS } from "./weights";
 // the input the harness builds, must see the same observation (exactly, as float32), compute the
 // same logits, values and amount logits (within `TOLERANCE`: the trainer's pass is float32, this
 // one float64 over the float32 weights) and play the recorded move. Each game is checked a slice of
-// decisions at a time.
+// decisions at a time. A net that reads the clock counts down to the cap its fixture was observed
+// with, which must be the harness's.
 
 /** How far a logit or value may sit from the trainer's float32 pass: absolute, or relative past 1. It
  *  bounds the trainer's own rounding, not this pass's: the trainer's network run in float64 agrees with
@@ -27,7 +29,7 @@ import { WEIGHT_SETS } from "./weights";
  *  weights and narrows a token's spread before a layer norm, so the bound is three times b1-100's. */
 const TOLERANCE = 5e-5;
 /** Network decisions a test checks: a slice must stay well under a second alone. */
-const SLICE: Record<string, number> = { "parity-tiny.json.gz": 20, "parity-m1a-25.json.gz": 3 };
+const SLICE: Record<string, number> = { "parity-tiny.json.gz": 20, "parity-tiny-clock.json.gz": 20, "parity-m1a-25.json.gz": 3 };
 
 interface Digest {
   decision: number;
@@ -42,6 +44,8 @@ interface Digest {
 
 interface Fixture {
   net: { inline: NetWeights } | { weights: string };
+  /** The turn cap a clock net's observation counted down to. */
+  cap?: number;
   records: (GpuGameRecord & { net: Digest[] })[];
 }
 
@@ -86,6 +90,9 @@ for (const file of Object.keys(SLICE)) {
   const theNet = (): Net => (net ??= loadNet("inline" in fixture.net ? fixture.net.inline : WEIGHT_SETS[fixture.net.weights]));
 
   describe(`net-v1 against the trainer's network: ${file}`, () => {
+    it("reads the clock exactly when the trainer's network did, with the harness's cap", () => {
+      expect(theNet().clock ? TURN_CAP : undefined).toBe(fixture.cap);
+    });
     fixture.records.forEach((record, g) => {
       const seats = record.bots ?? [];
       it(`game ${g.toString()} replays exactly on the reference engine`, () => {
