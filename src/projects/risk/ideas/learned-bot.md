@@ -47,12 +47,9 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| d0 and d4 to 600 | the spot machine (`infra/spot/README.md`) | how far the control climbs, and the clock net beside it | `npm run spot -- pull d0` (and `d4`), from the main checkout |
-| d0b | the spot machine | the control's gain on a second seed | `npm run spot -- pull d0b` |
-| d4b | the spot machine | whether the clock's edge over the control repeats on seed 3 | `npm run spot -- pull d4b` |
-| The day's queue (`runs/readings/day.sh` on the spot machine, started while the laptop went offline for a day) | the spot machine | d4c and d0c, the clock and the control on seed 4, each started when a run before it ends; d4 from 600 on to 900; e2's recording grown by twelve hours and distilled again (`runs/distil/e2b`); the sharp panel of each named snapshot as it appears (`runs/readings/panel-<run>-<n>-g4096.json`) | `npm run spot -- status`, then pull each run; the readings by tar over `ssh spot` |
-| d0-200's gauntlets as the learned-v3 candidate | GitHub Actions, branch `risk/learned-v3-seat`: runs 44783808435, 44783818666 (both ended), 44783828125 (against rule-v7.1, 3 to 6 players) | its cap rates beside learned-v2's, for the owner's ruling on the seat | `gh run download <id> --repo BachNewton/Novelty-World --name risk-results --dir <dir>`, then `npm run risk:import -- <dir>`, in the worktree `.claude/worktrees/v3-d0` |
-| e2: the search recorded on d0-300, its distillation and panel; the sharp panels of d0, d4 and d0b at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2` and `runs/readings` (queued there by `runs/readings/next.sh` and `after.sh`) | e2's predictions; the 512-game readings at 4,096 | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
+| d4 to 900, d0c to 300 | the spot machine (`infra/spot/README.md`) | where the clock net's climb ends, and the control on seed 4 beside d4c | `npm run spot -- pull d4` (and `d0c`), from the main checkout |
+| g0, g1 | the spot machine | the next rung: the clock recipe started again from d4-500, two seeds | `npm run spot -- pull g0` (and `g1`) |
+| e2b: e2's recording grown by twelve hours, distilled again and read; the sharp panels of d4 at 800 and 900 and d0c at 300 | the spot machine, `runs/search-records/e2`, `runs/distil/e2b`, `runs/readings` (queued there by `runs/readings/day.sh`) | whether a longer recording carries more of the search into the net | by `ssh spot`, as tar of those folders (a shard is hundreds of megabytes: by `scp`, one at a time) |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
@@ -770,6 +767,30 @@ d0 did climb past 125, to 200, and fell back by 300 in its sampled play while it
 | 4 | d0's mirror stays under 25% at every reading to 600 | 60% |
 
 What follows: 2 holds, self-play and the search stack, and the recipe becomes a cycle of the two with the search recorded on each new best. 2 fails with 1 holding: the search's edge over a stronger net is there but one shard doesn't carry it, read next with the soft target and a longer recording before the cycle is dropped. 3 fails with d0 flat past 300: the 128x4 net on the bucket space has reached what this recipe gives it, and the next base is the exact space and a larger net, as planned.
+
+**The day's queue read: the clock is a finding, and the clock net is past everything before it.** Every checkpoint on the sharp panel (4,096 games), at its most likely move alone among four b1-100, with its sampled play beside it:
+
+| Seed | The control at 300 | The clock at 300 |
+|---|---|---|
+| 2 | d0: 36.1% [34.1, 38.3] (sampled 25.9%) | d4: 42.6% [40.5, 44.8] (sampled 40.5%) |
+| 3 | d0b: 33.9% [31.9, 36.0] (sampled 30.0%) | d4b: 42.7% [40.5, 44.9] (sampled 38.2%) |
+| 4 | d0c: in flight | d4c: 44.2% [42.1, 46.4] (sampled 39.1%) |
+
+The clock's prediction on seed 3 **held** (d4b above d0b clear of both intervals, by 8.8 points), and the three clock runs land within two points of each other where the controls wander. d4 past 300 **held** its prediction (45% or more on a sharp reading): 46.0% [43.8, 48.1] at 400 and 45.5% [43.3, 47.7] at 500, where its sampled play peaks at 44.6% and four of it hold one b1-100 to 2.3%; then 41.9% and 42.0% at 600 and 700. So a run climbs for a few hundred iterations from its start and then drifts, the control's peak at 200 and the clock's at 400 to 500, and the best checkpoint is the one a sharp reading picks. d0 from 300 to 600 **failed** both its predictions: no reading of 45% sampled (its sharp readings 32.6% at 500 and 30.5% at 600, its most likely move 35% at both), and its mirror at 29% at 425 and 25% at 600. **The clock net plays long games and finishes them**: d4's argmax mirror runs 400 to 480 player-turns a game against the control's 160 to 260, with 1.5% to 16% capped; it knows how long it has. That is a reading of the harness's 600 and says nothing yet of a game with no cap, where its clock reads zero from 600 on.
+
+**e2 read: the search still overrules the stronger net, and its distillation moved the sampled play, not the most likely move.** One shard of 512 games on d0-300, none capped. 1 **held**: the search overruled 29.3% of its searched decisions (30% on b1-100). 2 **failed** as written: the distilled net's most likely move alone among four b1-100 reads 37.9% [35.8, 40.1] against d0-300's 36.1% [34.1, 38.3], inside the overlap; its sampled play rose from 25.9% to 32.2% [30.2, 34.3], and held out it makes the search's move at 43.0% of the overruled decisions, 88.5% of the kept. Its best step was the first read (500): half a million decisions is little for the fit, which is what the grown recording (e2b) answers. The search and the recorder don't yet take a net with the clock, which is the next build there, since the nets worth searching now all have it.
+
+**d0-200's gauntlets: it clears learned-v2 and rule-v7.1 at every table, capping about as learned-v2 does.** As the learned-v3 candidate (`net-v1~{"weights":"d0-200","pick":"argmax"}`, branch `risk/learned-v3-seat`), train and holdout against learned-v2 at 5 players: alone among four 34.3% and 37.7%, four against one 89.9% and 91.4%, +133 and +161 win Elo. Against rule-v7.1 at 3 to 6 players, alone: 70.6%, 89.3%, 89.7%, 75.0%; with one rule-v7.1 among its copies the games capped 0%, 4.8%, 1.1% and 10.3%, where learned-v2's capped 0%, 2.2%, 0.9% and 6.1% and c3-75's 5.2%, 9.4%, 4.8% and 23.6%. Its provisional Elo is 2101 ± 16, learned-v2's 1964. The seat is the owner's ruling.
+
+**g0 and g1, the next rung**: the clock recipe (b1's, the games spread, the clock) started again from d4-500 on a fresh optimizer and league, seeds 2 and 3, 300 iterations, as c3 and the d-runs started from b1-100. The panel still reads against b1-100, where d4-500 itself stands at 45.5%; a rung past it needs d4-500 among the panel's anchors, built with the search's clock.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | Either run's best sharp reading, its most likely move alone among four b1-100, is 50% or more | 40% |
+| 2 | Both runs' sharp readings at 300 are above d4-500's 45.5% | 35% |
+| 3 | Neither falls below 40% at any sharp reading: a restart from a strong net doesn't lose what it had | 70% |
+
+What follows: 1 or 2 holds, the recipe climbs by rungs, each started from the last one's best checkpoint, and the cycle is run until a rung fails to gain. Both fail with 3 holding: this net and action space have given what the recipe gets from them, and the next base is the exact space and a larger net, started from the clock net by distillation.
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
