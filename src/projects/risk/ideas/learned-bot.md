@@ -50,6 +50,7 @@ The rules the chart rests on:
 | d4 to 900, d0c to 300, and their sharp panels | the spot machine (`infra/spot/README.md`), `runs/readings` (queued there by `runs/readings/day.sh`) | where the clock net's climb ends, and the control on seed 4 beside d4c | `npm run spot -- pull d4` (and `d0c`), from the main checkout; the readings by `ssh spot`, as tar of the folder |
 | g0, g1, and their sharp panels with d4-500 an anchor | the spot machine (`~/novelty/risk-gpu2/runs/readings2`, the panel that knows d4-500) and the laptop's eGPU (`runs/readings2`) | the next rung: the clock recipe started again from d4-500, two seeds | `npm run spot -- pull g0` (and `g1`) |
 | e2b: e2's recording at two shards, distilled again and read | the spot machine, `runs/distil/e2b`, `runs/readings/panel-e2b-g4096.json` | whether a longer recording carries more of the search into the net | by `ssh spot`, as tar of those folders |
+| xd0, xd1 and yb0, yb1: the exploiters of d4-500 and of b1-100, 75 iterations and a sharp reading each | Kaggle's GPUs, sessions `risk-train-xd0-xd1` and `risk-train-yb0-yb1`, about 11.5 hours each from Sunday 01:50 local | how far a night of best response gets against the frozen net (predictions 10 to 13) | `python -m riskgpu.kaggle.launch status xd0` (or `yb0`), then `fetch xd0` and `fetch yb0` (each brings both its runs), then `report xd0` for the sharp readings |
 | d4-500's gauntlets, and the two at 2,400 turns | GitHub Actions, branch `risk/clock-gauntlet` | whether the clock net clears learned-v3's bar, and how it plays past the turn its clock runs out | `gh run download`, then `npm run risk:import`, on that branch |
 
 **Not yet run.** The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
@@ -810,15 +811,17 @@ What follows. 4 or 5 holds: the rung gained, the next starts from its best snaps
 
 **Kaggle's week, pushed the same night**, on what the rung can't answer whichever way it reads. Both are read by the session that fetches them.
 
-**The exploiters (Kaggle's GPUs): a best response to the frozen net**, the brief's stand-in for how exploitable a bot is, and a test of the league as a lever. The current recipe (b1's, the games spread, the clock), 125 iterations in full precision on a T4 pair, with one net the only opponent the learner meets: no copies of itself, no snapshots, no GD personas. **x0 and x1** start from d4-500 and meet only d4-500, seeds 2 and 3. **y0 and y1** start from b1-100 and meet only b1-100, as d4 started from b1-100 into the usual league. Each is then read on the sharp panel with d4-500 among its anchors. Their controls are on the spot machine in bf16 (g0 and g1 near 125 for x, d4-125 and d0-125 for y), so a difference under five points is not read as the league's.
+**The exploiters (Kaggle's GPUs): a best response to the frozen net**, the brief's stand-in for how exploitable a bot is, and a test of the league as a lever. The current recipe (b1's, the games spread, the clock) in full precision on a T4 pair, with one net the only opponent the learner meets: no copies of itself, no snapshots, no GD personas (`--league-fixed <it> --snapshots 1 --snapshot-share 1 --self-share 0 --gd-share 0 --snapshot-cap 1.0`: the frozen net holds the league's one slot and makes three quarters of the decisions, so its share of the batch a step is the whole of it). **xd0 and xd1** start from d4-500 and meet only d4-500, seeds 2 and 3. **yb0 and yb1** start from b1-100 and meet only b1-100, as d4 started from b1-100 into the usual league. Each plays 75 iterations, the most a T4 session's training hours hold beside the trainer's own panel (about 55 minutes a reading with five anchors), and its snapshot at 75 is then read on the sharp panel with d4-500 among its anchors. Their controls are on the spot machine in bf16 (g0 and g1's snapshots at 100 for xd, d4-125 and d0-125 for yb), so a difference under five points is not read as the league's.
 
 | # | Prediction | Confidence |
 |---|---|---|
-| 10 | Either x at 125, its most likely move alone among four d4-500, reads 25% or more: the clock net fails M6's best-response bar (50 Elo a seat) in one night | 75% |
-| 11 | Either x reads 30% or more there | 50% |
-| 12 | The x that gains most reads below d4-500's own 45.5% alone among four b1-100: what it learned is this opponent, not the game | 45% |
-| 13 | Either y at 125, its most likely move alone among four b1-100, reads above d4-125's 33.6% clear of both intervals | 45% |
+| 10 | Either xd at 75, its most likely move alone among four d4-500, reads 25% or more: the clock net fails M6's best-response bar (50 Elo a seat) in one night | 75% |
+| 11 | Either xd reads 30% or more there | 50% |
+| 12 | The xd that gains most reads below d4-500's own 45.5% alone among four b1-100: what it learned is this opponent, not the game | 45% |
+| 13 | Either yb at 75, its most likely move alone among four b1-100, reads above d4-125's 33.6% clear of both intervals | 45% |
 | 14 | 125 iterations fit the session's training hours on a T4 | 60% |
+
+14 **failed** before a session ran: from earlier sessions' logs an iteration of this league is about 150 s on a T4 and each of the trainer's panels most of an hour, so 125 iterations are 10.4 hours against the 8 a session trains for, and the runs were pushed at 75; 10 to 13 were written for 125 and are read at 75.
 
 What follows. 10 holds with 12 failing (it gained on d4-500 and kept its strength elsewhere): meeting the frozen best is a better league than meeting oneself, and the next rung's league gives the best net a large fixed share. 10 and 12 hold: the clock net has a hole of its own, and the exploiters join the league as fixed members, so the line learns to close it; the hole is also what a person would find, so an exploiter's games against d4-500 are replayed and read before the seat. 10 fails: the clock net stands up to a night of best response, and the plateau isn't for want of opposition, which leaves capacity and the search.
 
