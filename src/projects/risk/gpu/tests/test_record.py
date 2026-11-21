@@ -1,7 +1,8 @@
 """Recording a search's choices (`riskgpu/selfplay/record.py`) and distilling them
 (`riskgpu/selfplay/distil.py`): a sample rebuilt from its file is the decision the search saw, its
-target the move it played; a recording resumed after a stop is the one an unbroken run makes; and the
-distiller fits a recording and reads it in parts that add up."""
+target the move it played, a net's clock included; a recording resumed after a stop is the one an
+unbroken run makes; and the distiller fits a recording and reads it in parts that add up. Each holds
+for a net without the clock and for one with it."""
 
 import os
 import shutil
@@ -13,20 +14,30 @@ from riskgpu.board import Board
 from riskgpu.data import load_best
 from riskgpu.selfplay import distil, record
 from riskgpu.selfplay.actions import decode, legal_main
-from riskgpu.selfplay.obs import observe
+from riskgpu.selfplay.net import Net, init_from
+from riskgpu.selfplay.obs import GLOBAL, clock
 from riskgpu.selfplay.parity import random_net
+from riskgpu.selfplay.search import observation
 
 # Small and short: leaves at the end of the searcher's turn, two candidates of two rollouts.
+CAP = 4
 GAMES = ["--games", "5", "--shard-games", "4", "--players", "3", "--k", "2", "--r", "2", "--leaf", "turn",
-         "--cap", "4", "--skip-mass", "0.6", "--skipped", "--device", "cpu", "--no-bf16"]
+         "--cap", str(CAP), "--skip-mass", "0.6", "--skipped", "--device", "cpu", "--no-bf16"]
 
 
-@pytest.fixture(scope="module")
-def setup(tmp_path_factory):
+@pytest.fixture(scope="module", params=[False, True], ids=["clockless", "clock"])
+def setup(request, tmp_path_factory):
     board = Board.load("cpu")
     tables = load_best("cpu")
     tables.scaled_oversize = True
     net = random_net(32, 1, 4, 2, board, seed=3)
+    if request.param:
+        # The same net reading the clock, its weights on it away from zero.
+        plain = net
+        net = Net(**{**plain.config(), "clock": True}, edges=board.edges, adjacency=board.adjacency)
+        init_from(net, {"net": plain.state_dict()})
+        with torch.no_grad():
+            net.glob_in.weight[:, GLOBAL:] = 1.0
     net.requires_grad_(False)
     ckpt = str(tmp_path_factory.mktemp("ckpt") / "net.pt")
     torch.save({"net": net.state_dict(), "config": net.config()}, ckpt)
@@ -42,18 +53,18 @@ def run(setup, folder: str, extra: list[str] = ()) -> dict:
 class Seen(record.Recorder):
     """Keeps what the network saw at every decision kept, in the order they are kept."""
     seen: list = []
-    board = None
+    board = net = None
 
     def _keep(self, s, o, log, rows, games, decision, fields):
         sub, so, sl = s.select(rows), o.select(rows), log.select(rows)
-        Seen.seen.append((*observe(sub, so, sl.placed_on, sl.attacks, sl.captured, Seen.board), legal_main(so)))
+        Seen.seen.append((*observation(Seen.net, CAP, sub, so, sl, Seen.board), legal_main(so)))
         super()._keep(s, o, log, rows, games, decision, fields)
 
 
 @pytest.fixture(scope="module")
 def recording(setup, tmp_path_factory):
     folder = str(tmp_path_factory.mktemp("rec") / "a")
-    Seen.seen, Seen.board = [], setup[0]
+    Seen.seen, Seen.board, Seen.net = [], setup[0], setup[2]
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(record, "Recorder", Seen)
         out = run(setup, folder)
@@ -61,7 +72,7 @@ def recording(setup, tmp_path_factory):
 
 
 def test_a_rebuilt_sample_is_the_decision_the_search_saw_and_its_target_the_move_it_played(setup, recording):
-    board = setup[0]
+    board, net = setup[0], setup[2]
     folder, out, seen = recording
     data = distil.Recording(folder)
     assert out["games"] == 5 and out["shards"] == 2 and data.n == out["samples"]
@@ -69,10 +80,17 @@ def test_a_rebuilt_sample_is_the_decision_the_search_saw_and_its_target_the_move
     assert int((source == record.SEARCHED).sum()) == out["searched"]
     assert int(data.x["overruled"].sum()) == out["overruled"] > 0
     assert {int(v) for v in source.unique()} == {record.SEARCHED, record.CONFIDENT, record.UNSEARCHED_KIND}
-    b = data.inputs(torch.arange(data.n), board, "cpu")
+    b = data.inputs(torch.arange(data.n), board, "cpu", net.clock)
     node, slot, glob, legal = (torch.cat(parts) for parts in zip(*seen))
     assert torch.equal(b["node"], node) and torch.equal(b["slot"], slot) and torch.equal(b["glob"], glob)
     assert torch.equal(b["legal"], legal)
+    # A clock counts down to the recording's cap, and a recording rebuilds for a net with or without it.
+    assert glob.shape[1] == GLOBAL + net.clock
+    turn = data.x["turn"]
+    other = data.inputs(torch.arange(data.n), board, "cpu", not net.clock)
+    clocked = b["glob"] if net.clock else other["glob"]
+    assert torch.equal(clocked, torch.cat([glob[:, :GLOBAL], clock(turn, torch.full_like(turn, CAP))], 1))
+    assert torch.equal(other["node"], node) and torch.equal(other["legal"], legal)
     # The target decodes to the move played, and is the first choice unless the search overruled it.
     assert torch.equal(decode(b["main"], b["amount"], b["s"], b["o"], board), data.x["move"].to(torch.int64))
     assert bool((data.x["chosen"][~data.x["overruled"]] == 0).all())
@@ -114,7 +132,8 @@ def test_the_distiller_fits_a_recording_and_its_read_adds_up(setup, recording, t
     def loss(path: str) -> float:
         from riskgpu.selfplay.ladder import load_net
         with torch.no_grad():
-            parts = distil.losses(load_net(path, board, "cpu"), data.inputs(train, board, "cpu"), args)
+            net = load_net(path, board, "cpu")
+            parts = distil.losses(net, data.inputs(train, board, "cpu", net.clock), args)
         return float(parts["main"] + parts["amount"])
 
     before = loss(ckpt)

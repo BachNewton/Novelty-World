@@ -14,7 +14,8 @@ the panel's or a reading's.
 **What a sample is.** One per searched decision of a searching seat: the state before the move as
 `imitate.py` keeps it (every field the options and the observation read, and the turn so far), so
 the observation, the legal choices and the decision's kind are rebuilt from it exactly as the search
-saw them, and nothing derived from them is stored; the candidates, each as the network's own action
+saw them (a net's clock from the kept turn and the search's `cap`, which `recording.json` holds),
+and nothing derived from them is stored; the candidates, each as the network's own action
 (`cand_main`, `cand_amount`: the main choice and the amount bucket, or in the exact space the
 argument slot) with its mean rollout score (`mean`), its number of rollouts (`count`) and the raw
 policy's probabilities of it (`p_main`, and `p_amount` given its main choice); the candidate played

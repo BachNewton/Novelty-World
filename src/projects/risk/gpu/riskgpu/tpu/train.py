@@ -237,7 +237,7 @@ def shape_for(args, data: Prepared) -> dict:
         shape = shape_of(state.get("net", state))
         assert shape["actions"] == data.actions, \
             f"--init is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
-        assert not shape["clock"], "the search observes no clock: a net that reads it can't be distilled from it"
+        assert not shape["clock"],             "a prepared set's observations hold no clock: a net that reads it is distilled by `selfplay.distil`"
         return shape
     assert args.actions in (None, data.actions), f"the set is prepared for the {data.actions} space: --actions {args.actions}"
     return {"width": args.width, "layers": args.layers, "heads": args.heads, "ff_mult": 4, "actions": data.actions,

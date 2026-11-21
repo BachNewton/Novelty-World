@@ -143,7 +143,7 @@ class Source:
             out = encode(b, b["x"]["move"], self.exact, board, b["candidates"])
             out["flagged"] = b["flagged"].numpy()
         else:
-            b = self.data.inputs(idx, board, "cpu")
+            b = self.data.inputs(idx, board, "cpu", clock=False)
             out = encode(b, b["x"]["move"], self.exact, board)
             out["flagged"] = np.zeros(hi - lo, dtype=bool)
         for k, v in self.extra.items():

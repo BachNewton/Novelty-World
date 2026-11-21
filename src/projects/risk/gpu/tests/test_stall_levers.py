@@ -4,8 +4,9 @@ win and the clock among the inputs. What would silently spoil a run comparing th
 pays survivors more than a loss, a decisive game scored otherwise, a row starved under the fair
 order, the fair order changing a step that had room for every row, a spread that leaves the first
 deal standing or feeds its games into the statistics, a discount that reaches a loss or anything but
-the score, a clock net started from a checkpoint that doesn't play as the checkpoint did, or a held
-decision trained on another game's clock."""
+the score, a clock net started from a checkpoint that doesn't play as the checkpoint did, a held
+decision trained on another game's clock, or a panel anchor that reads the clock shown another cap
+than the panel's."""
 
 import math
 
@@ -256,3 +257,28 @@ def test_a_clock_net_reads_its_own_games_cap_in_play_and_in_training(world):
         assert losses["samples"] == int(targets["train"].sum())
         carry.hold(env, targets)
         held_caps = carry.fields["cap"].clone()
+
+
+def test_a_panel_anchor_that_reads_the_clock_sees_the_turns_left_before_the_panels_cap(world, tmp_path, monkeypatch):
+    from riskgpu.selfplay import env as env_module
+    from riskgpu.selfplay.ppo import PairEval
+    plain, clocked = clock_pair(world)
+    anchor = str(tmp_path / "anchor.pt")
+    torch.save({"net": clocked.state_dict(), "config": clocked.config()}, anchor)
+    monkeypatch.setattr(Env, "capture", lambda self: None)  # CUDA graphs; the CPU steps eagerly
+    seen = []
+    real = env_module.observe
+
+    def observe(*args):
+        seen.append(args[-1])
+        return real(*args)
+
+    monkeypatch.setattr(env_module, "observe", observe)
+    board, tables = world
+    pair = PairEval(board, tables, plain, "clock", anchor, 10, "cpu", bf16=False)
+    pair.env.run(24)
+    caps = [cap for cap in seen if cap is not None and cap.numel()]
+    assert caps, "the anchor took no decision"
+    assert all(bool((cap == 600).all()) for cap in caps)
+    # The learner, without the clock, is shown none.
+    assert None in seen
