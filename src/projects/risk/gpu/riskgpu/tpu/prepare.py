@@ -4,7 +4,7 @@ for the GPU trainers, and written as flat arrays the trainer streams.
 
     python -m riskgpu.tpu.prepare imitate --data runs/imitate/native-v2 --out /tmp/prepared/x [--actions exact]
         [--fraction 1] [--workers 0]
-    python -m riskgpu.tpu.prepare distil --data runs/readings/e1/rec --out /tmp/prepared/y [--workers 0]
+    python -m riskgpu.tpu.prepare distil --data runs/readings/e1/rec --out /tmp/prepared/y [--clock] [--workers 0]
 
 run from `src/projects/risk/gpu/`.
 
@@ -32,6 +32,11 @@ sample's game, whether it is held out and in the training set, its decision kind
 (imitation: the teacher's move kind; distillation: where the target came from, `distil.FROM`), its
 turn-start flag and whether its target is flagged, for the read's splits.
 
+**The clock** (`--clock`, a distillation's: a recording knows its games' cap, an imitation's
+extraction doesn't): the observation's globals end with the clock (`obs.py`), counted down to the
+recording's cap, for a net that reads it; the set's `meta.json` says which it holds, and the trainer
+makes its net read the clock exactly when the set has it.
+
 **Sizes.** About 1.5 KB a sample in the bucket space and 3.7 KB in the exact one (the candidates'
 features), against the compact state's 0.4 KB: the reason the compact set is what is uploaded and
 this is made where it is trained. The set is checked against the disk's free space before anything
@@ -51,19 +56,21 @@ import time
 import numpy as np
 import torch
 
-from ..board import Board
+from ..board import MAX_SEATS, TERRITORIES, Board
 from ..selfplay.actions import MAIN, OCCUPY, SLOTS, amount_group, candidate_moves, candidates, decode, legal_amount
 from ..selfplay.imitate import Dataset, normalize
+from ..selfplay.obs import CLOCK, GLOBAL, NODE, SLOT
 
 TASKS = ("imitate", "distil")
 LEGAL_BYTES = (MAIN + 7) // 8  # the legal main choices, eight to a byte
-VERSION = 1
+VERSION = 2
 
 
-def fields(exact: bool) -> dict[str, tuple[str, tuple[int, ...]]]:
+def fields(exact: bool, clock: bool) -> dict[str, tuple[str, tuple[int, ...]]]:
     """Each array's dtype and per-sample shape."""
     k = SLOTS if exact else 3
-    out = {"node": ("float16", (42, 13)), "slot": ("float16", (6, 7)), "glob": ("float16", (28,)),
+    out = {"node": ("float16", (TERRITORIES, NODE)), "slot": ("float16", (MAX_SEATS, SLOT)),
+           "glob": ("float16", (GLOBAL + CLOCK if clock else GLOBAL,)),
            "legal": ("uint8", (LEGAL_BYTES,)), "main": ("int16", ()), "amount": ("int8", ()),
            "amount_legal": ("bool", (k,)), "ok_amount": ("bool", (k,)), "ok_occupy": ("bool", (3,)),
            "value": ("float32", (6,)), "value_ok": ("bool", (6,)),
@@ -75,8 +82,8 @@ def fields(exact: bool) -> dict[str, tuple[str, tuple[int, ...]]]:
     return out
 
 
-def bytes_per_sample(exact: bool) -> int:
-    return sum(np.dtype(d).itemsize * int(np.prod(s)) for d, s in fields(exact).values())
+def bytes_per_sample(exact: bool, clock: bool) -> int:
+    return sum(np.dtype(d).itemsize * int(np.prod(s)) for d, s in fields(exact, clock).values())
 
 
 def encode(b: dict, target: torch.Tensor, exact: bool, board: Board, c=None) -> dict[str, np.ndarray]:
@@ -113,9 +120,10 @@ def encode(b: dict, target: torch.Tensor, exact: bool, board: Board, c=None) -> 
 class Source:
     """A compact set (an imitation's extraction or a recording) as the samples `encode` reads."""
 
-    def __init__(self, task: str, data: str, actions: str | None, fraction: float):
-        self.task = task
+    def __init__(self, task: str, data: str, actions: str | None, fraction: float, clock: bool):
+        self.task, self.clock = task, clock
         if task == "imitate":
+            assert not clock, "an imitation's extraction keeps no game's turn cap, so its set can't hold the clock"
             self.data = Dataset(data)
             self.actions = actions or "buckets"
             game = self.data.x["game"]
@@ -143,7 +151,7 @@ class Source:
             out = encode(b, b["x"]["move"], self.exact, board, b["candidates"])
             out["flagged"] = b["flagged"].numpy()
         else:
-            b = self.data.inputs(idx, board, "cpu", clock=False)
+            b = self.data.inputs(idx, board, "cpu", clock=self.clock)
             out = encode(b, b["x"]["move"], self.exact, board)
             out["flagged"] = np.zeros(hi - lo, dtype=bool)
         for k, v in self.extra.items():
@@ -163,7 +171,7 @@ def _write(span: tuple[int, int]) -> int:
     src, out, board = _WORK["source"], _WORK["out"], _WORK["board"]
     lo, hi = span
     arrays = src.chunk(lo, hi, board)
-    for name, (dtype, shape) in fields(src.exact).items():
+    for name, (dtype, shape) in fields(src.exact, src.clock).items():
         m = np.load(path_of(out, name), mmap_mode="r+")
         v = arrays[name]
         if v.dtype != np.dtype(dtype):
@@ -180,7 +188,7 @@ def _write(span: tuple[int, int]) -> int:
 def describe(args: argparse.Namespace) -> dict:
     """What a set is made from, which a set already made must match to be reused."""
     return {"version": VERSION, "task": args.task, "data": os.path.abspath(args.data), "actions": args.actions,
-            "fraction": args.fraction}
+            "fraction": args.fraction, "clock": args.clock}
 
 
 def prepare(args: argparse.Namespace) -> dict:
@@ -195,8 +203,8 @@ def prepare(args: argparse.Namespace) -> dict:
     t0 = time.time()
     torch.set_num_threads(1)
     board = Board.load("cpu")
-    src = Source(args.task, args.data, args.actions, args.fraction)
-    per = bytes_per_sample(src.exact)
+    src = Source(args.task, args.data, args.actions, args.fraction, args.clock)
+    per = bytes_per_sample(src.exact, src.clock)
     os.makedirs(args.out, exist_ok=True)
     free = shutil.disk_usage(args.out).free
     need = per * src.n
@@ -204,7 +212,7 @@ def prepare(args: argparse.Namespace) -> dict:
                                 f"disk has {free / 1e9:.1f} GB free")
     print(f"{args.task} set from {args.data}: {src.n} samples in the {src.actions} space, {per} B each, "
           f"{need / 1e9:.2f} GB; loaded in {time.time() - t0:.0f}s", flush=True)
-    for name, (dtype, shape) in fields(src.exact).items():
+    for name, (dtype, shape) in fields(src.exact, src.clock).items():
         np.lib.format.open_memmap(path_of(args.out, name), mode="w+", dtype=dtype, shape=(src.n, *shape)).flush()
     spans = [(lo, min(lo + args.chunk, src.n)) for lo in range(0, src.n, args.chunk)]
     _WORK.update({"source": src, "out": args.out, "board": board})
@@ -226,8 +234,8 @@ def prepare(args: argparse.Namespace) -> dict:
         for span in spans:
             progress(_write(span))
     _WORK.clear()
-    meta = {"made_from": want, "task": args.task, "actions": src.actions, "n": src.n, "bytes_per_sample": per,
-            "fields": {k: [d, list(s)] for k, (d, s) in fields(src.exact).items()},
+    meta = {"made_from": want, "task": args.task, "actions": src.actions, "clock": src.clock, "n": src.n,
+            "bytes_per_sample": per, "fields": {k: [d, list(s)] for k, (d, s) in fields(src.exact, src.clock).items()},
             "edges": board.edges.tolist(), "adjacency": board.adjacency.to(torch.int8).tolist(),
             "games": int(src.extra["game"].max()) + 1 if src.n else 0,
             "recording": getattr(src.data, "configs", None), "seconds": round(time.time() - t0, 1),
@@ -245,7 +253,7 @@ class Prepared:
     def __init__(self, folder: str, load: bool = False):
         with open(os.path.join(folder, "meta.json")) as f:
             self.meta = json.load(f)
-        self.task, self.actions, self.n = self.meta["task"], self.meta["actions"], self.meta["n"]
+        self.task, self.actions, self.n, self.clock = self.meta["task"], self.meta["actions"], self.meta["n"], self.meta["clock"]
         self.exact = self.actions == "exact"
         self.arrays = {name: np.load(path_of(folder, name), mmap_mode=None if load else "r")
                        for name in self.meta["fields"]}
@@ -262,6 +270,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--actions", default=None, choices=["buckets", "exact"],
                    help="imitation: the net's action space (default buckets); distillation: the recording's, if given")
     p.add_argument("--fraction", type=float, default=1.0, help="imitation: the share of training games (`imitate --fraction`)")
+    p.add_argument("--clock", action="store_true", help="distillation: the observation ends with the clock (`obs.py`)")
     p.add_argument("--workers", type=int, default=0, help="processes (0 or 1: this one)")
     p.add_argument("--chunk", type=int, default=4096, help="samples a worker encodes at once")
     return p

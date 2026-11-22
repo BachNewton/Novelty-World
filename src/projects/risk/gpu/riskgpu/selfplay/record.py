@@ -63,8 +63,10 @@ from ..tables import BlitzTables
 from .imitate import decision_kind, kept_fields
 from .search import KINDS, SearchConfig, Searcher
 
-SEARCHED, CONFIDENT, UNSEARCHED_KIND = 0, 1, 2
-SOURCES = ("searched", "confident", "unsearched-kind")
+# Where a sample's target came from. `PLAYED` is `own.py`'s: the net's own most likely move at a
+# decision of its sampled play, with no search, which a recording of a net's own play holds alone.
+SEARCHED, CONFIDENT, UNSEARCHED_KIND, PLAYED = 0, 1, 2, 3
+SOURCES = ("searched", "confident", "unsearched-kind", "played")
 MIXTURES = ("self", "one-in")
 CONFIG = "recording.json"
 
