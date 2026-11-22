@@ -25,9 +25,11 @@ import path from "node:path";
  * The game pages the integrated Radeon holds. It shares the laptop's memory, and six
  * pages at 3440x1440 at once bugchecked its driver (0x119, a video scheduler fault,
  * the whole machine down). Chrome draws on it, whatever is plugged in, unless it's
- * launched with `--force-high-performance-gpu`.
+ * launched with `--force-high-performance-gpu`, and even then composites its pages
+ * there: measured, a page drawn on the eGPU holds memory and 3D engine time on the
+ * Radeon too. So every page on a GPU is one of these.
  */
-const RADEON_PAGES = 4;
+export const RADEON_PAGES = 4;
 
 /**
  * The eGPU's memory that is shared out, in MiB: 11 GB of its 12, the rest left to the
@@ -43,11 +45,8 @@ const EGPU_MIB = 11 * 1024;
  */
 export const PAGE_MIB = 1200;
 
-/** The game pages an e2e worker has open at most: a two-player test's. */
-export const PAGES_PER_WORKER = 2;
-
-/** An e2e run's workers: as many as fit the Radeon with two pages each. */
-const E2E_WORKERS = RADEON_PAGES / PAGES_PER_WORKER;
+/** An e2e run's workers: as many as fit the Radeon running two-player tests. */
+const E2E_WORKERS = RADEON_PAGES / 2;
 
 /**
  * What each kind of run takes. `cores` is what the run is held to, `radeon` the pages
@@ -61,7 +60,7 @@ export const KINDS = {
   slow: { cores: 6, testWorkers: 6 },
   e2e: { cores: 5, radeon: RADEON_PAGES, egpu: RADEON_PAGES * PAGE_MIB, withoutEgpu: RADEON_PAGES, e2eWorkers: E2E_WORKERS },
   browser: { cores: 2, radeon: 2 },
-  "browser-egpu": { cores: 2, egpu: 2 * PAGE_MIB },
+  "browser-egpu": { cores: 2, radeon: 2, egpu: 2 * PAGE_MIB },
   check: { cores: 2 },
   build: { cores: 4 },
   // Every unit, slow and e2e test, unscoped: the whole machine, so it waits to be alone.

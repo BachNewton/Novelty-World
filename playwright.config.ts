@@ -7,7 +7,7 @@ requireSlot("An e2e run", { kinds: ["e2e", "all"] });
 /**
  * Every run is self-contained, so any number can go at once: it builds and
  * serves the app itself (e2e/next-server.ts) and starts its own multiplayer
- * relay (relay/main.ts), each on a port the OS picks, and
+ * relay (relay/main.ts) and its page gate (scripts/page-gate.mjs), each on a port the OS picks, and
  * writes to its own folders: the build to `.next-e2e/run-<id>/` (deleted when
  * the run ends) and test output to `test-results/run-<id>/` (traces and
  * screenshots only when a test failed; Playwright's own `.last-run.json` is
@@ -22,6 +22,10 @@ requireSlot("An e2e run", { kinds: ["e2e", "all"] });
 process.env.E2E_RUN_ID ??= String(process.pid);
 const RUN_ID = process.env.E2E_RUN_ID;
 const ownServer = process.env.E2E_BASE_URL === undefined;
+// The GPU pages the slot gave this run, every one of which is counted on the Radeon (scripts/machine-budget.mjs).
+const CLAIM = process.env.MACHINE_CLAIM;
+if (CLAIM === undefined) throw new Error("An e2e run's slot says what it claimed (MACHINE_CLAIM): run it through scripts/slot.mjs.");
+const claimedPages = (JSON.parse(CLAIM) as { radeon: number }).radeon;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -47,6 +51,12 @@ export default defineConfig({
       // Playwright stores a startup line's named groups as env vars: E2E_RELAY_PORT here, E2E_BASE_URL below.
       // `new RegExp` because the tsconfig's ES2017 target rejects named groups in a regex literal.
       wait: { stdout: new RegExp("listening on port (?<e2e_relay_port>\\d+)") },
+    },
+    {
+      name: "Page gate",
+      // Holds the run's tests to the pages it claimed (scripts/page-gate.mjs, e2e/test.ts).
+      command: `node scripts/page-gate.mjs ${claimedPages}`,
+      wait: { stdout: new RegExp("page gate on port (?<e2e_page_gate_port>\\d+)") },
     },
     ...(ownServer
       ? [

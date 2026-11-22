@@ -18,7 +18,8 @@ import { WEBGPU_BROWSER } from "./webgpu";
  * `challenge/coop.test.ts`'s. The invite goes to everyone in the world, so
  * those who join are down the road from the ring, and one goes back there
  * when it leaves. Four game pages are all the GPU pages the budget shares
- * out, so they're small, and each starts while the others stand still.
+ * out, so the test holds them all, with no other test's open beside it; they're
+ * small, and each starts while the others stand still.
  */
 
 const PAGE = "/games/3d-games/aland-drive";
@@ -40,7 +41,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use(WEBGPU_BROWSER);
+test.use({ ...WEBGPU_BROWSER, openPages: 4 });
 test.setTimeout(240_000);
 
 async function joinWorld(browser: Browser, world: string): Promise<Page> {
