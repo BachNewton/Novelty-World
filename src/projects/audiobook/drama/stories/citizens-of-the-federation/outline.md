@@ -165,7 +165,7 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 - **Question:** What would you make your child into, to keep her?
 - **Goes deep on:** ethics and philosophy, medicine, family.
 - **Touches:** faith, values, politics, law, education.
-- **The world it shows:** Alma is diagnosed at six with an inherited illness fatal by her teens; Ben learns why his sister died. The era's AI-designed cure installs an engineered gene network that repairs the failing cells and strengthens everything else, and can't yet be separated; the law of her time classes anyone treated as an Augment, whatever their age. Decades later medicine learns to cure without enhancing, which is canon's later rule.
+- **The world it shows:** Alma, diagnosed at six (chapter 14) with CLN6, the form of Batten disease that killed Ben's sister Katie at nine, has a few years; Ben learns why his sister died. The era's AI-designed cure installs an engineered gene network that repairs the failing cells and strengthens everything else, and can't yet be separated; the law of her time classes anyone treated as an Augment, whatever their age. Decades later medicine learns to cure without enhancing, which is canon's later rule.
 - **The choice:** Ben and Anna's, with Nora, fifteen, holding a view of her own. Let Alma die an ordinary girl, or save her as an Augment: treated outside the law, registered, barred from Finnish school, a target, the family perhaps exiled.
 - **Moves from → to:** a girl who is dying → a girl who will live as something her world is learning to fear.
 
