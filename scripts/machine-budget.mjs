@@ -303,29 +303,43 @@ export function enqueue(dir, { kind, claim, who, command }) {
 
 /**
  * Starts whatever may start, and says where that leaves the run `id`: running on
- * `claim`, waiting for a resource, or unplugged from the eGPU it needs.
+ * `claim`, waiting for a resource, or unplugged from the eGPU it needs. `started` is
+ * each run it started as it found the ledger then, for the budget's log: what was
+ * already running beside it, and who was waiting ahead of it and for what.
  */
 export function tryStart(dir, id, plugged = egpuPlugged()) {
   return locked(dir, () => {
     const runs = readRuns(dir);
     const { start, waitsFor } = admit(runs, { plugged });
     const write = (run) => writeFileSync(run.file, JSON.stringify({ ...run, file: undefined }));
+    const beside = [0, 0, 0];
+    const take = ({ cores, radeon, egpu }) => [cores, radeon, egpu].forEach((value, i) => (beside[i] += value));
+    for (const run of runs) if (run.state === "running") take(resolveClaim(claimOf(run), plugged) ?? claimOf(run));
+    const ahead = [];
+    const started = [];
     for (const run of runs) {
-      if (!start.includes(run.id)) continue;
-      Object.assign(run, { state: "running", startedAt: new Date().toISOString() });
+      if (!start.includes(run.id)) {
+        if (waitsFor.has(run.id)) ahead.push([run.id, waitsFor.get(run.id)]);
+        continue;
+      }
+      const startsOn = resolveClaim(claimOf(run), plugged);
+      const at = Date.now();
+      started.push({ t: at, id: run.id, claim: [startsOn.cores, startsOn.radeon, startsOn.egpu], beside: [...beside], ahead: [...ahead] });
+      take(startsOn);
+      Object.assign(run, { state: "running", startedAt: new Date(at).toISOString() });
       // A run from a checkout that counts one pool keeps the claim it was written with.
-      if (run.radeon !== undefined) Object.assign(run, asLedgered(run, resolveClaim(claimOf(run), plugged)));
+      if (run.radeon !== undefined) Object.assign(run, asLedgered(run, startsOn));
       write(run);
     }
     const self = runs.find((run) => run.id === id);
     if (self === undefined) throw new Error(`run ${id} is no longer in the machine's ledger`);
     const claim = resolveClaim(claimOf(self), plugged);
-    if (claim === null) return { state: "unplugged" };
-    if (self.state === "waiting") return { state: "waiting", waitsFor: waitsFor.get(id) };
+    if (claim === null) return { state: "unplugged", started };
+    if (self.state === "waiting") return { state: "waiting", waitsFor: waitsFor.get(id), started };
     // Whoever started it, it is written as what it really runs on.
     const running = asLedgered(self, claim);
     if (running.gpu !== self.gpu || running.egpu !== self.egpu) write(running);
-    return { state: "running", claim };
+    return { state: "running", claim, started };
   });
 }
 

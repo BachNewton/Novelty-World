@@ -5,6 +5,8 @@
  *
  *   node scripts/slot.mjs <kind> -- <command...>   (npm run slot -- <kind> -- <command...>)
  *   node scripts/slot.mjs status                    what is running and waiting, machine-wide
+ *   node scripts/slot.mjs history [--hours N] [--log <folder>]
+ *                                                   whether it worked, judged from its log
  *
  * A run already inside a slot (MACHINE_SLOT set) runs its command at once, so
  * `npm run test:all` or a test that starts a tool doesn't queue behind itself; it
@@ -12,8 +14,10 @@
  */
 import { spawn, execFileSync } from "node:child_process";
 import { watch } from "node:fs";
+import { parseArgs } from "node:util";
 import { e2eClaim } from "./e2e-claims.mjs";
-import { USAGE, admit, claimOf, demand, describe, egpuPlugged, enqueue, leave, ledgerDir, requireClaimed, status, tryStart } from "./machine-budget.mjs";
+import { appendRecord, ensureRecorder, logDir, readRecords } from "./machine-log.mjs";
+import { BUDGET, USAGE, admit, claimOf, demand, describe, egpuPlugged, enqueue, leave, ledgerDir, requireClaimed, status, tryStart } from "./machine-budget.mjs";
 
 const RESOURCE_NAMES = { cores: "cores", radeon: "the Radeon", egpu: "the eGPU" };
 
@@ -39,10 +43,28 @@ if (kind === "status") {
   process.exit(0);
 }
 
+if (kind === "history") {
+  // Read only here: every run loads this file, and none needs the report.
+  const { audit, formatHistory } = await import("./machine-history.mjs");
+  const { values } = parseArgs({
+    args: rest.filter((arg) => arg !== "--"),
+    options: { hours: { type: "string", default: "24" }, log: { type: "string" } },
+  });
+  const hours = Number(values.hours);
+  if (!(hours > 0)) fail(`--hours takes a positive number, not "${values.hours}"`, 2);
+  const log = values.log ?? logDir(dir);
+  const to = Date.now();
+  const from = to - hours * 3_600_000;
+  const { records, unreadable } = readRecords(log, { from, to });
+  const report = audit(records, { from, to, budget: BUDGET });
+  console.log(formatHistory(report, { hours, log, unreadable }).join("\n"));
+  process.exit(0);
+}
+
 const split = rest.indexOf("--");
 const command = split === -1 ? rest : rest.slice(split + 1);
 if (kind === undefined || command.length === 0) {
-  console.error(`usage: node scripts/slot.mjs <${USAGE}> -- <command...>  |  status`);
+  console.error(`usage: node scripts/slot.mjs <${USAGE}> -- <command...>  |  status  |  history [--hours N]`);
   process.exit(2);
 }
 let wants;
@@ -76,8 +98,19 @@ const branch = (() => {
     return "?";
   }
 })();
-const id = enqueue(dir, { kind, claim: wants, who: `${branch} (${process.cwd()})`, command: line });
-const quit = () => leave(dir, id);
+const who = `${branch} (${process.cwd()})`;
+const id = enqueue(dir, { kind, claim: wants, who, command: line });
+const log = logDir(dir);
+appendRecord(log, { e: "queued", id, kind, who, command: line, claim: [wants.cores, wants.radeon, wants.egpu] });
+ensureRecorder(dir);
+let left = false;
+const quit = (code) => {
+  if (left) return;
+  left = true;
+  // The end is logged before the place is given up, so it comes before the start it makes room for.
+  appendRecord(log, { e: "ended", id, code });
+  leave(dir, id);
+};
 process.on("exit", quit);
 process.on("SIGINT", () => process.exit(130));
 process.on("SIGTERM", () => process.exit(143));
@@ -88,10 +121,16 @@ process.on("SIGTERM", () => process.exit(143));
 // that read is the liveness check for both.
 const claim = await new Promise((resolve) => {
   let told = false;
+  let waitingFor;
   const check = () => {
     const turn = tryStart(dir, id);
+    for (const start of turn.started) appendRecord(log, { e: "started", ...start });
     if (turn.state === "unplugged") fail(`${kind} needs the eGPU, and it isn't plugged in (or its driver hasn't started it).`);
     if (turn.state === "waiting") {
+      if (turn.waitsFor !== waitingFor) {
+        waitingFor = turn.waitsFor;
+        appendRecord(log, { e: "waits", id, for: waitingFor });
+      }
       if (!told) console.error(`[slot] waiting for ${RESOURCE_NAMES[turn.waitsFor]}, to take ${describe(wants)} (npm run slot -- status shows the queue)`);
       told = true;
       return;
@@ -104,9 +143,14 @@ const claim = await new Promise((resolve) => {
   const watcher = watch(dir, (_, file) => {
     if (file !== "lock") check();
   });
-  const liveness = setInterval(check, 30_000);
+  const liveness = setInterval(() => {
+    ensureRecorder(dir);
+    check();
+  }, 30_000);
   check();
 });
+// The recorder is looked for through the run too: one killed leaves no more than half a minute unrecorded.
+setInterval(() => ensureRecorder(dir), 30_000).unref();
 console.error(`[slot] running as ${kind}: ${describe(claim)}`);
 
 const env = { MACHINE_SLOT: kind, MACHINE_CLAIM: JSON.stringify(claim) };
@@ -118,5 +162,5 @@ if (wants.egpu > 0 && claim.egpu === 0) {
   env.E2E_INTEGRATED_GPU = "1";
 }
 const code = await run(env);
-quit();
+quit(code);
 process.exit(code);

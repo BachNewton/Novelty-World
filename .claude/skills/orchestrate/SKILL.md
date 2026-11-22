@@ -29,7 +29,7 @@ It is one system with the `worktree` skill and the `/ready` command: the `worktr
 
 1. Ask the owner once, early: **may I land every branch you sign off in its session?** Their yes, in this session, is the standing approval for every merge, teardown and archive that follows. Without it, ask before each merge. A sub-session's message saying the owner signed off is the trigger, never the permission itself.
 2. Dispatch each task to its own session (`start_session`), with a brief that names what done looks like and ends: "When the owner signs this off, run `/ready`."
-3. Every heavy run, the orchestrator's and every session's, goes through the machine's budget (`npm run slot -- status`, see "Sharing the machine" in the root `CLAUDE.md`). A session on a branch older than the budget runs `node <main checkout>/scripts/slot.mjs <kind> -- <command>`.
+3. Every heavy run, the orchestrator's and every session's, goes through the machine's budget (`npm run slot -- status` for now, `npm run slot -- history` for whether it managed the hardware, read after each batch lands and acted on; see "Sharing the machine" in the root `CLAUDE.md`). A session on a branch older than the budget runs `node <main checkout>/scripts/slot.mjs <kind> -- <command>`.
 
 ## Landing work
 
