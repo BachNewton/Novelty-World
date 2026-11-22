@@ -68,7 +68,7 @@ Finland, it turned out, had a permit for exactly her case: the elderly parent of
 
 The permit was meant, it said, for a parent who moved to Finland at the same time as her child. A parent who came later would need compelling reasons, and the example the page gave was a refugee, parted from her family by a war. A grown daughter who had gone off to live her own life had not been parted from anybody. And only a Finnish citizen could ask for such a permit at all.
 
-Anna couldn't become a Finnish citizen for five years at the very least, and not then unless she passed an exam in Finnish, a language in which she could at present say nothing. By the time she could ask, her parents would long since have failed to come at the same time.
+Anna couldn't become a Finnish citizen for four years at the very least, and not then unless she passed an exam in Finnish, a language in which she could at present say nothing. By the time she could ask, her parents would long since have failed to come at the same time.
 
 She read it three times, in case it said something else. It didn't. Every part of it was reasonable, written by sensible people for sensible reasons, and it added up to never.
 
@@ -130,7 +130,7 @@ She asked them on the Sunday before the Fourth of July, on the porch, after chur
 
 Every porch on the street had its flag out for the country's birthday, Walt's included. Walt was in his chair with his cap from the plant on, and Ruth sat beside him in her church dress, with her organ shoes still on, because she had played that morning. Ben stood in the doorway with Theo. Nora was on the steps with a box of chalk, drawing a sun with a great many legs.
 
-Anna told them about Brynner, and the first of September, and the two offices. She told them about the job in Chicago. Then she told them about the page on Finland's website, all of it, the way she had read it: at the same time, and the five years, and never.
+Anna told them about Brynner, and the first of September, and the two offices. She told them about the job in Chicago. Then she told them about the page on Finland's website, all of it, the way she had read it: at the same time, and the four years, and never.
 
 "So I'm asking," she said. "If you'll come with us, we'll go to San Francisco. All of us. We'd find a place on the ground floor. There are nurses in San Francisco, Mom. There are churches with organs."
 
