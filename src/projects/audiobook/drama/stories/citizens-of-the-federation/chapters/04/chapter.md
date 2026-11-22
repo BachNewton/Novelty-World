@@ -82,7 +82,7 @@ Anna had not let herself think about a desk since August. She thought about one 
 
 "Some mothers wait," said the counsellor. "Then they find a class in the evenings. With small children, evenings are slow. Years." She said the rest just as plainly. "Your permit goes with your husband's job. And to be a Finn one day, you need four years here and a certificate in the language. Without the certificate, the years don't count for anything."
 
-On the tram home Anna looked out at the dark. She remembered the other page, the one she had read at one in the morning in her parents' kitchen, which said that only a Finnish citizen could ask for a parent to come, and only for reasons Finland thought were serious enough. She put it away again. It was a page about terrible things, and nothing terrible had happened.
+On the tram home Anna looked out at the dark. She remembered the other page, the one she had read at one in the morning in her parents' kitchen, which said that only a Finnish citizen could ask for a parent to come, and only for a parent who couldn't manage without her. It was in the folder marked *Mom and Dad*, with *four years* on the front. The four years had always had this course inside them. She just hadn't known how big it was.
 
 ---
 
@@ -142,7 +142,7 @@ She thought of a room across the city, full of people saying sentences after a t
 
 And she made herself think about the page.
 
-If she took the course in March, she could have the certificate in time to be a Finn the August after Theo turned four. If she let it go, there would be the blue textbook she had bought, with its cheerful drawings of Finns buying bread, and an evening class when the children were older, and the counsellor's word for how long that took. Years. Every year she spent at this window was a year added to the time before she could ask Finland for her mother. It would only matter if something terrible happened. She knew how her father said *fine*. She had found her mother at the piano at five in the morning in the summer of 2020. Terrible things happened.
+If she took the course in March, she could have the certificate in time to be a Finn the August after Theo turned four. If she let it go, there would be the blue textbook she had bought, with its cheerful drawings of Finns buying bread, and an evening class when the children were older, and the counsellor's word for how long that took. Years. Every year she spent at this window was a year added to the four on the front of the folder, a year longer before she could ask Finland for her mother. It would only matter if something terrible happened. She knew how her father said *fine*. She had found her mother at the piano at five in the morning in the summer of 2020. Terrible things happened.
 
 She stood at the glass and held both of those things, and looked at her son.
 

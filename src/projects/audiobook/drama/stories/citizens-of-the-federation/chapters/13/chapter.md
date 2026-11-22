@@ -30,9 +30,11 @@ On Sundays, after meeting, the telephone on Naomi's kitchen wall rang, and it wa
 
 In September Anna read her a letter from Finland.
 
-The permit Finland had given Ruth in the war still stood, and her card was still in a drawer at the Finnish embassy in Washington, waiting for her face and her fingerprints. It had been granted for the war: a mother held behind a fence, in a country fighting itself. The fence had been sold for scrap and the country had signed. Finland would honour its decision until the end of December. After that it would lapse, and anything Anna asked for her mother would be judged as peace judged it.
+Finland's door for the parents of its citizens had been made for the war, and the war was over. It would close at the end of December. Anybody who had landed by then could stay. Anybody who hadn't would apply as people did in peacetime, and there was only one way for a mother to do that. She would have to be fully dependent on her child, physically and mentally. Ruth pressed out her own tablets now, and had a pupil.
 
-"So it's now," said Anna, "or I think it's never."
+"So I'd have to be sick," said Ruth.
+
+"You'd have to be helpless," said Anna. "It's now, Mom, while you can say. Or it's some year when you can't."
 
 Ruth asked her to read the letter again, all of it, and found a comma in the English that Finland hadn't needed. Then she said she would think about it.
 
@@ -234,6 +236,42 @@ It went to the end, in a house with no piano, with nobody playing it.
 
 ---
 
+Afterward Anna went out with Lydia to shut up the hens, and Carol went into the back room for her coat. Ruth followed her in and shut the door.
+
+"You're not to tell her what I say."
+
+Carol stood with one arm in her sleeve.
+
+"It isn't Nora," said Ruth. "I'd like it to be Nora. I'd like that very much, and I'll have it, and it isn't why." She sat down on the bed, very upright, among the coats. "I'd stay here. I have a pupil. I can walk out to that barn and back and nobody writes it down. I know where my husband is. I would stay here until they carried me out, and I'd be perfectly happy."
+
+"Then stay."
+
+"And she'd ring that wall every Sunday until one of us died." Ruth nodded toward the kitchen and the telephone on it. "She'd book her week every October. She'd have a folder. She has had a folder for ten years, I've seen the corner of it in her bag. She was eleven years old when I was first hers to look after, and she stood on the stairs, and she has never sat down. She thinks she left me. She'll think it when she's eighty." The left hand had begun to move on her knee. "I told her once she'd be surprised what a child gets through. I wanted her to say that it had been all right. She couldn't. She's never been any good at lying to me. So it will have to be all right, that's all. I'll have to go and stand in her kitchen and be all right where she can see it."
+
+Carol took her arm out of the sleeve.
+
+"You could tell her that."
+
+"She wouldn't let me come."
+
+It was true. Carol had talked to Anna every Sunday for two years, and she knew that it was true.
+
+"And it's now," said Ruth. "After New Year there's one way into that country for a mother, and it's helpless. She would do it. She would get me there flat on my back with a label on me, and wash me and feed me, and call it a privilege." She looked up. "I will walk into my daughter's house on my own feet. I have been her patient. I'd like to be her mother."
+
+Carol had packed one bag once, in a house with paint on the garage door, because if she stayed her son would come and stand in the drive with his rifle. At the bridge she had said two weeks, as if it were nothing. It was the hardest thing she ever did.
+
+"I left so mine could stop looking after me," she said. "It didn't save him, Ruth."
+
+"No," said Ruth. "Did he stop?"
+
+It was a long moment before Carol could answer. He had stood in her drive with grey paint on his hands and told her that he would lie in the drill hall thinking about her door instead of about the boys next to him. She thought of his voice on the telephone afterward, that last year and a half. It had talked about wheat, and who was on the gate, and a kid in his squad who wouldn't eat. It had talked about the boys next to him. In all that time it had not said one word about a door.
+
+"Yes," said Carol. "He stopped."
+
+"Well, then," said Ruth, and held Carol's coat up by its shoulders for her to get into.
+
+---
+
 On the porch, before she drove back to Dayton, Carol told her sister about the form.
 
 "If I don't object, they go home," she said. "All of them. The one who signed it, too."
@@ -294,7 +332,11 @@ The second time was at Woodland. Her father's grave was on the side of the hill,
 
 "I'm eating, Walter," she said. "You'd ask."
 
-Then they drove east, toward Washington and the embassy, and the dark came down somewhere past Columbus. Anna turned on the radio for the news, and then remembered, and reached to turn it off.
+She waited until her daughter had started back down the hill for the car. Then she said the other thing to him, lower.
+
+"I'm getting Annie out."
+
+Then they drove east, toward Washington and the airport, and the dark came down somewhere past Columbus. Anna turned on the radio for the news, and then remembered, and reached to turn it off.
 
 "Leave it," said Ruth. She had not heard a radio in two years, and once, long ago, one had spoken only to her. She sat with her hands in her lap and listened.
 
@@ -312,7 +354,7 @@ Ruth said it, and said it again, getting the first sound wrong and then right, a
 
 ---
 
-At ten on Wednesday morning, at the Finnish embassy in Washington, a woman behind a counter checked Ruth Dorsey's face against her passport and took her fingerprints, all ten, and handed her a card. Ruth read it twice, in a language she couldn't read, and found nothing to correct. That night she flew to Helsinki with her daughter, to a room with plastic stars on its ceiling.
+On Wednesday night they flew out of Washington. The passport Dolores had got her was where it had been since the night of the bus, in the pocket of Ruth's good coat. At Helsinki airport on Thursday a border guard looked from it to Ruth's face, took her fingerprints, all ten, and handed her a paper that said she could stay. Ruth read it twice, in a language she couldn't read, and found nothing to correct. Then her daughter took her home, to a room with plastic stars on its ceiling.
 
 On Thursday Montgomery County's list was signed off, and the jails at Troy and Columbus let nine hundred and some people go home. Among them was a man of six foot three from Springfield, who had been taken on a school bus two summers before because he looked to somebody as if he came from somewhere else. His name was in the narrow book in Carol's bag, in her son's hand, and she never knew he was among them. In Columbus a colonel walked out of a jail with his coat over his arm.
 

@@ -196,7 +196,7 @@ She looked at Joy, by the window, and Joy nodded.
 
 Anna had known Carol for nearly fifteen years, and had never heard her stop in the middle of saying something. She stopped now. Then she told them.
 
-Down in the sub-basement were fourteen boxes. In 2012 a couple had made more embryos at a fertility clinic than they needed, and given the spares away, for research only, and ticked a box saying they understood none would ever be used to make a child. The founder had made fourteen. He had changed them before they were born, and raised them in this building, and signed for them every year, once as their guardian and once as the man experimenting on them, in the same pen. Every network upstairs had been learned on those fourteen. Alma's too.
+Down in the sub-basement were fourteen boxes. In 2012 a couple had made more embryos at a fertility clinic than they needed, and given the spares away, for research only, and ticked a box saying they understood none would ever be used to make a child. One of the Institute's scientists, whose name was printed on none of the forms, had made fourteen. He had changed them before they were born, and raised them in this building, and signed for them every year, once as their guardian and once as the man experimenting on them, in the same pen. Every network upstairs had been learned on those fourteen. Alma's too.
 
 "One of them's downstairs," said Carol. "With your daughter."
 
@@ -246,7 +246,7 @@ When she had gone back to the minuet, Ben said, low, "Carol told us. About the b
 
 Ben didn't say no.
 
-"I can't," said Khan. "I'm what it was done to. Every child who walks out of this building walks out on us, and I'm glad of every one of them, and if the old man were alive I'd stand up in a court and say what he was." He was quiet a moment. "She was asked. That's more than he ever did for us."
+"I can't," said Khan. "I'm what it was done to. Every child who walks out of this building walks out on us, and I'm glad of every one of them, and if anybody could find the old man I'd stand up in a court and say what he was." He was quiet a moment. "She was asked. That's more than he ever did for us."
 
 "She's eight."
 

@@ -98,7 +98,7 @@ He looked at her.
 
 "Then burn it."
 
-Joel shook his head. "Gary knows I had it, so it's a lie anyway, and then nothing's left anywhere that says who was in here. There are people in this book who died in here, Miss Lucille. Nothing else says they were." He put his hand on it. "Mrs. Dorsey's got a permit from Finland. Burn this, and there's nothing to say she's the woman it's for."
+Joel shook his head. "Gary knows I had it, so it's a lie anyway, and then nothing's left anywhere that says who was in here. There are people in this book who died in here, Miss Lucille. Nothing else says they were." He put his hand on it. "Mrs. Dorsey's got a letter from Finland that'll take her in because she's in here. Burn this, and there's nothing to say she ever was."
 
 Lucille waited.
 
@@ -238,7 +238,7 @@ In Helsinki, Anna rang Toronto every Sunday at six in the evening, eleven in the
 
 The last message from Dolores had come in June: *Going to find her more. Back Thursday.* After that there was nothing, and Anna had stopped telling herself that the lines were down. She knew from it that Ruth had gone without her shot since May. She had written to every office in Columbus that would take a letter, asking where the District's residents had gone. The two that answered said the same two words: *none available*.
 
-She kept their letters in the hall drawer, under her passport and the permit nobody had collected. Nora had stopped asking when Grandma was coming. She asked instead, on Sundays, whether Carol had found anything, and Anna said, "Not yet," because it was the truest thing she had.
+She kept their letters in the hall drawer, under her passport and the letter from Finland that nobody had used. Nora had stopped asking when Grandma was coming. She asked instead, on Sundays, whether Carol had found anything, and Anna said, "Not yet," because it was the truest thing she had.
 
 ---
 

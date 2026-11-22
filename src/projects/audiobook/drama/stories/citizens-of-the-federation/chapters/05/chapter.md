@@ -22,7 +22,7 @@ Nora thought about it. "Was he a big boy?"
 
 Anna stood a while longer on the pavement, looking across at the flag. At the daycare gate the other parents had been quieter than usual. A mother whose son was in Nora's group had been crying, and had done up his boots with great care, as if they were the only thing in the world that needed doing. Anna hadn't had the Finnish to ask her anything. She had stood beside her for a moment, which was all she had to give.
 
-That night, when the cases were packed, she opened the spreadsheet she had made two summers before at her parents' kitchen table, choosing between San Francisco and Helsinki. In Helsinki's column she had written that Finland had had two shootings at schools, years ago, and had made its gun laws stricter after them. It was all still true. The revolver had belonged to the boy's grandfather, who had a licence for it.
+That night, when the cases were packed, she opened the spreadsheet she had made two summers before at her parents' kitchen table, choosing between Dayton and Helsinki. In Helsinki's column she had written that Finland had had two shootings at schools, years ago, and had made its gun laws stricter after them. It was all still true. The revolver had belonged to the boy's grandfather, who had a licence for it.
 
 She had known, even while she typed that line, that there was no country where it couldn't happen. She had put it in to make the column longer. She read it again, and closed the laptop without changing a word.
 

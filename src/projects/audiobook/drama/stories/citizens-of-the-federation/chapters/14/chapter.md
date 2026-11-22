@@ -30,9 +30,9 @@ Carol had come to Toronto for two weeks, and stayed four years.
 
 She had a card in her wallet that said she could live in Canada for good, and beside it, because she had never thrown a record away in her life, the Ohio license that said M. She sang tenor on Wednesdays in the church up Bloor Street. On Tuesdays a young organist from Kingston, Jamaica, sat beside her at a real piano and winced on her behalf. And since January she had worked at the Noonien-Singh Institute, because Joy was a nurse there and had told them they needed somebody who read forms to the bottom.
 
-The Institute was a tower of green glass on University Avenue, a block below the hospitals, where everybody on the sidewalk wore a lanyard and walked fast. It had a fountain, and a lounge on the ground floor with a piano nobody played, and families came to it from forty countries, because it treated children nobody else could. It was named for its founder, who had died a few years before. On its website there was a page about the fourteen orphans he had taken in as babies and raised in its care, and a photograph of them on the steps, nearly grown. Nobody had ever asked where the orphans came from. People don't, of an orphanage.
+The Institute was a tower of green glass on University Avenue, a block below the hospitals, where everybody on the sidewalk wore a lanyard and walked fast. It had a fountain, and a lounge on the ground floor with a piano nobody played, and families came to it from forty countries, because it treated children nobody else could. It had been called that for longer than anybody who worked there could say. On its website there was a page about fourteen orphans, taken in as babies by one of its scientists and raised in its care, and a photograph of them on the steps, nearly grown. The scientist wasn't named. He had gone some years before, and nobody said where. The staff who remembered him called him the old man. Nobody had ever asked where the orphans came from. People don't, of an orphanage.
 
-Joy had explained the science to Carol once, over supper, with a fork. A child came in with one wrong word in her genes, a word that would kill her. Machines on the eleventh floor, the kind Toronto had been teaching to think for twenty years, wrote her a new passage to go round it. And the child who had come in going blind went home seeing.
+Joy had explained the science to Carol once, over supper, with a fork. A child came in with one wrong word in her genes, a word that would kill her. Machines on the eleventh floor, the kind Toronto had been teaching to think for twenty years, wrote her a new passage to go round it. Joy called the passage a network, because it was never only one word. It had to reach into everything the bad word touched. And the child who had come in going blind went home seeing.
 
 That came down, on Carol's floor, to paper. Every child had a consent form. On the line for the patient there was nothing, because the patients were four, and six, and eleven. Under it was a line for whoever spoke for them. Carol kept those.
 
@@ -104,7 +104,7 @@ In September a small country on the far side of the world became the first to le
 
 Ottawa ordered every laboratory in Canada that worked on human genes to open its records. Dr. Bastien called Carol in with the letter.
 
-"The Tuesday after Thanksgiving," she said. "They'll want the consent files, every one, and somebody to sign that the set is complete. That's you." She said the next part to the letter. "Dr. Noonien-Singh's papers are in the sub-basement. They're his estate. They aren't part of the set."
+"The Tuesday after Thanksgiving," she said. "They'll want the consent files, every one, and somebody to sign that the set is complete. That's you." She said the next part to the letter. "The old man's papers are in the sub-basement. They're his own. They aren't part of the set."
 
 The letter quoted the law. Canada had made it a crime in 2004, before anybody could do it, to change a person's genes in a way her children would inherit. Up to ten years in prison.
 
@@ -112,11 +112,11 @@ At seven that evening, when the floor had emptied, Carol took the stairs to the 
 
 ---
 
-There were fourteen boxes on a steel shelf, each with a name on the end in marker. Each was a different first name in front of the same surname: the founder's, carved over the front door.
+There were fourteen boxes on a steel shelf, each with a name on the end in marker. Each was a different first name in front of the same surname, *Noonien-Singh*, and Carol had walked in under that surname every morning since January. It was carved over the front door. Fourteen children had needed something to be called, and someone had given them the building's.
 
 She opened one at random.
 
-On top was a form from 2012, from a fertility clinic out by the airport. A couple who had made more embryos than they needed had given the spares away for research, and had ticked a box: *I understand that donated embryos will not be used to establish a pregnancy.* Under it was a birth certificate from the year after. Under that were consent forms, one for every year of a child's life. On the line for the parent or guardian, every year, the founder had signed. On the line under it, for the investigator, every year, he had signed again, in the same blue ink.
+On top was a form from 2012, from a fertility clinic out by the airport. A couple who had made more embryos than they needed had given the spares away for research, and had ticked a box: *I understand that donated embryos will not be used to establish a pregnancy.* Under it was a birth certificate from the year after. Under that were consent forms, one for every year of a child's life. On the line for the parent or guardian, every year, there was the same signature, a hook and a line that no clerk alive could have read. On the line under it, for the investigator, every year, there it was again, in the same blue ink. Where it said *Print name*, every year, there was nothing.
 
 For twenty-three years at the county, Carol had sent back any form one person had signed on both lines. It was the first thing a clerk learned. You couldn't be the one asking and the one who said yes.
 
@@ -132,11 +132,11 @@ Khan came down and sat two steps above her, with his elbows on his knees.
 
 "I saw."
 
-"He gave us his own name. All fourteen. So we'd always know whose we were." Khan turned another page. "He named me for a king. I've decided to keep it. It seemed a waste not to."
+"He gave us the name off the building. All fourteen. He didn't care for us to have his." Khan turned another page. "He named me for a king. I've decided to keep it. It seemed a waste not to."
 
 "Did he ever ask you?"
 
-"Whether I'd like to be born?" He smiled at her. It was a good smile, and slightly crooked, and he was clearly used to it working. "A man in China made two little girls in 2018, and the whole world was horrified, and they put him in prison for three years. We were five. I remember the old man watching it on the news and laughing." He put the forms back in their order. "Upstairs, they come in dying and go home like us. You know that? The networks can't mend the one broken thing without strengthening everything else. Quicker. Harder to hurt. Hardly ever ill. And their children will be the same."
+"Whether I'd like to be born?" He smiled at her. It was a good smile, and slightly crooked, and he was clearly used to it working. "A man in China made two little girls in 2018, and the whole world was horrified, and they put him in prison for three years. We were five. I remember the old man watching it on the news and laughing." He put the forms back in their order. "He did us by hand, you know. Years of guessing. The machines came after, and they learned it off us. Now anywhere with the machines can do in a week what took him half his life. That's what's frightened everybody. It isn't fourteen of us any more." He squared the pages. "Upstairs, they come in dying and go home like us. You know that? The networks can't mend the one broken thing without strengthening everything else. Quicker. Harder to hurt. Hardly ever ill. And their children will be the same."
 
 "Page nine," said Carol, before she knew she was going to say it. *The therapy may produce additional changes in cellular function beyond the intended correction.* She had filed that sentence a hundred times, and taken it for the kind of thing lawyers put in. Now she heard it beside the law in the letter. It wasn't only the fourteen boxes on this shelf. It was every child upstairs. It would be Alma.
 
@@ -188,7 +188,7 @@ And if she said nothing and it came out, as things do, she would be a party to i
 
 Then she thought of fourteen names on a list, in the autumn the registers began. She knew what a letter beside a name could turn into. Her son had burned a book so nobody could be sorted by it, and been shot on a levee for it. She thought of Joy in a courtroom. She thought of two children with Alma's illness whose networks were half written, and of Alma herself, counting the stairs on her way to bed.
 
-She knew, too, that it wasn't the same as what Joel had done. The people in Joel's book had done nothing. Behind Carol's fourteen children stood a dead man who had done all of it, and the same silence would keep him too.
+She knew, too, that it wasn't the same as what Joel had done. The people in Joel's book had done nothing. Behind Carol's fourteen children stood a man with no printed name who had done all of it, and the same silence would keep him too.
 
 "No," said Carol.
 

@@ -8,11 +8,13 @@ On the airline's map America had gone grey in the middle. A year ago the dots ha
 
 The second seat was for her mother.
 
-In November a letter had come from Finland's immigration service, three pages of Finnish she could read now without a dictionary. Her mother could come and live in Finland. For six years the reasons had not been serious enough. Now Ruth was behind a fence in a country at war, and they were.
+In November a letter had come from Finland's immigration service, three pages of Finnish she could read now without a dictionary. For a year her mother's application had waited on an appointment in Washington that the war had swallowed in its first month. Now Finland had done for a few Americans what it had once done for people running from the war in Ukraine. For as long as this war lasted, a citizen's parent who was caught in it, with nobody to look after her, didn't have to wait for an appointment or a permit. She could come with her passport and the letter. They would take her fingerprints at Helsinki airport, and she could stay.
 
-The card that went with the permit was waiting at the Finnish embassy in Washington. They would give it to nobody but Ruth, and only once somebody there had seen her face and taken her fingerprints. The appointment was on Monday the eleventh, at ten in the morning. It was the first the embassy could give her. That winter, everybody in America with a reason to be somewhere else was booking an embassy.
+All she had to do was get to an airplane.
 
-Dolores would bring her. On Saturday evening she would collect Ruth at the District's gate, on the release with Anna's name at the bottom, and the two of them would take the night bus east. The District let a resident out only into the hands of the person responsible for her, or an escort it had on file, and the release named Dolores; and at the checkpoints east, Dolores said, they turned back anybody travelling alone on a District card. The bus went once a week now, on Saturdays, the long way round, by whatever roads were open, and it took a day and a half. Dolores had bought both seats with her own money and wouldn't hear of being paid back.
+Dolores had held the letter up against the glass of the visitors' window in January. Ruth had read it to the bottom, she said, and then read it again, and had asked only one thing, which was whether it meant that Annie could stop. Dolores had told her she supposed it did. Anna had taken it to mean the forms.
+
+Dolores would bring her. On Saturday evening she would collect Ruth at the District's gate, on the release with Anna's name at the bottom, and the two of them would take the night bus east. The District let a resident out only into the hands of the person responsible for her, or an escort it had on file, and the release named Dolores, and a new name took the District a week to put on file; and at the checkpoints east, Dolores said, they turned back anybody travelling alone on a District card. The bus went once a week now, on Saturdays, the long way round, by whatever roads were open, and it took a day and a half. It was due into Washington at ten on Monday morning. Anna would be standing where it stopped, and the plane was that night. Dolores had bought both seats with her own money and wouldn't hear of being paid back.
 
 "I've got money," she said. "I've got nothing left to spend it on."
 
@@ -114,7 +116,13 @@ The kitchen clock went on. Through the wall Anna could hear Theo explaining some
 
 "Will you tell Mom? Before six? She'll be at the gate."
 
-"I'll go by first."
+"I'll go by first." The zip had stopped. "I could ask her."
+
+Anna had thought of it already. She had thought of it first.
+
+"She'll say go to Walter," said Anna. "She'll say it before you've finished asking. And then she's the one who gave it up, and she has to live with that behind that fence for as long as this lasts." She shut her eyes. "Don't ask her."
+
+"Then what do I tell her?"
 
 "Tell her it was me," said Anna. "Not you. Not him. Tell her I'm the one who said."
 
@@ -242,9 +250,9 @@ Ben didn't ring him. He found it helped to know he could.
 
 ---
 
-At five o'clock on Monday afternoon, ten in the morning in Washington, the appointment came round on the clock on the oven, and Anna unpacked her suitcase.
+At five o'clock on Monday afternoon, ten in the morning in Washington, the bus came due on the clock on the oven, and Anna unpacked her suitcase.
 
-She did it carefully, one thing at a time, because it seemed wrong to be doing anything else while it went by. A good coat for an embassy. Her passport, dark red, with the lion. A second toothbrush, still in its packet, which she had bought for her mother. As far as anybody at the embassy would ever know, Ruth Dorsey had not turned up.
+She did it carefully, one thing at a time, because it seemed wrong to be doing anything else while it pulled in. The warm coat she had meant to stand at a bus station in. Her passport, dark red, with the lion. A second toothbrush, still in its packet, which she had bought for her mother. As far as anybody at the airline would ever know, Ruth Dorsey had missed a plane.
 
 At half past five a message came from Dolores, written at the visitors' window, with every comma in it.
 
