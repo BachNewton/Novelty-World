@@ -7,7 +7,10 @@ quietly break, and `road_audit.py` measures the real thing.
 """
 
 import gzip
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import shapely
@@ -282,6 +285,13 @@ class Junctions(unittest.TestCase):
         self.assertEqual(chains[0].kind.rank, 0)
         self.assertEqual({chain.start_on for chain in chains[1:]} | {chain.end_on for chain in chains[1:]}, {0, None})
 
+    def test_a_street_that_carries_on_as_a_path_is_two_ways(self):
+        """Joined into one, the path was a road: ranked as its street, with a road's mouth where it met another street."""
+        ways = [road([(0, 500), (800, 500)], "residential"), {**road([(800, 500), (1600, 500)], "footway"), "motor": False}]
+        chains = roads.chains_from(roads.split_at_junctions(ways))
+        self.assertEqual([chain.motor for chain in chains], [True, False])
+        self.assertEqual(chains[1].start_on, 0)
+
     def test_a_road_cut_into_ways_runs_on_as_one_chain(self):
         ways = [road([(0, 500), (800, 520)]), road([(800, 520), (1500, 480)]), road([(1500, 480), (2600, 500)], "secondary")]
         self.assertEqual(len(roads.chains_from(roads.split_at_junctions(ways))), 1)
@@ -393,6 +403,21 @@ class RoadMap(unittest.TestCase):
     def test_a_closed_loop_keeps_its_shape_when_thinned(self):
         loop = np.array([(0.0, 0.0), (10, 0), (10, 10), (0, 10), (0.0, 0.0)])
         self.assertGreater(len(road_map._thin(loop)), 2)
+
+    def test_the_map_is_the_roads_as_the_tiles_were_built_from_them(self):
+        # One way: stopped either side of a building on the west tile, so in two parts there, and carrying on over the edge
+        # into the east tile. The map keeps the gap, so no route runs through the building, and joins the halves at the edge.
+        way = lambda line: {"id": 1, "kind": "unclassified", "motor": True, "name": "Byvägen", "line": line}
+        parts = {"west": [way([[0.0, 0.0], [40.0, 0.0]]), way([[60.0, 0.0], [100.0, 0.0]])], "east": [way([[100.0, 0.0], [200.0, 0.0]])]}
+        with tempfile.TemporaryDirectory() as folder:
+            for name, built in parts.items():
+                (Path(folder) / name).mkdir()
+                (Path(folder) / name / "roads.json").write_text(json.dumps({"roads": built}), encoding="utf-8")
+            road_map.build(Path(folder), ["west", "east"])
+            graph = json.loads(gzip.decompress((Path(folder) / road_map.MAP_FILE).read_bytes()))
+        nodes = (np.array(graph["nodes"]).reshape(-1, 2) * graph["unitM"])[:, 0].tolist()
+        joined = sorted(sorted((nodes[first], nodes[last])) for first, last in zip(graph["from"], graph["to"]))
+        self.assertEqual(joined, [[0.0, 40.0], [60.0, 100.0], [100.0, 200.0]])
 
 
 if __name__ == "__main__":

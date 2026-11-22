@@ -55,7 +55,7 @@ export interface RoadDress {
   /** Where the shoulder takes over, 0 to 1, a broken edge rather than a ruled one. */
   shoulderShare: Node<"float">;
   shoulder: Node<"vec3">;
-  /** How much of a coat of paint is left, 0 to 1. */
+  /** How much of a coat of paint is left, 0 to 1: none on gravel. */
   paintLeft: Node<"float">;
 }
 
@@ -126,7 +126,8 @@ export function dressRoad({ tiled, toCamera, across, signedAcross, along, paved,
   const pavingEnds = smoothstep(float(1.65), float(1.95), across.add(coarse.a.sub(0.5).mul(0.3)));
   const shoulder = mix(looseShoulder, mix(urbanSide, ground, pavingEnds), kerbed);
 
-  const paintLeft = min(float(1), smoothstep(float(0.28), float(0.5), fine.g.mul(0.5).add(coarse.a.mul(0.5))).mul(0.45).add(0.6));
+  // A gravel road carries no paint: nothing holds on loose stone, and Åland's gravel roads have no lines.
+  const paintLeft = min(float(1), smoothstep(float(0.28), float(0.5), fine.g.mul(0.5).add(coarse.a.mul(0.5))).mul(0.45).add(0.6)).mul(paved);
 
   return { carriageway, gravel, shoulderShare, shoulder, paintLeft };
 }

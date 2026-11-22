@@ -22,6 +22,11 @@ KEPT_TAGS = ("name", "ref", "surface", "footway", "cycleway", "service", "lanes"
 KEPT_PREFIXES = ("sidewalk",)
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
 SEAM_CHORD_M = 30.0
+# The paths a crossing is mapped as.
+CAN_CROSS = {"footway", "path", "cycleway"}
+# The longest path across a street that is taken for a crossing without saying so. Of the ways tagged as crossings on
+# Mariehamn's two tiles, nine in ten are shorter; a longer path that crosses a street is a path in its own right.
+CROSSING_MOST_M = 20.0
 
 
 def line_to_grid(geometry: list[dict]) -> np.ndarray:
@@ -117,6 +122,32 @@ def _local_bounds(tile: Tile) -> Bounds:
     return Bounds(west, south, east, north)
 
 
+def with_crossings(roads: list[dict]) -> list[dict]:
+    """The roads, with each path mapped across a street a crossing, as if OSM said so.
+
+    A crossing is drawn as a short way from one sidewalk's line to the other's, through a point of the street's own
+    line, and only some are tagged `crossing`: about one in six on Mariehamn's tiles is not. An untagged one was a
+    path like any other. Tagged asphalt, for the street it crosses, it painted a square of tarmac across each
+    sidewalk's slabs, from the kerb to the sidewalk's line. A way that says what it is (a sidewalk, a link) is left."""
+    on_streets = {_place(point) for road in roads if road["motor"] for point in road["line"]}
+    marked = []
+    for road in roads:
+        line = road["line"]
+        crosses = (
+            road["kind"] in CAN_CROSS
+            and not {"footway", "cycleway", "bridge", "tunnel", "covered"} & road.keys()
+            and any(_place(point) in on_streets for point in line[1:-1])
+            and float(np.hypot(*np.diff(np.asarray(line, dtype=float)[:, :2], axis=0).T).sum()) <= CROSSING_MOST_M
+        )
+        marked.append({**road, "cycleway" if road["kind"] == "cycleway" else "footway": "crossing"} if crosses else road)
+    return marked
+
+
+def _place(point: list[float]) -> tuple[float, float]:
+    """A point to the millimetre: two ways through one OSM node are at one place."""
+    return round(point[0], 3), round(point[1], 3)
+
+
 def build(osm_file: Path, tile: Tile, arrange: Callable[[list[dict]], list[dict]] = lambda roads: roads) -> tuple[list[dict], list[dict], str]:
     """Roads clipped to the tile, and buildings whole, in the one tile holding their middle. `arrange` has OSM's whole ways
     first, in the game's metres, for whatever must be decided along a way as a whole before it's cut at the tile's edges:
@@ -143,7 +174,7 @@ def build(osm_file: Path, tile: Tile, arrange: Callable[[list[dict]], list[dict]
                     buildings.append({"id": element["id"], "kind": tags["building"], "ring": _rounded(np.column_stack(to_local(*grid_ring.T)))})
     bounds = _local_bounds(tile)
     roads: list[dict] = []
-    for road in arrange(whole_roads):
+    for road in arrange(with_crossings(whole_roads)):
         whole = np.array(road["line"], dtype=float)
         for clipped in clip_line(whole, bounds):
             part = stop_short_of_edge(whole, clipped)

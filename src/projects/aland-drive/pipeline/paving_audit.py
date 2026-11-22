@@ -32,7 +32,7 @@ from scipy.spatial import cKDTree
 from build import OUTPUT
 from grid import WORLD_ORIGIN
 from path_surfaces import STEPS
-from paving import CLASS, HEIGHT, WAY
+from paving import CLASS, CLASS_BITS, HEIGHT, WAY
 from paving_file import read_ground_cut
 from roads import GAP_MOST_STEP_M
 from sources import RAW
@@ -192,7 +192,7 @@ def sidewalk_tags(name: str, chains, bounds, points) -> list[Place]:
     osm = json.loads((RAW / "osm" / f"{name}.json").read_text(encoding="utf-8"))
     paths = [chain for chain in chains if not chain.motor and chain.line is not None]
     way = points[:, WAY].astype(int)
-    worn = points[(way >= 0) & (points[:, CLASS] != 0) & np.array([chains[index].motor if index >= 0 else False for index in way]), :2]
+    worn = points[(way >= 0) & (points[:, CLASS].astype(int) & CLASS_BITS != 0) & np.array([chains[index].motor if index >= 0 else False for index in way]), :2]
     xy = np.concatenate([chain.rings[:, 2, :2] for chain in paths] + [worn])
     tree = cKDTree(xy)
     tile = shapely.box(bounds["west"], bounds["south"], bounds["east"], bounds["north"])

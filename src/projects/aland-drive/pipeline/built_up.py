@@ -34,6 +34,10 @@ from sources import osm_xml, topographic_path_or_none
 
 REACH_M = 250.0
 BUILT_FLOOR_M2 = 6000.0
+# The built floor over which a street's kerb and paving come in, whole where a place is in town.
+KERBED_FLOOR_M2 = (4500.0, BUILT_FLOOR_M2)
+# The lattice a tile's share is read on: a tile is a whole number of its steps, so two tiles share the nodes on their edge.
+LATTICE_M = 50.0
 
 
 class Town:
@@ -49,6 +53,46 @@ class Town:
 
     def __call__(self, point: np.ndarray) -> bool:
         return self.built_floor(point) >= BUILT_FLOOR_M2
+
+
+class Share:
+    """How built up each place of a tile is, 0 to 1: what widens a street's strip into its kerb and paving.
+
+    Read between the nodes of a lattice laid from the tile's own corner, whose floors are summed in one order, so the two
+    tiles at an edge work out the very same numbers along it and lay a street crossing it alike. A place off the tile reads
+    its nearest edge's.
+    """
+
+    def __init__(self, town: Town, west: float, north: float, size_m: float):
+        self.west, self.north = west, north
+        self.nodes = int(round(size_m / LATTICE_M)) + 1
+        places = np.arange(self.nodes) * LATTICE_M
+        east, south = np.meshgrid(west + places, north - places)
+        points = shapely.points(np.column_stack((east.ravel(), south.ravel())))
+        at, which = town.tree.query(points, predicate="dwithin", distance=REACH_M)
+        floor = np.zeros(len(points))
+        order = np.lexsort((town.areas[which], at))
+        at, areas = at[order], town.areas[which][order]
+        starts = np.flatnonzero(np.diff(at, prepend=-1))
+        for start, end in zip(starts, np.append(starts[1:], len(at))):
+            floor[at[start]] = float(np.sum(areas[start:end]))
+        self.share = np.clip((floor.reshape(self.nodes, self.nodes) - KERBED_FLOOR_M2[0]) / (KERBED_FLOOR_M2[1] - KERBED_FLOOR_M2[0]), 0, 1)
+
+    def __call__(self, xy: np.ndarray) -> np.ndarray:
+        last = self.nodes - 1
+        # To a millionth of a step: a place on the tile's edge is on the edge's own nodes, whichever tile asks.
+        column_at = np.clip(np.round((xy[:, 0] - self.west) / LATTICE_M, 6), 0, last)
+        row_at = np.clip(np.round((self.north - xy[:, 1]) / LATTICE_M, 6), 0, last)
+        column, row = np.minimum(column_at.astype(int), last - 1), np.minimum(row_at.astype(int), last - 1)
+        across, down = column_at - column, row_at - row
+        upper = self.share[row, column] * (1 - across) + self.share[row, column + 1] * across
+        lower = self.share[row + 1, column] * (1 - across) + self.share[row + 1, column + 1] * across
+        return upper * (1 - down) + lower * down
+
+
+def share_of(name: str, west: float, north: float, size_m: float) -> Share:
+    """How built up each place of a tile is, from the footprints round it."""
+    return Share(built_up_of(name), west, north, size_m)
 
 
 def counted(footprints) -> list:

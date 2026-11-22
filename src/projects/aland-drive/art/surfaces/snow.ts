@@ -58,9 +58,8 @@ const FLOOR_PATCHY = 0.6;
 const FLOOR_BARE_MEAN = 0.55;
 /** Canopy this tall, metres, is forest over the floor. */
 const TREES_M = [2, 8] as const;
-/** Open snow, and the ploughed bank's, brighter and freshly heaped. */
+/** Open snow, and the ploughed bank's (`BANKED_SNOW`), brighter and freshly heaped. */
 const OPEN_BRIGHTNESS = 0.86;
-const BANK_BRIGHTNESS = 1;
 /** The bank's foot, a faint shadow where it stands out of the field. */
 const BANK_FOOT = 0.8;
 /** The road mask's coverage over the ploughed bank, from where it starts to its crest at the carriageway. */
@@ -103,6 +102,26 @@ const patchesAt = Fn(([at, salt]: [Node<"vec2">, Node<"uint">]) => {
 
 const patches = (at: Node<"vec2">, salt: number): Node<"float"> => patchesAt(at, salted(salt));
 
+/** Smooth noise from 0 to 1 across the ground, a patch to each whole step of `at`, for what lies on the land in patches as snow does. */
+export const snowPatches = patches;
+
+const closeUp = (toCamera: Node<"float">, gone: readonly [number, number]) => float(1).sub(smoothstep(float(gone[0]), float(gone[1]), toCamera));
+
+/** The finest patches, which rag every edge, settling on their middle as they get too small to draw. */
+const raggedAt = (place: Node<"vec2">, toCamera: Node<"float">) => mix(float(0.5), patches(place.div(PATCH_M[2]), SALT + 3), closeUp(toCamera, RAGGED_GONE_M));
+
+/** The snow's own soft drifts close up, as a share of its brightness either side of 1. */
+const driftsOf = (place: Node<"vec2">, ragged: Node<"float">, toCamera: Node<"float">) => patches(place.div(DRIFT_M), SALT + 4).add(ragged).sub(1).mul(DRIFT).mul(closeUp(toCamera, DRIFT_GONE_M)).add(1);
+
+/**
+ * The drifts of the snow at a place, as a share of its brightness: the land's own, for snow that lies on something laid
+ * over the land, a road, so its drifts run on from the field across the road's edge.
+ */
+export const snowDrifts = (place: Node<"vec2">, toCamera: Node<"float">): Node<"float"> => driftsOf(place, raggedAt(place, toCamera), toCamera);
+
+/** The share of its brightness the snow has on a ploughed bank, the brightest it lies. */
+export const BANKED_SNOW = 1;
+
 /** How much of the snow a place's thin depth lets show. */
 const shownAt = (fall: Snowfall) => mix(float(THIN_SHOWN), float(1), smoothstep(float(0), float(DEEP_CM), fall.depthCm));
 
@@ -141,15 +160,14 @@ export function snowOnGround(ground: Node<"vec3">, fall: Snowfall, { place, up, 
     .add(bank.mul(ON_BANK));
   // What the patches average to, a share of the threshold's spread below the cover.
   const settled = fall.cover.mul(1 + SOFTNESS).sub(lean.clamp(0.02, 1)).add(SPREAD / 2).div(SPREAD).clamp(0, 1);
-  const closeUp = (gone: readonly [number, number]) => float(1).sub(smoothstep(float(gone[0]), float(gone[1]), toCamera));
-  const ragged = far ? float(0.5) : mix(float(0.5), patches(place.div(PATCH_M[2]), SALT + 3), closeUp(RAGGED_GONE_M));
+  const ragged = far ? float(0.5) : raggedAt(place, toCamera);
   const patch = patches(place.div(PATCH_M[0]), SALT)
     .mul(PATCH_SHARES[0])
     .add(patches(place.div(PATCH_M[1]), SALT + 1).mul(PATCH_SHARES[1]))
     .add(ragged.mul(PATCH_SHARES[2]));
-  const lying = far ? settled : mix(settled, changeOf(fall.cover, lean.add(patch.sub(0.5).mul(SPREAD)).clamp(0.02, 1), SOFTNESS), closeUp(PATCHES_SETTLE_M));
+  const lying = far ? settled : mix(settled, changeOf(fall.cover, lean.add(patch.sub(0.5).mul(SPREAD)).clamp(0.02, 1), SOFTNESS), closeUp(toCamera, PATCHES_SETTLE_M));
 
-  const floorBare = far ? float(FLOOR_BARE_MEAN) : mix(float(FLOOR_BARE_MEAN), smoothstep(float(0.3), float(0.62), patches(place.div(PATCH_M[1] / 3), SALT + 2)), closeUp(RAGGED_GONE_M));
+  const floorBare = far ? float(FLOOR_BARE_MEAN) : mix(float(FLOOR_BARE_MEAN), smoothstep(float(0.3), float(0.62), patches(place.div(PATCH_M[1] / 3), SALT + 2)), closeUp(toCamera, RAGGED_GONE_M));
   const floorPatches = mix(float(1), floorBare, underTrees.mul(FLOOR_PATCHY));
   const share = lying.mul(shownAt(fall)).mul(floorPatches).mul(mix(float(1), float(PAVED_SHARE), paved));
 
@@ -159,11 +177,11 @@ export function snowOnGround(ground: Node<"vec3">, fall: Snowfall, { place, up, 
   const hue = mix(vec3(1), ground.div(brightness).clamp(0, 2), mix(float(HUE_THROUGH[0]), float(HUE_THROUGH[1]), deep));
   // Read off the ground as drawn, so close up its own relief shows through as the snow's, and far off the photo's.
   const structure = brightness.div(MEAN_PHOTO).sqrt().clamp(0.55, 1.2);
-  const open = fall.snow.mul(mix(float(OPEN_BRIGHTNESS), float(BANK_BRIGHTNESS), bank));
+  const open = fall.snow.mul(mix(float(OPEN_BRIGHTNESS), float(BANKED_SNOW), bank));
   const foot = smoothstep(float(BANK_FOOT_AT[0]), float(BANK_FOOT_AT[1]), roads).mul(float(1).sub(smoothstep(float(BANK_FOOT_AT[1]), float(BANK_FOOT_AT[2]), roads)));
   const greyed = mix(open, fall.shade, max(underTrees.mul(FLOOR_GREY), paved.mul(PAVED_GREY)));
-  const drifts = far ? float(0) : patches(place.div(DRIFT_M), SALT + 4).add(ragged).sub(1).mul(DRIFT).mul(closeUp(DRIFT_GONE_M));
-  const snow = greyed.mul(hue).mul(drifts.add(1)).mul(mix(float(1), structure, through)).mul(mix(float(1), float(BANK_FOOT), foot));
+  const drifts = far ? float(1) : driftsOf(place, ragged, toCamera);
+  const snow = greyed.mul(hue).mul(drifts).mul(mix(float(1), structure, through)).mul(mix(float(1), float(BANK_FOOT), foot));
   return mix(ground, snow, share);
 }
 

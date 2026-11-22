@@ -171,7 +171,7 @@ export interface RoadAprons {
   /** Per point of paving: metres of paint along its way, and the way, an index into `chains` or `AREA_WAY`. Empty for aprons. */
   along: Float32Array;
   ways: Int32Array;
-  /** Per point of paving: what its way's own tags pave it with, a class of `art/town-ground`'s `CLASS`. Empty for aprons. */
+  /** Per point of paving: what its way's own tags pave it with, a class of `art/town-ground`'s `CLASS` in its three low bits, and past them what a road's own way says of its surface (`SEALED_WAY`, `LOOSE_WAY` in `art/surfaces/road-attributes.ts`). Empty for aprons. */
   classes: Uint8Array;
   /** Per point of paving, two floats: the cosine and sine of twice the angle its way runs at, in (east, north). Empty for aprons. */
   runs: Float32Array;

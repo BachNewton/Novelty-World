@@ -1,14 +1,16 @@
 // The scripted driver down every motor road of the built tiles, in the simulation alone, on one core, reporting which
 // roads shake the car. No browser and no network: it reads the tiles from disk.
 //
-//   npx tsx src/projects/aland-drive/tools/road-check.ts [--folder=<tiles>] [--tile=<name>] [--cruise=<m/s>]
+//   npx tsx src/projects/aland-drive/tools/road-check.ts [--folder=<tiles>] [--tile=<name>] [--cruise=<m/s>] [--out=<jsonl>]
 //
 // By default each road is driven at a speed its class can carry, because a car thrown wide off a 2.5 m track at 150 km/h
-// measures the driver, not the road. --cruise holds one speed on all of them.
+// measures the driver, not the road. --cruise holds one speed on all of them. --out writes every road's result, a line
+// each, so two builds can be compared road by road.
 //
 // A wheel drop in the first LANDING_M only says the car was put down at the start of a road: the check counts those
 // apart from drops on the way.
 
+import { writeFileSync } from "node:fs";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Autopilot } from "../sim/autopilot";
 import { Drive, emptyLog, initPhysics } from "../sim/drive";
@@ -19,6 +21,7 @@ const option = (name: string, otherwise: string) => process.argv.find((arg) => a
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const ONLY_TILE = option("tile", "");
 const ONE_CRUISE_MS = Number(option("cruise", "0"));
+const OUT = option("out", "");
 const CRUISE_BY_KIND: Record<string, number> = { primary: 60, primary_link: 30, secondary: 50, secondary_link: 30, tertiary: 40, tertiary_link: 25, unclassified: 25, residential: 22, living_street: 12, service: 14, track: 12 };
 const QUIET_ROAD_MS = 12;
 const SHORTEST_LINE_M = 120;
@@ -127,4 +130,8 @@ const worstFirst = [...results].sort((a, b) => b.worstJoltG - a.worstJoltG).slic
 for (const result of worstFirst) console.log("rough:", JSON.stringify({ ...result, km: round(result.km), worstJoltG: round(result.worstJoltG), joltAtM: round(result.joltAtM, 0), joltAt: result.joltAt.map((value) => round(value, 0)), topKmh: round(result.topKmh, 0), offRoadM: round(result.offRoadM, 1) }));
 for (const result of dropped.sort((a, b) => b.dropsOnTheWay - a.dropsOnTheWay).slice(0, 12)) console.log("drops:", JSON.stringify({ name: result.name, kind: result.kind, km: round(result.km), drops: result.dropsOnTheWay, joltAt: result.joltAt.map((value) => round(value, 0)) }));
 for (const result of lost.slice(0, 12)) console.log("lost:", JSON.stringify({ name: result.name, kind: result.kind, km: round(result.km), respawns: result.respawns, finished: result.finished, offRoadM: round(result.offRoadM, 1), endedAt: result.endedAt }));
+if (OUT !== "") {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a file named on the command line
+  writeFileSync(OUT, results.map((result) => JSON.stringify(result)).join("\n") + "\n");
+}
 drive.dispose();
