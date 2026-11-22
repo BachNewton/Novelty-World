@@ -91,6 +91,8 @@ def gpu(tmp_path, monkeypatch):
 
     def kaggle(*args, check=True):
         calls.append(args)
+        if args[:2] == ("kernels", "push"):
+            return subprocess.CompletedProcess(args, 0, PUSH_ANSWER[0], "")
         out = {"quota": QUOTA_FULL, "files": json.dumps(files), "status": "ready"}.get(args[1] if args[0] == "datasets" else args[0], "")
         return subprocess.CompletedProcess(args, 0, out, "")
     for module in (launch, gpu_launch):
@@ -101,9 +103,12 @@ def gpu(tmp_path, monkeypatch):
     monkeypatch.setattr(launch, "GPU", str(root))
     monkeypatch.setattr(launch, "RUNS", str(root / "runs" / "tpu"))
     monkeypatch.setattr(launch, "STAGING", str(root / "runs" / "kaggle"))
+    PUSH_ANSWER[0] = "Kernel version 1 successfully pushed.  Please check progress at https://www.kaggle.com/code/x"
     return root, calls, files
 
 
+# What Kaggle's CLI prints for a push, which it answers with exit code 0 either way.
+PUSH_ANSWER = [""]
 IMITATE = ["train", "i1", "--task", "imitate", "--source", "runs/imitate/fx"]
 DISTIL = ["train", "d1", "--task", "distil", "--source", "runs/readings/e1/rec"]
 
@@ -164,6 +169,14 @@ def test_a_pushed_session_carries_its_job_the_bundle_and_the_tpu(gpu):
     assert pushed["kind"] == "train" and pushed["guard_sha256"]["best.pt"] is None
     with pytest.raises(AssertionError, match="not fetched yet"):
         launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt"])
+
+
+def test_a_push_kaggle_refused_is_not_recorded_as_pushed(gpu):
+    root, _, _ = gpu
+    PUSH_ANSWER[0] = "Kernel push error: Maximum batch TPU session count of 1 reached."
+    with pytest.raises(AssertionError, match="Maximum batch TPU session count"):
+        launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt"])
+    assert not (root / "runs" / "tpu" / "d1" / "kaggle-push.json").exists()
 
 
 def test_a_session_restores_its_run_folder_to_write_and_the_rest_where_mounted(tmp_path, monkeypatch):

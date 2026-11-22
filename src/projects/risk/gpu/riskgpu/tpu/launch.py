@@ -91,6 +91,14 @@ def prelude(accelerator: str, argv: list[str]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+def push_kernel(*cmd: str) -> str:
+    """`kaggle kernels push`, refused unless Kaggle took it: the CLI exits 0 on a refused push (one
+    TPU session at a time, say), saying so only in its output."""
+    out = kaggle("kernels", "push", *cmd).stdout.strip()
+    assert "successfully pushed" in out, f"Kaggle refused the push: {out}"
+    return out
+
+
 def bench_argv(accelerator: str, hours: float, extra: list[str]) -> list[str]:
     """The probe's arguments: its device, its output, and a quarter hour less than the session, so it
     stops starting measurements and writes its document before Kaggle stops it."""
@@ -134,15 +142,14 @@ def push(args: argparse.Namespace) -> int:
         meta["docker_image_pinning_type"] = "latest"
     with open(os.path.join(kernel_dir, "kernel-metadata.json"), "w") as f:
         json.dump(meta, f, indent=1)
-    cmd = ["kernels", "push", "-p", kernel_dir, "--accelerator", args.accelerator,
-           "-t", str(int(args.session_hours * 3600))]
+    cmd = ["-p", kernel_dir, "--accelerator", args.accelerator, "-t", str(int(args.session_hours * 3600))]
     if args.dry_run:
         print(f"dry run: staged {kernel_dir}")
         print(json.dumps(meta, indent=1))
         print(prelude(args.accelerator, argv).rstrip())
-        print("would run: python -m kaggle " + " ".join(shlex.quote(c) for c in cmd))
+        print("would run: python -m kaggle kernels push " + " ".join(shlex.quote(c) for c in cmd))
         return 0
-    print(kaggle(*cmd).stdout.strip())
+    print(push_kernel(*cmd))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "kaggle-push.json"), "w") as f:
         json.dump({"kernel": kernel, "accelerator": args.accelerator, "argv": argv,
@@ -300,8 +307,7 @@ def push_train(args: argparse.Namespace) -> int:
             "docker_image_pinning_type": "latest"}
     with open(os.path.join(kernel_dir, "kernel-metadata.json"), "w") as f:
         json.dump(meta, f, indent=1)
-    print(kaggle("kernels", "push", "-p", kernel_dir, "--accelerator", args.accelerator,
-                 "-t", str(int(args.session_hours * 3600))).stdout.strip())
+    print(push_kernel("-p", kernel_dir, "--accelerator", args.accelerator, "-t", str(int(args.session_hours * 3600))))
     folder = os.path.join(RUNS, args.name)
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "kaggle-push.json"), "w") as f:

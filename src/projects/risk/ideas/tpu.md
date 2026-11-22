@@ -72,6 +72,8 @@ The observation and the rules stay in one place. A **prepare** step runs the PyT
 
 A distillation's source is a recording: a search's (`selfplay/record.py`), or a net's own play with no search (`selfplay/own.py`: every decision of every kind and every seat, the positions from its sampled play, the target its most likely move), so a net is copied into a larger one. Its net is `--init`'s or a fresh one of the trainer's `--width` and `--layers`, from random weights; `--clock` prepares the set with the clock, counted down to the recording's cap, and the net reads it, as a clock net is fed in training and on the panel.
 
+**Kaggle runs one batch TPU session at a time for an account**: a push while another is queued or running is refused ("Maximum batch TPU session count of 1 reached"), and the launcher fails on it. Sessions are pushed one after another, each a day in the queue, so work meant for the same day goes into one session.
+
 What the TPU buys here is imitation and larger nets: 100 million samples of a 256x6 net is under half an hour by the probe's rates, against about nine hours on a T4. A distillation of the current net is minutes on either, since its recording, which needs a GPU, is the cost.
 
 **big-tpu-1, the first session**: the 256x6 imitation of native-v2 in the bucket space, on big-256x6's recipe, whose answer is known (68.2% of held-out decisions copied, on Modal's A10). No real TPU session has run this path, so the first prediction is about the path.
