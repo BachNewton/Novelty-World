@@ -20,6 +20,8 @@ export const FAR_FROM_MARK_M = 9999;
  */
 export const SEALED_WAY = 0b01000;
 export const LOOSE_WAY = 0b10000;
+/** Past those, whether a point of paving lies on its own way's carriageway, where the paint at that road's end is laid: a mouth's fill beside it is bare (`ON_CARRIAGEWAY` in `pipeline/paving.py`). */
+export const ON_CARRIAGEWAY = 0b100000;
 
 const PAVED_KINDS = new Set(["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "residential", "living_street"]);
 const PAVED_IN_TOWN = new Set(["unclassified", "service", "cycleway", "footway", "pedestrian"]);
@@ -40,6 +42,8 @@ const MOST_SLANT = 3;
 const MARKS_REACH_M = 30;
 /** A point this far past its carriageway's edge is still the edge's own, as the paving stores it. */
 const ON_EDGE_M = 0.05;
+/** A point of a road's own carriageway is no further than this past its edge from the road's middle, however the middle bends. */
+const OWN_ASIDE_M = 1;
 
 export interface BuiltCell {
   x: number;
@@ -63,12 +67,10 @@ interface Segment {
   halfWidth: number;
 }
 
-/** An end of a road that carries a mark: where it is, which way the road runs back from it, and how far back the road it meets has its edge. */
+/** An end of a road that carries a mark: the road's middle back from it as far as paint reaches, and how far back the road it meets has its edge. */
 interface MarkedEnd {
-  x: number;
-  z: number;
-  backX: number;
-  backZ: number;
+  /** x and z of each section's middle, from the end back. */
+  line: number[];
   halfWidth: number;
   toEdge: number;
   /** As a vertex carries it: negative at the chain's start. */
@@ -205,8 +207,8 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
     const endOn = marked ? roadEndedOn(grid, chain, end.x, end.z) : null;
     const startMark = startOn === null ? NO_MARK : markFor(chain, kind, townAt(start.x, start.z), startOn, surface);
     const endMark = endOn === null ? NO_MARK : markFor(chain, kind, townAt(end.x, end.z), endOn, surface);
-    if (startOn !== null && startMark !== NO_MARK) ends[chain].push(markedEnd(surface.rings, grid, first, first + 1, startOn, -startMark));
-    if (endOn !== null && endMark !== NO_MARK) ends[chain].push(markedEnd(surface.rings, grid, last, last - 1, endOn, endMark));
+    if (startOn !== null && startMark !== NO_MARK) ends[chain].push(markedEnd(surface.rings, grid, first, 1, sections, startOn, -startMark));
+    if (endOn !== null && endMark !== NO_MARK) ends[chain].push(markedEnd(surface.rings, grid, last, -1, sections, endOn, endMark));
     for (let section = 0; section < sections; section++) {
       const { x, z } = centreOf(surface.rings, first + section);
       const town = townAt(x, z);
@@ -231,8 +233,14 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
  * A road's end on a greater road, as its paint needs it. A road laid as paving runs on to the line of the road it meets,
  * so its give-way line is measured back from that road's edge, further along it the more the two slant.
  */
-function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: number, inward: number, onto: number, mark: number): MarkedEnd {
-  const [at, next] = [centreOf(rings, section), centreOf(rings, inward)];
+function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: number, inward: 1 | -1, sections: number, onto: number, mark: number): MarkedEnd {
+  const line: number[] = [];
+  for (let index = 0, travelled = 0; index < sections && travelled <= MARKS_REACH_M; index++) {
+    const { x, z } = centreOf(rings, section + inward * index);
+    if (index > 0) travelled += Math.hypot(x - line[line.length - 2], z - line[line.length - 1]);
+    line.push(x, z);
+  }
+  const [at, next] = [centreOf(rings, section), centreOf(rings, section + inward)];
   const length = Math.hypot(next.x - at.x, next.z - at.z) || 1;
   const [backX, backZ] = [(next.x - at.x) / length, (next.z - at.z) / length];
   const met = nearestSegment(grid, at.x, at.z, onto);
@@ -242,7 +250,25 @@ function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: n
     const slant = Math.abs(backX * uz - backZ * ux) / (Math.hypot(ux, uz) || 1);
     toEdge = Math.min(Math.max(0, met.halfWidth - distanceToSegment(at.x, at.z, met)) / Math.max(slant, 1 / MOST_SLANT), met.halfWidth * MOST_SLANT);
   }
-  return { x: at.x, z: at.z, backX, backZ, halfWidth: halfWidthOf(rings, section), toEdge, mark };
+  return { line, halfWidth: halfWidthOf(rings, section), toEdge, mark };
+}
+
+/**
+ * How far back along its road from a marked end a place lies, and how far aside of the road's middle: measured along
+ * the middle as it runs, since a straight line laid back from the end leaves a road's edge on its first bend, and the
+ * paint with it. The middle runs on straight past both of its own ends.
+ */
+function backFrom({ line }: MarkedEnd, x: number, z: number): { back: number; aside: number } {
+  let [aside, back, travelled] = [Infinity, 0, 0];
+  for (let at = 0; at + 3 < line.length; at += 2) {
+    const [ax, az, ux, uz] = [line[at], line[at + 1], line[at + 2] - line[at], line[at + 3] - line[at + 1]];
+    const length = Math.hypot(ux, uz) || 1;
+    const along = Math.max(at === 0 ? -Infinity : 0, Math.min(at + 4 >= line.length ? Infinity : length, ((x - ax) * ux + (z - az) * uz) / length));
+    const off = Math.hypot(x - ax - (ux / length) * along, z - az - (uz / length) * along);
+    if (off < aside) [aside, back] = [off, travelled + along];
+    travelled += length;
+  }
+  return { back, aside };
 }
 
 /**
@@ -251,6 +277,9 @@ function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: n
  */
 function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt: (x: number, z: number) => number, ends: MarkedEnd[][], shaded: Float32Array, marks: Float32Array) {
   const vertices = surface.rings.length / 3;
+  // Where the paving says which of its points lie on their own way's carriageway, those carry that road's paint. Where
+  // it doesn't, a point within the road's half-width of its middle does: its edge's own points and no more.
+  const told = surface.aprons.classes.some((said) => (said & ON_CARRIAGEWAY) !== 0);
   for (let vertex = surface.aprons.firstPoint; vertex < vertices; vertex++) {
     const [x, z] = [surface.rings[vertex * 3], surface.rings[vertex * 3 + 2]];
     const town = townAt(x, z);
@@ -268,10 +297,9 @@ function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt:
       // The paint at a road's end is on its own carriageway, measured back from the edge of the road it meets: a mouth's fill beside it is bare.
       let [toMark, mark] = [FAR_FROM_MARK_M, NO_MARK];
       for (const end of ends[way]) {
-        const [dx, dz] = [x - end.x, z - end.z];
-        const back = dx * end.backX + dz * end.backZ;
-        const aside = Math.abs(dx * end.backZ - dz * end.backX);
-        if (back >= 0 && back <= MARKS_REACH_M && aside <= end.halfWidth + ON_EDGE_M && back - end.toEdge < toMark) [toMark, mark] = [back - end.toEdge, end.mark];
+        const { back, aside } = backFrom(end, x, z);
+        const onRoad = told ? (said & ON_CARRIAGEWAY) !== 0 && aside <= end.halfWidth + OWN_ASIDE_M : aside <= end.halfWidth + ON_EDGE_M;
+        if (onRoad && back >= 0 && back <= MARKS_REACH_M && back - end.toEdge < toMark) [toMark, mark] = [back - end.toEdge, end.mark];
       }
       shaded.set([sealed ? 1 : 0, town, halfWidthOf(surface.rings, chain.first), toMark], vertex * 4);
       marks.set([shoulderOf(surface.rings, chain.first), mark], vertex * 2);

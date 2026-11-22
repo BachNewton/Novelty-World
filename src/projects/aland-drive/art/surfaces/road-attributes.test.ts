@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RING_POINTS, type RoadSurface } from "../../render/tile";
-import { FAR_FROM_MARK_M, GIVE_WAY, LOOSE_WAY, roadAttributes, SEALED_WAY, ZEBRA } from "./road-attributes";
+import { FAR_FROM_MARK_M, GIVE_WAY, LOOSE_WAY, ON_CARRIAGEWAY, roadAttributes, SEALED_WAY, ZEBRA } from "./road-attributes";
 
 const HALF_WIDTH = 3;
 
@@ -102,6 +102,19 @@ describe("road attributes", () => {
       expect([1, 2].map((point) => dressed.mark[(first + point) * 2 + 1])).toEqual([0, 0]);
       expect(dressed.surface[(first + 1) * 4 + 3]).toBe(FAR_FROM_MARK_M);
     }
+  });
+
+  it("lays a road's end paint right across its carriageway where the paving says which points are on it, and not on a mouth's fill at its edge", () => {
+    const road = junction("residential", 1);
+    const back = 4 + 0.8;
+    // Both edges of the carriageway, one stored a hair past it, and a fill's point at the very place of an edge's.
+    const places = [[HALF_WIDTH + 0.04, 0, back], [-HALF_WIDTH, 0, back], [HALF_WIDTH + 0.04, 0, back]];
+    const surface: RoadSurface = { ...road, rings: Float32Array.from([...road.rings, ...places.flat()]), paved: true, aprons: { ...road.aprons, ways: Int32Array.from([1, 1, 1]), classes: Uint8Array.from([ON_CARRIAGEWAY, ON_CARRIAGEWAY, 0]) } };
+    const dressed = roadAttributes(surface, []);
+    const first = 27 * RING_POINTS;
+    expect([0, 1, 2].map((point) => dressed.mark[(first + point) * 2 + 1])).toEqual([GIVE_WAY, GIVE_WAY, 0]);
+    expect(dressed.surface[first * 4 + 3]).toBeCloseTo(0.8);
+    expect(dressed.surface[(first + 1) * 4 + 3]).toBeCloseTo(0.8);
   });
 
   it("draws each point of paving as its own OSM way's surface, where the way says, whatever most of its road is", () => {
