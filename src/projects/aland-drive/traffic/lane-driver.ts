@@ -123,7 +123,7 @@ const HARDEST_BRAKE = 8;
 /** How hard a car leans on its tyres through a bend, which sets its speed there. */
 const SIDE_PULL = 2;
 const LOOK_M = 120;
-/** Something coming gives a turn pause when it would reach the junction within this time, or is this close. */
+/** Something coming gives a turn pause when it would reach the junction within this time, or is this close: a turn looks as far up the road as the fastest simulated car near covers in that time, a racer's or a player's at three times the limit. */
 const YIELD_WITHIN_S = 4.5;
 const YIELD_NEAR_M = 6;
 const STOP_BACK_M = 1;
@@ -158,6 +158,8 @@ const PATH_MARGIN_M = 0.3;
 const GO_ROUND_BACK_M = 3.5;
 const GO_ROUND_WAIT_S = 3;
 const GO_ROUND_CLEAR_M = 150;
+/** Its mirror: it doesn't pull out with something coming up behind that would be on it within this long, a racer at three times its speed. */
+const MIRROR_S = 4;
 const GO_ROUND_MS = 7;
 const QUEUE_M = 12;
 /** Going round, a car stops only for what is this close: it's in the other lane by choice, and gets out of it. */
@@ -297,6 +299,13 @@ export interface DrivenCar {
   half: readonly [number, number];
 }
 
+/**
+ * Roads that always run on. A lane of one with no way on from its end, away from a tile's seam, is a gap in the lane
+ * map, which its audit lists as leading nowhere, and not a dead end: a car that drove up to it would stand in a main
+ * road with its trip over.
+ */
+const THROUGH_ROADS = new Set(["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"]);
+
 /** A cyclist's lanes: every road's, and the paths it may ride. */
 const BIKE_PATHS = new Set(["cycleway", "footway", "path", "pedestrian"]);
 export const bikeRides = (lane: Lane) => !lane.path || BIKE_PATHS.has(lane.kind);
@@ -383,7 +392,10 @@ export class LaneTraffic {
   private readonly bends = new WeakMap<TileLanes, Float32Array>();
   private readonly chains = new WeakMap<TileLanes, Map<number, number[]>>();
   private readonly random: () => number;
+  private readonly nowhere = new WeakMap<TileLanes, Map<number, boolean>>();
   private driven = new Map<string, Other>();
+  /** The fastest of them, which sets how far up a road a turn looks for what it gives way to. */
+  private fastestDrivenMS = 0;
   /** Everyone placed standing or sitting, by tile and by square of the ground. */
   private readonly still = new Map<string, Map<string, Other[]>>();
   private made = 0;
@@ -574,6 +586,32 @@ export class LaneTraffic {
         return [car.id, { id: car.id, x: car.x, z: car.z, fx: -Math.sin(car.heading), fz: -Math.cos(car.heading), half: car.half, speedMS, vx: car.vx, vz: car.vz, car: null }];
       }),
     );
+    this.fastestDrivenMS = Math.max(0, ...cars.map((car) => Math.hypot(car.vx, car.vz)));
+  }
+
+  /**
+   * Whether a car on a lane could only drive up to a gap in the lane map on a through road: the lane ends at one, or
+   * every way on from it does. No car starts on such a lane, and none turns on to one while it has another way.
+   */
+  leadsNowhere(tile: TileLanes, index: number, walked = new Set<number>()): boolean {
+    let known = this.nowhere.get(tile);
+    if (!known) this.nowhere.set(tile, (known = new Map()));
+    const before = known.get(index);
+    if (before !== undefined) return before;
+    // Round a loop and back: it runs on.
+    if (walked.has(index)) return false;
+    walked.add(index);
+    const lane = tile.lanes[index];
+    const ways = lane.next.filter((connector) => tile.connectors[connector].turn !== "back");
+    const answer = !lane.path && (ways.length === 0 ? !lane.seamEnd && THROUGH_ROADS.has(lane.kind) : ways.every((connector) => this.leadsNowhere(tile, tile.connectors[connector].to, walked)));
+    known.set(index, answer);
+    return answer;
+  }
+
+  /** Whether a simulated car it was told of is within a distance of a place, or within the distance it covers in a time at the speed it is going. */
+  drivenWithin(x: number, z: number, withinM: number, withinS = 0): boolean {
+    for (const car of this.driven.values()) if (Math.hypot(car.x - x, car.z - z) < Math.max(withinM, car.speedMS * withinS)) return true;
+    return false;
   }
 
   /** One step of every car: each one's pull worked out from where all stand, then all moved. */
@@ -851,7 +889,9 @@ export class LaneTraffic {
     }
     const back = car.kind === "walker" && ways.length === 0 ? this.otherWay(tile, car.place.index) : null;
     if (back !== null) ways.push({ way: { tile: car.place.tile, index: back, connector: false }, crossing: null });
-    const chosen = ways.length > 0 ? ways[Math.floor(this.pick(car) * ways.length)] : null;
+    const open = car.kind === "car" ? ways.filter(({ way }) => !this.leadsNowhere(tile, tile.connectors[way.index].to)) : ways;
+    const among = open.length > 0 ? open : ways;
+    const chosen = among.length > 0 ? among[Math.floor(this.pick(car) * among.length)] : null;
     car.next = chosen?.way ?? null;
     car.crossing = chosen?.crossing ?? null;
     return car.next;
@@ -1137,7 +1177,7 @@ export class LaneTraffic {
       if (seen.id === car.id) continue;
       const other = this.driven.get(seen.id) ?? this.cars.get(seen.id);
       if (!other) continue;
-      if (seen.place.connector) return true;
+      if (seen.place.connector && seen.gap === 0) return true;
       if ("waiting" in other && other.waiting) continue;
       if (seen.gap < YIELD_NEAR_M || (other.speedMS > SLOWEST_MS && seen.gap / other.speedMS < YIELD_WITHIN_S)) return true;
     }
@@ -1161,7 +1201,7 @@ export class LaneTraffic {
     const toLine = route[0].to - car.place.along - STOP_BACK_M;
     const stopping = (car.speedMS * car.speedMS) / (2 * BRAKE) + 15;
     const next = car.place.connector || car.place.link ? null : car.next;
-    if (next?.connector && this.tileOf(car.place).connectors[next.index].yields.length > 0 && toLine < stopping && this.mustYield(car, next.index, LOOK_M)) {
+    if (next?.connector && this.tileOf(car.place).connectors[next.index].yields.length > 0 && toLine < stopping && this.mustYield(car, next.index, Math.max(LOOK_M, this.fastestDrivenMS * YIELD_WITHIN_S))) {
       obstacles.push({ gap: Math.max(0.1, toLine), speedMS: 0 });
       car.waiting = car.speedMS < slowestMS;
     }
@@ -1258,6 +1298,20 @@ export class LaneTraffic {
   }
 
   /** Whether nothing but `except` is coming the other way on a car's road within a reach. */
+  /** Whether nothing is coming up behind a car, its way and near its line, fast enough to reach it soon: what it looks for before it pulls out. */
+  private clearBehind(car: LaneCar, others: Other[]): boolean {
+    const [fx, fz] = [-Math.sin(car.pose.yaw), -Math.cos(car.pose.yaw)];
+    const laneWidth = this.laneWidth(car);
+    for (const other of others) {
+      if (other.id === car.id || other.fx * fx + other.fz * fz < 0.5) continue;
+      const [dx, dz] = [other.x - car.pose.x, other.z - car.pose.z];
+      const behind = -(dx * fx + dz * fz) - car.half[1] - other.half[1];
+      const closing = other.vx * fx + other.vz * fz - car.speedMS;
+      if (behind > 0 && closing > 0 && behind < closing * MIRROR_S && Math.abs(dx * -fz + dz * fx) < 2 * laneWidth) return false;
+    }
+    return true;
+  }
+
   private clearAhead(car: LaneCar, others: Other[], except: string, reach: number): boolean {
     const laneWidth = this.laneWidth(car);
     for (const other of others) {
@@ -1395,7 +1449,7 @@ export class LaneTraffic {
       const heldUp = standing ? car.speedMS < STOPPED_MS && seen.near < QUEUE_M + GO_ROUND_BACK_M : cyclist && car.speedMS < other.speedMS + 1 && seen.near < QUEUE_M && !other.car?.waiting && !other.car?.place.connector;
       if (heldUp) {
         blocked = true;
-        if (roundFits && car.blockedS >= GO_ROUND_WAIT_S && !car.place.connector && this.clearAhead(car, others, other.id, GO_ROUND_CLEAR_M)) startRound = true;
+        if (roundFits && car.blockedS >= GO_ROUND_WAIT_S && !car.place.connector && this.clearAhead(car, others, other.id, GO_ROUND_CLEAR_M) && this.clearBehind(car, others)) startRound = true;
       }
     }
     // Queued close behind one of its own way that waits on its verge, it waits too, whatever it would do itself: it can't

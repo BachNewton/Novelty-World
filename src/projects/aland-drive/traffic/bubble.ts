@@ -99,6 +99,9 @@ const RULES: Record<VehicleKind, KindRules> = {
 /** Whether two kinds ever meet on a lane: a walker on a pavement is no reason for a car not to start beside it. */
 const meet = (one: VehicleKind, other: VehicleKind) => !(one === "car" && other === "walker") && !(one === "walker" && other === "car");
 
+/** No vehicle starts where a simulated car would be within this long at the speed it is going: time to slow from a race's pace to traffic's. */
+const CLEAR_OF_DRIVEN_S = 6;
+
 /** A slot is kept by the player nearer it than any other by this much; between two players, until one is, by neither. */
 export const KEEP_MARGIN_M = 10;
 
@@ -239,7 +242,7 @@ export class Bubble {
       if (!tile) continue;
       const lane = tile.lanes[ref.lane];
       const perKmNow = perKm(lane, this.clock);
-      if (perKmNow === 0) continue;
+      if (perKmNow === 0 || (kind === "car" && this.traffic.leadsNowhere(tile, ref.lane))) continue;
       const place: OnLane = { tile: ref.tile, index: ref.lane, connector: false, along: 0 };
       const length = this.traffic.around.length(place);
       const slots = shortLanes ? Math.max(1, Math.round(length / slotM)) : Math.floor(length / slotM);
@@ -255,6 +258,8 @@ export class Bubble {
         // Another player's: nearer them, or in their sight, which is judged by their reach alone.
         if (others.some((other) => Math.hypot(at.x - other.x, at.z - other.z) < Math.max(reachM, away + KEEP_MARGIN_M))) continue;
         if (near.some((other) => meet(other.kind, kind) && Math.hypot(other.pose.x - at.x, other.pose.z - at.z) < clearM)) continue;
+        // Nor near a simulated car, or where one would be within the seconds it needs to slow for what appeared: a racer, or anyone's car here, has a driver whether or not this player is looking at it.
+        if (this.traffic.drivenWithin(at.x, at.z, fresh ? clearM : nearestM, fresh ? 0 : CLEAR_OF_DRIVEN_S)) continue;
         const half = kind === "car" ? this.traffic.halfOf(seed) : null;
         if (!fresh && this.seen({ kind, pose: { ...at, yaw: 0 }, half: half ?? [0.5, 1] })) continue;
         near.push(this.traffic.enter({ ...place, along: (slot + 0.5) * spacing }, { kind, seed, id: this.nameOf(id) }));
