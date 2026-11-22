@@ -1566,20 +1566,36 @@ Seated per `learned-bot.md` ("Seating"), on the TypeScript export at net-v1's co
 
 **What the ladder cost, and why.** A ladder for one new bot took 6.8 hours and still didn't finish, because every matchup of a near-certain winner runs to the group cap. The fix belongs in the ladder: a pair whose gap can't come into focus stops early, and a run at its round limit still reports its fit.
 
-## learned-v3 seated: d4-500, the clock net, provisional 2204 (2026-11-22)
+## learned-v3 seated: d4-500, the clock net, provisional 2152 (2026-11-22)
 
 learned-v3 is net-v1 with the weight set d4-500 (`bots/learned-v3/`), playing its most likely move: iteration 500 of run d4, 128×4 on the bucket action space, whose observation ends with the clock, the player-turns left before `TURN_CAP` (600) over 100 (`learned-bot.md`). It is exported from `snap-500.pt`, and its parity fixture (4 games, 664 network decisions, on the CPU) matches the trainer on every observation, main choice, amount and move, within the test's 5e-5. Seated on the owner's ruling: the best net that clears its bar.
 
-Its gauntlets on GitHub Actions (branch `risk/clock-gauntlet`), beside d0-200's, the best clockless net, measured the same way:
+Its gauntlets on GitHub Actions (branch `risk/clock-gauntlet`), beside d0-200's, the best clockless net, measured the same way. "1 among n" is the candidate alone among the opponent's copies, "n against 1" its copies against one opponent; each cell is the verdict, the candidate side's win share [95%], the mean game length and the share capped at 600.
 
 | Gauntlet | d4-500 | d0-200 |
 |---|---|---|
-| vs learned-v2, 5p train: 1 among 4 | **better**, 44.7% [34.1, 55.9] (par 20), 266 turns, cap 5.0% | better, 34.3% [26.9, 42.5], 226 turns, cap 3.4% |
-| 4 against 1 | **better**, 96.6% [91.5, 98.7] (par 80), 387 turns, cap 3.3% | better, 89.9% [85.0, 93.3], 257 turns, cap 3.7% |
+| vs learned-v2, 5p train: 1 among 4 (par 20) | **better**, 44.7% [34.1, 55.9], 266 turns, cap 5.0% | better, 34.3% [26.9, 42.5], 226 turns, cap 3.4% |
+| 4 against 1 (par 80) | **better**, 96.6% [91.5, 98.7], 387 turns, cap 3.3% | better, 89.9% [85.0, 93.3], 257 turns, cap 3.7% |
 | win Elo over learned-v2 | **+252** | +133 |
 | vs learned-v2, 5p holdout: 1 among 4 | **better**, 48.4% [36.6, 60.4], 219 turns, cap 1.5% | better, 37.7% [29.1, 47.2], 216 turns, cap 3.6% |
 | 4 against 1 | **better**, 93.6% [88.3, 96.6], 380 turns, cap 6.0% | better, 91.4% [86.3, 94.7], 257 turns, cap 3.3% |
 | win Elo over learned-v2 | **+228** | +161 |
+| vs rule-v7.1, 3p: 1 among 2 (par 33.3) | **better**, 76.2% [61.5, 86.5], 97 turns, cap 0% | better, 70.6% [57.0, 81.3], 116 turns, cap 0% |
+| 2 against 1 (par 66.7) | **better**, 87.1% [78.8, 92.5], 109 turns, cap 0% | better, 87.1% [78.8, 92.5], 143 turns, cap 0% |
+| 4p: 1 among 3 (par 25) | **better**, 81.3% [64.7, 91.1], 188 turns, cap 0% | better, 89.3% [72.8, 96.3], 187 turns, cap 0% |
+| 3 against 1 (par 75) | **better**, 100% [95.1, 100], 278 turns, cap 1.3% | better, 98.8% [93.3, 99.8], 284 turns, cap 4.8% |
+| 5p: 1 among 4 (par 20) | **better**, 86.2% [69.4, 94.5], 312 turns, cap 3.3% | better, 89.7% [73.6, 96.4], 310 turns, cap 3.3% |
+| 4 against 1 (par 80) | **better**, 100% [96.2, 100], 372 turns, cap 4.0% | better, 100% [96.1, 100], 254 turns, cap 1.1% |
+| 6p: 1 among 5 (par 16.7) | **better**, 69.4% [53.1, 82.0], 404 turns, cap 14.3% | better, 75.0% [58.9, 86.2], 388 turns, cap 14.3% |
+| 5 against 1 (par 83.3) | **better**, 100% [96.6, 100], 444 turns, cap 3.5% | better, 100% [96.7, 100], 325 turns, cap 10.3% |
+| win Elo over rule-v7.1 | **+449** | +448 |
 
-- **It wins more than d0-200 against learned-v2, and plays longer games doing it.** Four d4-500s against one learned-v2 run 380 to 387 player-turns on average, against d0-200's 257: copies of the clock net finish their rivals later, and cap a few more games at 600.
-- **Its provisional Elo is 2204.2 ± 25.9** (`risk:ratings -- --provisional learned-v3`), from the two learned-v2 gauntlets (2215.9 ± 35.7 and 2191.3 ± 37.6), first of the seatable bots and 240 above learned-v2's ladder Elo, so the lobby's default.
+- **It clears its bar.** Better than learned-v2 in both mixtures at 5 players on train and holdout seeds, and better than rule-v7.1 at every table of 3 to 6 in both mixtures.
+- **Its copies cap about as often as learned-v2's against one rule-v7.1.** At 3 to 6 players with one rule-v7.1, d4-500's tables capped 0, 1.3, 4.0 and 3.5% (9 of 383 games), learned-v2's 0, 2.2, 0.9 and 6.1%, d0-200's 0, 4.8, 1.1 and 10.3%. Its copies take longer to close out a table than d0-200's do: 372 and 444 player-turns on average at 5 and 6 players against 254 and 325, and 380 to 387 against one learned-v2 against 257.
+- **Its provisional Elo is 2152.0 ± 19.5** (`risk:ratings -- --provisional learned-v3`), from the two learned-v2 gauntlets (2215.9 ± 35.7, 2191.3 ± 37.6) and the rule-v7.1 one (2082.8 ± 29.8): first of the seatable bots, 188 above learned-v2's ladder Elo and above d0-200's 2101, so the lobby's default.
+
+**Past the clock's end.** An online game has no turn cap, so a game can outlast the clock, which then reads zero; every net-v1 also reads the turn itself over 300, unbounded, so past 600 every learned bot sees turns its training never did. The same rule-v7.1 gauntlet with the harness's cap raised to 2,400 (the bot's clock still counting to 600) was read from its kept rounds while one machine of its second round was still playing (360 games); d0-200's ran to the end (528 games).
+
+- **Games past turn 600 mostly finish, and alone it wins them.** 10 of d4-500's 360 games passed turn 600: its side won 6 (at 613 to 672 turns, five of them with d4-500 alone among rule-v7.1s), rule-v7.1 won 2 (613 and 740), and 2 ran to 2,400. 24 of d0-200's 528 passed it: its side won all 23 that finished, the longest 1,036 turns.
+- **Several copies against one bot can fail to close.** The two that ran to 2,400 were 4 and 5 d4-500s against one rule-v7.1 (2 of 221 such games, and likely a third in the machine still out); d0-200 had 1 of 528 games, 1 of 389 with copies against one, run to 2,400, also of 3 copies against one. It is the stall several copies of a learned bot can fall into, no different in kind from d0-200's; a table with a person in it, or one learned-v3 among other bots, doesn't reach it.
+- **On the GPU engine's mirror**, five d4-500s at their most likely move with the cap raised to 2,400 and the clock reading zero from turn 600: 1 game of 64 reached 2,400 (1.6% [0, 4.7]), the decisive games 439 player-turns on average; sampling its moves, none of 64.

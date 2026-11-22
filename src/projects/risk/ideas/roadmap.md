@@ -4,7 +4,7 @@ A map across the lines of bot work, for picking the next step. It holds no measu
 
 ## learned-v3 seated: the strongest bot, and the first that reads the clock
 
-learned-v3 (`bots/learned-v3/`) is net-v1's network with the weight set d4-500, playing its most likely move: a net that reads the clock, the player-turns left before the harness's cap (`learned-bot.md`). An online game has no cap; past it the clock reads zero and the bot plays as on the cap's own turn. It is better than learned-v2 in both mixtures at 5 players on train and holdout seeds, and its provisional Elo, 2204, puts it first of the seatable bots until the seatable ladder measures it (`bot-log.md`, "learned-v3 seated"). It is the lobby's default and the bot to beat.
+learned-v3 (`bots/learned-v3/`) is net-v1's network with the weight set d4-500, playing its most likely move: a net that reads the clock, the player-turns left before the harness's cap (`learned-bot.md`). An online game has no cap; past it the clock reads zero and the bot plays as on the cap's own turn. It is better than learned-v2 in both mixtures at 5 players on train and holdout seeds and than rule-v7.1 at every table of 3 to 6, and its provisional Elo, 2152, puts it first of the seatable bots until the seatable ladder measures it (`bot-log.md`, "learned-v3 seated"). It is the lobby's default and the bot to beat.
 
 ## learned-v2: seated below learned-v3
 

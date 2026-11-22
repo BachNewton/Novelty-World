@@ -8,8 +8,9 @@ import { WEIGHTS } from "../net-v1/weights/d4-500";
 // game, with no cap, may. Its seating bar: better than learned-v2 one-in and not worse one-out at 5
 // players, on train and holdout seeds, not worse than rule-v7.1 at any table of 3 to 6 in either
 // mixture, at tables of several of it against one rule-v7.1 it caps no more games than learned-v2
-// does, and with no cap in sight (a harness cap of 2,400) its games past the clock's end still
-// finish. It imports its one weight set directly, never the registry of them all, so a server that
-// seats it loads only these weights. Seated, so frozen: another checkpoint is another version.
+// does, and with the harness's cap raised to 2,400 its games past the clock's end go no
+// differently in kind from the best clockless net's. It imports its one weight set directly,
+// never the registry of them all, so a server that seats it loads only these weights. Seated, so
+// frozen: another checkpoint is another version.
 
 export const learnedV3Bot: Bot = netBot(WEIGHTS, "argmax");
