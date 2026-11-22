@@ -108,9 +108,7 @@ for (const race of races) {
   const driven = racingLineFor(loaded, car);
   const { line } = driven;
   const racer = racerFor(loaded, driven, car, CONDITION, tyres, { cornerShare: CORNER, brakeShare: BRAKE }, alongOfPlace(line, place.x, place.z), (point) => {
-    const at = loaded.world.roads.nearest(point.x, point.z);
-    if (!at) throw new Error(`${race.id}: no road to reset to`);
-    drive.placeAt({ ...at, x: point.x, z: point.z, heading: point.heading });
+    drive.placeAt(point);
   });
   const { plan } = racer.driver;
   const rows: Row[] = [];

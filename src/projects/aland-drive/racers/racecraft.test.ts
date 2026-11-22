@@ -161,6 +161,16 @@ describe("racecraft", () => {
     expect(craft({ ...me, speedMS: 36 }, () => 40, 0, 0, room, () => room, [car("a", 12, -1, 36)], freshCraft(), 1000).state.passing).toBeNull();
   });
 
+  it("goes by a car whose way drifts across its line, once it stands clear of it sideways", () => {
+    const wide: Room = { rightM: 4, leftM: 4, middleM: 0, bridged: false };
+    // Out to the left of a slow car that will be a metre further left by the time the racer is level: the pass goes with it, and holds for it no longer than until clear.
+    const drifting = { ...car("p", 12, 1, 14), meetLateralM: 0 };
+    const passing = { passing: { id: "p", side: -1 as const, verge: false }, defence: null, stoodS: 0 };
+    const clear = craft({ ...me, speedMS: 14, lateralM: -1.4 }, () => 40, 0, -1.4, wide, () => wide, [drifting], passing, 1000);
+    expect(clear.state.passing).toMatchObject({ id: "p" });
+    expect(clear.holdUnderMS).toBeNull();
+  });
+
   it("starts no pass on the other side of the road with something coming that it would meet before it was by", () => {
     // A wide road, the slow car on the right: the pass is by the left. What comes is well off, but a pass from behind a car at its own speed takes seconds.
     const wide: Room = { rightM: 2.2, leftM: 5.7, middleM: -1.75, bridged: false };

@@ -43,7 +43,8 @@ const load = (name: string) => {
   world.addFar(name, decodeHeights(new Int16Array(inflated(name, manifest.far.heightsFile)), farFormat, { west, north }), decodeHeights(new Int16Array(inflated(name, manifest.water.farLevelsFile)), farFormat, { west, north }), decodeHeights(new Int16Array(inflated(name, manifest.water.farShoreFile)), farFormat, { west, north }));
   const levels = decodeHeights(new Int16Array(inflated(name, manifest.water.levelsFile)), manifest.heights, { west, north });
   const shore = decodeHeights(new Int16Array(inflated(name, manifest.water.shoreFile)), manifest.heights, { west, north });
-  world.addDetail(tileDetail(tile, grid, inflated(name, tile.roadSurface.file), levels, shore, manifest.tileM, walls));
+  const cut = tile.roadSurface.groundCut ? inflated(name, tile.roadSurface.groundCut.file) : undefined;
+  world.addDetail(tileDetail(tile, grid, inflated(name, tile.roadSurface.file), levels, shore, manifest.tileM, walls, cut));
 };
 const unload = (name: string) => {
   world.removeDetail(name);

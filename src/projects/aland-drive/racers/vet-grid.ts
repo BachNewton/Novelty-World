@@ -290,15 +290,9 @@ export function vetGridRun(
       human ? HUMAN_SKILL : skill,
       from,
       (point) => {
-        const road = world.roads.nearest(point.x, point.z);
-        if (!road)
-          throw new Error(
-            `${race.id}: no road to reset to at ${point.x}, ${point.z}`,
-          );
-        const at = { ...road, x: point.x, z: point.z, heading: point.heading };
-        if (slot === 0) drive.placeAt(at);
+        if (slot === 0) drive.placeAt(point);
         else {
-          car.place(at);
+          car.place(point);
           car.land();
         }
         entry.placed = true;

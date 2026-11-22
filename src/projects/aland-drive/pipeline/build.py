@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw
 from scipy import ndimage
 
 import buildings as solids
+import built_up
 import canopy
 import clearing
 import ground as ground_colour
@@ -55,7 +56,9 @@ from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, 
 from island import ISLAND_FILE
 from sources import buildings3d_path, dem_path, osm_path
 
-OUTPUT = Path(__file__).resolve().parent.parent / ".data" / "tiles"
+# Where the tiles are written: this checkout's `.data/tiles`, or a folder beside it for a trial (`run.py --tiles`).
+TILES_FOLDER = "ALAND_DRIVE_TILES"
+OUTPUT = Path(os.environ.get(TILES_FOLDER) or Path(__file__).resolve().parent.parent / ".data" / "tiles")
 # What's written beside the tiles but isn't part of what they are: the world's own list, and the local tools' routes.
 NOT_IN_VERSION = {"world.json", "routes.json"}
 HEIGHT_UNIT_M = 0.01
@@ -235,13 +238,13 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True, with_to
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
         (folder / "buildings.json").write_text(json.dumps({**osm_licence, "buildings": buildings}, **compact), encoding="utf-8")
 
-        ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM, water=water_with_rim)
+        ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM, water=water_with_rim, built_up=built_up.share_of(tile.name, west, north, TILE_SIZE_M))
         ribbons = []
         aprons = []
         if roads:
             areas = vectors.paved_areas(osm_file, tile) + vectors.lane_yards(osm_file, tile)
             if with_paving:
-                paved = paving.lay(roads, ground, areas, vectors.whole_lines(osm_file))
+                paved = paving.lay(roads, ground, areas, vectors.whole_lines(osm_file), outlines)
                 conformed = paved.conformed
             else:
                 surface = road_surface.lay_roads(roads, ground, areas, vectors.whole_lines(osm_file))

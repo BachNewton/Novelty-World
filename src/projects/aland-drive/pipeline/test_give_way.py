@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from pyproj import Transformer
-from shapely.geometry import LineString, Point, box
+from shapely.geometry import LineString, Point, Polygon, box
 
 import vectors
 from buildings import Face, RoofFrame
@@ -56,6 +56,21 @@ class GiveWay(unittest.TestCase):
         self.assertGreater(min(line.distance(house), line.distance(barn)), drawn_half_width(street))
         self.assertAlmostEqual(line.interpolate(line.project(Point(-4.65, 6))).x, -4.65, delta=0.3)
 
+    def test_a_road_through_a_gap_too_tight_for_its_class_stays_in_it_and_narrows(self):
+        # Kullskär: the road passes between a shed and a barn 5 m apart, nearer the barn. Pushed off the barn at its
+        # class's width it landed in the shed, and was cut in two there.
+        shed, barn = box(-8, 0, -3, 18), box(2, 0, 14, 26)
+        street = road("unclassified", [[0.5, -200], [0.5, 200]])
+        meetings = give_way([street], [shed, barn])
+        self.assertEqual(len(meetings.roads), 1)
+        line = LineString(meetings.roads[0]["line"])
+        self.assertAlmostEqual(line.interpolate(line.project(Point(-0.5, 9))).x, -0.5, delta=0.3)
+        # The gap leaves each side 2.5 m, less the eaves' room and the road's strip: a lane's width and a little more.
+        halves = [half for _, north, half in meetings.roads[0]["pinches"] if 2 < north < 16]
+        self.assertTrue(halves)
+        self.assertGreater(min(halves), 1.4)
+        self.assertLess(max(halves), 1.75)
+
     def test_a_junction_inside_a_building_moves_out_with_every_road_meeting_there(self):
         street = road("residential", [[-30, 1], [5, 1], [40, -10]])
         drive = road("service", [[5, 1], [5, -30]], id=2)
@@ -87,6 +102,18 @@ class GiveWay(unittest.TestCase):
         self.assertEqual(meetings.pushed, 1)
         self.assertGreater(LineString(meetings.roads[0]["line"]).distance(SHED), drawn_half_width(meetings.roads[0]))
 
+    def test_a_road_that_ends_among_buildings_still_ends_pointing_the_way_it_runs(self):
+        # A service lane off Hamngatan, as OSM draws it, and the two buildings its ends pass between. Moved a point at a
+        # time into the open ground it fits through, its last metres swung from side to side and its end was cut askew.
+        lane = road("service", [[0, 0], [-1.4, -5.8], [-1.9, -12.5], [1.9, -49], [13.9, -90.9]])
+        hall = Polygon([(-9.7, -42.2), (6.2, -40.8), (5.7, -35.5), (18.2, -34.2), (20.3, -51.5), (7.6, -52.9), (7, -47.6), (-8.9, -49.3)])
+        wing = Polygon([(-22, -32.2), (-12.9, -31.1), (-13.5, -24), (-10.7, -23.6), (-10, -29.6), (-8.1, -29.4), (-6.8, -41.6), (-9.7, -42), (-8.9, -49.3), (-11, -48.6), (-12.5, -34.6), (-17, -35), (-21.7, -34.6)])
+        line = np.array(give_way([lane], [hall, wing]).roads[0]["line"])
+        for last in (line[:4], line[-4:]):
+            steps = np.diff(last, axis=0)
+            headings = np.degrees(np.unwrap(np.arctan2(steps[:, 0], steps[:, 1])))
+            self.assertLess(float(np.ptp(headings)), 1.0)
+
     def test_where_roads_meet_nothing_moves(self):
         drive = road("service", [[-30, -0.5], [5, -0.5], [40, -0.5]])
         branch = road("service", [[5, -0.5], [5, -30]])
@@ -111,7 +138,7 @@ class GiveWay(unittest.TestCase):
         # mustn't reach the crossing, even by the millimetre a centimetre's rounding of the moved road would take it.
         street = road("unclassified", [[-400, 2.003], [400, 37.71]])
         west = give_way([street], []).roads[0]["line"]
-        east = give_way([street], [box(380, 42, 390, 52)]).roads[0]["line"]
+        east = give_way([street], [box(380, 40, 390, 50)]).roads[0]["line"]
         self.assertNotEqual(west, east)
         crossings = [clip_line(np.array(line), Bounds(-6000, -3000, 0, 3000))[0][-1] for line in (west, east)]
         self.assertEqual(crossings[0].tolist(), crossings[1].tolist())
