@@ -219,9 +219,11 @@ export function craft(
 
   // The nearest car ahead that is in the way, where the racer stands or where it means to run: hold a gap to it, and pass it if it's slow and there's room.
   const pathM = passing ? target : offsetM;
-  const inWayNow = (other: Relative) => inWay(other, me.lateralM, me.halfWidthM) || inPath(other, pathM, me.halfWidthM);
+  // The car being passed is held for only until the racer stands clear of it sideways: the path runs beside it by design, a car's width and a little off, and where that car's own way drifts across the line the path goes with it.
+  const passed = (other: Relative) => other.car.id === passing?.id;
+  const inWayNow = (other: Relative) => inWay(other, me.lateralM, me.halfWidthM) || (!passed(other) && inPath(other, pathM, me.halfWidthM));
   // In the way now, or in the path by the time the racer reaches it: a car in a lane the line crosses further on.
-  const ahead = around.filter((other) => other.alongM > 0 && !coming(other) && (inWayNow(other) || inPath({ ...other, lateralM: other.meetLateralM }, pathM, me.halfWidthM)));
+  const ahead = around.filter((other) => other.alongM > 0 && !coming(other) && (inWayNow(other) || (!passed(other) && inPath({ ...other, lateralM: other.meetLateralM }, pathM, me.halfWidthM))));
   let waiting = false;
   let stoodS = 0;
   if (meetUnderMS !== null && meetUnderMS < WAITING_MS && me.speedMS < STOPPED_MS) stoodS = state.stoodS + STEP_S;
@@ -261,7 +263,7 @@ export function craft(
         });
       const leftAllowed = (keepRightOf === null || leftAt >= keepRightOf) && !met && open(leftAt);
       const rightAllowed = (keepLeftOf === null || rightAt <= keepLeftOf) && open(rightAt);
-      const whole = roomTo(Math.min(PASS_ROOM_MOST_M, Math.max(toGainM, (me.speedMS * toGainM) / Math.max(PASS_CLOSING_MS, me.speedMS - theirs))));
+      const whole = roomTo(Math.min(PASS_ROOM_MOST_M, Math.max(toGainM, (me.speedMS * toGainM) / Math.max(PASS_GATHERS_MS, closingMS))));
       const sideWith = (within: Room): 1 | -1 | null => {
         const rightRoom = within.rightM - rightAt;
         const leftRoom = leftAt + within.leftM;

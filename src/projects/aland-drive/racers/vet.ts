@@ -345,7 +345,7 @@ function pilotFor(
   from: number,
   drive: Drive,
 ): Pilot {
-  const { race, world } = loaded;
+  const { race } = loaded;
   if (!("geometry" in driven)) {
     const autopilot = new Autopilot(
       driven,
@@ -394,17 +394,7 @@ function pilotFor(
     { cornerShare: spec.gripShare, brakeShare: spec.brakeShare },
     from,
     (point) => {
-      const road = world.roads.nearest(point.x, point.z);
-      if (!road)
-        throw new Error(
-          `${race.id}: no road to reset to at ${point.x}, ${point.z}`,
-        );
-      drive.placeAt({
-        ...road,
-        x: point.x,
-        z: point.z,
-        heading: point.heading,
-      });
+      drive.placeAt(point);
     },
   );
   return {
