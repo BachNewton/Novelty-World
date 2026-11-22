@@ -27,8 +27,9 @@ nets meant for the same day share one. The set is prepared once and the runs tra
 the shared trainer arguments and then its own (`--run-args`), in its own folder, with its share of
 the hours (`--run-share`, `session.py`'s `run_hours`). Each run's folder gets the push's record, so
 `status` and `fetch` take any of the names. The kernel and the bundle are named after the session
-(`--session-name`, the first run's name by default), and a push to a session already queued under that
-name replaces its queued version. Every argument is checked by the tools' own parsers,
+(`--session-name`, the first run's name by default). A push while any TPU session of the account is
+queued or running is refused, a new version of the queued kernel included: the queued run is
+cancelled on its Kaggle page first. Every argument is checked by the tools' own parsers,
 and the quota asked, before anything is uploaded; `--dry-run` stops there.
 
 **The probe** (`push`) sends `bench.py` alone as a private script,
