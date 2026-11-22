@@ -91,7 +91,7 @@ describe("road attributes", () => {
     // The lesser road laid as paving: on to the main road's line, or stopping short of it. Its line is 0.8 m back from the main road's edge either way.
     for (const endZ of [0, 4]) {
       const road = junction("residential", 1, undefined, endZ);
-      const back = Math.max(endZ, HALF_WIDTH) + 0.8;
+      const back = HALF_WIDTH + 0.8;
       const places = [[1, 0, back], [HALF_WIDTH + 2, 0, back], [1, 0, 45]];
       const surface: RoadSurface = { ...road, rings: Float32Array.from([...road.rings, ...places.flat()]), paved: true, aprons: { ...road.aprons, ways: Int32Array.from([1, 1, 1]), classes: new Uint8Array(3) } };
       const dressed = roadAttributes(surface, []);
@@ -106,15 +106,17 @@ describe("road attributes", () => {
 
   it("lays a road's end paint right across its carriageway where the paving says which points are on it, and not on a mouth's fill at its edge", () => {
     const road = junction("residential", 1);
-    const back = 4 + 0.8;
-    // Both edges of the carriageway, one stored a hair past it, and a fill's point at the very place of an edge's.
-    const places = [[HALF_WIDTH + 0.04, 0, back], [-HALF_WIDTH, 0, back], [HALF_WIDTH + 0.04, 0, back]];
-    const surface: RoadSurface = { ...road, rings: Float32Array.from([...road.rings, ...places.flat()]), paved: true, aprons: { ...road.aprons, ways: Int32Array.from([1, 1, 1]), classes: Uint8Array.from([ON_CARRIAGEWAY, ON_CARRIAGEWAY, 0]) } };
+    const back = HALF_WIDTH + 0.8;
+    // Both edges of the carriageway, one stored a hair past it, a fill's point at the very place of an edge's, and a
+    // point of the road's own paving past its last section, on the middle of the road it meets.
+    const places = [[HALF_WIDTH + 0.04, 0, back], [-HALF_WIDTH, 0, back], [HALF_WIDTH + 0.04, 0, back], [1, 0, 0]];
+    const surface: RoadSurface = { ...road, rings: Float32Array.from([...road.rings, ...places.flat()]), paved: true, aprons: { ...road.aprons, ways: Int32Array.from([1, 1, 1, 1]), classes: Uint8Array.from([ON_CARRIAGEWAY, ON_CARRIAGEWAY, 0, ON_CARRIAGEWAY]) } };
     const dressed = roadAttributes(surface, []);
     const first = 27 * RING_POINTS;
-    expect([0, 1, 2].map((point) => dressed.mark[(first + point) * 2 + 1])).toEqual([GIVE_WAY, GIVE_WAY, 0]);
+    expect([0, 1, 2, 3].map((point) => dressed.mark[(first + point) * 2 + 1])).toEqual([GIVE_WAY, GIVE_WAY, 0, GIVE_WAY]);
     expect(dressed.surface[first * 4 + 3]).toBeCloseTo(0.8);
     expect(dressed.surface[(first + 1) * 4 + 3]).toBeCloseTo(0.8);
+    expect(dressed.surface[(first + 3) * 4 + 3]).toBeCloseTo(-HALF_WIDTH);
   });
 
   it("draws each point of paving as its own OSM way's surface, where the way says, whatever most of its road is", () => {

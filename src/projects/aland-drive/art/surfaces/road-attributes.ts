@@ -231,7 +231,8 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
 
 /**
  * A road's end on a greater road, as its paint needs it. A road laid as paving runs on to the line of the road it meets,
- * so its give-way line is measured back from that road's edge, further along it the more the two slant.
+ * whether its own sections stop on that line or short of that road's paving, so its give-way line is measured back from
+ * that road's edge, further along it the more the two slant.
  */
 function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: number, inward: 1 | -1, sections: number, onto: number, mark: number): MarkedEnd {
   const line: number[] = [];
@@ -248,7 +249,7 @@ function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: n
   if (met) {
     const [ux, uz] = [met.bx - met.ax, met.bz - met.az];
     const slant = Math.abs(backX * uz - backZ * ux) / (Math.hypot(ux, uz) || 1);
-    toEdge = Math.min(Math.max(0, met.halfWidth - distanceToSegment(at.x, at.z, met)) / Math.max(slant, 1 / MOST_SLANT), met.halfWidth * MOST_SLANT);
+    toEdge = Math.min((met.halfWidth - distanceToSegment(at.x, at.z, met)) / Math.max(slant, 1 / MOST_SLANT), met.halfWidth * MOST_SLANT);
   }
   return { line, halfWidth: halfWidthOf(rings, section), toEdge, mark };
 }
@@ -299,7 +300,9 @@ function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt:
       for (const end of ends[way]) {
         const { back, aside } = backFrom(end, x, z);
         const onRoad = told ? (said & ON_CARRIAGEWAY) !== 0 && aside <= end.halfWidth + OWN_ASIDE_M : aside <= end.halfWidth + ON_EDGE_M;
-        if (onRoad && back >= 0 && back <= MARKS_REACH_M && back - end.toEdge < toMark) [toMark, mark] = [back - end.toEdge, end.mark];
+        // Past the end too, where the road's paving runs on to the line of the road it meets: a point there with no mark
+        // blended its triangle's paint away, and a give-way line was a stray tooth.
+        if (onRoad && back >= -MARKS_REACH_M && back <= MARKS_REACH_M && back - end.toEdge < toMark) [toMark, mark] = [back - end.toEdge, end.mark];
       }
       shaded.set([sealed ? 1 : 0, town, halfWidthOf(surface.rings, chain.first), toMark], vertex * 4);
       marks.set([shoulderOf(surface.rings, chain.first), mark], vertex * 2);
