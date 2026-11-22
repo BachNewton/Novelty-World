@@ -82,16 +82,36 @@ GORE_M = 1.5
 END_SHORTEST_WAY_M = 12.0
 # How far past a way's end, and past its sides, the block its round end is cut within reaches.
 END_BLOCK_PAST_M = 1.0
-# Across at a carriageway's edge where more carriageway lies beyond it: short of where an edge line is painted
-# (`LINE_INSET` in `render/game.ts`), so none is, and the road's wear lies a hand's width nearer its middle there.
+# The most a lined road's own asphalt stands across outside its line's strip: short of where an edge line is painted
+# (`LINE_INSET` in `render/game.ts`), so the only line is the strip's.
 OPEN_EDGE_ACROSS = 0.87
-# How far past its edge a carriageway is read for more asphalt beyond: as far as a wedge is filled from either side.
-OPEN_EDGE_REACH_M = GORE_M / 2
 # What a piece is to a junction's mouth or a way's round end: nothing, its fill of carriageway, or the strip round its
 # arc. A mouth lies between two roads and follows both; a round end is its own way's alone, and stands on its profile;
 # a wedge between two roads that merge is a fill with no line painted round it.
-NO_MOUTH, MOUTH_FILL, MOUTH_RING, END_FILL, END_RING, WEDGE_FILL = 0, 1, 2, 3, 4, 5
+NO_MOUTH, MOUTH_FILL, MOUTH_RING, END_FILL, END_RING, WEDGE_FILL, LINE_STRIP = 0, 1, 2, 3, 4, 5, 6
 FILLS, ENDS, RING_MOUTHS = (MOUTH_FILL, END_FILL, WEDGE_FILL), (END_FILL, END_RING), (MOUTH_RING, END_RING)
+# An edge line is painted from 0.895 to 0.965 across (`LINE_INSET` and `LINE_WIDTH` in `render/game.ts`). The strip of
+# asphalt from this far across to the edge holds the line whole, so what lies inside it carries none of one.
+LINE_STRIP_ACROSS = 0.86
+# A point this near the asphalt's outline is on it: the outlines' own tolerances, with room to spare.
+ON_OUTLINE_M = 0.05
+# A stretch of lined outline shorter than this is a nick in the outline, not an edge to paint a line along.
+LINE_LEAST_M = 0.5
+# A line follows the outline to within this: a wobble of a few centimetres is no corner for a line to turn.
+LINE_SMOOTH_M = 0.04
+# Where a mouth's fill stops along a carriageway's edge (`CORNER_TIP_M`) the outline steps sideways: a side shorter than
+# this, turned on to and off again by more than this sine, which a line crosses at its middle.
+LINE_STEP_M = 2.5 * CORNER_TIP_M
+LINE_STEP_SINE = 0.35
+# Where the outline turns more sharply than this cosine between two of its sides, a strip's inner edge is not mitred
+# to a point, which would lie metres off.
+STRIP_SHARPEST_TURN = -0.6
+# The middle of a carriageway with no centre line stands this far across: clear of the centre line's own width.
+NO_CENTRE_ACROSS = 0.04
+# Past a class's bits and its way's surface's (`SEALED_WAY`, `LOOSE_WAY`): whether a point lies on its own way's
+# carriageway, where the game lays the paint at that road's end (`art/surfaces/road-attributes.ts`). A mouth's fill
+# beside it wears the road's surface and is bare.
+ON_CARRIAGEWAY = 0b100000
 # A stretch of one surface smaller than this, with other surfaces all round it, is a speck: it wears its neighbour's.
 SPECK_M2 = 3.0
 # A piece no wider than this anywhere is a sliver, and wears the surface along its longer side, when that side is
@@ -216,8 +236,9 @@ class Piece:
     look: int = JUNCTION  # The path whose surface it wears, if it isn't its owner's own.
     part: int = -1  # Which OSM way of the way whose surface it wears: one surface a piece. None for a piece drawn as the shoulders round it.
     mouth: int = NO_MOUTH  # A junction's mouth's fill or ring (`Corner`), which wears the joining road's (`look`).
-    open: bool = False  # A carriageway's piece whose side of the road has more carriageway beyond its edge: it has no edge line.
+    open: bool = False  # A lined road's piece outside the strip its edge line is painted on (`LineStrip`): it carries no line.
     beside: int = JUNCTION  # For a piece drawn as the shoulders round it: the way nearest its middle, whose surface class it carries.
+    centre: int = 0  # A carriageway's piece where no centre line is painted: 1 on the way's left, -1 on its right.
 
 
 @dataclass
@@ -1007,46 +1028,318 @@ def look_changes(chain: Chain, cross: Cross, looks: dict[int, tuple[np.ndarray, 
     return lines
 
 
-def open_edges(chains: list[Chain], carriageways: dict[int, shapely.Geometry], mouths: list[Corner]) -> dict[int, np.ndarray]:
-    """For each road, at each station, whether more carriageway lies beyond its edge on its left and on its right: another
-    road's, where one joins or runs into it, or a mouth's fill.
+def _asphalt_edge(edge) -> bool:
+    """Whether a road's own OSM way is asphalt that paint goes by: a public road, not a drive, a yard's lane or a track,
+    that OSM calls sealed or whose class is. An edge line stops for such a road's mouth, and runs on past any other's."""
+    road = edge.road
+    said = _said_surface(road)
+    return bool(road["motor"]) and edge.kind.tier != "track" and road["kind"] != "service" and (said == SEALED_WAY or (said != LOOSE_WAY and road["kind"] != "unclassified"))
 
-    An edge line marks the edge of the carriageway. Drawn at every road's own edge, it ran on across the mouth of every
-    road that joined, down the middle of the asphalt where two roads merge, and straight on beside a mouth's arc."""
-    roads = [index for index in carriageways if chains[index].motor]
-    if not roads:
-        return {}
-    shapes = [carriageways[index] for index in roads] + [found.fill for found in mouths]
-    owners = np.array(roads + [JUNCTION] * len(mouths))
-    tree = shapely.STRtree(shapes)
-    found = {}
-    for index in roads:
-        chain = chains[index]
-        sides = []
-        for sign in (1, -1):
-            # Anywhere from the edge out to the reach, not at one place: a sliver of shoulder between two carriageways,
-            # drawn as asphalt for being too thin to read, is no edge of the asphalt.
-            beyond = chain.xy + sign * (chain.half + OPEN_EDGE_REACH_M / 2)[:, None] * chain.normal
-            at, which = tree.query(shapely.buffer(shapely.points(beyond), OPEN_EDGE_REACH_M / 2 - SLIVER_M, quad_segs=2), predicate="intersects")
-            opened = np.zeros(len(chain.xy), dtype=bool)
-            opened[at[owners[which] != index]] = True
-            sides.append(opened)
-        if sides[0].any() or sides[1].any():
-            found[index] = np.stack(sides)
+
+def asphalt_stations(chain: Chain) -> np.ndarray:
+    return np.array([_asphalt_edge(edge) for edge in chain.edges], dtype=bool)[chain.edge_at]
+
+
+def lined_stations(chain: Chain) -> np.ndarray:
+    """The stations of a road the game paints lines at: a main road's, where it is asphalt."""
+    return asphalt_stations(chain) & (chain.tier == TIERS.index("main"))
+
+
+def _side_line(chain: Chain, reach: np.ndarray, sign: int, first: int, last: int) -> np.ndarray:
+    """A way's side `reach` out from its line, from one station to another and half way on to the stations past them:
+    where the paving is cut when what a way wears changes along it (`look_changes`)."""
+    at = lambda station: chain.xy[station] + sign * reach[station] * chain.normal[station]
+    points = [at(station) for station in range(first, last + 1)]
+    if first > 0:
+        points.insert(0, (at(first - 1) + at(first)) / 2)
+    if last < len(chain.xy) - 1:
+        points.append((at(last) + at(last + 1)) / 2)
+    return np.array(points)
+
+
+@dataclass
+class LineStrip:
+    """The strip of asphalt an edge line is painted on, along one stretch of the asphalt's outline: a row of four-sided
+    cells from the outline in, mitred at each corner, so across falls evenly over each cell from 1 on the outline, and
+    the line is as wide and as far in all along, round every corner the outline turns."""
+
+    arc: shapely.LineString
+    along: np.ndarray  # How far along the arc each of its points lies.
+    halves: np.ndarray  # The half-width the line is measured by at each point: that of the lined road nearest it.
+    cells: np.ndarray
+    ways: np.ndarray  # For each cell, the lined road nearest it: whose edge it is, or whose line it carries on.
+    inner: shapely.LineString  # The cells' inner edge.
+    rungs: list[shapely.LineString]  # The cells' ends, from the outline in.
+
+    def half_at(self, places: np.ndarray) -> np.ndarray:
+        return np.interp(shapely.line_locate_point(self.arc, places), self.along, self.halves)
+
+
+@dataclass
+class EdgeLines:
+    """Where the edge lines are painted (`edge_lines`)."""
+
+    lined: shapely.Geometry  # The stretches of the asphalt's outline a line follows.
+    strips: list[LineStrip]
+
+    def on(self, places: np.ndarray) -> np.ndarray:
+        if self.lined.is_empty:
+            return np.zeros(len(places), dtype=bool)
+        return shapely.dwithin(shapely.points(places), self.lined, ON_OUTLINE_M)
+
+
+def edge_lines(chains: list[Chain], carriageways: dict[int, shapely.Geometry], crosses: dict[int, Cross], mouths: list[Corner], sections: list[SeamSection], tile: shapely.Polygon) -> EdgeLines:
+    """Where an edge line is painted: along the outline of the asphalt, wherever that outline is a main road's edge or
+    the arc of a mouth, a wedge or a round end beside one; and the strip of paving each is painted on.
+
+    A line painted at every road's own edge, stopped where more carriageway lay beyond, was a line for each road: at a
+    mouth each ended on its own rule, one on a taper and the next short of the corner, the arc between them had a
+    crescent of paint or none, and where two roads merged the lesser's line was cut off along the greater's edge, a
+    needle of paint metres long. The asphalt has one outline, and a line that follows it turns a corner with it, runs
+    round a splitter and carries on from one road to the next, whichever road's asphalt it lies on.
+
+    The asphalt is that of roads paint goes by (`_asphalt_edge`): a drive's or a gravel road's mouth is no break in a
+    main road's edge, so its line runs on past it. Not along a tile's edge, where the outline is the tile's own cut:
+    there a strip ends on its road's seam section, which both tiles lay alike."""
+    roads = [chain for chain in chains if chain.motor and chain.index in carriageways]
+    shapes, edges, sides = [], [], []
+    for chain in roads:
+        cross = crosses[chain.index]
+        asphalt = asphalt_stations(chain)
+        if asphalt.all():
+            shapes.append(carriageways[chain.index])
+        else:
+            for first, last in _runs(asphalt):
+                left, right = _side_line(chain, cross.reach_left + 1, 1, first, last), _side_line(chain, cross.reach_right + 1, -1, first, last)
+                if len(left) >= 2:
+                    shapes.append(shapely.intersection(carriageways[chain.index], shapely.Polygon([*left, *right[::-1]]).buffer(0)))
+        painted = asphalt & (chain.tier == TIERS.index("main"))
+        if painted.any():
+            sides += [(chain, sign, half, painted) for sign, half in ((1, cross.half_left), (-1, cross.half_right))]
+        for first, last in _runs(painted):
+            for sign, half in ((1, cross.half_left), (-1, cross.half_right)):
+                side = _side_line(chain, half, sign, first, last)
+                if len(side) >= 2:
+                    edges.append(shapely.LineString(side))
+    if not edges:
+        return EdgeLines(shapely.MultiLineString(), [])
+    fills = [found for found in mouths if not found.fill.is_empty and asphalt_stations(chains[found.way])[chains[found.way].tree.query(shapely.get_coordinates(found.fill.representative_point())[0])[1]]]
+    asphalt = shapely.union_all([shape for shape in shapes if not shape.is_empty] + [found.fill for found in fills], grid_size=GRID_M / 20)
+    tree = shapely.STRtree(edges)
+    beside = [found for found in fills if len(tree.query(found.fill, predicate="dwithin", distance=ON_OUTLINE_M))]
+    near = shapely.union_all([shapely.buffer(shapely.union_all(edges), ON_OUTLINE_M, quad_segs=2), *(found.fill.boundary.buffer(ON_OUTLINE_M, quad_segs=2) for found in beside)])
+    lined = shapely.intersection(_outline_of_asphalt(asphalt), near).difference(tile.boundary.buffer(ON_OUTLINE_M * 2))
+    kept = [line for line in shapely.get_parts(shapely.line_merge(lined)) if line.geom_type == "LineString" and line.length >= LINE_LEAST_M]
+    seams = _seam_sides(sections, tile)
+    # A lined road's edge is lined right to the tile's own edge, along its seam section.
+    lines = EdgeLines(shapely.union_all([*kept, *(shapely.LineString(seam.outer) for seam in seams)]) if kept else shapely.MultiLineString(), [])
+    # Each lined road's edge at each station: whose line a strip carries, and how wide that road is.
+    places = np.concatenate([chain.xy[painted] + sign * half[painted, None] * chain.normal[painted] for chain, sign, half, painted in sides])
+    halves = np.concatenate([half[painted] for _, _, half, painted in sides])
+    whose = np.concatenate([np.full(int(painted.sum()), chain.index) for chain, _, _, painted in sides])
+    stations = cKDTree(places)
+    for line in kept:
+        strip = _line_strip(line, asphalt, stations, halves, whose, seams)
+        if strip is not None:
+            lines.strips.append(strip)
+    return lines
+
+
+def _outline_of_asphalt(asphalt: shapely.Geometry) -> shapely.Geometry:
+    """The outline of the asphalt with its hair-wide slits closed and its pinholes filled: a slit left where a fill's
+    edge ran a hair off a carriageway's is no edge of the asphalt, and nor is a hole too small to see."""
+    closed = asphalt.buffer(SLIVER_M * 2, join_style="mitre").buffer(-SLIVER_M * 2, join_style="mitre")
+    whole = shapely.union_all([shapely.Polygon(part.exterior, [ring for ring in part.interiors if shapely.Polygon(ring).area >= SPECK_M2]) for part in _flat(closed)])
+    return whole.boundary
+
+
+@dataclass
+class SeamSide:
+    """One side of a lined road's carriageway where it crosses a tile's edge, as its seam section has it: a point on
+    it inside the tile and one past the edge, and the points `LINE_STRIP_ACROSS` of the way out beside them."""
+
+    outer: np.ndarray  # (2, 2): inside the tile, then past its edge.
+    inner: np.ndarray
+    half: float
+
+
+def _seam_sides(sections: list[SeamSection], tile: shapely.Polygon) -> list[SeamSide]:
+    found = []
+    for section in sections:
+        chain, station = section.chain, section.station
+        if section.level != GROUND or not lined_stations(chain)[station]:
+            continue
+        middle, normal = chain.xy[station], chain.normal[station]
+        inward = chain.tangent[station] * (1 if tile.contains(shapely.Point(middle + chain.tangent[station] * SEAM_BAND_M)) else -1)
+        for sign, half in ((1, section.half_left), (-1, section.half_right)):
+            outer, inner = middle + sign * half * normal, middle + sign * LINE_STRIP_ACROSS * half * normal
+            found.append(SeamSide(np.array([outer + inward * SEAM_BAND_M, outer - inward * SEAM_BAND_M]), np.array([inner + inward * SEAM_BAND_M, inner - inward * SEAM_BAND_M]), float(half)))
     return found
 
 
-def open_edge_changes(chain: Chain, cross: Cross, opened: np.ndarray) -> list[shapely.LineString]:
-    """Lines from a road's middle out past its paving wherever its edge starts or stops having carriageway beyond it, for
-    its carriageway to be cut along, so an edge line ends square. Each runs right across that side of the way: one that
-    stopped at the carriageway's edge ended a hair to one side of it, and cut a needle off whatever lay there."""
+def _line_strip(line: shapely.LineString, asphalt: shapely.Geometry, stations: cKDTree, halves: np.ndarray, whose: np.ndarray, seams: list[SeamSide] = ()) -> LineStrip | None:
+    """The strip of cells along one stretch of the asphalt's outline. Its line is measured at each point by the
+    half-width of the lined road whose edge is there, so it is that road's own line; along an arc between two roads
+    it goes evenly from the one's width to the other's.
+
+    Where the stretch ends on a tile's edge its last cell is its road's seam section's, from inside the tile to past
+    the edge, so the strip's inner edge crosses the tile's edge where the neighbouring tile's does."""
+    points = shapely.get_coordinates(shapely.simplify(shapely.LineString(_without_steps(shapely.get_coordinates(line))), LINE_SMOOTH_M))
+    points = points[np.concatenate(([True], np.hypot(*np.diff(points, axis=0).T) > GRID_M / 2))]
+    if len(points) < 2:
+        return None
+    closed = bool(np.hypot(*(points[0] - points[-1])) <= GRID_M) and len(points) > 3
+    ended = {}
+    if not closed:
+        for at_end in (False, True):
+            end = points[-1 if at_end else 0]
+            for seam in seams:
+                run = seam.outer[0] - seam.outer[1]
+                run = run / np.hypot(*run)
+                along, off = float((end - seam.outer[1]) @ run), abs(float((end - seam.outer[1]) @ np.array([-run[1], run[0]])))
+                if 0 <= along <= 2 * SEAM_BAND_M and off <= ON_OUTLINE_M:
+                    # The outline's own points along the seam section, back from this end, give way to the section's.
+                    beyond = np.flatnonzero(((points - seam.outer[1]) @ run) > 2 * SEAM_BAND_M + GRID_M)
+                    if not len(beyond):
+                        break
+                    points = np.concatenate((points[: beyond[-1] + 1], seam.outer)) if at_end else np.concatenate((seam.outer[::-1], points[beyond[0] :]))
+                    ended[at_end] = seam
+                    break
+        if len(points) < 3:
+            return None
+    steps = np.diff(points, axis=0)
+    lengths = np.hypot(*steps.T)
+    steps = steps / lengths[:, None]
+    normals = np.column_stack((-steps[:, 1], steps[:, 0]))
+    longest = int(lengths.argmax())
+    if not asphalt.contains(shapely.Point((points[longest] + points[longest + 1]) / 2 + normals[longest] * 3 * SLIVER_M)):
+        normals = -normals
+    along = np.concatenate(([0], np.cumsum(lengths)))
+    distance, nearest = stations.query(points)
+    known = distance <= STATION_M * 1.5
+    if not known.any():
+        known = distance <= distance.min() + GRID_M
+    half = np.interp(along, along[known], halves[nearest[known]])
+    for at_end, seam in ended.items():
+        half[-2 if at_end else 0 :][:2] = seam.half
+    deep = (1 - LINE_STRIP_ACROSS) * half
+    before, after = (np.concatenate((normals[-1:], normals[:-1])), normals) if closed else (normals[:-1], normals[1:])
+    mitre = (before + after) / np.maximum(1 + (before * after).sum(-1), 1 + STRIP_SHARPEST_TURN)[:, None]
+    inner = np.empty_like(points)
+    if closed:
+        inner[:-1] = points[:-1] + deep[:-1, None] * mitre
+        inner[-1] = inner[0]
+    else:
+        inner[0], inner[-1] = points[0] + deep[0] * normals[0], points[-1] + deep[-1] * normals[-1]
+        inner[1:-1] = points[1:-1] + deep[1:-1, None] * mitre
+        for at_end, seam in ended.items():
+            inner[-2 if at_end else 0 :][:2] = seam.inner if at_end else seam.inner[::-1]
+    cells = shapely.polygons(np.stack((points[:-1], points[1:], inner[1:], inner[:-1], points[:-1]), axis=1))
+    # A cell folded over itself, where the outline turns in more tightly than the strip is deep, is left out.
+    sound = shapely.is_valid(cells) & (shapely.area(cells) > FLAT_TRIANGLE_M2)
+    if not sound.any():
+        return None
+    rungs = [shapely.LineString([points[index], inner[index]]) for index in range(len(points)) if sound[max(index - 1, 0)] or sound[min(index, len(sound) - 1)]]
+    ways = whose[stations.query((points[:-1] + points[1:]) / 2)[1]]
+    return LineStrip(shapely.LineString(points), along, half, cells[sound], ways[sound], shapely.LineString(inner), rungs)
+
+
+def _without_steps(points: np.ndarray) -> np.ndarray:
+    """An outline's points with each short step sideways in it made one point at the step's middle."""
+    if len(points) < 4:
+        return points
+    steps = np.diff(points, axis=0)
+    lengths = np.maximum(np.hypot(*steps.T), 1e-9)
+    steps = steps / lengths[:, None]
+    turn = steps[:-1, 0] * steps[1:, 1] - steps[:-1, 1] * steps[1:, 0]
+    # Side `index + 1` runs between the turns at its two ends.
+    stepped = np.flatnonzero((lengths[1:-1] < LINE_STEP_M) & (turn[:-1] * turn[1:] < 0) & (np.minimum(np.abs(turn[:-1]), np.abs(turn[1:])) > LINE_STEP_SINE)) + 1
+    if not len(stepped):
+        return points
+    kept = np.ones(len(points), dtype=bool)
+    points = points.copy()
+    for side in stepped:
+        if kept[side] and kept[side + 1]:
+            points[side] = (points[side] + points[side + 1]) / 2
+            kept[side + 1] = False
+    return points[kept]
+
+
+def unlined_strips(chain: Chain, cross: Cross, carriageway: shapely.Geometry, lines: EdgeLines, others: shapely.Geometry) -> list[shapely.LineString]:
+    """Lines along a lined road `LINE_STRIP_ACROSS` of the way out from its middle, wherever its edge has no line: more
+    asphalt lies beyond it. Its carriageway is cut along them, so the strip a line would lie in is a piece apart, and
+    the rest is measured across as it is everywhere. Each starts and ends on the inner edge of the line's own strip
+    where one stops there, so the two strips meet and close. `others` are the carriageways this road ends on, which
+    the lines stop a hair inside: stopped short of them, a line met nothing and cut nothing."""
+    painted = lined_stations(chain)
+    ends = [(shapely.get_coordinates(rung)[0], shapely.get_coordinates(rung)[1]) for strip in lines.strips for rung in (strip.rungs[0], strip.rungs[-1])]
+    tree = cKDTree(np.array([outer for outer, _ in ends])) if ends else None
+    found = []
+    for sign, half in ((1, cross.half_left), (-1, cross.half_right)):
+        edge = chain.xy + sign * half[:, None] * chain.normal
+        inside = shapely.contains_xy(others, edge[:, 0], edge[:, 1]) if not others.is_empty else np.zeros(len(edge), dtype=bool)
+        bare = painted & ~inside & ~lines.on(edge)
+        for first, last in _runs(bare):
+            points = list(chain.xy[first : last + 1] + sign * LINE_STRIP_ACROSS * half[first : last + 1, None] * chain.normal[first : last + 1])
+            for station, beyond, add in ((first, first - 1, lambda point: points.insert(0, point)), (last, last + 1, points.append)):
+                if not 0 <= beyond < len(edge):
+                    continue
+                # From the end of the line's own strip, where one stops within a station of here on this edge, or else from the next station.
+                far, nearest = tree.query(edge[station]) if tree is not None else (np.inf, 0)
+                outer, inner = ends[nearest] if tree is not None else (None, None)
+                add(inner if far <= STATION_M and abs(float((outer - chain.xy[station]) @ (sign * chain.normal[station])) - float(half[station])) <= 2 * ON_OUTLINE_M else chain.xy[beyond] + sign * LINE_STRIP_ACROSS * half[beyond] * chain.normal[beyond])
+            if len(points) >= 2:
+                found.append(shapely.intersection(shapely.LineString(points), carriageway).difference(others.buffer(-2 * GRID_M, quad_segs=1)))
+    return found
+
+
+def centreless_stations(chain: Chain, carriageways: dict[int, shapely.Geometry], mouths: list[Corner], tile: shapely.Polygon) -> np.ndarray:
+    """The stations of a road with no line down its middle: a one-way road of one lane, which has no middle to mark, and
+    the last of a road that ends on another, from where its mouth opens. The game paints a centre line down every main
+    road, so a roundabout's ring and each arm of it had one, a slip road carried its own beside the road it joined, and
+    a road's dashes ran on through its mouth to the middle of the road it met.
+
+    A mouth's own stations are only those well inside the tile: near its edge each tile sees only its own side, and a
+    way's line must be the same from both."""
+    lanes = lambda road: int(road["lanes"]) if str(road.get("lanes", "")).isdigit() else 1
+    one_way = np.array([(edge.road.get("oneway") in ("yes", "true", "1", "-1") or edge.road.get("junction") == "roundabout") and lanes(edge.road) < 2 for edge in chain.edges], dtype=bool)
+    without = one_way[chain.edge_at]
+    last = len(chain.xy) - 1
+    inside = shapely.contains_xy(tile.buffer(-EDGE_BAND_M, join_style="mitre"), chain.xy[:, 0], chain.xy[:, 1])
+    for parent, cut, at_start in chain.landings:
+        end = 0 if at_start else last
+        back = int(cut)
+        if parent.index in carriageways:
+            within = shapely.contains_xy(carriageways[parent.index].buffer(GRID_M), chain.xy[:, 0], chain.xy[:, 1])
+            for station in range(0, last + 1) if at_start else range(last, -1, -1):
+                if not within[station]:
+                    break
+                back = max(back, station) if at_start else min(back, station)
+        for found in mouths:
+            if found.way != chain.index or found.end or found.wedge or found.fill.is_empty:
+                continue
+            reached = chain.tree.query(shapely.get_coordinates(found.fill))[1]
+            # A mouth is this end's if it lies nearer it than the way's other end.
+            reached = reached[np.abs(reached - end) < len(chain.xy) / 2]
+            if len(reached):
+                back = max(back, int(reached.max())) if at_start else min(back, int(reached.min()))
+        if at_start:
+            without[: back + 1] |= inside[: back + 1]
+        else:
+            without[back:] |= inside[back:]
+    return without
+
+
+def centre_changes(chain: Chain, cross: Cross, without: np.ndarray, on_level: np.ndarray) -> list[shapely.LineString]:
+    """Lines across a road wherever its centre line starts or stops, for its carriageway to be cut along."""
+    here = np.zeros(len(chain.xy), dtype=bool)
+    here[on_level] = True
     lines = []
-    for side, sign, reach in zip(opened, (1, -1), cross.paving):
-        for station in np.flatnonzero(np.diff(side.astype(int)) != 0) + 1:
-            middle = (chain.xy[station - 1] + chain.xy[station]) / 2
-            across = chain.normal[station - 1] + chain.normal[station]
-            across = across / max(float(np.hypot(*across)), 1e-9)
-            lines.append(shapely.LineString([middle, middle + sign * (max(reach[station - 1], reach[station]) + KEEP_APART_M) * across]))
+    for station in np.flatnonzero((without[:-1] != without[1:]) & here[:-1] & here[1:]) + 1:
+        middle = (chain.xy[station - 1] + chain.xy[station]) / 2
+        across = chain.normal[station - 1] + chain.normal[station]
+        across = across / max(float(np.hypot(*across)), 1e-9)
+        lines.append(shapely.LineString([middle + (max(cross.reach_left[station - 1], cross.reach_left[station]) + KEEP_APART_M) * across, middle - (max(cross.reach_right[station - 1], cross.reach_right[station]) + KEEP_APART_M) * across]))
     return lines
 
 
@@ -1184,7 +1477,7 @@ def joined_up(faces: np.ndarray, alike: np.ndarray) -> tuple[np.ndarray, np.ndar
     return joined, of
 
 
-def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int], sections: list[SeamSection], street_corners: shapely.Geometry, tile: shapely.Polygon, looks: dict[int, tuple[np.ndarray, np.ndarray]], mouths: list[Corner] = ()) -> list[Piece]:
+def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]], carriageways: dict[int, shapely.Geometry], levels: dict[int, np.ndarray], paved: shapely.Geometry, areas: shapely.Geometry, kerbs: dict[int, shapely.Geometry], crosses: dict[int, Cross], sidewalks: set[int], sections: list[SeamSection], street_corners: shapely.Geometry, tile: shapely.Polygon, looks: dict[int, tuple[np.ndarray, np.ndarray]], mouths: list[Corner] = (), paint: EdgeLines | None = None) -> list[Piece]:
     """The paved shape cut along every way's outline, carriageway, kerb and centre line, each piece owned by the greatest way
     whose carriageway holds it, or failing that the greatest whose shoulder does: a road's shoulder never runs across the
     mouth of another road that joins it. A street's piece past its kerb, where it has one, is its sidewalk's.
@@ -1210,8 +1503,21 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
     lines += [shapely.intersection(on_seams(shapely.LineString(), [section.line], tile), paved) for section in sections if section.level == GROUND]
     lines += [shapely.intersection(line, paved) for index in ground_prints for line in look_changes(chains[index], crosses[index], looks, np.flatnonzero(levels[index] == GROUND))]
     lines += [shapely.intersection(part.boundary, paved) for mouth in mouths for part in (mouth.fill, mouth.ring)]
-    opened = open_edges(chains, carriageways, mouths)
-    lines += [shapely.intersection(line, paved) for index, sides in opened.items() for line in open_edge_changes(chains[index], crosses[index], sides)]
+    # The paint: an edge line's strip is cut out along the asphalt's outline, a lined road's carriageway is cut along the
+    # strip a line would lie in where it has none, and across it where its centre line starts or stops.
+    without = {}
+    main = TIERS.index("main")
+    for index in carriageways:
+        chain = chains[index]
+        if not chain.motor or not (chain.tier == main).any():
+            continue
+        without[index] = centreless_stations(chain, carriageways, mouths, tile)
+        lines += [shapely.intersection(line, paved) for line in centre_changes(chain, crosses[index], without[index], np.flatnonzero(levels[index] == GROUND))]
+        if paint is not None and lined_stations(chain).any():
+            others = shapely.union_all([carriageways[parent.index] for parent, _, _ in chain.landings if parent.index in carriageways])
+            lines += [shapely.intersection(line, paved) for line in unlined_strips(chain, crosses[index], carriageways[index], paint, others)]
+    if paint is not None:
+        lines += [shapely.intersection(line, paved) for strip in paint.strips for line in (strip.inner, *strip.rungs)]
     # On a grid as fine as the outlines are kept to, before it's cut: lines that nearly meet become one, and no two pieces overlap.
     # Long straight edges are cut so a profile's bend still shows along them: once, on the shared lines, so two pieces cut theirs alike.
     linework = shapely.segmentize(shapely.union_all([line for line in lines if not line.is_empty], grid_size=GRID_M), LONGEST_SECTION_M)
@@ -1248,6 +1554,35 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
             owner[held], walk[held] = JUNCTION, False
             look[held] = [mouths[index].way for index in at]
             mouth[held] = [(END_RING if ring else END_FILL) if mouths[index].end else WEDGE_FILL if mouths[index].wedge else (MOUTH_RING if ring else MOUTH_FILL) for index in at]
+    lined = np.zeros(len(faces), dtype=bool)
+    if paint is not None and paint.strips:
+        # A line's strip is whatever asphalt its cells hold. The lined road's own, along its own edge, stays its own and
+        # is where its line is painted; any other (a mouth's fill, the edge of the greater road a slip road runs into)
+        # is the strip's, and wears the lined road's surface.
+        ways = np.concatenate([strip.ways for strip in paint.strips])
+        arcs = np.concatenate([np.full(len(strip.cells), strip.arc) for strip in paint.strips])
+        held, at = shapely.STRtree(np.concatenate([strip.cells for strip in paint.strips])).query(middles, predicate="within")
+        places = shapely.get_coordinates(middles)
+        asphalt = np.isin(mouth, FILLS)
+        for index in np.unique(owner[held][driven[held] & (owner[held] >= 0)]):
+            chain = chains[index]
+            mine = held[driven[held] & (owner[held] == index)]
+            asphalt[mine] = chain.motor & asphalt_stations(chain)[chain.tree.query(places[mine])[1]]
+        on_asphalt = asphalt[held] & ~walk[held]
+        held, at = held[on_asphalt], at[on_asphalt]
+        own = driven[held] & (owner[held] == ways[at])
+        for index in np.unique(owner[held[own]]):
+            # Its own only where the outline there is its own edge: where a mouth's arc runs out along it, the line
+            # follows the arc across its asphalt, a little off its edge.
+            chain, cross = chains[index], crosses[index]
+            mine = np.flatnonzero(own & (owner[held] == index))
+            station = chain.tree.query(places[held[mine]])[1]
+            offset = ((places[held[mine]] - chain.xy[station]) * chain.normal[station]).sum(-1)
+            from_edge = np.where(offset >= 0, cross.half_left[station], cross.half_right[station]) - np.abs(offset)
+            own[mine] = np.abs(from_edge - shapely.distance(middles[held[mine]], arcs[at[mine]])) <= LINE_SMOOTH_M + GRID_M
+        lined[held[own]] = True
+        held, at = held[~own], at[~own]
+        owner[held], mouth[held], look[held] = JUNCTION, LINE_STRIP, ways[at]
     # A piece drawn as the shoulders round it carries one way's class whole, the nearest to its middle: read point by
     # point, a corner between a street and a sidewalk carried slabs at some points and none at others, a smear across it.
     beside = np.full(len(faces), JUNCTION)
@@ -1257,20 +1592,25 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
         of = np.concatenate([np.full(len(chains[index].xy), index) for index in ground_prints])
         beside[bare] = of[cKDTree(stations).query(shapely.get_coordinates(middles[bare]))[1]]
     part = _parts_worn(chains, np.where((look != JUNCTION) & (walk | (owner == JUNCTION)), look, np.where(owner == JUNCTION, beside, owner)), middles)
-    without_specks(looks, faces, shapely.contains(tile.buffer(-EDGE_BAND_M, join_style="mitre"), faces), owner, driven, walk, look, mouth, beside, part)
-    # A way's own piece is alike to none: each has a row of its own.
-    faces, of = joined_up(faces, np.column_stack((np.where(owner == JUNCTION, -1, np.arange(len(faces))), look, mouth, beside, part)))
+    without_specks(looks, faces, shapely.contains(tile.buffer(-EDGE_BAND_M, join_style="mitre"), faces) & (mouth != LINE_STRIP), owner, driven, walk, look, mouth, beside, part)
+    # A way's own piece is alike to none, and nor is a cell of a line's strip: each has a row of its own.
+    faces, of = joined_up(faces, np.column_stack((np.where((owner == JUNCTION) & (mouth != LINE_STRIP), -1, np.arange(len(faces))), look, mouth, beside, part)))
     middles = shapely.point_on_surface(faces)
-    owner, driven, walk, look, mouth, beside, part = (values[of] for values in (owner, driven, walk, look, mouth, beside, part))
+    owner, driven, walk, look, mouth, beside, part, lined = (values[of] for values in (owner, driven, walk, look, mouth, beside, part, lined))
     unlined = np.zeros(len(faces), dtype=bool)
+    centre = np.zeros(len(faces), dtype=int)
     places = shapely.get_coordinates(middles)
-    for index, sides in opened.items():
+    for index, bare in without.items():
         mine = np.flatnonzero(driven & (owner == index))
+        if not len(mine):
+            continue
         chain = chains[index]
         station = chain.tree.query(places[mine])[1]
         left = ((places[mine] - chain.xy[station]) * chain.normal[station]).sum(-1) >= 0
-        unlined[mine] = np.where(left, sides[0][station], sides[1][station])
-    found = [Piece(face, int(who), GROUND, bool(on_walk), int(worn), int(of), int(at_mouth), bool(no_line), int(near)) for face, who, on_walk, worn, of, at_mouth, no_line, near in zip(faces, owner, walk, look, part, mouth, unlined, beside)]
+        centre[mine] = np.where(bare[station], np.where(left, 1, -1), 0)
+        if paint is not None:
+            unlined[mine] = lined_stations(chain)[station] & ~lined[mine]
+    found = [Piece(face, int(who), GROUND, bool(on_walk), int(worn), int(of), int(at_mouth), bool(no_line), int(near), int(side)) for face, who, on_walk, worn, of, at_mouth, no_line, near, side in zip(faces, owner, walk, look, part, mouth, unlined, beside, centre)]
     found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, BELOW, looks)
     found += _off_ground_pieces(chains, prints, levels, crosses, paved, tile, ABOVE, looks)
     return found
@@ -1405,8 +1745,9 @@ class Mesh:
     look: np.ndarray  # The path whose surface each triangle's piece wears, or JUNCTION for its owner's own.
     part: np.ndarray  # Which OSM way of that way each triangle's piece wears, or -1.
     mouth: np.ndarray  # Whether each triangle's piece is a junction's mouth's fill or ring.
-    open: np.ndarray  # Whether each triangle's piece is carriageway with more carriageway beyond its edge.
+    open: np.ndarray  # Whether each triangle's piece is a lined road's outside its line's strip.
     beside: np.ndarray  # The way whose class each triangle's piece carries, if it is drawn as the shoulders round it.
+    centre: np.ndarray  # Which side of a way with no centre line each triangle's piece lies on, or 0.
 
 
 def triangulate(pieces: list[Piece]) -> Mesh:
@@ -1430,8 +1771,9 @@ def triangulate(pieces: list[Piece]) -> Mesh:
     mouth = np.array([piece.mouth for piece in pieces])[which]
     opened = np.array([piece.open for piece in pieces])[which]
     beside = np.array([piece.beside for piece in pieces])[which]
+    centre = np.array([piece.centre for piece in pieces])[which]
     used, indices = np.unique(indices[solid], return_inverse=True)
-    return Mesh(points[used, :2], points[used, 2].astype(int), indices.reshape(-1, 3), owner[solid], walk[solid], look[solid], part[solid], mouth[solid], opened[solid], beside[solid])
+    return Mesh(points[used, :2], points[used, 2].astype(int), indices.reshape(-1, 3), owner[solid], walk[solid], look[solid], part[solid], mouth[solid], opened[solid], beside[solid], centre[solid])
 
 
 def _land(ground: Ground, xy: np.ndarray) -> np.ndarray:
@@ -1880,7 +2222,7 @@ def underpass_walls(mesh: Mesh, heights: np.ndarray) -> tuple[np.ndarray, np.nda
     return _both_faces(np.array(quads))
 
 
-def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, crosses: dict[int, Cross], carriageways: dict[int, shapely.Geometry], outline: shapely.Geometry, looks: dict[int, tuple[np.ndarray, np.ndarray]], mouths: list[Corner] = ()) -> tuple[np.ndarray, np.ndarray, int, int]:
+def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfaces: Surfaces, crosses: dict[int, Cross], carriageways: dict[int, shapely.Geometry], outline: shapely.Geometry, looks: dict[int, tuple[np.ndarray, np.ndarray]], mouths: list[Corner] = (), paint: EdgeLines | None = None) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Each piece's corners with what the road's look reads: across its way, the way's tier, how far along it, which way,
     what that way is paved with, and which way it runs, as the cosine and sine of twice its angle: paving looks the same
     turned half round, and a doubled angle has no jump for a triangle to blend across.
@@ -1890,9 +2232,9 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     ways' own, and a car park's last, with how many of each.
     """
     # A point is one for each way whose pieces meet there, and for each look they wear: each piece keeps its own up to its edge.
-    keys = np.column_stack((mesh.triangles.ravel(), np.repeat(mesh.owner, 3), np.repeat(mesh.walk, 3), np.repeat(mesh.look, 3), np.repeat(mesh.part, 3), np.repeat(mesh.mouth, 3), np.repeat(mesh.open, 3), np.repeat(mesh.beside, 3)))
+    keys = np.column_stack((mesh.triangles.ravel(), np.repeat(mesh.owner, 3), np.repeat(mesh.walk, 3), np.repeat(mesh.look, 3), np.repeat(mesh.part, 3), np.repeat(mesh.mouth, 3), np.repeat(mesh.open, 3), np.repeat(mesh.beside, 3), np.repeat(mesh.centre, 3)))
     unique, index = np.unique(keys, axis=0, return_inverse=True)
-    point, owner, walk, path, part, mouth, opened, beside = unique[:, 0], unique[:, 1], unique[:, 2].astype(bool), unique[:, 3], unique[:, 4], unique[:, 5], unique[:, 6].astype(bool), unique[:, 7]
+    point, owner, walk, path, part, mouth, opened, beside, centre = unique[:, 0], unique[:, 1], unique[:, 2].astype(bool), unique[:, 3], unique[:, 4], unique[:, 5], unique[:, 6].astype(bool), unique[:, 7], unique[:, 8]
     xy = mesh.xy[point]
     # A piece wearing a path's surface (a street's sidewalk band, a corner or gap beside the path) reads that path's look;
     # one no way owns otherwise, and a car park, the nearest way's.
@@ -1920,7 +2262,11 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
         if not own.any():
             continue
         own, station = mine[own], station[own]
-        across[own] = _own_across(chain, crosses[chain_index], xy[own], station) * np.where(opened[own], OPEN_EDGE_ACROSS, 1)
+        mine_across = _own_across(chain, crosses[chain_index], xy[own], station)
+        # Outside its line's strip a lined road's asphalt stops short of where a line is painted.
+        mine_across = np.where(opened[own], np.clip(mine_across, -OPEN_EDGE_ACROSS, OPEN_EDGE_ACROSS), mine_across)
+        # With no centre line its middle stands clear of where one is painted, on its own side.
+        across[own] = np.where(centre[own] != 0, centre[own] * np.maximum(np.abs(mine_across), NO_CENTRE_ACROSS), mine_across)
         if walk[own].any():
             # A sidewalk band with no path beside it to wear is the one the street's tags map.
             left = ((xy[own] - chain.xy[station]) * chain.normal[station]).sum(-1) >= 0
@@ -1933,7 +2279,7 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
     # A mouth is measured from its arc, the junction's own edge of asphalt, where across is 1: its fill falls from that by
     # the joining road's half-width, carriageway all through, and its ring rises from it by that road's shoulder, so an
     # edge line, a strip and a kerb follow the arc as they follow the road.
-    at_mouth = np.flatnonzero(mouth != NO_MOUTH)
+    at_mouth = np.flatnonzero((mouth != NO_MOUTH) & (mouth != LINE_STRIP))
     if len(at_mouth):
         _, from_arc = shapely.STRtree([found.arc for found in mouths]).query_nearest(shapely.points(xy[at_mouth]), return_distance=True, all_matches=False)
         stations = [(chains[who], chains[who].tree.query(place)[1]) for who, place in zip(path[at_mouth], xy[at_mouth])]
@@ -1942,13 +2288,32 @@ def point_attributes(mesh: Mesh, heights: np.ndarray, chains: list[Chain], surfa
         # A point a hair off the arc, where the outline is kept, is on it, as a carriageway's edge is stored.
         from_arc = np.where(from_arc <= EDGE_WITHIN_M, 0, from_arc)
         within = np.maximum(1 - from_arc / np.maximum(half, OUTLINE_WITHIN_M), CORNER_LEAST_ACROSS)
-        # A wedge's nose has no line round it: the two roads' own lines stop where the wedge begins. Cut to what was paved,
-        # a wedge's outline can be any shape, and a line that followed it was a white blot on the asphalt.
-        within = np.where(mouth[at_mouth] == WEDGE_FILL, np.minimum(within, OPEN_EDGE_ACROSS), within)
+        # A fill's line is its strip's (`LineStrip`): the rest of it stops short of where a line is painted.
+        within = within if paint is None else np.minimum(within, LINE_STRIP_ACROSS)
         across[at_mouth] = np.where(np.isin(mouth[at_mouth], FILLS), within, np.minimum(1 + from_arc / np.maximum(strip, OUTLINE_WITHIN_M), 2))
         carriageways = dict(carriageways)
         for found in mouths:
             carriageways[found.way] = shapely.union(carriageways[found.way], found.fill)
+    on_carriageway = (owner >= 0) & ~walk & (np.abs(across) <= CARRIAGEWAY_EDGE_ACROSS)
+    in_strip = np.flatnonzero(mouth == LINE_STRIP)
+    if len(in_strip):
+        # A line's strip is measured from its own stretch of outline, by the half-width its line is drawn for, and painted
+        # as a main road is. It lies on the lined road's side of that road's middle, and on its carriageway or beside it.
+        places = shapely.points(xy[in_strip])
+        which = shapely.STRtree([found.arc for found in paint.strips]).query_nearest(places, all_matches=False)[1]
+        for of in np.unique(which):
+            mine = in_strip[which == of]
+            from_line = shapely.distance(shapely.points(xy[mine]), paint.strips[of].arc)
+            across[mine] = np.clip(1 - np.where(from_line <= ON_EDGE_M, 0, from_line) / paint.strips[of].half_at(shapely.points(xy[mine])), LINE_STRIP_ACROSS, 1)
+        for way in np.unique(path[in_strip]):
+            mine = in_strip[path[in_strip] == way]
+            chain, cross = chains[way], crosses[way]
+            station = chain.tree.query(xy[mine])[1]
+            offset = ((xy[mine] - chain.xy[station]) * chain.normal[station]).sum(-1)
+            across[mine] *= np.where(offset >= 0, 1, -1)
+            on_carriageway[mine] = np.abs(offset) <= np.where(offset >= 0, cross.half_left[station], cross.half_right[station]) + EDGE_WITHIN_M
+        tier[in_strip] = TIERS.index("main")
+    surface[on_carriageway] = surface[on_carriageway].astype(int) | ON_CARRIAGEWAY
     # Outside every carriageway: a junction's corner or a gap closed between ways, drawn as the shoulders round it.
     shoulders = (owner == JUNCTION) & ~worn
     carried = np.flatnonzero(shoulders & (beside >= 0) & (part >= 0))
@@ -2125,15 +2490,16 @@ def lay(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = (), wh
     shape, street_corners = ground_shape(chains, prints, areas, tile, mouths)
     mouths += gores(chains, carriageways, prints, shape, mouths, tile)
     asphalt_edges(chains, carriageways, mouths)
+    paint = edge_lines(chains, carriageways, crosses, mouths, sections, tile)
     kerbs = ground_kerbs(laid, levels, crosses, prints, sections, tile)
     looks = edge_looks(chains)
-    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile, looks, mouths))
+    mesh = triangulate(pieces_of(chains, prints, carriageways, levels, shape, areas, kerbs, crosses, sidewalks, sections, street_corners, tile, looks, mouths, paint))
     surfaces = Surfaces(chains, ground)
     # To the millimetre, as the tile holds it, so the ground cut against the paving takes the very heights drawn.
     heights = np.round(solve_heights(mesh, surfaces, ground, sections, span_ends(mesh, chains, levels, crosses)), 3)
     on_ground = _level_triangles(mesh, heights, GROUND)
     outline = outline_of(on_ground)
-    points, triangles, junction_points, area_points = point_attributes(mesh, heights, chains, surfaces, crosses, carriageways, outline.boundary, looks, mouths)
+    points, triangles, junction_points, area_points = point_attributes(mesh, heights, chains, surfaces, crosses, carriageways, outline.boundary, looks, mouths, paint)
 
     raw = ground.tile_corners()
     below = _level_triangles(mesh, heights, BELOW)

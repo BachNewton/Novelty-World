@@ -65,7 +65,7 @@ class OneSurface(unittest.TestCase):
         footway = road([(600, 603.5), (900, 903.5)], "footway", motor=False)
         paved = paving.lay([street, sidewalk, footway], land())
         way = paved.points[:, 6].astype(int)
-        surface = paved.points[:, 7]
+        surface = paved.points[:, 7].astype(int) & paving.CLASS_BITS
         east, north = paved.points[:, 0], paved.points[:, 1]
         chains = {chain.kind_name: chain.index for chain in paved.chains}
         self.assertTrue((surface[way == chains["residential"]] == path_surfaces.NONE).all())
@@ -85,8 +85,8 @@ class OneSurface(unittest.TestCase):
             self.assertEqual(path_surfaces.way_class({"kind": "track", "surface": surface}, True), path_surfaces.NONE)
         street = road([(100, 600), (1100, 600)], **{"sidewalk": "left", "sidewalk:left:surface": "grass"})
         paved = paving.lay([street], land())
-        self.assertNotIn(path_surfaces.LAWN, set(paved.points[:, 7].astype(int)))
-        self.assertIn(path_surfaces.GRAVEL, set(paved.points[:, 7].astype(int)))
+        self.assertNotIn(path_surfaces.LAWN, set(paved.points[:, 7].astype(int) & paving.CLASS_BITS))
+        self.assertIn(path_surfaces.GRAVEL, set(paved.points[:, 7].astype(int) & paving.CLASS_BITS))
 
     def test_a_path_has_no_shoulder_to_draw_at_its_edge(self):
         """A path's outline is kept within a couple of centimetres of its edge, and a point a hair past it was drawn as a
@@ -193,7 +193,7 @@ class OneSurface(unittest.TestCase):
         strip = corners[(north > kerb + 0.05) & (north < 606.75 - footway.half.max() - 0.05) & (np.abs(corners[:, :, 0].mean(axis=1) - 600) < 300)]
         self.assertGreater(len(strip), 10)
         self.assertTrue((strip[:, :, 6].astype(int) == footway.index).all())
-        self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue(((strip[:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
         self.assertTrue((np.abs(strip[:, :, 3]) < 1).all())
 
     def test_a_strip_across_a_street_from_a_side_street_s_mouth_is_still_its_own_street_s_sidewalk(self):
@@ -212,7 +212,7 @@ class OneSurface(unittest.TestCase):
         middle = corners[:, :, :2].mean(axis=1)
         strip = corners[(middle[:, 1] > kerb + 0.05) & (middle[:, 1] < 606.75 - walk.half.max() - 0.05) & (np.abs(middle[:, 0] - 601) < 80)]
         self.assertGreater(len(strip), 10)
-        self.assertTrue((strip[:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue(((strip[:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
 
     def test_where_a_way_s_surface_changes_the_paving_is_cut_and_no_triangle_wears_two(self):
         """Read point by point, slabs and tarmac met in a smear across whichever triangles spanned the change, on the
@@ -227,7 +227,7 @@ class OneSurface(unittest.TestCase):
         corners = paved.points[paved.triangles]
         middle = corners[:, :, :2].mean(axis=1)
         walked = corners[(middle[:, 1] > kerb + 0.05) & (np.abs(middle[:, 0] - 600) < 60)]
-        surfaces = walked[:, :, 7]
+        surfaces = walked[:, :, 7].astype(int) & paving.CLASS_BITS
         self.assertTrue((surfaces.min(axis=1) == surfaces.max(axis=1)).all())
         east = walked[:, :, 0].mean(axis=1)
         self.assertTrue((surfaces[east < 598.9, 0] == path_surfaces.SLAB).all())
@@ -242,7 +242,7 @@ class OneSurface(unittest.TestCase):
         loose = road([(600, 600), (1100, 600)], "unclassified", surface="gravel")
         paved = paving.lay([sealed, loose], land(town=0.0))
         corners = paved.points[paved.triangles]
-        said = corners[:, :, 7].astype(int)
+        said = corners[:, :, 7].astype(int) & ~paving.ON_CARRIAGEWAY
         self.assertTrue((said.min(axis=1) == said.max(axis=1)).all())
         east = corners[:, :, 0].mean(axis=1)
         self.assertEqual(set(said[east < 598.9, 0]), {paving.SEALED_WAY})
@@ -260,7 +260,7 @@ class OneSurface(unittest.TestCase):
         crossing = (np.abs(middle[:, 0] - 600) < chains["service"].half.min() - 0.1) & (np.abs(middle[:, 1] - 604.5) < chains["footway"].half.min() - 0.1)
         self.assertGreater(int(crossing.sum()), 0)
         self.assertTrue((corners[crossing][:, :, 6].astype(int) == chains["footway"].index).all())
-        self.assertTrue((corners[crossing][:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue(((corners[crossing][:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
 
     def test_a_crossing_s_surface_is_only_for_the_road_it_crosses(self):
         """A crossing tagged asphalt, mapped on a sidewalk's line across a side road's mouth, painted metres of the sidewalk
@@ -277,7 +277,7 @@ class OneSurface(unittest.TestCase):
         points = paved.points
         off_the_mouth = (np.abs(points[:, 0] - 600) > mouth + 0.1) & (np.abs(points[:, 0] - 600) < 9) & (points[:, 1] > 602.6) & (points[:, 1] < 606)
         self.assertGreater(int(off_the_mouth.sum()), 0)
-        self.assertFalse((off_the_mouth & (points[:, 7] == path_surfaces.TARMAC)).any())
+        self.assertFalse((off_the_mouth & ((points[:, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.TARMAC)).any())
 
     def test_a_crossing_does_not_outrank_the_street_s_kerb_and_walk_band_or_the_sidewalk(self):
         """A crossing over a street owned its own carriageway through the street's kerb strip, its walk band and the gap to
@@ -293,7 +293,7 @@ class OneSurface(unittest.TestCase):
         middle = corners[:, :, :2].mean(axis=1)
         beside = (np.abs(middle[:, 0] - 600) < 0.8) & (middle[:, 1] > 600 + half + 0.05) & (middle[:, 1] < 607.75)
         self.assertGreater(int(beside.sum()), 0)
-        self.assertFalse((corners[beside][:, :, 7] == path_surfaces.TARMAC).any())
+        self.assertFalse(((corners[beside][:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.TARMAC).any())
         # The street's paving and the sidewalk's own are theirs; only the gap between them is left to the crossing.
         theirs = beside & ((middle[:, 1] < 600 + reach - 0.05) | (middle[:, 1] > 606.75 - 0.95))
         self.assertGreater(int(theirs.sum()), 0)
@@ -331,7 +331,7 @@ class OneSurface(unittest.TestCase):
         self.assertGreater(int(mouth.sum()), 0)
         footways = [chain.index for chain in paved.chains if chain.kind_name == "footway"]
         self.assertTrue(np.isin(corners[mouth][:, :, 6].astype(int), footways).all())
-        self.assertTrue((corners[mouth][:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue(((corners[mouth][:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
 
     def test_a_sidewalk_tagged_on_a_street_is_laid_beside_it_on_its_side(self):
         """OSM maps many of Mariehamn's sidewalks on the street's own way, and they were left out, the street a bare strip of
@@ -347,7 +347,7 @@ class OneSurface(unittest.TestCase):
         middle = corners[:, :, :2].mean(axis=1)
         band = corners[(middle[:, 1] < 600 - kerb - 0.05) & (np.abs(middle[:, 0] - 600) < 300)]
         self.assertGreater(len(band), 10)
-        self.assertTrue((band[:, :, 7] == path_surfaces.SLAB).all())
+        self.assertTrue(((band[:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
         self.assertTrue((np.abs(band[:, :, 3]) < 1).all())
 
     def test_a_corner_between_a_drive_and_a_sidewalk_is_drawn_as_the_drive_s_shoulder(self):
@@ -508,6 +508,21 @@ def triangle_at(paved, east, north):
     return corners[np.flatnonzero(over)[0]]
 
 
+def across_at(paved, east, north):
+    """How far across its way a place lies, as the game reads it: blended over the triangle that holds it."""
+    corners = triangle_at(paved, east, north)
+    (ax, ay), (bx, by), (cx, cy) = corners[:, :2]
+    area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+    first = ((bx - east) * (cy - north) - (cx - east) * (by - north)) / area
+    second = ((cx - east) * (ay - north) - (ax - east) * (cy - north)) / area
+    return float(first * abs(corners[0, 3]) + second * abs(corners[1, 3]) + (1 - first - second) * abs(corners[2, 3]))
+
+
+# Where the game paints an edge line across a main road (`LINE_INSET`, `LINE_WIDTH` in `render/game.ts`), and its middle.
+EDGE_LINE = (0.895, 0.965)
+LINE_MIDDLE = 0.93
+
+
 class Mouths(unittest.TestCase):
     def junction(self):
         main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
@@ -568,6 +583,81 @@ class Mouths(unittest.TestCase):
 
         self.assertTrue((np.abs(between(0.6)[:, 3]) <= 1).all())
         self.assertTrue((np.abs(between(2.4)[:, 3]) >= 1).all())
+
+
+class Paint(unittest.TestCase):
+    def test_an_edge_line_turns_a_mouth_s_corner_with_the_asphalt_as_wide_as_on_the_road(self):
+        """Painted from each road's own edge, the line round a mouth's corner was whatever a few big triangles blended
+        it to: a crescent, fat in the corner's middle and gone at its ends."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 900)], "tertiary")
+        paved = paving.lay([main, side], land(town=0.0))
+        through, joining = sorted(paved.chains, key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        half = float(through.half.max())
+        radius = 7.0 + float(joining.shoulder[0])
+        centre = 600 + half + radius
+        # Not on the corner's diagonal, which the triangles are cut along.
+        for degrees in (12, 30, 43, 60, 78):
+            towards = np.array([np.cos(np.radians(degrees)), np.sin(np.radians(degrees))])
+            on_line = centre - (radius + (1 - LINE_MIDDLE) * half) * towards
+            self.assertTrue(EDGE_LINE[0] < across_at(paved, *on_line) < EDGE_LINE[1], degrees)
+            self.assertEqual(float(triangle_at(paved, *on_line)[:, 4].max()), 0, degrees)
+            # Inside it, bare asphalt.
+            self.assertLess(across_at(paved, *(centre - (radius + 0.25 * half) * towards)), EDGE_LINE[0], degrees)
+
+    def test_a_slip_road_s_edge_line_is_whole_where_its_edge_runs_out_of_the_greater_road_s_asphalt(self):
+        """Its own asphalt there is a wedge as thin as the two roads' angle, and its line, painted on that alone, was a
+        needle cut off along the greater road's edge for metres."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        slip = road([(600, 600), (900, 640)], "tertiary")
+        paved = paving.lay([main, slip], land(town=0.0))
+        through, joining = sorted(paved.chains, key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        edge = joining.xy + joining.half[:, None] * joining.normal
+        clear = np.flatnonzero((edge[:, 1] > 600 + float(through.half.max()) + 0.05) & (edge[:, 0] < 640))
+        self.assertGreater(len(clear), 8)
+        for station in clear:
+            on_line = joining.xy[station] + LINE_MIDDLE * joining.half[station] * joining.normal[station]
+            self.assertTrue(EDGE_LINE[0] < across_at(paved, *on_line) < EDGE_LINE[1], edge[station])
+
+    def test_a_road_s_centre_line_stops_where_its_mouth_opens(self):
+        """Its dashes ran on through the mouth to the middle of the road it met."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 900)], "tertiary")
+        paved = paving.lay([main, side], land(town=0.0))
+        through, joining = sorted(paved.chains, key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        points = paved.points
+        own = (points[:, 6].astype(int) == joining.index) & (np.abs(points[:, 0] - 600) < 0.03)
+        half = float(through.half.max())
+        in_mouth = own & (points[:, 1] > 600 + half) & (points[:, 1] < 600 + half + 6)
+        self.assertGreater(int(in_mouth.sum()), 0)
+        self.assertTrue((np.abs(points[in_mouth, 3]) >= paving.NO_CENTRE_ACROSS - 1e-3).all())
+        self.assertTrue((points[own & (points[:, 1] > 640), 3] == 0).any())
+        # The road it meets keeps its own, right through.
+        along_main = (points[:, 6].astype(int) == through.index) & (np.abs(points[:, 1] - 600) < 0.03) & (np.abs(points[:, 0] - 600) < 300)
+        self.assertTrue((points[along_main, 3] == 0).all())
+
+    def test_a_one_way_road_of_one_lane_has_no_centre_line(self):
+        """A roundabout's ring and each one-way arm of it had a line down the middle of its one lane."""
+        for lanes, lined in ((None, False), ("2", True)):
+            tags = {"oneway": "yes"} if lanes is None else {"oneway": "yes", "lanes": lanes}
+            paved = paving.lay([road([(100, 600), (1100, 600)], "tertiary", **tags)], land(town=0.0))
+            middle = (np.abs(paved.points[:, 1] - 600) < 0.03) & (np.abs(paved.points[:, 0] - 600) < 300)
+            self.assertGreater(int(middle.sum()), 0)
+            self.assertEqual(bool((paved.points[middle, 3] == 0).all()), lined)
+            self.assertEqual(bool((np.abs(paved.points[middle, 3]) >= paving.NO_CENTRE_ACROSS - 1e-3).all()), not lined)
+
+    def test_a_point_says_whether_it_lies_on_its_own_way_s_carriageway(self):
+        """The game lays the paint at a road's end on its own carriageway: a mouth's fill wears the road's surface, with
+        points on the carriageway's very edge, and is bare."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 900)], "tertiary")
+        paved = paving.lay([main, side], land(town=0.0))
+        through, joining = sorted(paved.chains, key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        half = float(through.half.max())
+        on_road = triangle_at(paved, 601.0, 600 + half + 3)
+        self.assertTrue((on_road[:, 7].astype(int) & paving.ON_CARRIAGEWAY).all())
+        in_fill = triangle_at(paved, 600 + half + 1.7, 600 + half + 1.3)
+        self.assertFalse((in_fill[:, 7].astype(int) & paving.ON_CARRIAGEWAY).any())
 
 
 class Scraps(unittest.TestCase):
