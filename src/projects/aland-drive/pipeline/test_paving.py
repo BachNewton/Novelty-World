@@ -333,6 +333,24 @@ class OneSurface(unittest.TestCase):
         self.assertTrue(np.isin(corners[mouth][:, :, 6].astype(int), footways).all())
         self.assertTrue(((corners[mouth][:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
 
+    def test_a_drive_s_mouth_across_a_sidewalk_has_no_corners_swept_through_the_slabs(self):
+        """A corner of asphalt was swept from the drive to the street either side of the drive's own width, through the
+        street's paving beside its sidewalk, and the slabs carried across the drive stood between them as an island."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        sidewalk = road([(100, 606.75), (600, 606.75), (1100, 606.75)], "footway", motor=False, footway="sidewalk")
+        drive = road([(600, 600), (600, 606.75), (600, 640)], "service", service="driveway")
+        paved = paving.lay([street, sidewalk, drive], land())
+        chains = {chain.kind_name: chain for chain in paved.chains}
+        cross = paved.crosses[chains["residential"].index]
+        at = int(np.abs(chains["residential"].xy[:, 0] - 600).argmin())
+        band = 600 + cross.kerb[0][at], 600 + cross.reach_left[at]
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        half = float(chains["service"].half.max())
+        beside = (np.abs(middle[:, 0] - 600) > half + 0.2) & (np.abs(middle[:, 0] - 600) < half + 2.5) & (middle[:, 1] > band[0] + 0.1) & (middle[:, 1] < band[1] - 0.1)
+        self.assertGreater(int(beside.sum()), 0)
+        self.assertTrue(((corners[beside][:, :, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all())
+
     def test_a_sidewalk_tagged_on_a_street_is_laid_beside_it_on_its_side(self):
         """OSM maps many of Mariehamn's sidewalks on the street's own way, and they were left out, the street a bare strip of
         asphalt between kerbs. OSM names a side as its way runs: this one runs west, so its left is the south."""
@@ -568,6 +586,25 @@ class Mouths(unittest.TestCase):
         self.assertTrue((across[beside & (north > 616)] == 1).all())
 
 
+    def test_the_strip_round_a_mouth_s_arc_is_only_where_its_fill_is(self):
+        """A sidewalk beside the street keeps the mouth's fill out of the far part of each corner, and the strip past
+        that part edged nothing: a pale kidney of kerb beyond the sidewalk."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        sidewalk = road([(100, 605), (1100, 605)], "footway", motor=False, footway="sidewalk")
+        side = road([(600, 600), (600, 900)])
+        paved = paving.lay([street, sidewalk, side], land())
+        joining = sorted((chain for chain in paved.chains if chain.motor), key=lambda chain: -np.ptp(chain.xy[:, 0]))[1]
+        footway = next(chain for chain in paved.chains if not chain.motor)
+        corners = paved.points[paved.triangles]
+        middle = corners[:, :, :2].mean(axis=1)
+        across = np.abs(corners[:, :, 3])
+        kerb = (across.min(axis=1) >= 1) & (across.max(axis=1) > paving.CARRIAGEWAY_EDGE_ACROSS) & (corners[:, 0, 6].astype(int) == joining.index)
+        beyond = kerb & (middle[:, 1] > 605 + float(footway.half.max()) + 0.05) & (np.abs(middle[:, 0] - 600) < 14)
+        self.assertGreater(int(beyond.sum()), 0)
+        # Past the sidewalk the side street's kerb is its own strip along its edge, and nothing further out.
+        reach = float(paved.crosses[joining.index].reach_left.max())
+        self.assertLessEqual(float(np.abs(corners[beyond][:, :, 0] - 600).max()), reach + 0.05)
+
     def test_the_wedge_between_two_roads_that_merge_at_a_slant_is_asphalt_back_to_a_nose(self):
         """The shoulder between two merging carriageways ran on to where they met as a needle metres long, pale down the
         middle of the asphalt."""
@@ -676,6 +713,21 @@ class Scraps(unittest.TestCase):
             stretches = shapely.get_parts(shapely.union_all(over[kinds == kind], grid_size=0.005))
             self.assertGreater(len(stretches), 0)
             self.assertGreaterEqual(float(shapely.area(stretches).min()), paving.SPECK_M2)
+
+
+    def test_a_spike_of_one_surface_along_another_is_cut_off_and_given_to_it(self):
+        """Where a gravel path crosses a slab footway at a slant, its gravel ran on along the slabs' edge as a needle
+        metres long, part of a piece too wide at its other end to be taken for a sliver."""
+        slabs = road([(100, 600), (1100, 600)], "footway", motor=False, surface="paving_stones")
+        gravel = road([(500, 590), (700, 610)], "path", motor=False, surface="gravel")
+        paved = paving.lay([slabs, gravel], land())
+        corners = paved.points[paved.triangles]
+        kinds = (corners[:, :, 7].astype(int) & paving.CLASS_BITS).max(axis=1)
+        over = shapely.polygons(np.concatenate((corners[:, :, :2], corners[:, :1, :2]), axis=1))
+        shape = shapely.union_all(over[kinds == path_surfaces.GRAVEL], grid_size=0.005)
+        opened = shape.buffer(-paving.SLIVER_WIDE_M / 2, join_style="mitre").buffer(paving.SLIVER_WIDE_M / 2 + 0.005, join_style="mitre")
+        self.assertGreater(shape.area, 100)
+        self.assertLess(max((float(part.area) for part in shapely.get_parts(shape.difference(opened))), default=0.0), 2 * paving.SPIKE_LEAST_M2)
 
 
 class Ends(unittest.TestCase):
