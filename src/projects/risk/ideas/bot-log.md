@@ -1565,3 +1565,21 @@ Finishing-order Elo puts learned-v1 first too, +436.5 over greedy against v7.1's
 Seated per `learned-bot.md` ("Seating"), on the TypeScript export at net-v1's cost. The parity test's tolerance is 5e-5, measured on b1-100's fixture (the trainer's float32 rounding).
 
 **What the ladder cost, and why.** A ladder for one new bot took 6.8 hours and still didn't finish, because every matchup of a near-certain winner runs to the group cap. The fix belongs in the ladder: a pair whose gap can't come into focus stops early, and a run at its round limit still reports its fit.
+
+## learned-v3 seated: d4-500, the clock net, provisional 2204 (2026-11-22)
+
+learned-v3 is net-v1 with the weight set d4-500 (`bots/learned-v3/`), playing its most likely move: iteration 500 of run d4, 128×4 on the bucket action space, whose observation ends with the clock, the player-turns left before `TURN_CAP` (600) over 100 (`learned-bot.md`). It is exported from `snap-500.pt`, and its parity fixture (4 games, 664 network decisions, on the CPU) matches the trainer on every observation, main choice, amount and move, within the test's 5e-5. Seated on the owner's ruling: the best net that clears its bar.
+
+Its gauntlets on GitHub Actions (branch `risk/clock-gauntlet`), beside d0-200's, the best clockless net, measured the same way:
+
+| Gauntlet | d4-500 | d0-200 |
+|---|---|---|
+| vs learned-v2, 5p train: 1 among 4 | **better**, 44.7% [34.1, 55.9] (par 20), 266 turns, cap 5.0% | better, 34.3% [26.9, 42.5], 226 turns, cap 3.4% |
+| 4 against 1 | **better**, 96.6% [91.5, 98.7] (par 80), 387 turns, cap 3.3% | better, 89.9% [85.0, 93.3], 257 turns, cap 3.7% |
+| win Elo over learned-v2 | **+252** | +133 |
+| vs learned-v2, 5p holdout: 1 among 4 | **better**, 48.4% [36.6, 60.4], 219 turns, cap 1.5% | better, 37.7% [29.1, 47.2], 216 turns, cap 3.6% |
+| 4 against 1 | **better**, 93.6% [88.3, 96.6], 380 turns, cap 6.0% | better, 91.4% [86.3, 94.7], 257 turns, cap 3.3% |
+| win Elo over learned-v2 | **+228** | +161 |
+
+- **It wins more than d0-200 against learned-v2, and plays longer games doing it.** Four d4-500s against one learned-v2 run 380 to 387 player-turns on average, against d0-200's 257: copies of the clock net finish their rivals later, and cap a few more games at 600.
+- **Its provisional Elo is 2204.2 ± 25.9** (`risk:ratings -- --provisional learned-v3`), from the two learned-v2 gauntlets (2215.9 ± 35.7 and 2191.3 ± 37.6), first of the seatable bots and 240 above learned-v2's ladder Elo, so the lobby's default.

@@ -2,9 +2,13 @@
 
 A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot that masters the game: one whose strength keeps rising with the training it is given, until it beats any person (`learned-bot.md`). The rule bots are its floor, its teachers and its yardsticks, and the seated best is the bot players feel meanwhile.
 
-## learned-v2 seated: the strongest bot
+## learned-v3 seated: the strongest bot, and the first that reads the clock
 
-learned-v2 (`bots/learned-v2/`) is net-v1's network with the weight set b1-100, playing its most likely move: s2-2-150 trained on by PPO with the carried bootstrap, the fix for the defect that had flattened stage 2 (`learned-bot.md`). It is better than learned-v1 and rule-v7.1 at every table by the gauntlet, and rates 1964 on the seatable ladder, 252 above learned-v1 and 330 above v7.1 (`bot-log.md`, "learned-v2 seated"). It is the lobby's default and the bot to beat. Its open fault is the stall: tables of several learned-v2s sometimes run to the turn cap.
+learned-v3 (`bots/learned-v3/`) is net-v1's network with the weight set d4-500, playing its most likely move: a net that reads the clock, the player-turns left before the harness's cap (`learned-bot.md`). An online game has no cap; past it the clock reads zero and the bot plays as on the cap's own turn. It is better than learned-v2 in both mixtures at 5 players on train and holdout seeds, and its provisional Elo, 2204, puts it first of the seatable bots until the seatable ladder measures it (`bot-log.md`, "learned-v3 seated"). It is the lobby's default and the bot to beat.
+
+## learned-v2: seated below learned-v3
+
+learned-v2 (`bots/learned-v2/`) is net-v1's network with the weight set b1-100, playing its most likely move: s2-2-150 trained on by PPO with the carried bootstrap, the fix for the defect that had flattened stage 2 (`learned-bot.md`). It is better than learned-v1 and rule-v7.1 at every table by the gauntlet, and rates 1964 on the seatable ladder, 252 above learned-v1 and 330 above v7.1 (`bot-log.md`, "learned-v2 seated"). Its open fault is the stall: tables of several learned-v2s sometimes run to the turn cap.
 
 ## learned-v1: the first bot that learned, seated below learned-v2
 
