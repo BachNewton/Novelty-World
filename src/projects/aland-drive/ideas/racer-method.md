@@ -145,16 +145,16 @@ The owner set the bar: at least as good as Test Drive Unlimited 2's racers, and 
 | Reading | The TDU2 bar | The Forza Horizon bar | The racers |
 |---|---|---|---|
 | Every racer finishes, alone and in a full grid | all, dry and wet | all, in every condition | all 298 in a grid, on a clear road and among traffic; 148, 148, 148 and 148 of 148 alone in the dry, wet, snow and ice |
-| A racer's race in a full grid with no reset, on a clear road | 9 in 10 | 97 in 100 | 96 in 100 |
-| The same among the game's traffic | 9 in 10 | 97 in 100 | 88 in 100 |
-| Reset loops, and pile-ups that don't clear | none | none | no loop; 5 pile-ups in 56 races on a clear road and 28 among traffic, each cleared |
-| Alone, a run with no reset | 9 in 10, dry and wet | 97 in 100 in every condition | 98 in 100 dry, 99 in 100 wet, 98 in 100 on snow, 87 in 100 on ice |
-| Hits a racer's race in a full grid | 2: they bump, and nudge past traffic | 1 in 2 | 0.28 on a clear road, 0.84 among traffic |
-| Hit by a player, a racer drives on | mostly | nearly always, and gathers up a slide | 99.9 in 100 nudges, 99 in 100 shoves, 99 in 100 of a careless human's touches; 76 in 100 spins, from 98 under 80 km/h to 50 over 200 |
+| A racer's race in a full grid with no reset, on a clear road | 9 in 10 | 97 in 100 | 99 in 100 |
+| The same among the game's traffic | 9 in 10 | 97 in 100 | 91 in 100 |
+| Reset loops, and pile-ups that don't clear | none | none | no loop; 1 pile-up in 56 races on a clear road and 25 among traffic, each cleared |
+| Alone, a run with no reset | 9 in 10, dry and wet | 97 in 100 in every condition | 99 in 100 dry, 99 in 100 wet, 97 in 100 on snow, 89 in 100 on ice |
+| Hits a racer's race in a full grid | 2: they bump, and nudge past traffic | 1 in 2 | 0.14 on a clear road, 0.60 among traffic |
+| Hit by a player, a racer drives on | mostly | nearly always, and gathers up a slide | 99.9 in 100 nudges, 99 in 100 shoves, 99 in 100 of a careless human's touches; 76 in 100 spins, from 96 under 80 km/h to 50 over 200 |
 | Brake lamps, as the car behind sees them | | lit once for a bend and held: under 4 times a kilometre, none of them a flash | lit 2.4 times a kilometre alone, 3.3 in a pack and 3.8 among traffic, under one in a kilometre a flash |
 | In the game, among traffic with the player on the road | every racer home, a reset or two a race | no reset in most races | every racer home in six races; resets: Djurvik 0, Tengsöda 0, Kastelholm 0, Round the Airport 2, Jomalaby 5, West Way Out 10 (26 before, as the racers were) |
 
-So on a clear road the racers are past the first bar on every reading and at the second on about half of them. Among traffic they are at the first bar's edge, 88 in 100 through a race with no reset against nine in ten, with well under its allowance of hits, and short of the second. What is short of Forza Horizon's: traffic, where one racer in eight still has a reset in its race; a car left standing in a narrow road (below); ice, where one run in eight still has a reset; and a spin at speed, which no one gathers up.
+So on a clear road the racers are past the first bar on every reading and at the second on most of them. Among traffic they are past the first bar, 91 in 100 through a race with no reset against nine in ten, with well under its allowance of hits, and short of the second. What is short of Forza Horizon's: traffic, where one racer in eleven still has a reset in its race; a car left standing in a narrow road (below); ice, where one run in nine still has a reset; and a spin at speed, which no one gathers up.
 
 ### The car, and the steering: what the snow showed
 
@@ -197,14 +197,13 @@ What is left, by the readings:
 
 | Gap, as read | Next step |
 |---|---|
-| At about thirty tight junctions the line turns its corner at one point, where the route passes from one road to another with nothing between to round it; one catches every car on `harbour-to-harbour`'s last lap, and a pack piles up there | The corner belongs in the corridor: the junction's own apron, which is not laid as a road. Two things were tried and taken out. Cutting the corner across at the corridor's samples left as many sharp points as it removed. Letting the plan read such a turn at its own sharpness, with a crawl in place of the standstill that asks for, cleaned every one of the 14 races alone and jammed a pack at each (155 resets at `kastelholm`'s) |
+| At about thirty tight junctions the line turns its corner at one point, where the route passes from one road to another with nothing between to round it; two are on `harbour-to-harbour`, where a car alone runs wide of each at 40 km/h, two to five hits a race and a reset in one, and a pack piles up | The corner belongs in the corridor: the junction's own apron, which is not laid as a road. Two things were tried and taken out. Cutting the corner across at the corridor's samples left as many sharp points as it removed. Letting the plan read such a turn at its own sharpness, with a crawl in place of the standstill that asks for, cleaned every one of the 14 races alone and jammed a pack at each (155 resets at `kastelholm`'s) |
 | 14 of the pack's 71 hits are finishers: a racer over the line flat out has 150 m of line and nowhere to go at its end | The run past a finish follows the road on, as far as a car needs to stop |
-| On ice one run in eight has a reset, each a single one on a different race | The racers fit friction tyres for ice (`tyresFor`), and the challenges are measured on them; studs are an owner's call, since the targets move with it |
+| On ice one run in nine has a reset, most a single one on a different race | The racers fit friction tyres for ice (`tyresFor`), and the challenges are measured on them; studs are an owner's call, since the targets move with it |
 | `out-to-jarso`'s finish stands 20 m before a building | The owner's to place, as `lemland-to-the-sea`'s was |
-| A car left standing in a narrow road or on a junction's corner costs each racer that meets it a reset, as often as not: 40 among 36 racers in six races | The manoeuvre a driver makes there: back off to make room, round it on full lock, read on `--parked` |
-| Among traffic one racer in eight has a reset in its race, most of them stuck in a knot of racers at a junction that traffic is queuing at | Each knot read from its trace, as the causes above were; the lane map's own faults mended in the lane builder (twelve main-road lanes that end nowhere, five on a race's line) |
-| In such a knot a racer going round a standing car pushes on once it stands 20 cm clear of it sideways, and bumps it at a crawl: 99 of the traffic reading's 250 hits are on traffic cars, 49 of them while passing, most under 30 km/h at the junctions of `round-the-airport`, `jomalaby` and `west-way-out`, and a bump can knock a traffic car out of its lane to stand in the road | Read from a trace which part of the car touches; a racer takes itself and the other car to be as wide across its line as their widths, however they are turned, which is the first thing to read there. Then the manoeuvre round a standing car, above |
-| `getas-islands` has a step in its laid road 5.3 km in that stops a car dead at 100 km/h and rolls it, alone, in a pack and among traffic | The road's to mend, in the road build |
+| A car left standing in a narrow road or on a junction's corner costs a racer that meets it a reset, one time in three: 13 among 36 racers in six races | The manoeuvre a driver makes there: back off to make room, round it on full lock, read on `--parked` |
+| Among traffic one racer in eleven has a reset in its race, most of them stuck in a knot of racers at a junction that traffic is queuing at | Each knot read from its trace, as the causes above were; the lane map's own faults mended in the lane builder (twelve main-road lanes that end nowhere, five on a race's line) |
+| In such a knot a racer going round a standing car pushes on once it stands 20 cm clear of it sideways, and bumps it at a crawl: 69 of the traffic reading's 178 hits are on traffic cars, 33 of them while passing and 17 under 30 km/h, 13 of them at `jomalaby`'s junctions, and a bump can knock a traffic car out of its lane to stand in the road | Read from a trace which part of the car touches; a racer takes itself and the other car to be as wide across its line as their widths, however they are turned, which is the first thing to read there. Then the manoeuvre round a standing car, above |
 
 ### After a hit
 
@@ -212,13 +211,13 @@ A racer races clean, a player doesn't, and a racer that is hit has to gather the
 
 | Reading | When first taken | Now |
 |---|---|---|
-| A nudge every 800 m, 148 runs: gathered up with no reset | 2,123 of 2,128 | 2,126 of 2,128 |
-| A shove | 2,091 of 2,121 | 2,109 of 2,128 |
-| A tap that spins the car | 697 of 1,335 | 1,236 of 1,622 |
-| The same spin by speed: under 80, 80 to 120, 120 to 160, 160 to 200, over 200 km/h | | 127 of 129, 391 of 412, 320 of 401, 232 of 349, 166 of 331 |
-| A careless human in each of 56 grids: touches the racer drove on from | 891 of 899 | 924 of 930 |
-| Racer against racer on a clear road: racers touched who drove on | 280 of 282 | 195 of 202 |
-| A car parked on the racing line, six races: resets at it | 291 | 40, every racer home |
+| A nudge every 800 m, 148 runs: gathered up with no reset | 2,123 of 2,128 | 2,148 of 2,151 |
+| A shove | 2,091 of 2,121 | 2,129 of 2,151 |
+| A tap that spins the car | 697 of 1,335 | 1,298 of 1,698 |
+| The same spin by speed: under 80, 80 to 120, 120 to 160, 160 to 200, over 200 km/h | | 136 of 141, 407 of 421, 331 of 414, 249 of 374, 175 of 348 |
+| A careless human in each of 56 grids: touches the racer drove on from | 891 of 899 | 944 of 958 |
+| Racer against racer on a clear road: racers touched who drove on | 280 of 282 | 140 of 140 |
+| A car parked on the racing line, six races: resets at it | 291 | 13, every racer home |
 
 What it took. A racer knocked 25 m off its line took its R, where a driver steers back: the R for being lost stands at 60 m now, and at fifteen seconds off the line, since among trees a racer backed and filled for minutes, each try a fresh one. The brake pedal was reverse for a car rolling backwards, so a car spun round at speed had no brakes at all, the player's as much as a racer's: it is reverse only under a metre a second now (`sim/CLAUDE.md`). And a racer held to a stand kept its brake on, which backed it away from whatever it had stopped for at up to 47 km/h until it was lost: it stands on its handbrake. What a spin at twice the limit leaves is a car off the road at 150 km/h, and its R is what a player presses too.
 
@@ -235,6 +234,7 @@ Every race has the game's traffic on its roads, and nothing above was measured w
 | Queuing at a junction; no traffic appearing ahead of a fast car | 50 | 35 | 147 |
 | Where a car will be when reached; traffic's mirror; the verge only round a car that stays stopped | 54 | 22 | 99 |
 | Put down past a standing car on a reset; a pass begun from behind a car at the racer's own speed, and the car being passed held for only until the racer is clear of it | 51 | 32 | 157 |
+| The island's roads at their real width, and a road's surface and room read where the car meets them (below) | 64 | 10 | 84 |
 
 What was wrong was as much the traffic's as the racers', and the player's car meets the same traffic, so each of these is the player's gain too:
 
@@ -252,7 +252,7 @@ What was wrong was as much the traffic's as the racers', and the player's car me
 | All 56 grids among traffic, 298 racers | Finished | Racers with no reset | Resets | Hits | Traffic cars knocked out | Cyclists and walkers driven through | Races with no reset |
 |---|---|---|---|---|---|---|---|
 | The first reading | 293 | 204 | 1,045 | 981 | 143 | 15 | 30 |
-| Now | 298 | 263 | 52 | 250 | 78 | 7 | 42 |
+| Now | 298 | 272 | 32 | 178 | 55 | 7 | 43 |
 
 The clear road was read again on the same code, since every rule above acts there too: a grid of 298 finished with 286 unreset, 15 resets and 83 hits (it was 281, 21 and 71), and alone the field has 3, 2, 3 and 23 resets in the dry, wet, snow and ice (4, 2, 2 and 26). The hits a pack gained are racers closing up behind one that queues where it used to squeeze by.
 
@@ -266,17 +266,39 @@ The lamps were the fault a driver sees, and they are the car's (`sim/CLAUDE.md`)
 
 | Brake lamps coming on a kilometre, and the flashes among them | Before | Now |
 |---|---|---|
-| One car alone, 148 runs | 2.9, 0.75 a flash | 2.4, 0.12 |
-| A full grid on a clear road, 56 races | 60.0, 59.0 | 3.3, 0.58 |
-| Twelve grids among traffic | 81.9, 81.2 | 2.8, 0.61 |
+| One car alone, 148 runs | 2.9, 0.75 a flash | 2.4, 0.13 |
+| A full grid on a clear road, 56 races | 60.0, 59.0 | 3.3, 0.57 |
+| Twelve grids among traffic | 81.9, 81.2 | 2.6, 0.55 |
 
-The pedal under them still flutters, and the vetting tool counts its presses beside the lamps so that it stays in sight: 2.9, 56 and 63 a kilometre. Its cause is read, not yet mended: a car ahead is placed on the racer's line at one of its 4 m samples, so the gap to it moves in jumps of 4 m, the speed the racer is held under jumps with it by several metres a second, and the pedals answer each jump. Placing a car between the samples is the mend, and every pack reading is to be taken again with it.
+The pedal under them still flutters, and the vetting tool counts its presses beside the lamps so that it stays in sight: 2.9, 56 and 56 a kilometre. Its cause is read, not yet mended: a car ahead is placed on the racer's line at one of its 4 m samples, so the gap to it moves in jumps of 4 m, the speed the racer is held under jumps with it by several metres a second, and the pedals answer each jump. Placing a car between the samples is the mend, and every pack reading is to be taken again with it.
+
+### On the roads at their real width
+
+The island was built again with every road at its real width and place, its junctions' corners rounded and each road asphalt or gravel stretch by stretch as its own way says (`docs/ROAD-SURFACES.md`), and every place, lap, line and target was made again from it and every reading taken again. The same racers read better on it at once: a road with land beside it, where there was a shelf that read as road, and corners that are rounded leave a pack less to hit.
+
+One reading was worse, and it showed two faults in how a racer read its road. `backrace-weekend`'s target came out 69 s slower, its racer put back on the road three times in its last 1.8 km: that road turns to gravel there, the tyres felt it, and the racer planned its speed for asphalt.
+
+- **A road was one surface from end to end**, whichever most of it was. It is read place by place, from the paving's own points, as the tyres read it (`sealedReader`, `art/surfaces/road-attributes.ts`).
+- **A line's surface and room were looked up by the corridor's own step**, a distance along the middle of the road. A racing line is shorter than the middle round the inside of every bend, so the two part as a route goes on: 22 m by 5.5 km on that road, where the racer met gravel at 76 km/h with its plan still on asphalt. They are read along the line itself (`lineThrough`, `racers/racing-line.ts`). That had been so on every race, and mattered little while a road's surface changed only at a junction.
+
+| Reading | The island as it was | The roads at their real width | And the road read where the car meets it |
+|---|---|---|---|
+| A full grid on a clear road, 298 racers: with no reset, resets, hits, pile-ups | 286, 15, 83, 5 | 295, 3, 53, 2 | 296, 2, 43, 1 |
+| The same among traffic, with the traffic cars knocked out | 263, 52, 250, 28, 78 | 272, 28, 200, 18, 56 | 272, 32, 178, 25, 55 |
+| With a careless human, 242 racers: with no reset, resets, hits | 223, 21, 106 | 215, 31, 87 | 218, 25, 77 |
+| A car parked on the racing line, six races: resets, hits | 41, 52 | 16, 39 | 13, 28 |
+| Alone, 148 runs: resets in the dry, wet, snow and ice | 3, 2, 3, 23 | 2, 2, 4, 26 | 2, 2, 4, 26 |
+| Alone: hits in the dry, wet, snow and ice | 9, 13, 7, 26 | 12, 16, 12, 34 | 13, 16, 12, 34 |
+
+What the new roads cost: a racer alone hits a little more, most of it at `harbour-to-harbour`'s two tight junctions (the first gap below) and on `round-jomalaby`, and the careless human's race among the racers ends in a reset for a few more of them. `getas-islands`, whose laid road had a step that stopped a car dead, is clean alone.
 
 ### The challenges' targets
 
 A bucket list target is the fastest the racer gets in the challenge's car on its road (`challenge/targets.ts`, `tools/challenge-par.ts`), so what changes the racer moves the targets, and they are measured again with it. Of the 21 routes, 16 came out harder, by 0.3 to 27 in 100: most on ice (`jomala-ice`, 259.6 s to 189.9 s), on gravel (`kullskar-fog`, 256.4 s to 197.6 s) and on gravel and tarmac in the wet (`degersand-group-b`, 187.6 s to 157.0 s), each par the racer's at the whole of the car's grip with no hit and no reset. Five came out easier, by 0.4 to 4 in 100, the two furthest both climbs (`getabergen-peoples-car`, `orrdalsklint-climb`): the racer is slower there than it was, and why is still to read. The four Speed traps are the scripted driver's flat out, and stand as they were.
 
-They will move again with the roads: a winter road becomes packed snow or ice where it is bare today, and the island's rebuild lays every road at its real width and place, which moves each line, start and gate.
+On the roads at their real width 19 of the 25 are within a second of what they were, and every par is a run with no hit and no reset. `backrace-weekend` is 18.8 s slower, 198.3 s, its road's last 1.8 km being gravel in the wet; `kullskar-fog` and `djurvik-first-snow` are 6.4 and 3.2 s quicker; `post-road-old-way`, `notviken-night-rain` and `degersand-group-b` a second or two slower.
+
+They will move again with the weather on the roads: a winter road becomes packed snow or ice where it is bare today.
 
 ## Done, and not done
 
