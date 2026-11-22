@@ -1,231 +1,313 @@
-# Chapter 2: Godspeed
+# Chapter 2: Two Weeks
 
-Anna's son, Theo, was two, and until that week his grandfather had been a face.
+The two weeks were up on a Saturday, and nobody in the house said so.
 
-Every Sunday evening in Helsinki the face came up on the tablet, much too close to the camera, and said, "There's my boy." Theo had kissed it once and left a smear. He knew its laugh. He knew it lived in the tablet, in a place called Dayton, where it was always morning.
+On the Thursday, the governor had come on television at two o'clock, as he did every afternoon now, and said that everybody in Ohio was to go on staying home until the first of May. Beside him stood the state's health director, a doctor, who explained the virus to the whole state every afternoon in a calm, plain voice, the way a good doctor explains a hard thing to a patient she likes. Walt Dorsey watched with a pencil. He had a notebook from the plant where he had worked for thirty-four years, and in it he wrote down the day's new cases and the day's dead, one under the other, the way he had once written down the count off the line at the end of a shift.
 
-Now it was a Monday afternoon in April, in Dayton, and the face was attached to a whole man in a lawn chair at the edge of his front yard, with his cap from the plant on his head and a steel brace on his left leg. Theo had been studying him for four days. He walked all the way round the chair, slowly, to see whether the man went on round the back.
+So the house settled into being what it was. Ben worked in the spare room at the back on San Francisco's clock, so that his day began at eleven and ended after supper. Brynner had told its people not to expect the office before the autumn, and their apartment sat empty across the country with the rent still going out of it, and nobody said that either. Anna did the shopping, all of it, once a week, from a list in her mother's handwriting. Nora learned to walk in the front room, between her grandfather's chair and the piano bench, and on the day she turned one her grandmother played "Happy Birthday" with all the extra notes.
 
-"Still got a back," said Walt. "I checked this morning."
+Most afternoons Walt and Gene Kessler, who had worked the same plant, talked from their two porches across the width of the street, which was the safest conversation in Dayton: about the numbers, and about when to put the tomatoes in, which Walt did a little earlier every year than his father ever had.
 
-Theo came round to the front again and knocked on the brace, twice, as if it were a door.
+At night Anna slept in the bedroom she had left at eighteen, under the plastic stars she had stuck to the ceiling at nine, with her husband beside her and her daughter in a crib at the foot of the bed. She was thirty. Some nights she lay looking at the stars and felt like something put back on a shelf.
 
-"Anybody home?" said Walt, and Theo laughed so hard that he had to sit down in the grass.
+Ruth taught piano in the front room, as she had for forty years, though now the pupils came to her as faces on an iPad propped on the music stand. Anna listened to her mother's playing all day, the way she always had, for how her mother was. It was good. Every note was in its place.
 
-Anna watched them from the porch steps. She and Ben had brought the children home to Ohio for the first time since they left, nearly three years before, and she was still getting used to the size of her parents. On the screen they had been two faces at a kitchen table. In person they took up the whole house, and they were older than the screen had let on. Her mother's hair had gone the rest of the way to white. Her father got up out of a chair in two goes now, the first one only to see how it would be. Anna had noticed it the first evening, and understood straight away why she had never noticed it before. On a Sunday call, nobody ever gets up.
-
-The whole street was out. That afternoon the moon would pass exactly in front of the sun, and Dayton lay just inside the narrow band of country where the sun would be covered completely. Walt had read the time out at breakfast from the paper, as if it were a train: two minutes and forty-three seconds of dark, starting a little after three. The neighbours had set out folding chairs on their lawns and driveways. Everybody had cardboard glasses with black film in them. Nora had worn hers since lunch, and kept walking into things.
-
-The eclipse wasn't the only thing on the front page that morning. Below it was a photograph of a ship's crew in their flight suits. The ship was called the Shango, and in a week it was leaving for Jupiter. At the bottom of the page, the county commissioners were still arguing about whether Dayton needed a Sanctuary District of its own, like the big cities.
-
-Walt had followed the Europa Mission in the paper for years, half believing it, as he half believed most promises made on television. In the whole history of the world, nobody had ever gone anywhere but the moon, and nobody had been even that far since he was twenty-five. Now there was a crew, with names and faces, and a date, and a dinner for them on Friday night. He had read that out too, and then read it again to himself, and kept looking at the photograph to see if it would turn out to be something else.
-
-Across the street, Gene Kessler came out of his front door with a square of very dark glass in a frame, and his wife, Barb, came out behind him with two kitchen chairs.
-
-"Welding glass," Gene called over. "Shade fourteen. From the plant. I've been looking at the sun through this since I was nineteen." He held it up and squinted at the sky as though it owed him money. "Those paper things, who knows who made them."
-
-"Barb's wearing them," said Walt.
-
-"Barb's braver than me," said Gene.
-
-Nora went over the road with Ben to look through the welding glass, and came back to report on it in the careful English she kept for her grandparents. She had left Ohio at two and spent nearly three years since among Finnish children at daycare, so English was a language she visited. She thought in the other one.
-
-"The sun is a little bit eaten," she said. "Like *kuu* has a bite."
-
-"The moon," said Ruth, from her chair. She corrected everybody's English, and she saw no reason to stop for a granddaughter. "The moon has taken a bite."
-
-"The moon has taken a bite," said Nora, and got every word of it. Ruth looked pleased, and covered it by asking Ben whether the children had been put in sunscreen.
+If anything was missing from it, Anna couldn't have said what. Walt could have. He had first heard Ruth play when she was thirty, from the back of her church, in one of the good years between her illnesses, when she took no medicine at all. He had sat through two hymns and the whole of the postlude to find out who was playing like that, and then he had married her. So he knew exactly what the medicine had taken, because he remembered it before. He had never once said so. And Ruth kept her left hand moving at the piano, always, even in the rests, so that nobody would see it shake.
 
 ---
 
-It went strange slowly, and then all at once.
+In the third week of April, Dolores got sick.
 
-First the light thinned, as if someone were turning it down. It was still sunshine, but it came from somewhere farther away, silvery and weak, and every shadow on the lawn went as sharp as if it had been cut out with scissors. The air turned cool. Down the street a dog started barking and didn't stop. The birds in the maple went quiet one by one.
+Dolores was a nurse from the county's mental health clinic who had come from the Philippines at twenty-five and stayed. For thirteen years she had come to the house once a month to give Ruth the injection that kept her well, and Ruth had fought her for the first year and trusted her ever since, which was not a thing Ruth said about many people. She rang from her bed.
 
-Then the last of the sun went out, and it was dark in the middle of the afternoon.
+"It's the virus. I'm fine, Ruthie. The clinic's sending someone Wednesday."
 
-Up and down the street, people cheered. They hadn't planned to. It just came out of them. Across the road, Gene's porch light came on by itself, for anybody coming home late.
+"Who's looking after you?"
 
-Everyone took their glasses off, because now they could. Where the sun had been there was a black hole in the sky, with a white light streaming out round it in every direction, like hair in the wind. All along the edge of the world, over the rooftops on every side, it looked like sunset.
+"Joy can't. She's on a COVID floor, she can't come within a mile of me." Joy was her daughter, a nurse too. "Carol brings my groceries. Carol and her boy."
 
-"*Katso*," Nora said to Theo, pointing, and Theo, on Walt's lap now, looked.
+On the Wednesday a man came up the front walk dressed for a different kind of house: a yellow gown, gloves, a mask and a plastic visor over it, and a cooler bag in one hand. He stood on the porch and asked through the screen door for Ruth Dorsey, and read her date of birth back to her from a tablet. He was perfectly polite. He looked past her at Walt while he did it.
 
-Low down, to the right of the black sun, there was a star much brighter than any star ought to be. Ben had read up on this. That one was Venus. Then he found the other one, higher up and to the left, where the article had said it would be.
+"We'll have you sorted out in two minutes, hon. Which side are we doing?"
 
-"That one's Jupiter," he told Nora.
+Ruth looked at him through the screen for a long time. Anna, in the hall behind her with Nora on her hip, saw her mother's left hand close on the door frame.
 
-Walt was listening. "That's where they're going?"
+"Take that thing off your face, so I can see you."
 
-"Near enough," said Ben. "One of its moons."
+He was sorry, he said, but he couldn't, not with things the way they were.
 
-Walt looked at the little light for as long as the dark let him. It didn't look far. That was what got him. It looked like something you could hit with a stone.
+"Then no," said Ruth. "Thank you. The left arm is Dolores's. The right arm's mine. Neither one of them is yours."
 
-"They go next Monday," he told Nora. "On your birthday."
+He had a form for that. It said the patient had declined treatment and understood the risks. Ruth signed it on the porch rail with her own pen, and before she gave it back she corrected his spelling of *declined*.
 
-Nora considered this with great seriousness. "For me?"
+"Mom," said Anna, when he had gone.
 
-"Sure," said Walt. "Who else?"
-
-The dark lasted two minutes and forty-three seconds, as promised. Then a bead of light broke out at one edge of the black circle, so bright that everyone said "Oh" at once and grabbed for their glasses, and it was over. The birds started up again. The porch light across the road went off.
-
-Walt put Theo down on the grass and got up out of the lawn chair, in two goes. Anna looked away until the second, because he would have wanted her to.
-
-Gene came over the road with the welding glass under his arm.
-
-"Well, that's me done till 2099," he said. "I'll bring a chair."
-
-Then he told Walt that he and Barb had sold the house. They were moving down to their daughter's, in South Carolina, in July.
-
-"You're kidding me," said Walt.
-
-"Barb wants to watch the grandkids grow up somewhere besides a phone." Gene said it to his welding glass, not to Walt. "First time in her life she's gone first. So I'm following."
-
-"Who's going to do my steps?"
-
-"It doesn't snow in July, Walt."
-
-Walt laughed, and said good for Barb, and meant it. Then he stood a while with his hand on the back of the lawn chair, looking at the house across the road, as if he were learning it.
-
-Anna stood on the porch with the cardboard glasses in her hand. Finland had turned out to be everything she had wanted for the children. She didn't regret any of it, and that was the trouble. She had taken her parents' grandchildren to a country her father had decided, on this porch, never to see, and she had come back to find him older.
+"Dolores will be better in two weeks," said Ruth. "Everybody says two weeks." She went into the front room and played a scale up the whole keyboard and down again, fast and very clean, which was what she played when she didn't want to say anything else.
 
 ---
 
-On Wednesday, Ruth gave Nora a piano lesson.
+The next week, the country began to argue about masks. On the Monday the governor said that everyone going into a store would have to wear one, and on the Tuesday he said that a great many Ohioans had found that offensive, and nobody would have to after all. Walt wrote both down in the notebook, one under the other, like numbers. On the Saturday, twenty or so people went to the health director's house outside Columbus, an hour up the road, and men with rifles walked up and down past her windows.
 
-The front room had pupils in it again, in person, sitting beside her on the bench. Ruth had found, when they came back, that she had missed their elbows.
+On the Sunday, Ben's phone buzzed on the kitchen table. It was Declan, in Belfast, where Orla was on nights on a ward full of the virus and Declan worked Ben's hours from his kitchen, so that the two of them still began every day together on a screen. He had sent a link: the men outside the health director's house, filmed by one of them and put up on Brynner's video service.
 
-Nora sat on two hymnals, because the bench was too low.
+It played at once, from the first frame, without a stutter. That was Ben's work. In San Francisco he had been proud that his code didn't care what was in the box. Under this one, people had written what they would like done to her, and one of them had written where she lived.
 
-"What do you know?" said Ruth.
+Under the link, Declan had written: *Your player's very good, so it is. Didn't buffer once.*
 
-Nora knew a song about a star, and she sang it in Finnish. Ruth knew it from the first note. It was the twinkling one, the one every child learns.
+Ben read it twice. He knew Declan well enough to know it wasn't a joke, or not only. He turned the phone face down and went up to the spare room, though it was Sunday, and didn't come down for lunch.
 
-"Then you know it in English, too," said Ruth. "You just don't know you do. Give me this finger."
+Anna met it in the stores: men without masks who came and stood close to her on purpose, smiling, to see what she would do. She went round them, by the next aisle, and kept her hands on the cart.
 
-She showed Nora where the tune lived on the keys, and Nora picked it out with one finger, slowly, getting most of it. Then Ruth put her own left hand down at the other end of the keyboard, and they played it together.
+On her way home one Saturday she took soup her mother had made to Dolores's house, to leave on the porch. Somebody had beaten her to it. A woman of about forty in a cardigan and a cloth mask was coming down the steps with empty bags folded under her arm, and a tall boy of sixteen or so was carrying a case of bottled water up past her.
 
-Theo crawled under the piano to feel it buzz. Anna stood in the doorway with a dish towel and didn't come in, in case it stopped.
+"You'll be Anna," said the woman. She had a pen clipped to the neck of her cardigan, as if somebody might at any moment need something filled in. "Dolores said you'd come. I'm Carol. Leave that by the door, I'll knock and run. She won't eat it if she sees you waiting."
 
-"You'll need a teacher," Ruth said, when they had played it four times and Nora wanted a fifth. "Over there. A Finn, I suppose."
+"Are you family?"
 
-"My teacher at daycare is a Finn," said Nora.
+Carol thought about it, which most people wouldn't have.
 
-"Well," said Ruth. "We'll see what she's made of. Again."
+"She'd say so," she said. "I'd say so."
 
----
+"Carol," called the boy from the top of the steps, "where do you want the water?"
 
-On Friday morning Ruth's injection was due, and Anna drove her to the clinic on Wayne Avenue, with Theo in the back. The clinic's doors were open again. Ruth sat in the waiting room with her purse on her knees, like everyone else.
+"Inside the screen door, Joel, and not one step past it."
 
-There was a television on the wall with the sound turned low, and it was showing the crew, on their last day before they went into quarantine. The camera went to one of them, a young Frenchwoman named Renée Picard, and the reporter asked her if she was nervous.
+Anna noticed, without thinking anything of it, that the boy called his mother by her first name. Then the curtain moved in the front window, and there was Dolores in a dressing gown, half the size she had been, holding the curtain back with one hand and waving with the other. They all waved back. Carol waved longest.
 
-Renée laughed and said no, she was excited, they had trained for everything. While she said it, she put a hand up to her ear and held the lobe for a moment, and let it go.
-
-"That girl is frightened," said Ruth.
-
-A man two chairs down said that he would be too, sitting on top of all that fuel.
-
-Ruth didn't answer him. For forty years she had sat in the front row of school auditoriums while her pupils walked out to the piano in front of everybody's parents. The ones who told you they weren't nervous, and fiddled with an earring or a hair clip while they said it, were the ones who were. She had always liked them best. Most of them played anyway.
-
-"Mom," said Anna quietly, and then heard herself say it. For most of her life, a remark like that from her mother had been the first thing she listened for. She looked at Ruth, sitting very straight with her purse on her knees, and decided that this one was only her mother having an opinion about a stranger, which she was entitled to. Anna let her breath out.
-
-The interview ended. Dolores put her head round the door and said, "Ruthie," and Ruth stood up and handed her purse to Anna.
-
-Anna carried Theo in with them. Dolores was slower getting up from her stool than Anna remembered, but she still had the needle ready before Ruth had her sleeve rolled up. She looked at Theo.
-
-"So this is the boy from the telephone," she said. "Your grandma shows me your pictures every month. I have to look at all of them before she'll give me the arm." She turned back to Ruth. "Left. I did the right last time."
-
-"I know what you did last time."
-
-It was done before Theo noticed. Ruth rolled her sleeve down.
-
-"How's Joy?" Anna asked.
-
-"Still in Toronto. Still with the children," said Dolores. "She says she likes the winters there. That's how I know she's happy."
-
-"That French girl on the television is frightened," she said.
-
-"Is she?" said Dolores.
-
-"She'll go, though."
-
-"How do you know?"
-
-"The frightened ones practise," said Ruth.
-
-Dolores looked at her for a moment over the sharps box. She had given Ruth this injection through good years and bad ones. She had sat in the back of Ruth's church on Sundays when it had taken everything Ruth had to get up onto the organ bench, and Ruth had got up onto it.
-
-"Like somebody I know," she said.
-
-"Don't be sentimental, Dolores. It's nine in the morning."
+That week, bringing Ben his coffee, Anna saw one of the Finns on his screen with a kitchen window behind him, and through it a boy with a backpack going up a street. Finland had opened its schools again, Ben said, as a curiosity. Anna stood in the doorway longer than the coffee needed.
 
 ---
 
-Ruth played the organ at church on Sunday, as she had for thirty years, and the family filled most of a pew. Nora had never seen her grandmother play anything bigger than a piano. When the first hymn began she turned right round to look up at the pipes, and stayed that way, with her mouth open, until Anna turned her back again. Theo cried at the loudness of it, and then fell asleep on Walt's chest in the middle of the sermon, which Walt said showed good judgement.
+At the end of May, Dolores was well enough to ring and say she could come the next week. Ruth told her no.
 
-In the prayers, the pastor asked the congregation to pray for the sick of the parish, by name, and for the people of Ukraine and the Holy Land, and then for the crew who would leave tomorrow, and for everyone who loved them. Lord, in your mercy, he said, and the church answered, hear our prayer.
+Ruth had been playing all morning. She had got out a Bach fugue she had put away years before, because her left hand couldn't hold its line any more, and that morning, for the first time in years, it held.
 
-Ruth didn't hold with praying for outcomes. It seemed to her like telling God his business. But from the organ bench, where nobody could see her face, she prayed for the French girl's nerve, which seemed to her a different thing.
+"I'm going to see what I sound like," she said to the phone.
 
----
+Dolores had heard this before, from Ruth and from a great many others, and she told Ruth what she told all of them. Ruth listened to every word. Then Dolores said, "You call me. Not Walt. Me. The day you see it."
 
-Ben wasn't in the pew. He had driven up to Toledo at seven that morning, by himself, two and a half hours on a straight road, to see his parents' grave.
+They had it out at the kitchen table that night, with Nora asleep upstairs. It was the first time in Anna's life that anybody had said the name of it at a table. The family had always called it *when Mom was sick*. Ruth called it what it was.
 
-It was the first time he had stood at it. In the photographs the funeral home had sent, it had been raw earth with flowers on it. Now it was grass, and a grey stone with NOVAK across the top, and under it his father's name and his mother's, with two dates eleven days apart. He had watched them carried out of the church on a laptop. He had stayed away to keep two old people in Dayton safe, and both of those old people had been out on the lawn on Monday, looking at the sun. He would have made the same call again. He had told Anna so, and it was true, and it didn't help as much as he had expected.
+"I have schizoaffective disorder, Annie. I don't have amnesia. When I'm ill, I believe things that aren't so, and I go too high or too low for anybody to live with, me least of all. When I'm well, I'm this." She spread her hands on the table. "Since I was twenty-two. The medicine keeps me well, and it takes the top off everything. Off the music. Off me. Forty years of doctors have looked for a dose that keeps me well and leaves me my left hand, and there isn't one."
 
-He had meant to say something, and he found he didn't have anything. So after a while he took out his phone and found a picture of Theo on Walt's lap in the dark, with the black sun over them, and held it up to the stone. He knew it was foolish. He held it up anyway, for as long as his arm would let him.
+"Then why now?"
 
-He was back in Dayton by supper. He didn't say much, and he held on to Theo all evening.
+Ruth pointed at the notebook by Walt's elbow.
 
----
+"Because every afternoon at two o'clock a nice woman on the television tells me how many people my age died yesterday. I'd like to hear myself play once more before I'm in your father's column."
 
-On Monday Nora was five, and she announced it in both languages as soon as she woke up.
+"And when you get sick? They won't let us in, Mom. Not into a hospital, not now. You'd be in there by yourself, and we'd be outside, standing at the window."
 
-She had her cake at lunch, because she didn't want to wait, with five candles on it. Walt and Ruth sang the birthday song in English, and Nora and Theo sang it in Finnish, and it turned out to be the same tune, so they all sang at once.
+Walt looked at the window over the sink, and didn't say anything.
 
-In the late afternoon they sat down in front of the television, with the windows open, because it had turned warm. Walt had his chair. Theo had Walt. Nora had the floor, as close to the screen as anyone would let her. Walt liked to tell people that two bicycle mechanics from across town had learned to fly in a cow pasture outside Dayton, chasing the cows off before every flight, and that the first man to write it up was a beekeeper, in his bee magazine. Dayton had watched most of the flying since then from somewhere else, on a screen, with the children sitting closest. Ruth sat upright on the end of the sofa and said it was a great deal of money to spend looking at ice.
+"And Nora's here," said Anna. She was ashamed of it as soon as it was out. She had said it because she was frightened.
 
-The crew came out in their suits and waved, and the countdown began. The anchors kept saying the same thing in different words, the farthest, the first, as if they didn't believe it either, and needed to hear it out loud.
+"I have never in my life been a danger to a child," said Ruth, and it was true, and they both knew it.
 
-The countdown was long, and then very short. At zero the bottom of the rocket filled up with fire, and for a moment it didn't seem to move at all. Walt said, "Come on," under his breath. He had said it to John Glenn's rocket, on a black-and-white television, when he was fourteen. Then it rose. It went up slowly and then faster, on a column of white smoke, until it was a bright point in the sky, and then not even that.
+"You won't see it coming. You didn't last time."
 
-Nobody in the front room said anything. On the television, people were hugging.
+"Then you'll see it. You've got eyes like a hawk. You always did."
 
-A few minutes later a voice came down from the Shango, crackling, and it was Renée's. She read out some numbers, quick and calm, and said that everything was normal. Then she said, "We are on our way. Don't wait up."
+"I was eleven."
 
-Walt laughed out loud. On the television, a man at mission control said, "Godspeed."
+That stopped her mother for a moment. Then Ruth reached across the table and put her hand over Anna's, and her hand was perfectly steady.
 
-"There," said Ruth. It was what she said when a pupil got to the end of a piece.
+"It's your mother's arm, Annie," said Walt, to the table. Ruth looked at him for a long moment, and Anna saw that her mother knew exactly why he had said it, and that it wasn't only for her sake.
 
-Nora turned round on the floor. "What is Godspeed?"
+In bed, Anna asked Ben what he thought.
 
-Walt thought about it. "It's what you say to people who are going a long way," he said. "It means go well."
+"She's sixty-four," he said. "It's her arm."
 
-"*Hyvää matkaa*," Nora told Theo, and Theo said it back to her, more or less.
+"You didn't see her in 2000."
 
-"When do they come home?" she asked.
-
-"They're due home the winter you're ten," said Ben.
-
-Nora looked at her hands. She held up one, all its fingers, and then the other, all its fingers. Ten was all of them. She looked at them for a long time, as if she hadn't known before that she had so many.
+"No," said Ben. He knew that was the whole of it, and that he couldn't get any further in. He lay awake and listened to the piano downstairs at midnight, played so softly it was hardly there. It was the most beautiful thing he had heard in that house.
 
 ---
 
-After supper she wanted to draw it.
+Ruth's medicine went into the muscle of her arm once a month and didn't work like a pill. It sat there and let itself out a little at a time, so that a person who forgot, or was too ill to want it, was still on it. That was what it was for. So when she stopped, nothing happened at once. The medicine went out of her the way a tide goes out: for weeks the water looks just where it was, and then one morning the beach is enormous.
 
-Ruth kept a coffee can of crayons in the kitchen drawer. They had been Anna's, and most of them were worn down to stubs, but the orange one was nearly as long as the day it was bought, because Anna had never liked orange. Nora asked her grandmother what colour Europa was.
+Through June, the tide went out, and Ruth played.
 
-Ben found a picture on his phone. Europa was white, all ice, and all over it ran long cracks of a rusty orange-brown, criss-crossing like the lines in the glaze of an old plate.
+In the middle of the month the health director resigned. Walt wrote it in the margin of the notebook. "They ran her off," he said across the street, and Gene, who didn't hold with the masks, said that was a shame all the same.
 
-Ruth looked at the picture over her glasses. Then she gave Nora a sheet of plain paper and the orange crayon, and nothing else.
+That Sunday, Anna drove her mother to church. It had gone onto the internet in March: the pastor preached to a phone on a stand in the middle aisle, the congregation watched from their kitchens, and Ruth played the organ to rows of empty pews. Anna sat at the back, by herself, where her father had once sat to find out who was playing.
 
-"The paper is the ice," she said. "You leave the ice alone. You only draw the cracks."
+Ruth played the hymns, and nobody sang them except, Anna supposed, in kitchens. Then the pastor gave the blessing, and Ruth began the postlude, and it was the Bach.
 
-Nora drew a big circle, very carefully, and leaned over it with her tongue out, and began on the first crack. Walt sat at the end of the table and watched her do it.
+Anna had heard her mother play all her life, and she had never heard this. It wasn't faster or louder. It was that every line was alive at once, both hands on the keyboards and both feet on the pedals, four voices talking together and every one of them making sense. The pastor stood beside his phone and forgot to turn it off. On its screen, the little hearts people sent from their kitchens went up the side of the picture like bubbles, and kept going after the last chord, for a long time.
 
-"You draw me what Renée Picard finds out there," he said.
+In the car Ruth did the pastor's sermon in his voice, and then in Walt's, and then in the voice of a dog that had lived next door when Anna was six, and Anna laughed so hard she had to pull over. At home Ruth went through the bulletin with her red pen, and then the hymnal, and then made a start on the phone book.
 
-"I finish it at home," said Nora. She meant Helsinki.
+She was sleeping less. There was a light under her door at one in the morning, and at two. Anna told herself that a woman who has got something back would want to stay up with it, and she mostly believed it.
 
-Walt heard it. He let it be.
+---
 
-By the time Anna came to take her up to bed, there were three cracks on Europa, and the rest of the ice was still the paper. By then the Shango was a long way out, and still going. Nora put the orange crayon in the pocket of her dress, and nobody told her to give it back.
+In the middle of July, Anna woke at five to the piano: the same few bars, very softly, stopping always in the same place.
+
+She went down. Her mother was at the piano in yesterday's clothes, and the floor round the bench was covered in sheets of music paper written over in pencil.
+
+"Annie. Come and listen."
+
+Ruth played it. It was a hymn, or the start of one, and it was lovely, and it went nowhere at all.
+
+"It's your father's numbers," said Ruth, very fast. "One a day, one a note. I've been writing them out since midnight. You can't see it in a column, you have to hear it. Somebody's been putting them in order." She laughed, and her eyes were very bright. "It's the governor. Ever since the doctor went, he's read the numbers out himself, and they're for me. He knows I'll hear it."
+
+Anna stood on the cold floor and was eleven years old.
+
+In the autumn of 2000 it had started with the radio. Her mother had been up all night for a week, cleaning and laughing, and then the man on the radio had begun talking to her, only to her, in the gaps between songs, and her mother had spent the rest of the autumn in a hospital. For a year afterward a woman from the county had come every Thursday with a clipboard to look in the fridge and see whether Anna was eating.
+
+She didn't say any of it. She didn't have to. Her mother looked up from the bench and saw her face.
+
+Ruth had seen that face before, on an eleven-year-old. She sat very still, and Anna watched her hear what she had just said, from outside, the way a stranger at the next table would have heard it. It didn't go all the way in. Half of her mother still believed the governor was writing her a hymn. The other half had seen her daughter's face, and knew what it meant, and was holding on to it with both hands.
+
+"How long have I been up, Annie?"
+
+"Since yesterday. Maybe longer."
+
+"Don't look at me like that."
+
+"I'm sorry."
+
+"No," said Ruth. "That's the look." She took her hands off the keys and put them in her lap. Her left hand was perfectly steady, and she looked at it. "Well. I see it. Get me Dolores. Now, before I change my mind."
+
+Walt came down in his dressing gown and saw the paper on the floor, and said, "She's fine, Annie, she's had a good week, that's all." Then he saw his wife's face, and sat down on the bottom stair. Anna rang Dolores.
+
+Dolores came the next morning in a mask and visor, still not her old self, with her bag in her gloved hand. Ruth was waiting in the front hall with her left sleeve rolled up, sitting on the stairs very straight, like a pupil at a recital.
+
+"You said you'd be by the phone," said Ruth.
+
+"I was by the phone," said Dolores. "Give me your arm."
+
+After so long, the medicine had to be started again from the beginning: one dose then, and another a week later, and then once a month as before. By the end of the month Ruth was sleeping. The music paper went into a drawer. The governor stopped writing her hymns.
+
+One evening, about then, she got out the Bach again. From the kitchen, Anna heard the left hand lose its line, at the bar where it always had, and the playing stop, and the lid of the piano come down very gently.
+
+"Well," said Ruth, to nobody. "That was June."
+
+---
+
+In August she asked Anna to find her the form.
+
+"There's a form, isn't there? For when I'm like that. There's always a form."
+
+There was. Anna found it online and printed it, and Ruth read it at the kitchen table with her red pen, and corrected two of its commas, and read the important part aloud.
+
+"It says I name somebody to decide for me," she said, "once two professionals find I can't decide for myself." She looked up. "And look here. Once that happens, I can't take it back. Not while I'm ill." She tapped the line with her pen. "So when I tell you to tear it up, you can't."
+
+"It says that," said Anna.
+
+"Good," said Ruth.
+
+It had to be signed before a notary, so they took it to the bank, where the notary sat behind a sheet of plexiglass with a slot at the bottom for the papers. On the line for the person who would decide, Ruth wrote *Anna Novak*.
+
+"Not Dad?"
+
+"Your father would let me walk into the river if I told him it was warm," said Ruth. "He let me stop." She didn't say it unkindly. "I need somebody who won't."
+
+Where the form left a few lines for anything else, she wrote in her square schoolteacher's hand, and Anna read it as it came:
+
+*I am in my right mind, and I have a notary here to say so, which is more than most people can claim.*
+
+*When I am ill, I will tell you I am perfectly well. I will tell you the injection is poison and that you are not who you are. Do not listen to me. Listen to this.*
+
+*I went without it once, in the summer of 2020, to hear myself play. It was worth it. I will not do it again, and if I try to, stop me.*
+
+Then she kept going onto the back of the page, with her other arm curled round it the way a child hides a test.
+
+"What's that part?"
+
+"That part's for whoever needs it," said Ruth. "You'll know when."
+
+She signed, and Anna signed under her, agreeing to be the one who decided. The notary stamped them both through the slot and said it was good for three years.
+
+"So am I, I expect," said Ruth. The notary laughed, and then looked as if she wasn't sure she should have.
+
+At home Ruth put the envelope in the piano bench, under the hymnal. She had told Walt at supper what she'd said about the river, because she wasn't going to have him hear it from anyone else, and he had said it was fair. That night he sat out on the porch until late. Gene came out onto his, across the street, and they didn't talk about anything.
+
+At the end of the month they gave up the apartment in San Francisco. A friend from Brynner packed it into storage while Anna watched on a video call, room by room.
+
+---
+
+In October, Columbus opened a Sanctuary District.
+
+Cities out west had been building them for a year or two. Walt had read about them in the paper and said they'd never do that here. Now there was one on the evening news, an hour up the road: a stretch of ground on the edge of Columbus with a high fence round it, long low buildings inside, and a gate. The people who went in were given a bed and a card for their meals and the promise of a job interview, and then they weren't let out. The reporter at the gate said who it was for: people who had been sleeping outside, and people out of work, and people, she said, who were too sick in their minds to look after themselves, and had nobody to do it for them.
+
+Behind her, a line of people waited to go in, with everything they owned in bags. A man near the front had a guitar case. A woman was talking to nobody, quickly, with her hands, and a guard waited for her to finish before he took her bag.
+
+Nora, eighteen months old, waved at them. She waved at everybody on a screen.
+
+Ruth didn't move. She sat in her chair with her hands in her lap and watched the woman with the bag all the way to the gate, and Anna, watching her mother, saw her left hand begin to move on her knee, the way it moved at the piano, so that nobody would see it shake.
+
+"Well," said Ruth, when the news had moved on to the weather. Her voice wasn't quite right. "Now we know where they'll put me when your father dies."
+
+"Ruth," said Walt.
+
+"I'll want a room with a piano."
+
+Nobody laughed, and she hadn't meant them to. Walt reached across and took her hand, and she let him keep it, which wasn't like her. Anna took Nora upstairs and sat under the plastic stars with her daughter asleep on her shoulder, and didn't come down for a long time.
+
+Late that night she heard the piano bench open downstairs, and the rustle of an envelope, and then nothing for a while, and then the bench close.
+
+In November the country voted for a President, and the count took days, and when it was done a great many people said it hadn't been a count at all. On the sixth of January, all afternoon and into the evening, the television showed men climbing the walls of the Capitol in Washington, breaking its windows and going in. Nora, eating her supper on the floor in front of it, waved at them. Anna picked her up and carried her out of the room, and her heart didn't slow down until bedtime. Walt sat in front of the television with the notebook open on his knee and the pencil in his hand, and for once he didn't write anything down.
+
+---
+
+In February, Ohio said that anyone over seventy could have the vaccine. The county's appointments went online once a week and were gone in a quarter of an hour, so the surest way to get a man of seventy-three vaccinated that winter was to have a daughter who had never met a form she couldn't get through. Anna had her father's before the page had finished loading. Her mother, at sixty-five, would have to wait a week longer.
+
+"First thing in years I've been too young for," said Ruth.
+
+On the Monday, Dolores came for Ruth's shot and stamped the snow off her shoes on the mat. Ruth had her left sleeve up before the door was shut. It took less time than hello. Then Dolores sat down on the stairs with her bag on her knees, like somebody at the end of a long shift.
+
+"Joy's going to Toronto," she said. "A job nursing children. She leaves Sunday. This week she's driving me on my rounds, because it's the only way I'll see her."
+
+Through the glass of the front door, Anna could see a car at the curb with its engine running and the back seat already full of boxes. She went out to it in her slippers.
+
+Joy wound the window down. Above her mask she looked more tired than anyone Anna had ever seen. All December, she said, she had held up an iPad most shifts so that families could say goodbye, and your arm got tired, and you couldn't put it down.
+
+"That's not why I'm going. A man rang the floor at Christmas and said we were killing his father for the money. His father was in the bed in front of me. I'd been with him all shift." She put both hands on the wheel. "And I didn't feel a thing. I used to be a nurse who'd have felt something. I want to be her again, and I can't be her here."
+
+"Is your mom going with you?"
+
+"She won't. She says somebody has to stay and do the arms." Joy looked past Anna at the house. "Your mom's one of the arms."
+
+Dolores came out and got in, and the car pulled away to her next patient, and Anna stood in the snow in her slippers until her feet hurt. On Sunday that car would go north and keep going. What she felt, watching it turn the corner, was envy. She had felt it before, in a doorway and under a ceiling of plastic stars, without once giving it its name.
+
+---
+
+On the Wednesday, Walt came down the porch steps the way he had come down every set of steps since he was five: one at a time, good leg, steel brace, good leg.
+
+Across the street, Gene was out with a bag of salt.
+
+"Big day, Walt."
+
+"Going down to get my shot."
+
+"Good for you. I'm going to let it sit a while. See how everybody does."
+
+"And Barb?" said Ruth, from the door.
+
+"Barb'll have it when I have it. She's never gone first in her life." Gene looked at Walt. "They made that thing in a year. You remember Cutter."
+
+Walt remembered Cutter. In the spring of 1955, one of the companies making the new polio vaccine had sent out batches with live virus still in them, and they gave polio to children they were meant to protect.
+
+"I remember polio, Gene."
+
+"I know you do," said Gene, and he came across the street with his bag of salt and did the Dorseys' steps too, so that Walt wouldn't slip on the way to the car.
+
+The county gave the shots in a hall of the convention center downtown, to people in chairs set well apart. The nurse who came to Walt's chair was young, and among her questions was whether he had ever had a bad reaction to a vaccine.
+
+"Never been on time for one," said Walt.
+
+"He had polio," said Ruth, who had come to keep him company and read his card. "When he was five. The vaccine came three years later."
+
+"Oh," said the nurse, and her eyes went to the brace. "I've only ever read about it."
+
+Afterward they had to sit for fifteen minutes. Ruth read his card twice, found nothing to correct, and seemed disappointed. Walt sat with his sleeve still rolled up and thought about a window.
+
+When he was five he had been in a ward full of children, and parents weren't let in. His mother came every evening after work anyway and stood outside the window, where he could see her. He couldn't hear her through the glass. Her mouth was moving, and he was sure it must be something very important. Years later, when he asked her, she told him she had only been singing.
+
+The nurse had only ever read about it. That seemed to Walt the whole of what a vaccine was for: not him, with his leg, but a girl who had never seen a leg like his. This time, he thought, he was on time. He put the card in his wallet, behind his union card, and Ruth took his hand, the way she had in the back of her church the year she was thirty, when she came down from the organ to see who had sat through all of it.
+
+The next Wednesday it was her turn. Before the nurse had finished asking, Ruth had rolled up her right sleeve and held out her arm.
+
+"Not the other one," she said. "That one's Dolores's."
