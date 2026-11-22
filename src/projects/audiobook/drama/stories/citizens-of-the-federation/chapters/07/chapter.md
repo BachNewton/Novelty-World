@@ -14,7 +14,7 @@ For six years Mikko had worked beside Ben: on his screen every weekday morning w
 
 Ben typed an answer, and deleted it, and typed another. In the end he sent a heart, which was the kind of thing he had always thought less of other people for sending, and pushed the phone under his pillow.
 
-Mikko had been looking for work for a year and a half. Ben knew the rule by heart now, as every foreigner on a work permit did: if his own job went, the family had six months to find another, or leave Finland.
+Mikko had been looking for work for a year and a half. Ben knew the rule by heart now, as everybody did who had been here on a work permit as long as he had: if his own job went, the family had six months to find another, or leave Finland.
 
 ---
 

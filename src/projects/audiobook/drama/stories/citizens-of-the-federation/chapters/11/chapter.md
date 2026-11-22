@@ -8,7 +8,7 @@ On the airline's map America had gone grey in the middle. A year ago the dots ha
 
 The second seat was for her mother.
 
-In November a letter had come from Finland's immigration service, three pages of Finnish she could read now without a dictionary. For a year her mother's application had waited on an appointment in Washington that the war had swallowed in its first month. Now Finland had done for a few Americans what it had once done for people running from the war in Ukraine. For as long as this war lasted, a citizen's parent who was caught in it, with nobody to look after her, didn't have to wait for an appointment or a permit. She could come with her passport and the letter. They would take her fingerprints at Helsinki airport, and she could stay.
+In November a letter had come from Finland's immigration service, three pages of Finnish she could read now without a dictionary. For a year her mother's application had waited on an appointment in Chicago that the war had swallowed in its first month. Now Finland had done for a few Americans what it had once done for people running from the war in Ukraine. For as long as this war lasted, a citizen's parent who was caught in it, with nobody to look after her, didn't have to wait for an appointment or a permit. She could come with her passport and the letter. They would take her fingerprints at Helsinki airport, and she could stay.
 
 All she had to do was get to an airplane.
 
@@ -252,7 +252,7 @@ Ben didn't ring him. He found it helped to know he could.
 
 At five o'clock on Monday afternoon, ten in the morning in Washington, the bus came due on the clock on the oven, and Anna unpacked her suitcase.
 
-She did it carefully, one thing at a time, because it seemed wrong to be doing anything else while it pulled in. The warm coat she had meant to stand at a bus station in. Her passport, dark red, with the lion. A second toothbrush, still in its packet, which she had bought for her mother. As far as anybody at the airline would ever know, Ruth Dorsey had missed a plane.
+She did it carefully, one thing at a time, because it seemed wrong to be doing anything else while it pulled in. The warm coat she had meant to stand at a bus station in. Her passport, dark red, with the lion, and the blue one that America still made her show at its own border. A second toothbrush, still in its packet, which she had bought for her mother. As far as anybody at the airline would ever know, Ruth Dorsey had missed a plane.
 
 At half past five a message came from Dolores, written at the visitors' window, with every comma in it.
 

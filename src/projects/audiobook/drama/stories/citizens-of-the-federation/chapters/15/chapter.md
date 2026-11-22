@@ -196,17 +196,17 @@ She looked at Joy, by the window, and Joy nodded.
 
 Anna had known Carol for nearly fifteen years, and had never heard her stop in the middle of saying something. She stopped now. Then she told them.
 
-Down in the sub-basement were fourteen boxes. In 2012 a couple had made more embryos at a fertility clinic than they needed, and given the spares away, for research only, and ticked a box saying they understood none would ever be used to make a child. One of the Institute's scientists, whose name was printed on none of the forms, had made fourteen. He had changed them before they were born, and raised them in this building, and signed for them every year, once as their guardian and once as the man experimenting on them, in the same pen. Every network upstairs had been learned on those fourteen. Alma's too.
+Down in the sub-basement were fourteen boxes. In 2012 couples at a fertility clinic who had made more embryos than they needed had given the spares away, for research only, and ticked a box saying they understood none would ever be used to make a child. One of the Institute's scientists, whose name was printed on none of the forms, had made fourteen. He had changed them before they were born, and raised them in this building, and signed for them every year, once as their guardian and once as the man experimenting on them, in the same pen. Every network upstairs had been learned on those fourteen. Alma's too.
 
 "One of them's downstairs," said Carol. "With your daughter."
 
 Nobody said anything.
 
-"The couple," said Anna at last. "Do they know?"
+"The couples," said Anna at last. "Do they know?"
 
 "No."
 
-Somewhere there was a man and a woman who had given away a few cells in a dish. They had a son they didn't know about. And Anna's daughter was going to see again by what had been learned on him.
+Somewhere there were couples who had given away a few cells in a dish. One of them had a son they didn't know about, and he was downstairs. And Anna's daughter was going to see again by what had been learned on him.
 
 Ben said it first. He said it plainly, because there was no other way to say it.
 
