@@ -796,7 +796,7 @@ The clock's prediction on seed 3 **held** (d4b above d0b clear of both intervals
 
 What follows: 1 or 2 holds, the recipe climbs by rungs, each started from the last one's best checkpoint, and the cycle is run until a rung fails to gain. Both fail with 3 holding: this net and action space have given what the recipe gets from them, and the next base is the exact space and a larger net, started from the clock net by distillation.
 
-**The night the rung is read.** Each card of the spot machine is given to one of g0 and g1 until 300, so e2's recording stops at its two shards (1,024 games, 1.14 million decisions) and e2b is distilled from those. The search, the recorder and the panel take a net with the clock (`risk/clock-search`), and the panel has d4-500 among its anchors, so the rung is read against the net it started from: g0 and g1 at every 50 iterations from 100, on the laptop's eGPU as each snapshot is copied home and on the two cards once training ends. When the readings are done, card 1 records **e3**: the search (k3 r6, 5 players, shards of 512 games, no shard started past nine hours) on d4-500, the first recording on a net with the clock, distilled and read by the next session.
+**The night the rung is read.** Each card of the spot machine is given to one of g0 and g1 until 300, so e2's recording stops at its two shards (1,024 games, 1.14 million decisions) and e2b is distilled from those. The search, the recorder and the panel take a net with the clock (`risk/clock-search`), and the panel has d4-500 among its anchors, so the rung is read against the net it started from: g0 and g1 at every 50 iterations from 100, on the laptop's eGPU as each snapshot is copied home and on the two cards once training ends. When the readings are done, card 1 was to record **e3**: the search (k3 r6, 5 players, shards of 512 games, no shard started past nine hours) on d4-500, the first recording on a net with the clock.
 
 | # | Prediction | Confidence |
 |---|---|---|
@@ -826,6 +826,16 @@ What follows. 4 or 5 holds: the rung gained, the next starts from its best snaps
 | 21 | Its provisional Elo from the gauntlets is above learned-v3's 2152 | 55% |
 
 What follows. 21 holds with the bar: it is seated as learned-v4 on the owner's ruling, and the rung after it starts from it with learned-v2's and learned-v3's nets pinned in its league beside its own line, so the next one gains on the table and not on its parent alone. 19 holds with 21 failing: the gain is the parent's weaknesses and nothing more, the seat stays learned-v3's, and the same league change is the next run.
+
+**h0 and h0c, the rung after, with the line's ancestors in its league.** Both start from g0-300 on the clock recipe, seed 2, 300 iterations, on the spot machine once the night's panels are read, each on its own card. **h0c** is the control: the league g0 had (imit-1 and sw128b-450 pinned, four slots for its own snapshots). **h0** pins b1-100 and d4-500 beside them (eight slots, so its own snapshots keep four): learned-v2's and learned-v3's nets are met in training at about a twelfth of the opponent seats, where the control never meets them. Each is read on the sharp panel at 100, 200 and 300. They take the cards e3 was to record on: after e2b, a recording of this search waits for the reading of how often it repeats its own choices, and prediction 9 goes unread.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 22 | h0 at 300, its most likely move alone among four b1-100, reads above h0c's by more than the two intervals' overlap | 45% |
+| 23 | h0 at 300 alone among four d4-500 is not below h0c's by more than the overlap: meeting the ancestors doesn't cost the gain on the parent | 60% |
+| 24 | h0 at 300 alone among four b1-100 reads above d4-500's own 45.5% clear of its interval | 30% |
+
+What follows. 22 holds: the line's ancestors are pinned in every rung's league from here, and the share they get is the next thing swept. 22 fails with 23 holding: a twelfth of the seats is too little to matter, and the exploiters' readings (xd, yb) say what a league of one frozen net does at the other extreme. 23 fails: the two pull against each other at this net's size, which is a reading for the larger net.
 
 **Kaggle's week, pushed the same night**, on what the rung can't answer whichever way it reads. Both are read by the session that fetches them.
 
