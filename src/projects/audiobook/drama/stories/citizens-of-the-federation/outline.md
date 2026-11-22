@@ -199,15 +199,15 @@ An entry guides the chapter and doesn't bind it. If a better idea changes one, c
 - **The choice:** Theo's. Use a being that may think as a tool to heal his seas. Nora, looking to the stars, and Theo, fixing what's here, want the same thing and go about it differently; both are right.
 - **Moves from → to:** a dying sea and a creature in a jar → the sea healing, and a question Theo carries for the rest of his life.
 
-### 19. First Contact (5 April 2063, Bozeman)
+### 19. First Contact (March to Thursday 5 April 2063, Bozeman)
 
 - **The idea:** curiosity first: the first step toward the unknown is one ordinary people take with their own hands.
 - **Question:** What do ordinary people do on the day everything changes?
-- **Goes deep on:** other species, faith, philosophy, environment.
-- **Touches:** culture, society, technology, values, how the past is remembered.
-- **The world it shows:** Cochrane's warp flight and the Vulcans (canon), from beside it, in a camp that lived through the war by keeping its rifles close. Nora, forty-three, near Cochrane's work but not on his ship; Alma with her.
-- **The choice:** Nora's. When the Vulcan ship lands, stay back with the crowd, or walk forward with nothing in her hands, and take her sister, an Augment who has been feared all her life, with her. Values 3, 2, 4.
-- **Moves from → to:** a species that has spent a century fearing its own → strangers, met first by curiosity.
+- **Goes deep on:** other species, philosophy, technology (the warp idea, a missile made into a ship), society (a camp that lived through the war by its rifles).
+- **Touches:** family, environment (Theo's cod spawning off Bornholm), values, how the past is remembered, faith (only lightly).
+- **The world it shows:** the man in Montana who wrote to Nora at three in the morning, spelling badly, is Zefram Cochrane; she half believes him, as Walt half believed the Europa Mission. Nora, forty-three, goes to his camp in the old missile field outside Bozeman with Alma, thirty-six, nearly blind, still passed over on the list for her lens operation, who wants to be somewhere nobody has looked her up. A post-atomic America ten years after the war; a camp that blames the Eastern Coalition when the sky fires on it the night before the flight (canon); strangers who work on the ship and are gone, whom the camp never identifies. The Phoenix goes up; the Vulcans land after dark; Cochrane greets them and takes them into the bar (canon), seen from the trucks at the edge of the field. Nobody on the ship, nobody in canon's lines.
+- **The choice:** Nora's. One Vulcan comes out alone and stands halfway across the field looking at fifty rifles, in a camp that has just buried men killed from the sky and already whispers that the trouble came the week the Augment did. Alma can see a face only from a kiss's distance, and asks to see him. Stay at the trucks, the sensible thing, and the stranger takes home a row of rifles; or walk Alma out with empty hands, against the promise to bring her home, with rifle bolts behind them and nobody able to say what the stranger will do. She walks. Nobody fires; a boy, then the camp, follow; Lyle leans his rifle against his bumper; some of the camp never stand near Alma again. Values 3, 2, 4.
+- **Moves from → to:** a species that has spent a century fearing its own → strangers, met first by curiosity; the jar's word, for these strangers, is *joku*, though the jar from Io stays blank.
 
 ## The road ahead
 
@@ -233,7 +233,7 @@ The agreed pace and topics. The dates between canon's fixed points are ours, and
 | 16 | About 2045 | The Eugenics Wars: Alma counted |
 | 17 | 2053 | World War III, and the Helsinki shelter |
 | 18 | The 2050s | The sea, and the organism from Io |
-| 19 | 2063 | First Contact, from beside it |
+| 19 | 2063 | First Contact, from beside it: Nora walks Alma out to a Vulcan past the camp's rifles |
 
 ## Threads
 
