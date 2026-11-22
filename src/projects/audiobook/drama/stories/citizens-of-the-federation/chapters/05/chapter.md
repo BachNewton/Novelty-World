@@ -1,12 +1,12 @@
 # Chapter 5: Godspeed
 
-The Novaks were flying home to Ohio on the Thursday, for the first time in the year and a half since they had left it. On the Wednesday, the school next to Nora's daycare flew its flag halfway down the pole, and Nora, coming out of the gate, wanted to know who had broken it.
+The Novaks were flying home to Ohio on the Thursday, for the first time in the year and a half since they had left it. On the Wednesday, the school across the street from their building flew its flag halfway down the pole, and Nora, coming home from daycare, wanted to know who had broken it.
 
 "Nobody broke it," said Anna. "They put it halfway on purpose, when something very sad has happened. So everybody remembers."
 
 "What happened?"
 
-Anna crouched on the wet path, so that her face was level with her daughter's.
+Anna crouched on the wet pavement, so that her face was level with her daughter's.
 
 "Yesterday a boy took a gun to his school," she said, "and hurt three other children. One of them died."
 
@@ -20,7 +20,7 @@ Nora thought about it. "Was he a big boy?"
 
 "Okay," said Nora, and ran to tell her brother, who was two and asleep in his pushchair, that the flag wasn't broken.
 
-At the gate the other parents were quieter than usual. A mother whose son was in Nora's group had been crying, and was doing up his boots with great care, as if they were the only thing in the world that needed doing. Anna didn't have the Finnish to ask her anything. She stood beside her for a moment, which was all she had to give, and then took her children home.
+Anna stood a while longer on the pavement, looking across at the flag. At the daycare gate the other parents had been quieter than usual. A mother whose son was in Nora's group had been crying, and had done up his boots with great care, as if they were the only thing in the world that needed doing. Anna hadn't had the Finnish to ask her anything. She had stood beside her for a moment, which was all she had to give.
 
 That night, when the cases were packed, she opened the spreadsheet she had made two summers before at her parents' kitchen table, choosing between San Francisco and Helsinki. In Helsinki's column she had written that Finland had had two shootings at schools, years ago, and had made its gun laws stricter after them. It was all still true. The revolver had belonged to the boy's grandfather, who had a licence for it.
 
@@ -112,7 +112,7 @@ Nora considered this. "For me?"
 
 "Sure," said Walt. "Who else?"
 
-Ben looked round for Declan and found that Declan wasn't looking at the sky at all. He was watching his daughter. Niamh stood at the edge of the lawn with her face turned up and her glasses in her hand, crying without making any sound, the way a fourteen-year-old cries when she has asked for something enormous and been given it. Declan's face had gone completely still. In four years of mornings, Ben had never once seen it do that on a screen.
+Ben looked round for Declan and found that Declan wasn't looking at the sky at all. He was watching his daughter. Niamh stood at the edge of the lawn with her face turned up and her glasses in her hand, crying without making any sound. She had asked for something enormous and been given it. Declan's face had gone completely still. In four years of mornings on a screen, Ben had never seen it do that.
 
 Then a bead of light broke out at one edge of the black circle, so bright that everyone said "Oh" at once and grabbed for their glasses, and it was over. The birds started up. Gene's porch light went off.
 
@@ -136,9 +136,9 @@ The Toners flew home the next day. At the car Declan said, "Eight o'clock, then,
 
 On Wednesday Ruth gave Nora a piano lesson.
 
-The bench was too low, so Anna lifted the lid to get out two hymnals for Nora to sit on. Under them was the envelope that had lived there since the summer of 2020: her mother's declaration, the form that named Anna to decide about Ruth's treatment whenever Ruth was too ill to decide for herself. The date on the envelope was last August.
+The bench was too low, so Anna lifted the lid to get out two hymnals for Nora to sit on. Under them was the envelope that had lived there since the summer of 2020: her mother's declaration, the form that named Anna to decide about Ruth's treatment whenever Ruth was too ill to decide for herself. It had to be made again every three years. Last August the signature page had come to Helsinki in the post, and Anna had signed it in front of a notary at the American embassy and sent it back. The rest of it she had not seen since the bank.
 
-"It runs out every three years," said Ruth. "So I do it again. Like the car."
+"Good for another three," said Ruth, who had seen her look. "Like the car."
 
 Nora sat on the hymnals. Ruth asked her what she knew, and Nora sang a song about a star, in Finnish. Ruth knew it from the first note. It was the twinkling one that every child learns.
 
@@ -168,9 +168,9 @@ Renée laughed, and said no, she was excited, they had trained for everything. W
 
 "That girl is frightened," said Ruth.
 
-Anna's head came up before she could stop it. For most of her life, a remark like that from her mother, about a stranger on a screen, had been the first thing she listened for. She looked at Ruth, sitting very straight with her purse, and decided it was only her mother having an opinion. Anna let her breath go.
+Anna's head came up before she could stop it. For most of her life, a remark like that from her mother, about a stranger on a screen, had been the first thing she listened for. She looked at Ruth, sitting with her purse on her knees like everybody else in the room, and decided it was only her mother having an opinion. Anna let her breath go.
 
-For forty years Ruth had sat in the front row of school halls while her pupils walked out to a piano in front of everybody's parents. The ones who told you they weren't nervous, and fiddled with an earring while they said it, were the ones who were. She had always liked them best.
+All her working life Ruth had sat in the front row of school halls while her pupils walked out to a piano in front of everybody's parents. The ones who told you they weren't nervous, and fiddled with an earring while they said it, were the ones who were. She had always liked them best.
 
 Dolores put her head round the door and said, "Ruthie." She was slower getting up from her stool than Anna remembered. It was done before Theo noticed, in the left arm, and Ruth rolled her sleeve down.
 
@@ -194,7 +194,7 @@ Dolores looked at her a moment over the sharps box. She had sat at the back of R
 
 On Saturday the crew were on the front page again, eight of them in flight suits, smiling. Lower down, the county commissioners were still arguing about whether Dayton needed a Sanctuary District of its own, like the one in Columbus: a fenced place for the people who slept outside, and for the ones too sick in their minds to manage, with nobody to manage for them. Walt read both. Then he folded the paper with the second one on the inside and said he was taking the children to see where the Wright brothers had learned to fly.
 
-Huffman Prairie was a field on the edge of the air base, a few miles out of town, kept mown the way it had been when it was a cow pasture. There was a wooden hangar built new to look old, a tall frame the brothers had used to fling their machine into the air, and a great deal of sky.
+Huffman Prairie was a field on the edge of the air base, a few miles out of town, kept mown as it had been when it was a cow pasture. There was a wooden hangar built new to look old, a tall frame the brothers had used to fling their machine into the air, and a great deal of sky.
 
 "Everybody thinks it was North Carolina," Walt told Nora, from a bench by the hangar, with his leg out straight. "They only went down there for the wind. They learned to fly right here, in a cow pasture. And the first man to write it up was a beekeeper. The newspapers wouldn't come."
 
@@ -238,7 +238,7 @@ She had felt her own come down like that, on the porch, the summer they left, wh
 
 "Good," said Walt. "That's settled." He got hold of the arm of the bench. "Don't tell your mother. She'd only make a fuss."
 
-Anna thought of the envelope under the hymnal, in her mother's square hand. There was nothing in it about places. Her mother was at home, practising tomorrow's hymns.
+Anna thought of the envelope under the hymnal. There was nothing in it about places. Her mother was at home, practising tomorrow's hymns.
 
 Walt went to see what Nora had found.
 
@@ -276,7 +276,7 @@ Nora looked at him as if it were the strangest thing she had ever heard, and it 
 
 So on Sunday morning, while the rest of the family went to church, he drove two and a half hours north to Toledo, alone.
 
-In the church, the pastor asked the congregation to pray for the sick of the parish, by name, and for the crew who would leave tomorrow, and for everyone who loved them. Then, carefully, he asked them to pray for a school in Finland, in a city called Vantaa. He said it with the weight on the first syllable, the way Finns say every word, because Ruth had written it out for him before the service with the stress marked in red. Anna, in the pew, hadn't known her mother had done it.
+In the church, the pastor asked the congregation to pray for the sick of the parish, by name, and for the crew who would leave tomorrow, and for everyone who loved them. Then, carefully, he asked them to pray for a school in Finland, in a city called Vantaa. He said it with the weight on the first syllable, as Finns say every word, because Ruth had written it out for him before the service with the stress marked in red. Anna, in the pew, hadn't known her mother had done it.
 
 *Lord, in your mercy*, said the pastor. *Hear our prayer*, said the church.
 
@@ -322,7 +322,7 @@ Walt thought about it. "It's what you say to people who are going a long way," h
 
 "They're due home the winter you're ten," said Ben.
 
-Nora looked at her hands. She held one up with all its fingers, and then the other. Ten was all of them. She looked at them for a long time, as if she had never noticed before that she had so many.
+Nora looked at her hands. She held one up with all its fingers, and then the other. Ten was all of them. She looked at them as if she had never noticed before that she had so many.
 
 ---
 
@@ -336,4 +336,4 @@ Walt held it a while. Then he got up out of his chair, in two goes, and went int
 
 That night, when the house was asleep, Anna came down for a glass of water and stood in the kitchen without turning on the light. The picture was a pale square on the fridge door. Somewhere past the moon, the eight people in it were still going.
 
-Upstairs her father was asleep, and she suspected it was the first night in a long while that he hadn't lain awake first. She stood in the dark with what she had promised him, and then carried it up the stairs carefully, the way you carry a cup filled right to the brim.
+Upstairs her father was asleep, and she suspected it was the first night in months that he hadn't lain awake first. She stood in the dark with what she had promised him, and then carried it up the stairs carefully, the way you carry a cup filled right to the brim.

@@ -6,7 +6,7 @@ Ben took Nora to daycare at a quarter to eight, under the streetlights, in a sno
 
 The children went outside there twice a day, whatever the weather was doing, and nobody thought this needed explaining. The littlest ones slept outside, too, after lunch, in a row of prams under the windows, with their faces in the cold and a teacher looking out at them every few minutes. The first time Ben saw the row of prams, on a grey day with sleet in it when he had come early to fetch Nora, he stood at the fence and counted them, as if one might be missing.
 
-Most mornings the same father arrived at the gate when Ben did, on a bicycle with studded tyres and a little girl in a seat on the back. He locked the bicycle, walked the girl in, came out again, said *moi*, which means hi, and rode away. Ben said *moi* back.
+Most mornings the same father arrived at the gate when Ben did, towing a little girl on a sled. He lived in the old stone building across the street from the Novaks', and Ben often walked behind him round the corner in the dark without either of them saying a word. At the gate he walked the girl in, came out again, said *moi*, which means hi, and went. Ben said *moi* back.
 
 Then, on a morning in December, the man stopped beside him at the gate.
 
@@ -26,7 +26,7 @@ He meant the candles and the paper stars in the windows all up and down the stre
 
 "Ohio. Toledo."
 
-The man nodded, as if that settled something. "Kotka," he said, with the same nod. Ben had no idea where that was, and the man had no interest in whether he did. His name was Antti Laine. He said so, shook Ben's hand, and cycled off into the dark with his front light swinging.
+The man nodded, as if that settled something. "Kotka," he said, with the same nod. Ben had no idea where that was, and the man had no interest in whether he did. His name was Antti Laine. He said so, shook Ben's hand, and set off into the dark with the empty sled skittering behind him.
 
 Ben found that he liked him. He had been raised by a grandmother who believed most talk was a waste of breath, and there was something about a man who said a thing once and then left you alone with it that felt to Ben, unexpectedly, like home.
 
@@ -48,7 +48,7 @@ At the end, Ruth played. She had played the same slow hymn at the end of every c
 
 ---
 
-On the Monday, the school next door to the daycare held its celebration for Independence Day. Finland had been independent of Russia for a hundred and five years that week, and the school invited the daycare's children, and any parents who liked, to sit at the front of the gym.
+On the Monday, the school across the street from the Novaks' building held its celebration for Independence Day. Finland had been independent of Russia for a hundred and five years that week, and the school invited the daycare's children, and any parents who liked, to sit at the front of the gym.
 
 Anna went, with Theo on her hip, because it was something to do on a Monday.
 
@@ -60,7 +60,7 @@ It was slow and grave, and it climbed. The children sang it the way she had some
 
 Then the whole gym rose for the national anthem, all at once, as if somebody had pulled a string. Anna was the last on her feet, by a second, with a sleeping baby and nobody looking at her, and she stood through every verse feeling that second.
 
-The next evening, on Independence Day itself, the windows across the street filled with candles at six o'clock, two to a window, as if the whole street were keeping watch. Ben had bought a blue one and a white one, and they put them in their own front window, and felt, for an evening, like people who lived there.
+The next evening, on Independence Day itself, the windows of Antti's building across the street filled with candles at six o'clock, two to a window, as if the whole street were keeping watch. Ben had bought a blue one and a white one, and they put them in their own front window, and felt, for an evening, like people who lived there.
 
 ---
 
@@ -80,7 +80,7 @@ The course was five days a week, from the morning to the middle of the afternoon
 
 Anna had not let herself think about a desk since August. She thought about one now: a counter, a phone, a waiting room full of people and their appointments, and her in charge of all of it.
 
-"Some mothers wait," said the counsellor. "Then they find a class in the evenings. With small children, evenings are slow. Years." She said the rest as plainly, the way you mention that a coat has no hood. "Your permit goes with your husband's job. And to be a Finn one day, you need four years here and a certificate in the language. Without the certificate, the years don't count for anything."
+"Some mothers wait," said the counsellor. "Then they find a class in the evenings. With small children, evenings are slow. Years." She said the rest just as plainly. "Your permit goes with your husband's job. And to be a Finn one day, you need four years here and a certificate in the language. Without the certificate, the years don't count for anything."
 
 On the tram home Anna looked out at the dark. She remembered the other page, the one she had read at one in the morning in her parents' kitchen, which said that only a Finnish citizen could ask for a parent to come, and only for reasons Finland thought were serious enough. She put it away again. It was a page about terrible things, and nothing terrible had happened.
 
@@ -96,7 +96,7 @@ Most afternoons she took Theo to the playground park down the road, a fenced yar
 
 The woman who kept the hut was in her sixties, with a grey braid. She spoke to Anna in Finnish every day, slowly, as if Anna were going to understand it any day now, and would not switch to English, though Anna was fairly sure she could. She knew Theo's name. She said it the Finnish way, *Teo*, because Finnish has no *th*. She said it every time he came in, and he had started turning his head when she did.
 
-On Thursday evenings the building's sauna, down in the basement next to the laundry, was theirs for an hour, booked on a sheet by the door. Ben ladled water onto the stones the way Mikko had shown him, and the heat came down like a hand, and Nora climbed the benches in raptures, and Anna sat on the bottom one with Theo asleep on her chest, warm to the bone for the one hour in the week that she was.
+On Thursday evenings the building's sauna, down in the basement next to the laundry, was theirs for an hour, booked on a sheet by the door. Ben ladled water onto the stones as Mikko had shown him, and the heat came down like a hand, and Nora climbed the benches in raptures, and Anna sat on the bottom one with Theo asleep on her chest, warm to the bone for the one hour in the week that she was.
 
 At night, in bed, she asked Ben.
 
@@ -198,7 +198,7 @@ The man straightened and came past them to the gate, and for the first time he s
 
 Ben laughed, and the man smiled, and said his name was Abdullahi, and went off down the street to the bus stop.
 
-"My brother voted for them," said Antti, when he had gone. "In Kotka. He drives a truck. He is not a bad man." He got on his bicycle and sat on it a moment without riding away. "I don't know what he is."
+"My brother voted for them," said Antti, when he had gone. "In Kotka. He drives a truck. He is not a bad man." He put his hands in his pockets and stood a moment without walking away. "I don't know what he is."
 
 That evening Ben went down to the shelter to get the bicycles out of their cage for the spring. He stood for a while in front of the laminated notice on the door. He could read some of it now, without the phone. It said exactly what it had said in December, and in December it had been about skis.
 
@@ -236,7 +236,7 @@ Anna spelled it for her. She could do that one. Her mother wrote it on the back 
 
 "That's a good word," said Ruth, and went to the piano.
 
-On the table beside the tablet, the witches' twig stood in its glass with its feathers. Theo was saying his word to the fruit bowl. Ben had Nora on his knee, and Nora was teaching him something in Finnish, patiently, the way her teachers taught her things. The blue book lay on the counter where Anna had left it on Thursday, open at chapter three.
+On the table beside the tablet, the witches' twig stood in its glass with its feathers. Theo was saying his word to the fruit bowl. Ben had Nora on his knee, and Nora was teaching him something in Finnish, very patiently, one word at a time. The blue book lay on the counter where Anna had left it on Thursday, open at chapter three.
 
 Theo had learned his first word from his sister, in a language his mother couldn't speak, and his mother had been in the room to hear it. That was what she had bought, at the window, and what she had paid for it was on the other side of the screen, more than four thousand miles away, sitting down at the piano.
 

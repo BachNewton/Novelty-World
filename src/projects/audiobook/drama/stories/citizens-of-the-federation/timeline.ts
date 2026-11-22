@@ -75,7 +75,7 @@ export const timeline = {
     "he-jiankui-twins": { date: "2018-11", what: "He Jiankui announces gene-edited twin girls in China; sentenced in December 2019 to three years in prison (real)" },
     "opencrispr": { date: "2024-04-22", what: "Profluent releases OpenCRISPR-1, the first gene editor designed by AI, unlike any natural protein (real)" },
     "nobels-2024": { date: "2024-10", what: "The chemistry Nobel goes to AI protein-structure prediction (AlphaFold) and protein design; the physics Nobel partly to Geoffrey Hinton of the University of Toronto (real)" },
-    "toledo-water": { date: "2014-08-02", what: "An algae bloom in Lake Erie makes Toledo's tap water undrinkable for days (real); Ben is at college" },
+    "toledo-water": { date: "2014-08-02", what: "An algae bloom in Lake Erie makes Toledo's tap water undrinkable for days (real), in the city Ben grew up in" },
 
     "sf-dry-february": { date: "2020-02", what: "San Francisco has no measurable rain all February, the first time since 1864 (real)" },
     "fort-baker-sunday": { date: "2020-02-23", what: "A Sunday on the grass at Fort Baker: the Novaks and the Toners; Orla reads that Italy has sealed off eleven towns in the north (real, that day)" },

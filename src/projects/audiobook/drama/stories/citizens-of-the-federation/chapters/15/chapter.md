@@ -14,7 +14,7 @@ She was eight. She could still tell light from dark, and a window from a wall, a
 
 In the evenings her grandmother taught her the piano by feel.
 
-The piano was the real one, upright and secondhand, that had come up four flights for Ruth. Ruth was seventy-nine, and well, and she sat at the bass end with Alma beside her and put the child's hands on the keys the way you'd set a table. Alma could play the twinkling one with both hands now, and the start of a minuet. When Ruth's left hand shook, as it always had, Alma could feel it through the bench.
+The piano was the real one, upright and secondhand, that had come up four flights for Ruth. Ruth was seventy-nine, and well, and she sat at the bass end with Alma beside her and set the child's hands on the keys for her, finger by finger. Alma could play the twinkling one with both hands now, and the start of a minuet. When Ruth's left hand shook, as it always had, Alma could feel it through the bench.
 
 "Your hand's doing it," said Alma.
 
@@ -24,11 +24,11 @@ The piano was the real one, upright and secondhand, that had come up four flight
 
 The envelope from Ohio came at the end of February, nearly two years after Ben had written for it.
 
-He had written in the week Alma was diagnosed, to the state's office of vital statistics in Columbus, for a copy of his sister's death certificate. For a long time nothing had come back, because nothing came back from Ohio then. The war had ended on paper, but the offices that kept America's records were still finding out which of them had kept anything. Then one Tuesday there it was on the mat, with an American stamp and a Finnish sticker over the address where it had been forwarded twice.
+He had written in the week Alma was diagnosed, to the state's office of vital statistics in Columbus, for a copy of his sister's death certificate. Nothing had come back, because nothing came back from Ohio then. The war had ended on paper, but the offices that kept America's records were still finding out which of them had kept anything. Then one Tuesday there it was on the mat, with an American stamp and a Finnish sticker over the address where it had been forwarded twice.
 
 He opened it at the kitchen table. It was one page, a photocopy of a form filled in by hand in 1989.
 
-*Katherine Ann Novak. Age: 9.* His father's name was on the line for the person who had given the details. Halfway down, in a doctor's square capitals, was a box headed *Cause of death*, and in it:
+*Katherine Ann Novak. Age: 9.* His father's name was on the line for the person who had given the details. Halfway down, in a doctor's capitals, was a box headed *Cause of death*, and in it:
 
 *Aspiration pneumonia.*
 
@@ -38,7 +38,7 @@ And under that, on the line for what had caused it:
 
 The gene had no name yet then. Nobody would find it for another twelve years. But it was the same illness. It was Alma's.
 
-Ben sat with the page for a long time. Then he remembered something he hadn't thought about since he was a boy. Every August until he was twelve, his grandmother had taken him on the bus to an eye doctor downtown in Toledo, though he had never needed glasses. She stood behind the doctor's chair while he read the letters off the wall, all the way to the bottom line. He had thought it was just her way of being thorough, like the socks. She had been watching for it. Every summer she had stood there waiting to see whether he would fail to read the bottom line, and every summer he hadn't, and she had taken him home on the bus and never said a word.
+Ben sat with the page until the coffee beside him was cold. Then he remembered something he hadn't thought about since he was a boy. Every August until he was twelve, his grandmother had taken him on the bus to an eye doctor downtown in Toledo, though he had never needed glasses. She stood behind the doctor's chair while he read the letters off the wall, all the way to the bottom line. He had thought it was just her way of being thorough, like the socks. She had been watching for it. Every summer she had stood there waiting to see whether he would fail to read the bottom line, and every summer he hadn't, and she had taken him home on the bus and never said a word.
 
 He took the page to Ruth, who was at the piano going over the minuet, and held it out. She put on her glasses and read it the way she read every form, to the bottom.
 
@@ -60,7 +60,7 @@ On the first Sunday in March, at the hour of the old call, Carol rang from Toron
 
 "It's ready," she said. "Bastien says the network for CLN6 is done. They'd take her in April." She didn't soften the next part, because Anna had asked her long ago never to. "What's gone stays gone, Anna. It mends what's failing. Every month there's a little more that's gone." And then, because she was Carol: "Bring her. Before anybody hands you a pen, I read you every page. That's still the deal."
 
-Everybody in the family already knew what the network did, the way you know the shape of a thing you've been carrying in the dark. It would save her. It would make her more than saved. It could never be taken out, and it would go down to any children she had. In Canada it was a crime to give it to her.
+Everybody in the family already knew what the network did. They had been carrying it for two years. It would save her. It would make her more than saved. It could never be taken out, and it would go down to any children she had. In Canada it was a crime to give it to her.
 
 And the world had made up its mind what to call it. Three countries kept registers now. In Finland's parliament that spring, one party wanted a register too, and it was the same party that had wanted fewer foreigners. Children had found the word before their parents had. Theo had heard it in his school's yard, about a boy who could do too many pull-ups. Alma had heard it in hers, about a girl who won every race, and the girl had cried.
 
@@ -88,7 +88,7 @@ Nobody could tell him. He found, sitting there, that some part of him wanted the
 
 Ruth put her hands flat on the table.
 
-"For forty years I took a medicine that made me less than I was," she said. "Less of everything. My hands. Me. I took it because the other thing was worse." She looked at Ben. "Now somebody's offering that child one that makes her more, and you're sitting here wondering."
+"Most of my life I took a medicine that made me less than I was," she said. "Less of everything. My hands. Me. I took it because the other thing was worse." She looked at Ben. "Now somebody's offering that child one that makes her more, and you're sitting here wondering."
 
 "They'll count her."
 
@@ -140,13 +140,13 @@ Alma seemed to find that worth having. Then she found the next thing.
 
 "No," said Anna. "Surprises end."
 
-Alma was quiet for a long time. When she spoke again her words had begun to come slowly, the way they did at night.
+Alma was quiet until Anna thought she had fallen asleep. When she spoke again her words had begun to come slowly, as they did at night.
 
 "If I don't have it, I'll die?"
 
 "Yes," said Anna. "Not this year. But yes."
 
-"Like Katie," said Alma. She knew about Katie. She had held the photograph once and been told whose it was, and since then she had asked about her the way children ask about anybody who is theirs.
+"Like Katie," said Alma. She knew about Katie. She had held the photograph once and been told whose it was, and since then she had asked about her often, because Katie was hers.
 
 Ben leaned forward in the chair.
 
@@ -186,7 +186,7 @@ At the Institute, on Monday the ninth of April, Joy took Alma down to the lounge
 
 She read them every page, aloud, slowly, in the voice she had once used at a county counter. What the network was. That it would go in once, through a needle into the fluid round Alma's spine, and write itself into every cell she had. What it would mend, and what it couldn't bring back. What it would make of her besides, and of every child she ever had, and of theirs. That under a Canadian law of 2004, giving it to her was a crime that carried ten years, and that the paper they would sign said they understood that. It took an hour. She didn't skip a line.
 
-Then she put the form down, and took the pen out of the neck of her cardigan, where Anna had never once seen it missing, and laid it on the desk.
+Then she put the form down, and took the pen out of the neck of her cardigan, where Anna had never seen it missing, and laid it on the desk.
 
 "There's one more thing," she said. "It isn't on any page."
 
@@ -194,13 +194,13 @@ She looked at Joy, by the window, and Joy nodded.
 
 "If you ever tell anybody what I'm going to tell you," said Carol, "I lose Canada. Joy goes to prison. That's not why I'm saying it. I'm saying it so you know what you're holding." She was quiet a moment. "A family from Manila asked me if there was anything else they should know. I told them no. I'm not telling you that."
 
-Anna had known Carol for nearly fifteen years, and had never once heard her stop in the middle of saying something. She stopped now. Then she told them.
+Anna had known Carol for nearly fifteen years, and had never heard her stop in the middle of saying something. She stopped now. Then she told them.
 
 Down in the sub-basement were fourteen boxes. In 2012 a couple had made more embryos at a fertility clinic than they needed, and given the spares away, for research only, and ticked a box saying they understood none would ever be used to make a child. The founder had made fourteen. He had changed them before they were born, and raised them in this building, and signed for them every year, once as their guardian and once as the man experimenting on them, in the same pen. Every network upstairs had been learned on those fourteen. Alma's too.
 
 "One of them's downstairs," said Carol. "With your daughter."
 
-Nobody said anything for a long time.
+Nobody said anything.
 
 "The couple," said Anna at last. "Do they know?"
 

@@ -48,7 +48,7 @@ Joel walked down to the curb.
 
 "That was one polling place," said Joel. "They bring them two to a car. One from each party. The law says they have to ride together, so neither one's ever alone with it."
 
-The man looked at the doors for a long time.
+The man looked at the doors.
 
 "The one in the red coat and the one in the blue," said Joel.
 
@@ -252,7 +252,7 @@ He put the roller down in the tray.
 
 "Spell it."
 
-He spelled it. She took the card out of her pocket, the one that said THANK YOU FOR YOUR SON, and wrote the name on the back in the square careful hand she had used for the county, and asked him how old. He told her, and she wrote that down too.
+He spelled it. She took the card out of her pocket, the one that said THANK YOU FOR YOUR SON, and wrote the name on the back in the small, neat hand of her county forms, and asked him how old. He told her, and she wrote that down too.
 
 They did the top half of the door together, Joel reaching the part she couldn't. The pink went under the second coat.
 
@@ -264,7 +264,7 @@ She kept painting.
 
 Carol finished her corner. Then she put the brush across the top of the can.
 
-She had a life in this town. She had the choir on Wednesdays, and the tax office on Salem Avenue in the season, and Thursdays in the day room, where she was the only person who asked anybody what they liked to be called. She had Dolores, who had not turned her away at thirty-five and had been her mother since, and who would not leave Ruth Dorsey's arm to anybody for any war. And she had him.
+She had a life in this town. She had the tenor line in Miss Bea Yancey's choir on Wednesdays, at the Methodist church on Salem Avenue, and the tax office down the street from it in the season, and Thursdays in the day room, where she was the only person who asked anybody what they liked to be called. She had Dolores, who had not turned her away at thirty-five and had been her mother since, and who would not leave Ruth Dorsey's arm to anybody for any war. And she had him.
 
 But she had been raised by people who would not lift a hand against anybody, and she knew what her son would do if that truck came back while he was standing in this drive. She had watched him do it on every phone in America.
 
@@ -290,7 +290,7 @@ Dolores came at five, in her coat over her nightgown, and stood in the cold driv
 
 "Tell Joy I've got arms to do," she said.
 
-Carol held on to her for a long time. Then she got in and drove north up the interstate, three hours and more, to the bridge at Detroit.
+Carol held on to her until the cold came through both their coats. Then she got in and drove north up the interstate, three hours and more, to the bridge at Detroit.
 
 On the far side of the river, the Canadian officer in the booth took her passport and looked at it, and at her.
 

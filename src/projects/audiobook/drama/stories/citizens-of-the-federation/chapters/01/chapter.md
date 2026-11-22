@@ -46,7 +46,7 @@ One Tuesday he stopped walking altogether, at the corner by an empty lot. The we
 
 "Where did they go?" said Declan.
 
-Ben looked at the fence. He found that he didn't know. He found that he had never once wondered.
+Ben looked at the fence. He found that he didn't know. He found that he had never wondered.
 
 "Wherever they could carry it to," said the woman with the broom, from across the street, and went on sweeping.
 
@@ -56,7 +56,7 @@ Declan put a finger through the fence.
 
 "What's on the other side?"
 
-"The same houses. The other crowd." Declan started walking again. "My da's got a friend over there he's known forty years. Drove the buses with him. And when he goes to see him, he still goes the long way round, by the main road." He shrugged. "When I was wee I thought it was where the world ended. You'd be amazed what you can stop looking at."
+"The same houses. The other crowd." Declan started walking again. "My da's got a friend over there. Drove the buses with him thirty years. And when he goes to see him, he still goes the long way round, by the main road." He shrugged. "When I was wee I thought it was where the world ended. You'd be amazed what you can stop looking at."
 
 Upstairs, Declan's screen was playing a clip of a rally: a crowd in a big hall, somewhere in the middle of the country, chanting. It was an election year. Under the video the comments ran past faster than anybody could read them, and most of them were men calling other men traitors. Declan watched it with his chin on his hand.
 
@@ -72,9 +72,9 @@ Ben watched the rally play. It played perfectly, from the first frame, with no w
 
 On the second of March, Walt Dorsey turned seventy-three, and Anna called him with Nora on her hip so that he could hear her shout.
 
-Her father answered the way he always did, as if the phone had surprised him. Behind him, her mother was already at the piano, and she played "Happy Birthday" down the line with both hands and a great many extra notes, the way she had played it at every birthday Anna could remember.
+Her father answered as he always did, as if the phone had surprised him. Behind him, her mother was already at the piano, and she played "Happy Birthday" down the line with both hands and a great many extra notes, as she had played it at every birthday Anna could remember.
 
-Anna listened to the playing the way she always listened to it: for how her mother was. When Anna was eleven, Ruth had spent an autumn in a hospital, and the family had called it, then and ever after, *when Mom was sick*, and nothing else. Now a nurse from the county clinic came to the house once a month and gave Ruth an injection, and the injection kept her well. Ruth hated it, and had it. The extra notes were all there, and in the right places. Anna let her breath go.
+Anna listened to the playing as she always listened to it: for how her mother was. When Anna was eleven, Ruth had spent an autumn in a hospital, and the family had called it, then and ever after, *when Mom was sick*, and nothing else. Now a nurse from the county clinic came to the house once a month and gave Ruth an injection, and the injection kept her well. Ruth hated it, and had it. The extra notes were all there, and in the right places. Anna let her breath go.
 
 "Seventy-three," said her father. "I don't feel a day over seventy-two."
 
@@ -90,7 +90,7 @@ It had been on the news since the weekend: a nursing home near Seattle, eight hu
 
 Anna held the phone to Nora's ear. Nora listened to her grandfather with great seriousness, then took the phone in both hands and tried to eat it.
 
-Ben, doing the dishes, listened to the whole call. He had nobody to call on a birthday. His parents had been killed in a car crash when he was three, and his grandmother had raised him in Toledo, Ohio, two and a half hours north of the Dorseys. She had done her duty by him down to the last sock, and she believed in doing for yourself. She died while he was at college. He didn't mind having nobody to call, or he had decided long ago not to. But he noticed how Anna's voice changed when she talked to her father, and how her free hand stayed flat on Nora's back the whole time, as if she were holding on to something that was not quite in the room.
+Ben, doing the dishes, listened to the whole call. He had nobody to call on a birthday. His parents had been killed in a car crash when he was three, and his grandmother had raised him in Toledo, Ohio, two and a half hours north of the Dorseys. There had been an older sister once, Katie, who died at nine, before the crash. She had been sick, his grandmother told him, and that was all she ever told him. She had done her duty by him down to the last sock, and she believed in doing for yourself. She died while he was at college. He didn't mind having nobody to call, or he had decided long ago not to. But he noticed how Anna's voice changed when she talked to her father, and how her free hand stayed flat on Nora's back the whole time, as if she were holding on to something that was not quite in the room.
 
 ---
 
@@ -122,7 +122,7 @@ Then Walt came on the line, because he had heard.
 
 "What about across the street? He'd go for you."
 
-"He offered. He's no younger than me, Annie. He's got his own wife to think about." Walt said it the way he would have said the man was out of gas. "We're fine. We'll get it delivered."
+"He offered. He's no younger than me, Annie. He's got his own wife to think about. We're fine. We'll get it delivered."
 
 So that night, after Nora was asleep, Anna sat down at the kitchen table to get it delivered.
 
@@ -136,7 +136,7 @@ At one in the morning, Ohio time, nothing had changed. One of the pages, more ho
 
 On Sunday they went to Fort Baker.
 
-There were more people on the grass than usual, keeping their distance from each other, the way everybody had started to do that week without being told exactly how. The bridge looked the way it always did. Nora pulled herself up on Niamh's knee and stood there swaying, delighted with herself, and Niamh held her by the back of her overalls and wouldn't let anyone else near.
+There were more people on the grass than usual, keeping their distance from each other, as everybody had started to do that week without being told exactly how. The bridge looked the way it always did. Nora pulled herself up on Niamh's knee and stood there swaying, delighted with herself, and Niamh held her by the back of her overalls and wouldn't let anyone else near.
 
 Orla waited until the children were busy. Then she said she was going home.
 
@@ -242,7 +242,7 @@ On the Friday night they stopped in a motel in Indiana, two hours short of Dayto
 
 It was a photograph, taken in the dark from the end of a short street of red-brick houses. At the bottom of the street, where the next street should have been, there was a wall, grey concrete the height of the upstairs windows, with a fence on top of it, and a gate in it, shut. Under the picture he had written: *Home. Da waved from the window. Orla starts Monday.*
 
-Ben showed it to Anna. Then he looked at it for a long time on his own, while she slept. He had known Declan for one year, and it had never occurred to him until that night that a year was long enough to come to need someone.
+Ben showed it to Anna. Then he sat up with it on his own, while she slept. He had known Declan for one year, and it had never occurred to him until that night that a year was long enough to come to need someone.
 
 ---
 

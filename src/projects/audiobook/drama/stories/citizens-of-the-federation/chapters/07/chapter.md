@@ -10,7 +10,7 @@ Mikko had sent a photograph: a card in a child's capitals, propped against a cof
 
 Under it Mikko had written, in English: *Best review I've had all year.*
 
-For six years Mikko had been on Ben's screen every weekday at eight. He had found the Novaks their daycare by the sea, and he had been better at the video player than Ben was, which everybody knew, Mikko included. Then, the spring before last, Brynner gave most of the team's work to a machine. The Americans were let go by email. The Finns were let go after weeks of the meetings Finnish law insists on first, which Mikko called the politest sacking in Europe. Two of the team were kept, to check what the machine decided: Ben, and Declan Toner in Belfast. Nobody said why it was them. Ben had a guess. Their names were in a log somewhere, from a night in San Francisco when the two of them had sat at a pair of buttons and decided what the world saw.
+For six years Mikko had worked beside Ben: on his screen every weekday morning while Ben was still in San Francisco, and then at the next desk in Helsinki. He had found the Novaks their daycare by the sea, and he had been better at the video player than Ben was, which everybody knew, Mikko included. Then, the spring before last, Brynner gave most of the team's work to a machine. The Americans were let go by email. The Finns were let go after weeks of the meetings Finnish law insists on first, which Mikko called the politest sacking in Europe. Two of the team were kept, to check what the machine decided: Ben, and Declan Toner in Belfast. Nobody said why it was them. Ben had a guess. Their names were in a log somewhere, from a night in San Francisco when the two of them had sat at a pair of buttons and decided what the world saw.
 
 Ben typed an answer, and deleted it, and typed another. In the end he sent a heart, which was the kind of thing he had always thought less of other people for sending, and pushed the phone under his pillow.
 
@@ -90,7 +90,7 @@ Nora read it again in Finnish, with something added that made Theo shriek. Ben, 
 
 ---
 
-At six Anna propped the tablet against the fruit bowl, and her father's face came up much too close to the camera. It was eleven in the morning in Dayton.
+At six Anna propped the tablet against the fruit bowl, and there was her father. It was eleven in the morning in Dayton.
 
 "There's my girl. How's that baby? You look big."
 
@@ -106,7 +106,7 @@ It had come on Thursday, a cardboard box the size of a small suitcase, with the 
 
 "Every baby gets one," she said. "Every baby in the country, since just after the war. All you have to do is see the nurse early, so they know you're coming."
 
-Walt looked at it all for a long time.
+Walt looked at it all without a word.
 
 "When you were born," he said, "we got a bill."
 
@@ -174,7 +174,7 @@ When Anna was eleven, her mother had spent an autumn in the hospital, and after 
 
 "Mrs. Dorsey," said Anna, "I'm writing it down right now. She's fed, and she's clean, and she goes to school. You're doing a good job. She's staying right where she is."
 
-Her mother looked at the screen for a long time.
+Her mother looked at the screen, and went on looking.
 
 "You'll put that in your report."
 
@@ -260,7 +260,7 @@ Nora nodded. "It's her medicine."
 
 "A long time ago, when I was eleven, Grandma was sick like this, and she had to go to a hospital. After she came home, a lady came to our house every week to check that I was all right. Grandma was afraid the lady would take me away from her. So when she's frightened, she thinks it's that lady again."
 
-Nora thought about this for a long time, with the knitted rabbit tucked under her chin.
+Nora thought about this with the knitted rabbit tucked under her chin.
 
 "Would the lady take you away?"
 
@@ -282,7 +282,7 @@ Nora gave this the weight it deserved.
 
 ---
 
-Above the kitchen sink, as above nearly every kitchen sink in Finland, there was a cupboard with no floor: the wet plates went in a rack inside and dripped into the sink behind a closed door. Anna had lived with one for four years, and she still dried every plate with a towel before she put it away, the way her mother always had.
+Above the kitchen sink, as above nearly every kitchen sink in Finland, there was a cupboard with no floor: the wet plates went in a rack inside and dripped into the sink behind a closed door. Anna had lived with one for four years, and she still dried every plate with a towel before she put it away, as her mother always had.
 
 Ben came in from the children's room. "They're both down. You know you don't have to dry those."
 
@@ -326,7 +326,7 @@ He didn't answer at once. He thought of a folder on Brynner's machines, and a wo
 
 "If you go," he said, "I'll manage."
 
-She looked at him. He meant it. He would manage the way he did everything, without a word: at eight every morning in front of a screen with one other face on it, Theo on his knee, Nora walking herself to school in the dark, until the day an email came from San Francisco and the six months began. He would never tell her what it cost. He would never once say she shouldn't have gone.
+She looked at him. He meant it. He would manage the way he did everything, without a word: every morning in front of a screen with one other face on it, Theo on his knee, Nora walking herself to school in the dark, until the day an email came from San Francisco and the six months began. He would never tell her what it cost. He would never say she shouldn't have gone.
 
 She knew whose way that was. She had grown up in that house.
 
@@ -358,7 +358,7 @@ It was the truest thing he had told her in nine Sundays. She sat in the dark kit
 
 "Dolores is coming tomorrow," she said. "Let her in, Dad. Even if Mom shouts. Let her in, and don't tell her anybody's fine."
 
-For a long time he didn't say anything.
+He didn't say anything. She could hear him breathing.
 
 "All right," said Walt. "I'll let her in."
 

@@ -36,7 +36,7 @@ Gary Pruitt was on the steps outside, with his folder under his arm. The county 
 
 Joel walked back to the river in the dark.
 
-He could leave. He thought about it the whole way, honestly, the way you think about a door. The roads north were open until first light, and nobody would look for one sergeant in a city with no lights. But the book would stay behind in his pack, or go with him, and either way the colonel would fill his buses in the morning, by the letters or by looking, and it would be Cody and the rest of the squad who did the filling, with nobody standing in front of them.
+He could leave. He thought about it honestly, the whole way. The roads north were open until first light, and nobody would look for one sergeant in a city with no lights. But the book would stay behind in his pack, or go with him, and either way the colonel would fill his buses in the morning, by the letters or by looking, and it would be Cody and the rest of the squad who did the filling, with nobody standing in front of them.
 
 After Gate 12A the Guard had kept Joel off the line. A hero who wouldn't say the other side fired first was no use to anybody's cameras. In March, when the Board took the city and needed men on the District's fence, it got Joel's squad, and Joel got the gate. In his pack was his mother's ledger, kept dry, as she had asked.
 
@@ -98,9 +98,11 @@ He looked at her.
 
 "Then burn it."
 
-"Gary knows I had it, so it's a lie anyway, and then nothing's left anywhere that says who was in here. There are people in this book who died in here, Miss Lucille. Nothing else says they were." He put his hand on it. "Mrs. Dorsey's got a permit from Finland. Burn this, and there's nothing to say she's the woman it's for."
+Joel shook his head. "Gary knows I had it, so it's a lie anyway, and then nothing's left anywhere that says who was in here. There are people in this book who died in here, Miss Lucille. Nothing else says they were." He put his hand on it. "Mrs. Dorsey's got a permit from Finland. Burn this, and there's nothing to say she's the woman it's for."
 
-"I wrote the H's," said Joel. "In my writing. He'd be filling those buses out of my handwriting, and I'd stand at the gate tomorrow and watch Cody put Miss Bea on one, and tell myself the colonel did it." "After the shooting at the base they wanted me to say I returned fire. I said I fired. If they go on those buses, I did that too."
+Lucille waited.
+
+"And I wrote the H's," he said. "In my writing. He'd be filling those buses out of my handwriting, and I'd stand at the gate tomorrow and watch Cody put Miss Bea on one, and tell myself the colonel did it." He kept his hand where it was. "After the shooting at the base they wanted me to say I returned fire. I said I fired. If they go on those buses, I did that too."
 
 He opened the ledger at the first page and ran his finger down the second column.
 
@@ -154,7 +156,7 @@ Joel found the line. *Dorsey, Ruth (D). Mrs. Dorsey. Daughter, Anna, in Finland.
 
 He wrote *Mrs. Dorsey* in the narrow book, and went on.
 
-At the very back of the ledger, where his mother kept the things that had no column, was a card. THANK YOU FOR YOUR SON, it said on the front, and on the back, in her square county hand, *Eli Kasprzak, 20.* It was too wide for the book now. He folded it in half and put it back, and said the name once, aloud, the way the boy's mother had said it on the news.
+At the very back of the ledger, where his mother kept the things that had no column, was a card. THANK YOU FOR YOUR SON, it said on the front, and on the back, in her writing, *Eli Kasprzak, 20.* It was too wide for the book now. He folded it in half and put it back, and said the name once, aloud, the way the boy's mother had said it on the news.
 
 When the sky over the river began to go grey he came to the last line. He wrote one more under it, and closed the book before the ink was dry. Inside the back cover he wrote an address in Toronto.
 
@@ -186,7 +188,7 @@ Pruitt's hand shook as he put the notebook away.
 
 "You did, Gary," said Joel.
 
-They gave him the afternoon in a room off the lobby with a soldier at the door. His hands wouldn't keep still, and he sat on them. He found he wanted his mother, plainly, the way he hadn't wanted anybody since he was small, and he was glad she was in Toronto, where nobody could make her watch. He thought about writing to her. He had already written the one thing.
+They gave him the afternoon in a room off the lobby with a soldier at the door. His hands wouldn't keep still, and he sat on them. He found he wanted his mother, plainly, as he hadn't wanted anybody since he was small, and he was glad she was in Toronto, where nobody could make her watch. He thought about writing to her. He had already written the one thing.
 
 At four they walked him up the levee behind the county building. The wind was off the river, and on it he could smell Miss Lucille's kitchen, the wheat boiling for supper. She had always said that if they ever let her at a stove, you'd smell it from the river. He was thinking that she'd been right.
 
@@ -200,7 +202,7 @@ She put the cap on her pen. Then she got up on the bad foot and went in and stir
 
 It was a Wednesday. At seven Miss Bea came over from Building F with the people who sang on Wednesdays, and they gathered in the day room by the piano, where Mrs. Dorsey was sitting. She began the slow hymn she used to play at the end of every Sunday call to Finland. Partway through she stopped, in the middle, and took her hands off the keys and laid them in her lap.
 
-Miss Bea hummed the note. Fourteen people sang hymn number five thirty-four, "Be Still, My Soul," in four parts, with no piano and no one on the tenor line. Mrs. Dorsey sat very straight on the bench, the way she sat at the end of a hymn, and listened to it all the way to the end.
+Miss Bea hummed the note. Fourteen people sang hymn number five thirty-four, "Be Still, My Soul," in four parts, with no piano and no one on the tenor line. Mrs. Dorsey sat on the bench with her hands in her lap and listened to every verse.
 
 ---
 
@@ -220,7 +222,7 @@ That month, in a meetinghouse of Naomi's church, the sheriff who had charged nob
 
 Naomi came with the first truck. Lucille met her at the kitchen door and told her there were old people inside who had nobody.
 
-Naomi looked at the ground between them for a long time.
+Naomi looked at the ground between them, and took her time.
 
 "Then they'll have us," she said.
 
@@ -244,11 +246,13 @@ The parcel reached Carol on a Wednesday at the end of October, at Joy's kitchen 
 
 Carol had work now, three days a week at a settlement office on Bloor Street, helping people newer to Canada than she was through its forms, and she asked each of them first what they liked to be called. On Wednesdays she sang tenor in the church down the road. In August, the week the news came, she had gone to choir anyway, and stood in the tenor line, and not sung a note, and nobody had asked her to.
 
-She knew her sister's hand on the brown paper before she saw the postmark. There was nothing inside but the book.
+She knew her sister's hand on the brown paper before she saw the postmark. There was no letter, only the book.
 
 She knew the green cloth spine too, cut down to the width of her hand. In August her phone had told her that her son was shot for a false record. She hadn't known until now what the record was.
 
 Every line was in Joel's writing. *Big Mike. Sister. Miss Odessa.* Halfway down the first page it said *Mrs. Dorsey*, and beside it, in her sister's pencil, *With N. Garber, the farm,* and a word after that, which she would come back to.
+
+Folded in half inside the back cover was the card from her front step, with the boy's name on the back in her own writing. Joel had kept him too.
 
 She turned to the last page. Under the last name, in ballpoint, in the book's one column, Joel had written another.
 

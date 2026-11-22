@@ -2,7 +2,7 @@
 
 The two weeks were up on a Saturday, and nobody in the house said so.
 
-On the Thursday, the governor had come on television at two o'clock, as he did every afternoon now, and said that everybody in Ohio was to go on staying home until the first of May. Beside him stood the state's health director, a doctor, who explained the virus to the whole state every afternoon in a calm, plain voice, the way a good doctor explains a hard thing to a patient she likes. Walt Dorsey watched with a pencil. He had a notebook from the plant where he had worked for thirty-four years, and in it he wrote down the day's new cases and the day's dead, one under the other, the way he had once written down the count off the line at the end of a shift.
+On the Thursday, the governor had come on television at two o'clock, as he did every afternoon now, and said that everybody in Ohio was to go on staying home until the first of May. Beside him stood the state's health director, a doctor, who explained the virus to the whole state every afternoon, calmly and plainly, like a good doctor with a patient she likes. Walt Dorsey watched with a pencil. He had a notebook from the plant where he had worked for thirty-four years, and in it he wrote down the day's new cases and the day's dead, one under the other, the way he had once written down the count off the line at the end of a shift.
 
 So the house settled into being what it was. Ben worked in the spare room at the back on San Francisco's clock, so that his day began at eleven and ended after supper. Brynner had told its people not to expect the office before the autumn, and their apartment sat empty across the country with the rent still going out of it, and nobody said that either. Anna did the shopping, all of it, once a week, from a list in her mother's handwriting. Nora learned to walk in the front room, between her grandfather's chair and the piano bench, and on the day she turned one her grandmother played "Happy Birthday" with all the extra notes.
 
@@ -10,9 +10,9 @@ Most afternoons Walt and Gene Kessler, who had worked the same plant, talked fro
 
 At night Anna slept in the bedroom she had left at eighteen, under the plastic stars she had stuck to the ceiling at nine, with her husband beside her and her daughter in a crib at the foot of the bed. She was thirty. Some nights she lay looking at the stars and felt like something put back on a shelf.
 
-Ruth taught piano in the front room, as she had for forty years, though now the pupils came to her as faces on an iPad propped on the music stand. Anna listened to her mother's playing all day, the way she always had, for how her mother was. It was good. Every note was in its place.
+Ruth taught piano in the front room, as she had since before Anna was born, though now the pupils came to her as faces on an iPad propped on the music stand. All day Anna listened to her mother's playing for how her mother was. It was good. Every note was in its place.
 
-If anything was missing from it, Anna couldn't have said what. Walt could have. He had first heard Ruth play when she was thirty, from the back of her church, in one of the good years between her illnesses, when she took no medicine at all. He had sat through two hymns and the whole of the postlude to find out who was playing like that, and then he had married her. So he knew exactly what the medicine had taken, because he remembered it before. He had never once said so. And Ruth kept her left hand moving at the piano, always, even in the rests, so that nobody would see it shake.
+If anything was missing from it, Anna couldn't have said what. Walt could have. He had first heard Ruth play when she was thirty, from the back of her church, in one of the good years between her illnesses, when she took no medicine at all. He had sat through two hymns and the whole of the postlude to find out who was playing like that, and then he had married her. So he knew exactly what the medicine had taken, because he remembered it before. He had never said so. And Ruth kept her left hand moving at the piano, always, even in the rests, so that nobody would see it shake.
 
 ---
 
@@ -30,7 +30,7 @@ On the Wednesday a man came up the front walk dressed for a different kind of ho
 
 "We'll have you sorted out in two minutes, hon. Which side are we doing?"
 
-Ruth looked at him through the screen for a long time. Anna, in the hall behind her with Nora on her hip, saw her mother's left hand close on the door frame.
+Ruth looked at him through the screen and said nothing. Anna, in the hall behind her with Nora on her hip, saw her mother's left hand close on the door frame.
 
 "Take that thing off your face, so I can see you."
 
@@ -134,7 +134,7 @@ That Sunday, Anna drove her mother to church. It had gone onto the internet in M
 
 Ruth played the hymns, and nobody sang them except, Anna supposed, in kitchens. Then the pastor gave the blessing, and Ruth began the postlude, and it was the Bach.
 
-Anna had heard her mother play all her life, and she had never heard this. It wasn't faster or louder. It was that every line was alive at once, both hands on the keyboards and both feet on the pedals, four voices talking together and every one of them making sense. The pastor stood beside his phone and forgot to turn it off. On its screen, the little hearts people sent from their kitchens went up the side of the picture like bubbles, and kept going after the last chord, for a long time.
+Anna had heard her mother play all her life, and she had never heard this. It wasn't faster or louder. It was that every line was alive at once, both hands on the keyboards and both feet on the pedals, four voices talking together and every one of them making sense. The pastor stood beside his phone and forgot to turn it off. On its screen, the little hearts people sent from their kitchens went up the side of the picture like bubbles, and kept going long after the last chord.
 
 In the car Ruth did the pastor's sermon in his voice, and then in Walt's, and then in the voice of a dog that had lived next door when Anna was six, and Anna laughed so hard she had to pull over. At home Ruth went through the bulletin with her red pen, and then the hymnal, and then made a start on the phone book.
 
@@ -212,7 +212,7 @@ Where the form left a few lines for anything else, she wrote in her square schoo
 
 *I went without it once, in the summer of 2020, to hear myself play. It was worth it. I will not do it again, and if I try to, stop me.*
 
-Then she kept going onto the back of the page, with her other arm curled round it the way a child hides a test.
+Then she kept going onto the back of the page, with her other arm curled round it, like a child hiding a test.
 
 "What's that part?"
 
@@ -244,7 +244,7 @@ Ruth didn't move. She sat in her chair with her hands in her lap and watched the
 
 "I'll want a room with a piano."
 
-Nobody laughed, and she hadn't meant them to. Walt reached across and took her hand, and she let him keep it, which wasn't like her. Anna took Nora upstairs and sat under the plastic stars with her daughter asleep on her shoulder, and didn't come down for a long time.
+Nobody laughed, and she hadn't meant them to. Walt reached across and took her hand, and she let him keep it, which wasn't like her. Anna took Nora upstairs and sat under the plastic stars with her daughter asleep on her shoulder, and didn't come down again that evening.
 
 Late that night she heard the piano bench open downstairs, and the rustle of an envelope, and then nothing for a while, and then the bench close.
 
@@ -274,7 +274,7 @@ Dolores came out and got in, and the car pulled away to her next patient, and An
 
 ---
 
-On the Wednesday, Walt came down the porch steps the way he had come down every set of steps since he was five: one at a time, good leg, steel brace, good leg.
+On the Wednesday, Walt came down the porch steps in his good coat, with a hand on the rail.
 
 Across the street, Gene was out with a bag of salt.
 

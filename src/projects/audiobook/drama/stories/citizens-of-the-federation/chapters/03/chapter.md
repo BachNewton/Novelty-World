@@ -8,7 +8,7 @@ Nora had just turned two. Her help was to carry each plant from the tray to its 
 
 Nora stood on the next one.
 
-Inside, a pupil was stumbling through a minuet in the front room, and Ruth was saying "Again," in the voice of a woman who had said it for forty years and meant it every time. The pupils came to the house now, in person, because everybody who could be vaccinated had been. Across the street, Gene Kessler, who hadn't been and wouldn't be, was mowing his lawn in straight lines, and lifted a hand to Walt at the end of every one.
+Inside, a pupil was stumbling through a minuet in the front room, and Ruth was saying "Again," in the voice of a woman who had said it to every pupil she ever had and meant it every time. The pupils came to the house now, in person, because everybody who could be vaccinated had been. Across the street, Gene Kessler, who hadn't been and wouldn't be, was mowing his lawn in straight lines, and lifted a hand to Walt at the end of every one.
 
 From the porch, Anna watched her father and her daughter, and thought that they had come for two weeks, more than a year ago, and that nobody in the house had said so in months.
 
@@ -130,7 +130,7 @@ She asked them on the Sunday before the Fourth of July, on the porch, after chur
 
 Every porch on the street had its flag out for the country's birthday, Walt's included. Walt was in his chair with his cap from the plant on, and Ruth sat beside him in her church dress, with her organ shoes still on, because she had played that morning. Ben stood in the doorway with Theo. Nora was on the steps with a box of chalk, drawing a sun with a great many legs.
 
-Anna told them about Brynner, and the first of September, and the two offices. She told them about the job in Chicago. Then she told them about the page on Finland's website, all of it, the way she had read it: at the same time, and the four years, and never.
+Anna told them about Brynner, and the first of September, and the two offices. She told them about the job in Chicago. Then she told them about the page on Finland's website, all of it, just as she had read it: at the same time, and the four years, and never.
 
 "So I'm asking," she said. "If you'll come with us, we'll go to San Francisco. All of us. We'd find a place on the ground floor. There are nurses in San Francisco, Mom. There are churches with organs."
 
@@ -164,7 +164,7 @@ He had been saying it since he was five, the way other people said hello. It was
 
 Walt had decided on the Thursday of the note, at supper, with his fork in his hand and his granddaughter under the table among his feet. He had decided before Anna ever asked.
 
-He knew something about Annie that she didn't seem to know herself. If he and Ruth said yes, she would take them to San Francisco and tell everyone it was what she wanted. She would give up the other place for her children, the one without the quiet game, and never once complain of it. Ben had shown him San Francisco on the laptop: the hills, and the streets so steep that the sidewalks had steps cut into them. Walt knew exactly who would get a man with one good leg up and down those steps, every day, until he died, and he was not going to let it be Annie. Where she went after that was hers to decide. He only meant to take himself out of the way.
+He knew something about Annie that she didn't seem to know herself. If he and Ruth said yes, she would take them to San Francisco and tell everyone it was what she wanted. She would give up the other place for her children, the one without the quiet game, and never complain of it. Ben had shown him San Francisco on the laptop: the hills, and the streets so steep that the sidewalks had steps cut into them. Walt knew exactly who would get a man with one good leg up and down those steps, every day, until he died, and he was not going to let it be Annie. Where she went after that was hers to decide. He only meant to take himself out of the way.
 
 He had also worked out, on the back of an envelope, how old he would be by the time Theo was old enough to remember him. Then he had torn the envelope up and put it in the trash under the potato peelings, where Ruth wouldn't find it.
 
@@ -174,13 +174,13 @@ That night, in bed, Ben said, "Well. It's simpler now, anyway."
 
 Anna turned her head on the pillow and looked at him.
 
-He saw his mistake about a second after he had made it, the way you see a glass going off the edge of a table. What he had felt on the porch was relief: one road fewer, and the one he wanted still there. Nobody had ever needed him the way Anna's parents needed her. He could see that Anna was in pain, the way you can see that somebody is cold. He couldn't feel it.
+He saw his mistake about a second after he had made it, the way you see a glass going off the edge of a table. What he had felt on the porch was relief: one road fewer, and the one he wanted still there. He could see that Anna was in pain, the way you can see that somebody is cold. He couldn't feel it.
 
 "We'll come back every summer," he said.
 
 "And every summer they'll be a year older," said Anna.
 
-He didn't have anything to say to that, so he didn't say anything. He did the one thing he could think of, which was to stay awake with her. Downstairs, a little after midnight, the piano started again, so softly it was hardly there: something slow that Anna didn't know. She lay and listened to it the way she always listened to her mother's playing, for how her mother was. This once, she didn't want to know.
+He didn't have anything to say to that, so he didn't say anything. He did the one thing he could think of, which was to stay awake with her. Downstairs, a little after midnight, the piano started again, so softly it was hardly there: something slow that Anna didn't know. She lay and listened, and for once she didn't listen for how her mother was. She didn't want to know.
 
 ---
 
@@ -200,7 +200,7 @@ She wrote *Helsinki*. Then she put her hand flat over the word, as if somebody m
 
 Finland had opened a fast lane that summer for people like Ben, whom it wanted: a decision in two weeks, for him and his family, as long as his family applied at the same time. Anna read the words, *at the same time*, and thought of the other page. Then she got on with the forms, because the forms were what she could do.
 
-Ruth went through every one of them at the kitchen table with her red pen. She found a comma missing in the Finnish government's own English, and marked it. She checked Theo's date of birth against his birth certificate twice, and Nora's three times. She did it all without a word about why there were forms, and Anna, watching her mother's square schoolteacher's hand go down the page, helping her leave, had to go out and stand in the yard.
+Ruth went through every one of them at the kitchen table with her red pen. She found a comma missing in the Finnish government's own English, and marked it. She checked Theo's date of birth against his birth certificate twice, and Nora's three times. She did it all without a word about why there were forms, and Anna, watching her mother's pen go down the page, helping her leave, had to go out and stand in the yard.
 
 The permits came in thirteen days.
 
@@ -246,7 +246,7 @@ Walt looked round, and saw her.
 
 She was singing to him. He could see it. Her mouth was going, and her head went from side to side in time, and her hands came off the glass for the parts with actions in them. Through the window he couldn't hear a word of it. It was the song they sang at preschool every day, at the end of the morning, when it was time to go home.
 
-When Walt was five, his mother had stood every evening outside the window of a hospital ward where she wasn't allowed in, and he had watched her mouth move through the glass and been sure it must be something very important. Years later she told him she had only been singing.
+He thought of his mother at the window of the polio ward, and of what she had told him, years later, that she was doing there. Only singing.
 
 He knew better now. He stood on the step and watched his granddaughter sing to him through the window, every verse, with all the actions.
 
@@ -264,4 +264,4 @@ Ruth was at the piano with her hands in her lap. She had stopped when the car tu
 
 "Don't you start that with me, Walter," said Ruth.
 
-He sat down on the end of the bench, where there was just room for him, and she moved over, and neither of them said anything at all for a long time.
+He sat down on the end of the bench, where there was just room for him, and she moved over, and neither of them said anything at all for the rest of the morning.

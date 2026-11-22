@@ -8,7 +8,7 @@ Naomi's granddaughter Lydia was nine. She came every afternoon when her chores w
 
 "Your fourth finger's lazy," said Ruth. "Again."
 
-She meant it. Ruth had taught for forty years with her ears, and she had found that if she watched closely enough she could hear a hand on paper too: which finger came late, which note was let go too soon. Lydia had never heard a piano in her life. All she knew of any tune was what Ruth hummed to her. This month she was learning the left hand of a hymn.
+She meant it. Ruth had taught all her life with her ears, and she had found that if she watched closely enough she could hear a hand on paper too: which finger came late, which note was let go too soon. Lydia had never heard a piano in her life. All she knew of any tune was what Ruth hummed to her. This month she was learning the left hand of a hymn.
 
 Ruth had been well since the spring. She had come to the farm, north of Dayton, in the war, one of nine old people who had nobody, and she had been ill all that first winter and most of the next: awake all night, wiping clean counters, eating only what she heard being opened. Then, toward the end of the second winter, the illness had gone out of her, slowly, as it had a few times in her life before, in the years between: the way floodwater goes down and leaves everything where it was, and muddy.
 
@@ -16,7 +16,7 @@ In April, while she was the one choosing, she had asked Naomi to drive her to a 
 
 ---
 
-That was the spring the war ended, on paper. Naomi brought it home from meeting in May, the way she brought everything, in a few plain sentences while she unpinned her bonnet. There would be a count in November, with somebody from each side at every table. The prisoners each side was holding would go home. Anybody who had done anything in the war, for either side, could go free if he told all of it to a commission, in public, under his own name. And the city of Washington, whose people had never had a vote in Congress, and Puerto Rico, whose people had been Americans since 1917 without a vote for President, would become states. Washington's side had never wanted the two new states, because both would vote against it, and it had taken them to keep its own men away from judges. Philadelphia's side had never wanted to let anybody off, and it had taken the amnesty, which covered the men who drowned the pharmacist in Troy, and its own soldiers who had shot Joel on the levee. People called it the Settlement, and then, the way people do, the settling, as if it were a bill.
+That was the spring the war ended, on paper. Naomi brought it home from meeting in May, in a few plain sentences while she unpinned her bonnet. There would be a count in November, with somebody from each side at every table. The prisoners each side was holding would go home. Anybody who had done anything in the war, for either side, could go free if he told all of it to a commission, in public, under his own name. And the city of Washington and Puerto Rico, whose people had never had a full vote, would become states. Washington's side had taken the two new states, though both would vote against it, to keep its own men away from judges. Philadelphia's side had taken the amnesty, which covered the men who drowned the pharmacist in Troy, and its own soldiers who had shot Joel on the levee. People called it the Settlement, and then the settling, as if it were a bill.
 
 "So they'll let them all go," said Ruth, "if they say it."
 
@@ -66,7 +66,7 @@ On the Friday they came to the levee.
 
 On the commission's list it was one line: *Montgomery County, 14 August 2030, the levee behind the county building, one dead.* Seven men had asked for amnesty for it: the colonel who signed the order, five of the soldiers who fired, and the caseworker who reported him.
 
-The colonel came first. His own side had held him in a jail in Columbus since the spring before, to be tried for it, and he came in his own suit, with a deputy behind his chair. He told it in order, the way a man tells a thing he has told himself many times: the rolls he needed by eight in the morning, and a famous sergeant who had handed him two words in writing that both of them knew were a lie.
+The colonel came first. His own side had held him in a jail in Columbus since the spring before, to be tried for it, and he came in his own suit, with a deputy behind his chair. He told it in order, as smoothly as a thing he had told himself many times: the rolls he needed by eight in the morning, and a famous sergeant who had handed him two words in writing that both of them knew were a lie.
 
 "I had a city to hold," he said, "and I needed it to believe an order meant something. If his name bought him that, any name could."
 
@@ -74,7 +74,7 @@ The colonel came first. His own side had held him in a jail in Columbus since th
 
 "I know, ma'am." He looked down the room at Carol. "I'd sign it again, on that morning, in that city. I'm sorry for his mother."
 
-He said it the way people are sorry about the weather. Carol had come afraid that she would hate him. She looked back at him and found she had nothing for him at all, and that was worse.
+He said it plainly, and it cost him nothing. Carol had come afraid that she would hate him. She looked back at him and found she had nothing for him at all, and that was worse.
 
 Then the soldiers, one at a time. There had been six. The sixth had been killed on the north side of town that same weekend, when the fighting came. Each of the five had to say what his own hands had done, and most of them said it to the table.
 
@@ -134,7 +134,7 @@ Naomi was in the yard in her white covering. The sisters had not stood in the sa
 
 "Mother asks if you're eating," she said.
 
-For nineteen years it had come to Carol passed along, never once to her face. This time she could answer it.
+For nineteen years it had come to Carol passed along, never to her face. This time she could answer it.
 
 "Tell her yes," she said. "Tell her I'm learning the piano."
 
@@ -142,7 +142,7 @@ Naomi took that in.
 
 "I'll tell her you're eating," she said.
 
-Anna came out onto the porch. She and Carol had talked every Sunday for two years, and had not stood in the same place since the spring Carol lost her job for Ruth. Carol held on to her and said nothing, which on the telephone she had never once managed.
+Anna came out onto the porch. She and Carol had talked every Sunday for two years, and had not stood in the same place since the spring Carol lost her job for Ruth. Carol held on to her and said nothing, which on the telephone she had never managed.
 
 Inside, Ruth held out her hand before Carol had her coat off, and took Carol's, and spread the fingers wide on the oilcloth.
 
@@ -156,11 +156,11 @@ Inside, Ruth held out her hand before Carol had her coat off, and took Carol's, 
 
 "Good," said Ruth. "Show me."
 
-So Carol sat down at the paper keyboard, in her sister's kitchen, and played the twinkling one every child learns, in silence. Ruth watched her hands.
+So Carol sat down at the paper keyboard, in her sister's kitchen, and played "Twinkle, Twinkle, Little Star" in silence. Ruth watched her hands.
 
 "Your thumb's late," said Ruth. "Again."
 
-Carol played it again, and her thumb was late again, and Lydia put both hands over her mouth. Carol began to laugh, and couldn't stop. Ruth waited for her to finish, as she had waited for forty years of pupils to stop giggling, and then said "Again," and Carol did it right. In the doorway Naomi stood with a dish towel and watched her sister play an instrument that wasn't one.
+Carol played it again, and her thumb was late again, and Lydia put both hands over her mouth. Carol began to laugh, and couldn't stop. Ruth waited for her to finish, as she had waited for every pupil she ever had to stop giggling, and then said "Again," and Carol did it right. In the doorway Naomi stood with a dish towel and watched her sister play an instrument that wasn't one.
 
 ---
 
@@ -214,7 +214,7 @@ Ruth looked at the paper keyboard.
 
 Through the window Anna could see Carol and Naomi on the porch steps, not quite side by side.
 
-"You told me Nora was in the hall," said Ruth. "That Sunday, when I took you for the county. That's what she's got of me, and a few Christmases on a screen." She put both hands flat on the oilcloth. "I'd like her to have something else."
+"You told me Nora was in the hall," said Ruth. "That Sunday, when I took you for the county. She lived in my house till she was three. She sat on my piano bench and sang me her star song in Finnish. She had me every Sunday of her life. And the last of it was that." She put both hands flat on the oilcloth. "I'd like her to have something after it."
 
 "Mom."
 
@@ -276,7 +276,7 @@ It didn't make it fair. Nothing on one page could.
 
 She moved the pen up, and ticked the first box.
 
-Under *Statement of the family* she wrote, pressing hard, in the square hand she had used for the county, with one word crossed out and written again:
+Under *Statement of the family* she wrote, pressing hard, with one word crossed out and written again:
 
 *I do not object. I do not forgive them either. There is no box for that.*
 
@@ -286,9 +286,11 @@ She gave it to the clerk, who did not check the name against anything.
 
 ---
 
-On the way east that afternoon, Anna stopped at Woodland.
+On the way east that afternoon, Anna stopped twice.
 
-Her father's grave was on the side of the hill, with a small flat stone, and Ruth stood beside it in Walt's cap. Then she bent, with a hand on Anna's arm, and brushed the leaves off his name.
+The first time was at her parents' house in Dayton. Ruth looked at the front door from the car and said she would wait. Inside it was cold and dim, and everything was where it had been left, under years of dust, and the fridge door was still covered. Anna took the pictures down one at a time, starting at the top, where the girl who drew them had grown to, and working down to the first rocket, at the height of a five-year-old's eyes. She took the magnet from the plant too. She laid them flat in the folder with Finland's letter, and locked the door behind her.
+
+The second time was at Woodland. Her father's grave was on the side of the hill, with a small flat stone, and Ruth stood beside it in Walt's cap. Then she bent, with a hand on Anna's arm, and brushed the leaves off his name.
 
 "I'm eating, Walter," she said. "You'd ask."
 
@@ -306,7 +308,7 @@ Back in the car she asked how you said thank you in Finnish.
 
 "*Kiitos*," said Anna.
 
-Ruth said it, and said it again, getting the first sound wrong and then right, and she went on practising it under her breath through the dark, the way she had practised everything all her life, until she had it.
+Ruth said it, and said it again, getting the first sound wrong and then right, and she went on practising it under her breath through the dark until she had it.
 
 ---
 

@@ -26,7 +26,7 @@ Walt knew it. On Sunday's call, with the aide holding the tablet for him, he had
 
 "You get her out of there, Annie. Don't you worry about me. I've got the television." He thought about it. "And the food's terrible. That'll keep me going."
 
-He had more news. The pastor at Ruth's church had gone to his son's in Kentucky, like half the street, and the church was shut. The girl who said "Okay, Mr. D." was doing two shifts back to back, because the other one had gone too. He told it the way he told the weather.
+He had more news. The pastor at Ruth's church had gone to his son's in Kentucky, like half the street, and the church was shut. The young aide, the one who called him Mr. D., was doing two shifts back to back, because the other aide had gone too. None of it, to hear him tell it, was anything to worry about.
 
 Nora came through the kitchen with Alma behind her. Since New Year she had been answering one question in the house, whenever anybody asked it and mostly when nobody had.
 
@@ -194,7 +194,7 @@ He closed his eyes.
 
 Dolores held the phone.
 
-She held it for a long time. Walt slept, and his breath went in and out under the blankets, catching at the top, and the aide came and went. Anna talked to him. She hadn't decided to. It was something for her voice to do. She told him that Theo had a loose tooth and wanted paying for it in two currencies. She told him the snow was up to the balcony railing and he'd have hated it. Then she told him that she was going to grow tomatoes this summer, in pots on the balcony, and that he'd have to tell her how, because she had never once paid attention.
+She held it, and went on holding it. Walt slept, and his breath went in and out under the blankets, catching at the top, and the aide came and went. Anna talked to him. She hadn't decided to. It was something for her voice to do. She told him that Theo had a loose tooth and wanted paying for it in two currencies. She told him the snow was up to the balcony railing and he'd have hated it. Then she told him that she was going to grow tomatoes this summer, in pots on the balcony, and that he'd have to tell her how, because she had never paid attention.
 
 After a while the picture began to shake, and Dolores changed arms. She was seventy-four, and she had been up all night on a chair beside him. Later the other arm tired too, and the picture tipped back, and for a few seconds Anna was looking at a ceiling in Kettering: square white tiles, a brown stain in one corner, and a light that wasn't on.
 

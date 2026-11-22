@@ -6,7 +6,7 @@ Ruth came in at the noise and stood in the doorway in her nightgown. He told her
 
 "They'll hear," she said.
 
-She went away and came back with the blanket off the sofa, and spread it over him carefully, the way she would have tucked in a child. Later, he couldn't have said how much later, she brought a can of tomato soup and the can opener and set them on the floor by his hand, side by side. Then she went into the front room, and he heard her start the slow hymn, and stop, and start it again.
+She went away and came back with the blanket off the sofa, and spread it over him carefully, as if she were tucking in a child. Later, he couldn't have said how much later, she brought a can of tomato soup and the can opener and set them on the floor by his hand, side by side. Then she went into the front room, and he heard her start the slow hymn, and stop, and start it again.
 
 He couldn't open a can lying on his back. He tried for a while, for her sake.
 
@@ -28,7 +28,7 @@ Ben didn't say he would manage. He rang Antti, at midnight, which in four years 
 
 Tomorrow was Nora's birthday. She would be eight.
 
-She came out of her room at five, while Anna was buckling on the baby carrier in the hall, holding a sheet of paper flat against her chest. Every birthday since she was five, the morning the Europa crew launched for Jupiter, Nora had drawn her grandfather a space picture for his fridge. This year's she had drawn last night under the covers with a torch, because it had to go today: a ship coming in toward a planet with stripes, moons round it like marbles, and in the ship's window eight round faces.
+She came out of her room at five, while Anna was buckling on the baby carrier in the hall, holding a sheet of paper flat against her chest. Every birthday since her fifth, the day the Europa crew launched for Jupiter, Nora had drawn her grandfather a space picture for his fridge. This year's she had drawn last night under the covers with a torch, because it had to go today: a ship coming in toward a planet with stripes, moons round it like marbles, and in the ship's window eight round faces.
 
 "It's early," said Nora. "It still counts."
 
@@ -62,7 +62,7 @@ In the morning her father was in a bed on the fourth floor with a pin in his hip
 
 Walt looked at the baby. He didn't say he was fine. It was the first time in her life Anna had watched him not say it, and it was worse.
 
-She gave him Nora's picture. He held it at arm's length and read it the way he read the paper, all of it.
+She gave him Nora's picture. He held it at arm's length and read every word of it.
 
 "Put it with the others," he said.
 
@@ -70,7 +70,7 @@ Two floors up, her mother sat by a window in a hospital gown with her hair uncom
 
 "You're very like her," said Ruth. "They've done well."
 
-Anna had read the words a hundred times in her mother's square hand: *I will tell you that you are not who you are.* Reading them had been nothing like hearing them.
+Anna had read the words a hundred times in her mother's writing: *I will tell you that you are not who you are.* Reading them had been nothing like hearing them.
 
 Ruth looked at the baby, and for a moment something else was in her face. "She's warm enough," she said. It wasn't a question. It was the look she gave children coming in out of the snow for their lessons. Then the politeness came back. "You can tell them I didn't sign anything."
 
@@ -134,9 +134,9 @@ Ruth was quiet so long that Anna thought she hadn't heard.
 
 Carol typed *Mrs. Dorsey*.
 
-While she worked, Ruth's fingers had begun to move on the edge of the counter, the way they moved on any flat surface now: the same few bars, over and over, stopping in the same place. Carol tapped the rhythm back with one fingernail, and hummed the next bar under her breath.
+While she worked, Ruth's fingers had begun to move on the edge of the counter, as they did on any flat surface now: the same few bars, over and over, stopping in the same place. Carol tapped the rhythm back with one fingernail, and hummed the next bar under her breath.
 
-Ruth's hand stopped. She reached across and took Carol's hand in both of hers, turned it over, and spread the fingers wide, the way she had measured her pupils' hands in the front room for forty years.
+Ruth's hand stopped. She reached across and took Carol's hand in both of hers, turned it over, and spread the fingers wide, as she had measured every new pupil's hand in her front room.
 
 "You've got a pianist's hands," she said. "A tenth, easily. Who told you to stop?"
 
@@ -171,6 +171,10 @@ Section nine came already filled in: *Community resources offered and declined.*
 "Nobody offered her anything," said Anna. "A sign went up on a door." She made herself say the rest. "Finland won't let my mother come unless there's no treatment for her here. It may be years before I can even ask. But when I can, I'll need a paper from the county that says so."
 
 "There's a dropdown," said Carol. "The third choice says *none available*. I've never seen anybody pick it. It goes to a supervisor, and she opens it on a Friday and looks at who filed it." She glanced up at the yellow banner, for the first time, and then moved the choice down two lines and saved it.
+
+The printer under the counter pushed out a page. Carol initialled it, folded it in three, and slid it across to Anna. Under the county's seal it said that the community resources available to Ruth Dorsey were none.
+
+"That's your copy," she said. "The county keeps the other one."
 
 Section four was consent.
 
@@ -246,7 +250,7 @@ She turned it over. The back was written to the bottom in red ink, the ink her m
 
 *August 2026. Your father's good leg is going, and he will tell you it isn't. Whatever you have had to do to me, don't let him tell you it was wrong. He let me stop once, because he loved the way I played. You love me some other way. That's why it's your name.*
 
-It was the second one that undid her. She had heard that hymn once in a school gym in Helsinki, with paper flags on the wall bars, and had not known it. Every Sunday since they left, her mother had played it to her down the line at suppertime, and Anna had listened to it the way she had always listened to her mother's playing: for how her mother was. She had never once listened for what it said. *Be still, my soul.* Her mother had been sending it across the ocean every week, and Anna had been checking it for wrong notes.
+It was the second one that undid her. She had heard that hymn once in a school gym in Helsinki, with paper flags on the wall bars, and had not known it. Every Sunday since they left, her mother had played it to her down the line at suppertime, and Anna had listened to it the way she had always listened to her mother's playing: for how her mother was. She had never listened for what it said. *Be still, my soul.* Her mother had been sending it across the ocean every week, and Anna had been checking it for wrong notes.
 
 She sat on the bench with the paper on her knees until the street lights went off.
 
@@ -256,7 +260,7 @@ On Wednesday Dolores asked her to supper. Carol was there, and Joel, home from a
 
 After supper Carol took Alma without asking and walked her up and down Dolores's front room, singing to her under her breath, slow and plain, with no tune Anna knew. Alma, who took nothing from strangers, went to sleep.
 
-"Meetinghouse," said Carol, when she noticed Anna watching. "A whole meetinghouse and no piano. You'd be surprised what a room can do with nothing."
+"Meetinghouse," said Carol, when she noticed Anna watching. "A whole meetinghouse and no piano. You'd be surprised what a room can do with nothing." She turned at the end of the room and came back. "My sister Naomi's still up there, on the farm. She can't say the name I chose, and I asked her never to say the other one, so she manages with neither. You'd be surprised what a person can do with nothing, too."
 
 They sat on Dolores's steps afterward, where Anna had first met her, seven years before.
 
@@ -264,7 +268,7 @@ They sat on Dolores's steps afterward, where Anna had first met her, seven years
 
 "If I use it—"
 
-"Then on Friday there's a doctor's paper in that file beside my initials, and that's my job." Carol said it the way she would have read out a date of birth. "I'm not telling you so you won't. I'm telling you so you know."
+"Then on Friday there's a doctor's paper in that file beside my initials, and that's my job." Carol said it plainly, as a fact for the file. "I'm not telling you so you won't. I'm telling you so you know."
 
 "Will you tell them she understood?"
 
@@ -324,6 +328,8 @@ On Saturday Anna drove her father's car out to Kettering, the next town over, wh
 
 Walt turned his face to the window and looked at the parking lot. She didn't ask him for anything, and he didn't give it.
 
+An aide came in, a girl not much older than Caleb Henderson, and filled his water jug, and clipped the call button to his blanket where his hand would find it. "Okay, Mr. D.," she said, as if the two of them had agreed something, and went out again.
+
 "How's she eating?" he said at last.
 
 "Out of sealed packets, Dad. They think she's Jewish."
@@ -332,7 +338,7 @@ He laughed before he could stop himself, and then stopped, and didn't look round
 
 "She wrote your name," said Walt. "Not mine."
 
-His hand came across the blanket without his looking, and found hers, and held on hard enough to hurt. He went on looking at the parking lot. He didn't let go for a long time, and when he did, he wiped his eyes with the back of his wrist, quickly, the way a man does who has never once been caught at it.
+His hand came across the blanket without his looking, and found hers, and held on hard enough to hurt. He went on looking at the parking lot. He held on while a car pulled out below and another took its place, and when he let go, he wiped his eyes with the back of his wrist, quickly, like a man who has never been caught at it.
 
 Anna flew home the next morning.
 
@@ -342,7 +348,7 @@ The Montgomery County Sanctuary District had a piano.
 
 A church had given it, an upright with two dead keys, and it stood against the wall of the day room. It was kept locked, because a piano was equipment, and equipment was locked. Using a piece of equipment for its intended purpose required a signed request, reviewed on Mondays. Using the top of it to fold laundry required nothing, and so for its first two years in the District that was what it was for.
 
-In June a request came in on the county's form, filled in a square schoolteacher's hand, with two of the form's own commas corrected in red. Under *Purpose of use*, it said *Lessons*. Under *Number of participants*, it said *As many as come*.
+In June a request came in on the county's form, with two of the form's own commas corrected in red. Under *Purpose of use*, it said *Lessons*. Under *Number of participants*, it said *As many as come*.
 
 It was approved on the second Monday, because nobody could find a rule against it.
 

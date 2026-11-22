@@ -10,11 +10,17 @@ It was the room Ben had shown his daughter Nora when she was seven, with her sho
 
 ---
 
-The war had begun over Augments, in the years Alma was growing up, and had long since stopped being about them. America was one country again, as countries often are when somebody else is the enemy. Finland was in it the way a house is in a storm. Nobody in Helsinki had been shot at. The sirens were tested at noon on the first Monday of every month, and people in the street stopped and waited for them to finish, and then went on.
+The war had begun over Augments, in the years Alma was growing up, and had long since stopped being about them.
+
+Alma had answered Joy before the twentieth, the spring she was counted: no, and thank you, and would Joy tell Khan that she would have to manage without the better answer. Joy's card came the next January anyway, in braille, with its mistakes, and every January after that. In those years the countries round Khan's stopped fighting one another and turned on him together, and the countries that had kept out of it were drawn in one by one, on one side or the other, until what people had called the Eugenics Wars was only the start of something larger. Two winters before, Khan's lands had fallen. He was not among the dead, or among the prisoners. He was gone, and some of his people with him, and nobody could say where. That January no card came, and none had come since.
+
+Ben watched the Americans on the news. A general who had once sworn to one of the two Presidents stood at a podium beside one who had sworn to the other, and Ben found he could no longer remember which had been which. America had been one country again for twenty years. It had taken somebody else to be the enemy, Ben thought, before it was one people.
+
+Finland was in it the way a house is in a storm. Nobody in Helsinki had been shot at. The sirens were tested at noon on the first Monday of every month, and people in the street stopped and waited for them to finish, and then went on.
 
 In March, somebody in another country had put Finland's register of Augments on the internet, every name and every address, and for a week half of Helsinki looked up its own street. Most of the building had known about Alma for years by then. She had stopped coming fourth in anything the spring she registered. But knowing a thing and seeing it on a screen beside your own address are different, and after March, people on the stairs stood aside for her a little further than they needed to.
 
-Alma was twenty-six. She taught the piano, the way her grandmother had, to children who came up the stairs after school and sat at the treble end of Ruth's old bench. She still lived at home, because of the piano and because of the war. She still ran at five every morning, as fast as she liked.
+Alma was twenty-six. She taught the piano, as her grandmother had, to children who came up the stairs after school and sat at the bass end of Ruth's old bench, the end Alma had kept empty until they came. She still lived at home, because of the piano and because of the war. She still ran at five every morning, as fast as she liked.
 
 ---
 
@@ -22,9 +28,11 @@ Every shelter is built to a number.
 
 It is worked out, when the building is designed, from the size of the building above it: so many people for so much floor, which is to say the number of people the building was meant to hold. The bunks are counted to it, and the toilets, and the water. The machine on the wall is sized to it. It pulls in air from outside, cleans it through the filter of anything that should not be breathed, and pushes it in at the rate that number of people needs. When the power fails, somebody turns the crank, at a steady pace, in shifts, and the air comes in at the same rate as before. It does not come in any faster because there are more people to breathe it.
 
-The number was written on the first page of a binder that hung on a hook by the door. The binder belonged to Seppo Rantanen from the third floor, a retired heating engineer whom the housing company had appointed to be in charge of the shelter, and whom the rescue department had sent on a course. In July Seppo had gone round every flat with the binder and written down who would be sleeping there if it came to it. In wartime a building holds more people than it was designed for. Sons had come home from flats in the north of the city. Somebody's mother had come from Kotka. When Seppo added it up, the building came to two under its number. By August, with a cousin come from Lahti and a baby born on the fifth floor, it was at it.
+The number was written on the first page of a binder that hung on a hook by the door. The binder belonged to Seppo Rantanen from the third floor, a retired heating engineer whom the housing company had appointed to be in charge of the shelter, and whom the rescue department had sent on a course. In July Seppo had gone round every flat with the binder and written down who would be sleeping there if it came to it. In wartime a building holds more people than it was designed for. Sons had come home from flats in the north of the city. Somebody's mother had come from Kotka. When Seppo added it up, the building came to two under its number.
 
-He said so at the housing company meeting, in the laundry room, on a light evening in July. Somebody asked what happened if more people came. Seppo said what the rescue department had told him: a building's shelter was for the people who lived in it, and the city had shelters in the rock for everybody else. The meeting voted that the door would close at the number. It was a sensible vote, made in daylight, and nobody in the laundry room could picture the door.
+He said so at the housing company meeting, in the laundry room, on a light evening at the end of July. Somebody asked what happened if more people came. Seppo said what the rescue department had told him: a building's shelter was for the people who lived in it, and the city had shelters in the rock for everybody else. The meeting voted that the door would close at the number. It was a sensible vote, made in daylight, and nobody in the laundry room could picture the door.
+
+By the middle of August, with a cousin come from Lahti and a baby born on the fifth floor, the building was at its number.
 
 ---
 
@@ -80,7 +88,7 @@ Seppo didn't pretend he hadn't heard. He took his glasses off.
 
 Linnea was looking at the bunks. Otto had sat down on the concrete and was examining his own shoe.
 
-Seppo looked at them for a long time. Then he put his glasses back on.
+Seppo looked at them. Then he put his glasses back on.
 
 "Two small ones," he said, "on one place. I'll answer for that. Not more than that."
 
@@ -102,11 +110,11 @@ The woman from the second floor said, "Jari," sharply. Nobody else said anything
 
 Alma turned toward the sound of her mother's voice.
 
-"If you go up there," she said, "you'll be dead in a month. Dad too. I might not be." She said it plainly, the way you read out a timetable. "That's all of it. There isn't any more."
+"If you go up there," she said, "you'll be dead in a month. Dad too. I might not be." She said it plainly, as if she were reading out a timetable. "That's all of it. There isn't any more."
 
 "You don't know that."
 
-"No. Nobody does." Alma stood very straight, the way her grandmother used to sit at the end of a hymn. "I'll tell you what I know. I cut myself and it's gone by the morning. I've not been ill since I was eight. That's my blood and my skin. They make themselves again. My eyes didn't. Whatever doesn't make itself again, I've got no more of than you have." She took a breath. "So I don't know what I'm built for. But I'm the one in here with a chance."
+"No. Nobody does." Alma stood up straight. "I'll tell you what I know. I cut myself and it's gone by the morning. I've not been ill since I was eight. That's my blood and my skin. They make themselves again. My eyes didn't. Whatever doesn't make itself again, I've got no more of than you have." She took a breath. "So I don't know what I'm built for. But I'm the one in here with a chance."
 
 Nobody else offered, and nobody spoke of drawing lots. Every grown-up in that room could count. A lot drawn with Alma standing there would only send somebody up to die so that nobody had to say her name.
 
@@ -122,7 +130,7 @@ Antti considered this. Then he nodded, once.
 
 It was twenty past four. The radio, on a shelf beside the machine, was saying that the dust had begun to come down on the southern islands.
 
-Alma came across the room to her mother. She came close, as close as a kiss, which was the only distance at which she had ever seen her mother's face, and looked at it.
+Alma came across the room to her mother. She came close, as close as a kiss, which was the only distance at which she had seen her mother's face since she was six, and looked at it.
 
 "I've decided," she said, quietly, so that only Anna would hear. "I'm not asking you to. I'm asking you to say I can." She waited. "If you say no, I'll stay. I mean that."
 
@@ -206,13 +214,13 @@ Anna sat down on the mattress and held her daughter. Alma's hair, against her ch
 
 ---
 
-It came out in the third week, in handfuls, on the pillow. That was when the fever started, and the bruises that came up on her arms from nothing, the way the doctors had said they might.
+It came out in the third week, in handfuls, on the pillow. That was when the fever started, and the bruises that came up on her arms from nothing, as the doctors had said they might.
 
 The hospital was full of the same thing. Alma lay in a corridor, because the wards were full, and Anna sat with her on a folding chair. Aino brought them blankets, between shifts, in a mask, and didn't stop long, because her father was two floors up.
 
 Antti died on the twenty-third day, of what the dust had done to his blood. Aino was with him. She was on duty that night and arranged it so. He had told her, she said afterward, that he would not have asked for himself, and she had told him she knew.
 
-Ben heard it from Aino in the corridor, at the end of her shift. In thirty years he had rung Antti at midnight once, the spring Anna flew to Ohio, and Antti had said *Yes. What time?* before Ben had finished asking. Ben went out of the hospital and walked a long way round, past the low yellow daycare by the sea where the two of them had first nodded at each other in the dark, and stood at its fence where the bicycle with the studded tyres used to be locked. He stood there until he was cold. Then he walked back, and sat down by Alma's trolley, and told her, because she would ask.
+Ben heard it from Aino in the corridor, at the end of her shift. In thirty years he had rung Antti at midnight once, the spring Anna flew to Ohio, and Antti had said *Yes. What time?* before Ben had finished asking. Ben went out of the hospital and walked a long way round, past the low yellow daycare by the sea where the two of them had first nodded at each other in the dark, and stood at its fence where Antti used to leave the sled, with Aino in it, while he went in for her mittens. He stood there until he was cold. Then he walked back, and sat down by Alma's trolley, and told her, because she would ask.
 
 Alma's blood fell further than the doctor had ever seen anyone's come back from. Then it came back.
 
@@ -234,7 +242,11 @@ It was Jari. He had his baby in a sling on his chest. He looked at Alma for a mo
 
 Alma, who could not see his face, said nothing. Ben thought, afterward, that she had decided he hadn't earned an answer yet, and that she was probably right.
 
-That week the messages that had been stuck somewhere in the wires since August came through, all at once, out of order. One was from Theo, from the ship: *All of us fine. The sea's grey. Tell Alma I'm coming.* One was from Declan, in Belfast, written eleven days before: *We're here. Are you? Eight o'clock.*
+That week the messages that had been stuck somewhere in the wires since August came through, all at once, out of order. One was from Theo, from the ship: *All of us fine. The sea's grey. Tell Alma I'm coming.*
+
+One was from Carol, in Toronto. She was seventy-five. Canada had tried her, the year after Alma was counted, and it was her country by then, so there was nowhere to send her. She had stood up in court and said guilty, because she was, and asked the clerk to read her name back. The judge had given her two years less a day, to be served in her own flat, and she had served it at the piano, with a lesson from Helsinki every Sunday at eleven. Her message said: *Is everybody there? I'm here. Tell Alma my fourth finger's awake.*
+
+One was from Declan, in Belfast, written eleven days before: *We're here. Are you? Eight o'clock.*
 
 Ben read that one several times. Then he wrote back, *Eight o'clock*, and watched the small wheel turn in the middle of the screen until it went.
 

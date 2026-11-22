@@ -42,23 +42,23 @@ She had added one thing of her own. When a family came to her desk, she asked fi
 
 The next Sunday there was no lesson. Anna's voice was wrong before she had said anything.
 
-On Thursday the hospital had looked into the back of Alma's eyes for a long time, and taken a little of her blood, and a machine had read every gene in it in two days. On Saturday a doctor had sat them down in a room with a box of tissues on the table and said a word.
+On Thursday the hospital had looked into the back of Alma's eyes, and taken a little of her blood, and a machine had read every gene in it in two days. On Saturday a doctor had sat them down in a room with a box of tissues on the table and said a word.
 
 "Batten disease," said Anna. "There are a lot of kinds. Hers is the one they call six. Her eyes go first. Then she starts to fall, and then the fits. Then she forgets things she knew. How to talk. How to eat." She stopped. "They said maybe ten. Maybe twelve."
 
 Carol held on to the edge of the keyboard. Alma was six.
 
-"Mom's with her. She's teaching her the twinkling one with her eyes shut, so she'll know where the notes are by feel." Anna's voice went, and came back. "Ben wants to talk to you."
+"Mom's with her. She's teaching her 'Twinkle, Twinkle' with her eyes shut, so she'll know where the notes are by feel." Anna's voice went, and came back. "Ben wants to talk to you."
 
 There was a fumbling, and then Ben, whom Carol had spoken to perhaps four times in her life, and never on purpose.
 
-"They tested us both," he said. "Anna and me. You only get it if both your parents carry it, and we both do. Mine came down from somebody in Toledo." He was quiet a moment. "The doctor asked me what my sister died of. Katie. She was nine. And I didn't know, Carol. I'm forty-five years old and I never once asked anybody." He breathed out. "I'm going to find out. I don't know why I'm telling you."
+"They tested us both," he said. "Anna and me. You only get it if both your parents carry it, and we both do. Mine came down from somebody in Toledo." He was quiet a moment. "The doctor asked me what my sister died of. Katie. She was nine. And I didn't know, Carol. I'm forty-five years old and I never asked anybody." He breathed out. "I'm going to find out. I don't know why I'm telling you."
 
 "Because I'm far enough away," said Carol.
 
 "Yes," said Ben. "I think that's it." And he gave the phone back.
 
-"Joy told me once what your Institute does," said Anna. "Children like this." In all their years of Sundays, Carol had never once heard her ask for anything. "Carol. Is there anything?"
+"Joy told me once what your Institute does," said Anna. "Children like this." In all their years of Sundays, Carol had never heard her ask for anything. "Carol. Is there anything?"
 
 "I'll find out," said Carol.
 
@@ -90,7 +90,7 @@ He was terrible. He was much worse than she was. He knew it, and he laughed out 
 
 "The one thing they didn't think to put in," he said. "Joy says you're Carol. Joy says you read the bottom of a form first." He held out his hand. "Khan."
 
-At the far table one of the children moved a bishop and shouted, and Khan turned round and looked at the board for a long moment.
+At the far table one of the children moved a bishop and shouted, and Khan turned round and looked at the board.
 
 "That's very good, Amira," he said. "That's genuinely annoying." He went over and lost on purpose, badly enough that the children could see he was doing it and loved him for it, and came back for his tray, and ate their desserts anyway.
 
@@ -126,7 +126,7 @@ She sat down on the bottom step with the box on her knees. That couple, wherever
 
 Khan came down and sat two steps above her, with his elbows on his knees.
 
-"Joy said you'd come down here. She said it in July. I told her you'd last till August." He took box nine off the shelf, lifted out his own forms, and turned the pages slowly, the way you read something you've read before and keep hoping will say something else.
+"Joy said you'd find your way down here. She said it the week you started. I gave you till the summer." He took box nine off the shelf, lifted out his own forms, and turned the pages slowly, the way you read something you've read before and keep hoping will say something else.
 
 "He used the same pen," he said.
 
@@ -202,7 +202,7 @@ On Thursday a family came to her desk from Manila: a father, a grandmother, and 
 
 Carol asked what the girl liked to be called. The grandmother said *Tala*, and Carol wrote it small in the margin.
 
-Then she turned to page nine and read it aloud. When she had read it, she told them what it meant, plainly and slowly, the way she would have wanted somebody to tell her. That Tala would walk. That she would also be changed in other ways that nobody could take out again: stronger, quicker to heal, hardly ever ill. That one day her children would be the same. That in some countries, since September, there was a word for children like that.
+Then she turned to page nine and read it aloud. When she had read it, she told them what it meant, plainly and slowly. That Tala would walk. That she would also be changed in other ways that nobody could take out again: stronger, quicker to heal, hardly ever ill. That one day her children would be the same. That in some countries, since September, there was a word for children like that.
 
 Dr. Bastien had come to the door of her office and stood there, white.
 

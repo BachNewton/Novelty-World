@@ -10,7 +10,7 @@ She had not been ill since she was eight. Every February, when half her class we
 
 It had not given her back her eyes. The network had mended what was failing in her at eight, and nothing that was already gone. She read with the page an inch from her face, or with her phone's voice in her ear. She couldn't read the number on a bus until it had stopped in front of her, and she had not seen her mother's face clearly since she was six, except from as close as a kiss. Everything else came quickly. She had learned her grandmother's minuet in a week, and read braille faster than the woman who taught her, and lately, at the piano, she sometimes had to slow her hands down so that her ears could keep up.
 
-The piano was hers now. Ruth had died two winters before, at eighty-seven, in her own bed and in a good year, with her tablets in their foil on the table beside her and her left arm still Dolores's. Alma still sat at the treble end of the bench, out of habit, and left the bass end empty. On Sundays at six, the hour Ruth had kept, she gave Carol Flory her piano lesson down the phone to Toronto, because somebody had to. Carol said Alma was stricter than her grandmother, which from Carol was the highest praise there was.
+The piano was hers now. Ruth had died two winters before, at eighty-seven, in her own bed and in a good year, with her tablets in their foil on the table beside her and her left arm still Dolores's. Nobody had ever found Dolores. The commissions in America had heard from a great many men who wanted to go home, and not one of them had said a word about a nurse on the road to a pharmacy. Alma still sat at the treble end of the bench, out of habit, and left the bass end empty. On Sundays at six, the hour Ruth had kept, she gave Carol Flory her piano lesson down the phone to Toronto, because somebody had to. Carol said Alma was stricter than her grandmother, which from Carol was the highest praise there was.
 
 ---
 
@@ -32,7 +32,7 @@ The minister guessed there were a few hundred Augments in Finland, and said on t
 
 ---
 
-Joy had written to Alma on every birthday since Toronto. The cards were in braille, which Joy had learned for the purpose, and they had mistakes in them that Alma had never once corrected. For the first two years they came with Canadian stamps. For eight years after that they came with stamps from somewhere else, and no return address.
+Joy had written to Alma on every birthday since Toronto. The cards were in braille, which Joy had learned for the purpose, and they had mistakes in them that Alma had never corrected. For the first two years they came with Canadian stamps. For eight years after that they came with stamps from somewhere else, and no return address.
 
 The letter that came on a Thursday in May wasn't a card. It came to her phone, from a number she had to look up, and her phone read it to her in its flat kind voice, at her desk, with the door shut.
 
@@ -178,7 +178,7 @@ On Monday morning Nora walked with her to the police building, where the registe
 
 Inside there was a machine that gave out paper tickets with numbers on them, as there is in most offices in Finland. Alma held hers an inch from her eye. It said 214. A screen on the wall would call it, and she would not be able to read the screen, so Nora watched it for her.
 
-There were five other people in the room. A woman sat with a baby asleep on her knee, and kept one hand on its back, flat, the whole time, as if it might be taken off her. Alma looked at the baby for a long time, as well as she could.
+There were five other people in the room. A woman sat with a baby asleep on her knee, and kept one hand on its back, flat, the whole time, as if it might be taken off her. Alma watched the baby, as well as she could, until the screen called somebody else's number.
 
 When the number came up, Nora stood with her, and Alma said, "I'll go by myself," and Nora sat down again.
 
@@ -210,7 +210,7 @@ Back at the desk the clerk had one more line.
 
 The clerk typed *Alma*, and printed a receipt with a number on it, longer than the one on the ticket, which would be Alma's in the register for as long as there was one. She held it out. Alma reached for it, and her fingers touched the clerk's, and the clerk snatched her hand back so fast that the receipt fell on the desk between them.
 
-For a moment neither of them moved. Alma couldn't see the clerk's face well enough to read it, but she heard her breathing, quick and shallow, the way people breathe when a dog they don't know comes close. Then the clerk said, "Sorry. I'm sorry," and went red to the ears, and pushed the receipt the rest of the way across the desk with one finger, and didn't look up again.
+For a moment neither of them moved. Alma couldn't see the clerk's face well enough to read it, but she heard her breathing, quick and shallow, like somebody a strange dog has come too close to. Then the clerk said, "Sorry. I'm sorry," and pushed the receipt the rest of the way across the desk with one finger, and didn't look up again.
 
 Out in the waiting room, Nora stood up.
 
@@ -224,7 +224,7 @@ On the steps outside she gave Nora the receipt to read, because she couldn't, an
 
 Their father was sitting on the bottom stair of their building when they came in, in his work clothes, though he should have been at work. He stood up.
 
-Alma held out the receipt. He took it and read the number aloud, once, holding the paper at arm's length the way men his age do. Then he gave it back, and said the number again, without the paper.
+Alma held out the receipt. He took it and read the number aloud, once, holding the paper at arm's length. Then he gave it back, and said the number again, without the paper.
 
 "There," he said. "If anybody ever comes to the door with that, they'll find somebody here who knows it too."
 

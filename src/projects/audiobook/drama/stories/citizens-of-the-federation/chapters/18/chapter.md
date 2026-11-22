@@ -24,7 +24,7 @@ Theo had been seven when she brought it home. He remembered the astronauts carri
 
 For twenty-seven years it had been studied behind glass. In Los Angeles a team that everybody called Ricardo's, after the man who ran it, had spent ten of those years learning to grow it by the tonne and keep it alive in water. They had sent their strain to three stations round the Baltic. Theo ran the Finnish trial.
 
-In tank after tank, the yellow haze went down into the black mud and ate the poison out of it. In a week the smell was gone. In a month the mud was brown, the colour of ordinary mud, and had stopped letting go of what it held, and the water over it kept its air. The first time, Theo had stood over the tank with his nose nearly in it, like a dog, and then gone outside and stood on the jetty for a long while.
+In tank after tank, the yellow haze went down into the black mud and ate the poison out of it. In a week the smell was gone. In a month the mud was brown, the colour of ordinary mud, and had stopped letting go of what it held, and the water over it kept its air. The first time, Theo had stood over the tank with his nose nearly in it, like a dog, and then gone outside and stood on the jetty with his hands in his pockets.
 
 Then it died. The yellow went grey and settled on the brown mud like dust on a shelf, and the next week there was nothing to show it had been there but the mud.
 
@@ -66,7 +66,7 @@ His mother was sixty-eight and his father was seventy, and they still lived in t
 
 Alma had set the table by feel. The clouding had come the winter after the shelter, as the doctor had said it might, slowly, like breath on a window. She could tell light from dark now, and not much else. She was on a list for the operation that would give her new lenses, which before the war a hospital did a dozen of in a morning. The hospitals did a few a week now. She was a long way down. She still taught the piano at their grandmother's bench, and she still ran at five on the shore path, more slowly, by the feel of it under her feet.
 
-Nora came last, from across the city, with her coat open. She was thirty-eight, a physicist at the university, and for years she had worked on the shape of empty space. Lately a man in Montana had been writing to her about it. He thought space could be bent enough to go somewhere. Nora half believed him, and read every word anyway.
+Nora came last, from across the city, with her coat open. She was thirty-eight, a physicist at the university, and for years she had worked on the shape of empty space. Lately a man in Montana had been writing to her about it. He thought space could be bent enough to go somewhere. Nora half believed him.
 
 She sat down across from Theo and looked at him.
 
@@ -118,7 +118,7 @@ It was a child's drawing. A white box with a window, and eight round faces in th
 
 "Nora gave it to Grandma the week she came from Ohio," said Alma. "She kept it in here."
 
-Nora looked at it for a long time. She had been ten. She remembered the pencil held over the space, and the two Finnish words that wouldn't let you write it down without deciding: *jokin*, something, and *joku*, somebody. Nobody had written anything there since.
+Nora looked at it. She had been ten. She remembered the pencil held over the space, and the two Finnish words that wouldn't let you write it down without deciding: *jokin*, something, and *joku*, somebody. Nobody had written anything there since.
 
 "When I went up the stairs," said Alma, "Jari said I was built for it. Same stairs either way. The difference was that somebody asked me." She turned her face toward her brother's voice. "You can't ask it."
 
@@ -148,7 +148,7 @@ He took a little of the haze from a tank and put it in a dish with a long channe
 
 Then he sat and watched.
 
-The haze moved. It moved slowly, and all together, the way a flock does, toward the black drop. It didn't bother with the other end at all.
+The haze moved. It moved slowly, all together, like a flock, toward the black drop. It didn't bother with the other end at all.
 
 Of course it did. The black water was full of what it ate. A moth goes to a lamp. It meant exactly what it would have meant if he had put a drop of soup at one end, and Theo knew it, and sat there anyway with his chin on his fist until the cloud reached the black drop and went into it.
 
@@ -164,7 +164,7 @@ He felt foolish, and said it anyway.
 
 On Thursday he took the morning train into Helsinki and sat at a table in the commission's office, by a window over the harbour.
 
-The form was four pages. He answered the first three the way you answer the questions on any form: whether it worked in Baltic water, which it did; whether it could survive and spread beyond where it was put, which it couldn't; whether its dead harmed anything, which they didn't seem to.
+The form was four pages. The first three were easy to answer: whether it worked in Baltic water, which it did; whether it could survive and spread beyond where it was put, which it couldn't; whether its dead harmed anything, which they didn't seem to.
 
 The fourth page had been added in the year it came home, and had sat at the back of every form about it since. It asked whether there was evidence that the organism had interests that would be harmed by its use.
 
@@ -214,7 +214,7 @@ Before he opened it he looked at the sensor on the side of the frame, which had 
 
 He opened the grab over the tray. The mud was brown. It smelled of mud. In the middle of it a thin red worm, as long as his finger, was trying to find a way back into it.
 
-Henrik looked at the tray for a long time.
+Henrik looked at the tray until the worm had nearly made it.
 
 "Well," he said, in Swedish, and then in Finnish, in case it hadn't counted the first time.
 

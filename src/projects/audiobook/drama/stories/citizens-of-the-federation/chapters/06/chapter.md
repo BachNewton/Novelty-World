@@ -8,7 +8,7 @@ Declan came through the hotel's revolving door at eight that evening with his ba
 
 "Eight o'clock," he said.
 
-It was. For four years, at eight o'clock San Francisco time, the two of them had appeared to each other in little squares on a screen and started the day. They had been in one room only once since, for a weekend in Ohio in April, to watch the moon cover the sun. This was the city they had lived in side by side, the year Declan was sent over from Belfast, and they had never been back in it together. Ben found he had nothing clever to say.
+It was, and for once it was eight o'clock for both of them. For four years the two of them had appeared to each other in little squares on a screen every working day and started the day together. At first it had been eight in the morning on Ben's side and the end of the afternoon on Declan's; when the Novaks moved to Helsinki the hour had moved too, and the words had stayed. In all that time they had been in one room only once, for a weekend in Ohio in April, to watch the moon cover the sun. This was the city they had lived in side by side, the year Declan was sent over from Belfast, and they had never been back in it together. Ben found he had nothing clever to say.
 
 "You look terrible," said Declan, pleased. "Come on. You're buying."
 
@@ -96,7 +96,7 @@ Dana's team was four people, and two of them were asleep. At half past four she 
 
 "The police have said it already," she said. "The day a hostage turns up on our front page, we're carrying the hostage-takers' message for them. Their lawyers will be in front of a judge within the hour, and they'll win, and we go dark. For everybody in that line, not just the one." She looked along the row of chairs. "And a hostage says what the people holding her want her to say. You can never know which words are hers. So, no hostages. Not one."
 
-Ben's team built the part of the service that played the video. Every story that went out tonight would play through code he had written. He sat down. Declan sat down beside him, the way he had at the next desk the year he lived here, and pulled his headphones on.
+Ben's team built the part of the service that played the video. Every story that went out tonight would play through code he had written. He sat down. Declan took the desk beside him, as he had the year he lived here, and pulled his headphones on.
 
 ---
 
@@ -132,9 +132,9 @@ On his screen a woman was settling herself on the bench, small and upright, with
 
 Ben looked. He had walked past her for months, and he would not have known her face.
 
-She said her name was Rosa Delgado, and that she had kept a tent off Market Street for three years, under the freeway, and kept her bit of sidewalk swept. In July the city came with a truck. They wouldn't let her bring a plant through the gate, she said, so she had broken off a piece of it and carried it in her pocket. She held up the milk carton to show the phone. It had taken.
+She said her name was Rosa Delgado, and that she had kept a tent off Market Street since before the virus, under the freeway, and kept her bit of sidewalk swept. In July the city came with a truck. They wouldn't let her bring a plant through the gate, she said, so she had broken off a piece of it and carried it in her pocket. She held up the milk carton to show the phone. It had taken.
 
-Declan pressed green so hard the desk shook. Then he waved at the screen, at a woman four minutes away who couldn't see him, and went red to the ears.
+Declan pressed green so hard the desk shook. Then he waved at the screen, at a woman four minutes away who couldn't see him, and caught Ben looking.
 
 "Shut up," he said, though Ben hadn't said anything.
 
@@ -168,7 +168,7 @@ Declan pulled one side of his headphones off and leaned over. He watched the cli
 
 "She's telling people she's alive."
 
-"Aye. And she'd say it if she wasn't fine at all." Declan said it gently, the way you'd tell somebody their flight was cancelled. "Rule's the rule."
+"Aye. And she'd say it if she wasn't fine at all." Declan said it gently. "Rule's the rule."
 
 Ben pushed his chair back and half stood, and looked across at the glass room. Dana was on her feet in there with her back to the floor and one hand pressed to her forehead, and a man's voice was coming out of the speakerphone, loud enough to hear through the glass. *The rules are the answer,* she had said, and shut the door. Whatever he did with this, he would have to do it himself. He sat down again. The clock on his screen said two minutes and fifty seconds.
 
@@ -232,7 +232,7 @@ A soldier on the gate looked at them, and looked away.
 
 "Most of them never hurt anybody."
 
-"I know. I held back the one who wanted to." Declan was quiet for a long time. "I'd love it to be the talking that does it. I'd love it to be Hume. My da would love it to be Hume. But maybe it works. The other thing. Maybe it just works, and we'd all rather not know."
+"I know. I held back the one who wanted to." Declan looked along the wall. "I'd love it to be the talking that does it. I'd love it to be Hume. My da would love it to be Hume. But maybe it works. The other thing. Maybe it just works, and we'd all rather not know."
 
 They stood on the sidewalk until the woman had lit every candle. Then they went back to the car.
 
@@ -242,7 +242,7 @@ On Friday Brynner's numbers came in, the biggest it had ever had. Declan flew ho
 
 He was home on Saturday afternoon. Nora met him at the door with a drawing of the moon of Jupiter the astronauts were flying to, white and cracked all over like an egg, because she had heard there was ice. Anna held on to him in the hall for longer than she usually did, and asked nothing, and he was grateful.
 
-At six on Sunday evening, eleven in the morning in Dayton, she propped the tablet against the fruit bowl, and Walt's face came up much too close to the camera.
+At six on Sunday evening, eleven in the morning in Dayton, she propped the tablet against the fruit bowl, and Walt's face came up, peering into it.
 
 "Well, there he is," said Walt. "We saw your old city on the news all week."
 
@@ -256,7 +256,7 @@ At six on Sunday evening, eleven in the morning in Dayton, she propped the table
 
 Behind him, in the front room, Ruth was at the piano, going over something for next Sunday, stopping and going back.
 
-Then Walt told them his news, in the voice he used for the weather. The county had voted on Thursday. Dayton was going to build a District of its own, down by the river where the old warehouses were. They'd been arguing about it since the spring, Walt said, and after California it had gone through easy.
+Then Walt told them his news, without any change in his voice. The county had voted on Thursday. Dayton was going to build a District of its own, down by the river where the old warehouses were. They'd been arguing about it since the spring, Walt said, and after California it had gone through easy.
 
 "Who's going in it?" said Anna.
 

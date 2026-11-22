@@ -4,19 +4,19 @@ At six o'clock on a Friday morning in November, Orla Toner stood at a window on 
 
 From up there you could see the line of it running between the roofs: concrete as high as the upstairs windows, with a steel fence on top of that. A man got out of the van with a ring of keys and unlocked the gate in it. A man from the Department of Justice did that every morning at six, and another came at half past ten every night and locked it again. On both sides of the wall stood the same red-brick houses, built by the same people in the same year for the same wages. Two streets along from the gate, her father-in-law, Brendan, would be up already, waiting to vote.
 
-Her da had told her the story of that wall so often she could have said it in her sleep. Britain had ruled Ireland for centuries, he would say, and settled the north with Protestants from Britain, whose great-great-grandchildren still felt British. The Catholics felt Irish. In 1921 the island was cut in two: the south went its own way, and the north stayed British, its border drawn so that the Protestants would always have the numbers. For fifty years the Catholics got the worse houses and the worse jobs, and in some towns votes that never counted. When they marched for their civil rights in the sixties, the marches were beaten off the streets. Then came thirty years that everybody called the Troubles, as if it were weather.
+Her da had told her the story of that wall so often she could have said it in her sleep. Britain had ruled Ireland for centuries, he would say, and settled the north with Protestants from Britain, whose descendants still felt British. The Catholics felt Irish. In 1921 the island was cut in two, and the north stayed British, its border drawn so that the Protestants would always have the numbers. For fifty years the Catholics got the worse houses and the worse jobs, and when they marched for their civil rights, the marches were beaten off the streets. Then came thirty years that everybody called the Troubles, as if it were weather.
 
-That was where her da usually stopped. The ward had taught her the rest. About three and a half thousand people died, in a place you can drive across in two hours. The IRA and the other republicans, who meant to get Britain out with guns, killed most of them. The loyalists, who meant to keep the north British with guns, killed many. Soldiers and police killed some. Orla had nursed old men carrying wounds from all three.
+That was where her da usually stopped. The ward had taught her the rest. About three and a half thousand people died, in a place you can drive across in two hours, most of them killed by the IRA and the other republicans, who meant to get Britain out with guns, and many by the loyalists, who meant to keep it in the same way. Orla had nursed old men carrying wounds from both, and from the soldiers and police too.
 
-Then, on Good Friday in 1998, nearly everybody signed an agreement, and both parts of the island voted for it on the same day. The border would move only if the people of both parts voted to move it, never at the point of a gun. Until then the two sides would govern the north together. Anyone born here could be British, or Irish, or both. And whenever it looked as if a majority wanted one Ireland, London had to ask them.
+Then, on Good Friday in 1998, nearly everybody signed an agreement, and both parts of the island voted for it on the same day. The border would move only if the people of both parts voted to move it, never at the point of a gun. Anyone born here could be British, or Irish, or both. And whenever it looked as if a majority wanted one Ireland, London had to ask them.
 
-Most of Belfast had got on with its life since: worked beside the other side, married them, sent their children to school with them. The walls stayed up in a few of the poorest streets, because the people beside them wanted them gone in their children's time, but not yet. Two summers ago a British Prime Minister had called a vote on unity off the table. Then the polls had moved, until the law left him no choice.
+The walls stayed up in a few of the poorest streets, because the people beside them wanted them gone in their children's time, but not yet. Two summers ago a British Prime Minister had called a vote on unity off the table. Then the polls had moved, until the law left him no choice.
 
 ---
 
 At seven, while she checked his oxygen, Mr. Gilmore in bed six asked her how she was voting.
 
-He was from the streets beyond the gate. He had worked forty years in the shipyard, where the dust had got into his lungs, and he had a portrait of the old Queen on his forearm in faded green ink, which was about as British a thing as a man from his streets could wear.
+He was from the streets beyond the gate. He had worked in the shipyard from the day he left school, where the dust had got into his lungs, and he had a portrait of the old Queen on his forearm in faded green ink, which was about as British a thing as a man from his streets could wear.
 
 "It's a secret ballot, Mr. Gilmore."
 
@@ -58,7 +58,7 @@ She folded the paper twice, so that the cross was on the inside, and put it in t
 
 Brendan Toner had been in his good coat since nine, with his cap on and his bus pass in his hand, and was not pleased when his son came for him at half past two.
 
-"They've been open since seven," he said. He was eighty. He had driven the city's buses all his working life and had never once been late for anything with a time on it.
+"They've been open since seven," he said. He was eighty. He had driven the city's buses all his working life and had never been late for anything with a time on it.
 
 Across the street, Mickey Quinn had a green YES poster in his car window. Mickey had spent eleven years in prison for the IRA, and come out, and gone into politics. Brendan had wanted one Ireland as long as Mickey had, and never Mickey's way, and they had been arguing about it across this street for fifty years.
 
@@ -136,7 +136,7 @@ Brendan reached across and took Orla's hand. "Your da," he said, and couldn't fi
 
 She was glad for Brendan. Under the gladness was her own folded paper, somewhere in the smaller pile. She had voted against her father's dream, and it had come true anyway, and what she felt most was relief that her no hadn't been the one to stop it. She was ashamed of the relief. She sat and let Brendan hold her hand.
 
-Outside, a car went past with its horn going, and then another, and then the street was full of them. From the far end a crowd of young men took up a chant that everybody in the room knew before the words came: *Ooh, ah, up the Ra*. Up the IRA. Declan had heard it sung at weddings, and by children at Niamh's school dance, and never once by anyone old enough to remember what it was about.
+Outside, a car went past with its horn going, and then another, and then the street was full of them. From the far end a crowd of young men took up a chant that everybody in the room knew before the words came: *Ooh, ah, up the Ra*. Up the IRA. Declan had heard it sung at weddings, and by children at Niamh's school dance, but never by anyone old enough to remember what it was about.
 
 "It's only a song, Granda," said Niamh, to the window.
 
@@ -168,7 +168,7 @@ The lights of the big road went over them one at a time.
 
 "My brother Sammy drove a milk lorry," said Norman. "Weekends he was a part-time soldier, in the local regiment. Two IRA men came out of an alley on his round one morning in 1976 and shot him in his cab. He was twenty-five." He turned the cap over. "So you tell me, Declan. If it was the paper did it, what was Sammy for?"
 
-Declan knew about Sammy. Everybody on his da's street knew, and nobody had ever once said the name in front of Norman.
+Declan knew about Sammy. Everybody on his da's street knew, and nobody ever said the name in front of Norman.
 
 He thought of the wall in San Francisco, and the candles, and how easy it had been to say *maybe it works* about people he had never met.
 

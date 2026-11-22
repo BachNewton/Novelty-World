@@ -6,7 +6,7 @@ It reached Nora Novak at noon, at her desk at the university in Helsinki, as all
 
 He had read a paper of hers, the summer her brother was deciding about the thing from Io, and written to her and a dozen other physicists in four countries. She was the only one who wrote back. Her colleagues, when she showed them, laughed at the spelling and stopped reading. Nora had kept reading. She half believed him. She had got that from her grandfather, who had half believed most things promised on television, and read every word anyway.
 
-The stars are too far away to reach. Nothing can go faster than light, and light takes years to get to even the nearest of them. The man in Montana didn't want to go faster. He wanted to move the space itself: squeeze it up in front of a ship and let it out behind, so that the ship sat still in a pocket between and was carried, the way a man standing on a moving walkway gets to the far end of an airport without running. He was building the engine in a hole in the ground, in an old missile field outside a town called Bozeman, out of a missile.
+Nothing can go faster than light, and light takes years to reach even the nearest star. The man in Montana didn't want to go faster. He wanted to move space itself: squeeze it up in front of a ship and let it out behind, so that the ship sat still in a pocket between and was carried, like a man on a moving walkway who gets to the far end of an airport without running. He was building the engine in a hole in the ground, in an old missile field outside a town called Bozeman, out of a missile.
 
 In the winter he wrote: *April. Come and see it go. Or come and see it not go, which will be funnier.* He signed it as he signed them all, *Z. Cochrane*, and spelled *funnier* with one *n*.
 
@@ -34,7 +34,7 @@ Anna held on to the folder a moment after Nora had taken hold of the other end. 
 
 It took them eleven days: a cargo ship to Halifax, trains where the lines still ran, and the back of a farm truck for the last two hundred miles. The war had been over ten years. Twice the train went past green road signs with the names of cities on them, still pointing the way, to places that weren't there any more.
 
-The camp was a scatter of huts and trailers among the low concrete hatches of the old missile field, with a windmill, a water tank, a bar with a jukebox, and fifty or so people who had lived through the war by keeping their rifles close. They had kept them since, too, against hungry people, and against raiders from the Eastern Coalition, the armies from the east that had come over the mountains twice since the war ended, and against whatever came next. A man on the gate looked at the sisters for a long time before he lifted the bar.
+The camp was a scatter of huts and trailers among the low concrete hatches of the old missile field, with a windmill, a water tank, a bar with a jukebox, and fifty or so people who had lived through the war by keeping their rifles close. They had kept them since, too, against hungry people, and against raiders from the Eastern Coalition, the armies from the east that had come over the mountains twice since the war ended, and against whatever came next. A man on the gate looked at the sisters, and at their papers, and at the sisters again, before he lifted the bar.
 
 Zefram Cochrane was in the bar, and the jukebox was playing something very loud and very old. He was not the man in the letters. Or he was exactly the man in the letters, and Nora had not known what the letters looked like at three in the morning.
 
@@ -42,13 +42,13 @@ Zefram Cochrane was in the bar, and the jukebox was playing something very loud 
 
 Lily Sloane was his partner, who had built the ship with him, and who kept him sober enough to finish it. She had spent six months scavenging titanium out of the ruins for its cockpit, and she looked at the sisters the way the man on the gate had. But on the second day she took Alma down into the silo, where it was cold and echoing and smelled of oil, and put Alma's hands flat on the side of the ship.
 
-Alma stood there a long time with her palms on the metal, listening to the pumps.
+Alma stood with her palms on the metal, listening to the pumps.
 
 "It's cold," she said. "It's bigger than the stairwell at home."
 
 "It was a missile," said Lily. "Built to end the world, before the last war. We had a better idea for it."
 
-That afternoon a man asked Alma why a blind woman could carry two sacks of cement up a ramp without stopping, and she told him, because she had stopped hiding it the spring she was eighteen. "I'm an Augment," she said. The camp went quiet the way a room does.
+That afternoon a man asked Alma why a blind woman could carry two sacks of cement up a ramp without stopping, and she told him, because she had stopped hiding it the spring she was eighteen. "I'm an Augment," she said. The camp went quiet.
 
 The man was called Lyle. He had a son who had gone east to fight in the Eugenics Wars and never come home. That night he sat outside the trailer where the sisters slept, on an upturned crate, with his rifle across his knees, and he was there in the morning. Nora couldn't tell whether he was guarding them or watching them.
 
@@ -94,7 +94,7 @@ Nora told her. She told it the way she had told her the cloud on the horizon in 
 
 Near the bar, out in the light, Cochrane had walked forward on his own, with a few people behind him.
 
-The first of the figures came down the ramp and put back its hood. From the trucks Nora could see a man, or something shaped like one, tall, with dark hair cut straight across. He raised his hand with the fingers parted in a way she had never seen a hand held. Cochrane tried to do the same thing back and couldn't manage it. Then he held out his hand instead, the way you would to anybody, and after a moment the stranger took it.
+The first of the figures came down the ramp and put back its hood. From the trucks Nora could see a man, or something shaped like one, tall, with dark hair cut straight across. He raised his hand with the fingers parted in a way she had never seen a hand held. Cochrane tried to do the same thing back and couldn't manage it. Then he held out his hand instead, and after a moment the stranger took it.
 
 "They're shaking hands," said Nora. Her voice did something. "Alma. They're shaking hands."
 
@@ -212,6 +212,6 @@ In the morning a few people wouldn't stand near Alma at the water tank, and some
 
 "Eyebrows," said Alma, and the girl nodded, as if she'd thought so.
 
-There was still a jar in a drawing in a piano bench in Helsinki with nothing written under it, and there might be for a long time. Nobody had been able to ask it. But last night, in that field, there had been no question which word. The stranger had stood in the light and waited, and been looked at, and looked back, and answered when he was spoken to.
+There was still a jar in a drawing in a piano bench in Helsinki with nothing written under it, and there might always be. Nobody had been able to ask it. But last night, in that field, there had been no question which word. The stranger had stood in the light and waited, and been looked at, and looked back, and answered when he was spoken to.
 
 *Joku*, Nora thought. Somebody.
