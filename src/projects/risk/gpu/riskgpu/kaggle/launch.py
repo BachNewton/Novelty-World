@@ -231,6 +231,14 @@ def kaggle(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return command([sys.executable, "-m", "kaggle", *args], check)
 
 
+def push_kernel(*cmd: str) -> str:
+    """`kaggle kernels push`, refused unless Kaggle took it: the CLI exits 0 on a refused push (one
+    TPU session at a time, say), saying so only in its output."""
+    out = kaggle("kernels", "push", *cmd).stdout.strip()
+    assert "successfully pushed" in out, f"Kaggle refused the push: {out}"
+    return out
+
+
 def username() -> str:
     import kaggle as api_module
     user = api_module.api.get_config_value("username")
@@ -446,8 +454,8 @@ def start_session(args: argparse.Namespace, job_name: str, files: list[str], job
                    "kernel_type": "script", "is_private": True, "enable_gpu": True, "enable_internet": True,
                    "machine_shape": args.accelerator, "dataset_sources": [dataset], "competition_sources": [],
                    "kernel_sources": [], "model_sources": []}, f, indent=1)
-    print(kaggle("kernels", "push", "-p", kernel_dir, "--accelerator", args.accelerator,
-                 "-t", str(int((args.session_hours + 0.75) * 3600))).stdout.strip())
+    print(push_kernel("-p", kernel_dir, "--accelerator", args.accelerator,
+                      "-t", str(int((args.session_hours + 0.75) * 3600))))
     return {**job, "kernel": kernel, "dataset": dataset, "accelerator": args.accelerator, "pushed": time.time()}
 
 

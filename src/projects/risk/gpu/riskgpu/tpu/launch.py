@@ -2,8 +2,9 @@
 the network on recorded choices (`train.py`):
 
     python -m riskgpu.tpu.launch push <name> [--accelerator TpuV5E8] [--session-hours 3] [--dry-run] [-- <bench args>]
-    python -m riskgpu.tpu.launch train <name> --task imitate|distil --source <runs/... folder> [--clock]
-        [--data-dataset owner/slug] [--session-hours 8.5] [--dry-run] -- <train.py args>
+    python -m riskgpu.tpu.launch train <name> [<name> ...] --task imitate|distil --source <runs/... folder> [--clock]
+        [--run-args <name>="<its train.py args>"] [--run-share <name>=<w>] [--session-name <name>]
+        [--data-dataset owner/slug] [--session-hours 8.5] [--dry-run] -- <shared train.py args>
     python -m riskgpu.tpu.launch status <name>
     python -m riskgpu.tpu.launch fetch <name>
 
@@ -16,9 +17,18 @@ commit (on GitHub, the package committed, as `kaggle/launch.py` requires), prepa
 VM's CPUs and trains on its chips (`session.py`). A distillation with `--clock` prepares its set with
 the clock, and its net, `--init`'s or a fresh one of the trainer's `--width` and `--layers`, reads
 it. A set already on Kaggle in an earlier bundle is read from there instead (`--data-dataset`, each
-file checked by name and size first), so the slow upload happens once. The run lives in `runs/tpu/<name>/`; a session that stops on its hours saves its state there,
-and pushing the same name again carries on. `fetch` brings the folder back, refusing if `best.pt` or
-the saved state changed here since the push. Every argument is checked by the tools' own parsers,
+file checked by name and size first), so the slow upload happens once. The run lives in
+`runs/tpu/<name>/`; a session that stops on its hours saves its state there, and pushing the same
+name again carries on. `fetch` brings the folder back, refusing if `best.pt` or the saved state
+changed here since the push.
+
+**Several runs in one session** (several names): Kaggle runs one batch TPU session at a time, so
+nets meant for the same day share one. The set is prepared once and the runs train in turn, each with
+the shared trainer arguments and then its own (`--run-args`), in its own folder, with its share of
+the hours (`--run-share`, `session.py`'s `run_hours`). Each run's folder gets the push's record, so
+`status` and `fetch` take any of the names. The kernel and the bundle are named after the session
+(`--session-name`, the first run's name by default), and a push to a session already queued under that
+name replaces its queued version. Every argument is checked by the tools' own parsers,
 and the quota asked, before anything is uploaded; `--dry-run` stops there.
 
 **The probe** (`push`) sends `bench.py` alone as a private script,
@@ -40,7 +50,7 @@ import tempfile
 import time
 
 from ..board import DATA
-from ..kaggle.launch import kaggle, username
+from ..kaggle.launch import kaggle, push_kernel, username
 from .bench import settings
 
 GPU = os.path.dirname(DATA)
@@ -89,14 +99,6 @@ def prelude(accelerator: str, argv: list[str]) -> str:
         lines += ["if not sys.argv[1:]:",
                   "    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', 'jax[cuda12]'])"]
     return "\n".join(lines) + "\n\n"
-
-
-def push_kernel(*cmd: str) -> str:
-    """`kaggle kernels push`, refused unless Kaggle took it: the CLI exits 0 on a refused push (one
-    TPU session at a time, say), saying so only in its output."""
-    out = kaggle("kernels", "push", *cmd).stdout.strip()
-    assert "successfully pushed" in out, f"Kaggle refused the push: {out}"
-    return out
 
 
 def bench_argv(accelerator: str, hours: float, extra: list[str]) -> list[str]:
@@ -179,10 +181,10 @@ GUARDED = ("best.pt", "resume.json")
 LAUNCHERS = ("--data", "--dir", "--hours", "--require", "--out", "--chips")
 
 
-def train_files(source: str, init: str | None, name: str) -> list[str]:
+def train_files(source: str, inits: list[str], names: list[str]) -> list[str]:
     """Every file a training session reads that the repo doesn't carry, relative to the GPU folder:
-    the compact set (each folder of `source`, comma-separated), `--init`, and the run's own folder
-    (an earlier session's state, which the session resumes)."""
+    the compact set (each folder of `source`, comma-separated), each run's `--init`, and each run's
+    own folder (an earlier session's state, which the session resumes)."""
     from ..kaggle.launch import CHECKPOINT, LOCAL_ONLY
     files = []
     for folder in [f for f in source.split(",") if f]:
@@ -190,40 +192,67 @@ def train_files(source: str, init: str | None, name: str) -> list[str]:
         assert os.path.isdir(here), f"{folder}: no such folder in this checkout"
         files += [f"{folder.rstrip('/')}/{f}" for f in sorted(os.listdir(here)) if os.path.isfile(os.path.join(here, f))
                   and f not in LOCAL_ONLY]
-    if init:
+    for init in inits:
         assert CHECKPOINT.fullmatch(init), f"give --init {init} as a path under runs/, relative to the GPU folder, with '/'"
         files.append(init)
-    own = os.path.join(RUNS, name)
-    if os.path.isdir(own):
-        files += [f"runs/tpu/{name}/{f}" for f in sorted(os.listdir(own))
-                  if os.path.isfile(os.path.join(own, f)) and f not in LOCAL_ONLY]
+    for name in names:
+        own = os.path.join(RUNS, name)
+        if os.path.isdir(own):
+            files += [f"runs/tpu/{name}/{f}" for f in sorted(os.listdir(own))
+                      if os.path.isfile(os.path.join(own, f)) and f not in LOCAL_ONLY]
     missing = [f for f in files if not os.path.exists(os.path.join(GPU, f))]
     assert not missing, f"the session would need files this checkout lacks: {missing}"
     return list(dict.fromkeys(files))
 
 
-def check_train(args: argparse.Namespace) -> tuple[list[str], list[str]]:
-    """`(prepare arguments, trainer arguments)`, refused here, before any upload, wherever the
-    session would refuse them or waste its chips."""
+def named(pairs: list[str], names: list[str], flag: str) -> dict[str, str]:
+    """`NAME=VALUE` arguments by run name, each naming a run of the session."""
+    out = {}
+    for pair in pairs:
+        name, sep, value = pair.partition("=")
+        assert sep and name in names, f"{flag} {pair!r}: give NAME=VALUE for one of the session's runs {names}"
+        out[name] = value
+    return out
+
+
+def check_train(args: argparse.Namespace) -> tuple[list[str], list[dict]]:
+    """`(prepare arguments, runs)`: each run its name, its trainer arguments (the shared ones, then its
+    own `--run-args`, which win where they repeat one), its share of the hours and its `--init`;
+    refused here, before any upload, wherever the session would refuse them or waste its chips."""
     from .prepare import parser as prepare_parser
     from .train import parser as train_parser
-    for flag in LAUNCHERS:
-        assert flag not in args.trainer, f"{flag} is the launcher's"
+    names = args.names
+    for name in names:
+        assert re.fullmatch(r"[a-z0-9][a-z0-9-]*", name), f"{name!r}: a run's name is lower-case letters, digits and '-'"
+    assert len(set(names)) == len(names), f"a run named twice: {names}"
     source = args.source.replace("\\", "/")
     assert source and not os.path.isabs(source) and all(f.startswith(TASK_SOURCES[args.task]) for f in source.split(",")), \
         f"give --source as folders under {TASK_SOURCES[args.task]}, relative to the GPU folder"
-    ns = train_parser().parse_args(["--data", "x", "--dir", "y", *args.trainer])
     assert args.task == "distil" or not args.clock, "an imitation's extraction keeps no turn cap: --clock is a distillation's"
+    own_args = named(args.run_args, names, "--run-args")
+    shares = {name: float(v) for name, v in named(args.run_share, names, "--run-share").items()}
     chips = CHIPS[args.accelerator]
-    assert ns.minibatch % chips == 0, f"--minibatch {ns.minibatch} doesn't split over the session's {chips} chips"
-    prepare_args = ((["--actions", ns.actions] if ns.actions else []) + (["--fraction", str(args.fraction)] if args.task == "imitate" else [])
+    runs, spaces = [], set()
+    for name in names:
+        train_args = [*args.trainer, *shlex.split(own_args.get(name, ""))]
+        for flag in LAUNCHERS:
+            assert flag not in train_args, f"{flag} is the launcher's"
+        ns = train_parser().parse_args(["--data", "x", "--dir", "y", *train_args])
+        assert ns.minibatch % chips == 0, f"--minibatch {ns.minibatch} doesn't split over the session's {chips} chips"
+        spaces.add(ns.actions)
+        share = shares.get(name, 1.0)
+        assert share > 0, f"{name}: --run-share {share}"
+        own = os.path.join(RUNS, name)
+        assert not os.path.exists(os.path.join(own, "last.pt")), f"runs/tpu/{name} holds a finished run: name a new one"
+        assert not os.path.exists(os.path.join(own, "kaggle-push.json")), \
+            f"runs/tpu/{name} has a push not fetched yet: fetch it first"
+        runs.append({"name": name, "train_args": train_args, "share": share, "init": ns.init})
+    assert len(spaces) == 1, f"the runs share one prepared set, so one --actions: {spaces}"
+    actions = spaces.pop()
+    prepare_args = ((["--actions", actions] if actions else []) + (["--fraction", str(args.fraction)] if args.task == "imitate" else [])
                     + (["--clock"] if args.clock else []))
     prepare_parser().parse_args([args.task, "--data", source, "--out", "x", *prepare_args])
-    own = os.path.join(RUNS, args.name)
-    assert not os.path.exists(os.path.join(own, "last.pt")), f"runs/tpu/{args.name} holds a finished run: name a new one"
-    assert not os.path.exists(os.path.join(own, "kaggle-push.json")), \
-        f"runs/tpu/{args.name} has a push not fetched yet: fetch it first"
-    return prepare_args, list(args.trainer)
+    return prepare_args, runs
 
 
 def external_files(dataset: str, files: list[str]) -> None:
@@ -245,19 +274,21 @@ def external_files(dataset: str, files: list[str]) -> None:
 
 def push_train(args: argparse.Namespace) -> int:
     from ..kaggle.launch import checkout_commit, flat_name, sha256, slugs, stage, wait_ready
-    assert re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.name), f"{args.name!r}: a run's name is lower-case letters, digits and '-'"
-    prepare_args, train_args = check_train(args)
+    prepare_args, runs = check_train(args)
+    session = args.session_name or args.names[0]
+    assert re.fullmatch(r"[a-z0-9][a-z0-9-]*", session), f"{session!r}: a session's name is lower-case letters, digits and '-'"
     source = args.source.replace("\\", "/")
-    init = train_args[len(train_args) - 1 - train_args[::-1].index("--init") + 1] if "--init" in train_args else None
-    files = train_files(source, init, args.name)
+    files = train_files(source, [r["init"] for r in runs if r["init"]], args.names)
     data = [f for f in files if any(f.startswith(folder.rstrip("/") + "/") for folder in source.split(","))]
     upload = [f for f in files if not (args.data_dataset and f in data)]
     size = sum(os.path.getsize(os.path.join(GPU, f)) for f in upload)
     print(f"{args.task} of {source} ({sum(os.path.getsize(os.path.join(GPU, f)) for f in data) / 1e9:.2f} GB"
           + (f", read from {args.data_dataset}" if args.data_dataset else "") + f"): upload {len(upload)} files, {size / 1e6:,.0f} MB")
-    resuming = os.path.exists(os.path.join(RUNS, args.name, "resume.json"))
-    print(f"runs/tpu/{args.name}: {'resumes its run' if resuming else 'a new run'}; prepare {shlex.join(prepare_args)}; "
-          f"train {shlex.join(train_args)}")
+    print(f"session {session}: prepare {shlex.join(prepare_args)}")
+    for r in runs:
+        resuming = os.path.exists(os.path.join(RUNS, r["name"], "resume.json"))
+        print(f"  runs/tpu/{r['name']}: {'resumes its run' if resuming else 'a new run'}, share {r['share']:g}; "
+              f"train {shlex.join(r['train_args'])}")
 
     row = quota_row(kaggle("quota", "--format", "json").stdout, "TPU")
     print(f"kaggle quota, TPU: used {row['used']}, remaining {row['remaining']} of {row['total']}, refreshes {row['refreshAt']}")
@@ -270,11 +301,11 @@ def push_train(args: argparse.Namespace) -> int:
 
     commit = checkout_commit()
     user = username()
-    dataset, _ = slugs(user, f"tpu-{args.name}")
-    kernel = f"{user}/risk-tpu-train-{args.name}"
+    dataset, _ = slugs(user, f"tpu-{session}")
+    kernel = f"{user}/risk-tpu-train-{session}"
     import uuid
     bundle_id = uuid.uuid4().hex
-    job_dir = os.path.join(STAGING, f"tpu-{args.name}")
+    job_dir = os.path.join(STAGING, f"tpu-{session}")
     bundle = os.path.join(job_dir, "bundle")
     stage(upload, bundle)
     external = {flat_name(f): f for f in files if f not in upload}
@@ -289,8 +320,9 @@ def push_train(args: argparse.Namespace) -> int:
         kaggle("datasets", "create", "-p", bundle, "-t", "-q")
     wait_ready(dataset)
 
-    job = {"kind": "train", "name": args.name, "task": args.task, "source": source, "prepare_args": prepare_args,
-           "train_args": train_args, "commit": commit, "bundle": bundle_id, "session_hours": args.session_hours}
+    job = {"kind": "train", "session": session, "task": args.task, "source": source, "prepare_args": prepare_args,
+           "runs": [{k: r[k] for k in ("name", "train_args", "share")} for r in runs], "commit": commit,
+           "bundle": bundle_id, "session_hours": args.session_hours}
     kernel_dir = os.path.join(job_dir, "kernel")
     shutil.rmtree(kernel_dir, ignore_errors=True)
     os.makedirs(kernel_dir)
@@ -308,12 +340,15 @@ def push_train(args: argparse.Namespace) -> int:
     with open(os.path.join(kernel_dir, "kernel-metadata.json"), "w") as f:
         json.dump(meta, f, indent=1)
     print(push_kernel("-p", kernel_dir, "--accelerator", args.accelerator, "-t", str(int(args.session_hours * 3600))))
-    folder = os.path.join(RUNS, args.name)
-    os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, "kaggle-push.json"), "w") as f:
-        json.dump({**job, "kernel": kernel, "dataset": dataset, "accelerator": args.accelerator, "pushed": time.time(),
-                   "guard_sha256": {g: sha256(os.path.join(folder, g)) for g in GUARDED}}, f, indent=1)
-    print(f"pushed {kernel} at {commit[:8]}: `status {args.name}` while it runs, `fetch {args.name}` once it ends")
+    for r in runs:
+        folder = os.path.join(RUNS, r["name"])
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "kaggle-push.json"), "w") as f:
+            json.dump({**job, "name": r["name"], "train_args": r["train_args"], "kernel": kernel, "dataset": dataset,
+                       "accelerator": args.accelerator, "pushed": time.time(),
+                       "guard_sha256": {g: sha256(os.path.join(folder, g)) for g in GUARDED}}, f, indent=1)
+    print(f"pushed {kernel} at {commit[:8]}: `status <name>` while it runs and `fetch <name>` once it ends, for each of "
+          f"{' '.join(args.names)}")
     return 0
 
 
@@ -420,7 +455,14 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--session-hours", type=float, default=3.0)
     s.add_argument("--dry-run", action="store_true", help="stage the kernel and check the quota, push nothing")
     t = sub.add_parser("train", help="a training session: prepare the set on the host, train on the TPU (`train.py`)")
-    t.add_argument("name", help="the run, in runs/tpu/<name>/; pushed again, it carries on from its saved state")
+    t.add_argument("names", nargs="+", metavar="name",
+                   help="the runs, trained in turn on one prepared set, each in runs/tpu/<name>/; pushed again, a run "
+                        "carries on from its saved state")
+    t.add_argument("--run-args", action="append", default=[], metavar="NAME=ARGS",
+                   help="a run's own trainer arguments, after the shared ones after `--` (they win where they repeat one)")
+    t.add_argument("--run-share", action="append", default=[], metavar="NAME=W",
+                   help="a run's share of the training hours left when it starts, against the runs after it (default 1)")
+    t.add_argument("--session-name", default=None, help="the session's kernel and bundle name (default: the first run's)")
     t.add_argument("--task", choices=sorted(TASK_SOURCES), required=True)
     t.add_argument("--source", required=True,
                    help="the compact set: an imitation's extraction folder, or a recording's (several, comma-separated)")
