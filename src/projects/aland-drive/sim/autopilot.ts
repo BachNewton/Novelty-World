@@ -75,17 +75,7 @@ export class Autopilot {
   }
 
   private follow(car: CarState): void {
-    let best = this.along;
-    let nearest = Infinity;
-    for (let along = Math.max(this.along - SEARCH_M, 0); along <= this.along + SEARCH_M; along += SEARCH_STEP_M) {
-      const point = this.line.at(along);
-      const distance = Math.hypot(point.x - car.position[0], point.z - car.position[2]);
-      if (distance < nearest) {
-        nearest = distance;
-        best = along;
-      }
-    }
-    this.along = best;
+    this.along = this.line.alongNear(this.along, car.position[0], car.position[2], SEARCH_M, SEARCH_STEP_M);
   }
 
   /** True once the car is near enough the line's far end, by default within a stopping distance. */

@@ -135,12 +135,26 @@ export function pullAt(tuning: CarTuning, { gear, rpm, shiftLeftS }: EngineRead,
 /** What holds a car back on the flat at a speed: the air and the tyres' rolling. */
 export const resistanceAt = ({ power }: CarTuning, speed: number) => power.dragPerMS2 * speed * speed + power.rollingN;
 
+/**
+ * The engine at a speed, in the gear that pulls hardest there: the most it pulls with at the road under traction
+ * control's hold off the line, and how hard its closed throttle holds the car back in that gear. What a driver who
+ * can't see the gear counts on.
+ */
+export function engineAt(tuning: CarTuning, speed: number): { pullN: number; holdN: number } {
+  const { gearbox } = tuning;
+  let best = { pullN: 0, holdN: 0 };
+  gearbox.gearTopMS.forEach((top, gear) => {
+    const rpm = (speed / top) * gearbox.redlineRpm;
+    const toRoad = radiansPerMetre(tuning, gear);
+    const pullN = Math.min(tuning.power.launchN, torqueAt(tuning, rpm) * toRoad);
+    if (pullN > best.pullN) best = { pullN, holdN: engineBrakeAt(tuning, rpm) * toRoad };
+  });
+  return best;
+}
+
 /** The car's top speed on the flat: where its best pull in any gear meets the air, or the last gear's redline if that comes first. */
 export function topSpeedMS(tuning: CarTuning): number {
-  const { gearbox } = tuning;
-  const best = (speed: number) =>
-    Math.max(...gearbox.gearTopMS.map((_, gear) => Math.min(tuning.power.launchN, torqueAt(tuning, (speed / gearbox.gearTopMS[gear]) * gearbox.redlineRpm) * radiansPerMetre(tuning, gear))));
   let speed = 1;
-  while (best(speed) > resistanceAt(tuning, speed)) speed += 0.05;
+  while (engineAt(tuning, speed).pullN > resistanceAt(tuning, speed)) speed += 0.05;
   return speed;
 }
