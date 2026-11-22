@@ -8,12 +8,13 @@ import { ControlGlyph, Prompt, type Binding, type PadGlyph } from "@/shared/comp
 import { useDriveSoundSettings } from "../audio/settings";
 import { RENDER_SCALES, useDriveGraphics } from "../render/graphics-settings";
 import { TRAFFIC_DENSITIES, TRAFFIC_REACHES, TRAFFIC_VOICE_COUNTS, useTrafficSettings, type TrafficSettings } from "../traffic/settings";
-import { shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "../render/game-menu";
+import { lineOfItem, shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu, type MenuItemId } from "../render/game-menu";
 import { BINDINGS } from "../input/controls";
+import { useDrivingLine, type DrivingLine } from "../driving-line";
 import { useUnits, type Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
 import type { Shifting } from "../sim/gearbox";
-import { ACCENT, INK, MenuButton, SideBySide, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type Icon, type ItemLook } from "./menu-parts";
+import { ACCENT, INK, LINE_LOOKS, MenuButton, SideBySide, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type Icon, type ItemLook } from "./menu-parts";
 
 /*
  * The Settings page off the game menu, in tabs. Gameplay's settings are the
@@ -38,13 +39,16 @@ type TyreItem = `tyres-${Tyre}`;
 const isTyreItem = (id: MenuItemId): id is TyreItem => id.startsWith("tyres-");
 type ShiftingItem = `shifting-${Shifting}`;
 const isShiftingItem = (id: MenuItemId): id is ShiftingItem => id.startsWith("shifting-");
+type LineItem = `line-${DrivingLine}`;
+const isLineItem = (id: MenuItemId): id is LineItem => id.startsWith("line-");
 type UnitsItem = `units-${Units}`;
 const isUnitsItem = (id: MenuItemId): id is UnitsItem => id.startsWith("units-");
 const ASSISTS = ["abs", "traction", "stability"] as const;
 
-/** The tyres, the driver's aids and the units: the game's own settings, picked through the menu's items. */
+/** The tyres, the driver's aids, the driving line and the units: the game's own settings, picked through the menu's items. */
 function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: RefObject<HTMLButtonElement | null>; look: (id: MenuItemId) => ItemLook; onPick: (id: MenuItemId) => void }) {
   const shownUnits = useUnits((state) => state.units);
+  const shownLine = useDrivingLine((state) => state.line);
   const tyres = menu.items.filter(isTyreItem).map((item) => {
     const tyre = tyreOfItem(item);
     return { id: item, icon: TYRE_LOOKS[tyre].icon, label: TYRE_LOOKS[tyre].name, spoken: `${TYRE_LOOKS[tyre].name} tyres`, on: tyre === menu.tyres };
@@ -52,6 +56,10 @@ function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: Ref
   const shifting = menu.items.filter(isShiftingItem).map((item) => {
     const way = shiftingOfItem(item);
     return { id: item, icon: SHIFTING_LOOKS[way].icon, label: SHIFTING_LOOKS[way].name, spoken: `${SHIFTING_LOOKS[way].name} shifting`, on: way === menu.shifting };
+  });
+  const lines = menu.items.filter(isLineItem).map((item) => {
+    const line = lineOfItem(item);
+    return { id: item, icon: LINE_LOOKS[line].icon, label: LINE_LOOKS[line].name, spoken: LINE_LOOKS[line].spoken, on: line === shownLine };
   });
   const units = menu.items.filter(isUnitsItem).map((item) => {
     const shown = unitsOfItem(item);
@@ -66,6 +74,7 @@ function GameplayTab({ menu, first, look, onPick }: { menu: GameMenu; first: Ref
         <MenuButton key={id} look={look(id)} start={opensOnAids && index === 0} buttonRef={opensOnAids && index === 0 ? first : undefined} onPress={() => { onPick(id); }} />
       ))}
       <SideBySide name="Shifting" choices={shifting} onPick={onPick} />
+      <SideBySide name="Driving line" choices={lines} onPick={onPick} />
       <SideBySide name="Units" choices={units} onPick={onPick} />
     </div>
   );

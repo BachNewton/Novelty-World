@@ -1,20 +1,8 @@
-# The racing line drawn on the road
+# The racing line drawn on the road: what is still open
 
-An idea the owner raised after racing the AI racers, not yet a project decision: no direction chosen, nothing built.
+The driving line is built: in a race the player is shown the racers' own line on the road ahead, coloured by their speed against their own car's plan, off, braking only or full by their choice (`render/CLAUDE.md`, The driving line). This holds what was raised with it and isn't decided: no direction chosen, nothing built.
 
-## What it is
-
-Forza Horizon draws a race's ideal line on the road ahead of the player's car, coloured by what to do on it: green where to accelerate, red where to brake, with the shade saying how hard. The player chooses none, the full line, or the braking parts only. Åland Drive would do the same for a race's route, and for a challenge's.
-
-## Why it fits here
-
-- **The line exists already.** The racers drive a minimum-curvature racing line inside the laid road's edges with a speed plan along it, by surface and condition, from the car's measured limits (`racers/CLAUDE.md`): the line a player would be shown is the very line the racers follow, and the plan's speeds say where to brake and where to accelerate.
-- **It doubles as the racers' debugging view.** Today the racers' line and plan are read in the vetting tool's traces. Drawn on the road, a racer's mistake shows in play: a car leaving its own line, braking late against its own plan, cutting where the line doesn't.
-- **It is a player's own choice**, kept per browser like the other settings, so a player who wants the road bare has it bare.
-
-## What is undecided
-
-- **Whose line.** The racing line is drawn for a car's width and its plan for that car's grip; the player's car may differ from the racers'. The line could be drawn for the player's car (the file holds the corridor, so the line and plan are a few milliseconds' arithmetic on the page) or be the race's one line for every car.
-- **How it is drawn.** A ribbon on the road ahead, a few car lengths, fading with distance; its colour from the plan's braking and pull between here and the next samples. Whether it is a mesh rebuilt as the car moves or a decal the ground shader reads is a rendering question for `render/CLAUDE.md`'s rules (nothing compiled mid-drive, counts not times).
-- **Challenges too, or races only.** A challenge's route has the same corridor; its line would be drawn the same way.
+- **Challenges too, or races only.** A bucket list challenge's route has the same corridor, so its line would be drawn the same way; today only a race has a line file (`racers/race-line-file.ts`).
 - **The cut corners.** Where a player would cut across the grass into a turn the race doesn't pin (`ideas/races.md`, section 7), the drawn line keeps to the road, and shows the player a slower way than they'd take. The per-track ruling on those corners comes first.
+- **Along the GPS route in free roam.** Forza Horizon draws its line outside races too: once a destination is picked the line runs along the route, on the same off, braking only or full setting, and with no destination there is none (from knowing the games, not looked up). Here the line is a race's only, and the owner has set a free-roam one aside for now. It couldn't come from a file as a race's does: a route is whatever the player picks, and a line file is drawn once from the whole route's laid road, which the game never holds, only the tiles round the car. Nor would it need to be the racing line: Forza's reads as the route down the road, not every apex cut. So it would be the route laid on the road as built, since the GPS's own line parts from the built road by a road's width in places (`racers/route-plan.ts` reads the laid road along a route), for the stretch loaded ahead of the car and drawn on as the car moves, with the player's car's plan on it (`racers/car-plan.ts`) and the ribbon and colours a race's line has (`render/driving-line.ts`). Open with it: where on a two-way road it runs, since in free roam the other lane is oncoming traffic's and the laid middle is no one's; and what the plan says at the end of the loaded stretch, where the bends beyond aren't known yet and the braking colours depend on them.
+- **The racers' own view.** A racer's mistake shows against the line in play only when the player's line and the racer's are the same line and plan. They are the same line, but the plan drawn is the player's car's. A dev view that draws a chosen racer's plan and where its car stands against it would make the line the racers' debugging view as well; `tools/race-incidents.ts` reads the same thing headless.

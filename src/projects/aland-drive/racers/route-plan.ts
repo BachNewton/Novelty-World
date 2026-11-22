@@ -49,12 +49,14 @@ export const inSpot = ({ from, to }: Eased, along: number, lapM?: number) => {
 };
 
 /**
- * Where the GPS's line strays further from the laid road than a sample can see, the road is followed on from the last
- * sample that found it, by the GPS line's own step, and looked for within this of where that puts it: only while the
- * line runs on much as it did there, since at a junction's apron the road turns and the gap is bridged instead.
+ * Where the GPS's line strays further from the laid road than a sample can see (it runs 20 m and more beside a bend
+ * of the road in places), the road is followed on from where it was last found, by the road's own way, a step at a
+ * time: only while it is found within a step's reach of where its own heading puts it, runs much as the line does and
+ * stays within sight of it, since at a junction's apron the road ends or turns and the gap is bridged instead.
  */
-const FOLLOW_ON_WITHIN_M = 8;
-const FOLLOW_ON_TURN_COSINE = Math.cos((20 * Math.PI) / 180);
+const FOLLOW_ON_WITHIN_M = 3;
+const FOLLOW_ON_TURN_COSINE = Math.cos((45 * Math.PI) / 180);
+const FOLLOW_ON_SIGHT_M = 40;
 
 export class RoutePlan {
   readonly samples: RouteSample[] = [];
@@ -63,14 +65,17 @@ export class RoutePlan {
     readonly line: RoadLine,
     laid: LaidRoad,
   ) {
-    // The last sample that found the laid road under the GPS line itself: what a stray is followed on from.
-    let anchor: RouteSample | null = null;
+    // The laid road at the sample before, found under the line or followed on: what a stray is followed on from.
+    let last: LaidPoint | null = null;
     for (let along = 0; along <= line.length + ROUTE_STEP_M; along += ROUTE_STEP_M) {
       const { x, z, heading } = line.at(Math.min(along, line.length));
       let under = laid.nearest(x, z, heading);
-      if (under) anchor = { x, z, heading, laid: under };
-      // OpenStreetMap's line and the road as laid can part by a road's width and more: the laid road is followed on from where it was last seen under the line.
-      else if (anchor?.laid && Math.cos(heading - anchor.laid.heading) >= FOLLOW_ON_TURN_COSINE) under = laid.nearest(anchor.laid.x + (x - anchor.x), anchor.laid.z + (z - anchor.z), heading, FOLLOW_ON_WITHIN_M);
+      if (!under && last && Math.cos(heading - last.heading) >= FOLLOW_ON_TURN_COSINE) {
+        // A road line's heading points along (-sin, -cos).
+        const on = laid.nearest(last.x - ROUTE_STEP_M * Math.sin(last.heading), last.z - ROUTE_STEP_M * Math.cos(last.heading), last.heading, FOLLOW_ON_WITHIN_M);
+        if (on && Math.hypot(on.x - x, on.z - z) <= FOLLOW_ON_SIGHT_M) under = on;
+      }
+      last = under;
       this.samples.push({ x, z, heading, laid: under });
     }
   }

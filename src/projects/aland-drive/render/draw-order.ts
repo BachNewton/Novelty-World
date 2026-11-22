@@ -53,6 +53,7 @@ const ORDER: readonly string[] = [
   "sea-plane",
   "sky",
   // Transparent, drawn after everything above whatever their place here.
+  "driving-line",
   "people-shadow",
   "bike-shadow",
   "deer-shadow",

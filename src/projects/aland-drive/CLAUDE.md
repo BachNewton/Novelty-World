@@ -11,7 +11,7 @@ This file holds what applies everywhere in the project. Each system's own detail
 | Folder | What its `CLAUDE.md` covers |
 |---|---|
 | `sim/` | The car: the rigid body, cars, gearbox, grip by surface, condition and tyres, driver's aids, what stops the car, the physics centre, `CarState` |
-| `render/` | Streaming and distance: tiles, the terrain clipmap, roads, forest, plantings, buildings, everything placed, water, sky; the light through the day and the weather drawn |
+| `render/` | Streaming and distance: tiles, the terrain clipmap, roads, forest, plantings, buildings, everything placed, water, sky; the light through the day and the weather drawn; a race's driving line |
 | `pipeline/` | Building tiles: every pipeline module, the road surface, bridges, seams, the tests, how rough the roads are |
 | `art/` | Art rules: art built for the game, no coplanar faces, far versions, measured LOD swaps |
 | `net/` | Multiplayer: the shared world, stand-ins, the shared GPS destination, computer-driven cars, shared traffic |
@@ -78,6 +78,7 @@ A player starts in the car they last chose on the game menu's Cars page, or in F
 | `?at=east,north,height,yaw,pitch` | Opens there, the car on the nearest road (`render/start-place.ts`); the dev menu copies one |
 | `?car=<id>`, `?tyres=`, `?paint=` | Starts in that car (its id in `sim/cars.ts`), on those tyres, in that paint (its index or colour in the car's list) |
 | `?racers=<count>` | How many AI racers a race gets (`racers/CLAUDE.md`); the whole grid without it, 0 for none |
+| `?line=<off, braking or full>` | The driving line a race draws on the road, for this drive (`render/CLAUDE.md`) |
 | `?weather=<kind>`, `?condition=` | Holds a weather (`climate/held.ts`: clear, cloud, overcast, rain, snowfall, fog, `ice`) or a ground condition; a tool's or test's page is dry without one |
 | `?date=`, `?hour=`, `?sea=`, `?aurora=` | The real date, the hour, the boats' clock, a held aurora |
 | `?tiles=local:<port>`, `?relay=local:<port>`, `?drive-world=<name>` | Local tiles, a local relay, a test's own world |

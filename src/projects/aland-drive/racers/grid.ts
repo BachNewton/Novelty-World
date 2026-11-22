@@ -1,22 +1,17 @@
 import type { Standing } from "../challenge/standings";
 import type { RaceChallenge, StartPlace } from "../challenge/types";
-import { steerLimit } from "../sim/car";
-import { limitsOn } from "../sim/car-limits";
 import { headingOf, type CarState } from "../sim/car-state";
 import { CARS, type CarId } from "../sim/cars";
 import type { SimulatedCar } from "../sim/drive";
 import type { RoadLine, RoadPoint } from "../sim/road-net";
 import type { Condition } from "../sim/surfaces";
-import { wheelBaseOf } from "../sim/tuning";
 import type { SeenCar } from "./awareness";
+import { carPlan, shapeOf, type LineShape } from "./car-plan";
 import { gridCars, tyresFor } from "./field";
 import { Racer, type RacerHost } from "./racer";
 import type { RaceLine } from "./race-line-file";
-import { crestOf, signedCurvatureOf } from "./racing-line";
-import { ROUTE_STEP_M } from "./route-plan";
 import type { RacerDriver } from "./shared";
 import { RACER_SKILL } from "./skill";
-import { planSpeeds } from "./speed-plan";
 
 /*
  * The racers of one race that this page runs: each a simulated car of its own
@@ -28,9 +23,6 @@ import { planSpeeds } from "./speed-plan";
  * racer's car as it draws another player's, and tells it what else is on the
  * road.
  */
-
-/** The tightest turn a plan asks of the steering is this much wider than the lock's own, for the tyres' slip. */
-const STEERING_ROOM = 1.3;
 
 export interface GridHost extends Omit<RacerHost, "reset"> {
   addCar(place: StartPlace, car: CarId, condition: Condition): SimulatedCar;
@@ -79,35 +71,14 @@ export function gridSlots(places: readonly StartPlace[], field: readonly CarId[]
 
 export class RaceGrid {
   readonly racers: GridRacer[] = [];
-  private readonly bends: Float64Array;
-  private readonly curvature: Float64Array;
-  private readonly crest: Float64Array;
+  private readonly shape: LineShape;
 
   constructor(
     readonly race: RaceChallenge,
     private readonly raceLine: RaceLine,
     private readonly host: GridHost,
   ) {
-    this.bends = signedCurvatureOf(raceLine.line, ROUTE_STEP_M);
-    this.curvature = this.bends.map((bend) => Math.abs(bend));
-    this.crest = crestOf(raceLine.line, ROUTE_STEP_M);
-  }
-
-  /** A car's plan on this line from a standing start at `fromM`, in a condition, on the tyres for it. */
-  private planOf(carId: CarId, condition: Condition, fromM: number) {
-    const tuning = CARS[carId];
-    const tyres = tyresFor(condition);
-    const limits = { asphalt: limitsOn(carId, condition, "asphalt", tyres), gravel: limitsOn(carId, condition, "gravel", tyres) };
-    return planSpeeds({
-      curvature: this.curvature,
-      crest: this.crest,
-      stepM: ROUTE_STEP_M,
-      limitsAt: (sample) => (this.raceLine.pavedAt(sample * ROUTE_STEP_M) ? limits.asphalt : limits.gravel),
-      cornerShare: RACER_SKILL.cornerShare,
-      brakeShare: RACER_SKILL.brakeShare,
-      tightestRadiusAt: (speed) => (STEERING_ROOM * wheelBaseOf(tuning)) / Math.tan(steerLimit(tuning, speed, false)),
-      fromM,
-    });
+    this.shape = shapeOf(raceLine.line);
   }
 
   private enter(id: string, car: SimulatedCar, fromM: number, condition: Condition, attempt: number): GridRacer {
@@ -124,7 +95,7 @@ export class RaceGrid {
       racer: new Racer(
         this.race,
         this.raceLine.line,
-        this.planOf(car.id, condition, fromM),
+        carPlan(car.id, condition, tyresFor(condition), this.raceLine, this.shape, RACER_SKILL, fromM),
         fromM,
         {
           reset: (road) => {
@@ -134,7 +105,6 @@ export class RaceGrid {
           inWater: host.inWater,
         },
         this.raceLine.geometry,
-        this.bends,
         halfWidthM,
         halfLengthM,
       ),

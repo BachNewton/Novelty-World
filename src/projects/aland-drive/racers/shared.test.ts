@@ -57,7 +57,7 @@ const circuitLine = new RoadLine(loop);
 
 const STRAIGHT: RaceChallenge = { ...CIRCUIT, id: "straight", shape: "sprint", laps: 1, gates: [gate(400, 0, EAST), gate(800, 0, EAST)], lapM: 800, lengthM: 800 };
 const straightLine = new RoadLine(Float32Array.from([0, 0, 0, 1000, 0, 0]));
-const planOn = (line: RoadLine) => planSpeeds({ curvature: new Float64Array(Math.ceil(line.length / 4) + 1), stepM: 4, limitsAt: () => limitsOn("skerry-gt", "dry", "asphalt"), cornerShare: 0.8 });
+const planOn = (line: RoadLine) => planSpeeds({ bends: new Float64Array(Math.ceil(line.length / 4) + 1), stepM: 4, limitsAt: () => limitsOn("skerry-gt", "dry", "asphalt"), cornerShare: 0.8 });
 
 /** A car standing at a place facing east, moving east at a speed. */
 const carAt = (x: number, speedMS = 0, z = 0): CarState => ({

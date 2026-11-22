@@ -4,27 +4,25 @@ import { RACES } from "../challenge/list";
 import { advanceRun, startRun, type ChallengeRun } from "../challenge/run";
 import type { RaceChallenge } from "../challenge/types";
 import { Autopilot } from "../sim/autopilot";
-import { NO_INPUT, steerLimit, type DriveInput } from "../sim/car";
-import { limitsOn } from "../sim/car-limits";
+import { NO_INPUT, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { CARS, type CarId } from "../sim/cars";
 import { Drive } from "../sim/drive";
 import { readWorld } from "../sim/read-tile";
 import type { RoadLine, RoadPoint } from "../sim/road-net";
 import type { Condition, Tyre } from "../sim/surfaces";
-import { STEP_S, wheelBaseOf } from "../sim/tuning";
+import { STEP_S } from "../sim/tuning";
 import type { World } from "../sim/world";
 import { readRoads, type Roads } from "../tools/road-places";
+import { carPlan, shapeOf } from "./car-plan";
 import { LaidRoad } from "./laid-road";
 import { Racer } from "./racer";
 import type { RaceLine } from "./race-line-file";
 import {
   corridorOf,
-  crestOf,
   geometryOf,
   middleLine,
   racingLine,
-  signedCurvatureOf,
   type CorridorSample,
 } from "./racing-line";
 import {
@@ -34,7 +32,7 @@ import {
   speedPlanFor,
   tilesNear,
 } from "./route-plan";
-import { planSpeeds } from "./speed-plan";
+import { StandingWalls } from "./walls";
 
 /*
  * One vetting run (`ideas/races.md`, "Vetting tracks by driving them"): one car
@@ -69,6 +67,8 @@ export interface VetSpec extends Indexed {
   line: LineKind;
   /** The tile folder the run reads. */
   folder: string;
+  /** The knocks it is given as it races, or none: what another car's hit leaves it with, for reading whether it gathers the car up. */
+  knock?: KnockKind;
 }
 
 export interface VetResult extends Indexed {
@@ -100,6 +100,18 @@ export interface VetResult extends Indexed {
   meanOffLineM: number;
   /** Sudden losses of speed no brake makes: a wall, a pole, a parked car. */
   hits: number;
+  /** The times its brake lamps came on: a driver presses once for a bend, and lamps that flicker count many. */
+  brakings: number;
+  /** Of those, the flashes and the blinks, and the presses of the pedal itself (`lampReader`). */
+  brakeFlashes: number;
+  brakeBlinks: number;
+  brakePresses: number;
+  /** The kind of knock it was given as it raced, if any, how many, and how many of them a reset followed. */
+  knock?: KnockKind;
+  knocks: number;
+  knockResets: number;
+  /** Each knock: how fast the car was going, and whether a reset followed. */
+  knockLog: { kmh: number; reset: boolean }[];
   airborneSteps: number;
   contactLosses: number;
   /** The racer's own resets. */
@@ -110,10 +122,82 @@ export interface VetResult extends Indexed {
   simS: number;
 }
 
+/**
+ * What a knock leaves a car with, added to how it moves: metres a second sideways and a turn in radians a second. A
+ * nudge is a car leaning on it in a bend, a shove a careless one turning in across it, and a spin a tap on its rear
+ * quarter at speed, which turns it round. Human racers hit the racers; a racer is read on what it does next.
+ */
+export const KNOCKS = {
+  nudge: { sidewaysMS: 2, spin: 0.4 },
+  shove: { sidewaysMS: 4, spin: 0.8 },
+  spin: { sidewaysMS: 2, spin: 2.5 },
+} as const;
+export type KnockKind = keyof typeof KNOCKS;
+export const KNOCK_KINDS = Object.keys(KNOCKS) as KnockKind[];
+/** A knock comes every this far along the race, from this far past the grid, to the right and the left by turns, to a car going at least this fast; a reset within this long of one is the knock's. */
+const KNOCK_EVERY_M = 800;
+const KNOCK_FROM_M = 400;
+const KNOCK_LEAST_MS = 5;
+const KNOCK_WATCH_S = 15;
+
+/** A car as a knock to one side leaves it: pushed that way, and turned that way. */
+function knocked(state: CarState, { sidewaysMS, spin }: (typeof KNOCKS)[KnockKind], side: 1 | -1): CarState {
+  const heading = headingOf(state.rotation);
+  const [x, y, z] = state.velocity;
+  return { ...state, velocity: [x + side * sidewaysMS * Math.cos(heading), y, z - side * sidewaysMS * Math.sin(heading)], spin: [state.spin[0], state.spin[1] - side * spin, state.spin[2]] };
+}
+
+/**
+ * A car's brake lamps as the driver behind sees them: each time they come on, and among those the flashes, lit for less
+ * than a driver's press or lit again within a moment of going out, and the blinks, lit for under a second. A driver
+ * presses once for a bend and holds it; lamps that flicker read as a nervous foot. The pedal's own presses are counted
+ * beside them, since the lamps are steadier than the pedal under them (`sim/car.ts`) and a pedal that flutters is still
+ * to be seen on the ruler.
+ */
+const LAMP_FLASH_S = 0.3;
+const LAMP_RELIT_S = 0.5;
+const LAMP_BLINK_S = 1;
+
+export interface LampCounts {
+  brakings: number;
+  brakeFlashes: number;
+  brakeBlinks: number;
+  brakePresses: number;
+}
+
+export function lampReader(): { counts: LampCounts; read: (lit: boolean, pressed: boolean) => void } {
+  const counts = { brakings: 0, brakeFlashes: 0, brakeBlinks: 0, brakePresses: 0 };
+  let wasLit = false;
+  let wasPressed = false;
+  let litS = 0;
+  let outS = Infinity;
+  let relit = false;
+  return {
+    counts,
+    read(lit, pressed) {
+      if (pressed && !wasPressed) counts.brakePresses++;
+      wasPressed = pressed;
+      if (lit && !wasLit) {
+        counts.brakings++;
+        relit = outS < LAMP_RELIT_S;
+        litS = 0;
+      }
+      if (!lit && wasLit) {
+        if (relit || litS < LAMP_FLASH_S) counts.brakeFlashes++;
+        if (litS < LAMP_BLINK_S) counts.brakeBlinks++;
+        outS = 0;
+      }
+      if (lit) litS += STEP_S;
+      else outS += STEP_S;
+      wasLit = lit;
+    },
+  };
+}
+
 const FLAT_OUT_MS = 150;
 /** Past the finish, so the driver doesn't turn for the line's last point as it gets there. */
 const RUN_ON_M = 150;
-/** Off its line by this much, the par driver has lost the road; the racer resets itself before then. */
+/** Off its line by this much, the par driver has lost the road; the racer has its own reset for that. */
 const LOST_M = 30;
 /** Going back this far along its way is losing the road there: the par driver's failure, where the racer backs out and resets by itself. */
 const BACK_M = 20;
@@ -133,14 +217,16 @@ const HIT_DROP_MS = 1;
 const HIT_APART_S = 1;
 /** A car this far from any laid road has left the road for the count, where the road's own width isn't known. */
 const OFF_UNKNOWN_M = 6;
-/** The tightest turn a plan asks of the steering is this much wider than the lock's own, for the tyres' slip. */
-const STEERING_ROOM = 1.3;
 
 /** A race's world, route and lines, read once for every run on it. */
 export interface LoadedRace {
   race: RaceChallenge;
   world: World;
+  /** The tiles the race runs over, by name. */
+  tiles: readonly string[];
   laid: LaidRoad;
+  /** What stands where a car might drive, which the corridor keeps clear of. */
+  walls: StandingWalls;
   /** The GPS's own line for the whole race, run on past the finish. */
   gpsLine: RoadLine;
   plan: RoutePlan;
@@ -172,10 +258,12 @@ export function loadRaceOf(
 ): LoadedRace {
   const route = raceRoute(roads.graph, race);
   const gpsLine = runOn(route.line, RUN_ON_M);
-  const world = readWorld(folder, tilesNear(roads.manifest, gpsLine));
+  const tiles = tilesNear(roads.manifest, gpsLine);
+  const world = readWorld(folder, tiles);
   const laid = new LaidRoad(world);
   const plan = new RoutePlan(gpsLine, laid);
-  const corridor = corridorOf(plan);
+  const walls = new StandingWalls(world);
+  const corridor = corridorOf(plan, walls);
   const middle = {
     line: middleLine(corridor),
     pavedAt: (alongM: number) => pavedAlong(corridor, alongM),
@@ -184,7 +272,9 @@ export function loadRaceOf(
   return {
     race,
     world,
+    tiles: [...tiles],
     laid,
+    walls,
     gpsLine,
     plan,
     corridor,
@@ -334,7 +424,7 @@ function pilotFor(
   };
 }
 
-/** A racer for a car on a race's line, with its plan at a skill from a place along it, resetting through `reset`. */
+/** A racer for a car on a race's line, with its plan at a skill from a place along it, resetting through `reset`; one that doesn't see drives as if alone on the road. */
 export function racerFor(
   loaded: LoadedRace,
   { line, pavedAt, geometry }: RaceLine,
@@ -344,28 +434,11 @@ export function racerFor(
   skill: { cornerShare: number; brakeShare: number },
   from: number,
   reset: (point: RoadPoint) => void,
+  sees = true,
 ): Racer {
   const { race, world } = loaded;
-  const limits = {
-    asphalt: limitsOn(car, condition, "asphalt", tyres),
-    gravel: limitsOn(car, condition, "gravel", tyres),
-  };
-  const tuning = CARS[car];
-  const bends = signedCurvatureOf(line, ROUTE_STEP_M);
-  const plan = planSpeeds({
-    curvature: bends.map((bend) => Math.abs(bend)),
-    crest: crestOf(line, ROUTE_STEP_M),
-    stepM: ROUTE_STEP_M,
-    limitsAt: (sample) =>
-      pavedAt(sample * ROUTE_STEP_M) ? limits.asphalt : limits.gravel,
-    cornerShare: skill.cornerShare,
-    brakeShare: skill.brakeShare,
-    tightestRadiusAt: (speed) =>
-      (STEERING_ROOM * wheelBaseOf(tuning)) /
-      Math.tan(steerLimit(tuning, speed, false)),
-    fromM: from,
-  });
-  const [halfWidthM, , halfLengthM] = tuning.car.halfSize;
+  const plan = carPlan(car, condition, tyres, { pavedAt }, shapeOf(line), skill, from);
+  const [halfWidthM, , halfLengthM] = CARS[car].car.halfSize;
   // Water a car sinks in, as the simulation reads it: a road along the shore or over it isn't.
   const inWater = (x: number, z: number) =>
     world.isWater(x, z) &&
@@ -377,8 +450,7 @@ export function racerFor(
     plan,
     from,
     { reset, inWater },
-    geometry,
-    bends,
+    sees ? geometry : null,
     halfWidthM,
     halfLengthM,
   );
@@ -432,6 +504,7 @@ export function vetRun(
     brakeShare: spec.brakeShare,
     skill: spec.skill,
     line: spec.line,
+    knock: spec.knock,
     gridOffM: Math.max(...gridOffRoadM(loaded)),
   };
   const counts = {
@@ -441,7 +514,14 @@ export function vetRun(
     worstOffLineM: 0,
     meanOffLineM: 0,
     hits: 0,
+    knocks: 0,
+    knockResets: 0,
+    knockLog: [] as { kmh: number; reset: boolean }[],
   };
+  const lamps = lampReader();
+  let nextKnockM = from + KNOCK_FROM_M;
+  let lastKnockS = -Infinity;
+  let knockOpen = false;
   let offLineSum = 0;
   let offLineSteps = 0;
   const lapsS: number[] = [];
@@ -473,6 +553,7 @@ export function vetRun(
       airborneSteps: log.airborneSteps,
       contactLosses: log.contactLosses,
       topKmh: log.topSpeedMS * 3.6,
+      ...lamps.counts,
       drivenM: log.metres,
       simS: pilot.run.clockS + 3,
     };
@@ -487,6 +568,12 @@ export function vetRun(
       placements = drive.placements;
       const resetsBefore = pilot.resets;
       const input = pilot.step(state, placed);
+      // A reset soon after a knock is the knock's: the car wasn't gathered up.
+      if (pilot.resets > resetsBefore && knockOpen && pilot.run.clockS - lastKnockS <= KNOCK_WATCH_S) {
+        counts.knockResets++;
+        counts.knockLog[counts.knockLog.length - 1].reset = true;
+        knockOpen = false;
+      }
       const { run } = pilot;
       // Each lap's time, from the lines crossed since the last step; the finish's lap comes with the result.
       const nowCrossed = run.players[0].nextGate;
@@ -502,9 +589,21 @@ export function vetRun(
         lapsS.push(raceS - lapsS.reduce((sum, lap) => sum + lap, 0));
         return result(true, raceS);
       }
+      if (spec.knock && run.clockS >= 0 && pilot.along >= nextKnockM) {
+        while (nextKnockM <= pilot.along) nextKnockM += KNOCK_EVERY_M;
+        if (speed >= KNOCK_LEAST_MS) {
+          drive.player.resume(knocked(state, KNOCKS[spec.knock], counts.knocks % 2 === 0 ? 1 : -1));
+          counts.knocks++;
+          counts.knockLog.push({ kmh: speed * 3.6, reset: false });
+          lastKnockS = run.clockS;
+          knockOpen = true;
+        }
+      }
       drive.step(input);
       if (run.clockS < 0) continue;
-      const after = speedOf(drive.stateAt(1));
+      const now = drive.stateAt(1);
+      lamps.read(now.lamps.brake, input.brake > 0 && !now.lamps.reverse);
+      const after = speedOf(now);
       // A loss of speed no brake makes is a hit, unless the car was just put down by a reset.
       if (
         pilot.resets === resetsBefore &&
@@ -561,7 +660,7 @@ export function vetRun(
           `missed line ${nextGate + 1} at ${where}`,
           lineAlongs[nextGate],
         );
-      if (offLine > LOST_M)
+      if (spec.line === "gps" && offLine > LOST_M)
         return result(false, null, `lost the road at ${where}`, pilot.along);
       if (pilot.resets > MOST_RESETS)
         return result(
