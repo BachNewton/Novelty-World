@@ -49,4 +49,4 @@ Every story with chapters is also built as a novel by `../novel/build-novel.ts`,
 - **The producer's listening is the only verdict on sound,** because Claude can't hear. What it finds goes into `capabilities.md`.
 - **Publishing** follows the Audiobook project's `CLAUDE.md`.
 
-The method was proved on the Nana biography (`~/myClaude/projects/nana-biography`), whose `CLAUDE.md` holds the casting findings, and Kalevala's `voice-acting` skill (`~/myClaude/projects/kalevala`) is the precedent for many character voices. Renders run in WSL on the eGPU, which other sessions may be using.
+The method was proved on the Nana biography (`~/myClaude/projects/nana-biography`), whose `CLAUDE.md` holds the casting findings, and Kalevala's `voice-acting` skill (`~/myClaude/projects/kalevala`) is the precedent for many character voices. Renders run in WSL on the eGPU, which other sessions may be using, so each is queued with the memory it needs (`npm run slot -- cores:2+egpu:9.2 -- wsl ...` for Breeze; "Sharing the machine" in the root `CLAUDE.md`).

@@ -3,6 +3,8 @@
 # The eGPU sometimes faults and leaves CUDA hung, so if no new clip or log line appears
 # for 4 minutes the process is killed and restarted; the scripts skip finished clips.
 # The script must print "all done" when finished.
+# Start it from Windows inside the machine's budget, which can't see the card's use otherwise:
+#   npm run slot -- cores:2+egpu:9.2 -- wsl -d Ubuntu-24.04 --cd <drama folder> -- bash tools/run_breeze.sh ...
 cd "$(dirname "$0")/.."
 SCRIPT=$1; OUT=$2; shift 2; LOG=$OUT/log.txt
 mkdir -p "$OUT"
