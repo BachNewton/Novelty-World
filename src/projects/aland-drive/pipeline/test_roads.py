@@ -285,6 +285,13 @@ class Junctions(unittest.TestCase):
         self.assertEqual(chains[0].kind.rank, 0)
         self.assertEqual({chain.start_on for chain in chains[1:]} | {chain.end_on for chain in chains[1:]}, {0, None})
 
+    def test_a_street_that_carries_on_as_a_path_is_two_ways(self):
+        """Joined into one, the path was a road: ranked as its street, with a road's mouth where it met another street."""
+        ways = [road([(0, 500), (800, 500)], "residential"), {**road([(800, 500), (1600, 500)], "footway"), "motor": False}]
+        chains = roads.chains_from(roads.split_at_junctions(ways))
+        self.assertEqual([chain.motor for chain in chains], [True, False])
+        self.assertEqual(chains[1].start_on, 0)
+
     def test_a_road_cut_into_ways_runs_on_as_one_chain(self):
         ways = [road([(0, 500), (800, 520)]), road([(800, 520), (1500, 480)]), road([(1500, 480), (2600, 500)], "secondary")]
         self.assertEqual(len(roads.chains_from(roads.split_at_junctions(ways))), 1)

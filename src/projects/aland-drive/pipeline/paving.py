@@ -22,7 +22,7 @@ from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
 from give_way import EAVES_ROOM_M
-from path_surfaces import COBBLE, NONE, SLAB, STEPS, WAY_SURFACES, way_class
+from path_surfaces import COBBLE, NONE, SLAB, STEPS, TARMAC, WAY_SURFACES, way_class
 from roads import (
     APRON_ACROSS,
     APRON_CORNER_M,
@@ -883,7 +883,10 @@ def carriageway_corners(chains: list[Chain], carriageways: dict[int, shapely.Geo
     surface sweeps round from one road into the other. The arc's radius is the corner's own (`_corners`) and the strip
     past it, so that strip, or a street's kerb, runs round the arc at its own width.
 
-    Not near a tile's edge, where each tile sees only its own side, and never over a path, which keeps its own paving.
+    Not near a tile's edge, where each tile sees only its own side. A path through a corner is on the side road's
+    asphalt there, as it is on the carriageway it crosses: a sidewalk drawn on along the street across a side road's
+    mouth kept the corner's asphalt out of its band, so the arc stopped at the slabs on a square notch and the edge line
+    round it was cut off there.
 
     A drive (`is_driveway`) has no such corners where it crosses a sidewalk to a street: the sidewalk and the street's
     paving beside it carry on across the drive (`_sidewalks_across_driveways`), which meets the street at a dropped
@@ -918,7 +921,7 @@ def carriageway_corners(chains: list[Chain], carriageways: dict[int, shapely.Geo
                 continue
             # Joined on the paving's grid, as everything grown by a hair here is: shapes that share an edge to within a float's
             # rounding leave hair gaps between them, and growing across those gave an outline that crossed itself.
-            others = shapely.union_all([carriageways[index] if chains[index].motor else ground_prints[index] for index in (indices[at] for at in tree.query(zone)) if index not in (chain.index, parent.index) and index in carriageways], grid_size=GRID_M / 20)
+            others = shapely.union_all([carriageways[index] for index in (indices[at] for at in tree.query(zone)) if index not in (chain.index, parent.index) and index in carriageways and chains[index].motor], grid_size=GRID_M / 20)
             fill = shapely.intersection(shapely.union_all(fill).difference(others.buffer(SLIVER_M, quad_segs=1)), inner)
             fill = fill.buffer(-CORNER_TIP_M / 2, join_style="mitre").buffer(CORNER_TIP_M / 2, join_style="mitre")
             fill = shapely.union_all([part for part in _flat(fill) if not part.buffer(-CORNER_LEAST_M / 2).is_empty])
@@ -1011,7 +1014,9 @@ def ground_shape(chains: list[Chain], prints: dict[int, dict[int, shapely.Geomet
     indices = list(ground_prints)
     joined = _between_ways(gaps, [chains[index] for index in indices], [ground_prints[index] for index in indices]) if indices else []
     corners = [(shapely.intersection(corner, inner), street) for corner, street in _corners(chains, ground_prints)]
-    shape = shapely.union_all([laid, *joined, *(corner for corner, _ in corners), *(part for mouth in mouths for part in (mouth.fill, mouth.ring))])
+    # Joined on a grid far finer than the paving's own: hundreds of shapes whose edges run a hair apart, as a fill's does
+    # along the strip it was grown from, are more than GEOS can join as they stand.
+    shape = shapely.union_all([laid, *joined, *(corner for corner, _ in corners), *(part for mouth in mouths for part in (mouth.fill, mouth.ring))], grid_size=GRID_M / 20)
     # A hole in the paving smaller than a speck is paved: a patch of grass the size of a doormat among the slabs, where
     # three ways' outlines nearly met. So is a thin one, a ribbon of grass between two strips of paving.
     holes = [hole for hole in (shapely.Polygon(ring) for part in _flat(shape) for ring in part.interiors) if inner.contains(hole) and (hole.area < SPECK_M2 or (hole.area < THIN_HOLE_M2 and hole.buffer(-THIN_HOLE_M / 2).is_empty))]
@@ -1605,16 +1610,20 @@ def pieces_of(chains: list[Chain], prints: dict[int, dict[int, shapely.Geometry]
         look[piece] = sidewalk
     mouth = np.full(len(faces), NO_MOUTH)
     if mouths:
-        # Whatever shoulder or sidewalk band lay in a mouth's corner is the mouth's, but never a carriageway or a car park.
-        free = ~driven & (owner != AREA)
+        # Whatever shoulder, sidewalk band or path lay in a mouth's corner is the mouth's, but never a road's carriageway
+        # or a car park: a path through a corner crosses the side road there, on its asphalt.
+        on_road = driven & np.array([who >= 0 and chains[who].motor for who in owner], dtype=bool)
+        free = ~on_road & (owner != AREA)
         filled = {}
         for ring, shapes in ((False, [found.fill for found in mouths]), (True, [found.ring for found in mouths])):
             held, at = shapely.STRtree([shape.buffer(SLIVER_M) for shape in shapes]).query(middles, predicate="within")
             held, at = held[free[held]], at[free[held]]
             if ring:
-                # The strip round an arc is the fill's own edge: where a path keeps the fill out of a stretch of its
-                # corner, the strip past that stretch edges nothing, a pale kidney beyond the sidewalk.
+                # The strip round an arc is the fill's own edge: where the fill stops short of a stretch of its corner,
+                # the strip past that stretch edges nothing, a pale kidney beyond the sidewalk. And it lies on no
+                # asphalt: where a wedge fills what lay between two arcs, their strips there were scraps of kerb in it.
                 beside = np.array([index in filled and bool(shapely.dwithin(faces[piece], filled[index], 4 * SLIVER_M)) for piece, index in zip(held, at)], dtype=bool)
+                beside &= mouth[held] == NO_MOUTH
                 held, at = held[beside], at[beside]
             else:
                 filled = {int(index): shapely.union_all(faces[held[at == index]]) for index in np.unique(at)}
@@ -1756,7 +1765,8 @@ def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapel
     The strip between a sidewalk and the street's band beside it, where they stand a little apart across the drive, is
     neither's own, so the drive kept it: a stripe of asphalt between two of slabs. Where it is no wider than a gap
     closed between two ways anywhere, it is no way's, and wears the nearest sidewalk's surface as the strip either side
-    of the drive does.
+    of the drive does. Only across a drive that crosses the sidewalk: a car park's lane running along between the two
+    holds that strip for its whole length, and wearing the slabs it was a band of them down the middle of the asphalt.
 
     Returns each piece's owner, and for each piece of such a strip the sidewalk it wears."""
     owner = owner.copy()
@@ -1783,9 +1793,12 @@ def _sidewalks_across_driveways(chains: list[Chain], sidewalks: dict[int, shapel
         tree = shapely.STRtree([sidewalks[index] for index in indices])
         for piece in np.flatnonzero(service & shapely.contains(between, middles)):
             drive = chains[owner[piece]]
-            if is_driveway(drive.edges[drive.edge_at[drive.tree.query(xy[piece])[1]]].road):
+            at = drive.tree.query(xy[piece])[1]
+            sidewalk = indices[int(tree.nearest(middles[piece]))]
+            theirs, mine = drive.tangent[at], chains[sidewalk].tangent[chains[sidewalk].tree.query(xy[piece])[1]]
+            if is_driveway(drive.edges[drive.edge_at[at]].road) and abs(float(theirs[0] * mine[1] - theirs[1] * mine[0])) > CROSSING_SINE:
                 owner[piece] = JUNCTION
-                worn[int(piece)] = indices[int(tree.nearest(middles[piece]))]
+                worn[int(piece)] = sidewalk
     return owner, worn
 
 
@@ -2489,15 +2502,16 @@ def edge_looks(chains: list[Chain]) -> dict[int, tuple[np.ndarray, np.ndarray]]:
 
     A crossing's own surface is the road's it crosses, which that road draws: off it, mapped on a sidewalk's line across a
     side road's mouth or reaching from a street to its sidewalk, a crossing tagged asphalt painted metres of sidewalk dark.
-    It wears the sidewalk's look instead: its own way's nearest OSM way that isn't a crossing, or, for a way that is all
-    crossing, the path it leads to."""
+    It wears the sidewalk's look instead: its own way's nearest OSM way that isn't such a crossing, or, for a way that is
+    all crossing, the path it leads to. A crossing that says slabs, setts or gravel says it of itself, not of the street,
+    and keeps them: its ends are a paved corner, or a park's path come to the kerb."""
     looks = {chain.index: (np.array([way_class(edge.road, edge.road["motor"]) | _said_surface(edge.road) for edge in chain.edges], dtype=float), _way_runs(chain)) for chain in chains if chain.xy is not None and len(chain.xy) >= 2}
     walks = [chain for chain in chains if chain.index in looks and not chain.motor]
     ends = [(chain, station) for chain in walks for station in np.flatnonzero(~crossing_stations(chain))]
     tree = cKDTree(np.array([chain.xy[station] for chain, station in ends])) if ends else None
     for chain in walks:
         classes, runs = looks[chain.index]
-        crossings = np.array([is_crossing(edge.road) for edge in chain.edges])
+        crossings = np.array([is_crossing(edge.road) and way_class(edge.road, False) == TARMAC for edge in chain.edges])
         if not crossings.any():
             continue
         if not crossings.all():

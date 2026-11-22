@@ -15,7 +15,7 @@ import path_surfaces
 import paving
 from grid import TILE_SIZE_M, Tile
 from roads import Ground
-from vectors import clip_line, seam_direction
+from vectors import clip_line, seam_direction, with_crossings
 
 TILE_M = 1200.0
 
@@ -298,6 +298,32 @@ class OneSurface(unittest.TestCase):
         theirs = beside & ((middle[:, 1] < 600 + reach - 0.05) | (middle[:, 1] > 606.75 - 0.95))
         self.assertGreater(int(theirs.sum()), 0)
         self.assertFalse(np.isin(corners[theirs][:, :, 6].astype(int), crossings).all(axis=1).any())
+
+    def test_a_path_mapped_across_a_street_is_a_crossing_though_it_does_not_say_so(self):
+        """About one in six of Mariehamn's crossings is mapped without the tag. Such a one was a path like any other:
+        tagged asphalt, for the street it crosses, it painted a square of tarmac across each sidewalk it reached."""
+        street = road([(100, 600), (600, 600), (700, 600), (800, 600), (1100, 600)])
+        crossing = road([(600, 593.25), (600, 600), (600, 606.75)], "footway", motor=False, surface="asphalt")
+        bikes = road([(700, 594), (700, 600), (700, 606)], "cycleway", motor=False)
+        marked = with_crossings([street, crossing, bikes])
+        self.assertEqual([(way.get("footway"), way.get("cycleway")) for way in marked], [(None, None), ("crossing", None), (None, "crossing")])
+        # A long path that crosses a street is a path in its own right; a way that says what it is is that; and a path
+        # that only ends on a street crosses nothing.
+        path = road([(600, 560), (600, 600), (600, 640)], "footway", motor=False, surface="asphalt")
+        sidewalk = road([(800, 594), (800, 600), (800, 606)], "footway", motor=False, footway="sidewalk")
+        stub = road([(700, 600), (700, 606)], "footway", motor=False)
+        self.assertEqual(with_crossings([street, path, sidewalk, stub])[1:], [path, sidewalk, stub])
+
+    def test_a_crossing_that_says_slabs_keeps_them_off_the_road(self):
+        """Every crossing wore the look of the path it led to, so one paved in stone from a park's gravel path to the
+        kerb was gravel to the kerb, and the corner of two streets a patch of it among the slabs."""
+        street = road([(100, 600), (600, 600), (1100, 600)])
+        crossing = road([(600, 580), (600, 600), (600, 620)], "footway", motor=False, footway="crossing", surface="paving_stones")
+        park = [road([(600, 620), (600, 700)], "footway", motor=False, surface="fine_gravel"), road([(600, 580), (600, 500)], "footway", motor=False, surface="fine_gravel")]
+        paved = paving.lay([street, crossing, *park], land())
+        for north in np.arange(605.5, 618, 1.0):
+            self.assertTrue(((triangle_at(paved, 600.3, float(north))[:, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.SLAB).all(), north)
+        self.assertTrue(((triangle_at(paved, 600.3, 623.5)[:, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.GRAVEL).all())
 
     def test_a_named_service_way_is_a_street_not_a_driveway(self):
         """Stava Mostersvägen is a service way by OSM's class, and the sidewalk carried on across its mouth as across a
@@ -586,24 +612,29 @@ class Mouths(unittest.TestCase):
         self.assertTrue((across[beside & (north > 616)] == 1).all())
 
 
-    def test_the_strip_round_a_mouth_s_arc_is_only_where_its_fill_is(self):
-        """A sidewalk beside the street keeps the mouth's fill out of the far part of each corner, and the strip past
-        that part edged nothing: a pale kidney of kerb beyond the sidewalk."""
-        street = road([(100, 600), (600, 600), (1100, 600)])
-        sidewalk = road([(100, 605), (1100, 605)], "footway", motor=False, footway="sidewalk")
-        side = road([(600, 600), (600, 900)])
-        paved = paving.lay([street, sidewalk, side], land())
-        joining = sorted((chain for chain in paved.chains if chain.motor), key=lambda chain: -np.ptp(chain.xy[:, 0]))[1]
-        footway = next(chain for chain in paved.chains if not chain.motor)
+    def test_no_scrap_of_kerb_is_left_in_the_asphalt_where_a_roundabout_s_arm_parts(self):
+        """Each of an arm's two ways has a corner with the ring and a strip round its arc, and the wedge between the two
+        ways is asphalt. The strips were laid over the wedge: a needle of kerb in the middle of the asphalt."""
+        radius, apart, back = 16, 10, 50
+        aside = np.arcsin(apart / 2 / radius)
+        entry_at, exit_at = (600 + radius * np.sin(aside), 600 - radius * np.cos(aside)), (600 - radius * np.sin(aside), 600 - radius * np.cos(aside))
+        circle = [(600 + radius * np.cos(angle), 600 + radius * np.sin(angle)) for angle in np.radians(np.arange(0, 360, 15))]
+        around = sorted([*circle, entry_at, exit_at], key=lambda point: np.arctan2(point[1] - 600, point[0] - 600))
+        meet = (600, 600 - radius - back)
+        ways = [
+            road([*around, around[0]], "tertiary", junction="roundabout", oneway="yes"),
+            road([meet, entry_at], "tertiary", oneway="yes"),
+            road([exit_at, meet], "tertiary", oneway="yes"),
+            road([(600, 200), meet], "tertiary"),
+        ]
+        paved = paving.lay(ways, land(town=0.0))
         corners = paved.points[paved.triangles]
-        middle = corners[:, :, :2].mean(axis=1)
-        across = np.abs(corners[:, :, 3])
-        kerb = (across.min(axis=1) >= 1) & (across.max(axis=1) > paving.CARRIAGEWAY_EDGE_ACROSS) & (corners[:, 0, 6].astype(int) == joining.index)
-        beyond = kerb & (middle[:, 1] > 605 + float(footway.half.max()) + 0.05) & (np.abs(middle[:, 0] - 600) < 14)
-        self.assertGreater(int(beyond.sum()), 0)
-        # Past the sidewalk the side street's kerb is its own strip along its edge, and nothing further out.
-        reach = float(paved.crosses[joining.index].reach_left.max())
-        self.assertLessEqual(float(np.abs(corners[beyond][:, :, 0] - 600).max()), reach + 0.05)
+        carriageway = np.abs(corners[:, :, 3]).max(axis=1) <= paving.CARRIAGEWAY_EDGE_ACROSS
+        asphalt = shapely.union_all(shapely.polygons(np.concatenate((corners[carriageway][:, :, :2], corners[carriageway][:, :1, :2]), axis=1)), grid_size=0.005)
+        islands = [shapely.Polygon(ring) for part in shapely.get_parts(asphalt) for ring in part.interiors]
+        # The ring's own island and the arm's splitter, and nothing as thin as a sliver.
+        self.assertGreaterEqual(len(islands), 2)
+        self.assertGreater(min(2 * island.area / island.length for island in islands), paving.SLIVER_WIDE_M)
 
     def test_the_wedge_between_two_roads_that_merge_at_a_slant_is_asphalt_back_to_a_nose(self):
         """The shoulder between two merging carriageways ran on to where they met as a needle metres long, pale down the
@@ -641,6 +672,26 @@ class Paint(unittest.TestCase):
             self.assertEqual(float(triangle_at(paved, *on_line)[:, 4].max()), 0, degrees)
             # Inside it, bare asphalt.
             self.assertLess(across_at(paved, *(centre - (radius + 0.25 * half) * towards)), EDGE_LINE[0], degrees)
+
+    def test_a_mouth_s_corner_and_its_edge_line_are_whole_where_a_sidewalk_is_mapped_across_it(self):
+        """A sidewalk drawn on along the street across a side road's mouth kept the corner's asphalt out of its band: the
+        arc stopped at the slabs on a square notch, and the edge line round it was cut off there."""
+        main = road([(100, 600), (600, 600), (1100, 600)], "tertiary")
+        side = road([(600, 600), (600, 900)], "tertiary")
+        sidewalk = road([(100, 605.5), (1100, 605.5)], "footway", motor=False, footway="sidewalk", surface="paving_stones")
+        paved = paving.lay([main, side, sidewalk], land())
+        through, joining = sorted((chain for chain in paved.chains if chain.motor), key=lambda chain: -np.ptp(chain.xy[:, 0]))
+        half = float(through.half.max())
+        radius = 7.0 + float(joining.shoulder[0])
+        centre = 600 + half + radius
+        for degrees in (12, 30, 43, 60, 78):
+            towards = np.array([np.cos(np.radians(degrees)), np.sin(np.radians(degrees))])
+            on_line = centre - (radius + (1 - LINE_MIDDLE) * half) * towards
+            self.assertTrue(EDGE_LINE[0] < across_at(paved, *on_line) < EDGE_LINE[1], degrees)
+        # On the sidewalk's line, inside the corner: the side road's asphalt.
+        inside = triangle_at(paved, 600 + half + 1.5, 605.5)
+        self.assertTrue((inside[:, 6] == joining.index).all())
+        self.assertTrue(((inside[:, 7].astype(int) & paving.CLASS_BITS) == path_surfaces.NONE).all())
 
     def test_a_slip_road_s_edge_line_is_whole_where_its_edge_runs_out_of_the_greater_road_s_asphalt(self):
         """Its own asphalt there is a wedge as thin as the two roads' angle, and its line, painted on that alone, was a

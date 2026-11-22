@@ -334,7 +334,11 @@ def _heading(edge: Edge, forwards: bool) -> np.ndarray:
 
 
 def chains_from(edges: list[Edge]) -> list[Chain]:
-    """The greatest roads first, each run on through junctions the straightest way until it meets a road already laid."""
+    """The greatest roads first, each run on through junctions the straightest way until it meets a road already laid.
+
+    A road runs on only as a road, and a path as a path. A street that carries on as a footway was one way with it, and
+    everything said of a way as a whole was said of both: the footway was a road, ranked as its street, with a road's
+    mouth and a give-way line where it met another street, and no sidewalk to the drives that crossed it."""
     at_node: dict[tuple, list[Edge]] = {}
     for edge in edges:
         at_node.setdefault(edge.start, []).append(edge)
@@ -344,13 +348,14 @@ def chains_from(edges: list[Edge]) -> list[Chain]:
     claimed: dict[tuple, int] = {}
     chains: list[Chain] = []
 
-    def walk(node: tuple, heading: np.ndarray, own: set[tuple], ring: bool) -> list[tuple[Edge, bool]]:
+    def walk(node: tuple, heading: np.ndarray, own: set[tuple], seed: Edge) -> list[tuple[Edge, bool]]:
+        ring, motor = seed.is_ring, bool(seed.road["motor"])
         walked = []
         while node not in claimed and node not in own:
             own.add(node)
             options = []
             for edge in at_node[node]:
-                if id(edge) in used or edge.is_ring != ring:
+                if id(edge) in used or edge.is_ring != ring or bool(edge.road["motor"]) != motor:
                     continue
                 forwards = edge.start == node
                 onward = edge.points[1] - edge.points[0] if forwards else edge.points[-2] - edge.points[-1]
@@ -373,8 +378,8 @@ def chains_from(edges: list[Edge]) -> list[Chain]:
             continue
         used.add(id(seed))
         own: set[tuple] = {seed.start}
-        ahead = walk(seed.end, _heading(seed, True), own, seed.is_ring)
-        behind = walk(seed.start, _heading(seed, False), own - {seed.start}, seed.is_ring)
+        ahead = walk(seed.end, _heading(seed, True), own, seed)
+        behind = walk(seed.start, _heading(seed, False), own - {seed.start}, seed)
         walked = [(edge, not forwards) for edge, forwards in reversed(behind)] + [(seed, True)] + ahead
         ordered = []
         for edge, forwards in walked:
