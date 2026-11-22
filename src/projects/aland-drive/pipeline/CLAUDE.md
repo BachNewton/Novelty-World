@@ -28,7 +28,9 @@ That builds the venv on first use, downloads what is missing into `.data/raw/` (
 
 **Tiles don't live in git.** One does: `fixture/` is L2343C with a `world.json` of its own, a world of one tile for the tests. It needn't match what's published, and only needs refreshing when the format changes. `fixture/paved/` is a small paved tile on made-up land that the game's paving decoders are held to; `pipeline/test_paving_file.py --fixture` writes it again after a change to that format.
 
-**Tests** are `pipeline/test_*.py`, run with `pipeline/.venv/Scripts/python -m unittest discover -s src/projects/aland-drive/pipeline`. The audits measure rather than test: `rock_audit.py` (rock against OSM, canopy and photo), `audit.py` (OSM's roads on a built tile), `road_audit.py` (the surface built from them), `stand_audit.py` (the planted lattice), `check_edges.py` (real sea, shore and neighbouring tiles) and `check_seams.py` (every shared edge).
+**Tests** are `pipeline/test_*.py`, run with `pipeline/.venv/Scripts/python -m unittest discover -s src/projects/aland-drive/pipeline`. The audits measure rather than test: `rock_audit.py` (rock against OSM, canopy and photo), `audit.py` (OSM's roads on a built tile), `road_audit.py` (the surface built from them), `stand_audit.py` (the planted lattice), `check_edges.py` (real sea, shore and neighbouring tiles) and `check_seams.py` (every shared edge). On a paved tile, `paving_audit.py` counts the faults left by their cause, and `look_census.py` counts what a player would see wrong in the surface as drawn (slivers and scraps of a surface, sharp corners of the asphalt's outline, one surface smeared into the next), the same way on any build, so two builds compare.
+
+**Working on the paving** doesn't take a tile build each time: `paving_window.py` lays the roads round one place of a real tile in seconds, counts them as the census does and draws them from above, and draws the same picture of a built tile to set beside it.
 
 ## What a tile holds
 
