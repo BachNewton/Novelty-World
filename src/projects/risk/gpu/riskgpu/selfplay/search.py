@@ -25,6 +25,11 @@ read on them can't tell a weak search from a badly trained slot. The candidate w
 is played if it beats the first choice's mean by more than `--margin`; otherwise the first choice
 is.
 
+**The clock.** A network that reads the clock (`obs.py`, `Net.clock`) sees the player-turns left
+before `--cap`, in the real games and in every copy: a copy keeps its game's turn counter and ends
+at the same cap, so the clock counts down to the same end there. A network without it sees exactly
+what it always did.
+
 **No cheating.** A copy never sees the real game's future dice: its random stream is replaced by
 one hashed from the game's seed, the decision's index, the copy's index and (with `--no-crn`) the
 candidate's, so the tool is reproducible and the real rolls are out of reach. By default the
@@ -202,6 +207,15 @@ def copy_states(s: State, seat: torch.Tensor, base: torch.Tensor, decision: torc
 # --- the network -------------------------------------------------------------------------------
 
 
+def observation(net: Net, cap: int, s: State, o: Options, log: TurnLog,
+                board: Board) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """What `net` sees in every game of `s`: with the clock where it reads it, counted down to the
+    game's cap. A copy keeps its game's turn counter and plays to the same cap, so the clock means
+    in a rollout what it means in the real game."""
+    caps = torch.full((s.batch,), cap, dtype=torch.int64, device=s.device) if net.clock else None
+    return observe(s, o, log.placed_on, log.attacks, log.captured, board, caps)
+
+
 def gumbel_argmax(z: torch.Tensor, gen: torch.Generator) -> torch.Tensor:
     """A sample from softmax(z), as `net.choose` draws it, from its own generator."""
     return (z - torch.empty_like(z).exponential_(generator=gen).log()).argmax(1)
@@ -231,7 +245,7 @@ class Searcher:
 
     def heads(self, s: State, o: Options, log: TurnLog) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """`(x, logits, value [n, 6] by slot, legal)` for every game of `s`, in chunks."""
-        node, slot, glob = observe(s, o, log.placed_on, log.attacks, log.captured, self.board)
+        node, slot, glob = observation(self.net, self.cfg.cap, s, o, log, self.board)
         xs, ls, vs = [], [], []
         for at in range(0, s.batch, self.cfg.chunk):
             part = slice(at, at + self.cfg.chunk)

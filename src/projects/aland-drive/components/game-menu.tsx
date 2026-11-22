@@ -8,10 +8,11 @@ import { PadHints } from "@/shared/components/pad-hints";
 import { placeText, resultText } from "../challenge/format";
 import type { Medal } from "../challenge/standings";
 import type { RaceGround } from "../challenge/types";
-import { isCarItem, isPaintItem, paintOfItem, shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
+import { isCarItem, isPaintItem, lineOfItem, paintOfItem, shiftingOfItem, tyreOfItem, unitsOfItem, type GameMenu as GameMenuState, type MenuItemId, type MenuResult, type RaceCard, type RaceResult } from "../render/game-menu";
 import { CarSelect } from "./car-select";
 import { SettingsMenu } from "./settings-menu";
-import { ACCENT, CHALLENGE, INK, MenuButton, SHADE, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type ItemLook } from "./menu-parts";
+import { ACCENT, CHALLENGE, INK, LINE_LOOKS, MenuButton, SHADE, SHIFTING_LOOKS, TYRE_LOOKS, UNITS_LOOKS, type ItemLook } from "./menu-parts";
+import { useDrivingLine } from "../driving-line";
 import { useUnits } from "../units";
 
 /*
@@ -34,6 +35,7 @@ const GROUND_NAMES: Record<RaceGround, string> = { road: "Road", "cross-country"
 
 function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
   const shownUnits = useUnits((state) => state.units);
+  const shownLine = useDrivingLine((state) => state.line);
   return (id) => {
     if (isPaintItem(id)) return { icon: PaintBucket, label: `Paint ${paintOfItem(id) + 1}` };
     if (isCarItem(id)) return { icon: Car, label: id };
@@ -50,6 +52,12 @@ function useItemLook(menu: GameMenuState): (id: MenuItemId) => ItemLook {
       case "shifting-manual": {
         const shifting = shiftingOfItem(id);
         return { icon: SHIFTING_LOOKS[shifting].icon, label: SHIFTING_LOOKS[shifting].name, on: menu.shifting === shifting };
+      }
+      case "line-off":
+      case "line-braking":
+      case "line-full": {
+        const line = lineOfItem(id);
+        return { icon: LINE_LOOKS[line].icon, label: LINE_LOOKS[line].name, on: line === shownLine };
       }
       case "units-metric":
       case "units-imperial": {

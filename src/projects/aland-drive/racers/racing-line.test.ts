@@ -38,7 +38,7 @@ function corridorAlong(corners: [number, number][], halfWidthM = HALF_WIDTH_M): 
     const before = centres[Math.max(0, index - 1)];
     const after = centres[Math.min(centres.length - 1, index + 1)];
     const run = Math.hypot(after.x - before.x, after.z - before.z) || 1;
-    return { x, y: 0, z, rightX: -(after.z - before.z) / run, rightZ: (after.x - before.x) / run, leftM: halfWidthM, rightM: halfWidthM, paved: true, bridged: false };
+    return { x, y: 0, z, rightX: -(after.z - before.z) / run, rightZ: (after.x - before.x) / run, leftM: halfWidthM, rightM: halfWidthM, leftRiseM: 0, rightRiseM: 0, paved: true, bridged: false };
   });
 }
 

@@ -22,6 +22,14 @@ seat is acting there: an other-slot value whenever another seat is, which slot 0
 to agree with. A resumed run keeps the bootstrap it was trained with (a checkpoint from before the
 choice existed was trained with `acting`).
 
+**The league** seats the learner's opponents by share (`league_mix`): copies of the learner, the
+snapshot slots, GD's personas, and greedy in what they leave. The snapshot slots hold the anchors
+(`--league-fixed`) for good and the run's own snapshots in the rest. A best response to one frozen
+net (an exploiter) gives it every slot and every seat: `--league-fixed <it> --snapshots 1
+--snapshot-share 1 --self-share 0 --gd-share 0`, with `--snapshot-cap` raised to most of the batch,
+since that one net then makes most of the decisions. A frozen net observes as its own checkpoint
+does, the clock included.
+
 `--actions` chooses a new network's action space (`actions.py`): the buckets, or the exact space,
 which `--init` may start from a bucket-space checkpoint's trunk and main heads, its argument head
 fresh. The league, the evaluations and the panel seat each network in its own space.
@@ -659,6 +667,28 @@ def pick_by_results(candidates: list[str], k: int, record_of: dict[str, list[flo
     return chosen
 
 
+def league_mix(kinds: int, self_share: float, snapshot_share: float, gd_share: float, fixed: int, slots: int,
+               own_snapshots: int) -> tuple[torch.Tensor, int, int]:
+    """The league's mix: each controller kind's share of the non-learner seats, the anchors seated and
+    how many of the run's own snapshots are. The anchors (`fixed` of them, `--league-fixed`) hold the
+    first of the `slots` snapshot slots for good and the run's own snapshots fill the rest, so anchors
+    in every slot make a league of them alone: with the snapshot share the whole, every opponent seat is
+    one of them, and the run's own snapshots are saved and read but never met. Greedy takes what the
+    other shares leave, and the snapshot share is greedy's until a slot holds a net."""
+    probs = torch.zeros(kinds)
+    probs[LEARNER] = self_share
+    own = min(own_snapshots, slots - fixed) if snapshot_share > 0 else 0
+    anchors = fixed if snapshot_share > 0 else 0
+    snaps = anchors + own
+    snap_share = snapshot_share if snaps else 0.0
+    probs[GREEDY] = max(0.0, 1.0 - self_share - snap_share - gd_share)
+    for k in range(len(GD_PERSONAS)):
+        probs[GD + k] = gd_share / len(GD_PERSONAS)
+    for k in range(snaps):
+        probs[SNAPSHOT + k] = snap_share / snaps
+    return probs, anchors, own
+
+
 def trained_from_log(out_dir: str, iteration: int) -> float:
     """Training time up to `iteration`, for a checkpoint saved before checkpoints kept it."""
     with open(os.path.join(out_dir, "log.jsonl")) as f:
@@ -773,7 +803,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--snapshots", type=int, default=4, help="snapshot slots in the league")
-    p.add_argument("--league-fixed", default="", help="checkpoints always in the league's snapshot slots, comma-separated")
+    p.add_argument("--snapshot-cap", type=float, default=EnvConfig.cap_snapshot,
+                   help="the most rows each snapshot slot's net is run on per step, as a share of the batch (a "
+                        "decision past it waits a step); a league of one net in every opponent seat needs most of it")
+    p.add_argument("--league-fixed", default="",
+                   help="checkpoints always in the league's snapshot slots, comma-separated; as many as --snapshots "
+                        "make the league theirs alone, the run's own snapshots never seated")
     p.add_argument("--league-pick", default="recent", choices=["recent", "results"],
                    help="how the run's own slots are filled: the newest half and a random rest, or the newest and the rest by results")
     p.add_argument("--eval-every", type=int, default=25)
@@ -855,9 +890,9 @@ def main(argv: list[str] | None = None) -> int:
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
                     reward=args.reward, cap_score=args.cap_score, serve=args.serve, time_discount=args.time_discount,
-                    snapshots=args.snapshots, bf16=args.bf16)
+                    snapshots=args.snapshots, cap_snapshot=args.snapshot_cap, bf16=args.bf16)
     fixed = [x for x in args.league_fixed.split(",") if x]
-    assert len(fixed) < cfg.snapshots, "leave the league a slot for this run's own snapshots"
+    assert len(fixed) <= cfg.snapshots, "the league's anchors need a slot each: give --snapshots at least as many"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
               gd_bots=gd_bots if args.gd_share > 0 else None)
     kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
@@ -871,14 +906,8 @@ def main(argv: list[str] | None = None) -> int:
     slot_paths: list[str] = []  # the own snapshot in each slot after the anchors
 
     def set_league() -> None:
-        probs = torch.zeros(len(kinds))
-        probs[LEARNER] = args.self_share
-        own = min(len(league), cfg.snapshots - len(fixed)) if args.snapshot_share > 0 else 0
-        anchors = len(fixed) if args.snapshot_share > 0 else 0
-        snap_share = args.snapshot_share if own + anchors else 0.0
-        probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share - args.gd_share)
-        for k in range(len(GD_PERSONAS)):
-            probs[GD + k] = args.gd_share / len(GD_PERSONAS)
+        probs, anchors, own = league_mix(len(kinds), args.self_share, args.snapshot_share, args.gd_share, len(fixed),
+                                         cfg.snapshots, len(league))
         if args.league_pick == "results":
             chosen = league[-1:] + pick_by_results(league[:-1], own - 1, record_of) if own else []
         else:
@@ -893,8 +922,6 @@ def main(argv: list[str] | None = None) -> int:
         # The anchors (`--league-fixed`) hold the first slots for good, nets of their own sizes.
         for k, path in enumerate(chosen):
             env.snapshots[anchors + k].load_state_dict(torch.load(os.path.join(GPU, path), map_location=device, weights_only=False))
-        for k in range(snaps):
-            probs[SNAPSHOT + k] = snap_share / snaps
         env.kind_probs.copy_(probs.to(device))
         if snaps != env.active_snapshots:
             env.active_snapshots = snaps

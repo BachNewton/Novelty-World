@@ -25,6 +25,7 @@ import { ruleBot as ruleV7_1, ruleV7_1Bot } from "./rule-v7.1";
 import { V7_1_PARAMS } from "./rule-v7.1/params";
 import { learnedV1Bot } from "./learned-v1";
 import { learnedV2Bot } from "./learned-v2";
+import { learnedV3Bot } from "./learned-v3";
 import { DEFAULT_WEIGHTS as NET_DEFAULT_WEIGHTS, isPick, netV1, netV1Bot, PICKS } from "./net-v1";
 import { WEIGHT_SETS as NET_WEIGHT_SETS } from "./net-v1/weights";
 import { netV2 } from "./net-v2";
@@ -56,6 +57,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "net-v1": netV1Bot,
   "learned-v1": learnedV1Bot,
   "learned-v2": learnedV2Bot,
+  "learned-v3": learnedV3Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -84,6 +86,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "net-v1": "net-v1/index.ts",
   "learned-v1": "learned-v1/index.ts",
   "learned-v2": "learned-v2/index.ts",
+  "learned-v3": "learned-v3/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",

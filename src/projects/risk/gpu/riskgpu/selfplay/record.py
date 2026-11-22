@@ -14,7 +14,8 @@ the panel's or a reading's.
 **What a sample is.** One per searched decision of a searching seat: the state before the move as
 `imitate.py` keeps it (every field the options and the observation read, and the turn so far), so
 the observation, the legal choices and the decision's kind are rebuilt from it exactly as the search
-saw them, and nothing derived from them is stored; the candidates, each as the network's own action
+saw them (a net's clock from the kept turn and the search's `cap`, which `recording.json` holds),
+and nothing derived from them is stored; the candidates, each as the network's own action
 (`cand_main`, `cand_amount`: the main choice and the amount bucket, or in the exact space the
 argument slot) with its mean rollout score (`mean`), its number of rollouts (`count`) and the raw
 policy's probabilities of it (`p_main`, and `p_amount` given its main choice); the candidate played
@@ -62,8 +63,10 @@ from ..tables import BlitzTables
 from .imitate import decision_kind, kept_fields
 from .search import KINDS, SearchConfig, Searcher
 
-SEARCHED, CONFIDENT, UNSEARCHED_KIND = 0, 1, 2
-SOURCES = ("searched", "confident", "unsearched-kind")
+# Where a sample's target came from. `PLAYED` is `own.py`'s: the net's own most likely move at a
+# decision of its sampled play, with no search, which a recording of a net's own play holds alone.
+SEARCHED, CONFIDENT, UNSEARCHED_KIND, PLAYED = 0, 1, 2, 3
+SOURCES = ("searched", "confident", "unsearched-kind", "played")
 MIXTURES = ("self", "one-in")
 CONFIG = "recording.json"
 

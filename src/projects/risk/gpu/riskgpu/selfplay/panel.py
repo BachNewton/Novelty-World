@@ -6,9 +6,11 @@ run from `src/projects/risk/gpu/`; the PPO trainer reads the same panel on its l
 `--eval-every` iterations with `--panel`. At 5 players, on fixed deals, the network alone among four
 GD Defensive (the floor), and one-in and one-out against net-v1 sw128b-450 (the planner's class),
 against imit-1 (the imitation of the target's class), against s2-2-150 (stage 2's best, past
-the target's class, learned-v1's weights) and against b1-100 (the carried bootstrap's first run,
-past s2-2-150), each read twice: the network sampling its
-moves as net-v1 plays, and playing its most likely move. Its opponents always sample. Each reading is
+the target's class, learned-v1's weights), against b1-100 (the carried bootstrap's first run,
+past s2-2-150, learned-v2's weights) and against d4-500 (a net that reads the clock, past b1-100),
+each read twice: the network sampling its moves as net-v1 plays, and playing its most likely move.
+Its opponents always sample. Each seat observes as its own network does: a network that reads the
+clock, the read one or an anchor, sees the turns left before the panel's cap of 600. Each reading is
 the network side's win share of the decisive games against its par, with a 95% Wilson interval.
 Beside them, the stall's health reading: five argmax copies of the network at one table, and the
 share of those games that reach the cap.
@@ -34,7 +36,9 @@ SW128B_450 = os.path.join(GPU, "runs", "selfplay", "sw128b", "snap-450.pt")
 IMIT_1 = os.path.join(GPU, "runs", "imitate", "imit-1", "best.pt")
 S2_2_150 = os.path.join(GPU, "runs", "selfplay", "s2-2", "snap-150.pt")
 B1_100 = os.path.join(GPU, "runs", "selfplay", "b1", "snap-100.pt")
-ANCHORS = (("sw128b-450", SW128B_450), ("imit-1", IMIT_1), ("s2-2-150", S2_2_150), ("b1-100", B1_100))
+D4_500 = os.path.join(GPU, "runs", "selfplay", "d4", "snap-500.pt")
+ANCHORS = (("sw128b-450", SW128B_450), ("imit-1", IMIT_1), ("s2-2-150", S2_2_150), ("b1-100", B1_100),
+           ("d4-500", D4_500))
 MODES = ("sample", "argmax")
 
 

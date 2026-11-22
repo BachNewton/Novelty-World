@@ -1,6 +1,6 @@
 import { ADJACENCY } from "../../map";
 import { ATTACK, COUNT, EDGES, END_ATTACK, END_TURN, FORTIFY, MAIN, OCCUPY, PLACE, TRADE, amountBuckets, IDS, indexOf } from "./actions";
-import { GLOBAL, NODE, SEATS, SLOT, type Observation } from "./observe";
+import { CLOCK, GLOBAL, NODE, SEATS, SLOT, type Observation } from "./observe";
 
 // net-v1's network, the trainer's transformer (`gpu/riskgpu/selfplay/net.py`, whose docstring
 // explains it) run in plain float64 over its float32 weights. Every sum runs in one fixed order
@@ -16,6 +16,8 @@ export interface NetWeights {
   heads: number;
   /** The feed-forward's width. */
   ff: number;
+  /** Whether the net reads the clock (the trainer's `--obs-turn`); a set without it doesn't. */
+  clock?: boolean;
   tensors: Readonly<Record<string, string>>;
 }
 
@@ -50,6 +52,8 @@ interface Block {
 export interface Core {
   width: number;
   heads: number;
+  /** Whether its observation ends with the clock. */
+  clock: boolean;
   nodeIn: Linear;
   slotIn: Linear;
   globIn: Linear;
@@ -125,12 +129,14 @@ export function loadCore(w: NetWeights, r: WeightReader, bot: string): Core {
   const norm = (name: string, width: number): Norm => ({ weight: tensor(`${name}.weight`, width), bias: tensor(`${name}.bias`, width) });
   const { width, heads, ff } = w;
   if (width % heads !== 0) throw new Error(`${bot}'s width ${width.toString()} doesn't split into ${heads.toString()} heads`);
+  const clock = w.clock ?? false;
   const core: Core = {
     width,
     heads,
+    clock,
     nodeIn: linear("node_in", NODE, width),
     slotIn: linear("slot_in", SLOT, width),
-    globIn: linear("glob_in", GLOBAL, width),
+    globIn: linear("glob_in", clock ? GLOBAL + CLOCK : GLOBAL, width),
     identity: tensor("identity", TOKENS * width),
     blocks: Array.from({ length: w.layers }, (_, i) => ({
       ln1: norm(`blocks.${i.toString()}.ln1`, width),

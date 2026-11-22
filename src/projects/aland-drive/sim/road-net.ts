@@ -65,6 +65,24 @@ export class RoadLine {
     return onSegment(points, lengths, low, points[low * 3] + share * (points[low * 3 + 3] - points[low * 3]), points[low * 3 + 2] + share * (points[low * 3 + 5] - points[low * 3 + 2]));
   }
 
+  /**
+   * How far along the line a place stands, looked for within a reach of where it stood last, at a step: a line that
+   * passes a place lap after lap is followed on from where the follower is, never jumped along.
+   */
+  alongNear(along: number, x: number, z: number, reachM: number, stepM: number): number {
+    let best = along;
+    let nearest = Infinity;
+    for (let at = Math.max(along - reachM, 0); at <= along + reachM; at += stepM) {
+      const point = this.at(at);
+      const distance = (point.x - x) * (point.x - x) + (point.z - z) * (point.z - z);
+      if (distance < nearest) {
+        nearest = distance;
+        best = at;
+      }
+    }
+    return best;
+  }
+
   /** The point on the line nearest a place. */
   nearest(x: number, z: number): RoadPoint {
     let best = onSegment(this.points, this.lengths, 0, x, z);

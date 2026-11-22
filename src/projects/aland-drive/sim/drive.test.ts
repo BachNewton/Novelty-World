@@ -77,6 +77,44 @@ describe("the drive along Route 1", () => {
     drive.dispose();
   });
 
+  it("lights its brake lamps for braking, steadily through a pedal that flutters, and not for a touch of it", () => {
+    const drive = newDrive();
+    const lit = () => drive.stateAt(1).lamps.brake;
+    for (let step = 0; step < 4 * 120; step++) drive.step({ ...NO_INPUT, throttle: 1 });
+    // A touch that slows the car less than lifting off does: no lamps.
+    for (let step = 0; step < 60; step++) {
+      drive.step({ ...NO_INPUT, brake: 0.02 });
+      expect(lit()).toBe(false);
+    }
+    // On and off every step, as a racer's pedals are in a queue: one steady light.
+    for (let step = 0; step < 120; step++) {
+      drive.step({ ...NO_INPUT, brake: step % 2 === 0 ? 0.5 : 0 });
+      expect(lit()).toBe(true);
+    }
+    // Let go: lit for a moment more, as long as a foot takes, and then out.
+    let after = 0;
+    for (; after < 240 && lit(); after++) drive.step(NO_INPUT);
+    expect(after / 120).toBeGreaterThan(0.3);
+    expect(after / 120).toBeLessThan(0.7);
+    drive.dispose();
+  });
+
+  it("brakes with the brake pedal while it rolls backwards, and takes reverse only once stopped", () => {
+    const drive = newDrive();
+    const start = drive.stateAt(1);
+    const heading = 2 * Math.atan2(start.rotation[1], start.rotation[3]);
+    // Rolling backwards at 10 m/s, as a car spun round on a straight is.
+    drive.player.resume({ ...start, velocity: [10 * Math.sin(heading), 0, 10 * Math.cos(heading)] });
+    let reversedFromMS: number | null = null;
+    for (let step = 0; step < 120 * 4 && reversedFromMS === null; step++) {
+      drive.step({ ...NO_INPUT, brake: 1 });
+      if (drive.engine().reversing) reversedFromMS = speedOf(drive.stateAt(1));
+    }
+    expect(reversedFromMS).not.toBeNull();
+    expect(reversedFromMS).toBeLessThan(1.2);
+    drive.dispose();
+  });
+
   it("stays on the road at full speed with every wheel down", () => {
     const drive = route(GOOD_ROAD_CRUISE_MS, 150);
     expect(drive.log.metres).toBeGreaterThan(5800);

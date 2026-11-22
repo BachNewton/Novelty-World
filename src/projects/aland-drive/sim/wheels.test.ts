@@ -75,4 +75,16 @@ describe("the wheels", () => {
     };
     expect(turned({ brake: 1, steer: 1 })).toBeGreaterThanOrEqual(turned({ brake: 1, steer: 0.5 }));
   });
+
+  it("keep a car straight flat out on snow with traction control: its engine asks several times what the tyres hold there", () => {
+    const drive = driveOn("gravel", "altura");
+    drive.condition = "snow";
+    drive.tyres = "winter";
+    const before = headingOf(drive.stateAt(1).rotation);
+    for (let step = 0; step < 25 * 120; step++) drive.step({ ...NO_INPUT, throttle: 1 });
+    const after = drive.stateAt(1);
+    expect(Math.abs(headingOf(after.rotation) - before)).toBeLessThan(0.02);
+    expect(speedOf(after) * 3.6).toBeGreaterThan(100);
+    drive.dispose();
+  });
 });

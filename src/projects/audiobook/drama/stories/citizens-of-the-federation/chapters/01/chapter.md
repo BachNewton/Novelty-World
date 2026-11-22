@@ -1,263 +1,261 @@
-# Chapter 1: Father's Day
+# Chapter 1: Golden Gate
 
-In the autumn of 2026, Anna Dorsey and Ben Novak had been living in Helsinki for five years, with two children and a third on the way.
+On Sunday afternoons that winter, the Novaks and the Toners drove across the Golden Gate Bridge so that they could look at it.
 
-That Sunday the school across the street had its flag up. Finland keeps Father's Day in November, in the dark, with the flags out, and five years in, Ben still found that faintly wonderful.
+A bridge is hard to see from on top of it. But at the far end, where the road came off it into the hills, a smaller road wound down to the water, to an old army post called Fort Baker. The army had built it to guard the way into the bay, and had long since gone. Its officers' houses, white, with deep porches, stood round a great oval of grass, and from the grass you could see the whole bridge, with the city behind it, pale and small across the water.
 
-His daughter had brought him coffee before it was light, most of it still in the cup, along with a card he wasn't allowed to open until dinner. Then she stood by the bed and watched him not open it.
+Orla Toner had found the place in her first weeks in America, when she had more time than she knew what to do with. It was out of the wind, and few people came on a Sunday. It hadn't rained all February. They spread two blankets on the grass and let the children loose.
 
----
+There were two children, nine years apart. Nora Novak was ten months old and had lately learned to pull herself up on anything that would hold still: a table leg, a dog, her father's ear. Her father, Ben, lay on his back and let her. Niamh Toner was nearly ten, and loved Nora the way a girl of nearly ten loves a baby, completely and with opinions. She walked her up and down the blanket by both hands, bent double, and told her what everything was.
 
-In the afternoon Ben went down to the basement for the crib.
+"That's the bridge," said Niamh. "It's not red. It's International Orange. That's its actual name."
 
-Under the building, behind a steel door as thick as his hand, there was a room with concrete walls and enough space in it for everyone who lived upstairs. Most big buildings in Finland have one. In peacetime people keep their skis there, and their bicycles and summer tyres, and a laminated notice inside the door says what to do if the peace ends: the residents will have three days to clear their things out. In their first month, Ben had worked through the notice with a dictionary. He had read it again, to be sure he had it right, and then he had gone upstairs and not mentioned it to Anna.
+"Don't let your granda hear you," said her father.
 
-Nora came down with him to hold the door. It was heavy enough that she needed both hands and her shoulder, and she held it like a job.
+Niamh rolled her eyes and explained it to Nora. "Granda won't have orange in the house. In Belfast it's the Protestants' colour, and we're not them." She thought about it. "He'd like the bridge, though. He likes anything big."
 
-"What is this room for?" she asked.
+Declan Toner, flat on his back beside Ben, said that was true, and that his da had once driven a double-decker bus under a bridge in Belfast with an inch to spare, on purpose, to see the faces. Declan had been in San Francisco since the spring before, sent over by the Belfast office of Brynner, the company he and Ben both worked for, and he had been the funniest person in every meeting he'd sat in since. Ben, who had never in his life had a closest friend, had found one before he noticed.
 
-"Skis," said Ben.
+Anna Novak sat on the other blanket with her coffee, keeping one eye on the edge of the blanket, past which Nora was not allowed to go. Orla lay beside her with her sunglasses pushed up into her hair, reading her phone.
 
-It was true, and it was the only part of the answer he wanted her to have.
+"They've shut eleven towns in Italy," she said. "Up in the north. Police on the roads. Nobody in or out."
 
----
+"Italy's a long way off," said Declan, with his eyes closed.
 
-By dinner Nora had been waiting all day, and she had decided to read the card to him herself.
+"So was China."
 
-He could have read the Finnish himself, given a minute and nobody watching. But Nora held it up in both hands, facing him, the way her teacher held things up at school, and he let her.
+Orla had been a nurse in Belfast all her working life, and a year in America hadn't changed how she read the news. She didn't measure how far off a thing was in miles. She measured it in beds.
 
-"Dear Dad," she read, putting it into English as she went. "You are the best dad in Finland and in America. You are very good at losing at Uno. You are not good at singing."
+Nora let go of Niamh with one hand, pointed at a gull, or the bridge, or the whole of everything, and said, "Ba."
 
-Ben could see that the part about singing wasn't on the card. She had added it on the way, because it was true. He told her it was a very good card.
+"That's my name," said Niamh, which is said *Neeve*. "She's saying my name."
 
-"I know," said Nora. She leaned over to her little brother, Theo, and said something in Finnish, so fast that Ben understood none of it, and Theo laughed until he had to put down his fork. Ben looked across at Anna. She shook her head. She hadn't caught it either.
+"She says that to the dishwasher," said Anna.
 
-If you had asked Ben, he would have said this didn't bother him, and he would mostly have meant it. Nora had been two when they moved, and she had caught Finnish at daycare, the way children catch everything there. Theo had been born into it. Their parents were still studying for it. The children lived in a language their parents would only ever visit.
-
-Then Ben's phone lit up beside his plate. He had promised not to look at it at the table, and he looked anyway. Most people did, that autumn.
-
-On the screen, army trucks were crossing one of Pittsburgh's yellow bridges.
-
-"They've sent the Guard into Pittsburgh," he said.
-
-"Do we know anybody in Pittsburgh?" Anna asked.
-
-"No."
-
-People asked that question a great deal, at kitchen tables a long way from the trouble; it was how they measured how close a thing had come. Ben was relieved by the answer, for as long as he let himself be. Anna wasn't. She was already making the drive in her head: west out of Pittsburgh on the interstate, four hours, and then her parents' kitchen in Dayton, Ohio. She knew exactly how short four hours was.
-
-She reached over, turned his phone face down, and left her hand on it. Ben saw how long the hand stayed there, and said nothing.
-
-"Read Theo the part about singing," she said.
-
-Nora read it again, in Finnish this time, and Theo laughed even harder. Ben, to prove Nora right, sang.
+"Then she likes the dishwasher," said Niamh, and nobody could argue with that.
 
 ---
 
-At six, Anna propped the tablet against the fruit bowl. It was eleven in the morning in Dayton, and her father was already waiting, with his face too close to the camera, the way it always was. They had made the call every Sunday since they left, and Walt Dorsey had never been late for it.
+Brynner's offices were in a glass tower on Market Street, the long main street that runs across the city to the bay. Round the corner, under a freeway, there were tents.
 
-"There's my girl," he said. "How's that baby? You look good. You look big."
+Ben and Declan passed them every day on the way back from lunch. A man slept in a doorway with his shoes under his head, so that nobody would take them. A woman kept the sidewalk in front of her tent swept, every morning, with a broom she stood against the tent pole when she'd finished, and she had a geranium growing in a coffee can by the flap. Ben had walked past her for months. He had stopped seeing the tents in his first year in the city, the way you stop hearing a fridge.
 
-"Thanks, Dad. Happy Father's Day."
+Declan hadn't stopped. He said good morning to the woman with the broom, and she said it back, and one day she told him the geranium was older than her grandson.
 
-Walt told her that Father's Day was in June, and Anna told him that here it was today, and they'd put the flags out for it. He shook his head at Finland, as he did most weeks. "Dark by four, and Father's Day in November. And you people pay taxes for this."
+One Tuesday he stopped walking altogether, at the corner by an empty lot. The week before, there had been tents in it. Now there was a new chain-link fence round it, taller than a man, with a sign on it that said *No Trespassing*, and inside there was nothing at all.
 
-Nora leaned into the picture on her way past. "Hi, Grandpa. I have to have a bath after Theo."
+"Where did they go?" said Declan.
 
-"Well, don't let me keep you," said Walt. "A bath waits for no man."
+Ben looked at the fence. He found that he didn't know. He found that he had never wondered.
 
-When she had gone, he leaned in closer. "Got a name yet, for that baby?"
+"Wherever they could carry it to," said the woman with the broom, from across the street, and went on sweeping.
 
-"We've got a list," Anna said. "It has to work in two languages."
+Declan put a finger through the fence.
 
-"Walter works."
+"There's a wall at the bottom of my da's street," he said. "Big as a house, with a fence on top of that. The army put the first ones up between us and the Protestants in 1969, before I was born. A general went on the news and said they'd be very, very temporary." He took his finger back. "That's a real quote. Very, very. My da's had one at the bottom of his street near enough fifty years. There's a gate in it they lock at night."
 
-"Not in either one, Dad."
+"What's on the other side?"
 
-He laughed, and shifted in his chair, and she watched him do it. Her father had caught polio the summer he was five. He had walked on one good leg and a steel brace ever since, through a whole working life at Delco, the General Motors parts plant, and he had never once let anybody carry anything for him. In the last few years the old disease had come back for the good leg. The doctors said it sometimes does, decades later, as if it had only stepped out.
+"The same houses. The other crowd." Declan started walking again. "My da's got a friend over there. Drove the buses with him thirty years. And when he goes to see him, he still goes the long way round, by the main road." He shrugged. "When I was wee I thought it was where the world ended. You'd be amazed what you can stop looking at."
 
-"So what's new?" she asked. "How's the house? How's Mom?"
+Upstairs, Declan's screen was playing a clip of a rally: a crowd in a big hall, somewhere in the middle of the country, chanting. It was an election year. Under the video the comments ran past faster than anybody could read them, and most of them were men calling other men traitors. Declan watched it with his chin on his hand.
 
-"Oh, everything's fine," said Walt. "We had rain Tuesday, so I didn't get to the gutters, but they'll keep. The Henderson boy took the garbage cans down for me. Your mother's been at her piano."
+"Is it always like this?" he said. "In an election year?"
 
-Over his shoulder, in the hall, there was something by the door. Anna leaned toward the screen.
+"It didn't used to be," said Ben.
 
-"Dad, what's that behind you? Is that a walker?"
+Brynner had a video service, among a great many other things, and Ben's team built its player: the box on the screen that the video plays in, and everything behind the box that makes it start at once on a cheap phone with a bad signal. Half the team was in Helsinki. They had come with a small Finnish company that Brynner bought for its player, and every morning at eight they appeared on Ben's screen, when it was already dark in Finland.
 
-Walt glanced back at it as if he had never seen it before. "That's for the garbage cans. For wheeling them down to the street."
-
-"The Henderson boy takes the garbage cans down. You just said."
-
-"Well, there you go," said Walt. "It doesn't get much use."
-
-Anna knew that voice. It was the one he used for "fine."
-
-Somewhere behind him, a piano started. It played a few bars of something slow, and stopped, and played the same few bars again, and stopped. Ruth Dorsey had taught piano in the front room of that house for forty years. For a long time now she had played the same slow piece whenever the Sunday call was on, and lately she never got past its first few bars. Walt thought she was practising.
-
-Then the piano stopped for good, and there were footsteps, and Anna's mother was in the doorway.
-
-She didn't come in. She stood with one hand on the frame and looked at the tablet from across the room, the way you might look at a stranger at your door.
-
-"Walter. Who is that?"
-
-"It's Annie, Ruthie," said Walt. "It's Sunday. Come and say hello."
-
-"Hi, Mom," said Anna. "I like that sweater."
-
-Her mother didn't move. Her eyes went from the screen to Walt and back. When she spoke again, her voice was low and fast, and Anna had heard it before, a long time ago.
-
-"I know who you are. You're from the county. You've been listening through that thing." She pointed at the tablet without coming any nearer. "I take what I'm supposed to take. I don't need anybody's shot. You can write that down."
-
-"Ruthie," said Walt.
-
-"My daughter is fed. She's clean. She goes to school every day with a lunch I make her." Ruth's hand was tight on the door frame. "You are not taking her anywhere."
-
-Walt began to tell her again who it was, and Anna stopped him.
-
-In the autumn of 1996, her mother had spent eleven weeks in the hospital. When she came home, a woman from the county came to the house every Thursday for a year, with a clipboard, to decide whether the child should stay. Anna was eleven. She had watched those visits from the stairs, and she had waited all year for someone to tell her mother she was doing a good job. Nobody ever had.
-
-"Mrs. Dorsey," Anna said, "I'm writing it down right now. She's fed, and she's clean, and she goes to school. You're doing a good job. She's staying right where she is."
-
-Her mother looked at her for a long time.
-
-"You'll put that in your report."
-
-"I'll put it in my report."
-
-Some of the fear went out of Ruth's shoulders. Not all of it. "Well," she said. "Thank you. That's kind." And she went back down the hall, and after a moment the same few bars began again.
-
-Walt rubbed his face with his whole hand. He looked, Anna thought, like a man who hadn't slept properly in weeks, and she understood that he hadn't.
-
-"Don't mind that," he said. "That's a bad morning, is all. She's been a little off since the clinic closed."
-
-"Since what closed?"
-
-He looked at her as though he hadn't heard, so she asked again. "Dad. Dolores's clinic? What do you mean, closed?"
-
-"Well, the levy didn't pass in the spring, so the county lost the money for it, or some such. I voted for the darn thing. There was a sign on the door in September. Dolores called me herself. Nineteen years she's been giving your mother that shot, and she cried on the phone."
-
-The clinic had been paid for by a county tax for mental health care, which the voters had to renew every few years. A good many of the people the clinic looked after did not vote, for the same reasons the clinic was looking after them. So the levy failed, fairly, and the clinic closed.
-
-"So who's giving her the shot?" Anna asked.
-
-"There's a fella at the county," said Walt. "He says there's a place in Columbus, if she gets on the list. And he says there's places downtown, for people who can't manage. I told him we're managing."
-
-Anna knew what was downtown. Every big American city had one by then, or was building one: a district behind a fence, called a Sanctuary, where people who couldn't manage were sent to be managed. Dayton's ran between the river and the railroad tracks. She had seen it on the news, and so had he.
-
-"Columbus is over an hour from you, Dad. You don't drive on the highway anymore."
-
-"I've got a call in," said Walt. "Annie. I've got a call in. You look after that baby. You don't need this. It's Father's Day, isn't it? Everything's fine here."
-
-His hand slipped on the tablet. It tipped back, and for a few seconds the two of them looked together at the ceiling fan in Dayton. Then the call was gone.
+Ben watched the rally play. It played perfectly, from the first frame, with no wait. It was his code under it, and his code didn't care what was in the box. That was what it was for.
 
 ---
 
-Anna sat at the table with the dark screen in front of her.
+On the second of March, Walt Dorsey turned seventy-three, and Anna called him with Nora on her hip so that he could hear her shout.
 
-Her mother had schizoaffective disorder. When she was ill, she believed things that weren't so and heard things nobody had said, and her moods ran too high or too low to live inside. When she was well, she was the sharpest woman in Dayton, and the hardest to please: she went through the church bulletin every Sunday with a red pen, and the pastor thanked her for it. She had first been ill in her twenties. Since Anna was a young woman, a nurse named Dolores had given her an injection once a month, and she had been well. It had taken Dolores years to earn that arm.
+Her father answered as he always did, as if the phone had surprised him. Behind him, her mother was already at the piano, and she played "Happy Birthday" down the line with both hands and a great many extra notes, as she had played it at every birthday Anna could remember.
 
-The medicine left the body slowly, over weeks. A person could miss one shot and seem fine. She could miss a second and seem a little off. The clinic had closed in September, and it was now November.
+Anna listened to the playing as she always listened to it: for how her mother was. When Anna was eleven, Ruth had spent an autumn in a hospital, and the family had called it, then and ever after, *when Mom was sick*, and nothing else. Now a nurse from the county clinic came to the house once a month and gave Ruth an injection, and the injection kept her well. Ruth hated it, and had it. The extra notes were all there, and in the right places. Anna let her breath go.
 
-In the bathroom, Ben was running the water and asking Theo, very patiently, to please sit down.
+"Seventy-three," said her father. "I don't feel a day over seventy-two."
 
----
+"How's the leg?"
 
-At bedtime Nora was still thinking about it.
+"Fine. Same as ever." Then: "Your mother wants to know if you're being careful. With this virus. It's all out your way."
 
-"Mom? I heard Grandma. Why did she think you were from the county?"
+It had been on the news since the weekend: a nursing home near Seattle, eight hundred miles up the coast. To Walt, Seattle and San Francisco were the same place, the place out west where his daughter had gone.
 
-Anna tucked the blanket in along her side and said, in Finnish, "*Ei se mitään*." It means never mind, it's nothing, it's fine, all at once. It was one of the first things anyone learns here, and she got every sound of it right.
+"We're careful," said Anna. "You be careful."
 
-"That was good, Mom," said Nora.
+"Nothing ever happens here," said Walt. "Put the baby on."
 
-Anna heard it as soon as it was out. It was her father's word, in another language.
+Anna held the phone to Nora's ear. Nora listened to her grandfather with great seriousness, then took the phone in both hands and tried to eat it.
 
----
-
-Above the kitchen sink, as above nearly every kitchen sink in Finland, there was a cupboard with no floor. You put the wet plates in the rack inside, and they dripped into the sink behind a closed door. A Finnish woman had designed it in the 1940s to give back some of the hours that drying dishes took from a housewife's life.
-
-Anna had lived with one since they moved, and she still dried every plate by hand with a towel before she put it away, the way her mother always had.
-
-Ben came in from the children's room. "They're both down," he said. "You know you don't have to dry those."
-
-"September," said Anna.
-
-"What?"
-
-"The clinic closed in September. That's nine Sundays. Nine Sundays he sat there and told me about the gutters."
-
-Ben leaned against the counter. "How was she?"
-
-"She thought I was from the county. The Thursday woman. She told me her daughter was fed and clean, and could I please not take me away." Anna picked up another plate. "So I said I wouldn't. I told her I'd put it in my report."
-
-"Oh, Anna."
-
-"Don't," she said. "I've got four more plates."
-
-"Okay." He was quiet for a moment. "Okay. So we find someone. There has to be a home nurse, an agency, somebody who comes to the house. We can pay for that. That's a thing we can actually do."
-
-"Who? Tell me who. I've been standing here trying to think of one name. Everybody I knew there has moved away. It took Dolores years to get her to take that shot, Ben. She won't let a stranger near her."
-
-"I know."
-
-"You know what happens here when a clinic closes? A letter comes from the city, in three languages, with the new address and which tram goes there. In Dayton, a sign goes up on a door." She put the plate away. "They're not better people than us. They just decided different. Every kid in this country has had a free hot lunch at school since my dad was a baby, and his county can't keep one nurse in one room."
-
-She took out another plate. "I could go. For a month, just to set something up. They let you fly until thirty-six weeks."
-
-"You're at thirty-one," said Ben. "So you'd be in Dayton at thirty-five weeks, with your dad and his walker, and nobody to help you."
-
-"I know what thirty-five weeks is."
-
-"I just mean, what if you get there and something happens, and I can't get you back?"
-
-"Flights don't stop, Ben."
-
-"No," he said. "I know they don't."
-
-He picked up a towel, and dried a glass, and put it in the cupboard with no floor. "I don't know what to tell you. I never had this. My folks were gone before we left. I've got two headstones in Toledo. They don't call on Sundays."
-
-Anna dried the same plate twice. "There's a word for her now," she said. "Did you know that? I heard a man say it on the American news, a man in a tie. Dim. Like a light bulb. He said, well, the dims have to go somewhere. And I thought, huh. And I went and made the kids their lunch."
-
-"That's why we left," said Ben. "That's exactly why we left."
-
-"Don't tell me why we left. I filled out the forms. You wanted to give it another year, and I sat at my mother's kitchen table with a laptop and filled out every form, with her playing piano in the next room, and I said, I'm not raising Nora here. That was me."
-
-"And you were right."
-
-"Don't."
-
-"No, you were. Our daughter just told her brother a joke in a language I can't follow, and then she went to bed in a country where nobody has ever had to teach her to hide under her desk. You did that. I'm not going to say it wasn't right."
-
-"I know it was right," said Anna. "I'd do it again. If you put me back at that table tomorrow, I'd fill it out again. That's the part I stand here thinking about."
-
-"We asked them to come," said Ben.
-
-"We asked them once. On the porch. He said who'd do the tomatoes. And she had Dolores. So I said okay, Dad." She stopped drying. "I was so relieved. I said okay, and I went inside, and I was so relieved."
-
-"Say we asked again," Ben said, gently. "I'm not saying no. I'm asking what she'd have here. It's dark at four. She doesn't know a soul here. On a bad Sunday she thinks you're the county. At least there she knows the house."
-
-"She has a piano there."
-
-"We could get a piano."
-
-"Up those stairs?"
-
-"I'd carry it," said Ben.
-
-Neither of them said anything for a while. Then Ben hung his towel on the oven door. "Come to bed. We've got the maternity clinic on Tuesday. We have a baby in January, Anna."
-
-"In a minute. Go on. I just want to finish these."
+Ben, doing the dishes, listened to the whole call. He had nobody to call on a birthday. His parents had been killed in a car crash when he was three, and his grandmother had raised him in Toledo, Ohio, two and a half hours north of the Dorseys. There had been an older sister once, Katie, who died at nine, before the crash. She had been sick, his grandmother told him, and that was all she ever told him. She had done her duty by him down to the last sock, and she believed in doing for yourself. She died while he was at college. He didn't mind having nobody to call, or he had decided long ago not to. But he noticed how Anna's voice changed when she talked to her father, and how her free hand stayed flat on Nora's back the whole time, as if she were holding on to something that was not quite in the room.
 
 ---
 
-She finished them. She hung up the towel. Then she sat down at the table. On the refrigerator door was Nora's drawing of Europa, the moon a French astronaut named Renée Picard was flying to that year. It was in orange crayon, because orange was the crayon Nora had. Anna opened the laptop, and went to the website of the Finnish Immigration Service, which has its pages in English.
+On the second Monday in March, Brynner sent everyone home.
 
-It was ten at night. In Dayton it was three in the afternoon, and still light.
+Ben set up his laptop on the end of the bed, with his back to the bedroom's one bare wall. His team came up on the screen in little squares: the Finns in the dark, with their kitchen lights on, and Declan, two miles away, with a radiator behind him and Niamh's head passing across the bottom of the picture at intervals, like a ship. It turned out that nearly all of Ben's work had always been done through a screen, except lunch, and the walk past the tents, and the things Declan's face did that a camera couldn't catch. They got more done in the first week than in any week before it. Ben didn't know what to make of that.
 
-The page she found was for relatives other than a husband, a wife or a child. It said that an elderly parent could be considered dependent on a child living in Finland. It said that money alone was not enough. It said that a permit was not usually granted to someone who could get treatment in her own country.
+Nora's daycare closed on the Friday. Anna's office stayed open. She ran the front desk of a dentist's office, and every morning she took insurance cards from strangers' hands and wiped the counter after each one, and every evening she washed her hands at the kitchen sink before she would pick up her daughter.
 
-And it said that permits like this were meant, above all, for a parent who moved to Finland at the same time as her grown child.
+Ohio had its own first cases now, and its governor closed the schools. Anna's father stopped saying it was all out her way.
 
-Anna read that sentence twice. She thought about the porch.
+---
 
-Further down, the page explained how to apply. The form could be filled in online. But the applicant would have to come in person, to prove who she was.
+On Saturday, Walt did the shopping.
+
+He didn't tell Anna. Her mother did, on the phone that evening, in the low voice she used when she didn't want to be overheard in her own house.
+
+"He went to three stores," said Ruth. "For the list. Three. The first two had nothing. He was gone four hours, Annie, and he came home grey."
+
+Walt had caught polio when he was five, three years before the vaccine came, and it had left him with one good leg and a steel brace on the other. He could drive, because the brace was on his left leg and an automatic needs only the right. In a store he leaned on the cart. A shopping cart was the best thing in the world for a man with one good leg, he liked to say, and they let you have one for free. But that Saturday every store in Dayton had been full of people buying all the toilet paper in the state, and he had been on his feet in the crowd for four hours, at seventy-three, in the middle of something the radio said was worst for men of seventy-three.
+
+Then Walt came on the line, because he had heard.
+
+"I'm fine," he said. "Had the cart. Your mother's making a fuss."
+
+"Dad. You can't go in those places. Not now."
+
+"Somebody's got to. Your mother's not going in there."
+
+"What about across the street? He'd go for you."
+
+"He offered. He's no younger than me, Annie. He's got his own wife to think about. We're fine. We'll get it delivered."
+
+So that night, after Nora was asleep, Anna sat down at the kitchen table to get it delivered.
+
+She had never met a form she couldn't get through. Within the hour her parents' address and card were in every service that delivered to Dayton, and every one of them said the same thing: no delivery times available. Deliveries came in slots, an hour wide, booked ahead, and in a single weekend that March nearly every slot in America had gone. New ones appeared, people said, around midnight, and were gone in a minute. So the people who most needed to stay out of stores were the least likely to be awake at midnight refreshing a page, and the people who were awake at midnight refreshing a page were their children, in other cities. At midnight in Ohio, which was nine o'clock in San Francisco, Anna was one of them, with every page open and a cup of tea she didn't drink.
+
+At one in the morning, Ohio time, nothing had changed. One of the pages, more honest than the others, said *Check back soon*. She sat on until it was one in the morning in California, too, and Ben came out of the bedroom and stood behind her and read the screen over her shoulder.
+
+"He'll go again," said Anna. "Monday, or Tuesday, as soon as there's anything on the shelves. He'll go every week. He'll go to three stores." She shut the laptop. "And he'll tell me he's fine."
+
+---
+
+On Sunday they went to Fort Baker.
+
+There were more people on the grass than usual, keeping their distance from each other, as everybody had started to do that week without being told exactly how. The bridge looked the way it always did. Nora pulled herself up on Niamh's knee and stood there swaying, delighted with herself, and Niamh held her by the back of her overalls and wouldn't let anyone else near.
+
+Orla waited until the children were busy. Then she said she was going home.
+
+"Belfast," she said. "To nurse. I rang my old ward on Friday. They'll have me back the Monday after I land."
+
+Anna looked at Declan. He was looking at the bridge.
+
+"Italy's hospitals are full," said Orla. "Full, Anna. There's a picture going round of a nurse asleep on her desk in her mask, and I can't stop looking at it. It'll be the same at home in a month, and I'm here with a registration nobody in California will take, lying on a blanket." She said it plainly, without any drama at all. "I'm a nurse. That's where the work is."
+
+"We fly Thursday," said Declan. "Three planes, if they're still flying them."
+
+He had asked Brynner on Friday to end his year early, and they had been very decent about it. He didn't say any more than that. He sat up, took out his phone and photographed the bridge he had made fun of every Sunday since the autumn: once, and then again, a little to the left, and then a third time, as if the first two might not come out.
+
+"Your da will be glad," said Anna.
+
+"My da's past seventy," said Declan. "And Orla will be on a ward full of this. I'll not be able to go near him. I'll be waving at him through his own front window till it's over."
+
+Orla put her hand on the back of his neck and left it there.
+
+Ben got up, after a while, and walked down to the water's edge, where the little waves came in off the bay. He stood there with his hands in his pockets. Declan came and stood beside him, and for a minute neither of them said anything.
+
+"Who's going to tell me my code won't work?" said Ben.
+
+"I will. Every morning at eight." Declan looked at the water. "It'll be dark, mind. You'll get used to it."
+
+That was all either of them said about it. It was, for Ben, a great deal.
+
+Niamh had heard. She was ten now, and ten is old enough to know when the grown-ups have decided something without you. She picked up Nora, who was too heavy for her, and carried her to the far edge of the blanket and sat with her back to all of them, facing the bridge.
+
+---
+
+That night Anna and Ben sat at their kitchen table with the laptop shut between them.
+
+Anna had made a list, because that was how she thought. It was a short list, and every line on it was a door that had shut.
+
+There was no delivery to be had, and there would not be for weeks. The neighbour across the street was as old as her father. Her mother was not to go into a store, on her father's orders, and her father would go himself, to three stores if he had to, through whatever was coming. Her parents couldn't come to San Francisco: her mother's injection came from one nurse in Dayton, once a month, and her father couldn't manage an airport on one leg in an ordinary year.
+
+And Anna could do the shopping. If they were in Dayton, she would do every bit of it. Her parents would never have to set foot in a store.
+
+"You know what we might bring with us," said Ben.
+
+She knew. She had been taking insurance cards from strangers for two weeks. Nora had been at daycare until Friday with twenty other children who put everything in their mouths. They would drive four days across the country with a baby who touched every surface she could reach, and stop for gas, and sleep in motels, and then they would walk into the house of two people this thing would find it easy to kill.
+
+"We could stay somewhere first," said Ben. "A motel near them. Two weeks, to be sure, and leave the groceries on the porch."
+
+Anna had thought of that too. It was a good idea, and it was no use. For those two weeks her father would be in the stores, and those two weeks were the ones they were going for: the ones everyone on the news said would be the worst.
+
+"Then we're choosing which way to frighten ourselves," said Ben.
+
+"Yes."
+
+He didn't try to argue her out of it. He thought of his grandmother, who would have done her own shopping in a hurricane and hit him with her purse if he'd tried to do it for her. He thought that nobody had ever needed him the way Anna's parents needed her, and that he didn't entirely know what she was feeling, only that it was enormous. He could see that much. He had been seeing it on her face since her father's birthday.
+
+"Two weeks," he said. "We keep our distance, as far as you can in a house. We wash our hands till they bleed."
+
+"Two weeks," said Anna.
+
+She called her father first thing on Monday and told him they were coming, for two weeks, to do the shopping.
+
+"You don't need to do that," said Walt. "We're fine."
+
+There was a click on the line: her mother, picking up the phone in the kitchen.
+
+"Walt," said Ruth.
+
+There was a long silence from Dayton.
+
+"Well," said her father, at last. "The crib's still in the attic. I'll have it down."
+
+"Don't you dare go up in that attic," said Anna, and Ruth laughed, and Anna, who had not cried at any of it, had to put the phone down on the table for a minute.
+
+At lunchtime the city ordered everyone to shelter in their homes, starting at midnight. Anna read the order, all of it, the way other people read the end of a novel to find out who dies. Near the end, in a list of the reasons anyone would still be allowed to travel, she found the one she needed: *to care for elderly, minors, dependents, persons with disabilities, or other vulnerable persons.*
+
+Her office rang an hour later. The dentist was closing for three weeks, as the dentists' association had asked. Anna spent the afternoon with the appointment book, calling every patient in it to cancel, and when she had finished there was nothing left for her to do in San Francisco but pack.
+
+---
+
+The Toners came by that evening, the last evening anyone was allowed to, and stood on the sidewalk outside the building while the Novaks stood on the steps. It was the first time they had kept their distance from each other on purpose, and none of them knew where to put their hands.
+
+Niamh had brought a present for Nora: a small knitted rabbit, bought with her own money, which she had decided Nora would need for the car. She was not allowed to come up the steps and give it to her. She stood on the sidewalk holding it, and her face began to go.
+
+Orla looked at Anna, and Anna, who had spent a week wiping things, nodded. Niamh went up the steps and put the rabbit in Nora's hands. Nora put its ear in her mouth.
+
+"Ba," said Nora.
+
+"See," said Niamh, and went back down to her mother, very fast, and didn't look round again.
+
+"Mind yourselves," said Declan.
+
+"You're the ones going toward it," said Ben.
+
+"Aye," said Orla. "But we'll see it coming."
+
+When they had gone, Anna took Nora in. Ben stayed on the steps and watched the Toners down the street, Niamh between her parents, until they turned the corner. He had never in his life stood and watched anyone out of sight. He stood there a while after.
+
+---
+
+They left on the Tuesday, before it was light, with the car packed to the roof and the knitted rabbit in Nora's lap. The city was nearly empty. They didn't cross the Golden Gate; it was behind them, and they went east, over the other bridge, across the bay. Anna watched the city go in the mirror and told herself it was for two weeks.
+
+They had planned four days. Nora made it five. She did not believe in the car seat, and each afternoon, somewhere around four, she said so until they stopped for the night. Anna had a plan for everything else: a bag of wipes for every gas pump, gloves for the motel door handles, food from home, so that they would go into nothing but bathrooms and empty rooms. Nevada. Wyoming, with snow along the road. Nebraska, flat as a table. Nora threw the rabbit on the floor and wept until somebody gave it back. At every gas station Anna went over her own hands and Ben's with the wipes, as if she were trying to clean something out of the car that she couldn't see. Somewhere in Wyoming Ben realised that she had stopped saying "if we've got it" and was not saying anything at all.
+
+On the Friday night they stopped in a motel in Indiana, two hours short of Dayton, because Nora had had enough. Ben's phone lit up with a message from Declan. It was three in the morning in Belfast, and Declan's body was still on California time.
+
+It was a photograph, taken in the dark from the end of a short street of red-brick houses. At the bottom of the street, where the next street should have been, there was a wall, grey concrete the height of the upstairs windows, with a fence on top of it, and a gate in it, shut. Under the picture he had written: *Home. Da waved from the window. Orla starts Monday.*
+
+Ben showed it to Anna. Then he sat up with it on his own, while she slept. He had known Declan for one year, and it had never occurred to him until that night that a year was long enough to come to need someone.
+
+---
+
+They came into Dayton on the Saturday afternoon, the twenty-first of March. Anna knew every turn. She had learned to ride a bicycle on this street.
+
+Her father was on the porch.
+
+He had been watching for them; he must have been out there an hour, in his coat and his cap from the plant. Her mother was behind him, in the doorway, with her hand over her mouth. Anna had told them both on the phone from Indiana how it would be: no hugging, not for two weeks, not until they were sure. She had told them they'd wave. They had agreed.
+
+Walt came down the porch steps the way he had come down every set of steps since he was five, one at a time, good leg, brace, good leg. He came down the path. He stopped where she had told him to stop, more or less.
+
+Then he looked at Nora, eleven months old, in her mother's arms, holding a knitted rabbit by one ear, and he held out his hands.
+
+Anna had driven across the whole country to keep him safe. She stood on the path of the house she grew up in, with everything she had touched in five days still on her, and she had to decide, in about a second, what safe meant.
+
+She gave him the baby.

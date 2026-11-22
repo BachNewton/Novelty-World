@@ -12,6 +12,39 @@ const traffic = () => {
   return new LaneTraffic(net, [[0.92, 2.3]]);
 };
 
+describe("a through road's lane with no way on", () => {
+  it("is a gap in the map that no car is sent to, where a street's dead end and a tile's seam are not", () => {
+    // East along a main road to a junction: on to a stretch the map ends in the middle of, or right into a street that is a dead end.
+    const lanes = decodeLanes({
+      lanes: [
+        lane([[0, 0, 0], [95, 0, 0]], { kind: "primary" }),
+        lane([[105, 0, 0], [300, 0, 0]], { kind: "primary" }),
+        lane([[100, 0, 5], [100, 0, 200]], { kind: "residential" }),
+        lane([[0, 0, 50], [95, 0, 50]], { kind: "primary" }),
+        lane([[105, 0, 50], [6000, 0, 50]], { kind: "primary", seamEnd: true }),
+      ],
+      connectors: [
+        { from: 0, to: 1, junction: 0, turn: "straight", points: encoded([[95, 0, 0], [105, 0, 0]]) },
+        { from: 0, to: 2, junction: 0, turn: "right", points: encoded([[95, 0, 0], [100, 0, 5]]) },
+        { from: 3, to: 4, junction: 1, turn: "straight", points: encoded([[95, 0, 50], [105, 0, 50]]) },
+      ],
+      junctions: [],
+      issues: [],
+    });
+    const net = new LaneNet();
+    net.add("A", lanes);
+    const cars = new LaneTraffic(net, [[0.92, 2.3]]);
+    expect([0, 1, 2, 3, 4].map((index) => cars.leadsNowhere(lanes, index))).toEqual([false, true, false, false, false]);
+    // At the junction every car takes the street: the main road's way on only leads to the gap.
+    for (let seed = 1; seed <= 12; seed++) {
+      const car = cars.spawn({ tile: "A", index: 0, connector: false, along: 60 }, 8, { seed });
+      for (let step = 0; step < 12 / STEP_S && !car.place.connector && car.place.index === 0; step++) cars.step(STEP_S);
+      expect(lanes.connectors[car.place.index].to).toBe(2);
+      cars.remove(car.id);
+    }
+  });
+});
+
 describe("cars driving the lanes", () => {
   it("follow one another without closing in, through a junction and over a seam", () => {
     const cars = traffic();

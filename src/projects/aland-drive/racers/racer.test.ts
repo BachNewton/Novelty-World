@@ -20,7 +20,7 @@ const gate = (x: number): Gate => ({ x, z: 0, heading: EAST, halfWidthM: 10 });
 const start = { x: 0, z: 0, heading: EAST };
 const RACE: RaceChallenge = { id: "race", kind: "race", tier: "A5", number: "A5.0", title: "", car: "skerry-gt", where: "", waypoints: [], shape: "sprint", ground: "road", laps: 1, gates: [gate(400), gate(800)], grid: [start, start], reserve: [], starts: [start, start], lapM: 800, lineM: 0, lengthM: 800 };
 const line = new RoadLine(Float32Array.from([0, 0, 0, 1000, 0, 0]));
-const plan = planSpeeds({ curvature: new Float64Array(251), stepM: 4, limitsAt: () => limitsOn("skerry-gt", "dry", "asphalt"), cornerShare: 0.8 });
+const plan = planSpeeds({ bends: new Float64Array(251), stepM: 4, limitsAt: () => limitsOn("skerry-gt", "dry", "asphalt"), cornerShare: 0.8 });
 
 /** A car standing at a place facing east, moving at a speed. */
 const carAt = (x: number, speedMS = 0, upright = true): CarState => ({
@@ -81,14 +81,49 @@ describe("a racer", () => {
     expect(racer.record.tries).toBe(0);
   });
 
+  it("is put down past a car that stands in its road, when its R is for being stuck behind it", () => {
+    const resets: RoadPoint[] = [];
+    const road = { stepM: 4, middleM: new Float64Array(251), leftM: new Float64Array(251).fill(2), rightM: new Float64Array(251).fill(2) };
+    const racer = new Racer(RACE, line, plan, 100, { reset: (point) => resets.push(point) }, road);
+    const standing = [{ id: "parked", x: 112, z: 0, heading: EAST, vx: 0, vz: 0, halfWidthM: 0.9, halfLengthM: 2.2 }];
+    for (let step = 0; step < 3 / STEP_S + 1; step++) racer.step(carAt(100));
+    // A lane with no room beside the car: it queues, tries the verge, backs out twice, and then its R, which lands clear of the car and short of its next line.
+    for (let step = 0; step < 60 / STEP_S && resets.length === 0; step++) racer.step(carAt(100), false, standing, "me");
+    expect(resets).toHaveLength(1);
+    expect(resets[0].x).toBeGreaterThan(112 + 2.2 + 2.2);
+    expect(resets[0].x).toBeLessThan(140);
+  });
+
   it("resets at once when it has left the road or rolled", () => {
     const lost = racerAt(200);
     lost.racer.step(carAt(200));
-    lost.racer.step({ ...carAt(200, 10), position: [200, 0.5, 20] });
+    lost.racer.step({ ...carAt(200, 10), position: [200, 0.5, 70] });
     expect(lost.resets).toHaveLength(1);
     const rolled = racerAt(200);
     rolled.racer.step(carAt(200, 10, false));
     expect(rolled.resets).toHaveLength(1);
+  });
+
+  it("goes back for a line it passed without crossing", () => {
+    const { racer, resets } = racerAt(350);
+    let x = 350;
+    // Wide of the first line's reach, and not so far off its own line as to be lost.
+    for (let step = 0; step < 5 / STEP_S && resets.length === 0; step++) {
+      racer.step({ ...carAt(x, 20), position: [x, 0.5, 15] });
+      x += 20 * STEP_S;
+    }
+    expect(racer.record.lastReset).toBe("missed");
+    expect(resets[0].x).toBeGreaterThan(380);
+    expect(resets[0].x).toBeLessThan(400);
+    // Put down there, it follows its line from there: it is not lost by the place it left.
+    racer.step(carAt(resets[0].x, 0), true);
+    expect(resets).toHaveLength(1);
+  });
+
+  it("comes back to its line at a careful speed once it has left the road", () => {
+    const { racer } = racerAt(200);
+    expect(racer.step({ ...carAt(200, 30), position: [200, 0.5, 9] }).brake).toBeGreaterThan(0);
+    expect(racer.step({ ...carAt(200, 8), position: [200, 0.5, 9] }).brake).toBe(0);
   });
 
   it("reads its progress as lines crossed and how near the next, and its finish", () => {
@@ -113,7 +148,7 @@ describe("a racer", () => {
     // Knocked off the road just past the first line at x = 400 without crossing it: its R lands it short of the line.
     const { racer, resets } = racerAt(380);
     racer.step(carAt(380, 20));
-    racer.step({ ...carAt(405, 20), position: [405, 0.5, 20] });
+    racer.step({ ...carAt(405, 20), position: [405, 0.5, 65] });
     expect(resets).toHaveLength(1);
     expect(resets[0].x).toBeLessThan(400);
     expect(resets[0].x).toBeGreaterThan(380);

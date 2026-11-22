@@ -1,5 +1,6 @@
 import { RoadLine } from "../sim/road-net";
 import { ROUTE_STEP_M, type RoutePlan } from "./route-plan";
+import { standsAt, type StandingWalls } from "./walls";
 
 /*
  * The line a racer drives (`ideas/traffic-and-racers.md`, "The driver"): the
@@ -13,7 +14,9 @@ import { ROUTE_STEP_M, type RoutePlan } from "./route-plan";
  * solved again, until none moves. The laid middle itself is the line a
  * cautious driver keeps, and what the racing line is measured against. Both
  * are pure functions of the route and the road, so every page and every tool
- * draws the same line.
+ * draws the same line. The corridor is the carriageway less whatever stands in
+ * it: a wall reaching into the road narrows it there, and where the road is
+ * blocked outright the corridor goes round on the open ground beside it.
  */
 
 export interface CorridorSample {
@@ -26,6 +29,9 @@ export interface CorridorSample {
   /** How far the carriageway reaches left and right of the middle. */
   leftM: number;
   rightM: number;
+  /** How far the carriageway's left and right edges stand above the middle. */
+  leftRiseM: number;
+  rightRiseM: number;
   paved: boolean;
   /** Whether this stretch is bridged across a gap in the laid road rather than read from it. */
   bridged: boolean;
@@ -35,42 +41,64 @@ export interface CorridorSample {
 const UNLAID_HALF_M = 1.5;
 /** A racing line keeps this much of the carriageway's edge, beyond the car's own half width, for the body's lean and the tyres' slip. */
 export const EDGE_MARGIN_M = 0.4;
+/** A corridor keeps this clear of anything standing, and reads as in a sample's way whatever stands within this of it along the road. */
+const WALL_CLEAR_M = 0.5;
+const WALL_ALONG_M = ROUTE_STEP_M / 2 + 0.5;
+/** The narrowest a corridor may be squeezed to between the road's edge and a wall; narrower, the road is blocked, and the corridor goes round within this of the middle, this wide. */
+const NARROWEST_M = 3.4;
+const OPEN_GROUND_M = 12;
+/** A corridor carried on past the laid road's end stops this many samples short of anything standing in it. */
+const RUN_ON_SHORT_OF = 3;
+/** The way round a blocked stretch is reached over this many samples either side of it. */
+const ROUND_TAPER = 6;
 /** The active set is settled once no offset has moved further than this between rounds, or after this many rounds. */
 const SETTLED_M = 0.01;
 const MOST_ROUNDS = 60;
 
-/** The corridor's samples at `ROUTE_STEP_M` spacing, the laid middle where the road is laid and straight across the gaps. */
-export function corridorOf(plan: RoutePlan): CorridorSample[] {
+/**
+ * The corridor's samples at `ROUTE_STEP_M` spacing, the laid middle where the road is laid and straight across the gaps,
+ * clear of the walls given.
+ */
+export function corridorOf(plan: RoutePlan, walls?: StandingWalls): CorridorSample[] {
   const { samples } = plan;
   const centres: Centre[] = [];
   let lastLaid = -1;
   for (let index = 0; index < samples.length; index++) {
     const { laid } = samples[index];
     if (!laid) {
-      centres.push({ x: NaN, y: NaN, z: NaN, leftM: 0, rightM: 0, paved: true, bridged: true });
+      centres.push({ x: NaN, y: NaN, z: NaN, leftM: 0, rightM: 0, leftRiseM: 0, rightRiseM: 0, paved: true, bridged: true });
       continue;
     }
-    centres.push({ x: laid.x, y: laid.y, z: laid.z, leftM: laid.leftM, rightM: laid.rightM, paved: laid.paved, bridged: false });
+    centres.push({ x: laid.x, y: laid.y, z: laid.z, leftM: laid.leftM, rightM: laid.rightM, leftRiseM: laid.leftRiseM, rightRiseM: laid.rightRiseM, paved: laid.paved, bridged: false });
     for (let gap = lastLaid + 1; gap < index; gap++) {
       if (lastLaid < 0) {
         // A leading gap, a route that starts on no laid road: the GPS line carried over to where the laid road begins.
-        centres[gap] = { x: samples[gap].x + (laid.x - samples[index].x), y: laid.y, z: samples[gap].z + (laid.z - samples[index].z), leftM: UNLAID_HALF_M, rightM: UNLAID_HALF_M, paved: laid.paved, bridged: true };
+        centres[gap] = { x: samples[gap].x + (laid.x - samples[index].x), y: laid.y, z: samples[gap].z + (laid.z - samples[index].z), leftM: UNLAID_HALF_M, rightM: UNLAID_HALF_M, leftRiseM: 0, rightRiseM: 0, paved: laid.paved, bridged: true };
         continue;
       }
       // Bridge the gap since the last laid sample: straight across it, as narrow as its narrower end.
       const before = centres[lastLaid];
       const share = (gap - lastLaid) / (index - lastLaid);
-      centres[gap] = { x: before.x + share * (laid.x - before.x), y: before.y + share * (laid.y - before.y), z: before.z + share * (laid.z - before.z), leftM: Math.min(before.leftM, laid.leftM), rightM: Math.min(before.rightM, laid.rightM), paved: before.paved, bridged: true };
+      centres[gap] = { x: before.x + share * (laid.x - before.x), y: before.y + share * (laid.y - before.y), z: before.z + share * (laid.z - before.z), leftM: Math.min(before.leftM, laid.leftM), rightM: Math.min(before.rightM, laid.rightM), leftRiseM: 0, rightRiseM: 0, paved: before.paved, bridged: true };
+    }
+    // Something standing in the straight way: the gap is bridged along the route's own line instead, which is the map's road, carried over to meet the laid road at both ends.
+    if (walls && lastLaid >= 0 && index - lastLaid > 1 && standsAcrossGap(centres, lastLaid, index, walls)) {
+      const [from, to] = [samples[lastLaid], samples[index]];
+      const before = centres[lastLaid];
+      for (let gap = lastLaid + 1; gap < index; gap++) {
+        const share = (gap - lastLaid) / (index - lastLaid);
+        centres[gap] = { ...centres[gap], x: samples[gap].x + (before.x - from.x) + share * (laid.x - to.x - (before.x - from.x)), z: samples[gap].z + (before.z - from.z) + share * (laid.z - to.z - (before.z - from.z)) };
+      }
     }
     lastLaid = index;
   }
   if (lastLaid < 0) throw new Error("the route runs on no laid road at all");
   // A trailing gap, a route that ends on no laid road: the GPS line carried on from where the laid road ends.
   const last = centres[lastLaid];
-  for (let gap = lastLaid + 1; gap < samples.length; gap++) centres[gap] = { x: samples[gap].x + (last.x - samples[lastLaid].x), y: last.y, z: samples[gap].z + (last.z - samples[lastLaid].z), leftM: UNLAID_HALF_M, rightM: UNLAID_HALF_M, paved: last.paved, bridged: true };
+  for (let gap = lastLaid + 1; gap < samples.length; gap++) centres[gap] = { x: samples[gap].x + (last.x - samples[lastLaid].x), y: last.y, z: samples[gap].z + (last.z - samples[lastLaid].z), leftM: UNLAID_HALF_M, rightM: UNLAID_HALF_M, leftRiseM: 0, rightRiseM: 0, paved: last.paved, bridged: true };
   // Resampled evenly along the middle, since the laid middles of evenly spaced GPS samples aren't evenly spaced themselves.
   const even = resample(centres, ROUTE_STEP_M);
-  return even.map((sample, index) => {
+  const corridor = even.map((sample, index) => {
     const before = even[Math.max(0, index - 1)];
     const after = even[Math.min(even.length - 1, index + 1)];
     const runX = after.x - before.x;
@@ -79,6 +107,146 @@ export function corridorOf(plan: RoutePlan): CorridorSample[] {
     // Right of the way (-sin, -cos) along (runX, runZ) is (-runZ, runX) normalised.
     return { ...sample, rightX: -runZ / run, rightZ: runX / run };
   });
+  if (!walls) return corridor;
+  // Past the laid road's end the corridor is only the route's line carried on, for a driver to aim at beyond the finish: it ends short of anything standing in it.
+  const roadEnds = corridor.findLastIndex(({ bridged }) => !bridged);
+  const standsIn = corridor.findIndex((sample, index) => index > roadEnds && standingAcross(sample, walls).some(([left, right]) => right > -sample.leftM && left < sample.rightM));
+  return clearOfWalls(standsIn < 0 ? corridor : corridor.slice(0, Math.max(roadEnds + 1, standsIn - RUN_ON_SHORT_OF)), walls);
+}
+
+/**
+ * The stretches across a sample that something standing takes up, each from its left end to its right, metres right
+ * of the middle, with the room kept clear of it: every wall's own, and for a closed outline everything between its
+ * walls here, since what it rings is solid too.
+ */
+function standingAcross(sample: CorridorSample, walls: StandingWalls): [number, number][] {
+  const taken: [number, number][] = [];
+  const solid = new Map<number, [number, number]>();
+  for (const wall of walls.near(sample.x, sample.z, OPEN_GROUND_M + WALL_ALONG_M)) {
+    if (!standsAt(wall, sample.y)) continue;
+    const { fromX, fromZ, toX, toZ, outline, closed } = wall;
+    // Each end along the road's way from the sample, which is the right's (z, -x), and across it.
+    const along = (x: number, z: number) => (x - sample.x) * sample.rightZ - (z - sample.z) * sample.rightX;
+    const across = (x: number, z: number) => (x - sample.x) * sample.rightX + (z - sample.z) * sample.rightZ;
+    const [fromAlong, toAlong] = [along(fromX, fromZ), along(toX, toZ)];
+    // The part of the wall within reach along the road.
+    let [first, last] = [0, 1];
+    if (fromAlong === toAlong) {
+      if (Math.abs(fromAlong) > WALL_ALONG_M) continue;
+    } else {
+      const [enter, leave] = [(-WALL_ALONG_M - fromAlong) / (toAlong - fromAlong), (WALL_ALONG_M - fromAlong) / (toAlong - fromAlong)];
+      first = Math.max(0, Math.min(enter, leave));
+      last = Math.min(1, Math.max(enter, leave));
+      if (first > last) continue;
+    }
+    const [fromAcross, toAcross] = [across(fromX, fromZ), across(toX, toZ)];
+    const ends = [fromAcross + first * (toAcross - fromAcross), fromAcross + last * (toAcross - fromAcross)];
+    const stretch: [number, number] = [Math.min(...ends) - WALL_CLEAR_M, Math.max(...ends) + WALL_CLEAR_M];
+    if (!closed) {
+      taken.push(stretch);
+      continue;
+    }
+    const whole = solid.get(outline);
+    if (whole) solid.set(outline, [Math.min(whole[0], stretch[0]), Math.max(whole[1], stretch[1])]);
+    else solid.set(outline, stretch);
+  }
+  return [...taken, ...solid.values()];
+}
+
+/** Whether anything stands in the straight way across a gap in the laid road, between the two laid samples either side of it. */
+function standsAcrossGap(centres: readonly Centre[], from: number, to: number, walls: StandingWalls): boolean {
+  const runX = centres[to].x - centres[from].x;
+  const runZ = centres[to].z - centres[from].z;
+  const run = Math.hypot(runX, runZ) || 1;
+  for (let gap = from + 1; gap < to; gap++) {
+    const taken = standingAcross({ ...centres[gap], rightX: -runZ / run, rightZ: runX / run }, walls);
+    if (taken.some(([left, right]) => right > -centres[gap].leftM && left < centres[gap].rightM)) return true;
+  }
+  return false;
+}
+
+/** The stretches of a reach across a sample left free by what's taken, left to right. */
+function freeAcross(from: number, to: number, taken: readonly [number, number][]): [number, number][] {
+  let free: [number, number][] = [[from, to]];
+  for (const [left, right] of taken) free = free.flatMap(([low, high]): [number, number][] => (right <= low || left >= high ? [[low, high]] : [[low, left], [right, high]]).filter(([a, b]) => b > a) as [number, number][]);
+  return free;
+}
+
+/**
+ * A corridor clear of what stands in it. Where a wall reaches into the carriageway the corridor is the widest of the
+ * road still free; where none of it is wide enough for a car, the road is blocked, and the corridor is free ground
+ * beside it, as wide as a car needs, reached over a few samples either side. A blocked stretch is gone round on one
+ * side from end to end, the side that takes it least far from the middle. A sample nothing stands in is as it was.
+ */
+function clearOfWalls(corridor: CorridorSample[], walls: StandingWalls): CorridorSample[] {
+  /** How far each sample's middle has moved right to go round. */
+  const moved = new Float64Array(corridor.length);
+  const cleared = [...corridor];
+  /** For each blocked sample, the way round on its left and on its right, each as wide as a car needs, or null where there is none. */
+  const round = new Map<number, { left: [number, number] | null; right: [number, number] | null }>();
+  const take = (index: number, [low, high]: [number, number], aside: boolean) => {
+    const sample = corridor[index];
+    // A way that still holds the middle keeps it; one that doesn't takes its own middle.
+    if (low <= 0 && high >= 0 && !aside) {
+      cleared[index] = { ...sample, leftM: -low, rightM: high };
+      return;
+    }
+    const shift = (low + high) / 2;
+    moved[index] = shift;
+    cleared[index] = { ...sample, x: sample.x + shift * sample.rightX, z: sample.z + shift * sample.rightZ, leftM: (high - low) / 2, rightM: (high - low) / 2, leftRiseM: 0, rightRiseM: 0, bridged: sample.bridged || aside, paved: aside ? false : sample.paved };
+  };
+  corridor.forEach((sample, index) => {
+    const taken = standingAcross(sample, walls);
+    if (taken.length === 0) return;
+    const way = freeAcross(-sample.leftM, sample.rightM, taken).reduce<[number, number] | null>((best, each) => (!best || each[1] - each[0] > best[1] - best[0] ? each : best), null);
+    if (way && way[1] - way[0] >= NARROWEST_M) {
+      take(index, way, false);
+      return;
+    }
+    // In each stretch of free ground wide enough, the way as wide as a car needs that lies nearest the middle; then the nearest of those on each side.
+    const ways = freeAcross(-OPEN_GROUND_M, OPEN_GROUND_M, taken)
+      .filter(([low, high]) => high - low >= NARROWEST_M)
+      .map(([low, high]): [number, number] => {
+        const middle = Math.max(low + NARROWEST_M / 2, Math.min(high - NARROWEST_M / 2, 0));
+        return [middle - NARROWEST_M / 2, middle + NARROWEST_M / 2];
+      });
+    const nearest = (side: -1 | 1) => ways.filter(([low, high]) => side * (low + high) >= 0).reduce<[number, number] | null>((best, each) => (!best || Math.abs(each[0] + each[1]) < Math.abs(best[0] + best[1]) ? each : best), null);
+    round.set(index, { left: nearest(-1), right: nearest(1) });
+  });
+  // Each run of blocked samples goes round on one side: the side whose furthest way round is nearest the middle.
+  for (let index = 0; index < corridor.length; index++) {
+    if (!round.has(index)) continue;
+    let end = index;
+    while (round.has(end + 1)) end++;
+    const furthest = (side: "left" | "right") => {
+      let most = 0;
+      for (let at = index; at <= end; at++) {
+        const way = round.get(at)?.[side];
+        if (!way) return Infinity;
+        most = Math.max(most, Math.abs((way[0] + way[1]) / 2));
+      }
+      return most;
+    };
+    const side = furthest("left") < furthest("right") ? "left" : "right";
+    if (furthest(side) < Infinity) {
+      for (let at = index; at <= end; at++) {
+        const way = round.get(at)?.[side];
+        if (way) take(at, way, true);
+      }
+    }
+    index = end;
+  }
+  // The way round is reached from the road over a few samples: each one near a moved middle may run as far over on that side as its share of the move.
+  for (let index = 0; index < corridor.length; index++) {
+    if (moved[index] === 0) continue;
+    for (let near = Math.max(0, index - ROUND_TAPER); near <= Math.min(corridor.length - 1, index + ROUND_TAPER); near++) {
+      if (moved[near] !== 0) continue;
+      const reach = Math.abs(moved[index]) * (1 - Math.abs(near - index) / (ROUND_TAPER + 1)) + NARROWEST_M / 2;
+      if (moved[index] > 0) cleared[near] = { ...cleared[near], rightM: Math.max(cleared[near].rightM, reach) };
+      else cleared[near] = { ...cleared[near], leftM: Math.max(cleared[near].leftM, reach) };
+    }
+  }
+  return cleared;
 }
 
 type Centre = Omit<CorridorSample, "rightX" | "rightZ">;
@@ -106,7 +274,13 @@ function resample(centres: Centre[], stepM: number): Centre[] {
   return out;
 }
 
-const lineOf = (corridor: readonly CorridorSample[], offsets: ArrayLike<number>) => new RoadLine(Float32Array.from(corridor.flatMap((sample, index) => [sample.x + offsets[index] * sample.rightX, sample.y, sample.z + offsets[index] * sample.rightZ])));
+/** The road's height a way right of its middle: the carriageway is a plane from the middle to each edge, and level past it. */
+function surfaceY({ y, leftM, rightM, leftRiseM, rightRiseM }: CorridorSample, offsetM: number): number {
+  if (offsetM < 0) return leftM > 0 ? y + Math.min(1, -offsetM / leftM) * leftRiseM : y;
+  return rightM > 0 ? y + Math.min(1, offsetM / rightM) * rightRiseM : y;
+}
+
+const lineOf = (corridor: readonly CorridorSample[], offsets: ArrayLike<number>) => new RoadLine(Float32Array.from(corridor.flatMap((sample, index) => [sample.x + offsets[index] * sample.rightX, surfaceY(sample, offsets[index]), sample.z + offsets[index] * sample.rightZ])));
 
 /** The laid middle, bridged across the gaps: the line down the middle of the road. */
 export function middleLine(corridor: readonly CorridorSample[]): RoadLine {
@@ -298,8 +472,18 @@ export interface LineGeometry {
   rightM: Float64Array;
 }
 
-/** A corridor's geometry seen from a line at the given offsets from its middle. */
+/**
+ * A corridor's geometry seen from a line at the given offsets from its middle. Where the corridor is bridged across a
+ * gap in the laid road, a junction's apron for the most part, its width is a guess that was good enough to draw the
+ * line through, and no carriageway to move about on: there the road reaches no way from the middle, so a racer keeps
+ * to its line.
+ */
 export function geometryOf(corridor: readonly CorridorSample[], offsets: ArrayLike<number>, stepM = ROUTE_STEP_M): LineGeometry {
   const count = corridor.length;
-  return { stepM, middleM: Float64Array.from({ length: count }, (_, at) => -offsets[at]), leftM: Float64Array.from(corridor, ({ leftM }) => leftM), rightM: Float64Array.from(corridor, ({ rightM }) => rightM) };
+  return {
+    stepM,
+    middleM: Float64Array.from({ length: count }, (_, at) => -offsets[at]),
+    leftM: Float64Array.from(corridor, ({ leftM, bridged }) => (bridged ? 0 : leftM)),
+    rightM: Float64Array.from(corridor, ({ rightM, bridged }) => (bridged ? 0 : rightM)),
+  };
 }

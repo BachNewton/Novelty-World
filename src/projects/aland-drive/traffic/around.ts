@@ -1,5 +1,5 @@
 import type { LaneNet } from "./lane-net";
-import { lineLength, lineOf, type Connector, type LaneLine, type TileLanes } from "./lane-map";
+import { lineLength, lineOf, type LaneLine, type TileLanes } from "./lane-map";
 
 /*
  * Knowing what's around: every vehicle near the player, whatever drives it, each
@@ -230,24 +230,34 @@ export class Around {
   }
 
   /**
-   * What's coming on the connectors a connector gives way to: each vehicle on one of them, or on the lane leading
-   * into one within the reach, with its distance from the junction's end of that lane.
+   * What's coming on the connectors a connector gives way to: each vehicle on one of them, at no distance, or back up
+   * the road that leads into one within the reach, with its distance from the junction. The road is followed back
+   * lane by lane through the junctions before it, since a lane may be a few metres long and what comes fast is far off.
    */
   coming(tile: string, connector: number, reach: number): Seen[] {
     const lanes = this.net.tile(tile);
     if (!lanes) return [];
-    const found: Seen[] = [];
+    const found = new Map<string, Seen>();
+    const note = (id: string, gap: number, place: OnLane) => {
+      const before = found.get(id);
+      if (gap <= reach && (!before || gap < before.gap)) found.set(id, { id, gap, place });
+    };
+    const visited = new Set<string>();
+    const back = (place: LineRef, gapAtEnd: number) => {
+      const key = keyOf(place);
+      if (gapAtEnd > reach || visited.has(key)) return;
+      visited.add(key);
+      const length = this.length(place);
+      for (const vehicle of this.on(place, "")) note(vehicle.id, gapAtEnd + length - vehicle.along, { ...place, along: vehicle.along });
+      if (place.connector) back({ tile, index: lanes.connectors[place.index].from, connector: false }, gapAtEnd + length);
+      else for (const index of this.connectorsInto(lanes, place.index)) back({ tile, index, connector: true }, gapAtEnd + length);
+    };
     for (const index of lanes.connectors[connector].yields) {
-      const other: Connector = lanes.connectors[index];
-      for (const vehicle of this.on({ tile, index, connector: true }, "")) found.push({ id: vehicle.id, gap: 0, place: { tile, index, connector: true, along: vehicle.along } });
-      const feeding = { tile, index: other.from, connector: false };
-      const length = this.length(feeding);
-      for (const vehicle of this.on(feeding, "")) {
-        const gap = length - vehicle.along;
-        if (gap <= reach) found.push({ id: vehicle.id, gap, place: { ...feeding, along: vehicle.along } });
-      }
+      for (const vehicle of this.on({ tile, index, connector: true }, "")) note(vehicle.id, 0, { tile, index, connector: true, along: vehicle.along });
+      visited.add(keyOf({ tile, index, connector: true }));
+      back({ tile, index: lanes.connectors[index].from, connector: false }, 0);
     }
-    return found.sort((a, b) => a.gap - b.gap);
+    return [...found.values()].sort((a, b) => a.gap - b.gap);
   }
 
   /** Every vehicle placed, for drawing or handing over. */

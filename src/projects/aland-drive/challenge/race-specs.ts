@@ -869,7 +869,7 @@ const WRITTEN: readonly Omit<RaceSpec, "number">[] = [
     shape: "sprint",
     ground: "road",
     car: "frost",
-    where: "From Lemland church south through the parish by Flakavägen and its villages to the shore at the parish's southern tip.",
+    where: "From Lemland church south through the parish by Flakavägen and its villages to within sight of the shore at the parish's southern tip.",
     waypoints: [
       { x: 5544, z: 10061 },
       { x: 5567, z: 10205 },
@@ -882,7 +882,7 @@ const WRITTEN: readonly Omit<RaceSpec, "number">[] = [
       { x: 8283, z: 16653 },
       { x: 9291, z: 16571 },
       { x: 9090, z: 18001 },
-      { x: 8894, z: 19064 },
+      { x: 8869, z: 18871 },
     ],
   },
   {

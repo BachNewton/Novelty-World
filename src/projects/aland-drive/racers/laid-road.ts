@@ -21,6 +21,9 @@ export interface LaidPoint {
   /** From the middle to the carriageway's left and right edges, in the chain's own direction. */
   leftM: number;
   rightM: number;
+  /** How far the carriageway's left and right edges stand above the middle: its crown, or its bank through a bend. */
+  leftRiseM: number;
+  rightRiseM: number;
   /** From the middle to the whole surface's outer left and right, shoulders included. */
   outerLeftM: number;
   outerRightM: number;
@@ -114,6 +117,7 @@ export class LaidRoad {
     const chainHeading = Math.atan2(-runX, -runZ);
     const alongRoute = Math.cos(chainHeading - heading) >= 0;
     const [leftM, rightM, outerLeftM, outerRightM] = alongRoute ? [across(1), across(3), across(0), across(4)] : [across(3), across(1), across(4), across(0)];
-    return { x: cx, y: cy, z: cz, heading: alongRoute ? chainHeading : chainHeading + Math.PI, leftM, rightM, outerLeftM, outerRightM, paved, kind, distance: best.distance };
+    const [leftRiseM, rightRiseM] = alongRoute ? [blend(1, 1) - cy, blend(3, 1) - cy] : [blend(3, 1) - cy, blend(1, 1) - cy];
+    return { x: cx, y: cy, z: cz, heading: alongRoute ? chainHeading : chainHeading + Math.PI, leftM, rightM, leftRiseM, rightRiseM, outerLeftM, outerRightM, paved, kind, distance: best.distance };
   }
 }

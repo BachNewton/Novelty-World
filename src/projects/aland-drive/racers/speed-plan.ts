@@ -1,4 +1,5 @@
 import type { CarLimits, SpeedBand } from "../sim/car-limits";
+import { FIRM_FOOTING, type Footing } from "../sim/surfaces";
 import { WORLD } from "../sim/tuning";
 
 /*
@@ -17,10 +18,14 @@ export interface PacePlan {
   stepM: number;
   /** The planned speed at each sample, metres a second. */
   speeds: Float64Array;
-  /** The line's curvature at each sample, radians a metre. */
-  curvature: Float64Array;
+  /** The line's curvature at each sample, radians a metre, above zero turning right. */
+  bends: Float64Array;
   /** The least planned speed anywhere a stop isn't planned: what the slowest corner asks. */
   slowestMS: number;
+  /** The car's measured limits on the ground under each sample, which its driver's pedals are held within. */
+  limitsAt: (sample: number) => CarLimits;
+  /** The footing under each sample, against a dry sealed road's: how much its tyres grip there, and how much further they slip to their best grip. */
+  footingAt: (sample: number) => Footing;
 }
 
 /** Nothing in the plan runs faster than this, on a straight with no end. */
@@ -32,7 +37,7 @@ const CORNER_SETTLES = 4;
 const MOST_LIGHTNESS = 0.6;
 
 /** The grip in g at a speed, read between the table's points and held flat past its ends. */
-function cornerG(limits: CarLimits, speedMS: number): number {
+export function cornerG(limits: CarLimits, speedMS: number): number {
   const kmh = speedMS * KMH_PER_MS;
   const { corner } = limits;
   if (kmh <= corner[0].kmh) return corner[0].g;
@@ -66,24 +71,27 @@ export const pullG = (limits: CarLimits, speedMS: number) => (speedMS * KMH_PER_
  * limits the driver plans on, and where along the line the car starts from a standstill.
  */
 export interface PlanInputs {
-  /** The line's curvature at each sample, radians a metre. */
-  curvature: Float64Array;
+  /** The line's curvature at each sample, radians a metre, above zero turning right. */
+  bends: Float64Array;
   /** How sharply the road crests at each sample, radians a metre, positive over a crest; none for a line with no heights. */
   crest?: Float64Array;
   stepM: number;
   limitsAt: (sample: number) => CarLimits;
+  /** The footing under each sample, a dry sealed road's without one. */
+  footingAt?: (sample: number) => Footing;
   /** The share of the car's measured cornering grip the plan uses, and of its braking. */
   cornerShare: number;
   brakeShare?: number;
-  /** The tightest turn the car's steering makes at a speed, as a radius: its lock narrows with speed (`sim/car.ts`). */
-  tightestRadiusAt?: (speedMS: number) => number;
+  /** The tightest turn the car's steering makes at a speed on a footing, as a radius: its lock narrows with speed, and on slippery ground (`sim/car.ts`). */
+  tightestRadiusAt?: (speedMS: number, footing: Footing) => number;
   /** Where along the line the car starts from a standstill. */
   fromM?: number;
 }
 
 /** The plan for a line: its curvature at each sample, the limits of the car on the ground under each, the shares of those limits the driver plans on. */
-export function planSpeeds({ curvature, crest, stepM, limitsAt, cornerShare, brakeShare = cornerShare, tightestRadiusAt, fromM = 0 }: PlanInputs): PacePlan {
-  const count = curvature.length;
+export function planSpeeds({ bends, crest, stepM, limitsAt, footingAt = () => FIRM_FOOTING, cornerShare, brakeShare = cornerShare, tightestRadiusAt, fromM = 0 }: PlanInputs): PacePlan {
+  const count = bends.length;
+  const curvature = bends.map((bend) => Math.abs(bend));
   const g = WORLD.gravity;
   /** How much of its weight the car keeps on its wheels at a speed over a sample: lighter over a crest. */
   const weightOn = (at: number, speed: number) => Math.max(0, 1 - ((crest?.[at] ?? 0) * speed * speed) / g);
@@ -100,7 +108,10 @@ export function planSpeeds({ curvature, crest, stepM, limitsAt, cornerShare, bra
     const rise = crest?.[at] ?? 0;
     if (rise > 1e-6) speed = Math.min(speed, Math.sqrt((MOST_LIGHTNESS * g) / rise));
     // And no faster than the steering can turn this tight: the lock narrows with speed, so the fastest speed that still turns the bend.
-    if (tightestRadiusAt && bend > 1e-6) speed = Math.min(speed, fastestTurning(tightestRadiusAt, 1 / bend, speed));
+    if (tightestRadiusAt && bend > 1e-6) {
+      const footing = footingAt(at);
+      speed = Math.min(speed, fastestTurning((speedMS) => tightestRadiusAt(speedMS, footing), 1 / bend, speed));
+    }
     speeds[at] = Math.min(FLAT_OUT_MS, speed);
   }
   // Backwards: brake for every slower sample ahead, with what the bend there leaves of the tyres.
@@ -125,15 +136,20 @@ export function planSpeeds({ curvature, crest, stepM, limitsAt, cornerShare, bra
     const pull = pullG(limits, last) * g * room;
     speeds[at] = Math.min(speeds[at], Math.sqrt(last * last + 2 * pull * stepM));
   }
+  // The start itself reads as the sample after it: a standstill written into the plan would stop a car put down behind its start for good.
+  if (start + 1 < count) speeds[start] = speeds[start + 1];
   let slowest = FLAT_OUT_MS;
   for (let at = start + 1; at < count; at++) if (speeds[at] > 0.5) slowest = Math.min(slowest, speeds[at]);
-  return { stepM, speeds, curvature, slowestMS: slowest };
+  return { stepM, speeds, bends, slowestMS: slowest, limitsAt, footingAt };
 }
 
-/** The fastest speed, up to `most`, at which the steering still turns a radius: the tightest turn opens with speed, so it is found by halving. */
+/** A turn tighter than the steering makes at any speed is taken at this, wide of the line: a plan that asked for a standstill there would stop the car for good. */
+const CRAWL_MS = 3;
+
+/** The fastest speed, up to `most`, at which the steering still turns a radius, and never less than a crawl: the tightest turn opens with speed, so it is found by halving. */
 function fastestTurning(tightestRadiusAt: (speedMS: number) => number, radius: number, most: number): number {
   if (tightestRadiusAt(most) <= radius) return most;
-  let low = 0;
+  let low = Math.min(most, CRAWL_MS);
   let high = most;
   for (let halving = 0; halving < 24; halving++) {
     const middle = (low + high) / 2;

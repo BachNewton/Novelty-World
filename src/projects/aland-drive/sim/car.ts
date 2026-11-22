@@ -78,7 +78,16 @@ const WHEELS = [
 const SLOW_MS = 0.6;
 /** The ground a cautious traction control holds back on (`looseLaunchN`). */
 const LOOSE: ReadonlySet<Surface> = new Set(["gravel", "grass"]);
-const STOPPED_FOR_REVERSE_MS = 1;
+/** The brake pedal alone is reverse once the car is slower than this, either way: rolling backwards faster, as after a spin, it is still the brakes. */
+export const STOPPED_FOR_REVERSE_MS = 1;
+/**
+ * The brake lamps show a driver's foot, not a pedal's every flutter. They light for braking of this much or more, where
+ * a car that brakes for itself lights its own, and stay lit this long after the braking eases, about the least a foot
+ * stays on a pedal. A racer's pedals, or a trigger held at the edge of its travel, press and let go many times a second,
+ * and lamps that follow them flash as no driver's do.
+ */
+const LAMP_FROM_MS2 = 0.7;
+const LAMP_HOLD_S = 0.5;
 /** The share of the peak slip angle the lock allows on top of the path, measured: more and the fronts slide past their peak at middle speeds. */
 const SLIP_ROOM = 0.3;
 /** How far past the angle they grip best at the steering lets the front tyres run, wherever the car is heading. */
@@ -111,11 +120,14 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
 const point = ({ x, y, z }: { x: number; y: number; z: number }): Vector3 => [x, y, z];
 
 /** Grip against slip: a rise to the peak, then an easing down to a sliding share. */
-function gripAt({ peakSlip, slideShare }: Pick<CarTuning["grip"], "peakSlip" | "slideShare">, slip: number): number {
+export function gripAt({ peakSlip, slideShare }: Pick<CarTuning["grip"], "peakSlip" | "slideShare">, slip: number): number {
   const size = Math.abs(slip) / peakSlip;
   const curve = size < 1 ? 1.5 * size - 0.5 * size ** 3 : slideShare + (1 - slideShare) * Math.exp(1 - size);
   return Math.sign(slip) * curve;
 }
+
+/** The share of its peak slip a tyre runs at to give a share of its grip: the rise of the tyre's curve, read the other way. */
+export const slipForGrip = (share: number) => 2 * Math.sin(Math.asin(clamp(share, 0, 1)) / 3);
 
 /**
  * The wheels' lock at a speed: the angle that asks for about all the grip there
@@ -147,7 +159,8 @@ export class Car {
   /** The driver's shifts not yet made, up above 0 and down below it: each is made once the one before it is done. */
   private shiftsAsked = 0;
   private reversingNow = false;
-  private brakingNow = false;
+  /** Steps the brake lamps have left to stay lit. */
+  private lampSteps = 0;
   /** The headlamps: always on while driving, as the law has it. */
   headlamps = true;
   private engineNow: EngineRead;
@@ -236,7 +249,7 @@ export class Car {
     this.steer = 0;
     this.rollingAt(0);
     this.reversingNow = false;
-    this.brakingNow = false;
+    this.lampSteps = 0;
     this.shiftsAsked = 0;
     this.engineNow = restingEngine(this.tuning.gearbox);
   }
@@ -267,9 +280,10 @@ export class Car {
     const speed = Math.hypot(...velocity);
     const forward = dot(velocity, nose);
 
-    if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
+    if (input.brake > 0 && Math.abs(forward) < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
     if (input.throttle > 0) this.reversingNow = false;
-    this.brakingNow = input.brake > 0 && !this.reversingNow;
+    if (!this.reversingNow && (input.brake * power.brakeN) / tuning.car.massKg >= LAMP_FROM_MS2) this.lampSteps = Math.round(LAMP_HOLD_S / STEP_S);
+    else if (this.lampSteps > 0) this.lampSteps--;
     const shares = WHEELS.map((wheel) => (wheel.end === 1 ? 1 - power.rearShare : power.rearShare) / 2);
     const driven = shares.reduce((sum, share, index) => sum + share * Math.abs(this.wheelMS[index]), 0);
     if (this.shifting === "manual") this.makeShifts(driven);
@@ -382,7 +396,8 @@ export class Car {
       if (handbraked || (!this.slipping[index] && (Math.abs(wanted) <= reachGrip || helped))) {
         // Turning with the road, or locked by the handbrake: the tyre gives what's asked, up to its grip.
         side = -reachGrip * gripAt(curve, slip);
-        ahead = wanted;
+        // An aid holds the tyre at its grip, so what the engine or the brakes ask past that never reaches the tyre, and takes nothing more of its sideways grip: on snow an engine asks several times what the tyres hold, and a tyre sharing its grip with all of that has none left to keep the car straight.
+        ahead = helped && !handbraked ? clamp(wanted, -reachGrip, reachGrip) : wanted;
         const asked = Math.hypot(side, ahead);
         tread.demand = reachGrip > 0 ? asked / reachGrip : 0;
         if (asked > reachGrip) {
@@ -503,7 +518,7 @@ export class Car {
       steer: this.steer,
       suspension: [...this.suspension],
       roll: [...this.roll],
-      lamps: { head: this.headlamps, brake: this.brakingNow, reverse: this.reversingNow },
+      lamps: { head: this.headlamps, brake: this.lampSteps > 0, reverse: this.reversingNow },
     };
   }
 }

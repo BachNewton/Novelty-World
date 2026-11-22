@@ -97,10 +97,12 @@ import { createSignKit, roadsideMaterials, wireMaterial } from "../art/roadside/
 import { bareLindenMaterials, lindenHazeMaterials, streetMaterials } from "../art/street/index";
 import { identityMaterials } from "../art/identity/index";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, paintOfItem, settingsMenu, resultItems, shiftingOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
+import { carOfItem, carsMenu, drivingMenu, isCarItem, isPaintItem, lineOfItem, paintOfItem, settingsMenu, resultItems, shiftingOfItem, tyreOfItem, unitsOfItem, type CarCard, type GameMenu, type MenuItemId, type RaceResult, type TeamResult } from "./game-menu";
 import { allCarFacts, fieldOf, type CarFacts, type Field } from "../garage/car-facts";
+import { lineAsked, useDrivingLine } from "../driving-line";
 import { useUnits } from "../units";
 import { createChallengeMarks, type StartMark } from "./challenge-marks";
+import { createDrivingLine } from "./driving-line";
 import { ChallengeBoard, ringCentre } from "../challenge/board";
 import { conditionOf, timeOf, tyresOf, weatherOf } from "../challenge/conditions";
 import { challengeRoute, raceRoute, runOn } from "../challenge/line";
@@ -109,6 +111,9 @@ import { PASSES_KEY, type PlayMode } from "../challenge/passes";
 import { countdownLeftS, gatesPassed, lapOf, lineAt, linesOf, teamNeeds, type Outcome } from "../challenge/run";
 import { placeOf, teamMedal, teamPointsOf, type Medal, type Standing } from "../challenge/standings";
 import { startPlaceOf } from "../challenge/grid-places";
+import { carPlan, shapeOf, type LineShape } from "../racers/car-plan";
+import { RACER_SKILL } from "../racers/skill";
+import { MEASURED_TYRES } from "../sim/car-limits";
 import { fieldOf as raceFieldOf, tyresFor } from "../racers/field";
 import type { SeenCar } from "../racers/awareness";
 import { seenCarOf } from "../racers/grid";
@@ -619,6 +624,8 @@ const TRAFFIC_MOST = 200;
 const CYCLISTS_MOST = 120;
 const WALKERS_MOST = 160;
 const BUBBLE_EVERY = 4;
+/** Traffic this near a place on a grid at the lights is taken away. */
+const GRID_CLEAR_M = 120;
 /** It steps once every this many of the simulation's steps: cars with no physics need no more, and are drawn between steps. */
 const TRAFFIC_EVERY = 4;
 const EDGE_WALL_HEIGHT_M = 2.5;
@@ -1204,6 +1211,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const challengeBoard = new ChallengeBoard([...CHALLENGES, ...RACES], { load: () => storage.get<unknown>(PASSES_KEY), save: (passes) => { storage.set(PASSES_KEY, passes); } }, ({ x, z }) => world.tileAt(x, z) !== undefined);
   // Room for the list and a few of a page's own.
   const challengeMarks = createChallengeMarks(scene, { colour: colorOf, hazed, sunAzimuthDeg: manifest.sun.azimuthDeg, groundAt: (x, z) => world.height(x, z) }, CHALLENGES.length + RACES.length + 8);
+  const drivingLine = createDrivingLine(scene, { colour: colorOf });
   const buildings = new Map<string, ReturnType<typeof buildingMeshes>>();
   const ribbons = new Map<string, ReturnType<typeof ribbonMeshes>>();
   const cutGrounds = new Map<string, Mesh>();
@@ -1346,6 +1354,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M), startCar);
   // A link's tyres are for this drive only: what's kept is what the player chose.
   drive.tyres = tyresAsked(window.location.search) ?? keptTyres();
+  // A link's driving line is the drive's, shown in Settings as the choice in force and kept only once the player picks one.
+  const lineHeld = lineAsked(window.location.search);
+  if (lineHeld) useDrivingLine.setState({ line: lineHeld });
   drive.assists = keptAssists();
   drive.shifting = keptShifting();
   const trafficContact = new TrafficContact(drive, laneTraffic, TRAFFIC_KINDS, TRAFFIC_EVERY);
@@ -1419,6 +1430,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   parkedCars.showAll(true);
   buildingAddOns.showAll(true);
   challengeMarks.showAll(true);
+  drivingLine.showAll(true);
   tyres.showAll(true);
   precipitation.showAll(true);
   cullCar(false);
@@ -1450,6 +1462,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   parkedCars.showAll(false);
   buildingAddOns.showAll(false);
   challengeMarks.showAll(false);
+  drivingLine.showAll(false);
   tyres.showAll(false);
   precipitation.showAll(false);
   scene.remove(compiledBridge);
@@ -1753,8 +1766,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     for (const [peerId, { heard }] of others) if (heard) seen.push(seenCarOf(peerId, drive.remotes.stateAt(peerId, 1)));
     for (const hit of trafficContact.running()) seen.push(seenCarOf(hit.id, hit.car.stateAt(1)));
     for (const vehicle of laneTraffic.all()) {
-      const { body, speedMS, half } = vehicle;
-      seen.push({ id: vehicle.id, x: body.x, z: body.z, heading: body.heading, vx: -Math.sin(body.heading) * speedMS, vz: -Math.cos(body.heading) * speedMS, halfWidthM: half[0], halfLengthM: half[1] });
+      // Its middle, as every other car is seen by: its body's place is its rear axle's.
+      const { pose, body, speedMS, half } = vehicle;
+      seen.push({ id: vehicle.id, x: pose.x, z: pose.z, heading: body.heading, vx: -Math.sin(body.heading) * speedMS, vz: -Math.cos(body.heading) * speedMS, halfWidthM: half[0], halfLengthM: half[1] });
     }
     return seen;
   };
@@ -2125,6 +2139,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         showMenu(settingsNow());
         break;
       }
+      case "line-off":
+      case "line-braking":
+      case "line-full":
+        useDrivingLine.getState().setLine(lineOfItem(id));
+        break;
       case "units-metric":
       case "units-imperial":
         useUnits.getState().setUnits(unitsOfItem(id));
@@ -2355,7 +2374,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     session.step(STEP_S, { x: state.position[0], z: state.position[2], speedMS: speedOf(state), placed });
   };
 
-  /** Every simulated car traffic sees: this player's and the hit cars it runs, and every other player's and hit car, as their stand-ins have them here. */
+  /** Every simulated car traffic sees: this player's and the hit cars it runs, every other player's and hit car, as their stand-ins have them here, and the racers, wherever each is run. */
   const trafficDriven = (): DrivenCar[] => {
     const [wide, , long] = TUNINGS[drive.carId].car.halfSize;
     const seen = (id: string, state: CarState, half: readonly [number, number]): DrivenCar => ({ id, x: state.position[0], z: state.position[2], heading: headingOf(state.rotation), vx: state.velocity[0], vz: state.velocity[2], half });
@@ -2371,6 +2390,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const [hitWide, , hitLong] = TUNINGS[state.car].car.halfSize;
       driven.push(seen(id, state, [hitWide, hitLong]));
     }
+    // Traffic treats a racer as it treats a player: it brakes for one across its path, gives way to one coming, and goes round one standing.
+    for (const { id, car } of sharedRacers.runHere()) {
+      const state = car.stateAt(1);
+      const [racerWide, , racerLong] = TUNINGS[state.car].car.halfSize;
+      driven.push(seen(id, state, [racerWide, racerLong]));
+    }
+    for (const racer of sharedRacers.seenElsewhere()) driven.push({ id: racer.id, x: racer.x, z: racer.z, heading: racer.heading, vx: racer.vx, vz: racer.vz, half: [racer.halfWidthM, racer.halfLengthM] });
     return driven;
   };
   /** Where every other player's car is, as heard here. */
@@ -2383,9 +2409,23 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     for (const [peerId, { heard }] of others) if (heard) places.set(peerId, drive.remotes.stateAt(peerId, 1).position);
     return places;
   };
+  /**
+   * A grid at the lights has its stretch of road to itself: what traffic this page runs near a place on it is taken
+   * away until the lights go out. The cars and the racers are put there in an instant, traffic or no traffic, and a
+   * race that starts in a jam of what it landed on is over before it begins.
+   */
+  const clearGridOfTraffic = () => {
+    if (session?.challenge.kind !== "race" || countdownLeftS(session.run) <= 0) return;
+    const { grid } = session.challenge;
+    for (const vehicle of [...laneTraffic.all()]) {
+      if (sharedTraffic && !sharedTraffic.runsHere(vehicle)) continue;
+      if (grid.some((place) => Math.hypot(place.x - vehicle.pose.x, place.z - vehicle.pose.z) < GRID_CLEAR_M)) laneTraffic.remove(vehicle.id);
+    }
+  };
   /** One traffic step: its bubble round the camera, every vehicle on the lanes, and online what this player runs of them sent. */
   const stepTraffic = () => {
     if (bubble.density("car") === 0 && bubble.density("bike") === 0 && bubble.density("walker") === 0) return;
+    clearGridOfTraffic();
     laneTraffic.setDriven(trafficDriven());
     if (bubbleSteps === 0) {
       trafficLife.step(seasonHeard());
@@ -2657,6 +2697,36 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const { position } = drive.stateAt(1);
     if (challengeBoard.ringAt(position[0], position[2]) !== standing.challenge) coop.withdraw();
   };
+  // The driving line's plan is the player's own car's, in the condition it races in, on its tyres where the limits table measures them there and on the racers' for it otherwise.
+  const lineShapes = new Map<RaceLine, LineShape>();
+  let drivingLineOf = "";
+  /** The driving line on the road ahead in a race, as the player chose to see it; none on the map, once over the finish, or out of a race. */
+  const showDrivingLine = (car: CarState, speedMS: number, lifted: boolean) => {
+    const shown = useDrivingLine.getState().line;
+    const race = !lifted && shown !== "off" && session?.challenge.kind === "race" && !session.run.outcome && session.run.players[session.seat].result === null ? session.challenge : null;
+    if (!race) {
+      if (drivingLineOf !== "") drivingLine.setRoute(null);
+      drivingLineOf = "";
+      return;
+    }
+    const tyresPlanned = MEASURED_TYRES[drive.condition].includes(drive.tyres) ? drive.tyres : tyresFor(drive.condition);
+    const wanted = `${race.id}:${drive.carId}:${tyresPlanned}:${drive.condition}`;
+    if (wanted !== drivingLineOf) {
+      drivingLineOf = wanted;
+      const { carId, condition } = drive;
+      void raceLineOf(race).then((raceLine) => {
+        if (drivingLineOf !== wanted) return;
+        let shape = lineShapes.get(raceLine);
+        if (!shape) {
+          shape = shapeOf(raceLine.line);
+          lineShapes.set(raceLine, shape);
+        }
+        drivingLine.setRoute({ line: raceLine.line, plan: carPlan(carId, condition, tyresPlanned, raceLine, shape, RACER_SKILL, 0) });
+      });
+    }
+    drivingLine.setMode(shown);
+    drivingLine.update(car.position[0], car.position[2], speedMS);
+  };
   /** The line the car is to cross next, standing in the world: a gate, the finish, or the camera. */
   const showNextLine = () => {
     if (!session || session.run.outcome) {
@@ -2874,6 +2944,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       showProgress();
     }
     showNextLine();
+    showDrivingLine(car, speed, lifted);
     // The ground under a mark moves only when heights land or leave: the overview, a tile's far heights or its detail.
     challengeMarks.update(world.revision + world.farRevision);
     if (drive.placements !== placements) {
@@ -3367,6 +3438,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       buildingAddOns.dispose();
       landmarks.dispose();
       challengeMarks.dispose();
+      drivingLine.dispose();
       outbuildingMaterials.near.dispose();
       outbuildingMaterials.far.dispose();
       detail.dispose();

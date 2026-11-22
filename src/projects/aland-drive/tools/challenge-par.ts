@@ -4,7 +4,10 @@
 // target is par by the one rule (`challenge/targets.ts`), written with the par to `challenge/targets.json`. One core, no
 // browser, no network: it reads the road map and the tiles from disk.
 //
-//   npx tsx src/projects/aland-drive/tools/challenge-par.ts [--folder=<tiles>] [--only=<id>,<id>]
+//   npx tsx src/projects/aland-drive/tools/challenge-par.ts [--folder=<tiles>] [--only=<id>,<id>] [--out=<file.json>]
+//
+// --out writes the targets to another file and leaves `challenge/targets.json` as it is: for reading what a change to
+// the car or the racer does to them before they are the game's, and for measuring the list in shares side by side.
 //
 // Two drivers have a go, and the fastest run that crosses every line in order is par. The AI racer
 // (`racers/CLAUDE.md`) drives its racing line for the car's width, planning on a share of the car's measured grip in
@@ -29,6 +32,7 @@ import { LaidRoad } from "../racers/laid-road";
 import { corridorOf, geometryOf, middleLine } from "../racers/racing-line";
 import { ROUTE_STEP_M, RoutePlan, tilesNear } from "../racers/route-plan";
 import { alongOfPlace, racerFor, racingLineFor, type LoadedRace } from "../racers/vet";
+import { StandingWalls } from "../racers/walls";
 import { tuningPrint } from "../sim/car-limits";
 import { headingOf, speedOf } from "../sim/car-state";
 import { CAR_TIERS, CARS } from "../sim/cars";
@@ -40,7 +44,8 @@ import { option, readRoads, round } from "./road-places";
 
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const ONLY = new Set(option("only", "").split(",").filter((id) => id !== ""));
-const OUT = "src/projects/aland-drive/challenge/targets.json";
+const TARGETS = "src/projects/aland-drive/challenge/targets.json";
+const OUT = option("out", TARGETS);
 const PLACES = JSON.parse(readFileSync("src/projects/aland-drive/challenge/places.json", "utf8")) as Record<string, PlacesEntry>;
 
 /** The racer's own skill, then bolder. */
@@ -77,13 +82,15 @@ function loadChallenge(challenge: BucketChallenge): LoadedRace {
   const route = challengeLine(roads.graph, challenge.waypoints);
   const ends = challenge.kind === "route" ? route : cutAt(route, route.nearest(challenge.camera.x, challenge.camera.z).along);
   const gpsLine = runOn(ends, RUN_ON_M);
-  const world = readWorld(FOLDER, tilesNear(roads.manifest, gpsLine));
+  const tiles = tilesNear(roads.manifest, gpsLine);
+  const world = readWorld(FOLDER, tiles);
   const laid = new LaidRoad(world);
   const plan = new RoutePlan(gpsLine, laid);
-  const corridor = corridorOf(plan);
+  const walls = new StandingWalls(world);
+  const corridor = corridorOf(plan, walls);
   const pavedAt = (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved;
   const middle = { line: middleLine(corridor), pavedAt, geometry: geometryOf(corridor, new Float64Array(corridor.length)) };
-  return { race: asRace(challenge), world, laid, gpsLine, plan, corridor, middle, racing: new Map() };
+  return { race: asRace(challenge), world, tiles: [...tiles], laid, walls, gpsLine, plan, corridor, middle, racing: new Map() };
 }
 
 interface Run {
@@ -168,7 +175,7 @@ const runText = (run: Run, unit: string) =>
 
 const roads = readRoads(FOLDER);
 await initPhysics();
-const targets = JSON.parse(readFileSync(OUT, "utf8")) as Record<string, TargetsEntry>;
+const targets = JSON.parse(readFileSync(TARGETS, "utf8")) as Record<string, TargetsEntry>;
 const rows: string[][] = [];
 const failures: string[] = [];
 for (const spec of CHALLENGE_SPECS) {
@@ -195,6 +202,7 @@ for (const spec of CHALLENGE_SPECS) {
 }
 // In the list's order, and only what the list still has.
 const kept = Object.fromEntries(CHALLENGE_SPECS.flatMap(({ id }) => (id in targets ? [[id, targets[id]]] : [])));
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- the file whoever ran the tool named on its command line
 writeFileSync(OUT, `${JSON.stringify(kept, null, 2)}\n`);
 const head = ["challenge", "car", "length", "ground", "driver", "par", "target", "par's run"];
 const widths = head.map((title, column) => Math.max(title.length, ...rows.map((row) => row[column].length)));

@@ -8,7 +8,8 @@
 //
 //   npx tsx src/projects/aland-drive/tools/race-vet.ts [--folder=<tiles>] [--only=<id>,<id>] [--cars=own|field]
 //     [--conditions=dry,wet,snow,ice] [--slots=pole|all] [--line=racing[,middle,gps]] [--grip=racer[,0.9,0.75,...]] [--workers=N]
-//     [--out=<file.json>] [--trace] [--grid]
+//     [--knocks=nudge[,shove,spin]] [--out=<file.json>] [--trace] [--grid] [--human] [--traffic=<share of Åland's own>]
+//     [--parked]
 //
 // The default is the whole list: every race, its field, every condition, every grid place, which is tens of minutes on
 // all cores (ask the owner first, as the root CLAUDE.md says of the machine's CPU). --cars=own, --conditions=dry and
@@ -16,11 +17,18 @@
 // its measured grip, several a run each: the highest a race is clean at says how hard it is, and a race clean at none
 // has a fault in it.
 // --line is the line driven, or several, a run each: the racing line (`racers/racing-line.ts`), the laid road's middle,
-// or the GPS's own line on the par driver's plan, which is what the challenges were measured with. --trace, with
+// or the GPS's own line on the par driver's plan, which is what the challenges were measured with. --knocks gives the
+// racer what another car's hit leaves it with, every 800 m of its race, a run each kind (`racers/vet.ts`, `KNOCKS`), and
+// counts the knocks a reset followed: human racers hit the racers, and a racer is read on gathering the car up. --trace, with
 // --workers=1, prints what each run does every second, for diagnosing one. --grid fills every place on the grid with a
 // racer in a car of the field, all in one simulation, each seeing the others (`racers/vet-grid.ts`), one run a race
 // and condition at the racer's skill, and counts the race: places, each one's hits and resets, the passes made and
-// the pile-ups; --cars, --slots and --line don't apply to it.
+// the pile-ups; --cars, --slots and --line don't apply to it. --human, with --grid, gives the last place on the grid to a
+// careless human, a car that races as if alone on the road and nearer its limit than a racer: it goes through the pack
+// from the back, and the racers are counted on what they do about being hit; its own race isn't counted. --traffic, with
+// --grid, puts the game's traffic on the race's roads, cars, cyclists and walkers on their lanes at a share of Åland's own
+// (1 is the game's), kept round the middle of the pack as the game keeps it round a player: the racers see it, it sees
+// them, a car of it hit hard is knocked out of its lane as in the game, and each is counted.
 //
 // A clean finish is a finish with no stop, no reset and no hit, never further past the laid surface than a gate reaches
 // (`tools/road-places.ts`): what a track has to give every car of its field in every condition before the racers see it.
@@ -37,9 +45,11 @@ import { RACES } from "../challenge/list";
 import { fieldOf, gridCars, tyresFor } from "../racers/field";
 import { RACER_SKILL } from "../racers/skill";
 import {
+  KNOCK_KINDS,
   LINE_KINDS,
   loadRace,
   vetRun,
+  type KnockKind,
   type LineKind,
   type VetResult,
   type VetSpec,
@@ -76,10 +86,38 @@ const LINES = option("line", "racing")
       throw new Error(`--line takes ${LINE_KINDS.join(", ")}, not ${name}`);
     return name as LineKind;
   });
+/** The knocks given, a run each kind, or none. */
+const KNOCKS_ASKED: (KnockKind | undefined)[] =
+  option("knocks", "") === ""
+    ? [undefined]
+    : option("knocks", "")
+        .split(",")
+        .map((name) => {
+          if (!(KNOCK_KINDS as readonly string[]).includes(name))
+            throw new Error(`--knocks takes ${KNOCK_KINDS.join(", ")}, not ${name}`);
+          return name as KnockKind;
+        });
 /** Prints what each run does every second, on this thread: for diagnosing one run, so with --workers=1. */
 const TRACE = process.argv.includes("--trace");
 /** A whole grid in one simulation per race and condition, rather than one car alone per run. */
 const GRID = process.argv.includes("--grid");
+/** The brake lamps of a set of runs as the car behind sees them: how often they come on a kilometre, and how many of those are flashes and blinks. */
+function lampsLine(runs: { brakings: number; brakeFlashes: number; brakeBlinks: number; brakePresses: number; drivenM: number }[]): string {
+  const km = runs.reduce((sum, run) => sum + run.drivenM, 0) / 1000;
+  const total = (count: (run: (typeof runs)[number]) => number) => runs.reduce((sum, run) => sum + count(run), 0);
+  const [on, flashes, blinks] = [total((run) => run.brakings), total((run) => run.brakeFlashes), total((run) => run.brakeBlinks)];
+  const presses = total((run) => run.brakePresses);
+  return `brake lamps: on ${on} times over ${km.toFixed(0)} km, ${(on / km).toFixed(1)} a kilometre; ${flashes} of them flashes (${(flashes / km).toFixed(2)} a kilometre), lit under 0.3 s or lit again within 0.5 s, and ${blinks} lit under a second (${(blinks / km).toFixed(2)} a kilometre); the pedal itself pressed ${presses} times, ${(presses / km).toFixed(1)} a kilometre`;
+}
+
+/** A reset this soon after a touch is the touch's. */
+const AFTER_TOUCH_S = 8;
+/** The last place on the grid is a careless human's. */
+const HUMAN = process.argv.includes("--human");
+/** The traffic on the race's roads, as a share of Åland's own; none at 0. */
+const TRAFFIC = Number(option("traffic", "0"));
+/** A car left standing on the racing line a way past the grid. */
+const PARKED = process.argv.includes("--parked");
 /** How far past the laid surface a clean run may stray: as far as a gate reaches (`tools/road-places.ts`). */
 const CLEAN_PAST_SURFACE_M = 6;
 
@@ -111,19 +149,21 @@ const specsOf = (raceId: string, from: number): VetSpec[] => {
       for (const slot of slots)
         for (const line of LINES)
           for (const { skill, cornerShare, brakeShare } of GRIPS)
-            specs.push({
-              index: from + specs.length,
-              race: raceId,
-              car,
-              condition,
-              tyres: tyresFor(condition),
-              slot,
-              gripShare: cornerShare,
-              brakeShare,
-              skill,
-              line,
-              folder: FOLDER,
-            });
+            for (const knock of KNOCKS_ASKED)
+              specs.push({
+                index: from + specs.length,
+                race: raceId,
+                car,
+                condition,
+                tyres: tyresFor(condition),
+                slot,
+                gripShare: cornerShare,
+                brakeShare,
+                skill,
+                line,
+                folder: FOLDER,
+                knock,
+              });
   return specs;
 };
 
@@ -151,11 +191,12 @@ function printRace(raceId: string, runs: readonly VetResult[]): void {
   for (const run of runs) {
     const laps = run.lapsS.map((lap) => timeText(lap)).join(" ");
     const time = run.raceS === null ? "-" : timeText(run.raceS);
-    const outcome = run.finished
+    const state = run.finished
       ? isClean(run)
         ? "clean"
         : "finished"
       : (run.failed ?? "failed");
+    const outcome = run.knocks === 0 ? state : `${state}; ${run.knocks} knocks, a reset after ${run.knockResets}`;
     console.log(
       `  ${pad(run.car, 10)} ${pad(run.condition, 5)} ${num(run.slot + 1, 4)} ${pad(run.line, 6)} ${pad(run.skill, 6)} ${pad(time, 8)} ${pad(laps, 28)} ${num(run.shoulderM, 8)} ${num(run.offSurfaceM, 8)} ${num(run.worstOffSurfaceM, 5, 1)} ${num(run.meanOffLineM, 3, 1)}/${num(run.worstOffLineM, 4, 1)} ${num(run.hits, 5)} ${num(run.airborneSteps, 4)} ${num(run.resets, 3)}  ${outcome}`,
     );
@@ -191,6 +232,9 @@ async function vetGrids(): Promise<void> {
           brakeShare,
           skill,
           folder: FOLDER,
+          human: HUMAN,
+          traffic: TRAFFIC,
+          parked: PARKED,
         });
     byRace.set(race.id, specs);
     all.push(...specs);
@@ -225,6 +269,7 @@ async function vetGrids(): Promise<void> {
     await runner.close();
   }
   results.sort((a, b) => a.index - b.index);
+  printGridEvents(results);
   const cleanGrids = results.filter(isCleanGrid).length;
   console.log(
     `\n${cleanGrids} of ${results.length} grids clean: every racer finished with no reset, no pile-up; ${results.reduce((sum, run) => sum + run.passes, 0)} passes made in all.`,
@@ -241,11 +286,55 @@ async function vetGrids(): Promise<void> {
   }
 }
 
+/** Every grid's hits and resets by kind: what the racers met, and what each reset came of. */
+function printGridEvents(results: readonly GridResult[]): void {
+  const racers = results.flatMap((run) => run.racers).filter((racer) => !racer.human);
+  const events = racers.flatMap((racer) => racer.events);
+  const tally = (labels: readonly string[]) => {
+    const counts = new Map<string, number>();
+    for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+    return [...counts].sort((a, b) => b[1] - a[1]).map(([label, count]) => `${count} ${label}`).join(", ") || "none";
+  };
+  const hits = events.filter((event) => event.kind === "hit");
+  const resets = events.filter((event) => event.kind === "reset");
+  console.log(`\n${racers.length} racers in ${results.length} grids: ${racers.filter((racer) => racer.finished).length} finished, ${racers.filter((racer) => racer.finished && racer.resets === 0).length} with no reset.`);
+  console.log(`${hits.length} hits: ${tally(hits.map((hit) => `${hit.what}${hit.passing ? " while passing" : ""}`))}`);
+  console.log(lampsLine(racers.map((racer) => ({ ...racer.lamps, drivenM: racer.drivenM }))));
+  console.log(`${resets.length} resets: ${tally(resets.map((reset) => `${reset.cause} after ${reset.after}${reset.passing ? " while passing" : ""}`))}`);
+  console.log(`resets in the first 20 s: ${resets.filter((reset) => reset.clockS < 20).length}; at under 30 km/h: ${resets.filter((reset) => reset.kmh < 30).length}`);
+  // Racer against racer: each touch is two racers', and a reset within a few seconds of one is the touch's.
+  const touches = racers.flatMap((racer) => racer.events.filter((event) => event.kind === "touch" && !event.human).map((touch) => ({ racer, touch })));
+  const lostToTouch = touches.filter(({ racer, touch }) => racer.events.some((event) => event.kind === "reset" && event.clockS >= touch.clockS && event.clockS - touch.clockS < AFTER_TOUCH_S)).length;
+  console.log(`${touches.length / 2} touches between racers; of the ${touches.length} racers touched, ${touches.length - lostToTouch} drove on and a reset followed ${lostToTouch}`);
+  if (TRAFFIC > 0)
+    console.log(
+      `traffic at ${TRAFFIC} of Åland's own: ${results.reduce((sum, run) => sum + run.traffic.met, 0)} vehicles came on to the races' roads, ${results.reduce((sum, run) => sum + run.traffic.knockedOut, 0)} cars were knocked out of their lanes, and the racers drove through ${racers.reduce((sum, racer) => sum + racer.through, 0)} cyclists and walkers`,
+    );
+  if (PARKED) {
+    // What happened where the parked car stands, each lap: from a way before it to just past it.
+    const at = results.flatMap((run) => {
+      const lapM = races.find(({ id }) => id === run.race)?.lapM ?? Infinity;
+      const near = (alongM: number) => run.parkedAlongM !== null && ((((alongM - run.parkedAlongM + 150) % lapM) + lapM) % lapM) < 200;
+      return run.racers.filter((racer) => !racer.human).flatMap((racer) => racer.events.filter((event) => event.kind !== "touch" && near(event.alongM)));
+    });
+    console.log(`a car parked on the line in each race: ${at.filter((event) => event.kind === "reset").length} resets and ${at.filter((event) => event.kind === "hit").length} hits within 150 m before it and 50 m past, of ${resets.length} and ${hits.length} in all`);
+  }
+  const humans = results.flatMap((run) => run.racers).filter((racer) => racer.human);
+  if (humans.length === 0) return;
+  // Each racer's touches with the human, and what became of the racer: a reset of its own within a few seconds, or driving on.
+  const lostAfter = (racer: (typeof racers)[number], clockS: number) => racer.events.some((event) => event.kind === "reset" && event.clockS >= clockS && event.clockS - clockS < AFTER_TOUCH_S);
+  const withHuman = racers.flatMap((racer) => racer.events.filter((event) => event.kind === "touch" && event.human).map((touch) => ({ racer, touch })));
+  const lost = withHuman.filter(({ racer, touch }) => lostAfter(racer, touch.clockS)).length;
+  console.log(
+    `the careless human, in ${humans.length} grids: it touched a racer ${withHuman.length} times, and the racer drove on from ${withHuman.length - lost} of them (${withHuman.length === 0 ? "-" : ((100 * (withHuman.length - lost)) / withHuman.length).toFixed(0)}%), a reset following ${lost}; its own race: ${humans.filter((human) => human.finished).length} finished, ${humans.reduce((sum, human) => sum + human.resets, 0)} resets`,
+  );
+}
+
 function isCleanGrid(run: GridResult): boolean {
   return (
     run.failed === undefined &&
     run.pileUps === 0 &&
-    run.racers.every((racer) => racer.resets === 0)
+    run.racers.every((racer) => racer.human || racer.resets === 0)
   );
 }
 
@@ -260,7 +349,7 @@ function printGrid(raceId: string, run: GridResult): void {
   );
   for (const racer of run.racers)
     console.log(
-      `  ${num(racer.slot + 1, 4)} ${pad(racer.car, 10)} ${num(racer.place, 5)} ${pad(racer.raceS === null ? "-" : timeText(racer.raceS), 8)} ${num(racer.hits, 4)} ${num(racer.resets, 3)} ${num(racer.offSurfaceM, 8)}`,
+      `  ${num(racer.slot + 1, 4)} ${pad(racer.car, 10)} ${num(racer.place, 5)} ${pad(racer.raceS === null ? "-" : timeText(racer.raceS), 8)} ${num(racer.hits, 4)} ${num(racer.resets, 3)} ${num(racer.offSurfaceM, 8)}${racer.human ? "  the careless human" : ""}`,
     );
 }
 
@@ -317,6 +406,20 @@ async function vetAlone(): Promise<void> {
   console.log(
     `\n${results.filter(isClean).length} of ${results.length} runs clean. ${unclean.length === 0 ? "Every race is finished cleanly by every run." : `${unclean.length} race${unclean.length === 1 ? "" : "s"} with a run that isn't: ${unclean.map(({ id }) => id).join(", ")}`}`,
   );
+  console.log(lampsLine(results));
+  // What became of the knocks, by how fast the car was going: a spin at a town's pace is gathered up, one at twice the limit leaves the road.
+  for (const kind of KNOCKS_ASKED) {
+    if (kind === undefined) continue;
+    const knocks = results.filter((run) => run.knock === kind).flatMap((run) => run.knockLog);
+    const bands = [0, 80, 120, 160, 200, Infinity];
+    const share = (of: typeof knocks) => (of.length === 0 ? "-" : `${of.filter((knock) => !knock.reset).length}/${of.length}`);
+    console.log(
+      `${kind}: gathered up ${share(knocks)} (${knocks.length === 0 ? "-" : ((100 * knocks.filter((knock) => !knock.reset).length) / knocks.length).toFixed(1)}%); by speed: ${bands
+        .slice(0, -1)
+        .map((from, at) => `${Number.isFinite(bands[at + 1]) ? `${from}-${bands[at + 1]}` : `over ${from}`} km/h ${share(knocks.filter((knock) => knock.kmh >= from && knock.kmh < bands[at + 1]))}`)
+        .join(", ")}`,
+    );
+  }
   if (GRIPS.length > 1 || LINES.length > 1) {
     // On each line at each share, how many races every run is clean at; and each race's highest clean share on each line.
     const shares = [...GRIPS].sort((a, b) => b.cornerShare - a.cornerShare);

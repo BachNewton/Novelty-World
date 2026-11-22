@@ -4,6 +4,7 @@ import { defaultWorkerCount, type GameRunner } from "@/shared/lib/bot-lab/pool";
 import { LiveReporter } from "@/shared/lib/bot-lab/live";
 import { liveSinkFromEnv } from "@/shared/lib/bot-lab/live-supabase";
 import { RunLog, type RemotePlay, type RunDescription } from "@/shared/lib/bot-lab/run-log";
+import { TURN_CAP } from "../bots/turn-cap";
 import { checkNative, riskBotAsync } from "./native/bot";
 import { checkParity, nativeRunner, parityRunner } from "./native/runner";
 import { FORMATS, riskPool, type Format } from "./parallel";
@@ -29,9 +30,8 @@ export interface CommonArgs {
   parity: number;
 }
 
-/** Player-turns before a game is stopped as a draw. Bot-vs-bot games between
- *  bots with a plan end in 30 to 200 turns; only a stalled table reaches this. */
-export const DEFAULT_MAX_TURNS = 600;
+/** Player-turns before a game is stopped as a draw (`bots/turn-cap.ts`). */
+export const DEFAULT_MAX_TURNS = TURN_CAP;
 
 export function commonDefaults(prefix: string): CommonArgs {
   return { players: [3, 4, 5, 6], maxTurns: DEFAULT_MAX_TURNS, workers: defaultWorkerCount(), prefix, native: false, parity: 0 };

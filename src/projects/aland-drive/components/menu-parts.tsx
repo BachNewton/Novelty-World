@@ -1,7 +1,8 @@
 "use client";
 
 import type { ComponentType, Ref } from "react";
-import { Check, CircleDot, Cog, Hand, Ruler, Snowflake, Sun, ToggleLeft, ToggleRight } from "lucide-react";
+import { Check, CircleDot, Cog, EyeOff, Hand, OctagonAlert, Route, Ruler, Snowflake, Sun, ToggleLeft, ToggleRight } from "lucide-react";
+import type { DrivingLine } from "../driving-line";
 import type { MenuItemId } from "../render/game-menu";
 import type { Units } from "../units";
 import type { Tyre } from "../sim/surfaces";
@@ -32,6 +33,12 @@ export const TYRE_LOOKS: Record<Tyre, { icon: Icon; name: string }> = {
 export const SHIFTING_LOOKS: Record<Shifting, { icon: Icon; name: string }> = {
   auto: { icon: Cog, name: "Auto" },
   manual: { icon: Hand, name: "Manual" },
+};
+
+export const LINE_LOOKS: Record<DrivingLine, { icon: Icon; name: string; spoken: string }> = {
+  off: { icon: EyeOff, name: "No line", spoken: "No driving line" },
+  braking: { icon: OctagonAlert, name: "Braking line", spoken: "Driving line where to brake" },
+  full: { icon: Route, name: "Full line", spoken: "Full driving line" },
 };
 
 export const UNITS_LOOKS: Record<Units, { icon: Icon; name: string; detail: string }> = {

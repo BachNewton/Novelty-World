@@ -113,7 +113,7 @@ export function replacementOf(race: RaceChallenge, line: RoadLine, leaver: { sta
     fromM: 0,
     condition,
     racer: {
-      record: { phase: "driving", along, phaseS: 0, tries: 0, furthest: along, stuckS: 0, resets: 0, lastReset: null, offsetM: 0 },
+      record: { phase: "driving", along, phaseS: 0, tries: 0, furthest: along, stuckS: 0, resets: 0, lastReset: null, offsetM: 0, astrayS: 0 },
       craft: freshCraft(),
       driverAlong: along,
       run: { attempt: leaver.progress.attempt, clockS, player: { last: null, nextGate: leaver.progress.nextGate, result: null, gone: false }, outcome: null },
@@ -141,7 +141,7 @@ export function parseRacerDriver(value: Record<string, unknown>): RacerDriver {
     (CONDITIONS as readonly string[]).includes(condition) &&
     snapshot !== null &&
     record !== null &&
-    ["along", "phaseS", "tries", "furthest", "stuckS", "resets", "offsetM"].every((name) => isNumber(record[name])) &&
+    ["along", "phaseS", "tries", "furthest", "stuckS", "resets", "offsetM", "astrayS"].every((name) => isNumber(record[name])) &&
     ["driving", "reversing", "turning"].includes(record.phase as string) &&
     isRecord(snapshot.craft) &&
     isNumber(snapshot.driverAlong) &&

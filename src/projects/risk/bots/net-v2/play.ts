@@ -29,7 +29,7 @@ export interface Decision {
 export function decide(net: Net, input: BotInput, pick: Pick): Decision {
   const rng = pick === "sample" ? createRng(input.seed) : null;
   const choose = (z: ArrayLike<number>, allowed: Uint8Array): number => (rng ? sampleIndex(z, rng.next(), allowed) : argmax(z, allowed));
-  const obs = observe(input);
+  const obs = observe(input, net.clock);
   const legal = legalMainExact(input.options);
   const y = trunk(net, obs);
   const logits = mainLogits(net, y, legal);

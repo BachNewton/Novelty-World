@@ -17,7 +17,7 @@ Everything goes through `npm run spot -- <command>` (`spot.sh`), from the main c
 The first window, in order:
 
 1. `probe`: what the machine is, changing nothing.
-2. `push`: the GPU package's code as committed at `HEAD` (uncommitted changes aren't sent, and the push says so), the gitignored blitz table `blitz-256`, and the checkpoints the panel reads against (imit-1, sw128b-450, s2-2-150). More checkpoints are named as arguments, as paths under the package (`runs/selfplay/<run>/snap-<n>.pt`).
+2. `push`: the GPU package's code as committed at `HEAD` (uncommitted changes aren't sent, and the push says so), the gitignored blitz table `blitz-256`, and the checkpoints the panel reads against (imit-1, sw128b-450, s2-2-150, b1-100, d4-500). More checkpoints are named as arguments, as paths under the package (`runs/selfplay/<run>/snap-<n>.pt`).
 3. `setup`: `uv`, then Python 3.12 and the laptop's own versions of PyTorch, numpy and pytest in `~/novelty/venv`. It ends by asserting PyTorch sees a CUDA device and naming it.
 4. `test`: the package's tests, on the GPU. These hold the engine bit-exact to the reference engine, and a new GPU is where a last-bit difference in floating point could appear (`ideas/gpu-engine.md`, "What was found"), so a run starts only once they pass.
 5. `train <name> [ppo args]`: starts `riskgpu.selfplay.ppo` detached, so it outlives the connection. Its folder is `runs/selfplay/<name>/` as on the laptop, with its command (`cmd.txt`), process id, console output and a log of its starts beside the trainer's own files.

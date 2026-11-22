@@ -4,8 +4,14 @@ prepared set (`prepare.py`):
     python -m riskgpu.tpu.train --data /tmp/prepared/x --dir runs/tpu/<name> [--width 256 --layers 6]
         [--init runs/...pt] [--minibatch 4096] [--max-samples ...] [--hours 8] [--require tpu]
 
-run from `src/projects/risk/gpu/`. The task (imitation or distillation) and the action space are the
-prepared set's.
+run from `src/projects/risk/gpu/`. The task (imitation or distillation), the action space and the
+clock are the prepared set's: the net reads the clock exactly when the set holds it.
+
+**The net** is `--init`'s (a distillation's fine-tune: an init without the clock starts a net that
+reads it with the clock's weights at zero, as `net.init_from` does), or a fresh one of `--width`,
+`--layers` and `--heads`, from PyTorch's own initialisation (`convert.initial`): an imitation, or a
+distillation of a net's own play (`selfplay/own.py`) into a copy learned from random weights, which
+takes imitation's recipe in its arguments.
 
 **The recipe is `imitate.fit`'s**, with each task's defaults: AdamW (its decay on every parameter, as
 PyTorch's is given `net.parameters()`), the gradient clipped to a global norm, the rate a linear
@@ -228,8 +234,9 @@ def devices_of(args):
 
 
 def shape_for(args, data: Prepared) -> dict:
-    """The net's sizes: `--init`'s for a distillation (`distil.train`), the arguments' for an imitation."""
-    if data.task == "distil":
+    """The net's sizes: `--init`'s for a distillation that starts from one (`distil.train`), the
+    arguments' otherwise; its clock the set's."""
+    if data.task == "distil" and args.init:
         import torch
 
         from ..selfplay.net import shape_of
@@ -237,11 +244,11 @@ def shape_for(args, data: Prepared) -> dict:
         shape = shape_of(state.get("net", state))
         assert shape["actions"] == data.actions, \
             f"--init is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
-        assert not shape["clock"], "the search observes no clock: a net that reads it can't be distilled from it"
-        return shape
+        assert data.clock or not shape["clock"], "--init reads the clock and the set holds none: prepare it with --clock"
+        return {**shape, "clock": data.clock}
     assert args.actions in (None, data.actions), f"the set is prepared for the {data.actions} space: --actions {args.actions}"
     return {"width": args.width, "layers": args.layers, "heads": args.heads, "ff_mult": 4, "actions": data.actions,
-            "clock": False}
+            "clock": data.clock}
 
 
 def train(args) -> dict:
@@ -251,7 +258,6 @@ def train(args) -> dict:
     for k, v in DEFAULTS[task].items():
         if getattr(args, k) is None:
             setattr(args, k, v)
-    assert task == "imitate" or args.init, "a distillation starts from --init"
     devices = devices_of(args)
     assert args.minibatch % len(devices) == 0, f"--minibatch {args.minibatch} doesn't split over {len(devices)} chips"
     args.read_chunk = max(len(devices), args.read_chunk // len(devices) * len(devices))
@@ -283,7 +289,7 @@ def train(args) -> dict:
           f"(monitor {len(monitor)}); {len(devices)} x {devices[0].device_kind}, {'bf16' if args.bf16 else 'f32'}",
           flush=True)
 
-    the_set = {k: data.meta["made_from"][k] for k in ("task", "actions", "fraction")} | {"n": data.n}
+    the_set = {k: data.meta["made_from"][k] for k in ("task", "actions", "fraction", "clock")} | {"n": data.n}
     if resuming:
         params, opt, state = load_state(args.dir)
         assert state["set"] == the_set, f"{args.dir} trained on another set: {state['set']} against {the_set}"
@@ -439,10 +445,10 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--data", required=True, help="a prepared set's folder (`prepare.py`)")
     p.add_argument("--dir", required=True, help="the run's folder: best.pt, last.pt, log.jsonl, resume.*, read.json")
-    p.add_argument("--init", default=None, help="the checkpoint to start from (a distillation's net)")
-    p.add_argument("--width", type=int, default=128)
-    p.add_argument("--layers", type=int, default=4)
-    p.add_argument("--heads", type=int, default=8)
+    p.add_argument("--init", default=None, help="the checkpoint to start from (otherwise a fresh net of the sizes below)")
+    p.add_argument("--width", type=int, default=128, help="a fresh net's width")
+    p.add_argument("--layers", type=int, default=4, help="a fresh net's layers")
+    p.add_argument("--heads", type=int, default=8, help="a fresh net's heads")
     p.add_argument("--actions", default=None, choices=["buckets", "exact"], help="the set's space, checked")
     p.add_argument("--skipped-weight", type=float, default=1.0, help="a distillation's skipped decisions (0: left out)")
     p.add_argument("--lr", type=float, default=None, help="imitation 5e-4, distillation 1e-4")

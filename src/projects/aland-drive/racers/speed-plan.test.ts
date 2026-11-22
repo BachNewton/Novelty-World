@@ -13,10 +13,10 @@ import { brakingG, planSpeeds, plannedSpeedAt, slowestAhead } from "./speed-plan
 const STEP_M = 4;
 const limits = limitsOn("skerry-gt", "dry", "asphalt");
 /** 1 km straight, a 60 m bend of 50 m radius, 1 km straight. */
-const curvature = Float64Array.from({ length: 2060 / STEP_M }, (_, at) => (at * STEP_M >= 1000 && at * STEP_M < 1060 ? 1 / 50 : 0));
+const bends = Float64Array.from({ length: 2060 / STEP_M }, (_, at) => (at * STEP_M >= 1000 && at * STEP_M < 1060 ? 1 / 50 : 0));
 
 describe("the speed plan", () => {
-  const plan = planSpeeds({ curvature, stepM: STEP_M, limitsAt: () => limits, cornerShare: 1 });
+  const plan = planSpeeds({ bends, stepM: STEP_M, limitsAt: () => limits, cornerShare: 1 });
 
   it("holds a bend at the speed its curvature allows on the car's grip at that speed", () => {
     const inBend = plannedSpeedAt(plan, 1030);
@@ -37,8 +37,11 @@ describe("the speed plan", () => {
     expect(plannedSpeedAt(plan, 700)).toBeGreaterThan(plannedSpeedAt(plan, 950));
   });
 
-  it("starts from a standstill and gains no faster than the car's pull", () => {
-    expect(plannedSpeedAt(plan, 0)).toBe(0);
+  it("starts from a standstill and gains no faster than the car's pull, with no standstill written into it", () => {
+    // A car put down behind a standstill in its plan would never drive off: the start reads as the sample after it.
+    expect(plannedSpeedAt(plan, 0)).toBe(plannedSpeedAt(plan, STEP_M));
+    expect(Math.min(...plan.speeds)).toBeGreaterThan(0);
+    expect(plannedSpeedAt(plan, 0) * 3.6).toBeLessThan(40);
     expect(plannedSpeedAt(plan, 40)).toBeLessThan(plannedSpeedAt(plan, 200));
     // 0 to 100 km/h in the table's 4.7 s is about 65 m: at 40 m it's well under 100 km/h.
     expect(plannedSpeedAt(plan, 40) * 3.6).toBeLessThan(100);
@@ -51,14 +54,22 @@ describe("the speed plan", () => {
 
   it("slows for a crest the car would go light over", () => {
     // A crest of 500 m radius on the second straight, where the car is well past the 54 m/s that leaves it 0.6 of its weight.
-    const crest = Float64Array.from(curvature, (_, at) => (at * STEP_M >= 1780 && at * STEP_M < 1820 ? 1 / 500 : 0));
-    const over = planSpeeds({ curvature, crest, stepM: STEP_M, limitsAt: () => limits, cornerShare: 1 });
+    const crest = Float64Array.from(bends, (_, at) => (at * STEP_M >= 1780 && at * STEP_M < 1820 ? 1 / 500 : 0));
+    const over = planSpeeds({ bends, crest, stepM: STEP_M, limitsAt: () => limits, cornerShare: 1 });
     expect(plannedSpeedAt(plan, 1800)).toBeGreaterThan(56);
     expect(plannedSpeedAt(over, 1800)).toBeLessThanOrEqual(Math.sqrt(0.6 * WORLD.gravity * 500) + 1e-6);
   });
 
+  it("takes a turn tighter than the steering makes at a crawl, never a standstill", () => {
+    // A corner turned at one point of the line, far inside what a lock of 6 m at any speed turns.
+    const corner = Float64Array.from(bends, (_, at) => (at * STEP_M === 1000 ? 1 / 2 : 0));
+    const tight = planSpeeds({ bends: corner, stepM: STEP_M, limitsAt: () => limits, cornerShare: 1, tightestRadiusAt: () => 6 });
+    expect(Math.min(...tight.speeds)).toBeGreaterThan(2);
+    expect(plannedSpeedAt(tight, 1000)).toBeLessThan(5);
+  });
+
   it("plans a gentler drive at a share of the grip", () => {
-    const eased = planSpeeds({ curvature, stepM: STEP_M, limitsAt: () => limits, cornerShare: 0.7 });
+    const eased = planSpeeds({ bends, stepM: STEP_M, limitsAt: () => limits, cornerShare: 0.7 });
     expect(plannedSpeedAt(eased, 1030)).toBeLessThan(plannedSpeedAt(plan, 1030));
     expect(plannedSpeedAt(eased, 1030)).toBeGreaterThan(plannedSpeedAt(plan, 1030) * 0.8);
   });
