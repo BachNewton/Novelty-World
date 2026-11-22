@@ -143,7 +143,7 @@ def topographic_path_or_none(tile: Tile) -> Path | None:
 
 def _topographic(tile: Tile) -> tuple[str, str]:
     half = f"{tile.name[:5]}{'L' if tile.name[5] in 'ABCD' else 'R'}"
-    return f"{MIRROR}maastotietokanta/2025/shp/L2/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip"
+    return f"{MIRROR}maastotietokanta/2025/shp/{tile.name[:2]}/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip"
 
 
 def msnfi_path(tile: Tile) -> Path:

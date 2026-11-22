@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import os
+import urllib.error
 from multiprocessing import get_context
 from pathlib import Path
 
@@ -489,7 +490,12 @@ def build_named(name: str, refresh_osm: bool = False, with_town: bool = False, w
 
 
 def _build_named(job: tuple[str, bool, bool, bool]) -> str:
-    return build_named(*job)
+    """A tile built in a process of its own. What stops it has to cross back to the build to be told, and urllib's
+    error can't, since it holds the open answer: so it is told here as what was asked for and what came back."""
+    try:
+        return build_named(*job)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"{job[0]}: {error.url} answered {error.code} {error.reason}") from None
 
 
 def build_all(names: list[str], jobs: int, refresh_osm: bool, with_town: bool = False, with_paving: bool = False) -> None:
