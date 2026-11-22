@@ -1209,7 +1209,9 @@ def _outline_of_asphalt(asphalt: shapely.Geometry) -> shapely.Geometry:
     edge ran a hair off a carriageway's is no edge of the asphalt, and nor is a hole too small to see."""
     closed = asphalt.buffer(SLIVER_M * 2, join_style="mitre").buffer(-SLIVER_M * 2, join_style="mitre")
     whole = shapely.union_all([shapely.Polygon(part.exterior, [ring for ring in part.interiors if shapely.Polygon(ring).area >= SPECK_M2]) for part in _flat(closed)])
-    return whole.boundary
+    # No asphalt on the ground has an outline of nothing: a tile whose only asphalt is a bridge's deck. A union of no
+    # areas is a collection, which has no boundary at all.
+    return shapely.MultiLineString() if whole.is_empty else whole.boundary
 
 
 @dataclass

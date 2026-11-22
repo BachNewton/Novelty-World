@@ -58,8 +58,11 @@ TRAFFIC_COUNTS = "https://kartor.regeringen.ax/arcgis/rest/services/Infrastruktu
 
 
 def _download(request: urllib.request.Request, path: Path) -> None:
+    """Fetched into a file of this process's own and moved into place whole. Tiles built side by side want the same
+    sheets (a neighbour's elevation, a half sheet of the map four tiles share), so each fetches its own copy, and the
+    file under the sheet's name is always a whole one."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    partial = path.with_suffix(path.suffix + ".part")
+    partial = path.with_suffix(f"{path.suffix}.{os.getpid()}.part")
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
         partial.write_bytes(response.read())
     partial.replace(path)
