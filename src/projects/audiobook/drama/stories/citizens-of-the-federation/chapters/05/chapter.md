@@ -1,333 +1,339 @@
-# Chapter 5: Responsible Party
+# Chapter 5: Godspeed
 
-On a Tuesday night in March 2027, Walt Dorsey got up in the dark for a glass of water, and his good leg, which had carried him since he was five, did not hold. He went down on the kitchen floor, and his hip broke under him.
+The Novaks were flying home to Ohio on the Thursday, for the first time in the year and a half since they had left it. On the Wednesday, the school next to Nora's daycare flew its flag halfway down the pole, and Nora, coming out of the gate, wanted to know who had broken it.
 
-Ruth came in at the noise. She stood over him for a long time, and he couldn't make her understand what he needed. She went away and came back with the blanket off the sofa, and spread it over him, carefully, the way she would have tucked in a child. Then she went to the front room. He could hear her playing.
+"Nobody broke it," said Anna. "They put it halfway on purpose, when something very sad has happened. So everybody remembers."
 
-He lay on the linoleum until four the next afternoon. For most of those hours he thought about whether Ruth had eaten, and about the gutters, and not much about himself, which was how he had always lived.
+"What happened?"
 
-The Henderson boy found him. He was sixteen and lived two doors down, and for two years he had taken the Dorseys' garbage cans down to the street on Tuesday nights and brought them back up on Wednesdays, for nothing, because nobody had told him to stop. That Wednesday he saw the kitchen light still on in the middle of the afternoon, and went and looked through the glass.
+Anna crouched on the wet path, so that her face was level with her daughter's.
 
----
+"Yesterday a boy took a gun to his school," she said, "and hurt three other children. One of them died."
 
-Anna couldn't go. Alma was eight weeks old and wouldn't take a bottle from anyone, so Ben went. He landed in Ohio the next Monday, with a return ticket for Sunday and a list Anna had typed on her phone at four in the morning.
+Nora thought about it. "Was he a big boy?"
 
-The house was cold and very clean. Walt was in a nursing home in Kettering, the next town over, with a pinned hip and a surgeon's opinion that the leg would not hold him again. Ruth was in the hospital, where the ambulance had taken her too, because nobody could leave her alone in that house.
+"He was twelve."
 
-On his first night Ben opened the kitchen cupboards, looking for something to eat, and found sixty-one cans of soup, stacked with the labels facing out, and nothing else.
+"Was it my school?"
 
-He called Anna from the kitchen.
+"No. A school in the next town."
 
-"There's a dollar store four blocks down," he said. "Nothing fresh. Some bologna in a cooler. Anna, you know the walker? It has a wire basket on the front. I think he's been going down there on that leg, with the basket, all winter. Your mom won't eat anything she didn't hear being opened. So it's soup."
+"Okay," said Nora, and ran to tell her brother, who was two and asleep in his pushchair, that the flag wasn't broken.
 
-Anna didn't say anything for a while. On the line there was the hum of an American refrigerator, and, very close to the phone, a baby breathing in Finland.
+At the gate the other parents were quieter than usual. A mother whose son was in Nora's group had been crying, and was doing up his boots with great care, as if they were the only thing in the world that needed doing. Anna didn't have the Finnish to ask her anything. She stood beside her for a moment, which was all she had to give, and then took her children home.
 
-"He told me the walker was for the garbage cans," she said finally.
+That night, when the cases were packed, she opened the spreadsheet she had made two summers before at her parents' kitchen table, choosing between San Francisco and Helsinki. In Helsinki's column she had written that Finland had had two shootings at schools, years ago, and had made its gun laws stricter after them. It was all still true. The revolver had belonged to the boy's grandfather, who had a licence for it.
 
----
-
-The county's intake office was in the old Job Center by the river, inside the fence now. Ben went in on Thursday morning with Ruth's purse on his arm and Ruth beside him, discharged from the hospital an hour before, in her good coat buttoned to the neck. She had not said a word in the car.
-
-The clerk was a tall woman in her late forties with reading glasses on a chain.
-
-"Morning, Gary," she said, before she looked up. "You've got your sorry face on. Who've you brought me?"
-
-Gary Pruitt was the county caseworker for this side of Dayton, a heavy, tired man who made every phone call he said he would make. "Ruth Dorsey," he said. "Seventy-six. The hospital discharged her this morning. This is her son-in-law, Mr. Novak, over from Finland."
-
-"Finland," said Carol. "Well. I'm Carol. I've got a stack of these today and a bad knee, so we'll go at the knee's pace."
-
-She turned to the screen. Across the top of it, as on every morning that week, was a yellow banner: *Identity record under review.* She had been trying all week not to look at it.
-
-For thirteen years, Carol Flory's driver's license had said F. In three weeks it was due for renewal, and the new one would say M, because Ohio no longer let it say anything else, and the state had already changed its records to match. The county's computers checked their staff against the state's. Carol knew exactly what happened when the two disagreed: she had trained the office on it.
-
-She opened the form. *Montgomery County Form S-1, Application for Sanctuary Placement.* Eleven sections. She could do one in ten minutes, in any order she liked.
-
-"Ma'am, can you tell me your name?"
-
-Ben started to answer, and Carol stopped him, kindly. "This box says 'as stated by applicant.' Mrs. Dorsey?"
-
-Ruth looked at her for a long moment. Her hand on her purse was tight.
-
-"You're the county," she said.
-
-"I am," said Carol. "Can you tell me your name?"
-
-"Mrs. Walter Dorsey." Ruth looked away, at the window, at the door, at Gary Pruitt's folder. "I don't know who gave you that. I didn't sign anything."
-
-"There's a box here that says 'known as,'" Carol said. "What do people call you, when they like you?"
-
-Ben didn't know about that box, and almost nobody did. It was optional. Someone had added it years ago, after a man in another county was buried under a legal name that nobody at his funeral had ever called him. Most clerks tabbed straight past it. Carol never had.
-
-Ruth was quiet so long that Ben thought she hadn't heard.
-
-"My pupils call me Mrs. Dorsey," she said at last. "My husband calls me Ruthie. He is not to be encouraged."
-
-It was the first sentence Ben had heard from her in four days that sounded like her. Carol typed *Mrs. Dorsey*.
+She had known, even while she typed that line, that there was no country where it couldn't happen. She had put it in to make the column longer. She read it again, and closed the laptop without changing a word.
 
 ---
 
-The next box was the hard one.
+Theo had known his grandfather as a face.
 
-"Section two is why she can't go home," said Gary Pruitt, and he said it to Ben, because Ruth had gone back to watching the door. "The hospital could only keep her if she was a danger to somebody, or couldn't meet her own needs in the community. She hasn't hurt anybody. And the county attorney's written opinion is that the Sanctuary District counts as the community. It has beds, and meals, and an address."
+Every Sunday evening in Helsinki the face came up on the tablet, much too close to the camera, and said, "There's my boy." Theo had kissed it once and left a smear. He knew its laugh. He knew it lived in a place called Dayton, where it was always morning.
 
-The attorney had been asked a plain question, and he had given a plain answer. Since then, nobody who could be sent to the District had needs that couldn't be met in the community.
+Now it was attached to a whole man, on a porch, in a cap from a car-parts plant, with a steel brace on his left leg. Gene Kessler from across the street had fetched the Novaks from the airport in the same big car he had driven them away in, and the whole man had been standing on the porch when they turned into the street.
 
-"There's a hospital in Columbus with a list," Pruitt went on. "She's a hundred and sixty-third on it. I've called about her every week since October. I'm the fella Walt told you about, Mr. Novak. I'm not telling you any of this so you'll like me."
+After supper Theo walked all the way round Walt's chair, slowly, to see whether the man went on round the back.
 
-Then the category. The form gave three letters: E for employable, D for diminished, R for restricted. Everyone who worked inside the fence called them gimmes, dims and ghosts, and after a while the people in the District called each other the same. A person's letter decided her building, her line for meals and her gate, and once it was on her, it was very hard to get off. Ruth's had been chosen at the hospital before she arrived. It was D.
+"Still got a back," said Walt. "I checked this morning."
 
-While Carol worked, Ruth's fingers had started moving on the edge of the counter, the way they did on any flat surface now: the same few bars, over and over, stopping in the same place.
+Theo came round to the front and knocked on the brace, twice, as if it were a door.
 
-Carol watched for a while. Then she tapped the rhythm back on the counter with one fingernail, and hummed the next bar under her breath.
+"Anybody home?" said Walt, and Theo laughed so hard he had to sit down on the rug.
 
-Ruth's hand stopped. She looked at Carol's hand on the counter. Then she reached across and took it in both of hers, turned it over, and spread the fingers wide, the way she had measured forty years of children in her front room.
-
-"That's a tenth, easily," she said. "That's a man's hand, miss."
-
-Ben looked at the floor. Gary Pruitt looked at his folder.
-
-"Yes, ma'am, it is," said Carol.
-
-Ruth was still holding it. "Who told you to stop?"
-
-"Stop what?"
-
-"Nobody gets a hand like that to carry groceries."
-
-Carol started to laugh, and didn't quite manage it. "We weren't piano people," she said. "Old German Baptist, up north of here. No instruments, not in the house and not in church. Nobody's ever asked me that." She looked at her own hand in Ruth's. "I'd have been good, wouldn't I?"
-
-"You'd have been a nuisance, dear," said Ruth. "The good ones are." She let go.
-
-"That's 'Be Still, My Soul,'" said Carol, after a moment. "What you were playing. I sing the tenor line on it with the Methodists on Salem Avenue, Wednesday nights. They were short of tenors, and they didn't ask." She looked at Ben. "It's a Finnish tune, you know. Sibelius. Everybody here thinks it's ours."
-
-"It's from Finland?" Ben said, very quietly. Nobody answered him, because the form had another section.
+Anna watched them from the sofa and tried to get used to the size of her parents. On a screen they had been two faces at a table. In the house they took up all the rooms, and they were older than the screen had let on. Her mother's hair had gone the rest of the way to white. Her father got up out of a chair in two goes now, the first only to see how it would be. Anna noticed it that first evening, and understood at once why she had never noticed it before. On a Sunday call, nobody ever gets up.
 
 ---
 
-Section six was diet.
+On Saturday, Declan Toner came out of the arrivals hall at Dayton's airport with a bag over his shoulder and his daughter behind him, and Ben, who was not a man who hugged people, found that he had been hugged and was hugging back.
 
-"The District's food comes from a contractor in Indiana that also feeds the state's prisons," Carol said. "On a tray. She won't eat off a tray, will she?"
+They had started every working day together for four years, two faces in two squares on a screen, but they had not been in the same room since the evening Declan stood on the pavement in San Francisco and told him to mind himself.
 
-"She'll only eat what she hears being opened," said Ben. "She thinks people put things in the food. She's thought that since October."
+Declan stood back and looked him up and down.
 
-He said it as well as he could, and Carol understood him. She scrolled.
+"You've legs," he said. "I'd only ever seen the top half."
 
-"A medical diet takes a doctor, and the District has one, three mornings a week. A religious diet takes a check mark. What is she?"
+Niamh was fourteen now, taller than Anna, with her earphones in. She had asked for a total eclipse for her birthday, and her father had said he would see what he could do. She was missing two days of school for it, which her school had been told was educational, and which was true.
 
-"Lutheran. She played the organ at her church for thirty years."
+At the house, Nora looked at her politely from behind her grandmother's chair. She had been eleven months old the last time Niamh carried her about, and didn't remember her at all. Niamh said she didn't care, in the voice of a fourteen-year-old who did, and put her earphones back in.
 
-"Lutherans eat anything. That's no help to us." Carol scrolled again. "Kosher comes sealed. Two wrappers, opened in front of you. You can hear it crack."
+At bedtime Nora came down to say goodnight with the knitted rabbit by one ear. It was grey now, with one eye sewn back on by Ruth, and it went everywhere Nora went. Niamh took one earphone out.
 
-The form did not ask anyone to prove a faith. The county's lawyers had decided long ago that a form could not test what a person believed, so a check mark was a statement, like a name. At twenty past ten on a Thursday morning, Ruth Dorsey, who had played the organ for the Lutherans for thirty years, became Jewish, for the wrappers.
+"That's my rabbit," she said. "I gave her that."
 
-"Carol," said Pruitt.
+"His name is Ba," Nora told her.
 
-"She's Jewish until somebody checks, Gary," said Carol, without looking up. "Nobody has ever checked."
+Niamh looked at Anna.
 
----
+"It was the first thing she ever called you," said Anna. "She named him after you. She just doesn't know it."
 
-Section four was consent.
-
-Pruitt turned the screen toward Ben. "I've got this as voluntary, Mr. Novak. She signs, she's a resident, nobody goes to court. If she can't sign, the county files for guardianship on Monday. Then she's a ward of the county, with a lawyer who has sixty others, and he sells the house to pay for her keep. A ward stays until the county says so. I'm telling you which one I'd want."
-
-Carol slid the signature pad across the counter and held out the pen. "Mrs. Dorsey. This one's for you. Right there, by the X."
-
-Ruth took the pen and looked at the line, and something in her face sharpened.
-
-"Is this the report?"
-
-Nobody answered quickly enough, and she went on, fast and low. "If I put my name here, she stays. That's the arrangement, isn't it? She's fed. She's clean. You don't need to take her anywhere. You can take me instead. Put down that I came quietly. Where do I sign?"
-
-It would take four seconds. It would be legal enough, and nobody would ever look at it again.
-
-Ben had been awake, more or less, since Monday. He had a ticket for Sunday. He found, standing there holding her purse, that he was holding his breath, and that he was hoping she would sign. He was ashamed of it before the breath was out.
-
-Carol reached across the counter and held out her hand, palm up. "I'm going to need that pen back, Mrs. Dorsey."
-
-"Carol," said Pruitt, the way he said it when she was about to cost them both an afternoon. "Then it's a ward on Monday. You know it is."
-
-"She thinks she's buying a child, Gary. I won't take that signature." Carol was already getting up, on the bad knee. "I can keep her in the infirmary here on a medical hold until five tomorrow. Mr. Novak, walk with me. I get ten minutes and a coffee."
+Niamh took the other earphone out. "That's a stupid name for a rabbit," she said, and held out her hand for it, and Nora, after a long look, let her hold him. By the time the Toners left for their hotel, Nora was asleep on the sofa against Niamh's side, and Niamh had not moved for an hour, in case she woke her.
 
 ---
 
-They stood outside the back door, by the fence. Ben could see the river through it.
+On Monday the moon passed in front of the sun.
 
-"I was going to let her," he said. "You saw that. I just stood there."
+Dayton lay inside the narrow band of the country where the sun would be covered completely, and Walt read out the time at breakfast from the paper as if it were a train: two minutes and forty-three seconds of dark, starting a little after three.
 
-"I saw," said Carol. "I've let a lot of people do it. Yesterday I sent a man with no feet to a third floor. Today I didn't feel like it. Tomorrow I might."
+Lower on the page was the Europa Mission, as it had been nearly every day since the Novaks arrived: eight astronauts, in a ship a great many countries had built together, leaving in a week for one of Jupiter's moons, farther than anybody had ever gone. Walt had watched John Glenn go round the earth on a black-and-white set when he was fourteen, and seen a man from an hour up the road walk on the moon, and since he was twenty-five nobody had gone even that far. He half believed in it, the way he half believed most things promised on television, and read every word anyway.
 
-Ben made himself ask it with the word the staff used, because he wanted to know what it would cost him to say it. "What's it like in there for a dim?"
+By two the whole street was out on its lawns in folding chairs, with cardboard glasses that had black film for lenses. Nora had worn hers since lunch and kept walking into things.
 
-It came out more easily than it should have, and he didn't like that at all. Carol looked at him over her coffee.
+Across the street, Gene came out with a square of very dark glass in a metal frame, and his wife, Barb, came behind him with two kitchen chairs.
 
-"You want it honest? A woman like her keeps her ration card about a day and a half before somebody takes it. Then she's hungry. Your mother-in-law is a nice old lady who thinks I'm the county, and I am."
+"Welding glass," Gene called over. "Shade fourteen. From the plant." He held it up and squinted at the sky through it, as if the sky owed him money. "Those paper things, who knows who made them."
 
-She drank the rest of the coffee. Then, in the same breath, she asked whether Ruth had ever written anything down.
+"Barb's wearing them," said Walt.
 
-"Written what down?"
+"Barb's braver than me."
 
-"Who decides for her. Ohio has a paper for it, a declaration for mental health treatment. You name somebody to decide while you're well, and it counts for more than a guardian. A woman who's been in the hospital once and come home, with anybody sensible around her, usually has one. She knows what's coming."
+It went strange slowly, and then all at once. The light thinned, as if somebody were turning it down. It was still sunshine, but it came from somewhere farther off, silver and weak, and every shadow on the grass went as sharp as if it had been cut out with scissors. The air turned cool. A dog down the street began barking and didn't stop, and the birds in the maple went quiet one at a time.
 
-"How do you know that? It isn't on the form. Gary didn't know it."
+Then the last of the sun went out, and it was dark in the middle of the afternoon.
 
-"Because I've got one," said Carol. "Not that kind. The same idea. Who my next of kin is, who isn't allowed in the room, what name goes on the stone. My son's in the Guard. He's twenty-three. He calls me Carol, because we tried the other words and none of them fit. He knows where it is." She crushed the cup. "You write down who you are while somebody's still obliged to read it."
+Up and down the street, people cheered, without having meant to. On Gene's porch the light came on by itself, for anybody coming home late. Where the sun had been there was a black hole in the sky with white light streaming out round it on every side, like hair in a wind, and all round the edge of the world, over every roof, it looked like sunset.
 
-"Walt will tell me everything's fine," said Ben.
+"*Katso*," Nora said to Theo, which is Finnish for *look*, and Theo, on Walt's knee, looked.
 
-"Sure he will. So don't ask him if there is one. Ask him where it is."
+Low down, to the right of the black sun, there was a star much brighter than a star ought to be. Ben had read up on it: that was Venus. Higher and to the left he found the other one.
 
----
+"That one's Jupiter," he told Nora.
 
-The nursing home in Kettering took two buses. Walt was sitting up in bed with a breathing mask on the table beside him: the polio had begun to come back for the muscles that worked his lungs, and at night the mask did some of his breathing for him.
+"That's where they're going?" said Walt.
 
-"How's she eating?" he asked, before Ben had sat down.
+"Near enough," said Ben. "One of its moons."
 
-"They're working on it. Walt, where's the paper?"
+Walt looked at the little light for as long as the dark let him. It didn't look far. That was what got him. It looked like something you could hit with a stone.
 
-Walt narrowed his eyes. "Who told you to put it that way?"
+"They go next Monday," he told Nora. "On your birthday."
 
-"A woman at the county."
+Nora considered this. "For me?"
 
-"Piano bench," said Walt. "Under the hymnal. Dolores drove her down to the bank to get it stamped, two years ago this month. She does it every three years, like the car."
+"Sure," said Walt. "Who else?"
 
-"Why didn't you say? She's been in the hospital a week, and it was in the piano bench the whole time."
+Ben looked round for Declan and found that Declan wasn't looking at the sky at all. He was watching his daughter. Niamh stood at the edge of the lawn with her face turned up and her glasses in her hand, crying without making any sound, the way a fourteen-year-old cries when she has asked for something enormous and been given it. Declan's face had gone completely still. In four years of mornings, Ben had never once seen it do that on a screen.
 
-"Fifty years," said Walt. "Fifty years I've been married to her. I carried that woman up the hospital stairs at Good Samaritan on this leg. You go on and read it. You read whose name she wrote down. It isn't mine."
+Then a bead of light broke out at one edge of the black circle, so bright that everyone said "Oh" at once and grabbed for their glasses, and it was over. The birds started up. Gene's porch light went off.
 
-Then, from long habit, he started to tell Ben to tell Annie everything was fine. He got as far as "everything", and the rest didn't come.
+Gene came across the street with the welding glass under his arm.
 
-"Tell Annie," he said.
+"Next one in Ohio's 2099," he said. "I'll bring a chair." Then he told Walt that he and Barb had sold the house. They were moving down to their daughter's in South Carolina, in July.
 
----
+"You're kidding me," said Walt.
 
-It was nine at night in Dayton and three in the morning in Helsinki, where Anna was awake, as she was for most of the hours there were. She was sitting up in the dark with Alma asleep on her chest and the phone against her knee.
+"Barb wants to watch the grandkids grow up somewhere besides a phone." Gene said it to the welding glass. "First time in her life she's gone first. So I'm following."
 
-In the front room in Dayton, Ben lifted the lid of the piano bench. Under the hymnal there was an envelope from the bank. Inside was the state's form, filled in, signed and stamped, and where the form left a few lines for anything else, Ruth had kept going, past the lines and onto the back of the page.
+"Who's going to do my steps?"
 
-Ben read it aloud. After the first sentence he stopped hearing his own voice.
+"It doesn't snow in July, Walt." Gene nodded down the street, where a boy of about thirteen was dragging a recycling bin back up somebody's drive. "The Henderson boy does your bins already."
 
-*The eleventh of March, 2025. I am in my right mind, and I have a notary here to say so, which is more than most people can claim.*
+"Won't take a dollar for it. I've tried." Walt laughed, and said good for Barb, and meant it. Then he stood a while with his hand on the back of the lawn chair, looking at the house across the street, as if he were learning it.
 
-*I have schizoaffective disorder. When I am ill, I don't know that I am. That is the whole of it, and it has taken me fifty years to get it into one sentence.*
-
-*When I am ill, I will tell you I am perfectly well. I will tell you the injection is poison and that you are not who you are. Do not listen to me. Listen to this. I have been held down before, and I would rather be held than go where I go.*
-
-*I name my daughter, Anna Dorsey, to decide. Not my husband. Walter would carry me up a mountain on that leg and tell you we were fine, and somebody has to look after him too. Anna is the only person in this family who has ever read a form to the end.*
-
-*She has gone to live in the country that hymn came from. I looked it up. So when she calls on Sundays, I play it. She has never said anything. That's all right. I never told a pupil everything, either.*
-
-*Annie, you will have to do something terrible. I would like it in writing that I said you could.*
-
-For a while, nobody said anything.
-
-"Anna?" Ben said. "It's that tune. The one she plays on Sundays. A woman at the county knew it. It's from Finland."
-
-"I didn't know," said Anna. "I've heard it. They played it at Nora's school in December, for Finland's Independence Day. I stood at the back of the gym holding my coat, and I thought, that's pretty. That's all I thought."
-
-She wiped her face with the heel of her hand and moved the baby higher on her chest. "Send me the form."
-
-"It's three in the morning."
-
-"She says I read to the end. Send me the form."
-
-She read all eleven sections on her phone, one-handed, by the light from the street. It took her forty minutes. In section ten she found what nobody had told them: a resident could be released only to a responsible party with a fixed address. A ward had no responsible party but the county.
-
-"Every care home you called wants nine thousand dollars a month," she said, "and wants her calm before they'll take her, and she won't be calm without the shot. Nobody will give her the shot without somebody to sign for it, and the only clinic that will see her this month is inside the fence. If I sign, she goes in. If I don't, she goes in anyway, as a ward, and nobody on earth can ever get her out. So I sign."
-
-Ben started to say she didn't have to decide tonight.
-
-"I filled out the forms to leave her, Ben. I can fill out this one."
+The Toners flew home the next day. At the car Declan said, "Eight o'clock, then," and Ben said, "Eight o'clock." That was all either of them said about it. This time it was a great deal for both of them.
 
 ---
 
-On Friday morning Ruth was brought back from the infirmary to the bench by the counter, and Ben put the phone on Carol's counter on speaker.
+On Wednesday Ruth gave Nora a piano lesson.
 
-"Ms. Flory? This is Anna Dorsey. I've read your form."
+The bench was too low, so Anna lifted the lid to get out two hymnals for Nora to sit on. Under them was the envelope that had lived there since the summer of 2020: her mother's declaration, the form that named Anna to decide about Ruth's treatment whenever Ruth was too ill to decide for herself. The date on the envelope was last August.
 
-"Nobody reads the form," said Carol.
+"It runs out every three years," said Ruth. "So I do it again. Like the car."
 
-"Section nine comes filled in already," said Anna. "'Community resources offered and declined.' Nobody offered my mother anything. A sign went up on a door. I need this form to say what really happened. Finland won't give my mother a permit if she can get treatment here, and I've been reading that sentence since November. If a county document says she can't, it's the first piece of paper I've had."
+Nora sat on the hymnals. Ruth asked her what she knew, and Nora sang a song about a star, in Finnish. Ruth knew it from the first note. It was the twinkling one that every child learns.
 
-Carol scrolled. "There's a dropdown. The third choice says 'none available.' In twenty-three years I've never seen anybody pick it."
+"Then you know it in English too," said Ruth. "You only don't know you do. Give me this finger."
 
-"Why not?"
+She showed Nora where the tune lived, and Nora picked it out with one finger, getting most of it. Then Ruth put her own left hand down at the bottom of the keyboard, and they played it together, the one finger and the whole hand. Theo crawled under the piano to feel it hum.
 
-"Because it goes to a supervisor. That's what it's for. It's the one box on the whole form that a person reads, and she opens it, and she looks at who filed it."
+"Your hand is shaking," said Nora.
 
-"Is that a problem?" Ben asked.
+"It does that," said Ruth. "It's my medicine. It stops me getting sick, and it makes my hand shake. The hand still knows where the notes are." She played the bottom part again, to prove it. "Again."
 
-"It's Friday," said Carol, which meant the supervisor would open it on Monday, and Carol would have the weekend to think about it.
+In the kitchen, Anna dried the same plate three times over rather than go in and stop it.
 
-For thirteen years, since she had chosen her name out of the county staff directory because there were nine Carols in it and nobody had ever looked twice at a Carol, the work of her life had been to be a file that no one had any reason to open. The yellow banner was still across the top of her screen. She moved the selection down two lines to *none available*, and saved it, and felt her stomach drop the way it does on a stair that isn't there.
+"You'll need a teacher," Ruth said, when they had played it five times and Nora wanted a sixth. "Over there. A Finn, I suppose."
 
----
+"My teacher at daycare is a Finn," said Nora.
 
-Section eleven was the responsible party.
-
-"County of residence," Carol read. "I've got all eighty-eight counties in Ohio, and I've got Other."
-
-"Other," said Anna.
-
-"You understand what this makes you. Once she's in, you're the only person who can ever get her out."
-
-"I know. I read section ten."
-
-"It's on your screen. Sign with your finger. It looks terrible. Everybody's does."
-
-In a kitchen in Helsinki, beside a cupboard with no floor, Anna Dorsey signed her mother into the Montgomery County Sanctuary District. It was very quick.
-
-"Is she there?" Anna asked, and before Carol could answer, asked her not to put Ruth on. "Would you tell her something, from the county? Tell her it's in the report. Tell her she's doing a good job, and the girl is staying right where she is."
-
-"Yes, ma'am," said Carol. "I can put that down."
-
-She put it down. Then she came around the counter to the bench where Ruth had sat all morning with her purse on her lap, and said it to Mrs. Dorsey word for word, with the clipboard held where she could see it.
-
-Ruth looked at the clipboard, and then up at Carol.
-
-"Well," she said. "Thank you. That's kind."
+"Well," said Ruth. "We'll see what she's made of."
 
 ---
 
-The District ran from the river to the railroad tracks, and it held twice the people it had been built for.
+On Friday Ruth's injection was due. Dolores, who had given it to her every month for seventeen years, didn't come to houses any more, so Anna drove her mother to the county clinic on Wayne Avenue, with Theo in the back. Ruth sat in the waiting room with her purse on her knees, like everybody else.
 
-Ben carried the purse as far as the inner door, which was as far as he was allowed to go. Ruth took it from him there and held out her hand, the way she would have at the end of a lesson.
+The television on the wall was showing the Europa crew, on their last day before they went into quarantine. The camera came to one of them, a young Frenchwoman named Renée Picard, and the reporter asked her if she was nervous.
 
-"Young man, you've been very kind," she said. "You're the tuner."
+Renée laughed, and said no, she was excited, they had trained for everything. While she said it she put a hand to her ear and held the lobe a moment, and let it go.
 
-Ben had been in Ohio for five days. On the first of them, he would have told her his name.
+"That girl is frightened," said Ruth.
 
-"Yes, ma'am," he said. "She's holding her pitch beautifully. I'll come by again in the spring."
+Anna's head came up before she could stop it. For most of her life, a remark like that from her mother, about a stranger on a screen, had been the first thing she listened for. She looked at Ruth, sitting very straight with her purse, and decided it was only her mother having an opinion. Anna let her breath go.
 
-"Do," said Ruth. "And wipe your feet."
+For forty years Ruth had sat in the front row of school halls while her pupils walked out to a piano in front of everybody's parents. The ones who told you they weren't nervous, and fiddled with an earring while they said it, were the ones who were. She had always liked them best.
 
-A woman in a hairnet was waiting on the other side of the door. Her name was Lucille Odom, and until her school closed she had run its kitchen. She met the new residents at the inner door because it was worth an extra tray.
+Dolores put her head round the door and said, "Ruthie." She was slower getting up from her stool than Anna remembered. It was done before Theo noticed, in the left arm, and Ruth rolled her sleeve down.
 
-She looked at the ration card in Ruth's hand.
+"There's a French girl on the television who's frightened," she said.
 
-"That your card, baby? They'll have that off you by supper. Hold still. Let me see your neck."
+"Is she?"
 
-"Are you the new pupil?" Ruth asked her.
+"She'll go, though."
 
-"Yes, ma'am, I am," said Lucille. "Mind that step. It's bad all the way up."
+"How do you know?"
 
-She bent down and took the lace out of her own left shoe, threaded it through the hole in the ration card, and tied it around Ruth Dorsey's neck, inside her collar, with a knot she had tied ten thousand times in apron strings. She didn't say anything about it. For the rest of that day she walked with one shoe loose.
+"The frightened ones practise," said Ruth.
+
+Dolores looked at her a moment over the sharps box. She had sat at the back of Ruth's church on Sundays when it had taken everything Ruth had to get up onto the organ bench, and had watched Ruth get up onto it.
+
+"Like somebody I know," she said.
+
+"Don't be sentimental, Dolores. It's nine in the morning."
 
 ---
 
-Ben flew home on Sunday.
+On Saturday the crew were on the front page again, eight of them in flight suits, smiling. Lower down, the county commissioners were still arguing about whether Dayton needed a Sanctuary District of its own, like the one in Columbus: a fenced place for the people who slept outside, and for the ones too sick in their minds to manage, with nobody to manage for them. Walt read both. Then he folded the paper with the second one on the inside and said he was taking the children to see where the Wright brothers had learned to fly.
 
-On Monday, a woman of seventy-one came to the District's visitors' window on two buses, with a small cooler bag and a prescription the District's nurse practitioner had signed on Anna's word. It was Dolores. She had kept her nursing license up to date since the clinic closed, for no reason she could have given you.
+Huffman Prairie was a field on the edge of the air base, a few miles out of town, kept mown the way it had been when it was a cow pasture. There was a wooden hangar built new to look old, a tall frame the brothers had used to fling their machine into the air, and a great deal of sky.
 
-The visitors' log had three boxes: family, legal and clergy. Dolores was none of them. Carol Flory, who had the visitors' log that morning and whose file had not been opened yet, ticked clergy.
+"Everybody thinks it was North Carolina," Walt told Nora, from a bench by the hangar, with his leg out straight. "They only went down there for the wind. They learned to fly right here, in a cow pasture. And the first man to write it up was a beekeeper. The newspapers wouldn't come."
 
-"Ruthie," Dolores said. "It's Dolores. Give me your arm."
+Nora wanted to know why a beekeeper. Walt said because he came to look, which was more than anybody else did. Then the children ran off down the mown path to see whether there were any cows now, and a big grey plane went up from the base beyond the trees with a noise like the sky tearing, and Walt watched it all the way out of sight.
 
-"You're late," said Ruth.
+"Annie," he said. "I want you to promise me something."
 
-"I know I am."
+She sat down beside him.
 
-It had been seven months since the last injection. After that long, the medicine had to be started again from the beginning: one dose now and a second a week later, so Dolores would come back next Monday too. It would be weeks before anyone knew how well it would work this time, and it might not work as well as before. Ruth had signed for that as well, in a good year, at the bank.
+"If anything happens to me," said Walt, "don't you let them put your mother in one of those places."
 
-In Helsinki, Anna had booked the language exam, and filled in every box of an application she couldn't yet send, because Finland would only hear it from one of its citizens. In the folder with it was a county document, in English, that said *none available*. The applicant would still have to come in person, to prove who she was. And in an office in Dayton, a supervisor had a file to open.
+He didn't say which places. The paper was folded on the seat of the car. Anna remembered her mother, the autumn Columbus opened its District, watching the line of people go in at the gate on the news and saying she would want a room with a piano.
 
-There was nobody living in the Dorseys' house now, and no garbage to take down. On Tuesday night the Henderson boy walked the empty cans down to the street anyway, and on Wednesday after school he brought them back up the drive, so that from the street it would look as if somebody was home.
+"Dad. Nothing's going to happen to you."
+
+"Course it isn't. I'm fine. Doctor says I'm fine." He was looking at the field. "This is in case."
+
+Anna knew exactly what it would take. Finland let a parent come only if a citizen asked, and she was years from being one. To keep a promise like this, she would have to come back.
+
+And it wouldn't even be a safe place she gave up. She had never truly believed in the safe place; she had only needed a column to put it in. What she would give up was the life the four of them had just begun to fit: Nora's Finnish, Theo's sea, Ben's job, the woman at the playground hut who said *Teo*.
+
+"I'll do everything I can," she said.
+
+"Don't you 'everything I can' me. That's what they said at the plant before they shut a line." He still didn't look at her. "I'm asking for your word."
+
+Her father had never asked anybody for anything. He had done the shopping on one leg in the first spring of the virus sooner than ask. He had told her on the porch that they would be fine, so that she could go. This was the one thing he had ever asked her for, and it wasn't for himself.
+
+And she could hear what he wasn't saying. That he was seventy-seven, and lay awake. That Gene was going, and Dolores was slower. That if he went first, there would be nobody in the house but her mother and a piano.
+
+If she told him the truth, that she couldn't promise what she didn't know how to do, he would say "Fine." He would say it all the way home, and carry it on his own, the way he carried everything, because he would never let anybody carry it with him.
+
+If she promised, she would be promising something she didn't know how to do, and the only way she could see to do it was to bring her family home.
+
+The children were coming back up the path. Nora was carrying something, a stick or a feather, high over her head.
+
+"I promise, Dad," said Anna.
+
+Walt looked at her then. She watched his shoulders come down.
+
+She had felt her own come down like that, on the porch, the summer they left, when he told her they'd be fine. She had never known, until she watched him, what it had cost him to say it.
+
+"Good," said Walt. "That's settled." He got hold of the arm of the bench. "Don't tell your mother. She'd only make a fuss."
+
+Anna thought of the envelope under the hymnal, in her mother's square hand. There was nothing in it about places. Her mother was at home, practising tomorrow's hymns.
+
+Walt went to see what Nora had found.
+
+---
+
+At supper that night Nora asked Ben where his mommy and daddy were. She had been working her way round the table: everybody had a mother and a father somewhere, and she had come to Ben last.
+
+Ben told her. His parents had died in a car accident when he was very small, smaller than Theo, and his grandmother had brought him up.
+
+Nora considered it. She was a big sister herself, and took the question seriously. "Did you have a big sister?"
+
+"I did. Katie. She died before that, when she was nine."
+
+"Why?"
+
+"She was sick," said Ben.
+
+Anna knew that was all of it. She had known about Katie since their first year together, and had asked once what made her sick. Ben had said he didn't know. His grandmother had told him that Katie was sick, once, and closed the subject like a drawer, and he had never opened it again. It was the one door in him Anna had never seen him try, and she had learned to leave it shut, as he did.
+
+Ruth didn't.
+
+"Sick with what?" she said.
+
+"I don't know," said Ben. "Nobody ever said."
+
+Ruth put down her fork. She had lived for twenty years in a family that called her own illness *when Mom was sick*, and nothing more, until the night she named it at this table. She looked at Ben the way she looked at a form with a box nobody had filled in.
+
+"Somebody should have," she said.
+
+Nora had moved on. "Do you miss them?"
+
+"I don't remember them," said Ben.
+
+Nora looked at him as if it were the strangest thing she had ever heard, and it occurred to Ben that perhaps it was.
+
+So on Sunday morning, while the rest of the family went to church, he drove two and a half hours north to Toledo, alone.
+
+In the church, the pastor asked the congregation to pray for the sick of the parish, by name, and for the crew who would leave tomorrow, and for everyone who loved them. Then, carefully, he asked them to pray for a school in Finland, in a city called Vantaa. He said it with the weight on the first syllable, the way Finns say every word, because Ruth had written it out for him before the service with the stress marked in red. Anna, in the pew, hadn't known her mother had done it.
+
+*Lord, in your mercy*, said the pastor. *Hear our prayer*, said the church.
+
+Ruth didn't hold with praying for outcomes. It seemed to her like telling God his business. But up on the organ bench, where nobody could see her face, she prayed for the French girl's nerve, which seemed to her a different thing.
+
+In Toledo, Ben stood in a cemetery he had not been to since his grandmother's funeral. His parents had one grey stone between them, NOVAK across the top. Beside it was a smaller one for Katie. He stood longest in front of that one, and found that Ruth's question had come all the way up the road with him.
+
+He was older now than either of his parents had lived to be. He knew their faces from the same six photographs. He tried to remember anything else, a voice, a room, and there was nothing there to find.
+
+He had nothing to say to people he had never known. So he told them about the children instead, out loud, feeling foolish: that Nora was five tomorrow, and spoke two languages, and had wanted to know where they were; that Theo had seen a ship last Easter and decided it was his. He told them about Anna. He went on longer than he had meant to.
+
+He was back in Dayton by the middle of the afternoon. When he turned into the street, Walt was on the porch in his chair, with his cap on, watching for the car.
+
+Ben had never in his life come home to anybody watching for him. He sat in the car a minute with the engine off before he got out.
+
+---
+
+On Monday Nora was five, and said so in two languages as soon as she woke.
+
+She had her cake at lunch, because she couldn't wait, and they sang to her in both languages at once, which worked, because the Finns sing it to the same tune. Then Ruth played it with all the extra notes.
+
+In the late afternoon they sat down in front of the television with the windows open. Walt had his chair, and Theo had Walt. Nora had the floor, as close to the screen as anybody would let her. Ruth sat upright on the end of the sofa and said it was a great deal of money to spend looking at ice.
+
+The countdown was long, and then very short. At zero the bottom of the rocket filled with fire, and for a moment it didn't seem to move at all.
+
+"Come on," said Walt, under his breath. He had said it to John Glenn's rocket, at fourteen.
+
+Then it rose, slowly and then faster, on a white column of smoke, until it was a bright point in the sky, and then not even that.
+
+Nobody in the front room said anything. On the television, people were hugging. Then a voice came down from the ship, crackling, a woman's, with a French accent. She read out some numbers, quick and calm, and said that everything was normal, and that they were on their way.
+
+"There," said Ruth. It was what she said when a pupil got to the end of a piece.
+
+On the television, a man at mission control said, "Godspeed."
+
+Nora turned round on the floor. "What is Godspeed?"
+
+Walt thought about it. "It's what you say to people who are going a long way," he said. "It means go well."
+
+"*Hyvää matkaa*," Nora told Theo, which is what the Finns say, and Theo said it back to her, more or less.
+
+"When do they come home?" she asked.
+
+"They're due home the winter you're ten," said Ben.
+
+Nora looked at her hands. She held one up with all its fingers, and then the other. Ten was all of them. She looked at them for a long time, as if she had never noticed before that she had so many.
+
+---
+
+After supper she drew it.
+
+She drew the rocket going up, and the fire under it, and the smoke, and at the top a window with eight round faces in it, because there were eight. When it was finished she gave it to her grandfather without a word, the way she gave her teachers things at daycare.
+
+Walt held it a while. Then he got up out of his chair, in two goes, and went into the kitchen, and took the church calendar off the fridge door, and put the picture up in its place, at the height of a five-year-old's eyes, with the magnet from the plant.
+
+"That's going right there," he said.
+
+That night, when the house was asleep, Anna came down for a glass of water and stood in the kitchen without turning on the light. The picture was a pale square on the fridge door. Somewhere past the moon, the eight people in it were still going.
+
+Upstairs her father was asleep, and she suspected it was the first night in a long while that he hadn't lain awake first. She stood in the dark with what she had promised him, and then carried it up the stairs carefully, the way you carry a cup filled right to the brim.

@@ -1,229 +1,267 @@
-# Chapter 3: Labor Day
+# Chapter 3: Leaving
 
-Ben Novak's body was still in Helsinki. Every morning it woke him at four, sure that it was the middle of the afternoon, and on the last Saturday of August it woke him in a hotel in San Francisco, ten hours behind, where he had come for a week at his company's offices.
+Walt Dorsey put the tomatoes in on a Saturday in the middle of May, two weeks before his father would ever have dared, and Nora helped.
 
-Brynner, the company he worked for, had flown its engineers in from Helsinki and Belfast and everywhere else, for the first time since before the pandemic. The meetings began on Tuesday, after the holiday. Ben had come early, over the long weekend, to get used to the clock, and it hadn't worked.
+Nora had just turned two. Her help was to carry each plant from the tray to its hole in both hands, at a run, and then stand on it. Walt sat on an upturned bucket at the edge of the bed, with the leg in its steel brace stuck out straight in front of him, and each time he fished the plant out from under her shoe and set it in the ground as if nothing had happened.
 
-At breakfast Declan Toner came across the lobby with his hand out. For four years Declan had been a face in a small square on Ben's screen, in a room in Belfast with a radiator behind him, and the funniest person in any meeting. In person he was a good head shorter than Ben had pictured, in a jacket much too warm for California. He looked Ben up and down.
+"My dad put them in at the end of May," he told her. "Never a day before. Said the frost would get them." He pressed the earth round a stem with his thumbs. "The frost's not what it was."
 
-"You've legs," he said. "I always wondered."
+Nora stood on the next one.
 
----
+Inside, a pupil was stumbling through a minuet in the front room, and Ruth was saying "Again," in the voice of a woman who had said it for forty years and meant it every time. The pupils came to the house now, in person, because everybody who could be vaccinated had been. Across the street, Gene Kessler, who hadn't been and wouldn't be, was mowing his lawn in straight lines, and lifted a hand to Walt at the end of every one.
 
-On Sunday they went up to the office, because Declan wanted to see where he would be sitting. It was on the twenty-eighth floor, all glass, and on a clear day you could see across the whole city to the hills. Declan stood at the window and named what he could: the bridge, the bay, the island with the old prison on it. Then he pointed.
-
-"What's that?"
-
-A few miles off, between the roofs, a long grey line ran straight for a block, turned a corner, and ran straight again.
-
-"That's the District," said Ben.
-
-"Which district?"
-
-"The Sanctuary District." Ben heard how that sounded, and tried again. "Every big city has one now. It's for people who haven't got anywhere. People who lost their job, or their apartment. People who are sick, in their heads. They get a bed in there, and meals, and help finding work."
-
-"And when they find work?"
-
-"Then they can leave."
-
-Declan looked at the grey line for a while.
-
-"So it's for helping them," he said.
-
-"That's the idea."
-
-"With a wall round it."
-
-"Right," said Ben.
-
-He had been driven past that wall on every trip he had ever made to this city. On his last one there had been tents on the sidewalk outside this building, and now there were none. He had read on the plane that the Supreme Court had decided in June that a city could fine or jail people for sleeping outside, whether or not there was anywhere else for them to sleep, and that this city had started offering its homeless a bus ticket out of town before any other help. He hadn't asked himself where the ones with nowhere to take a ticket had gone. From the twenty-eighth floor he could see where.
+From the porch, Anna watched her father and her daughter, and thought that they had come for two weeks, more than a year ago, and that nobody in the house had said so in months.
 
 ---
 
-That evening, at a restaurant near the hotel, every phone in the room lit up at once.
+At the beginning of July, she sat on the edge of the bath in the house she grew up in, holding a test with two lines on it. She had been nearly seven weeks along before she thought to wonder. She had been busy.
 
-The pictures were from a helicopter. Smoke was coming up out of the District, and there was fire in the street outside a low building by its gate. The news said there had been a fight at the Processing Centre, where new arrivals were signed in, between one of the District's security officers and a resident. Then hundreds of residents had come out into the streets, and the officers had run. Some hadn't got out. By ten o'clock a gang of residents had taken the Processing Centre, and the officers' shotguns, and six of the staff.
+She told her parents that evening, out by the tomato bed, where her father was tying the plants to their stakes with strips of an old shirt.
 
-Ben lay awake in his hotel room and watched it until the phone was hot in his hand. A few minutes before midnight a new video started, live, from inside.
+Walt held the strip of shirt for a while without tying it.
 
-A man in a clean shirt sat in front of a phone that someone was holding up for him. He had a tired, ordinary face, the face of a man who would coach his son's baseball team. He said his name was Michael Webb, that he had been a plant manager at a chemical company, and that he was speaking for the residents of Sanctuary District A.
+"Well," he said. "I'll have the crib down."
 
-"We're holding six hostages," he said. "We don't want to hurt them. All we want is—"
+"Don't you dare go up in that attic," said Ruth, from the porch, and then laughed, because she had heard who she sounded like.
 
-The picture stopped. When Ben tapped it, it said the video was no longer available. So was every copy of it, everywhere he looked.
+Nobody asked where the baby would be born. It would be born where they were. That was how it went with the house, that year: nothing was decided, and everything was settled.
 
-At two in the morning a message came from Declan, two floors down. *You see that?*
-
-Ben wrote back that he had. Then he lay in the dark and wondered what the end of the sentence had been.
+Brynner's offices, in the meantime, kept almost opening. In the summer the company said it would have its people back in the autumn. In the autumn a new variant of the virus came through, and it said January. In January there was another, and it said it would let everyone know. Ben worked in the spare room at the back and paid for a storage unit in San Francisco every month, full of a life they weren't living, and in September Nora started at the preschool in the basement of her grandmother's church, two mornings a week, in a coat with ducks on it.
 
 ---
 
-Monday was Labor Day, the holiday America gives itself at the end of summer in honour of working people, and the office was nearly empty. Ben and Declan went in anyway, because neither of them could sleep, and because watching it alone was worse.
+Theo was born on a Friday in February, in the hospital downtown. The hospital allowed one visitor, because of the virus, so Walt and Ruth met their grandson on the Sunday, in the front hall, with snow melting off Ben's boots onto the mat.
 
-Dana Reyes was there. She ran the small team that decided what could be shown on Brynner's video service, and she had been up all night. She sat on a desk and told them what had happened.
+Walt held out his hands. He had held out his hands like that on the front path nearly two years before, for Nora, and Anna had had to decide in a second whether to let him. This time she didn't have to decide anything. She gave him the baby.
 
-Just before midnight the police had asked for the District to be cut off, so that the people inside could talk to their negotiator and to no one else. Every company that carried anything into the District had done as it was asked. One of them was Brynner, which ran the District's network for the city. Meanwhile the big video sites had taken down every clip from inside, given each one a digital fingerprint, and shared the fingerprints, so that a copy put up anywhere vanished within seconds.
+Walt looked down at Theo and didn't say anything. Theo looked at the ceiling, which was the most interesting thing he had seen so far.
 
-"We all learned to do that after a man in New Zealand put a massacre on the internet live," said Dana. "It's a good policy. I helped write ours. It was written for people who film themselves killing people." She rubbed her eyes. "As far as anyone knows, they haven't killed anyone in there."
+"He's got the Dorsey chin," said Walt.
 
-So that was where the end of the sentence had gone. Ben's own company had cut it off.
+"He's got no chin at all," said Ruth. "Give him here."
 
-All morning they watched the helicopter pictures, which were all there were. A police negotiator was talking to someone at the gate. The National Guard was on its way. Ben opened the work he had brought with him and didn't do any of it.
+She held him with her left hand under his head. It shook a little, as it always did now. She looked at it, and then at the baby.
 
-In Helsinki it was evening. Anna had seen the pictures over the children's supper and gone straight to a map, because that was what she did with bad news: she measured how far it was from someone she loved. *Is that near you?*
+"He doesn't mind," she said.
 
-*A few miles,* he wrote. *I'm fine. We're watching it on TV like everybody.*
+Then she gave him back and went to the piano and played him "Happy Birthday", with every one of the extra notes, because it was.
 
-It stayed true until three o'clock.
-
----
-
-Chris Brynner came in at three.
-
-He had founded the company and still owned most of it, and Ben had seen him in person twice. He went into the glass room with Dana and a lawyer on the speakerphone, and they were in there for forty minutes. Whatever changed his mind, he kept to himself. When they came out, a message went to everyone in the company.
-
-At five o'clock the company would switch the District's network back on, against the police's request. Anyone inside who wanted to tell their story could tell it, on the front page of Brynner's video service, to anyone who wanted to listen. Everything would go out four minutes late, and someone in the building would watch every story before it went. The rules were short: no guns on camera, no hostages, no threats. Everything else went out.
-
-A sentence of Brynner's went round the office within the hour, from people who had been near the glass room. *We'll lose the city contract, and we'll have the biggest night we've ever had.* People argued about whether he had been joking.
-
-Dana's team was four people, and two of them were asleep. She came out onto the floor and asked anyone in the building who understood English to put on a pair of headphones.
-
-Ben's team in Helsinki built the part of the service that played the video. Every one of the stories would play through code he had written. He sat down. Declan sat down beside him.
+Six days later, Russia invaded Ukraine. On Ben's screen the next morning, the Finns on his team were quieter than usual. Mikko, who had been on Ben's screen nearly every morning for three years, mentioned that his grandfather had fought the Russians in the snow in 1939, and then talked about the player's buffering for an hour, as if he had said nothing at all.
 
 ---
 
-The first was Michael Webb, in the same clean shirt, and he finished his sentence. All they wanted, he said, was what they had been promised when they came in: work, and the door.
+On the second Tuesday in April, Brynner sent its email. From the first of September, everyone would work from an office again: their own, or, at the company's expense, another office where their team had people. Ben's team had people in two offices. One was San Francisco. The other was Helsinki, where the player had come from.
 
-Then the line began.
+"Belfast?" said Anna.
 
-Ben never knew how long it was. It ran out of the Processing Centre and down the steps into the street. One at a time, people sat down on a bench in front of a phone and said who they were. A boy of about fourteen held the phone up for each of them, and somewhere in the second hour the picture began to shake, and then steadied again when he changed arms.
+"Belfast has one desk on the player team," said Ben. "Declan's sitting at it."
 
-A man called Henry Garcia had come to San Francisco to work in a brewery. The brewery had bought new machines and laid off half the floor, and he was in the half. He had never been in trouble with the law, he said, and he would like to work and live like anybody else. Ben pressed the green button, and four minutes later Henry Garcia was on the front page, and all over the world people were watching him say it.
+"Or you find another job. Here."
 
-It came out later that, while Henry Garcia was talking, the police negotiator at the gate had asked the governor of California for more time, and the governor, who had heard rumours that the hostages were already dead, had told her the Guard would go in at five in the morning. In the office, the line went on.
-
-An old man had been asleep in the doorway of a bank in July when the police woke him and offered him a bus ticket to Fresno, where he had never been, or the District. A young woman called Julie Hess had aged out of foster care at eighteen with two garbage bags of clothes. She still had one of the bags, folded up small, and she held it up to show the phone.
-
-A woman with a split lip said that in her first week inside she had taken a ration card off a man in the food line, because she was hungry and he was slow, and that she'd do it again tomorrow. "Don't feel sorry for me," she said. "Feel sorry for him. He's still in here." She had no gun and made no threats, so the rules let her through. Ben pressed green, and found that he believed her more than anyone yet.
-
-A big man with a careful voice put his hands flat on his knees before he began.
-
-"They call me a dim in here," he said. "That's fair. I hear things. I know I do." He looked down at his hands, and then he made himself look up again. "I've been on a list for a doctor two years. If my sister in Sacramento's watching, hi, Lainie. I'm okay."
-
-Then a woman said that the men who had taken the building would have hurt the staff by now, if a resident called Bell hadn't stopped them. Bell had gone out and found people he trusted, and put them on the doors of the room where the six were kept. "Bell says nobody touches them," she said. "So nobody does."
-
-On Declan's screen, a man sat down with a shotgun across his knees and said that the people out there should be frightened, because the people in here had been frightened for years, and if the soldiers came in, they'd see. Declan pressed red before he had finished. "Threat," he said, and the next one sat down. Ben saw how easy the rule was, when you didn't like the man.
-
-By nine o'clock more people were watching Brynner than had ever watched it for anything. There had been fires in two other cities' Districts. Dana walked up and down behind the row of reviewers, reading over shoulders.
+"I'll look," said Ben, and he did. Dayton's software jobs were mostly out at the air base, behind a security clearance that took most of a year to get. And in America a family's health insurance comes with somebody's job, and Theo was seven weeks old.
 
 ---
 
-At ten past ten, five hours after the governor had made up his mind, Michael Webb sat down on the bench again, and this time he wasn't alone. Beside him was a woman with a District staff lanyard round her neck and her hair coming loose.
+That night, after Ben had gone up, Anna did what she always did with something coming: she found the forms.
 
-"People out there are saying we've hurt them," said Webb. "We haven't. This is Lee."
+Finland, it turned out, had a permit for exactly her case: the elderly parent of a grown child who lived there. She found it on the website of the Finnish immigration service at one in the morning, with Theo asleep on her shoulder. The page was in English, and it was very clear.
 
-"I sign people in," said the woman. She looked straight at the phone. "We're all right. All six of us. They've fed us. Nobody's hurt anybody. Bell won't let them."
+The permit was meant, it said, for a parent who moved to Finland at the same time as her child. A parent who came later would need compelling reasons, and the example the page gave was a refugee, parted from her family by a war. A grown daughter who had gone off to live her own life had not been parted from anybody. And only a Finnish citizen could ask for such a permit at all.
 
-Ben's hand stopped over the button.
+Anna couldn't become a Finnish citizen for five years at the very least, and not then unless she passed an exam in Finnish, a language in which she could at present say nothing. By the time she could ask, her parents would long since have failed to come at the same time.
 
-No hostages. It was the shortest rule on the list. Dana had given the reason for it at five o'clock: a hostage says what the people holding her want her to say, and you can never know which of it is hers. Ben could see that this was true. He could also see the woman's face. He had three minutes and forty seconds.
+She read it three times, in case it said something else. It didn't. Every part of it was reasonable, written by sensible people for sensible reasons, and it added up to never.
 
-"Declan."
+Unless, said a small voice that she didn't like, something terrible happened. Then there would be compelling reasons.
 
-Declan pulled one headphone off and looked. He was quiet for a moment.
+She shut the laptop.
 
-"Ben, there's a fella with a shotgun at that door," he said. "You can't see him, but he's there. She knows he's there."
+After that, she knew what the choice was, even if nobody else in the house did yet. San Francisco was still America, and a day's flying from her parents, with a change of planes. It needed no permit; if her parents would come, they could all go together. Helsinki was the one Ben wanted, and the one she kept looking at. And if they went there without her parents, her parents could never follow.
 
-"She's telling people she's alive."
+She made a spreadsheet: two columns, the case for San Francisco and the case for Helsinki. Mikko told Ben that Finland had had two shootings at schools, years ago, and had changed its gun laws after. She put that in Helsinki's column. In the middle of May, Finland asked to join NATO, the alliance of countries that defend each other, because of what Russia had done next door. She put that in San Francisco's. She was trying very hard to be fair.
 
-"Aye. And she'd say it if she wasn't fine at all." Declan said it gently. "Rule's the rule."
-
-Ben pressed the red button. The clip went into a folder that no one outside the building would see, and the next person sat down on the bench.
-
-They stayed until midnight and walked back to the hotel. Halfway there, Declan said, "You did right," and Ben said, "I know."
+That same week, a company in Chicago offered Ben a job he could do from Dayton. He told her on the porch, and she put her face in her hands, and for a few days the spreadsheet stayed shut.
 
 ---
 
-At four on Tuesday morning his body woke him again, because in Helsinki it was two in the afternoon. He lay in bed with the phone and watched the line.
+On the Tuesday after that, something happened at an elementary school in a town in Texas called Uvalde. The television in the front room went off that evening and stayed off for the rest of the week, and Walt, who had watched the news every night of his adult life, didn't turn it back on.
 
-Just before five it was an old woman's turn. She was telling the phone about the hotel where she had cleaned rooms for twenty-two years, and she was halfway through a story about a guest who left her a hundred-dollar bill on a pillow, when she turned her head toward a sound. Whoever was holding the phone turned too. Then the picture stopped, and in its place came a plain card in Brynner's colours that said they would be back.
+On the Thursday, Nora came home from preschool with a note in her backpack. It had been written the week before, and the teachers had sent it home anyway. It said that the children had practised their lockdown drill, and that they had done wonderfully.
 
-Ben sat up. It took him a moment to understand. The reviewers on the floor had seen it first, and decided that the world would not see the rest. And whatever he had just watched had happened four minutes ago. Everything he had watched all night had happened four minutes ago. The soldiers had been inside for four minutes before he saw the old woman turn her head.
+At supper Nora showed them. She got down off her chair and crawled under the table and sat among their feet with her knees pulled up and one finger pressed hard against her lips.
 
-He found the news. It was ten past five, and still dark. The helicopter pictures showed the Processing Centre's doors blown in, smoke in the street, and lights moving on the roofs.
+"It's the quiet game," she said, from under the table, not very quietly. "We go in the cubby corner. And Miss Jackie turns the light off. And somebody knocks on the door, and we don't say anything." She was enormously proud of it. "Not even if it's Mommy."
 
-He sent Anna a message, and she rang him at once. It was the middle of the afternoon there. She stayed with him while he watched, and he could hear the street around her, and a tram going by.
+Nobody at the table said anything.
 
----
+Walt put his fork down. Ruth looked at the window. Ben looked at Anna, and Anna got down on the kitchen floor in her good jeans, so that her face was level with her daughter's.
 
-By nine they knew more. All six hostages had come out alive. One of them, a security officer, stood on the steps of a police station with a blanket round his shoulders and told the cameras what had happened. When the Guard came through the door, he said, the soldiers had fired at everyone, and one of them had aimed at him, because in the smoke an officer looked like anybody else. A resident called Gabriel Bell had stepped in front of him and taken the bullet.
+"Why do we play the quiet game?" said Nora.
 
-By noon Bell's name was on the list of the dead. Michael Webb's had been on it since the morning. The rest of the list took days, and it went into the hundreds.
+Anna had promised herself, in the year a county woman came every Thursday to look in her fridge and nobody told her why, that she would tell her own children the truth about things. She had not expected to begin with this, or so soon.
 
-That afternoon Lee spoke to a reporter from a hospital bed. She said what she had said on the bench. They had been fed. Nobody had hurt them. Bell wouldn't let them.
+"Because once in a long while," she said, "a person comes to a school who wants to hurt people. It almost never happens. But if it did, the quiet game is how Miss Jackie keeps you safe. That's why you're so good at it."
 
-Ben watched it on his phone in a corridor at the office. He was so glad she was alive that he said "Oh" out loud, to the empty corridor. Then he thought of the folder that no one outside the building would ever see.
+Nora thought about it.
 
-"It wouldn't have stopped them," said Declan, who had come out to find him.
+"I'm the best at it," she said, and came out from under the table for her ice cream.
 
-"You don't know that."
+That night Anna lay awake under the plastic stars on her old ceiling.
 
-"No," said Declan. "I don't."
+"I'm not raising them here," she said.
 
----
+"San Francisco's here," said Ben, into the dark. "It's still America."
 
-The meetings went on, because nobody knew how to call them off. For three days fifty engineers sat in glass rooms and talked about next year, with the District on every phone under every table.
-
-On Wednesday, in the middle of a meeting, a man across the table turned his phone round to show Ben a vigil in Chicago: a park full of candles, and BELL painted on a bedsheet. Before the meeting ended, a woman further down showed him a congressman saying that Gabriel Bell had held six people at gunpoint, and that the country should stop making a saint of a hostage-taker. Both phones went round the table, and people looked longest at whichever one they agreed with.
-
-On Thursday the city of San Francisco cancelled its contract with Brynner. That evening Declan asked to see the wall up close, before he flew home, and Ben took him in a car.
-
-The National Guard was on the gate. Along the sidewalk opposite, people had left candles in glass jars, flowers in their cellophane, and pieces of cardboard with names written on them: BELL, and WEBB, and HENRY GARCIA, and names Ben didn't know. A woman was relighting the candles that had gone out. Further along, a smaller crowd held signs that said THANK YOU NATIONAL GUARD, and the two groups kept to their own ends of the block and didn't look at each other.
-
-Declan walked along the wall with his hand out flat, nearly touching it.
-
-"We've walls at home," he said. "Peace walls, we call them. There's one at the bottom of the street I grew up on. When they put the first ones up, the army said they'd be very, very temporary." He took his hand back. "They're older than me."
-
-They stood across from the gate. A Guardsman looked at them and looked away.
-
-"When I was a boy," said Declan, "the government took the IRA's party off the news. Not what they said, just their voices. Their leader would come on, and his lips would move, and an actor would read out his words. Funniest thing on television." He shook his head. "My da voted for John Hume's party every election of his life. Hume talked. He got the Nobel Prize for talking. And this year, for the first time, the woman running the government in Belfast is from the party that had the actor doing its voice."
-
-"That's different," said Ben. "That was a vote."
-
-"It was. And for thirty years before the vote there were bombs." Declan nodded at the candles. "A week ago, how many people in this whole country could have told you one name from behind that wall? They asked nicely for years. They took six hostages, and the whole world listened to them for a night."
-
-"Most of them never hurt anybody."
-
-"I know. I held back the one who wanted to hurt somebody." Declan was quiet for a while. "I'd love it to be the talking that does it. I'd love it to be Hume. But maybe it works. The other thing. Maybe it just works, and we'd all rather not know."
-
-They stood on the sidewalk until the woman had lit every candle, and then they went back to the car.
-
-On Friday Brynner's numbers came in, and they were the biggest it had ever had. Declan flew home to Belfast, and Ben to Helsinki.
+"I know," said Anna. She had known it at supper, on the kitchen floor. Lying there, she tried to think what she could say for San Francisco, and everything she could think of was about her parents.
 
 ---
 
-He was home on Saturday. Nora met him at the door with her drawing of Europa, to show him that it had nine cracks now, all in her mother's old orange crayon. The Shango had been gone nearly five months, and it was still going.
+In the second week of June, the company in Chicago froze its hiring, as half the industry did that summer, and took its offer back in a short, courteous email. Ben read it in the spare room and didn't come down until supper. When he told Anna, she found that she didn't know whether she was sorry.
 
-At six on Sunday evening, eleven in the morning in Dayton, Anna set the tablet up on the kitchen table, and Walt's face came up much too close to the camera. Behind him, in the front room, Ruth was at the piano, playing them something slow, as she did every Sunday.
+On the last Friday in June, the Supreme Court took away the country's right to an abortion and left it to each state. That evening Ohio's ban came into force: nothing after about six weeks, before many women know they are pregnant at all.
 
-"Well, there he is," said Walt. "We saw your city on the news all week."
+Anna read it on her phone at midnight, in the kitchen, with Theo feeding. She had been nearly seven weeks along before she knew she was carrying him. She had wanted him with her whole heart. But it had been hers to want.
 
-"It's not my city, Walt."
+She thought about Nora at fifteen. In California, nothing had changed that night. In Finland, nothing had changed. In the house she had grown up in, it had changed by bedtime. She didn't put it in either column. It wasn't that kind of thing.
 
-"I know it. Hell of a thing. That fella Bell." Walt shook his head. "Pastor prayed for the hostages this morning. Their families."
+---
 
-"Bell kept the hostages alive," said Ben.
+She asked them on the Sunday before the Fourth of July, on the porch, after church.
 
-"That's what the one fella said." Walt didn't argue. He didn't agree, either. "They took hostages, Ben."
+Every porch on the street had its flag out for the country's birthday, Walt's included. Walt was in his chair with his cap from the plant on, and Ruth sat beside him in her church dress, with her organ shoes still on, because she had played that morning. Ben stood in the doorway with Theo. Nora was on the steps with a box of chalk, drawing a sun with a great many legs.
 
-Then he told them his news, in the voice he used for the weather. The county had voted on Thursday. Dayton was going to build a District of its own, down by the river, where the old warehouses were. People had been arguing about it since the spring, Walt said, and after California it had passed.
+Anna told them about Brynner, and the first of September, and the two offices. She told them about the job in Chicago. Then she told them about the page on Finland's website, all of it, the way she had read it: at the same time, and the five years, and never.
 
-"Who's going in it?" Anna asked.
+"So I'm asking," she said. "If you'll come with us, we'll go to San Francisco. All of us. We'd find a place on the ground floor. There are nurses in San Francisco, Mom. There are churches with organs."
 
-"Folks who can't manage, I guess." Walt shrugged. "Nobody we know, Annie."
+She knew what she was asking. Her mother had fought Dolores for a year before she let her near her arm, and trusted her ever since, and had sent a stranger off this porch rather than let him touch it. Anna was asking her to start again, at sixty-six, in a city where she didn't know a soul. Anna asked anyway. She wanted them with her more than she could make sensible, and she had never asked her parents for anything this size.
 
-Behind him, the piano went on.
+Walt looked out at the tomato bed. The plants were up past the top of their stakes, heavy with fruit, all of it still green.
 
-Ben looked past Walt's shoulder at the back of Ruth's head, and thought about Dolores, and the injection that came once a month and kept her well. He thought of the big man on the bench, looking down at his hands and making himself look up again, who had been on a list for a doctor for two years.
+"Who'd do the tomatoes?" he said.
 
-He started to tell Walt about him. Under the table Anna's hand found his and held on, and he saw that she was watching her mother too. So he let it go, and on the screen Walt went on telling them about the tomatoes.
+"Dad."
+
+"I mean it. They're coming on good this year." He shifted the brace on the boards. "Annie. I'm seventy-five, and I've got the one leg. We've got Gene. We've got the church."
+
+Ruth looked at her daughter for a long moment.
+
+"It took me a year to let Dolores near that arm," she said. "I haven't got another year to spend on a stranger, and you haven't got one to spend on me."
+
+Then she got up and went inside, and the screen door banged behind her, and through the open window the piano started: a scale, up the whole keyboard and down again, fast and very clean. Anna had been hearing that scale since before she could reach the keys. It was what Ruth played when she didn't want to say anything else.
+
+Nora put down her chalk and listened, with her head on one side.
+
+"You call us Sundays," said Walt. "Eleven o'clock, after church. Wherever you end up. Your mother'll play you something."
+
+"Dad."
+
+"We'll be fine, Annie," said Walt. "We're fine."
+
+He had been saying it since he was five, the way other people said hello. It was the first time he had ever said it knowing exactly what it cost and choosing to say it anyway. He watched it work. He watched his daughter's shoulders come down.
+
+---
+
+Walt had decided on the Thursday of the note, at supper, with his fork in his hand and his granddaughter under the table among his feet. He had decided before Anna ever asked.
+
+He knew something about Annie that she didn't seem to know herself. If he and Ruth said yes, she would take them to San Francisco and tell everyone it was what she wanted. She would give up the other place for her children, the one without the quiet game, and never once complain of it. Ben had shown him San Francisco on the laptop: the hills, and the streets so steep that the sidewalks had steps cut into them. Walt knew exactly who would get a man with one good leg up and down those steps, every day, until he died, and he was not going to let it be Annie. Where she went after that was hers to decide. He only meant to take himself out of the way.
+
+He had also worked out, on the back of an envelope, how old he would be by the time Theo was old enough to remember him. Then he had torn the envelope up and put it in the trash under the potato peelings, where Ruth wouldn't find it.
+
+---
+
+That night, in bed, Ben said, "Well. It's simpler now, anyway."
+
+Anna turned her head on the pillow and looked at him.
+
+He saw his mistake about a second after he had made it, the way you see a glass going off the edge of a table. What he had felt on the porch was relief: one road fewer, and the one he wanted still there. Nobody had ever needed him the way Anna's parents needed her. He could see that Anna was in pain, the way you can see that somebody is cold. He couldn't feel it.
+
+"We'll come back every summer," he said.
+
+"And every summer they'll be a year older," said Anna.
+
+He didn't have anything to say to that, so he didn't say anything. He did the one thing he could think of, which was to stay awake with her. Downstairs, a little after midnight, the piano started again, so softly it was hardly there: something slow that Anna didn't know. She lay and listened to it the way she always listened to her mother's playing, for how her mother was. This once, she didn't want to know.
+
+---
+
+In the morning she sat at the kitchen table with Brynner's form and her pen over the box for her husband's new office.
+
+San Francisco was still there to write. It was America, with its drills, but it was a day's flying from this table. When her father fell, she could be beside him by nightfall. She could fly home every month, and drive her mother to church, and be in the room when the doctors talked. She could stay the daughter whose name was on the form in the piano bench, and be able to do what it said. Her mother had sat in the front room and watched people with their bags going through a gate in Columbus, and said, *Now we know where they'll put me when your father dies.* From San Francisco, Anna could stop that. From Helsinki she would hear about it on a Sunday.
+
+And Helsinki itself was no promised land. She had read about the winters, when the sun went down in the middle of the afternoon. She would be a woman who couldn't read the label on a jar of baby food, in a language with fifteen ways to end a noun, in a city where no dentist would want a receptionist who couldn't talk to the patients. She would be a stranger for years, and maybe always.
+
+It was also the place where her children would grow up without the quiet game.
+
+She held the pen over the box until her hand ached. She thought of her mother watching the gate. She thought of her daughter under this table, with one finger pressed against her lips, waiting for a knock.
+
+She wrote *Helsinki*. Then she put her hand flat over the word, as if somebody might come in and see it, and sat like that until Theo woke.
+
+---
+
+Finland had opened a fast lane that summer for people like Ben, whom it wanted: a decision in two weeks, for him and his family, as long as his family applied at the same time. Anna read the words, *at the same time*, and thought of the other page. Then she got on with the forms, because the forms were what she could do.
+
+Ruth went through every one of them at the kitchen table with her red pen. She found a comma missing in the Finnish government's own English, and marked it. She checked Theo's date of birth against his birth certificate twice, and Nora's three times. She did it all without a word about why there were forms, and Anna, watching her mother's square schoolteacher's hand go down the page, helping her leave, had to go out and stand in the yard.
+
+The permits came in thirteen days.
+
+Mikko sent a video from his phone: the daycare round the corner from the apartment Brynner had found, low and yellow, with a sandpit and a fence, and past the fence the sea. It was grey and wide and very calm, with a little boat going across it.
+
+"Boat," said Nora, and put her finger on it.
+
+"There's a place for her," said Mikko, off the screen. "They're very excited. They have never had an American."
+
+Walt watched videos on Ben's laptop about how to say *thank you* in Finnish, and practised it on Nora, who said it back to him better. He asked Ben whether they grew tomatoes in Finland. Ben said they did, in greenhouses.
+
+"Greenhouses," said Walt, as if it were cheating.
+
+In August, Dolores came and gave Ruth her shot in the front hall. Afterward she stood on the porch with her bag and looked at the boxes stacked by the stairs, and at Anna.
+
+"I left my mother when I was twenty-five," she said. "In the Philippines. For nineteen years she told me on the telephone that she was fine."
+
+Anna didn't know what to say to that.
+
+"So I'll tell you," said Dolores. "Not your father. Me. If she isn't."
+
+---
+
+They left on a Saturday in August, when Theo was six months old.
+
+The night before, Anna stood on her childhood bed in her socks and took the plastic stars down off the ceiling, one at a time, and put them in an envelope for Nora's new room. They came away easily. They had only ever been stuck on.
+
+In the morning Gene brought his car round, the big one, because Walt couldn't manage the airport and Gene had offered to drive them before anybody could ask. Ben carried the cases down the steps. Barb stood at her own front door across the street in her housecoat and waved, already, though nobody had gone yet.
+
+Ruth said goodbye in the front hall. She wouldn't do it on the porch, where the street could see. She held Theo, with her left hand under his head, and gave him back. Then she took Anna by both arms.
+
+"You're still the one," she said. "On my form. In the bench. I'm not changing it."
+
+"Mom. I'll be in Finland."
+
+"They have telephones in Finland," said Ruth. "I looked it up." She let go. "Go on, now. Go on."
+
+Out on the porch, Walt had come down two steps, and stopped there, with his hand on the rail. Anna sent Nora out to say goodbye to her grandfather.
+
+Nora didn't. She ran back in past her mother, through the front room, and climbed up onto the back of the sofa under the front window, where she had stood since she could stand to wave at the street, and put both her hands flat on the glass.
+
+Walt looked round, and saw her.
+
+She was singing to him. He could see it. Her mouth was going, and her head went from side to side in time, and her hands came off the glass for the parts with actions in them. Through the window he couldn't hear a word of it. It was the song they sang at preschool every day, at the end of the morning, when it was time to go home.
+
+When Walt was five, his mother had stood every evening outside the window of a hospital ward where she wasn't allowed in, and he had watched her mouth move through the glass and been sure it must be something very important. Years later she told him she had only been singing.
+
+He knew better now. He stood on the step and watched his granddaughter sing to him through the window, every verse, with all the actions.
+
+Then Anna came and lifted her down, and carried her out to the car, and buckled her in beside her brother with the knitted rabbit in her lap, and got in between them.
+
+Gene pulled away from the curb slowly, because he could see Walt's face. Walt waved. Nora waved back through the car window, and Ben, in the front, turned round in his seat and looked at his wife, and put his hand back between the seats without a word. Anna held on to it. Behind them, through the open window of the front room, the piano began, and they heard it all the way down the street, until the corner.
+
+---
+
+On the porch, Walt waited until there was nothing left to wave at. Then he came back up the two steps, one at a time, good leg, brace, good leg, and went in.
+
+Ruth was at the piano with her hands in her lap. She had stopped when the car turned the corner, and she was sitting the way she sat at the end of a hymn, very straight, waiting for the next one.
+
+"They'll call Sunday," said Walt. "We'll be fine."
+
+"Don't you start that with me, Walter," said Ruth.
+
+He sat down on the end of the bench, where there was just room for him, and she moved over, and neither of them said anything at all for a long time.

@@ -6,6 +6,8 @@ import os
 import sys
 import time
 
+import pytest
+
 from riskgpu.kaggle import kernel
 from riskgpu.kaggle.launch import flat_name
 from riskgpu.selfplay.verdict import verdict
@@ -301,3 +303,15 @@ def test_a_chains_folders_come_home_whole(tmp_path, monkeypatch):
     launch.copy_back(job, str(tmp_path / "output"))
     for f in files:
         assert (tmp_path / "runs" / "readings" / "it1" / f).read_text() == f"it1/{f}"
+
+
+def test_a_push_kaggle_refused_fails_though_its_cli_exits_0(monkeypatch):
+    import subprocess
+
+    from riskgpu.kaggle import launch as kaggle_launch
+    answer = ["Kernel version 3 successfully pushed.  Please check progress at https://www.kaggle.com/code/x"]
+    monkeypatch.setattr(kaggle_launch, "kaggle", lambda *args, check=True: subprocess.CompletedProcess(args, 0, answer[0], ""))
+    assert "successfully" in kaggle_launch.push_kernel("-p", "dir")
+    answer[0] = "Kernel push error: Maximum batch GPU session count of 1 reached."
+    with pytest.raises(AssertionError, match="refused"):
+        kaggle_launch.push_kernel("-p", "dir")

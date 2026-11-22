@@ -5,13 +5,18 @@ recorded games' outcomes.
     python -m riskgpu.selfplay.distil --data runs/search-records/b1-k3r6 --init runs/selfplay/b1/snap-100.pt
         --dir runs/distil/x1 [--target hard] [--skipped-weight 1] [--max-samples 50000000] [--out distil.json]
 
-run from `src/projects/risk/gpu/`. The recording is `record.py`'s; the machinery is `imitate.py`'s:
-the observations rebuilt on the device from the kept states each minibatch (`imitate.rebuild`), the
-same loop at a fixed schedule over a set budget of samples (`imitate.fit`), and a read that only
-chooses the checkpoint kept. The net is `--init`'s, in its action space, which must be the
-recording's (a recording keeps its candidates as that space's actions; the engine move it keeps
-would let another space's targets be made from it, as `imitate.exact_targets` does, but nothing
-does that yet).
+    python -m riskgpu.selfplay.distil --data runs/own-records/d4-500 --width 256 --layers 6 --clock
+        --dir runs/distil/copy-256x6 --lr 5e-4 --warmup 500 --max-samples 100000000
+
+run from `src/projects/risk/gpu/`. The recording is `record.py`'s, or a net's own play recorded by
+`own.py` in the same format; the machinery is `imitate.py`'s: the observations rebuilt on the device
+from the kept states each minibatch (`imitate.rebuild`), the same loop at a fixed schedule over a set
+budget of samples (`imitate.fit`), and a read that only chooses the checkpoint kept. The net is
+`--init`'s, or a fresh one of `--width`, `--layers` and `--heads` (with `--clock`, reading the
+clock), in the recording's action space (a recording keeps its candidates as that space's actions;
+the engine move it keeps would let another space's targets be made from it, as
+`imitate.exact_targets` does, but nothing does that yet). A fresh net is a copy learned from random
+weights, so it takes imitation's recipe, given in its arguments (the defaults are a fine-tune's).
 
 **The target** (`--target`). `hard` (the default): cross-entropy to the candidate the search played,
 its main choice and its amount. `soft`: the main choice's target spreads the probability the network
@@ -44,11 +49,17 @@ use of the clock only from the net it starts from.
 choice, weighted by `--skipped-weight` (0 leaves them out), so the net isn't pulled off its play
 where the search didn't look. The value head trains on every decision kept.
 
+**A net's own play** (`own.py`, `source` `record.PLAYED`): every target is the recording net's most
+likely move, and every decision counts as a searched one does (weight 1, in the headline read, as
+`kept`: the target is the net's own first choice), so the read is the copy's agreement with the net.
+
 **Held out by game**: game g is held out when g % 5 == 4. The read (each `--read-every` steps, on a
 fixed sample of the held-out decisions) is agreement with the search's move, the main choice alone
 and the whole move, split by where the target came from: `overruled` (the search played another
 move than the network's first choice: the number that matters, and 0 at the start by construction),
-`kept` (searched, the first choice played: 1 at the start) and `skipped`. The checkpoint kept
+`kept` (searched, or played, the first choice the target: 1 at the start) and `skipped`. The
+headline read, `searched` in the reports, is over the decisions the recording is for: searched and
+played ones. The checkpoint kept
 maximises the move agreement over every searched decision, which can only rise by gaining overruled
 decisions faster than kept ones are lost. At the end the kept checkpoint is read over every held-out
 decision, by decision kind and by source, with 95% intervals by bootstrap over games (`--out`).
@@ -76,10 +87,21 @@ from .actions import MAIN
 from .imitate import (DECISION_KINDS, HELD_OUT_EVERY, fit, forward, normalize, predict, rebuild, require_cuda,
                       share_reader)
 from .net import Net, init_from, shape_of
-from .record import CONFIG, SEARCHED
+from .record import CONFIG, PLAYED, SEARCHED
 
 # Where a target came from, as the read splits it.
 FROM = ("overruled", "kept", "skipped")
+
+
+def counted(source: torch.Tensor) -> torch.Tensor:
+    """Whether each sample is a decision its recording is for (searched, or a net's own play), the
+    headline read's and weighted 1; the rest are a search's skipped decisions."""
+    return (source == SEARCHED) | (source == PLAYED)
+
+
+def cap_of(config: dict) -> int:
+    """A recording's turn cap: a search's (`record.py`), or a net's own play's (`own.py`)."""
+    return config["cap"] if config.get("kind") == "own" else config["search"]["cap"]
 
 
 class Recording:
@@ -102,7 +124,7 @@ class Recording:
                 d.pop("meta")
                 d["game"] = d["game"].to(torch.int64) + offset
                 parts.append(d)
-                caps.append(torch.full((len(d["game"]),), self.configs[-1]["search"]["cap"], dtype=torch.int64))
+                caps.append(torch.full((len(d["game"]),), cap_of(self.configs[-1]), dtype=torch.int64))
             index = torch.cat([g["index"] for g in games])
             count = int(index.max()) + 1
             mine = torch.zeros(count, 6)
@@ -122,8 +144,8 @@ class Recording:
 
     def where_from(self) -> torch.Tensor:
         """`[N]` int64: each sample's source as `FROM` indexes it."""
-        searched = self.x["source"] == SEARCHED
-        return torch.where(searched & self.x["overruled"], 0, torch.where(searched, 1, 2))
+        mine = counted(self.x["source"])
+        return torch.where(mine & self.x["overruled"], 0, torch.where(mine, 1, 2))
 
     def inputs(self, idx: torch.Tensor, board: Board, device: str, clock: bool) -> dict:
         """Samples `idx` rebuilt for a net that reads the clock (`clock`), counted down to their
@@ -163,7 +185,7 @@ def soft_main_target(z: torch.Tensor, x: dict, tau: float) -> torch.Tensor:
 def losses(net: Net, b: dict, args) -> dict:
     z, za, amount_legal, value, _ = forward(net, b, args.bf16)
     x = b["x"]
-    searched = x["source"] == SEARCHED
+    searched = counted(x["source"])
     weight = torch.where(searched, 1.0, args.skipped_weight)
     lp = torch.log_softmax(z, 1)
     if args.target == "soft":
@@ -228,15 +250,21 @@ def train(args) -> dict:
         json.dump(vars(args), f, indent=1)
     board = Board.load(device)
     data = Recording(args.data)
-    state = torch.load(args.init, map_location=device, weights_only=False)
-    shape = shape_of(state.get("net", state))
+    assert (args.init is None) != (args.width is None), "start from --init, or a fresh net of --width and --layers"
+    if args.init:
+        state = torch.load(args.init, map_location=device, weights_only=False)
+        shape = shape_of(state.get("net", state))
+    else:
+        shape = {"width": args.width, "layers": args.layers, "heads": args.heads, "ff_mult": 4, "actions": data.actions,
+                 "clock": args.clock}
     assert shape["actions"] == data.actions, \
-        f"--init is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
+        f"the net is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
     net = Net(**shape, edges=board.edges, adjacency=board.adjacency).to(device)
-    init_from(net, state)
+    if args.init:
+        init_from(net, state)
 
     game = data.sample_game()
-    keep = (data.x["source"] == SEARCHED) | (args.skipped_weight > 0)
+    keep = counted(data.x["source"]) | (args.skipped_weight > 0)
     train_idx = torch.nonzero(~data.held_out[game] & keep)[:, 0]
     held_idx = torch.nonzero(data.held_out[game])[:, 0]
     assert len(train_idx) >= args.minibatch, f"{len(train_idx)} training samples, fewer than a minibatch"
@@ -245,7 +273,7 @@ def train(args) -> dict:
                             ].sort().values
     source = data.where_from()
     print(f"{args.name}: {len(train_idx)} training samples ({int((source[train_idx] == 0).sum())} overruled), "
-          f"{len(held_idx)} held out (monitor {len(monitor)}), from {args.init}", flush=True)
+          f"{len(held_idx)} held out (monitor {len(monitor)}), from {args.init or f'random weights, {shape}'}", flush=True)
 
     def loss_of(b: dict):
         parts = losses(net, b, args)
@@ -275,7 +303,11 @@ def train(args) -> dict:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--data", required=True, help="a recording's folder (`record.py --dir`), or several, comma-separated")
-    p.add_argument("--init", required=True, help="the checkpoint to start from, in the recording's action space")
+    p.add_argument("--init", default=None, help="the checkpoint to start from, in the recording's action space")
+    p.add_argument("--width", type=int, default=None, help="a fresh net's width (instead of --init)")
+    p.add_argument("--layers", type=int, default=4, help="a fresh net's layers")
+    p.add_argument("--heads", type=int, default=8, help="a fresh net's heads")
+    p.add_argument("--clock", action="store_true", help="a fresh net reads the clock (`obs.py`)")
     p.add_argument("--dir", required=True, help="the run's folder: best.pt, last.pt, log.jsonl")
     p.add_argument("--target", default="hard", choices=["hard", "soft"])
     p.add_argument("--tau", type=float, default=0.05, help="the soft target's temperature on the mean scores")

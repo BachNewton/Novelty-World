@@ -91,6 +91,8 @@ def gpu(tmp_path, monkeypatch):
 
     def kaggle(*args, check=True):
         calls.append(args)
+        if args[:2] == ("kernels", "push"):
+            return subprocess.CompletedProcess(args, 0, PUSH_ANSWER[0], "")
         out = {"quota": QUOTA_FULL, "files": json.dumps(files), "status": "ready"}.get(args[1] if args[0] == "datasets" else args[0], "")
         return subprocess.CompletedProcess(args, 0, out, "")
     for module in (launch, gpu_launch):
@@ -101,9 +103,12 @@ def gpu(tmp_path, monkeypatch):
     monkeypatch.setattr(launch, "GPU", str(root))
     monkeypatch.setattr(launch, "RUNS", str(root / "runs" / "tpu"))
     monkeypatch.setattr(launch, "STAGING", str(root / "runs" / "kaggle"))
+    PUSH_ANSWER[0] = "Kernel version 1 successfully pushed.  Please check progress at https://www.kaggle.com/code/x"
     return root, calls, files
 
 
+# What Kaggle's CLI prints for a push, which it answers with exit code 0 either way.
+PUSH_ANSWER = [""]
 IMITATE = ["train", "i1", "--task", "imitate", "--source", "runs/imitate/fx"]
 DISTIL = ["train", "d1", "--task", "distil", "--source", "runs/readings/e1/rec"]
 
@@ -112,11 +117,13 @@ def test_a_training_session_s_arguments_are_refused_before_anything_is_uploaded(
     root, calls, _ = gpu
     assert launch.main([*IMITATE, "--dry-run", "--", "--width", "256", "--layers", "6", "--minibatch", "32768"]) == 0
     assert launch.main([*DISTIL, "--dry-run", "--", "--init", "runs/selfplay/b1/snap-100.pt"]) == 0
+    # A copy from random weights, the set prepared with the clock its net reads.
+    assert launch.main([*DISTIL, "--clock", "--dry-run", "--", "--width", "256", "--layers", "6"]) == 0
     for argv, refusal in [
         ([*IMITATE, "--", "--data", "runs/x"], "the launcher's"),
         ([*IMITATE, "--", "--hours", "2"], "the launcher's"),
         ([*IMITATE, "--", "--minibatch", "4100"], "split over the session's 8 chips"),
-        ([*DISTIL, "--"], "starts from --init"),
+        ([*IMITATE, "--clock", "--"], "no turn cap"),
         (["train", "i1", "--task", "imitate", "--source", "runs/readings/e1/rec", "--"], "folders under runs/imitate/"),
         ([*DISTIL, "--", "--init", "runs/selfplay/b1/none.pt"], "lacks"),
         ([*IMITATE, "--session-hours", "10", "--"], "at most 9"),
@@ -127,8 +134,8 @@ def test_a_training_session_s_arguments_are_refused_before_anything_is_uploaded(
     (root / "runs" / "tpu" / "i2" / "last.pt").write_bytes(b"x")
     with pytest.raises(AssertionError, match="finished run"):
         launch.main(["train", "i2", *IMITATE[2:], "--"])
-    # Only the quota was asked, by the two dry runs and the session too long for it.
-    assert [c[0] for c in calls] == ["quota", "quota", "quota"]
+    # Only the quota was asked, by the three dry runs and the session too long for it.
+    assert [c[0] for c in calls] == ["quota", "quota", "quota", "quota"]
 
 
 def test_a_set_already_on_kaggle_is_checked_by_name_and_size_and_not_uploaded_again(gpu, capsys):
@@ -146,7 +153,7 @@ def test_a_pushed_session_carries_its_job_the_bundle_and_the_tpu(gpu):
     run = root / "runs" / "tpu" / "d1"
     run.mkdir(parents=True)
     (run / "resume.json").write_text("{}")
-    assert launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt", "--minibatch", "8192"]) == 0
+    assert launch.main([*DISTIL, "--clock", "--", "--init", "runs/selfplay/b1/snap-100.pt", "--minibatch", "8192"]) == 0
     staged = root / "runs" / "kaggle" / "tpu-d1"
     meta = json.loads((staged / "kernel" / "kernel-metadata.json").read_text())
     assert meta["enable_tpu"] and not meta["enable_gpu"] and meta["machine_shape"] == "TpuV5E8"
@@ -156,29 +163,122 @@ def test_a_pushed_session_carries_its_job_the_bundle_and_the_tpu(gpu):
                                                   "runs/selfplay/b1/snap-100.pt", "runs/tpu/d1/resume.json"]
     run_py = (staged / "kernel" / "run.py").read_text()
     job = json.loads(run_py.split("\n", 1)[0][len("JOB = "):])
-    assert job["task"] == "distil" and job["source"] == "runs/readings/e1/rec" and job["prepare_args"] == []
-    assert "--init" in job["train_args"] and "def main(job" in run_py
+    assert job["task"] == "distil" and job["source"] == "runs/readings/e1/rec" and job["prepare_args"] == ["--clock"]
+    assert [r["name"] for r in job["runs"]] == ["d1"] and "--init" in job["runs"][0]["train_args"] and "def main(job" in run_py
     pushed = json.loads((run / "kaggle-push.json").read_text())
     assert pushed["kind"] == "train" and pushed["guard_sha256"]["best.pt"] is None
     with pytest.raises(AssertionError, match="not fetched yet"):
         launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt"])
 
 
-def test_a_session_restores_its_run_folder_to_write_and_the_rest_where_mounted(tmp_path, monkeypatch):
+def test_a_push_kaggle_refused_is_not_recorded_as_pushed(gpu):
+    root, _, _ = gpu
+    PUSH_ANSWER[0] = "Kernel push error: Maximum batch TPU session count of 1 reached."
+    with pytest.raises(AssertionError, match="Maximum batch TPU session count"):
+        launch.main([*DISTIL, "--", "--init", "runs/selfplay/b1/snap-100.pt"])
+    assert not (root / "runs" / "tpu" / "d1" / "kaggle-push.json").exists()
+
+
+def test_a_session_restores_its_runs_folders_to_write_and_the_rest_where_mounted(tmp_path, monkeypatch):
     from riskgpu.tpu import session
     inp = tmp_path / "input"
     (inp / "bundle").mkdir(parents=True)
     (inp / "old").mkdir()
     (inp / "bundle" / "MANIFEST.json").write_text(json.dumps({
-        "id": "b1", "files": {"runs__tpu__r__resume.json": "runs/tpu/r/resume.json", "runs__x.pt": "runs/x.pt"},
+        "id": "b1", "files": {"runs__tpu__r__resume.json": "runs/tpu/r/resume.json", "runs__tpu__q__resume.json":
+                              "runs/tpu/q/resume.json", "runs__x.pt": "runs/x.pt"},
         "external": {"runs__imitate__fx__a.pt": "runs/imitate/fx/a.pt"}}))
-    for path in (inp / "bundle" / "runs__tpu__r__resume.json", inp / "bundle" / "runs__x.pt", inp / "old" / "runs__imitate__fx__a.pt"):
+    for path in (inp / "bundle" / "runs__tpu__r__resume.json", inp / "bundle" / "runs__tpu__q__resume.json",
+                 inp / "bundle" / "runs__x.pt", inp / "old" / "runs__imitate__fx__a.pt"):
         path.write_text(path.name)
     linked = {}
     monkeypatch.setattr(session.os, "symlink", lambda src, dest: linked.__setitem__(dest, src))
-    assert session.restore({"bundle": "b1", "name": "r"}, str(inp), str(tmp_path / "gpu"), str(tmp_path / "work")) == 3
+    job = {"bundle": "b1", "runs": [{"name": "r"}, {"name": "q"}]}
+    assert session.restore(job, str(inp), str(tmp_path / "gpu"), str(tmp_path / "work")) == 4
     assert (tmp_path / "work" / "r" / "resume.json").read_text() == "runs__tpu__r__resume.json"
+    assert (tmp_path / "work" / "q" / "resume.json").read_text() == "runs__tpu__q__resume.json"
     assert linked == {os.path.join(str(tmp_path / "gpu"), "runs/x.pt"): str(inp / "bundle" / "runs__x.pt"),
                       os.path.join(str(tmp_path / "gpu"), "runs/imitate/fx/a.pt"): str(inp / "old" / "runs__imitate__fx__a.pt")}
     with pytest.raises(SystemExit, match="not this job's"):
-        session.restore({"bundle": "b2", "name": "r"}, str(inp), str(tmp_path / "gpu"), str(tmp_path / "work"))
+        session.restore({"bundle": "b2", "runs": [{"name": "r"}]}, str(inp), str(tmp_path / "gpu"), str(tmp_path / "work"))
+
+
+THREE = ["train", "c", "m", "big", "--task", "distil", "--source", "runs/readings/e1/rec", "--clock",
+         "--run-args", "c=--width 32", "--run-args", "big=--width 64 --layers 2", "--run-share", "big=3"]
+
+
+def test_one_session_trains_several_runs_on_one_prepared_set_each_in_its_own_folder(gpu):
+    root, calls, _ = gpu
+    for argv, refusal in [
+        ([*THREE, "--run-args", "x=--width 8", "--"], "one of the session's runs"),
+        ([*THREE, "--run-args", "m=--actions exact", "--"], "one --actions"),
+        ([*THREE, "--run-args", "m=--hours 1", "--"], "the launcher's"),
+        (["train", "c", "c", *THREE[4:], "--"], "named twice"),
+    ]:
+        with pytest.raises(AssertionError, match=refusal):
+            launch.main(argv)
+    assert launch.main([*THREE, "--", "--minibatch", "64", "--width", "16"]) == 0
+    staged = root / "runs" / "kaggle" / "tpu-c"
+    run_py = (staged / "kernel" / "run.py").read_text()
+    job = json.loads(run_py.split("\n", 1)[0][len("JOB = "):])
+    assert job["session"] == "c" and job["prepare_args"] == ["--clock"]
+    assert [(r["name"], r["train_args"], r["share"]) for r in job["runs"]] == [
+        ("c", ["--minibatch", "64", "--width", "16", "--width", "32"], 1.0),
+        ("m", ["--minibatch", "64", "--width", "16"], 1.0),
+        ("big", ["--minibatch", "64", "--width", "16", "--width", "64", "--layers", "2"], 3.0)]
+    assert [c[:2] for c in calls].count(("kernels", "push")) == 1
+    # Each run is fetched and read by its own name.
+    for name in ("c", "m", "big"):
+        pushed = json.loads((root / "runs" / "tpu" / name / "kaggle-push.json").read_text())
+        assert pushed["name"] == name and pushed["kernel"] == "someone/risk-tpu-train-c"
+        assert pushed["train_args"] == next(r["train_args"] for r in job["runs"] if r["name"] == name)
+
+
+def test_a_session_s_runs_share_its_hours_and_one_failing_leaves_the_rest_to_run(tmp_path, monkeypatch):
+    from riskgpu.tpu import session
+    # The finish time kept back for every run left, the rest shared by the shares.
+    assert session.run_hours(3.0, [1.0, 1.0, 2.0]) == pytest.approx((3.0 - 3 * session.FINISH_H) / 4)
+    assert session.run_hours(1.0, [2.0]) == pytest.approx(1.0 - session.FINISH_H)
+    monkeypatch.setattr(session, "WORKING", str(tmp_path))
+    now = [0.0]
+    monkeypatch.setattr(session.time, "time", lambda: now[0])
+    given = {}
+
+    def step(name, cmd, cwd, log, env):
+        given[name] = float(cmd[cmd.index("--hours") + 1])
+        now[0] += 3600 * (0.1 if name == "a" else given[name])
+        if name == "a":
+            raise SystemExit("a failed (1)")
+    job = {"runs": [{"name": "a", "train_args": [], "share": 1.0}, {"name": "b", "train_args": [], "share": 1.0},
+                    {"name": "c", "train_args": ["--width", "8"], "share": 2.0}]}
+    failed = session.train_runs(job, "gpu", "/tmp/set", deadline=3 * 3600, step_=step)
+    assert failed == ["a"] and list(given) == ["a", "b", "c"]
+    # a ended early, so b and c share what it left; c, the last, gets everything but its finish time.
+    assert given["a"] == pytest.approx((3 - 3 * session.FINISH_H) / 4, abs=1e-3)
+    assert given["b"] == pytest.approx((2.9 - 2 * session.FINISH_H) / 3, abs=1e-3)
+    assert given["c"] == pytest.approx(2.9 - given["b"] - session.FINISH_H, abs=1e-3)
+
+
+def test_each_run_of_a_session_is_fetched_by_its_own_name(gpu, monkeypatch):
+    root, _, _ = gpu
+    assert launch.main(["train", "c", "m", "--task", "distil", "--source", "runs/readings/e1/rec", "--",
+                        "--init", "runs/selfplay/b1/snap-100.pt"]) == 0
+
+    def output(*args, check=True):
+        if args[:2] == ("kernels", "status"):
+            return subprocess.CompletedProcess(args, 0, 'has status "KernelWorkerStatus.COMPLETE"', "")
+        assert args[:2] == ("kernels", "output")
+        out = args[args.index("-p") + 1]
+        for name in ("c", "m"):
+            os.makedirs(os.path.join(out, name))
+            for f, text in (("kaggle-sessions.jsonl", "{}"), ("log.jsonl", json.dumps(
+                    {"step": 1, "samples": 4096, "samples_per_s": 9, "best": 0.5}) + "\n"), ("best.pt", name)):
+                with open(os.path.join(out, name, f), "w") as fh:
+                    fh.write(text)
+        return subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(launch, "kaggle", output)
+    for name in ("m", "c"):
+        launch.main(["status", name])
+        assert launch.main(["fetch", name]) == 0
+        assert (root / "runs" / "tpu" / name / "best.pt").read_text() == name
+        assert not (root / "runs" / "tpu" / name / "kaggle-push.json").exists()
