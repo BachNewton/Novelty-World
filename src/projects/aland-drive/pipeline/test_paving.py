@@ -695,6 +695,14 @@ class Paint(unittest.TestCase):
             # Inside it, bare asphalt.
             self.assertLess(across_at(paved, *(centre - (radius + 0.25 * half) * towards)), EDGE_LINE[0], degrees)
 
+    def test_a_gravel_road_whose_bridge_alone_is_asphalt_is_laid_with_no_edge_line(self):
+        """An edge line follows the outline of the asphalt on the ground, and a deck is not on the ground: where a
+        bridge is a tile's only asphalt there is no outline to follow, and asked for the outline of nothing the tile
+        stopped."""
+        ways = [road([(100, 600), (500, 600)], "unclassified", surface="gravel"), road([(500, 600), (600, 600)], "tertiary", bridge="yes"), road([(600, 600), (1100, 600)], "unclassified", surface="gravel")]
+        paved = paving.lay(ways, land(town=0.0))
+        self.assertGreater(len(paved.triangles), 0)
+
     def test_a_mouth_s_corner_and_its_edge_line_are_whole_where_a_sidewalk_is_mapped_across_it(self):
         """A sidewalk drawn on along the street across a side road's mouth kept the corner's asphalt out of its band: the
         arc stopped at the slabs on a square notch, and the edge line round it was cut off there."""
