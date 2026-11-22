@@ -152,7 +152,7 @@ The owner set the bar: at least as good as Test Drive Unlimited 2's racers, and 
 | Hits a racer's race in a full grid | 2: they bump, and nudge past traffic | 1 in 2 | 0.14 on a clear road, 0.60 among traffic |
 | Hit by a player, a racer drives on | mostly | nearly always, and gathers up a slide | 99.9 in 100 nudges, 99 in 100 shoves, 99 in 100 of a careless human's touches; 76 in 100 spins, from 96 under 80 km/h to 50 over 200 |
 | Brake lamps, as the car behind sees them | | lit once for a bend and held: under 4 times a kilometre, none of them a flash | lit 2.4 times a kilometre alone, 3.3 in a pack and 3.8 among traffic, under one in a kilometre a flash |
-| In the game, among traffic with the player on the road | every racer home, a reset or two a race | no reset in most races | every racer home in six races; resets: Djurvik 0, Tengsöda 0, Kastelholm 0, Round the Airport 2, Jomalaby 5, West Way Out 10 (26 before, as the racers were) |
+| In the game, among traffic with the player on the road | every racer home, a reset or two a race | no reset in most races | every racer home in six races; resets: Djurvik 0, Tengsöda 0, Kastelholm 0, Round the Airport 0, Jomalaby 0, West Way Out 3 (26 before, as the racers were) |
 
 So on a clear road the racers are past the first bar on every reading and at the second on most of them. Among traffic they are past the first bar, 91 in 100 through a race with no reset against nine in ten, with well under its allowance of hits, and short of the second. What is short of Forza Horizon's: traffic, where one racer in eleven still has a reset in its race; a car left standing in a narrow road (below); ice, where one run in nine still has a reset; and a spin at speed, which no one gathers up.
 
@@ -289,6 +289,8 @@ One reading was worse, and it showed two faults in how a racer read its road. `b
 | A car parked on the racing line, six races: resets, hits | 41, 52 | 16, 39 | 13, 28 |
 | Alone, 148 runs: resets in the dry, wet, snow and ice | 3, 2, 3, 23 | 2, 2, 4, 26 | 2, 2, 4, 26 |
 | Alone: hits in the dry, wet, snow and ice | 9, 13, 7, 26 | 12, 16, 12, 34 | 13, 16, 12, 34 |
+
+In the game, with traffic and the player's car on the road, five of the six races read have no reset. `west-way-out` read 21 and 10, every one at the same place, a lap apart: the reading's own player car, whose scripted driver sticks in a kink of a street 4.5 m wide three minutes in and stood there for the rest of the race, the racers put down past it each time round. No traffic was near. That is the car left standing in a narrow road, which `--parked` reads, so the in-game count now puts the player's car back on the road when it has stood for fifteen seconds, as a player's R does, and says how often; with it the race reads 3. Alone in that kink a racer backs up once before it is through: one of the tight junctions of the first gap below.
 
 What the new roads cost: a racer alone hits a little more, most of it at `harbour-to-harbour`'s two tight junctions (the first gap below) and on `round-jomalaby`, and the careless human's race among the racers ends in a reset for a few more of them. `getas-islands`, whose laid road had a step that stopped a car dead, is clean alone.
 
