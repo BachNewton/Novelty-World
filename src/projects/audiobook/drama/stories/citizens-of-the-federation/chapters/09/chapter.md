@@ -1,281 +1,309 @@
-# Chapter 9: Known As
+# Chapter 9: Two Counts
 
-On the night of Tuesday the thirteenth of August, 2030, nobody governed Dayton.
+At six o'clock on a Friday morning in November, Orla Toner stood at a window on the top floor of the Royal, the big hospital in west Belfast where she had been on nights all week, and watched a van stop at the wall.
 
-Carol Flory was at the visitors' window of the Sanctuary District, down by the river, with a camping lantern and a green ledger. The county hadn't paid her since January. She was at the window because nobody had told her to stop.
+From up there you could see the line of it running between the roofs: concrete as high as the upstairs windows, with a steel fence on top of that. A man got out of the van with a ring of keys and unlocked the gate in it. A man from the Department of Justice did that every morning at six, and another came at half past ten every night and locked it again. On both sides of the wall stood the same red-brick houses, built by the same people in the same year for the same wages. Two streets along from the gate, her father-in-law, Brendan, would be up already, waiting to vote.
 
-The Stays were coming, from the north and from the air base on the east side of town. Since the winter Dayton had been the Governor's, run for her by a Safety Board of commissioners and pastors, and that afternoon the Board had driven to Columbus with its files, because it was no use in a fight. The Governor's own soldiers would hold the city for her instead. A column of the Ohio Guard had stopped for the night at the edge of town and would come in at first light, and Carol's son was with it. Until then the city was between hands. There was no power, and all over Dayton people sat out on their porches in the dark, to see who came first. On Carol's own street, Dale Hutto sat beside his STAY sign with a flashlight in his lap, hoping it would be his side.
+Her da had told her the story of that wall so often she could have said it in her sleep. Britain had ruled Ireland for centuries, he would say, and settled the north with Protestants from Britain, whose great-great-grandchildren still felt British. The Catholics felt Irish. In 1921 the island was cut in two: the south went its own way, and the north stayed British, its border drawn so that the Protestants would always have the numbers. For fifty years the Catholics got the worse houses and the worse jobs, and in some towns votes that never counted. When they marched for their civil rights in the sixties, the marches were beaten off the streets. Then came thirty years that everybody called the Troubles, as if it were weather.
 
-The only other light Carol could see was a phone, glowing blue in a car in the far corner of the parking lot.
+That was where her da usually stopped. The ward had taught her the rest. About three and a half thousand people died, in a place you can drive across in two hours. The IRA and the other republicans, who meant to get Britain out with guns, killed most of them. The loyalists, who meant to keep the north British with guns, killed many. Soldiers and police killed some. Orla had nursed old men carrying wounds from all three.
 
-A little after nine, somebody rapped on the counter.
+Then, on Good Friday in 1998, nearly everybody signed an agreement, and both parts of the island voted for it on the same day. The border would move only if the people of both parts voted to move it, never at the point of a gun. Until then the two sides would govern the north together. Anyone born here could be British, or Irish, or both. And whenever it looked as if a majority wanted one Ireland, London had to ask them.
 
-"Visiting ends at four," said Carol, without looking up. "Name, and who you're here to see."
-
-"Flory," said a man's voice. "I'm here to see you."
-
-She looked up. He was in uniform, with a sergeant's stripes and no hat, and thinner than he should have been.
-
-"Hi, Carol," said her son.
-
-"Hi, Joel."
+Most of Belfast had got on with its life since: worked beside the other side, married them, sent their children to school with them. The walls stayed up in a few of the poorest streets, because the people beside them wanted them gone in their children's time, but not yet. Two summers ago a British Prime Minister had called a vote on unity off the table. Then the polls had moved, until the law left him no choice.
 
 ---
 
-He laid a typed list on the counter. By eight in the morning the colonel in charge of the column wanted three things on his table: the keys to the water plant, the keys to the courthouse, and the rolls of the Sanctuary District.
+At seven, while she checked his oxygen, Mr. Gilmore in bed six asked her how she was voting.
 
-"Somebody told him there's a clerk down here who keeps them in a book," Joel said. "I said I'd come. I said I knew her."
+He was from the streets beyond the gate. He had worked forty years in the shipyard, where the dust had got into his lungs, and he had a portrait of the old Queen on his forearm in faded green ink, which was about as British a thing as a man from his streets could wear.
 
-Carol looked past him at the blue glow in the parked car. She knew who had told him.
+"It's a secret ballot, Mr. Gilmore."
 
-That corner was the one place in the lot where a phone could still find a signal, and Gary Pruitt had sat in it most days since his wife went to her sister's in Kentucky. In June he had come to the window with his phone in his hand, to show her what it had been showing him: whose fault all this was, which was the Stays', and anybody's who was soft on them. "I'm not blaming you, Carol," he'd said. "I'm just keeping track. That green book nobody authorized. A nurse in the visitors' log as clergy. Somebody ought to be told."
+"Your lot'll win." He said it without rancour. "My nephew's in Dundalk. Down south. Sixty euro, he says, to see the doctor. Sixty, every time. Will I be paying that, if your lot win?"
 
-"What does he want with the rolls?" Carol asked.
+"You're over seventy. They'd give you a card, and the doctor would be free."
 
-The District lay between the river and the railroad tracks, Joel said, right on the line the colonel meant to hold, and he wanted it empty before the Stays got there. He would clear it by its letters. The H's, the people the Board had locked up in there for refusing to sign its pledge, would go east on buses as prisoners. "The Stays have got some of ours up in Troy," Joel said. "He wants something to trade." The R's would go to the county jail. The D's would go east too, to the state hospital in Columbus, for their own safety. The E's could go wherever they liked, as long as it was out.
+"And her?" He nodded across the ward at bed four.
 
-"Nobody's paid that hospital since January either," said Carol.
+Mrs. Kearney in bed four was fifty-two and cleaned two schools, and had kept her diabetes in hand for years because her doctor cost her nothing. In the South she would earn a little too much for the card, and nowhere near enough for sixty euro every time she felt wrong. Orla knew what a woman like that did with sixty euro. She put it off.
 
-"He's got eleven school buses. I signed for them this afternoon."
+"Nobody knows," said Orla. The North's health service was free to everyone who came through its doors, and it ran on money from London, billions a year more than the North paid in taxes. The yes campaign's leaflet said the cost would be worked out between the two governments. Orla had stood in her hall and read the sentence three times, in case it said who would pay.
 
-After the gate, the Guard had kept Joel off the line. A hero who wouldn't say the other side fired first was no use to anybody. So he had guarded warehouses for the Board and signed for things, and on Sunday his company had been sent up to its armory in Springfield to join the colonel's column.
+Her da had died in bed eleven, the winter before last.
 
-"What's he like?" said Carol. "This colonel."
+He had been nineteen in the summer of 1971, when soldiers lifted him from his bed at four in the morning and held him in a camp for most of a year without once charging him with anything, because he was a Catholic of the right age on the wrong street. He had wanted one Ireland every day of his life after, quietly, and voted for it every way he could. At the end, on this ward, the British state's health service looked after him for eleven weeks, and nobody ever sent him a bill. In his last week he had held her hand and said, "You'll see it. I'll not, but you will."
 
-"While we were at Springfield, two of his drivers sold a tank of the column's diesel to a farmer. He had them shot in the yard before supper. He said a column that steals from itself is finished." Joel looked at the list.
-
-Carol unlocked the side door of the booth and let him in. There was one stool, and she had it.
-
-"Here's how this goes," she said. "I've been a clerk for twenty-six years, and I have never handed over a record I hadn't audited. You're not carrying this one anywhere until you've heard it. Hold the lantern."
+At eight she handed over to the day nurses and walked down the hill, in her coat with her uniform under it, to the primary school at the top of Brendan's road, where Declan had learned to read, and then Niamh.
 
 ---
 
-The ledger had seven columns, ruled by her own hand three years before. The first column, nearest the spine, said *Known as*. The six after it were the county's: the name on a person's papers, their letter, their age, their building, who was responsible for them, and anything else. Since the county's computers went dark in the winter, it was the only record anywhere of who was inside the fence. She had begun it with the one resident she already knew, so Mrs. Dorsey was page one.
+The booths were plywood boxes along the wall of the assembly hall, and on each shelf, tied to a string so that nobody could walk off with it, was a pencil.
 
-"Known as, Mrs. Dorsey," Carol read. "Dorsey, Ruth. D. Seventy-nine. Building C. Responsible party, Anna Dorsey. County of residence, Other."
+The paper had one question on it. *Should Northern Ireland cease to be part of the United Kingdom and become part of a united Ireland?* There was a box for yes and a box for no.
 
-In the margin, in pencil, it said: *Spouse deceased, 10 February.*
+The last time Orla had stood in a booth with her da, she was fifteen. It was the Friday of the Agreement, and children weren't meant to go in with their parents, and he had taken her in anyway and put the pencil in her hand and his own hand round hers. "That's for the peace," he had said, when they made the cross. "Some day they'll ask the other question. That one's for me."
 
-Joel read it over her shoulder. "That's the lady whose husband you held the phone for."
+Now she held the pencil by herself, and she could feel exactly where his hand ought to be: big and dry, with the knuckles that had never sat right since the camp. She moved the pencil to the box for yes, and held it there.
 
-"That's her."
+She thought of Mrs. Kearney's sixty euro, and of a sentence on a leaflet that didn't say who would pay. She thought of eleven weeks in bed eleven, and nobody ever sending a bill. The thing her da had wanted all his life, and the thing that had looked after him at the end of it, were on opposite sides of this paper.
 
-She told him about Mrs. Dorsey instead. That same week she had gone up to Building C to show her a drawing her granddaughter had sent from Finland, on Carol's phone: one small orange mark in the middle of a white sheet. Mrs. Dorsey looked at it for a long time. Then she said that the child had left the rest of the paper alone, and good, and went back to her lesson. It was at a long table in the old loading bay, with a piano keyboard drawn in marker on the backs of cereal boxes, taped end to end. A boy of about eight was playing it very seriously, and the only sound in the room was the cardboard creaking under his hands. Mrs. Dorsey stopped him. "That was a B flat," she said. "Again."
+She could have left it blank and gone home. But in a count this close, a blank paper was a no that let you pretend you hadn't said it, and she had never let herself off like that.
 
-"Her last shot was in May," Carol said. "In June the nurse went out of the gate to look for more of it." She turned to the visitors' pages at the back and showed him: *Dolores, out.* There was no line for her coming back. "Every Monday Mrs. Dorsey comes to the window and asks me if it's Dolores's day. Now she'll only eat what she hears being opened. Lucille opens the cans in front of her."
+"I'm sorry, Da," she said, under her breath, and put her cross in the box for no.
 
-"And she's a D."
-
-"Her daughter got her a permit for Finland in November. All she had to do was go to Washington in person and prove who she was. Now your colonel's going to put her on a bus to the front of a list in Columbus. She's been on it nearly four years."
+She folded the paper twice, so that the cross was on the inside, and put it in the black box by the door, and walked home to sleep. She didn't tell anybody. When Declan woke her at four with a cup of tea and asked whether she had got voted, she said, "First thing," and that was all.
 
 ---
 
-"Known as, Miss Lucille. Odom, Lucille. E. Sixty-six. Building C."
+Brendan Toner had been in his good coat since nine, with his cap on and his bus pass in his hand, and was not pleased when his son came for him at half past two.
 
-When the food trucks stopped, the Board had opened the county's warehouses, and Lucille Odom, who had once run a school kitchen, ran the kitchen of Building C on whatever came out of them and whatever the neighbourhood could carry over. She had one rule in her line. Carol had heard her give it to a man who didn't see why a ghost should be fed ahead of him.
+"They've been open since seven," he said. He was eighty. He had driven the city's buses all his working life and had never once been late for anything with a time on it.
 
-"Nobody is anything in my line, baby. You're hungry or you're not. Move up."
+Across the street, Mickey Quinn had a green YES poster in his car window. Mickey had spent eleven years in prison for the IRA, and come out, and gone into politics. Brendan had wanted one Ireland as long as Mickey had, and never Mickey's way, and they had been arguing about it across this street for fifty years.
 
-At three every afternoon, whatever was happening, she sat down outside the kitchen door with a cup of whatever there was and her book of crosswords, and did one in pen. The line waited. She was on the last few pages, and had told Carol she meant to make it last. When this was over, she said, she was going to eat a whole can of peaches by herself, standing up, and not tell a soul.
+Niamh was in the back of the car. She had turned eighteen in March, and it was her first vote. She had gone to one of the schools that took both kinds, and when anybody asked what she was, she said Northern Irish, which was what her generation said when they didn't care to be either.
 
-The insulin had needed cold, and by June there was no cold and no insulin. Nine people in Building C had died of that. Lucille had a sore on her foot now that she didn't discuss.
+In the queue, Brendan told her about 1998. "I voted for the Agreement in this hall. A Friday too. Your granny and me walked up together." He held out his bus pass, and the woman at the desk found his name on her list and drew a line through it with a ruler. Then three Toners went into three booths side by side.
 
-Carol turned to the visitors' pages again, to February. *Garber, Naomi. Here to see: nobody. Forty sacks of wheat.*
+On the steps afterward he waited for Niamh with his cap in his hand.
 
-"Aunt Naomi?" said Joel. He had been nine the last time he saw her.
+"Well?" he said.
 
-Naomi had brought the grain down from the north in a truck, through two checkpoints of one side and one of the other, in the white head covering of the Old German Baptist Brethren. Her church didn't hold with television or the internet, so that winter she may have been the one person in Ohio who had never seen Joel Flory's face. She and Carol hadn't spoken since the summer Carol's two names went into the newspaper.
+"It's a secret ballot, Granda."
 
-"Forty sacks of wheat, and the potatoes," Naomi had said, to the door frame rather than to her sister. "There were forty-eight. The elder says to bring it to the door and ask nobody what they are."
+Brendan looked at her for a moment. Then he put his cap on.
 
-Carol had asked about the other eight.
-
-"They asked which side we were on, and Brother Landis said we haven't got one, so they took four. Then the other side took four. That's the fare. We don't resist it."
-
-"You could say my name, you know," Carol had said.
-
-Naomi looked at her then, for the first time. "I can't say that one. And you've asked me not to say the other. So I don't say anything." She climbed back up into the cab. "Mother asks if you're eating."
+"Good girl," he said.
 
 ---
 
-"Known as, Ti Jak. Pierre-Louis, Jacques. E. Forty-one. Building A. He's from Springfield." It was twenty-five miles up the road. "He told me Jak, so I'd manage it. I asked him what they called him at home, and he laughed at me and said Ti Jak. Little Jak. He's six foot three."
+The count began on Saturday morning, and Brendan had the television on for it at eight.
 
-She read Big Mike, who had driven a forklift, and Sister, and the Reverend. Then she turned toward the back of the book, and her voice went lower.
+At two o'clock, as he did every Saturday, Norman Kerr came through the gate.
 
-"Page two hundred and sixty-one. Known as, Miss Bea. Yancey, Beatrice. H. Seventy-one. Building F."
+Norman had driven buses out of the same depot as Brendan for thirty years, through the years when buses were hijacked and burned for barricades and drivers from both sides kept them running anyway. Their wives had died within a year of each other. Since then Norman came over every Saturday for the racing and his tea, and every Wednesday Brendan went over to him for the football. Brendan always went the long way round, by the main road, though the gate would have saved him twenty minutes; he couldn't have told you why. Norman walked through it every Saturday as if it weren't there.
 
-"That's one of the colonel's," said Joel. "What did she do?"
+Norman had voted no on Friday in a church hall on his own side, and told everybody so, because he had never seen the point of a secret. Orla, on the sofa with her feet under her, said nothing.
 
-"She ran the children's room at the main library for thirty-one years, and she runs the choir I sing in. When they started taking books off the shelves, she hid them in our church basement, and I carried the boxes down the stairs for her myself." Carol kept her finger on the line. "And I wrote that H."
+He hung his coat on the end of the stairs and looked at the television. "Is it over?"
 
-The legislature in Columbus had sent the libraries a list first, and then the Board sent a polite young man with its own. *Huckleberry Finn* was on both. "One says he teaches children to break the law," Miss Bea had said on the basement stairs, "and the other says he hurts people. That child has never had a home in his life." The Board wanted number five thirty-four out of the hymnal too, because it began *Be still, my soul: the Lord is on thy side*, and both armies were singing it. When Finland belonged to the Czar, she told Carol, his censors wouldn't have that tune either, so the Finns played it under other names. *Impromptu.* *Happy Feelings at the Awakening of Finnish Spring.* "Let them try and arrest a spring," she said.
+"The South's running yes," said Brendan.
 
-"The Board were my people, Joel," said Carol. "Half of them sing on Wednesday nights. In February they kept the water running and opened the warehouses, and they were right to. In March they wanted a signature for a ration, because people were taking twice. Somebody bombed the substation in April, and the signature turned into a pledge to the count. And the ones who wouldn't sign it had to wait somewhere while their cases were reviewed."
+"The South was always going yes. It's not the South I'm asking about."
 
-Somewhere turned out to be here. The District already had a fence, and a form, and the Board had soldiers to put on its gate.
+He sat down in the chair that had been his for ten years of Saturdays. After a while, without taking his eyes off the screen, he said, "If it goes, you know what bought it."
 
-"They asked me could the form take one more letter. H, for held. It took me four minutes." She put her finger back on Miss Bea's line. "They asked her where she'd put the second lot of books, and she wouldn't say, and she wouldn't sign. She came to this window with her purse on her arm and said, which column do you want me in, Carol?"
+"Paper," said Brendan.
 
----
+"Bombs. Thirty years of them, till London would sooner be shot of the lot of us than pay for another one. Your crowd'll stand up tonight and say it was the paper."
 
-"Page two hundred and ninety," she read. "Henderson, Caleb. H. Nineteen. Building C. I asked him what people call him, and he said, I don't know, ma'am. The Henderson boy, I guess." So the first column said *The Henderson boy*.
+"The bombs bought three and a half thousand funerals," said Brendan. "That's all they ever bought."
 
-He was the boy who had found Walt Dorsey on his kitchen floor, three years before. His father worked on the base, and when the pledge came round, Caleb wouldn't sign a paper against him. The Board's men had taken him in a supermarket parking lot. Since the pumps stopped, he had carried water up six floors of Building C in plastic cans, all day, for anyone who asked.
+"Tell that to Mickey Quinn."
 
-"You locked up that kid," he said, low. "He's nineteen. He wouldn't sign against his dad, and you put him behind a fence with a letter on him."
+"I've been telling Mickey Quinn since 1972."
 
-"Yes, I did," said Carol. "And in March, up in Troy, twenty miles north of here, some men pulled a woman out of her own pharmacy because her license said M. Ohio puts an M on mine now too. They put her in the river with wire on her wrists, and the sheriff up there didn't charge anybody. I've been doing that sum since March. Their Troy against my H."
-
-"Everybody's got a sum, Carol."
-
-"I know they have. Mine doesn't come out even. And it doesn't let me off."
-
-It was past two.
-
-"I signed for those buses before I asked what they were for," he said. "I didn't ask."
-
-"You've asked now."
+Declan kept out of it.
 
 ---
 
-"So burn it," said Joel. "There's a barrel out back."
+At six, in the yard of Dublin Castle, a woman at a microphone read out the South's result. It was yes, fifty-three in every hundred, and the yard went up with flags, and the camera shook.
 
-"Burn it, and four thousand people were never here. There are people in this book who died in this place, and it's the only thing anywhere that says so. Burn it, and Ruth Dorsey is an old woman who says she's somebody, and her daughter has a permit from Finland for a woman nobody can prove exists."
+"So now it's us," said Brendan.
 
-"And if the colonel gets it, he sorts them with a pen."
+The North was closer than close. In two places the counting stopped, and the papers went back into their bundles to be counted again, because the no side had asked, and was entitled to, and nobody argued. Brendan made tea, and then more tea, and then sandwiches nobody ate.
 
-Carol had both hands flat on the open book, one on either side of the first column.
+At ten o'clock Norman looked at the clock on the mantelpiece, and then at the television, and stayed where he was.
 
-"Hand me that steel rule," she said.
+At half past ten, two streets away, the gate was locked.
 
-"What for?"
+At twenty to midnight a tired man in glasses stood in a hall by the docks and read the North's figures in the flat voice of someone who knew that half the people listening would never forgive him, whichever way he read them. He read the number for no first. Then the number for yes, and it was the larger. The difference was a little over eighteen thousand, out of more than a million.
 
-"What do people call you, when they like you? That's all anybody who comes looking for you needs to know. It's no use at all to a man with a bus."
+For one second Declan was glad all the way through, with nothing in it but his da's whole life coming right. Then he looked at Norman before he could stop himself.
 
-It took two of them. A box cutter will go through four pages at a stroke against a steel rule, but only if somebody is leaning on the rule. Joel leaned. Carol drew the blade down the page an inch from the binding, and away came everything the county had ever asked for, in long strips. What stayed in the spine was one column, a narrow book of what people were called.
+"Eighteen thousand," said Norman. "That's one crowd at the football."
 
-She had never damaged a record in her life. She read every page aloud before she cut it.
+Brendan had voted for this, one way and another, every election of his life. He reached for the remote and turned the sound down, which was the kindest thing he could think of to do.
 
-"Big Mike. Sister. Miss Odessa. Doc. Baby Ray. Grandma Tran. Ti Jak. The Reverend. Sugar."
+On the silent screen, the leader of the biggest party on Norman's side walked out to a bank of microphones. The words came up along the bottom. *The people have decided, and we will abide by it.*
 
-Where she had never been told a name, the first column was blank, and a blank line was all that was left of that person. Every few pages Joel carried the strips out to the barrel behind the building, in the Governor's uniform, and fed them in with a stick.
+Norman watched to the end.
 
-At the very back of the book, where Carol kept the things that had no column, there was a card. Joel picked it up to move it out of the blade's way, and turned it over. THANK YOU FOR YOUR SON, it said on the front. On the back, in Carol's square county hand, it said *Kasprzak, Eli*, and *20*.
+Brendan reached across and took Orla's hand. "Your da," he said, and couldn't finish.
 
-He said the name aloud, once, as the boy's mother had said it on the news. Then he put the card back where it had been.
+"I know," said Orla.
 
-The sky over the river was going grey when there was one page left.
+She was glad for Brendan. Under the gladness was her own folded paper, somewhere in the smaller pile. She had voted against her father's dream, and it had come true anyway, and what she felt most was relief that her no hadn't been the one to stop it. She was ashamed of the relief. She sat and let Brendan hold her hand.
 
-"That's page one," said Joel.
+Outside, a car went past with its horn going, and then another, and then the street was full of them. From the far end a crowd of young men took up a chant that everybody in the room knew before the words came: *Ooh, ah, up the Ra*. Up the IRA. Declan had heard it sung at weddings, and by children at Niamh's school dance, and never once by anyone old enough to remember what it was about.
 
-"I told that girl she'd be the only person who could ever get her mother out," said Carol. "I sat at this counter and took her signature."
+"It's only a song, Granda," said Niamh, to the window.
 
-She cut it herself, in one stroke, and carried the strip out to the barrel, and stayed out there a while. Joel waited at the counter with a ballpoint pen and the narrow book.
+"It was never a song," said Brendan.
 
-When she came back, he had closed it.
+Then Mickey Quinn's voice came over all of it, sharp enough to carry the length of the street. "Lads. Lads. Not tonight."
 
-"It's light," he said. "What do you want done with this?"
+The chant stopped. It had been sung, though, a room's width from Norman Kerr.
 
-"The inner door, on your way out. Give it to Miss Lucille. In twenty-six years nobody has ever searched a kitchen."
+Norman stood and went to the stairs for his coat.
 
-He took the colonel's list out of his breast pocket and read down it. "What was that thing again, in the dropdown? The one you told me you picked for the old lady."
+"I'll run you round," said Declan.
 
-Carol told him no. She told him the Board had taken the book to Columbus and he had never seen it, and that was what he would say, and the list had his name on it, and she had heard what he said about Springfield, and he was not to dare. She said all of it at once, faster than she had said anything all night, and he let her finish.
-
-Then he folded the list and put it back in his pocket.
-
-"Eat something," said Carol.
-
-"See you, Carol."
+"I'll come," said Orla, and had her own coat on before anybody could ask her why.
 
 ---
 
-At eight on Wednesday morning, at a folding table in the lobby of the county building, Sergeant Flory, shaved, with his boots done, handed the colonel his list. Beside the keys to the water plant he had signed his name, and beside the keys to the courthouse. Beside the District's rolls he had written two words in his own hand: *None available.*
+With the gate locked, the way to Norman's house was the long way round: down the hill to the four-lane road that runs past the city centre, along it a mile, off again and up the other side. It took ten minutes to reach a house Declan could have seen from his old bedroom window if the wall hadn't been in the way.
 
-At noon Gary Pruitt came to the same table with a spiral notebook. It had dates in it, and the green book, and who had kept it, and the sergeant at her window the night before, and a fire in a barrel.
+Norman sat in the front with his cap on his knee. Orla sat in the back.
 
-They asked the sergeant where the book was. Each time, he said none available. The hearing took eleven minutes. The colonel had a city to hold and a fight coming to it, and on his first morning in it a famous sergeant had lied to him in writing. He needed Dayton to see that a famous name bought nothing.
+"Our own Prime Minister," said Norman. "Off the table, he said. Two years ago, in this city. London couldn't wait to be rid of us. You'll not have noticed. Your crowd were too busy."
 
-At four in the afternoon, on the levee behind the county building, soldiers of the Ohio Guard shot Joel Flory for making a false record. They were his own side. On the telephone poles along Third Street there were still posters of his face with HERO under it. He was twenty-six. His name was sewn on in black thread.
+Declan said he had noticed.
 
-It was a Wednesday. At seven that evening, in Building F, Miss Bea hummed the first note, and fourteen people sang number five thirty-four in four parts, with no one on the tenor line.
+"They'll tell me I can keep my passport. Nothing changes, they'll say, for years." A mural went by on the end wall of a house, a man in a balaclava with a rifle, painted by Norman's own side in honour of its own gunmen. Norman didn't look at it. He never did. "A passport's not a country."
 
----
+The lights of the big road went over them one at a time.
 
-Carol sat at the window all Wednesday, and nobody came to it. On Thursday they came for the clerk.
+"My brother Sammy drove a milk lorry," said Norman. "Weekends he was a part-time soldier, in the local regiment. Two IRA men came out of an alley on his round one morning in 1976 and shot him in his cab. He was twenty-five." He turned the cap over. "So you tell me, Declan. If it was the paper did it, what was Sammy for?"
 
-They asked her where the book was, and she said what the sergeant had said. A lieutenant told her about the levee, reading it off a sheet, and had her sign to say she had been told. Her hand was steady, which surprised her. The colonel could shoot his own soldiers. A county clerk was a civilian, and for civilians there was the District.
+Declan knew about Sammy. Everybody on his da's street knew, and nobody had ever once said the name in front of Norman.
 
-With the county's screens dark, a new resident had to be entered on paper, and there was one man left in the building who knew the form.
+He thought of the wall in San Francisco, and the candles, and how easy it had been to say *maybe it works* about people he had never met.
 
-"Name of applicant," Gary Pruitt read, without looking up. "It says to take it from the license."
+"I don't know what bought it," he said. "Nobody does. People will be fighting about it when the both of us are dead. But I'll not tell you Sammy paid for it. He didn't pay for anything. Somebody shot him on his milk round."
 
-He took it from her license, which had said Carol since the summer Joel was nine. Then, for the letter, he wrote H, the one she had added to the form herself, the one the colonel had come to collect. The next box was "known as". It was optional, and he left it blank.
+"Your da has a Mass said for Sammy," said Norman. "Every November. Did you know that?"
 
-"I said I'd tell them," he said. "I told you I would."
+Declan hadn't known.
 
-"You did, Gary," said Carol. "You made every call."
+"We don't pray for the dead, my church. They're where God has them, and nothing you say will shift them. I told your da that, the first year. He said that was grand, he'd have it said anyway." Norman looked out at his own street. "Every November since. I've never once asked him to stop."
 
-His hand shook while he filled in the rest. That was all anyone would ever know about what Gary Pruitt made of it.
+Declan pulled up outside the house. It was the same as Brendan's: two windows up, one down, and a front door.
 
-Lucille met the new ones at the inner door. When she saw who it was, she didn't say anything about it.
+Norman didn't get out at once.
 
-"That your card, baby? They'll have that off you by supper. Hold still. Let me see your neck."
+"Fifty years I've told every one of yous that would listen," he said. "You want out, get a majority. I said it in the depot. I said it to your da across his own table. I'll not stop saying it the night it goes against me." He opened the door. "The count's the count."
 
-She bent down on the bad foot and took the lace out of her right shoe. The left had been tied with string since a March three years before, when its lace went round someone else's neck. Carol bent her head for her. When the knot was done, she reached into her apron, where something had been since Wednesday morning, and put it in Carol's hands.
+In the back, Orla opened her mouth. She could have told him that she had done what he had done, yesterday morning, with her da's hand missing from round hers. It was the only kind thing she could think of to say to him, and Declan would have heard it too. She shut her mouth again.
 
-"Your boy gave me this over the counter," Lucille said. "He said you'd want to audit the end of it."
+Norman bent back down to the window.
 
-It was the narrow book: four thousand one hundred and six lines in Carol's own square county hand. Under the last of them was one more, in ballpoint, that she hadn't written. It had no page number. It was in the first column. It said:
-
-*Mom.*
-
-"That box is optional," said Carol.
-
-"Yes, ma'am," said Lucille. "It is."
+"Tell your da thanks for the tea."
 
 ---
 
-The colonel couldn't sort them. The letters had decided people's buildings once, but months of moving to wherever the water still ran had mixed everyone up, and every one of them, when a soldier asked, gave a name. So the soldiers filled the buses by looking at people, the way people do. They took men who looked to them like Stays, and people who looked to them like they belonged in a hospital, and Ti Jak, because he looked to somebody like he came from somewhere else. Fewer than a hundred went east. Mrs. Dorsey was not among them. Lucille had put her in an apron that morning and sat her down to peel potatoes with the others at the sinks.
+Declan rang Ben from his da's front step at one in the morning, because Ben had sent four messages since the result, the last one only a question mark.
 
-By the weekend the fighting had reached the north side of town, and the buses never came back for the rest.
+"So," said Ben. "Is it congratulations?"
 
-In October the column was needed somewhere else. No one had ever been ordered to close the Montgomery County Sanctuary District, and no one ever was. It was getting cold, and steel would buy flour. Over nine days the residents took the fence down themselves, a panel at a time, and carried it across the river to the scrap yard. Three thousand people walked out into a city with no food in it either. They were free, and most of them were hungry. Miss Bea walked down to the church basement on Salem Avenue. Lucille kept the kitchen, from a stool now, because of the foot. It just had no fence round it.
+"Ask me in thirty years." Declan looked down the street to the wall at the bottom of it. "I've just driven a man home the long way round, because his country ended at twenty to twelve and the gate shut at half ten. He sat in my car and told me the count's the count."
 
-That month the sheriff of the county to the north, who was a Stay, and who had charged no one in Troy, met a man from what was left of the Board in a meetinghouse of Naomi's church. Neither would go to the other, and the elders had promised that nothing said there would be written down. They agreed on one thing, which was wheat. A truck with wheat in it could pass. Neither of them called it peace. It held.
+There was a pause from Helsinki.
 
-Carol walked out to the meetinghouse on the day of the truce and waited at the door until Naomi came out.
+"We've got ours on Tuesday," said Ben. "Can we borrow him?"
 
-"There are old people in there who haven't got anybody," she said.
+"You cannot," said Declan. "We need him."
 
-Naomi looked at the ground between them for a long time. "Then they'll have us," she said.
-
-She came back with the grain truck in the third week of October and took nine of them north. There was no county left to file with, but she filled in the last section of the form for each of them anyway, responsible party, in her own name, because a form was what her sister had asked for.
-
-Mrs. Dorsey hadn't had her shot since May. By October she had stopped teaching, and most days she took Lucille for a woman from the county and was very polite to her. On the truck she told Naomi that she knew perfectly well who had sent her, and she ate nothing on the way that she hadn't heard being opened. Naomi's farmhouse had no instruments in it. It never had. On the first evening Mrs. Dorsey sat down at the kitchen table and spread her hands on the oilcloth. Naomi's granddaughter, who was seven, was watching her from the doorway.
-
-"You're very late for your lesson," said Mrs. Dorsey. "Come here. Spread your fingers, please. Who told you that you couldn't?"
-
-The girl looked toward the next room, where her grandmother was. Then she came and put her fingers down on the oilcloth, beside the old ones, and there was no sound in the kitchen at all.
+Upstairs, in the back bedroom that had been Declan's when he was a boy, Orla lay in the dark with her eyes open, and kept her vote.
 
 ---
 
-Carol kept a folding table on the levee behind the county building, where people could find it. She wasn't paid. Her own prescription had run out in the spring. Her son was on the hill at Woodland Cemetery, the highest ground in Dayton, under a marker she had paid for in flour. People came in the mornings with a name a stranger would laugh at, and she ran a finger down the column, and when she found it, she wrote beside it in pencil where they had gone.
+On Tuesday night in Helsinki, America voted.
 
-On Sunday the twenty-seventh of October, a cell tower on Germantown Street got an hour of somebody's diesel. At eleven in the morning, the hour the Dorseys had always called, Carol's phone rang.
+Brynner's machine decided what played on its video service now. Ben and Declan, the two people the company had kept, looked at a sample of what it decided and said whether it had decided well, and on a night like this Brynner wanted both of them awake. So at midnight Ben sat down at the kitchen table with his laptop, and Declan was a square in the corner of the screen, in his kitchen in Belfast, with a pot of tea.
 
-"Ms. Flory? It's Anna Dorsey." The line was bad, and there was a child somewhere near her. "I heard about your son. I'm so sorry."
+In the summer, Washington had asked every company that carried video to hold back unverified footage of polling places and counting rooms on election night, for public safety. Every company had agreed. Ben had read the request when it came. It reminded him of something, and he had not let himself work out what.
 
-"Thank you."
+The networks showed maps. On the sofa, Anna watched states turn one colour or the other on her phone as their polls closed, and the commentators said it was early.
 
-"There isn't anybody left to ask. There isn't a piece of paper anywhere that says who she is." Anna stopped, and started again. "I'm looking for my mother."
+Then she put the phone down and went to the drawer of the hall table, and took out her new passport.
 
-"I've got a form for that," said Carol. "There's just the one question. What do people call her, when they like her?"
+It was dark red, with a lion on the front, and it had come in October, after a letter in Finnish, which she could read now. More than six years before, at one in the morning in her parents' kitchen, she had read a page that said only a Finnish citizen could ask for a parent to come, and had shut the laptop on it. Since then she had learned fifteen ways to end a noun, in the evenings, with her lips moving, and passed the exam. The week the passport came, she had filled in the application for her mother. In the box marked *Reasons* she had written: *My mother is held behind a fence in Dayton, Ohio. My father is in a nursing home and cannot care for her. There is no one else.* She had clipped the county's *none available* paper to it. On her phone it said *Being processed*, as it had every time she looked.
 
-"Her pupils call her Mrs. Dorsey," Anna said. "My father called her Ruthie. She always said he wasn't to be encouraged."
+She had never met a form she couldn't get through. This one had taken six years. She sat on the arm of the sofa with the passport in both hands, in the country that had let her ask, while the one she was born in counted.
 
-"Yes, ma'am," said Carol. "I've got her right here. Page one."
+Ohio's polls closed in the small hours. Soon after three her phone lit up with a message from Dolores, in Dayton, where it was still evening.
 
-She ran her finger along to the pencil.
+*Carol says Joel's unit is at the board of elections tonight. There are men outside with guns. Pray for him.*
 
-"She went north with my sister, to the farm," she said. "It says here she's eating."
+Anna read it twice. She remembered a boy of sixteen carrying a case of water up Dolores's steps, and a young man with his hair cut to nothing eating the last spring roll to win an argument. Her own ballot was in that building, posted from Helsinki in September, and Ben's, and her father's, posted from his bed in Kettering.
+
+She held the phone out to Ben. He had just opened his queue.
+
+The clip was forty seconds long, filmed on a phone from across a road at night. Glass doors with the county's seal on them, and in front of them a line of young soldiers in helmets, rifles across their chests. On this side of the road, thirty or forty men with rifles of their own, and flags, and a pickup truck with its horn held down. Nothing happened in it. That was what frightened him: two lines of people with guns, looking at each other across a road, and a building full of paper behind them.
+
+Under it the machine had written: *Held. Election site, unverified (federal guidance).* Location: Dayton, Ohio.
+
+Ben pressed *Release*.
+
+*Thank you,* said the screen. *Your feedback helps us improve future decisions.*
+
+The clip stayed where it was. He pressed it again, and got the same thank you.
+
+The next one was from the same road. Somebody in the crowd had turned a phone on the man beside him: forty or so, in a hunting jacket, holding a rifle as if he had been told he would need it and wasn't sure what for. He had the face of a man who would help you start your car on a cold morning.
+
+"They're saying on the radio there's trucks coming in the back with boxes," he said. "I don't know. I've got a girl at home with a fever. I don't want to be out here." His voice shook, and he waited for it to stop. "I just want to know it's real. That's all. I want somebody to tell me it's real."
+
+The machine had held him too.
+
+"Declan."
+
+"I see it," said Declan, from Belfast. "Niamh's just sent me the first one. It's on every phone in this city." He held his own phone up to the camera: the glass doors, the soldiers, the truck. "Is that your Dayton?"
+
+"It's held."
+
+"Not here it isn't."
+
+On the networks it was still early.
+
+---
+
+At three in the morning, Belfast time, Orla walked the length of her ward with a torch.
+
+Half the beds were awake, faces lit blue by phones, because America was on every one of them. In bed nine an old woman who couldn't sleep was watching the men with rifles outside the building in Ohio, forty seconds at a time, over and over.
+
+"That'd never happen here," she said to Orla. Then she heard herself, and laughed, and put the phone face down on the blanket.
+
+On Saturday night the whole North had sat in front of a count that half of it hated, and the half that hated it had said *we will abide by it*, and gone to bed. Orla had been in that half, and nobody in the world knew. Tonight, with America on every phone on the ward, it was the one thing about Saturday she was proud of, and she could tell no one.
+
+---
+
+Towards seven in Helsinki, with the sky still black, a clip came out of a counting centre in Phoenix. A crowd on a pavement, two sides of it shouting at each other across a line of police. A pop, and then a great many, and the phone on the ground, filming the sky.
+
+The machine held it. Declan had it in his group chat inside a minute. Each side's channel had it by the half hour, cut so that the shots came from the other side.
+
+---
+
+At six o'clock on Wednesday morning in Belfast, a man from the Department of Justice got out of his van and unlocked the gate in the wall, and nobody was waiting at it.
+
+At the same minute, one in the morning in Washington, the candidate of the President's party walked out in front of his flags and said that the count in four states had been corrupted, that he had won, and that he would not accept any count that went on after tonight. The people behind him cheered. The President's own channel showed the room, and the flags, and nothing else.
+
+Nora came into the kitchen in her pyjamas and asked who had won.
+
+*Nobody yet, go and get dressed* was what Ben's grandmother would have said, and it was true as far as it went. He turned the laptop away from her.
+
+"Nobody's finished counting," he said. "One of the men says he's won anyway, and he wants the counting stopped. Some people are angry about it. In one city they're shooting."
+
+Nora looked at the laptop, and at her mother's face, and then at him.
+
+"Can he stop it? The counting?"
+
+"No," said Ben. "He's not allowed."
+
+"Who stops him?"
+
+Ben didn't know, and he told her so.
+
+She put on her coat with the reflector pinned to it and walked to school in the half-dark. Anna stood at the window and watched the little light on her coat all the way to the corner.
+
+Declan's square was still in the corner of the screen.
+
+"Norman rang me," he said. "Half six, from his kitchen. He'd been up all night with it. He wanted to know was the American going to abide by it."
+
+"What did you tell him?"
+
+"I told him no." Declan rubbed his eyes. "He said, *The count's the count, son*, as if I'd argued with him. And then he put the phone down on me."
+
+On the other side of the screen the queue went on filling. The machine held a clip from Phoenix, and another, and one from Atlanta, and two more from the road in front of the glass doors in Dayton, where it was still dark, and the first from a town Ben had never heard of. In the corner of the screen was the number waiting for him to look at. Every time he looked, it had gone up.
