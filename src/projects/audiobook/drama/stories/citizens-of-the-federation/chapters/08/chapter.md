@@ -66,7 +66,7 @@ She gave him Nora's picture. He held it at arm's length and read it the way he r
 
 "Put it with the others," he said.
 
-Two floors up, her mother sat by a window in a hospital gown with her hair flat on one side, and looked at Anna with a polite and terrible care.
+Two floors up, her mother sat by a window in a hospital gown with her hair uncombed, and looked at Anna with a polite and terrible care.
 
 "You're very like her," said Ruth. "They've done well."
 
@@ -76,7 +76,7 @@ Ruth looked at the baby, and for a moment something else was in her face. "She's
 
 The county's caseworker was waiting in the corridor: a heavy, tired man called Gary Pruitt, who had rung Walt every week since the autumn exactly when he said he would. He walked Anna to the elevator.
 
-"She won't take the shot," he said. "Not from the doctors here, not from Dolores. A pharmacist can give it now, with a prescription, but not to somebody who says no. Nobody can. And the hospital lets her go Monday. They can only keep her if she's a danger, or can't look after herself in the community." He pressed the button. "Last year the county asked its lawyer whether the District counts as the community. It's got beds and meals and an address, so he said it did. Since then nobody who can be sent there can't look after herself in the community."
+"She won't take the shot," he said. "Not from the doctors here, not from Dolores. A pharmacist can give it now, with a prescription, but not to somebody who says no. Nobody can. And the hospital lets her go Monday. They can only keep her if she's a danger, or can't look after herself in the community." He pressed the button. "Last year the county asked its lawyer whether the District counts as the community. It's got beds and meals and an address, so he said it did. Since then everybody who can be sent there can look after herself in the community."
 
 "And a care home?"
 
@@ -84,11 +84,9 @@ The county's caseworker was waiting in the corridor: a heavy, tired man called G
 
 Anna had a ticket home for the next Sunday, a baby on her chest, and a husband in Helsinki with two children and a job the family's permits hung on.
 
-"So she goes downtown on Monday," said Pruitt. "All I can tell you is whose word she goes in on."
+"So she goes downtown on Monday," said Pruitt. "All I can tell you is whose word she goes in on. She can sign herself in. Then she's like anybody in there: she can ask to leave, and she can say no to whatever they offer her, the shot too. Or there's a paper. Dolores says there is. Then the doctor in there and one other person look at her and write down that she can't decide for herself, and you decide. You can say yes to the shot, and you're the one who can sign her out." He watched the numbers over the elevator door. "Or there's neither, and we go to court, and she's the county's. She gets a guardian with sixty others like her. He sells the house to pay for her keep. And then there's nobody on God's earth who can sign her out."
 
-There were three ways. Ruth could sign herself in, and then she was a resident like any other: she could ask to leave, and she could say no to anything they offered her inside, the shot included. Or she could go in on Anna's word, if there was a paper, and Dolores had told him there was. Then the District's doctor and one other person would examine her and put it in writing that she couldn't decide for herself, and Anna would decide. Anna could say yes to the shot, and Anna would be the one who could sign her out. Or, if there was neither, the county would go to court, and Ruth would be its ward, with a guardian who had sixty others. He would sell the house to pay for her keep. After that there would be nobody on earth who could sign her out.
-
-The elevator came. "The one other person's me, as it happens," said Pruitt, faintly embarrassed. "I'm licensed for it. Nobody ever asks a caseworker. I'll be at the counter Monday at nine."
+The elevator came. "The one other person's me, as it happens," he said, faintly embarrassed. "I'm licensed for it. Nobody ever asks a caseworker. I'll be at the counter Monday at nine."
 
 That night Anna walked past the bench again on her way up to bed. *Don't you let them put your mother in one of those places.* If her mother signed herself in, it would be her mother's doing. If the paper came out of the bench, it would be Anna's. She knew which one she was hoping for, and she was ashamed of it, and she went on hoping.
 
@@ -100,11 +98,11 @@ On Sunday evening Dolores came to the house with a pot of chicken adobo, because
 
 "I remember. She brought you groceries."
 
-"Be good to her this week." Dolores looked at the drawings on the fridge rather than at Anna. "She came to my clinic at thirty-five for a letter she needed, to start living as herself, and I didn't turn her away. That's all I ever did. She's been mine since." She turned her cup round on the table. "Yesterday the state sent her a new driver's licence. Fourteen years it said F. Now it says M. They've decided the old ones count too, when you renew. And the county's computer checks its people against the state's, so the county knows."
+"Be good to her this week." Dolores looked at the drawings on the fridge rather than at Anna. "She came to my clinic at thirty-five for a letter she needed, to start living as herself, and I didn't turn her away. That's all I ever did. She's been mine since." She turned her cup round on the table. "The state's reissuing every driver's licence with the sex you were born with. Hers came yesterday. Fourteen years it said F, and now it says M, and the county's records still say F. The county's computer checks its people against the state's."
 
 "What will they do?"
 
-"Look at her," said Dolores. "Carol's spent all that time being a file nobody had a reason to open."
+"Look at her," said Dolores. "Twenty-three years she's worked for the county, and she's spent every one of them being a file nobody had a reason to open."
 
 ---
 
@@ -140,17 +138,11 @@ While she worked, Ruth's fingers had begun to move on the edge of the counter, t
 
 Ruth's hand stopped. She reached across and took Carol's hand in both of hers, turned it over, and spread the fingers wide, the way she had measured her pupils' hands in the front room for forty years.
 
-"That's a tenth, easily," she said. "That's a man's hand, miss."
-
-Anna looked at the floor. Pruitt looked at his folder. Carol didn't take her hand back.
-
-"Yes, ma'am," she said. "It is."
-
-Ruth went on holding it. "Who told you to stop?"
+"You've got a pianist's hands," she said. "A tenth, easily. Who told you to stop?"
 
 "Stop what?"
 
-"Nobody's given a hand like that to carry groceries."
+"Playing. Nobody's given hands like these to carry groceries."
 
 Carol began to laugh and didn't quite manage it. "We weren't piano people. Old German Baptist, up north of here. We sang, but no instruments, not in the house and not in church. Nobody's ever asked me that." She looked at her own hand lying in Ruth's. "I'd have been good, wouldn't I?"
 
@@ -210,7 +202,7 @@ Carol held out the pen to Ruth. "Right there, Mrs. Dorsey. By the X."
 
 Ruth signed. Under her name there was a box: *Intake officer attests that the applicant understands the nature of voluntary residence.* Carol ticked it with her own pen, and wrote her initials beside it, small and neat.
 
-At the inner door, as far as Anna was allowed to go, a woman in a hairnet was waiting. Her name was Lucille Odom. She met the new ones at the door, because when she came in nobody had met her.
+At the inner door, as far as Anna was allowed to go, a woman in a hairnet was waiting, with a ration card of her own on a cord round her neck. Her name was Lucille Odom, and she had lived inside since the winter. She met the new ones at the door, because when she came in nobody had met her.
 
 "That your card, baby? They'll have that off you by supper. Hold still. Let me see your neck."
 
@@ -254,7 +246,7 @@ She turned it over. The back was written to the bottom in red ink, the ink her m
 
 *August 2026. Your father's good leg is going, and he will tell you it isn't. Whatever you have had to do to me, don't let him tell you it was wrong. He let me stop once, because he loved the way I played. You love me some other way. That's why it's your name.*
 
-Anna had heard it once in a school gym in Helsinki, with paper flags on the wall bars, and had not known it. Every Sunday since, her mother had played it to her down the line, and Anna had never asked.
+It was the second one that undid her. She had heard that hymn once in a school gym in Helsinki, with paper flags on the wall bars, and had not known it. Every Sunday since they left, her mother had played it to her down the line at suppertime, and Anna had listened to it the way she had always listened to her mother's playing: for how her mother was. She had never once listened for what it said. *Be still, my soul.* Her mother had been sending it across the ocean every week, and Anna had been checking it for wrong notes.
 
 She sat on the bench with the paper on her knees until the street lights went off.
 
@@ -276,19 +268,27 @@ They sat on Dolores's steps afterward, where Anna had first met her, seven years
 
 "Will you tell them she understood?"
 
-"No. She didn't. I knew it when I ticked the box." Carol turned the pen over in her fingers. "I took her word because it was hers, and I'd take it again, and I'll tell whoever asks me that. That part's mine. Don't you go making it yours."
+"No. She didn't. I knew it when I ticked the box." Carol turned the pen over in her fingers. "I took her word because it was hers, and I'd take it again, and I'll tell whoever asks me that."
 
 "Then what do I do?"
 
-"She's your mother, honey. It's your name on that paper, not mine." Carol stood up and put the pen back in her collar. "Give me that baby back before you go. I've got about four more minutes of her in me."
+Carol looked at her for a while and didn't answer. Then she stood up and put the pen back in her collar.
+
+"Give me that baby back before you go," she said. "I've got about four more minutes of her in me."
 
 ---
 
-Anna sat in her father's car outside the dark house for a long time, with Alma asleep in the seat behind her.
+Anna sat in her father's car outside the dark house with the engine off and Alma asleep in the seat behind her.
 
-Her mother had written that she could. Nobody else was going to. Her father had asked for her word on a bench by a hangar and she had given it. A woman who had been kind to her mother was going to lose her job for it, and had told her so, and had told her it was none of her business. And her mother's left arm was behind her back in a room by the river, and would stay there.
+If she did nothing, nothing would happen to anybody. Her mother would keep her arm behind her back and eat out of sealed packets, a free woman in a room by the river, and tap the first bars of the hymn on a table and stop. Carol would keep her counter, until the morning somebody got round to the M.
 
-She went in, and put the paper in her bag.
+She saw a bench by a hangar at the edge of a mown field, and a grey plane going up beyond the trees, and her father not looking at her. She saw his shoulders come down when she said *I promise*. It was the only thing he had ever asked her for.
+
+She saw Carol at Dolores's table with her fork down, laughing at her son. She saw two small neat letters beside a ticked box, and twenty-three years at the county behind them.
+
+She went into the house and took the envelope out of her bag, where it had been since Tuesday night, and put it back in the piano bench, under the hymnal, and closed the lid. She sat on the bench in the dark. It was very quiet. It was the quietest she had ever known that room.
+
+Then she lifted the lid again and took the envelope out, knowing whose job she had just ended, and whose word she had just broken, and went up to bed.
 
 ---
 
@@ -310,6 +310,10 @@ On Friday the supervisor opened the file.
 
 Carol rang that evening. Four things had been on one desk at once, she said, and any one of them alone would have got her a talking-to. A woman recorded as able to sign on Monday and unable on Thursday. A Lutheran on a kosher tray. *None available*. And her own record: F in the county's files, M on the licence the state had just sent her, which she hadn't asked for and couldn't change.
 
+They had let her go. The four things were the letter of it.
+
+"I knew on Monday," said Carol. "When I picked up the pen."
+
 "I'm sorry," said Anna.
 
 "I know you are." A pause. "Your none-available paper stays in the file. I checked."
@@ -327,6 +331,8 @@ Walt turned his face to the window and looked at the parking lot. She didn't ask
 He laughed before he could stop himself, and then stopped, and didn't look round.
 
 "She wrote your name," said Walt. "Not mine."
+
+His hand came across the blanket without his looking, and found hers, and held on hard enough to hurt. He went on looking at the parking lot. He didn't let go for a long time, and when he did, he wiped his eyes with the back of his wrist, quickly, the way a man does who has never once been caught at it.
 
 Anna flew home the next morning.
 
