@@ -594,6 +594,28 @@ class Mouths(unittest.TestCase):
         corners = paved.points[paved.triangles][:, :, :2]
         self.assertFalse(shapely.contains_xy(shapely.polygons(np.concatenate((corners, corners[:, :1]), axis=1)), *(centre - (radius - 1.5) * towards)).any())
 
+    def test_a_street_that_climbs_away_from_its_junction_still_has_its_corners(self):
+        """The two roads' surfaces were asked to agree all across a corner, a few metres up each of them, so a street on a
+        slope stood too far from the other's there to have one: one corner in nine in the middle of Mariehamn was square.
+        A ramp that drops away from the road it leaves still has none."""
+        arm = road([(20, 600), (600, 600)], "tertiary")
+        street = road([(600, 320), (600, 600), (600, 880)], "tertiary")
+
+        def asphalt_in_the_corners(grade):
+            paved = paving.lay([arm, street], land(height=lambda east, north: 30 + grade * (north - 600), town=0.0))
+            ending = next(chain for chain in paved.chains if np.ptp(chain.xy[:, 0]) > 100)
+            half = float(ending.half.max())
+            corners = paved.points[paved.triangles]
+            shapes = shapely.polygons(np.concatenate((corners[:, :, :2], corners[:, :1, :2]), axis=1))
+            found = []
+            for side in (1, -1):
+                over = shapely.contains_xy(shapes, 600 - half - 1.2, 600 + side * (half + 1.2))
+                found.append(bool(over.any() and (np.abs(corners[over][:, :, 3]) <= 1).all()))
+            return found
+
+        self.assertEqual(asphalt_in_the_corners(0.18), [True, True])
+        self.assertEqual(asphalt_in_the_corners(0.45), [False, False])
+
     def test_an_edge_line_stops_where_more_carriageway_lies_beyond_the_edge(self):
         """Painted at every road's own edge, the line ran on across the mouth of each road that joined, and straight on
         down the joining road beside its arc."""

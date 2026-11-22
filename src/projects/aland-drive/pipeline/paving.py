@@ -120,6 +120,9 @@ SLIVER_WIDE_M = 0.5
 SLIVER_SIDES = 2.0
 # A thin piece of shoulder is a sliver with one surface along this much of its outline.
 SHOULDER_SLIVER_ROUND = 0.75
+# The steepest a street climbs away from a junction and still has rounded corners with the road it meets: steeper, it
+# is a ramp off that road's embankment.
+CORNER_MOST_GRADE = 0.1
 # How many times over the specks and slivers are looked for: absorbing one can leave its neighbour one.
 SPECK_PASSES = 3
 # A spike of a surface smaller than this, where it narrows to a sliver's width, is left as it is: too small to see.
@@ -694,11 +697,15 @@ def _closed_in(shape: shapely.Geometry, radius: float, segments: int = 4) -> sha
     return shapely.intersection(added.buffer(SLIVER_M * 2), closed).difference(shape) if not added.is_empty else added
 
 
+def _read_across(shape: shapely.Geometry) -> np.ndarray:
+    """Where a shape is read: round its edge and at its middle."""
+    edge = shapely.get_coordinates(shapely.segmentize(shape.boundary, AGREE_SAMPLE_M))
+    return np.vstack((edge[:: max(len(edge) // AGREE_SAMPLES, 1)], shapely.get_coordinates(shape.representative_point())))
+
+
 def _apart(ways: list[Chain], shape: shapely.Geometry) -> np.ndarray:
     """How far apart ways' surfaces stand across a shape, read round its edge and at its middle."""
-    edge = shapely.get_coordinates(shapely.segmentize(shape.boundary, AGREE_SAMPLE_M))
-    points = np.vstack((edge[:: max(len(edge) // AGREE_SAMPLES, 1)], shapely.get_coordinates(shape.representative_point())))
-    heights = np.array([way.plane(points) for way in ways])
+    heights = np.array([way.plane(_read_across(shape)) for way in ways])
     return heights.max(axis=0) - heights.min(axis=0)
 
 
@@ -706,6 +713,21 @@ def _agree(ways: list[Chain], shape: shapely.Geometry) -> bool:
     """Whether ways' surfaces agree all across a shape closely enough to pave it between them: farther apart anywhere, one is
     on a bank above the other, and paving between them would be a cliff."""
     return len(ways) < 2 or float(_apart(ways, shape).max()) <= GAP_MOST_STEP_M
+
+
+def _part_as_streets(ways: list[Chain], shape: shapely.Geometry, meeting: np.ndarray) -> bool:
+    """Whether two roads that meet at a place part across a corner no faster than a street climbs away from its
+    junction: no further apart, a distance from where they meet, than `CORNER_MOST_GRADE` of that distance, nor than
+    ways side by side may stand anywhere (`_agree`).
+
+    Asked to agree all across the corner as ways side by side are, a street on a slope had no corners: each road's
+    surface is carried level across the corner from its own line, and a few metres up a street that climbs at one in
+    fifteen the two stand further apart than a bank's height. One that parts from the other faster is a ramp down an
+    embankment, and a corner paved between them was a step in the road it left."""
+    points = _read_across(shape)
+    heights = np.array([way.plane(points) for way in ways])
+    away = np.hypot(*(points - meeting).T)
+    return bool((heights.max(axis=0) - heights.min(axis=0) <= np.maximum(GAP_MOST_STEP_M, CORNER_MOST_GRADE * away)).all())
 
 
 def _pieces(gap: shapely.Polygon) -> list[shapely.Polygon]:
@@ -888,6 +910,9 @@ def carriageway_corners(chains: list[Chain], carriageways: dict[int, shapely.Geo
     mouth kept the corner's asphalt out of its band, so the arc stopped at the slabs on a square notch and the edge line
     round it was cut off there.
 
+    Only where the two roads part across the corner as streets do (`_part_as_streets`): a street that climbs away from
+    its junction has its corners, and a ramp down an embankment has none.
+
     A drive (`is_driveway`) has no such corners where it crosses a sidewalk to a street: the sidewalk and the street's
     paving beside it carry on across the drive (`_sidewalks_across_driveways`), which meets the street at a dropped
     kerb. Corners swept through that paving were asphalt either side of the drive's own width, with the slabs carried
@@ -925,7 +950,7 @@ def carriageway_corners(chains: list[Chain], carriageways: dict[int, shapely.Geo
             fill = shapely.intersection(shapely.union_all(fill).difference(others.buffer(SLIVER_M, quad_segs=1)), inner)
             fill = fill.buffer(-CORNER_TIP_M / 2, join_style="mitre").buffer(CORNER_TIP_M / 2, join_style="mitre")
             fill = shapely.union_all([part for part in _flat(fill) if not part.buffer(-CORNER_LEAST_M / 2).is_empty])
-            if fill.is_empty or not _agree([chain, parent], fill):
+            if fill.is_empty or not _part_as_streets([chain, parent], fill, here):
                 continue
             ring = _less(shapely.intersection(fill.buffer(max(strip, OUTLINE_WITHIN_M), quad_segs=CORNER_ARC_SEGMENTS), inner), shapely.union_all([fill, local, others], grid_size=GRID_M / 20))
             found.append(Corner(fill, ring, fill.boundary.difference(local.buffer(SLIVER_M * 2)), chain.index))
