@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RING_POINTS, type RoadSurface } from "../../render/tile";
-import { FAR_FROM_MARK_M, GIVE_WAY, LOOSE_WAY, ON_CARRIAGEWAY, roadAttributes, SEALED_WAY, ZEBRA } from "./road-attributes";
+import { FAR_FROM_MARK_M, GIVE_WAY, LOOSE_WAY, ON_CARRIAGEWAY, roadAttributes, sealedSections, SEALED_WAY, ZEBRA } from "./road-attributes";
 
 const HALF_WIDTH = 3;
 
@@ -152,5 +152,34 @@ describe("road attributes", () => {
     expect([0, 1, 2].map((point) => street[(first + point) * 4])).toEqual([0, 1, 1]);
     const track = roadAttributes(paved("track", undefined, [LOOSE_WAY, SEALED_WAY, 0]), []).surface;
     expect([0, 1, 2].map((point) => track[(first + point) * 4])).toEqual([0, 1, 0]);
+  });
+
+  it("reads a road as sealed or loose at each place along it, as the nearest point of its own paving says", () => {
+    // The lesser road runs from z = 54 north to z = 4, a section every 10 m, with a point of its paving at each: gravel
+    // along its southern end, asphalt along its northern, and between them points that say nothing. A point of the main
+    // road's paving lies beside the lesser road's middle stretch, far from its own, and says gravel.
+    const road = junction("residential", 1, true);
+    const points = [
+      { x: 3, z: 54, way: 1, said: LOOSE_WAY },
+      { x: -3, z: 44, way: 1, said: LOOSE_WAY },
+      { x: 3, z: 34, way: 1, said: 0 },
+      { x: -3, z: 24, way: 1, said: 0 },
+      { x: 3, z: 14, way: 1, said: SEALED_WAY },
+      { x: 0, z: 4, way: 1, said: SEALED_WAY },
+      { x: 1, z: 30, way: 0, said: LOOSE_WAY },
+    ];
+    const paved: RoadSurface = {
+      ...road,
+      rings: Float32Array.from([...road.rings, ...points.flatMap(({ x, z }) => [x, 0, z])]),
+      paved: true,
+      aprons: { ...road.aprons, ways: Int32Array.from(points.map(({ way }) => way)), classes: Uint8Array.from(points.map(({ said }) => said)) },
+    };
+    // Where its paving says nothing the road is what its chain is: sealed, or loose.
+    expect([...sealedSections(paved).subarray(21, 27)]).toEqual([0, 0, 1, 1, 1, 1]);
+    expect([...sealedSections({ ...paved, chains: [paved.chains[0], { ...paved.chains[1], sealed: false }] }).subarray(21, 27)]).toEqual([0, 0, 0, 0, 1, 1]);
+    // That point says nothing of the lesser road it lies beside, which the first reading held, nor of its own road so far off.
+    expect([...sealedSections(paved).subarray(0, 21)]).toEqual(Array<number>(21).fill(1));
+    // A surface with no paving is each chain's own.
+    expect([...sealedSections(road).subarray(21, 27)]).toEqual(Array<number>(6).fill(1));
   });
 });

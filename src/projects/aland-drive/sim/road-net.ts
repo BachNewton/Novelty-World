@@ -1,4 +1,4 @@
-import { isPaved } from "../art/surfaces/road-attributes";
+import { sealedSections } from "../art/surfaces/road-attributes";
 import { RING_POINTS, type RoadSurface } from "../render/tile";
 
 /*
@@ -149,6 +149,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
   const points = new Float32Array(total * 3);
   const lengths = new Float32Array(total);
   const paved = new Uint8Array(total);
+  const sealed = sealedSections(surface);
   const chainFirst = new Int32Array(surface.chains.length).fill(-1);
   const chainPoints = new Int32Array(surface.chains.length);
   const cellsAcross = Math.round(tileM / CELL_M);
@@ -160,7 +161,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
     if (!chain.motor || chain.sections < 2) return;
     chainFirst[index] = next;
     chainPoints[index] = chain.sections;
-    paved.fill(isPaved(chain, 0) ? 1 : 0, next, next + chain.sections);
+    paved.set(sealed.subarray(chain.first, chain.first + chain.sections), next);
     for (let section = 0; section < chain.sections; section++) {
       const at = ((chain.first + section) * RING_POINTS + CENTRE) * 3;
       const point = next + section;

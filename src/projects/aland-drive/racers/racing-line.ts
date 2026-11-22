@@ -472,18 +472,40 @@ export interface LineGeometry {
   rightM: Float64Array;
 }
 
+/** A line drawn through a corridor, with the road's surface and its room to each side at any distance along it. */
+export interface DrawnLine {
+  line: RoadLine;
+  pavedAt: (alongM: number) => boolean;
+  geometry: LineGeometry;
+}
+
 /**
- * A corridor's geometry seen from a line at the given offsets from its middle. Where the corridor is bridged across a
- * gap in the laid road, a junction's apron for the most part, its width is a guess that was good enough to draw the
- * line through, and no carriageway to move about on: there the road reaches no way from the middle, so a racer keeps
- * to its line.
+ * The line at the given offsets from a corridor's middle, with the road's surface and room read along the line itself.
+ * The line has a point at every sample of the corridor, but it is shorter than the middle round the inside of a bend and
+ * longer round the outside, so a distance along it is not that distance along the corridor: over a few kilometres the
+ * two part by tens of metres, and a change of surface or a narrow place read by the corridor's own step stood that far
+ * from where the car meets it. Where the corridor is bridged across a gap in the laid road, a junction's apron for the
+ * most part, its width is a guess that was good enough to draw the line through, and no carriageway to move about on:
+ * there the road reaches no way from the middle, so a racer keeps to its line.
  */
-export function geometryOf(corridor: readonly CorridorSample[], offsets: ArrayLike<number>, stepM = ROUTE_STEP_M): LineGeometry {
-  const count = corridor.length;
+export function lineThrough(corridor: readonly CorridorSample[], offsets: ArrayLike<number>, stepM = ROUTE_STEP_M): DrawnLine {
+  const line = lineOf(corridor, offsets);
+  // The corridor's sample nearest each even step along the line.
+  const samples = new Uint32Array(Math.round(line.length / stepM) + 1);
+  for (let step = 0, sample = 0; step < samples.length; step++) {
+    const along = step * stepM;
+    while (sample + 1 < corridor.length && Math.abs(line.lengths[sample + 1] - along) <= Math.abs(line.lengths[sample] - along)) sample++;
+    samples[step] = sample;
+  }
+  const sampleAt = (alongM: number) => corridor[samples[Math.max(0, Math.min(samples.length - 1, Math.round(alongM / stepM)))]];
   return {
-    stepM,
-    middleM: Float64Array.from({ length: count }, (_, at) => -offsets[at]),
-    leftM: Float64Array.from(corridor, ({ leftM, bridged }) => (bridged ? 0 : leftM)),
-    rightM: Float64Array.from(corridor, ({ rightM, bridged }) => (bridged ? 0 : rightM)),
+    line,
+    pavedAt: (alongM) => sampleAt(alongM).paved,
+    geometry: {
+      stepM,
+      middleM: Float64Array.from(samples, (sample) => -offsets[sample]),
+      leftM: Float64Array.from(samples, (sample) => (corridor[sample].bridged ? 0 : corridor[sample].leftM)),
+      rightM: Float64Array.from(samples, (sample) => (corridor[sample].bridged ? 0 : corridor[sample].rightM)),
+    },
   };
 }

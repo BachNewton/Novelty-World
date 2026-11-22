@@ -1,4 +1,4 @@
-import { isPaved } from "../art/surfaces/road-attributes";
+import { sealedReader } from "../art/surfaces/road-attributes";
 import { RING_POINTS } from "../render/tile";
 import type { World } from "../sim/world";
 
@@ -46,7 +46,9 @@ interface Section {
   at: number;
   /** The next section along the chain's first float, or the one before for a chain's last section: the way the chain runs here. */
   next: number;
-  paved: boolean;
+  /** Whether its road is sealed at a place on it: the tile's reader, and the chain it is asked of. */
+  sealed: (way: number, x: number, z: number) => boolean;
+  way: number;
   kind: string;
 }
 
@@ -59,19 +61,19 @@ export class LaidRoad {
     for (const { detail } of world.all()) {
       if (!detail) continue;
       const { rings, chains } = detail.surface;
-      for (const chain of chains) {
-        if (!chain.motor || chain.sections < 2) continue;
-        // The ribbon's own class decides whether it's drawn sealed, as the tyres read it (`sim/road-grip.ts`).
-        const paved = isPaved(chain, 0);
+      // Sealed or loose place by place along a road, as it is drawn and as the tyres read it (`sim/road-grip.ts`).
+      const sealed = sealedReader(detail.surface);
+      chains.forEach((chain, way) => {
+        if (!chain.motor || chain.sections < 2) return;
         for (let section = chain.first; section < chain.first + chain.sections; section++) {
           const last = section === chain.first + chain.sections - 1;
-          const entry: Section = { rings, at: section * RING_POINTS * 3, next: (last ? section - 1 : section + 1) * RING_POINTS * 3, paved, kind: chain.kind };
+          const entry: Section = { rings, at: section * RING_POINTS * 3, next: (last ? section - 1 : section + 1) * RING_POINTS * 3, sealed, way, kind: chain.kind };
           const key = cellKey(rings[entry.at + CENTRE * 3], rings[entry.at + CENTRE * 3 + 2]);
           const list = this.cells.get(key);
           if (list) list.push(entry);
           else this.cells.set(key, [entry]);
         }
-      }
+      });
     }
   }
 
@@ -103,7 +105,7 @@ export class LaidRoad {
       }
     }
     if (!best) return null;
-    const { rings, at, next, paved, kind } = best.section;
+    const { rings, at, next, sealed, way, kind } = best.section;
     const { share } = best;
     const blend = (ring: number, axis: number) => rings[at + ring * 3 + axis] + share * (rings[next + ring * 3 + axis] - rings[at + ring * 3 + axis]);
     const cx = blend(CENTRE, 0);
@@ -118,6 +120,6 @@ export class LaidRoad {
     const alongRoute = Math.cos(chainHeading - heading) >= 0;
     const [leftM, rightM, outerLeftM, outerRightM] = alongRoute ? [across(1), across(3), across(0), across(4)] : [across(3), across(1), across(4), across(0)];
     const [leftRiseM, rightRiseM] = alongRoute ? [blend(1, 1) - cy, blend(3, 1) - cy] : [blend(3, 1) - cy, blend(1, 1) - cy];
-    return { x: cx, y: cy, z: cz, heading: alongRoute ? chainHeading : chainHeading + Math.PI, leftM, rightM, leftRiseM, rightRiseM, outerLeftM, outerRightM, paved, kind, distance: best.distance };
+    return { x: cx, y: cy, z: cz, heading: alongRoute ? chainHeading : chainHeading + Math.PI, leftM, rightM, leftRiseM, rightRiseM, outerLeftM, outerRightM, paved: sealed(way, cx, cz), kind, distance: best.distance };
   }
 }

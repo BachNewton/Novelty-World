@@ -20,14 +20,12 @@ import { Racer } from "./racer";
 import type { RaceLine } from "./race-line-file";
 import {
   corridorOf,
-  geometryOf,
-  middleLine,
+  lineThrough,
   racingLine,
   type CorridorSample,
 } from "./racing-line";
 import {
   alongsOf,
-  ROUTE_STEP_M,
   RoutePlan,
   speedPlanFor,
   tilesNear,
@@ -264,11 +262,7 @@ export function loadRaceOf(
   const plan = new RoutePlan(gpsLine, laid);
   const walls = new StandingWalls(world);
   const corridor = corridorOf(plan, walls);
-  const middle = {
-    line: middleLine(corridor),
-    pavedAt: (alongM: number) => pavedAlong(corridor, alongM),
-    geometry: geometryOf(corridor, new Float64Array(corridor.length)),
-  };
+  const middle = lineThrough(corridor, new Float64Array(corridor.length));
   return {
     race,
     world,
@@ -288,12 +282,7 @@ export function racingLineFor(loaded: LoadedRace, car: CarId): RaceLine {
   const halfWidth = CARS[car].car.halfSize[0];
   let drawn = loaded.racing.get(halfWidth);
   if (!drawn) {
-    const { line, offsets } = racingLine(loaded.corridor, halfWidth);
-    drawn = {
-      line,
-      pavedAt: (alongM: number) => pavedAlong(loaded.corridor, alongM),
-      geometry: geometryOf(loaded.corridor, offsets),
-    };
+    drawn = lineThrough(loaded.corridor, racingLine(loaded.corridor, halfWidth).offsets);
     loaded.racing.set(halfWidth, drawn);
   }
   return drawn;
@@ -309,15 +298,6 @@ export function lineFor(
   if (kind === "middle") return loaded.middle;
   return racingLineFor(loaded, car);
 }
-
-/** Whether the road under a place along a corridor's line is sealed: the corridor's own sample, at the line's even step. */
-const pavedAlong = (corridor: readonly CorridorSample[], alongM: number) =>
-  corridor[
-    Math.max(
-      0,
-      Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)),
-    )
-  ].paved;
 
 /** How far each place on the grid stands from the laid road's middle: a grid measured on the GPS's line stands off the road where that line strays. */
 export function gridOffRoadM(loaded: LoadedRace): number[] {

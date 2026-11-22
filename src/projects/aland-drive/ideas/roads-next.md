@@ -61,10 +61,6 @@ None of the junction work applies within 8 m of a tile's edge (`EDGE_BAND_M`), w
 - **The scripted driver slides wide on packed snow.** On studded tyres it left the road through the Getavägen fork at 32 km/h, and holds a straight road at 43. A tool that drives in winter needs a speed for the condition, as the racers' speed plan works one out.
 - **Whether main roads should be ploughed to the tarmac** is `ideas/road-feel.md`: as built, a winter road is packed snow nearly all winter.
 
-## The racers read a road as one surface
-
-A road is asphalt or gravel stretch by stretch, as its own OSM way says, and a point of paving carries which (`art/surfaces/road-attributes.ts`). The look and the tyre's grip read it there. The racers' road as laid (`sim/road-net.ts`) still takes one surface for a whole chain, so on a road that turns to gravel half way the speed plan is wrong for one half. It should read the surface along the road as it reads the heights.
-
 ## What the junctions cost
 
 Godby's tile is 252,000 triangles of paving as published and 359,000 rebuilt, and the three town tiles' road files grow from 16.9 to 22.2 MB together. It comes from the mouths' arcs, the wedges and the painted lines' own cells; which costs most was not counted. Nothing was done to bring it down, and no frame's cost was measured against it (`tools/frame-cost.mjs` on the rebuilt town tiles would say). If it shows: an edge line's cells only where a line is painted, and an arc's steps by its radius.
