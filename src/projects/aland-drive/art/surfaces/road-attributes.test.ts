@@ -119,6 +119,27 @@ describe("road attributes", () => {
     expect(dressed.surface[(first + 3) * 4 + 3]).toBeCloseTo(-HALF_WIDTH);
   });
 
+  it("sets a give-way line back to where its road's whole width is its own, where the two roads meet at a slant", () => {
+    // A lesser road coming down to the main road at 45 degrees, its last section 2 m short of the main road's edge.
+    const step = 10 * Math.SQRT1_2;
+    const [endX, endZ] = [5, HALF_WIDTH + 2];
+    const lesser = straight(endX + 5 * step, endZ + 5 * step, -step, -step, 6);
+    const road = junction("residential", 1);
+    const slanted = { ...road, rings: Float32Array.from([...road.rings.slice(0, 21 * RING_POINTS * 3), ...lesser]) };
+    // The road's side that reaches the main road first does so 3 m of road sooner than its middle, so the line stands
+    // 3 m further back: a point 0.8 m of road back from there, on that side and on the middle.
+    const nearSide = HALF_WIDTH - 0.01;
+    const back = (HALF_WIDTH - endZ) * Math.SQRT2 + HALF_WIDTH + 0.8;
+    const places = [0, nearSide].map((aside) => [endX + (back + aside) * Math.SQRT1_2, 0, endZ + (back - aside) * Math.SQRT1_2]);
+    const surface: RoadSurface = { ...slanted, rings: Float32Array.from([...slanted.rings, ...places.flat()]), paved: true, aprons: { ...road.aprons, ways: Int32Array.from([1, 1]), classes: Uint8Array.from([ON_CARRIAGEWAY, ON_CARRIAGEWAY]) } };
+    const dressed = roadAttributes(surface, []);
+    const first = 27 * RING_POINTS;
+    expect([0, 1].map((point) => dressed.surface[(first + point) * 4 + 3])).toEqual([expect.closeTo(0.8, 2), expect.closeTo(0.8, 2)]);
+    expect([0, 1].map((point) => dressed.mark[(first + point) * 2 + 1])).toEqual([GIVE_WAY, GIVE_WAY]);
+    // That side's point is off the main road's carriageway: on asphalt that carries this road's paint.
+    expect(Math.abs(places[1][2])).toBeGreaterThan(HALF_WIDTH);
+  });
+
   it("draws each point of paving as its own OSM way's surface, where the way says, whatever most of its road is", () => {
     // Three points of a street's paving: one whose way says gravel, one whose way says asphalt on a track, one that says nothing.
     const paved = (kind: string, sealed: boolean | undefined, said: number[]): RoadSurface => {

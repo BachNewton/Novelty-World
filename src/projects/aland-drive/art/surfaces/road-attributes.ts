@@ -233,6 +233,10 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
  * A road's end on a greater road, as its paint needs it. A road laid as paving runs on to the line of the road it meets,
  * whether its own sections stop on that line or short of that road's paving, so its give-way line is measured back from
  * that road's edge, further along it the more the two slant.
+ *
+ * From where that edge first cuts the road's carriageway, at its middle or either side: a line lies square across its
+ * road, and where the two meet at a slant, as an arm meets a roundabout's ring, one measured from the middle lay on
+ * the greater road's asphalt for half its length, which carries none of this road's paint. One tooth of it was left.
  */
 function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: number, inward: 1 | -1, sections: number, onto: number, mark: number): MarkedEnd {
   const line: number[] = [];
@@ -244,14 +248,17 @@ function markedEnd(rings: Float32Array, grid: Map<string, Segment[]>, section: n
   const [at, next] = [centreOf(rings, section), centreOf(rings, section + inward)];
   const length = Math.hypot(next.x - at.x, next.z - at.z) || 1;
   const [backX, backZ] = [(next.x - at.x) / length, (next.z - at.z) / length];
-  const met = nearestSegment(grid, at.x, at.z, onto);
-  let toEdge = 0;
-  if (met) {
+  const halfWidth = halfWidthOf(rings, section);
+  let toEdge = -Infinity;
+  for (const aside of [0, halfWidth, -halfWidth]) {
+    const [x, z] = [at.x - backZ * aside, at.z + backX * aside];
+    const met = nearestSegment(grid, x, z, onto);
+    if (!met) continue;
     const [ux, uz] = [met.bx - met.ax, met.bz - met.az];
     const slant = Math.abs(backX * uz - backZ * ux) / (Math.hypot(ux, uz) || 1);
-    toEdge = Math.min((met.halfWidth - distanceToSegment(at.x, at.z, met)) / Math.max(slant, 1 / MOST_SLANT), met.halfWidth * MOST_SLANT);
+    toEdge = Math.max(toEdge, Math.min((met.halfWidth - distanceToSegment(x, z, met)) / Math.max(slant, 1 / MOST_SLANT), met.halfWidth * MOST_SLANT));
   }
-  return { line, halfWidth: halfWidthOf(rings, section), toEdge, mark };
+  return { line, halfWidth, toEdge: Number.isFinite(toEdge) ? toEdge : 0, mark };
 }
 
 /**
