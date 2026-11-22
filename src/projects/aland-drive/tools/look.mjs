@@ -9,7 +9,7 @@
 // --sea=<ISO time> pins the sea's clock there, so the boats under way stand where they are then (`tools/sea-times.ts`
 // says when one passes). An hour in the link (`?hour=`) is held for every look. --pair saves each look twice from the
 // one camera, as <out> and <out>-without, the second with the boats under way and the sea marks left out: a before and
-// after of them. --egpu draws on the eGPU, when one is plugged in. --cockpit takes a chase look (one number or six) from
+// after of them. --egpu draws on the eGPU, in a browser-egpu slot. --cockpit takes a chase look (one number or six) from
 // the driver's seat instead, and --head=<yaw>,<pitch> (degrees, left and up) holds the driver's head turned there.
 
 import { openGame, UNCAPPED_ARGS } from "./game-page.mjs";
@@ -25,8 +25,8 @@ const SEA = option("sea");
 const PAIR = flags.includes("--pair");
 const VIEW = flags.includes("--cockpit") ? "cockpit" : "chase";
 const HEAD = option("head")?.split(",").map((degrees) => (Number(degrees) * Math.PI) / 180);
-// Chrome's GPU process draws on the integrated GPU unless told otherwise; --egpu moves it to the eGPU when one is
-// plugged in, for what shows on Nvidia alone.
+// Chrome's GPU process draws on the integrated GPU unless told otherwise; --egpu moves it to the eGPU, for what
+// shows on Nvidia alone; its slot (browser-egpu) runs only with one plugged in.
 const EGPU_ARGS = flags.includes("--egpu") ? ["--force-high-performance-gpu"] : [];
 
 const looks = SHOTS

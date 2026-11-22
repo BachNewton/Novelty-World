@@ -14,14 +14,13 @@ import { spawn } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { diffBase, git } from "./affected-tests-rules.mjs";
-import { select } from "./affected-e2e-rules.mjs";
+import { TAKES_VALUE, select } from "./affected-e2e-rules.mjs";
 
 const args = process.argv.slice(2);
 const listOnly = args.includes("--list");
 const forceAll = args.includes("--all");
 const passed = args.filter((arg) => arg !== "--list" && arg !== "--all");
 // Any argument that isn't a flag or a flag's value is a Playwright file filter: those files, as Playwright takes them.
-const TAKES_VALUE = new Set(["-g", "--grep", "--grep-invert", "-j", "--workers", "--project", "--reporter", "-c", "--config", "--timeout", "--retries", "--repeat-each", "--shard", "--max-failures", "-x"]);
 const named = passed.some((arg, i) => !arg.startsWith("-") && !TAKES_VALUE.has(passed[i - 1]));
 
 const root = git(process.cwd(), ["rev-parse", "--show-toplevel"]).trim();

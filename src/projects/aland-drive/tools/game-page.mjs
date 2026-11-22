@@ -6,7 +6,7 @@
 // to WebGL2 here.
 
 import { chromium } from "playwright";
-import { requireSlot } from "../../../../scripts/machine-budget.mjs";
+import { PAGE_MIB, requireSlot } from "../../../../scripts/machine-budget.mjs";
 
 // For a stall that says nothing; a far jump with its tiles lands well inside it.
 const STEP_DEADLINE_S = 300;
@@ -26,7 +26,8 @@ export const UNCAPPED_ARGS = ["--disable-gpu-vsync", "--disable-frame-rate-limit
  * `tick` is called, a frame's worth at a time, so two pages ticked alike draw the same frame, whatever the machine does.
  */
 export async function openGame(url, { width, height, args = [], ready = () => window.__alandDrive !== undefined, cleanup = () => {}, init, initArg, clock }) {
-  requireSlot("A tool that opens the game");
+  const onEgpu = args.includes("--force-high-performance-gpu");
+  requireSlot("A tool that opens the game", onEgpu ? { egpu: PAGE_MIB } : { radeon: 1 });
   const browser = await chromium.launch({ channel: "chromium", headless: true, args: [...LAUNCH_ARGS, ...args] });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   if (init) await page.addInitScript(init, initArg);

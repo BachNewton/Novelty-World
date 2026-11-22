@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { resultsDir } from "./e2e/run-dir";
 import { requireSlot } from "./scripts/machine-budget.mjs";
 
-requireSlot("An e2e run");
+requireSlot("An e2e run", { kinds: ["e2e", "all"] });
 
 /**
  * Every run is self-contained, so any number can go at once: it builds and

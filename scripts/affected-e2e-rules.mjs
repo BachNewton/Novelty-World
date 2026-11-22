@@ -5,6 +5,9 @@
 // test (the whole spec). A test with no covers of its own or its spec's guards its whole project. A change runs the
 // tests whose covers it touches, a spec it edits whole, and everything when it reaches what every page stands on.
 
+/** Playwright's flags that take the next argument as their value, so it is no file filter. */
+export const TAKES_VALUE = new Set(["-g", "--grep", "--grep-invert", "-j", "--workers", "--project", "--reporter", "-c", "--config", "--timeout", "--retries", "--repeat-each", "--shard", "--max-failures", "-x"]);
+
 /** Paths every page stands on: a change to one runs every spec. */
 export const EVERYTHING = [
   "package.json",
