@@ -1,14 +1,12 @@
 # Roads: what is still wrong, and the fix planned for each
 
-What was seen and left when the roads were given their real width, their junctions, their paint and their town paths (`docs/ROAD-SURFACES.md`, Where the trial stands). None of it is decided and none is built. Each entry says what is wrong, why where that is known, and what would fix it. They are in the order I would take them. What is a matter of taste rather than a fault is `ideas/road-feel.md`.
+What was seen and left when the roads were given their real width, their junctions, their paint and their town paths (`docs/ROAD-SURFACES.md`, Where the trial stands). None of what follows is decided and none is built. Each entry says what is wrong, why where that is known, and what would fix it. They are in the order I would take them. What is a matter of taste rather than a fault is `ideas/road-feel.md`.
 
-## The island has not been built with this pipeline
+## The island as built has not been checked
 
-Players see none of the road work until the island is rebuilt and published, which is the owner's call (`docs/HANDOFF.md`, Decisions waiting on the owner). Three tiles were built with all of it, Godby's L2343H and Mariehamn's L2334E and L2334F, and five country tiles with the real widths alone. The other 86 have never been through it, so the island build is where it meets a junction or a shape no trial tile had.
+The island is built and published with all of the road work (`441495bd3746`). Three tiles had been built with all of it before, Godby's L2343H and Mariehamn's L2334E and L2334F, and five country tiles with the real widths alone. The other 86 went through it for the first time in that build, where it met shapes no trial tile had: a tile whose only asphalt is a bridge's deck stopped the edge lines, and is laid with none.
 
-- **A tile may stop.** One window of Mariehamn could not join its paved shape in GEOS until the shape was joined on a fine grid (`ground_shape`). The same failure in another union would stop a tile, and the same grid there is the fix.
-- **Measure it once built.** `check_seams.py` first. Then `tools/road-check.ts --out` and `tools/bridge-check.ts` on the island, against the published island's numbers in `docs/HANDOFF.md`: neither was run on the three rebuilt town tiles. `tools/junction-check.ts` was run on Godby's tile alone, and Mariehamn's two are where the junctions are densest. `pipeline/look_census.py` counts what a player would see wrong on any built tile.
-- **What the publish carries** is in `docs/ROAD-SURFACES.md`, Getting it to players. A street no longer runs on as a footpath, so a rebuilt tile numbers its chains differently: the lane map, every race's racing line, the racers' ruler and the challenges' targets are remade from the rebuilt island, and so is anything else kept by chain.
+- **Measure it.** The seams meet (`check_seams.py`). `tools/road-check.ts --out` and `tools/bridge-check.ts` on the island, against the numbers in `docs/HANDOFF.md` from the island before it, haven't been run; `tools/junction-check.ts` was run on Godby's tile alone, and Mariehamn's two are where the junctions are densest. `pipeline/look_census.py` counts what a player would see wrong on any built tile.
 - **The paved path has no browser test.** The e2e fixture is still ribbons.
 
 ## Paths that meet in town end ragged
