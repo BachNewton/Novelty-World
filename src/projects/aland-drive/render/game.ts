@@ -122,8 +122,8 @@ import { createSharedRacers } from "./shared-racers";
 import { LaidRoad } from "../racers/laid-road";
 import { progressOf } from "../racers/racer";
 import { raceLineUrl, readRaceLine, type RaceLine, type RaceLineFile } from "../racers/race-line-file";
-import { corridorOf, geometryOf, racingLine } from "../racers/racing-line";
-import { ROUTE_STEP_M, RoutePlan } from "../racers/route-plan";
+import { corridorOf, lineThrough, racingLine } from "../racers/racing-line";
+import { RoutePlan } from "../racers/route-plan";
 import { ChallengeSession, type SessionHost, type SessionPhase } from "../challenge/session";
 import { CoopLink, type CoopNotice } from "../challenge/coop";
 import type { ChallengeMessage, ChallengeType, RaceProgress, SharedDestination } from "../net/protocol";
@@ -1756,8 +1756,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!route) throw new Error(`no road network to draw ${race.id}'s line on`);
     const corridor = corridorOf(new RoutePlan(runOn(route.line, CHALLENGE_RUN_ON_M), new LaidRoad(world)));
     const widest = raceFieldOf(race.car).reduce((best, car) => (TUNINGS[car].car.halfSize[0] > TUNINGS[best].car.halfSize[0] ? car : best));
-    const { line, offsets } = racingLine(corridor, TUNINGS[widest].car.halfSize[0]);
-    return { line, pavedAt: (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved, geometry: geometryOf(corridor, offsets) };
+    return lineThrough(corridor, racingLine(corridor, TUNINGS[widest].car.halfSize[0]).offsets);
   };
   /** Every car on the road the racers can see, but themselves: this player's, other players', hit traffic cars and the traffic on its lanes. */
   const carsRacersSee = (): SeenCar[] => {

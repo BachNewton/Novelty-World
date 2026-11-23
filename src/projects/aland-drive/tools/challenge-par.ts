@@ -29,8 +29,8 @@ import { targetFromPar } from "../challenge/targets";
 import type { BucketChallenge, RaceChallenge } from "../challenge/types";
 import { RACER_SKILL, type DriverSkill } from "../racers/skill";
 import { LaidRoad } from "../racers/laid-road";
-import { corridorOf, geometryOf, middleLine } from "../racers/racing-line";
-import { ROUTE_STEP_M, RoutePlan, tilesNear } from "../racers/route-plan";
+import { corridorOf, lineThrough } from "../racers/racing-line";
+import { RoutePlan, tilesNear } from "../racers/route-plan";
 import { alongOfPlace, racerFor, racingLineFor, type LoadedRace } from "../racers/vet";
 import { StandingWalls } from "../racers/walls";
 import { tuningPrint } from "../sim/car-limits";
@@ -88,9 +88,7 @@ function loadChallenge(challenge: BucketChallenge): LoadedRace {
   const plan = new RoutePlan(gpsLine, laid);
   const walls = new StandingWalls(world);
   const corridor = corridorOf(plan, walls);
-  const pavedAt = (alongM: number) => corridor[Math.max(0, Math.min(corridor.length - 1, Math.round(alongM / ROUTE_STEP_M)))].paved;
-  const middle = { line: middleLine(corridor), pavedAt, geometry: geometryOf(corridor, new Float64Array(corridor.length)) };
-  return { race: asRace(challenge), world, tiles: [...tiles], laid, walls, gpsLine, plan, corridor, middle, racing: new Map() };
+  return { race: asRace(challenge), world, tiles: [...tiles], laid, walls, gpsLine, plan, corridor, middle: lineThrough(corridor, new Float64Array(corridor.length)), racing: new Map() };
 }
 
 interface Run {
@@ -117,9 +115,7 @@ function drive(challenge: BucketChallenge, loaded: LoadedRace, skill: DriverSkil
   const line = racingLineFor(loaded, challenge.car);
   const from = alongOfPlace(line.line, place.x, place.z);
   const racer = racerFor(loaded, line, challenge.car, condition, tyres, skill, from, (point) => {
-    const under = world.roads.nearest(point.x, point.z);
-    if (!under) throw new Error(`${challenge.id}: no road to reset to at ${point.x}, ${point.z}`);
-    car.placeAt({ ...under, x: point.x, z: point.z, heading: point.heading });
+    car.placeAt(point);
   });
   let run: ChallengeRun = startRun(challenge, 1);
   let placements = car.placements;

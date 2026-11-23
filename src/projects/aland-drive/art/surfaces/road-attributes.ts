@@ -160,6 +160,64 @@ function nearestSegment(cells: Map<string, Segment[]>, x: number, z: number, of?
 /** OSM's surface where it gives one; otherwise a road's class and how built up the place is say whether it's sealed. */
 export const isPaved = (chain: RoadChain, town: number) => chain.sealed ?? (PAVED_KINDS.has(chain.kind) || (town > 0.5 && PAVED_IN_TOWN.has(chain.kind)));
 
+/** A point of paving this near a place on its road is on the same stretch of it: the paving's points lie along a road's edges and middle, a few metres apart. */
+const SAID_WITHIN_M = 12;
+const CENTRE = 2;
+const saidCell = (x: number, z: number) => (Math.floor(x / SAID_WITHIN_M) + 8192) * 16384 + Math.floor(z / SAID_WITHIN_M) + 8192;
+
+/**
+ * Whether a road is sealed at a place on it: what the nearest point of its own way's paving says there (`SEALED_WAY`,
+ * `LOOSE_WAY`), and where that point says nothing, or the road has no paving near, what its chain does. A road that
+ * turns from asphalt to gravel is each along its own stretch, as it is drawn and as the tyres read it
+ * (`sim/road-grip.ts`): whatever plans a speed on it reads the same, at the place the surface changes. Made once for a
+ * tile's roads; `way` is the chain's index.
+ */
+export function sealedReader(surface: RoadSurface): (way: number, x: number, z: number) => boolean {
+  const { rings, chains, aprons } = surface;
+  // Every way's points of paving, by the cell each lies in.
+  const cells = new Map<number, number[]>();
+  for (let point = 0; point < aprons.ways.length; point++) {
+    if (aprons.ways[point] < 0) continue;
+    const at = (aprons.firstPoint + point) * 3;
+    const key = saidCell(rings[at], rings[at + 2]);
+    const list = cells.get(key);
+    if (list) list.push(point);
+    else cells.set(key, [point]);
+  }
+  return (way, x, z) => {
+    const own = isPaved(chains[way], 0);
+    let sealed = own;
+    let nearest = SAID_WITHIN_M;
+    for (let east = -SAID_WITHIN_M; east <= SAID_WITHIN_M; east += SAID_WITHIN_M) {
+      for (let north = -SAID_WITHIN_M; north <= SAID_WITHIN_M; north += SAID_WITHIN_M) {
+        for (const point of cells.get(saidCell(x + east, z + north)) ?? []) {
+          if (aprons.ways[point] !== way) continue;
+          const at = (aprons.firstPoint + point) * 3;
+          const distance = Math.hypot(rings[at] - x, rings[at + 2] - z);
+          if (distance >= nearest) continue;
+          nearest = distance;
+          const said = aprons.classes[point];
+          sealed = said & SEALED_WAY ? true : said & LOOSE_WAY ? false : own;
+        }
+      }
+    }
+    return sealed;
+  };
+}
+
+/** Whether the road is sealed at the middle of each section of every chain (`sealedReader`). */
+export function sealedSections(surface: RoadSurface): Uint8Array {
+  const { rings, chains, aprons } = surface;
+  const sealed = new Uint8Array(aprons.firstPoint / RING_POINTS);
+  const read = sealedReader(surface);
+  chains.forEach((chain, way) => {
+    for (let section = chain.first; section < chain.first + chain.sections; section++) {
+      sealed[section] = read(way, rings[(section * RING_POINTS + CENTRE) * 3], rings[(section * RING_POINTS + CENTRE) * 3 + 2]) ? 1 : 0;
+    }
+  });
+  return sealed;
+}
+
 /** How built up a place is, 0 to 1, read smoothly across the 600 m cells so a kerb doesn't start on a cell's edge. */
 function townReader(built: BuiltCell[]) {
   const counts = new Map(built.map(({ x, z, vertices }) => [`${Math.floor(x / CELL_M)},${Math.floor(z / CELL_M)}`, vertices]));
