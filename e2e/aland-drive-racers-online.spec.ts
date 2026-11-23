@@ -35,7 +35,7 @@ test.afterAll(() => {
   tiles.close();
 });
 
-test.use(WEBGPU_BROWSER);
+test.use({ ...WEBGPU_BROWSER, openPages: 2 });
 test.setTimeout(180_000);
 
 async function joinWorld(browser: Browser, world: string): Promise<Page> {

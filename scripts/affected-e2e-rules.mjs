@@ -19,6 +19,7 @@ export const EVERYTHING = [
   "src/shared/**",
   "relay/**",
   "scripts/affected-e2e*.mjs",
+  "scripts/page-gate.mjs",
 ];
 
 const escape = (text) => text.replace(/[.+^$()|[\]\\]/g, "\\$&");

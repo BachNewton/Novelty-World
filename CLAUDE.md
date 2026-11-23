@@ -42,7 +42,7 @@ E2E tests (Playwright) are self-contained: each run builds the app (a snapshot o
 Many agents and sessions work on this machine at once. When their runs add up to more than it has, every run slows, correct tests time out, and the reruns add more load, so the machine grinds. So every test run, typecheck, lint, e2e run, headless browser and GPU job goes through **the machine's budget** (`scripts/machine-budget.mjs`): one queue for every checkout and worktree, kept in the git common directory. It shares out three things, and a run starts once what its kind takes of each is free:
 
 - **Cores:** fourteen of the sixteen. A run is held to its share (vitest's and Playwright's workers), so the machine stays full and never overloads.
-- **The integrated Radeon 780M, by game pages: 4.** Its driver took the whole machine down with six pages at 3440×1440 open at once. The headless tools draw on it whatever is plugged in.
+- **The integrated Radeon 780M, by game pages: 4.** Its driver took the whole machine down with six pages at 3440×1440 open at once. The headless tools draw on it whatever is plugged in, and a page drawn on the eGPU is still composited on it (it holds memory and 3D engine time there), so every page on a GPU is one of its four.
 - **The RTX 4070 eGPU, by memory: 11 GB of its 12.** A game page holds about 1.2 GB, and running out fails whatever allocates next, so a CUDA job declares its peak as the card counts it (`nvidia-smi`), which is more than PyTorch says it allocated. Of the browsers, only Chrome launched with `--force-high-performance-gpu` draws on it, as the WebGPU specs are.
 
 | Kind | Cores | Radeon | eGPU |
@@ -50,12 +50,12 @@ Many agents and sessions work on this machine at once. When their runs add up to
 | `unit`, `slow` | 4, 6 | | |
 | `check`, `build` | 2, 4 | | |
 | `browser` | 2 | 2 pages | |
-| `browser-egpu` (a tool told to draw there, as `look.mjs --egpu`) | 2 | | 2.3 GB |
-| `e2e` | 5 | what its specs draw there, up to 4 pages | what its specs draw there: 1.2 GB for each page its workers can have open |
+| `browser-egpu` (a tool told to draw there, as `look.mjs --egpu`) | 2 | 2 pages | 2.3 GB |
+| `e2e` | 5 | every page its specs draw on a GPU, up to 4 | 1.2 GB for each of those on the eGPU |
 | `cores:N`, with `+radeon:PAGES` or `+egpu:GB` for a GPU it uses | N | as declared | as declared |
 | `all` | the whole machine | all | all |
 
-An e2e run's claim is read from the specs its command names (`scripts/e2e-claims.mjs`): Betrayal's draw on the Radeon, the WebGPU ones on the eGPU and the rest in software, which takes neither GPU.
+An e2e run's claim is read from the specs its command names (`scripts/e2e-claims.mjs`): Betrayal's draw on the Radeon, the WebGPU ones on the eGPU and the rest in software, which takes neither GPU. A test holds one page unless its spec says more (`test.use({ openPages: N })`), and opening more fails it. The run is held to its claim by its **page gate** (`scripts/page-gate.mjs`, `e2e/test.ts`): each test on a GPU takes its pages there before it starts and gives them back when it ends, in turn, so a four-player test waits for the other workers' tests to finish and runs with nothing beside it.
 
 **The queue is first come, first served on each of the three.** A run takes the eGPU first, then the Radeon, then cores, and holds its place up to the first it's waiting for. So a run waiting for a GPU holds up no CPU work and no work on a GPU it hasn't reached, nothing newer takes what it holds, and a big run waiting for cores stops the line until it starts.
 

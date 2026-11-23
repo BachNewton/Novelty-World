@@ -27,7 +27,8 @@ export const UNCAPPED_ARGS = ["--disable-gpu-vsync", "--disable-frame-rate-limit
  */
 export async function openGame(url, { width, height, args = [], ready = () => window.__alandDrive !== undefined, cleanup = () => {}, init, initArg, clock }) {
   const onEgpu = args.includes("--force-high-performance-gpu");
-  requireSlot("A tool that opens the game", onEgpu ? { egpu: PAGE_MIB } : { radeon: 1 });
+  // On the eGPU too, its page is composited on the Radeon.
+  requireSlot("A tool that opens the game", { radeon: 1, egpu: onEgpu ? PAGE_MIB : 0 });
   const browser = await chromium.launch({ channel: "chromium", headless: true, args: [...LAUNCH_ARGS, ...args] });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   if (init) await page.addInitScript(init, initArg);

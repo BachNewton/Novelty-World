@@ -2,19 +2,20 @@
  * What an e2e run claims of each GPU, read from the specs its command names, since
  * each spec picks its own browser. Measured on this laptop: the default headless
  * shell draws in software, `--enable-gpu` or the full Chromium build on the Radeon,
- * and only `--force-high-performance-gpu` on the eGPU. A command or a filter that
+ * and only `--force-high-performance-gpu` on the eGPU, which still composites its
+ * pages on the Radeon, so every page on a GPU is one of the Radeon's. The run is held
+ * to its claim by its page gate (scripts/page-gate.mjs). A command or a filter that
  * can't be read claims the most it could take.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { TAKES_VALUE, helpersReached } from "./affected-e2e-rules.mjs";
-import { PAGES_PER_WORKER, PAGE_MIB, demand, fitting } from "./machine-budget.mjs";
+import { PAGE_MIB, RADEON_PAGES, demand, fitting } from "./machine-budget.mjs";
 
-/** The GPU a spec draws on and the pages one of its tests opens, from its text and its helpers'. */
+/** The GPU a spec draws on and the pages one of its tests holds (`test.use({ openPages: N })`, e2e/test.ts), from its text and its helpers'. */
 function specUse(text, helpers) {
   const source = [text, ...[...helpersReached(text, helpers)].map((file) => helpers[file])].join("\n");
-  // A test opens a page of its own for a second player; otherwise it has Playwright's one.
-  const pages = source.includes(".newPage(") ? PAGES_PER_WORKER : 1;
+  const pages = Number(/\bopenPages:\s*(\d+)/.exec(text)?.[1] ?? 1);
   if (source.includes("--force-high-performance-gpu")) return { gpu: "egpu", pages };
   if (/--enable-gpu|channel: "chromium"/.test(source)) return { gpu: "radeon", pages };
   return { gpu: null, pages };
@@ -55,23 +56,22 @@ export function claimForSpecs(command, { specs, helpers, root, integrated }) {
   const names = (filter, spec) => `${root.replaceAll("\\", "/")}/${spec}`.toLowerCase().includes(filter);
   const unread = filters.some((filter) => !all.some((spec) => names(filter, spec)));
   const chosen = filters.length === 0 || unread ? all : all.filter((spec) => filters.some((filter) => names(filter, spec)));
-  // With no specs to read, a test could be a two-player one on either GPU.
-  const uses =
-    chosen.length === 0
-      ? ["radeon", "egpu"].map((gpu) => ({ gpu, pages: PAGES_PER_WORKER }))
-      : chosen.map((spec) => specUse(specs[spec], helpers));
+  // With no specs to read, it's the most an e2e run takes.
+  if (chosen.length === 0) return fitting({ ...most, e2eWorkers: workers });
 
-  const pages = { radeon: 0, egpu: 0 };
-  for (const use of uses) {
-    if (use.gpu === null) continue;
-    const gpu = integrated ? "radeon" : use.gpu;
-    pages[gpu] = Math.max(pages[gpu], use.pages);
+  const largest = { radeon: 0, egpu: 0 };
+  for (const spec of chosen) {
+    const use = specUse(specs[spec], helpers);
+    if (use.gpu !== null) largest[use.gpu] = Math.max(largest[use.gpu], use.pages);
   }
-  const claim = { cores: most.cores, radeon: pages.radeon * workers, egpu: pages.egpu * workers * PAGE_MIB, e2eWorkers: workers };
-  // A worker runs one test at a time, so without the eGPU it's the larger of the two, not both. More than the Radeon
-  // holds is no fallback: that run needs the eGPU.
-  const withoutEgpu = Math.max(pages.radeon, pages.egpu) * workers;
-  if (claim.egpu > 0 && withoutEgpu <= most.withoutEgpu) claim.withoutEgpu = withoutEgpu;
+  // Pages at once: each worker's test holds what it says, up to what the Radeon holds, and never fewer than the
+  // largest test, which the gate lets run once the others have given theirs back.
+  const atOnce = (each) => Math.max(each, Math.min(RADEON_PAGES, each * workers));
+  const egpuPages = integrated ? 0 : largest.egpu;
+  const pages = atOnce(Math.max(largest.radeon, largest.egpu));
+  const claim = { cores: most.cores, radeon: pages, egpu: Math.min(pages, atOnce(egpuPages)) * PAGE_MIB, e2eWorkers: workers };
+  // Without the eGPU the same pages draw on the Radeon, where they are counted already.
+  if (claim.egpu > 0) claim.withoutEgpu = pages;
   return fitting(claim);
 }
 
