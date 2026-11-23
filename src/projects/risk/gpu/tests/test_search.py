@@ -97,6 +97,22 @@ def test_one_candidate_plays_exactly_as_the_raw_networks_first_choice():
     assert torch.equal(played["winner"], raw["winner"])
 
 
+def test_raw_seats_play_the_raw_network():
+    board, tables = setup()
+    net = random_net(32, 1, 4, 2, board, seed=3)
+    twin = random_net(32, 1, 4, 2, board, seed=3)
+    other = random_net(32, 1, 4, 2, board, seed=4)
+    seeds, searcher, _ = seating(["one-in"], 3, 5)
+    control = SearchConfig(k=1, r=1, leaf="own", kinds=("reinforce", "attack"), skip_mass=0.0, cap=7)
+    with torch.inference_mode():
+        alone = Searcher(net, board, tables, control, "cpu").play(seeds, 5, searcher, raw_greedy=False)
+        with_twin = Searcher(net, board, tables, control, "cpu", twin).play(seeds, 5, searcher, raw_greedy=False)
+        with_other = Searcher(net, board, tables, control, "cpu", other).play(seeds, 5, searcher, raw_greedy=False)
+    for name in LAYOUT:
+        assert torch.equal(getattr(alone["state"], name), getattr(with_twin["state"], name)), name
+    assert not all(torch.equal(getattr(alone["state"], name), getattr(with_other["state"], name)) for name in LAYOUT)
+
+
 def test_a_candidate_that_throws_away_the_win_is_not_chosen():
     """Two seats left; the searcher's armies surround the other's last territory. The network is
     rigged to end the attack first, and its value is 0 everywhere, so only the real win scores."""

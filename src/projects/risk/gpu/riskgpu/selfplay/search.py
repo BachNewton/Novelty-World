@@ -44,8 +44,8 @@ so it errs only in the searcher's disfavour. `real` leaves the real hidden cards
 optimism, reported in the output.
 
 **The reading.** Fixed 5-player deals, seated as `PairEval` seats them (game i is the deal
-`pair-2-i`): `one-in` the searcher alone among four copies of the same network playing raw (par
-20%), `one-out` four searchers and one raw seat (par 80%), the lone seat rotated. Raw seats play
+`pair-2-i`): `one-in` the searcher alone among four copies of the same network playing raw, or of
+`--raw-ckpt`'s, a network of its own such as an exploiter (par 20%), `one-out` four searchers and one raw seat (par 80%), the lone seat rotated. Raw seats play
 as `--raw` says (`argmax`, the network's most likely move, is the comparison that counts: "search
 beats sampling" could be "argmax beats sampling"). `--skip-mass 0` searches nothing, the searching
 seats playing the network's first choice: the control the search's reading is read against. The
@@ -229,8 +229,11 @@ class Work:
 
 
 class Searcher:
-    def __init__(self, net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, device: str):
+    def __init__(self, net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, device: str,
+                 raw_net: Net | None = None):
         self.net, self.board, self.tables, self.cfg, self.device = net, board, tables, cfg, device
+        # The network the raw seats play; the search's own copies still model every seat with `net`.
+        self.raw_net = net if raw_net is None else raw_net
         self.leaf_turns = cfg.leaf_turns()
         # The rollouts' own generator: what a search draws never moves the real games' sampling.
         self.gen = torch.Generator(device=device).manual_seed(cfg.seed + 1)
@@ -243,28 +246,33 @@ class Searcher:
     def autocast(self):
         return torch.autocast(device_type=torch.device(self.device).type, dtype=torch.bfloat16, enabled=self.cfg.bf16)
 
-    def heads(self, s: State, o: Options, log: TurnLog) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """`(x, logits, value [n, 6] by slot, legal)` for every game of `s`, in chunks."""
-        node, slot, glob = observation(self.net, self.cfg.cap, s, o, log, self.board)
+    def heads(self, s: State, o: Options, log: TurnLog, net: Net | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """`(x, logits, value [n, 6] by slot, legal)` for every game of `s`, in chunks, by `net`
+        (the searcher's when None)."""
+        net = self.net if net is None else net
+        node, slot, glob = observation(net, self.cfg.cap, s, o, log, self.board)
         xs, ls, vs = [], [], []
         for at in range(0, s.batch, self.cfg.chunk):
             part = slice(at, at + self.cfg.chunk)
             with self.autocast():
-                x = self.net.trunk(node[part], slot[part], glob[part])
-                logits, value, _ = self.net.heads_main(x)
+                x = net.trunk(node[part], slot[part], glob[part])
+                logits, value, _ = net.heads_main(x)
             xs.append(x)
             ls.append(logits)
             vs.append(value)
-        return torch.cat(xs), torch.cat(ls), torch.cat(vs), legal_main(o, self.net.exact)
+        return torch.cat(xs), torch.cat(ls), torch.cat(vs), legal_main(o, net.exact)
 
-    def policy(self, x, logits, legal, s: State, o: Options, gen: torch.Generator | None) -> torch.Tensor:
-        """The engine move `[n, 5]`: the network's first choice (`gen` None) or a sample."""
+    def policy(self, x, logits, legal, s: State, o: Options, gen: torch.Generator | None,
+               net: Net | None = None) -> torch.Tensor:
+        """The engine move `[n, 5]`: `net`'s (the searcher's when None) first choice (`gen` None) or
+        a sample."""
+        net = self.net if net is None else net
         z = masked(logits, legal)
         with self.autocast():
             main = z.argmax(1) if gen is None else gumbel_argmax(z, gen)
-            za, _, c = amount_choice(self.net, x, main, s, o, self.board)
+            za, _, c = amount_choice(net, x, main, s, o, self.board)
             amount = za.argmax(1) if gen is None else gumbel_argmax(za, gen)
-        if self.net.exact:
+        if net.exact:
             return decode_exact(main, amount, s, o, self.board, c)
         return decode(main, amount, s, o, self.board)
 
@@ -499,10 +507,17 @@ class Searcher:
             x, logits, _, legal = self.heads(sub, so, slog)
             self.work.game += idx.shape[0]
             first = self.policy(x, logits, legal, sub, so, None)
-            # Sampled for every live row, so the real games' generator moves the same way whoever searches.
-            sampled = self.policy(x, logits, legal, sub, so, game_gen)
+            if self.raw_net is self.net:
+                raw_first = first
+                # Sampled for every live row, so the real games' generator moves the same way whoever searches.
+                raw_sampled = self.policy(x, logits, legal, sub, so, game_gen)
+            else:
+                xr, lr, _, legal_r = self.heads(sub, so, slog, self.raw_net)
+                self.work.game += idx.shape[0]
+                raw_first = self.policy(xr, lr, legal_r, sub, so, None, self.raw_net)
+                raw_sampled = self.policy(xr, lr, legal_r, sub, so, game_gen, self.raw_net)
             searching = searcher[idx, sub.active.to(torch.int64)]
-            move = torch.where(searching[:, None], first, first if raw_greedy else sampled)
+            move = torch.where(searching[:, None], first, raw_first if raw_greedy else raw_sampled)
             if bool(searching.any()):
                 w = searching.nonzero()[:, 0]
                 chosen, detail = self.choose(sub.select(w), so.select(w), slog.select(w), places[idx[w]],
@@ -545,9 +560,9 @@ def seating(mixtures: list[str], games: int, players: int) -> tuple[list[str], t
 
 
 def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, device: str, games: int,
-            mixtures: list[str], raw: str, players: int = 5, progress: bool = False) -> dict:
+            mixtures: list[str], raw: str, players: int = 5, progress: bool = False, raw_net: Net | None = None) -> dict:
     seeds, searcher, spans = seating(mixtures, games, players)
-    s = Searcher(net, board, tables, cfg, device)
+    s = Searcher(net, board, tables, cfg, device, raw_net)
     started = time.time()
     result = s.play(seeds, players, searcher, raw == "argmax", progress)
     wall = time.time() - started
@@ -611,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--games", type=int, default=1024, help="games per mixture")
     p.add_argument("--mixtures", default="one-in,one-out")
     p.add_argument("--raw", default="argmax", help="how raw seats play: argmax, sample, or both comma-separated")
+    p.add_argument("--raw-ckpt", default="", help="the network the raw seats play (default: --ckpt's)")
     p.add_argument("--cap", type=int, default=600, help="the turn cap in player-turns")
     p.add_argument("--chunk", type=int, default=8192)
     p.add_argument("--max-copies", type=int, default=65536)
@@ -650,7 +666,8 @@ def main(argv: list[str] | None = None) -> int:
     tables = BlitzTables.load(os.path.join(DATA, "blitz-256"), device)
     tables.scaled_oversize = True
     net = load_net(args.ckpt, board, device)
-    out = {"ckpt": args.ckpt, "device": str(torch.device(device)), "config": asdict(cfg), "games": args.games,
+    raw_net = load_net(args.raw_ckpt, board, device) if args.raw_ckpt else None
+    out = {"ckpt": args.ckpt, "raw_ckpt": args.raw_ckpt or args.ckpt, "device": str(torch.device(device)), "config": asdict(cfg), "games": args.games,
            "mixtures": mixtures, "readings": [],
            "leaf_note": OWN_LEAF if cfg.leaf == "own" else OTHER_LEAF.format(leaf=cfg.leaf)}
     if cfg.hidden == "real":
@@ -658,7 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     with torch.inference_mode():
         for raw in raws:
             out["readings"].append(reading(net, board, tables, cfg, device, args.games, mixtures, raw,
-                                           progress=args.progress))
+                                           progress=args.progress, raw_net=raw_net))
     print(json.dumps(out, indent=1))
     print_table(out)
     if args.out:
