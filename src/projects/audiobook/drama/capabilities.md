@@ -29,6 +29,12 @@ Clones from a locked reference clip and takes a delivery note as its instruction
 - Finnish words come out broken, and that breaks immersion. A performance on it needs foreign words respelled for English speech, or given in English.
 - A reference clip's mood carries into every line. Anna's clip is a complaint ("nobody in this house has ever listened to me"), and her voice came out depressed or annoyed throughout.
 
+### Heard in the one-narrator auditions for Citizens of the Federation
+
+- Of twelve designed narrators, American, English, Canadian and Scottish, men and women, only one was liked: an English man in his fifties, warm, an actor reading an audiobook. The narrator is to be a man.
+- One narrator voicing characters with accents of their own (Finnish, American, English, Irish, Japanese, Mandarin, Canadian, Indian, Nigerian) does best with each paragraph taken alone, directed with only its speaker's accent. A whole scene in one take, with every accent named in one direction, is worse.
+- Even then it sounds like an English man attempting accents: some good, some bad. That is close to what an untrained human reader would do, and isn't disqualifying on its own.
+
 ### Unknown, with no line-level notes yet
 
 - Shouting and whispering, and whether either keeps the voice.
