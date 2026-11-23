@@ -1,32 +1,21 @@
 {
-  "measured": "risk:ratings -- --seatable --margin 30 --alpha 0.05 --max-groups 25, 2026-11-17: 19584 games at 3, 4, 5, 6 players, each bot alone among each other",
+  "measured": "risk:ratings -- --seatable --margin 30 --alpha 0.05, 2026-11-22: 26532 games at 3, 4, 5, 6 players, each bot alone among each other",
   "anchor": "greedy = 1000",
   "elo": {
     "greedy": 1000,
-    "rule-v1": 1292.1,
-    "rule-v2": 1400.8,
-    "rule-v3": 1397.7,
-    "rule-v4.1": 1462.5,
-    "rule-v5.1": 1481.8,
-    "rule-v6.1": 1508.6,
-    "rule-v7.1": 1633.9,
-    "learned-v1": 1711.6,
-    "learned-v2": 1963.5,
-    "gd-defensive": 992,
-    "gd-continental": 1065.5,
-    "gd-aggressive": 1019,
-    "gd-stacker": 1073.5
-  },
-  "provisional": {
-    "learned-v3": {
-      "elo": 2152,
-      "error": 19.5,
-      "as": "net-v1~{\"weights\":\"d4-500\",\"pick\":\"argmax\"}",
-      "gauntlets": [
-        "2026-11-21T18:44:40.049Z",
-        "2026-11-21T18:44:57.022Z",
-        "2026-11-21T18:44:14.586Z"
-      ]
-    }
+    "rule-v1": 1287.1,
+    "rule-v2": 1391.5,
+    "rule-v3": 1380.4,
+    "rule-v4.1": 1447.6,
+    "rule-v5.1": 1459.7,
+    "rule-v6.1": 1495.2,
+    "rule-v7.1": 1607.7,
+    "learned-v1": 1677.9,
+    "learned-v2": 1898.8,
+    "learned-v3": 1968,
+    "gd-defensive": 1007.3,
+    "gd-continental": 1062,
+    "gd-aggressive": 1014.8,
+    "gd-stacker": 1072.9
   }
 }

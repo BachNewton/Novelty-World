@@ -1599,3 +1599,30 @@ Its gauntlets on GitHub Actions (branch `risk/clock-gauntlet`), beside d0-200's,
 - **Games past turn 600 mostly finish, and alone it wins them.** 10 of d4-500's 360 games passed turn 600: its side won 6 (at 613 to 672 turns, five of them with d4-500 alone among rule-v7.1s), rule-v7.1 won 2 (613 and 740), and 2 ran to 2,400. 24 of d0-200's 528 passed it: its side won all 23 that finished, the longest 1,036 turns.
 - **Several copies against one bot can fail to close.** The two that ran to 2,400 were 4 and 5 d4-500s against one rule-v7.1 (2 of 221 such games, and likely a third in the machine still out); d0-200 had 1 of 528 games, 1 of 389 with copies against one, run to 2,400, also of 3 copies against one. It is the stall several copies of a learned bot can fall into, no different in kind from d0-200's; a table with a person in it, or one learned-v3 among other bots, doesn't reach it.
 - **On the GPU engine's mirror**, five d4-500s at their most likely move with the cap raised to 2,400 and the clock reading zero from turn 600: 1 game of 64 reached 2,400 (1.6% [0, 4.7]), the decisive games 439 player-turns on average; sampling its moves, none of 64.
+
+## learned-v3 measured: 1968 on the seatable ladder, 69 above learned-v2 (2026-11-22)
+
+`risk:ratings -- --seatable` with learned-v3 among the seatable bots, on GitHub Actions (run 44973664337, from `main`), 26,532 games in 5,896 seed groups, 3,640 groups from the cache. The run ended in its eleventh round with every pair inside the ladder's precision, so the fit is the ladder's own, not a laptop refit. One machine of round 2 failed and the later rounds' plans played its games again, which marks the run failed while its report is whole.
+
+| Rank | Bot | Elo (greedy = 1000) | Last ladder |
+|---|---|---|---|
+| Colonel | **learned-v3** | **1968.0** | provisional 2152.0 |
+| Lieutenant Colonel | learned-v2 | 1898.8 | 1963.5 |
+| Major | learned-v1 | 1677.9 | 1711.6 |
+| Captain | rule-v7.1 | 1607.7 | 1633.9 |
+| First Lieutenant | rule-v6.1 | 1495.2 | 1508.6 |
+| Second Lieutenant | rule-v5.1 | 1459.7 | 1481.8 |
+| Warrant Officer | rule-v4.1 | 1447.6 | 1462.5 |
+| Sergeant Major | rule-v2 | 1391.5 | 1400.8 |
+| Master Sergeant | rule-v3 | 1380.4 | 1397.7 |
+| Sergeant First Class | rule-v1 | 1287.1 | 1292.1 |
+| Staff Sergeant | gd-stacker | 1072.9 | 1073.5 |
+| Sergeant | gd-continental | 1062.0 | 1065.5 |
+| Corporal | gd-aggressive | 1014.8 | 1019.0 |
+| Private | gd-defensive | 1007.3 | 992.0 |
+| Recruit | greedy | 1000 | 1000 |
+
+- **learned-v3 is first, 69 above learned-v2 and 360 above rule-v7.1**, so it stays the lobby's default. Its provisional 2152 overstated it by 184: the provisional Elo is its strength against its gauntlets' fields (learned-v2 and rule-v7.1), and the ladder weighs every pair of every seatable bot alike. Against learned-v2 directly it is as strong as its gauntlets said: alone among learned-v2s it won 77.8%, 54.2%, 50.0% and 33.3% at 3 to 6 players (par 33.3, 25, 20, 16.7%), a lone learned-v2 among learned-v3s 16.7%, 4.3%, 7.4% and 6.1%. Against the bots both learned nets beat at 95% to 100% it can't show more, so most of the ladder's pairs read the two alike. Alone among rule-v7.1s it won 71.4%, 75.0%, 68.6% and 72.5%.
+- **The top of the ladder moved down with the full precision.** learned-v2 reads 65 lower than on its own ladder, which was a laptop refit capped at 25 groups a pair (above, "learned-v2 seated"); learned-v1 and rule-v7.1 are 34 and 26 lower. The order is unchanged, and the bottom moved inside the precision: GD Defensive back above greedy by 7.
+- **By finishing order the three learned bots are level** (+369.0, +361.1 and +359.7 over greedy for learned-v1, v2 and v3), as v1 and v2 were: each new net wins more and, when it doesn't win, finishes no higher.
+- **Several learned-v3s against one weak bot cap at 6 players** about as learned-v2's do: 44 of 408 games with greedy, 42 of 270 with GD Defensive, 24 of 210 with GD Aggressive.
