@@ -1,11 +1,11 @@
 ---
 name: write-fiction
-description: How Claude writes, rewrites and reviews fiction in the Audiobook drama workshop (src/projects/audiobook/drama), with the owner as producer. Covers drafting a chapter, rewriting one, adding a chapter anywhere in a book and keeping the rest connected to it, the cold read by a reviewer without the context, taking the producer's notes, and starting a new story with its narrator's voice. Use whenever a chapter is written, rewritten, reviewed or added, the producer gives notes on the writing, or a story is started.
+description: How Claude writes, rewrites and reviews fiction in the Stories project (src/projects/stories), with the owner as producer. Covers drafting a chapter, rewriting one, adding a chapter anywhere in a book and keeping the rest connected to it, the cold read by a reviewer without the context, taking the producer's notes, and starting a new story with its narrator's voice. Use whenever a chapter is written, rewritten, reviewed or added, the producer gives notes on the writing, or a story is started.
 ---
 
 # Writing fiction with the producer
 
-Read the workshop's `CLAUDE.md` (`src/projects/audiobook/drama/CLAUDE.md`), then the story's own `CLAUDE.md`, `voice.md`, `outline.md` and `people.md`, then every chapter of the book, in order. A chapter is written into the whole book, so the whole book is read first, every time. `craft.md` beside this file is the producer's standards for prose; read it before drafting and again before handing anything over.
+Read the Stories project's `CLAUDE.md` (`src/projects/stories/CLAUDE.md`), then the story's own `CLAUDE.md`, `voice.md`, `outline.md` and `people.md`, then every chapter of the book, in order. A chapter is written into the whole book, so the whole book is read first, every time. `craft.md` beside this file is the producer's standards for prose; read it before drafting and again before handing anything over.
 
 ## Writing or rewriting a chapter
 
@@ -18,10 +18,10 @@ Read the workshop's `CLAUDE.md` (`src/projects/audiobook/drama/CLAUDE.md`), then
      - **The hole check:** whether every option means something real, whether a sensible person in the scene could find a way round it, whether the kind choice and the right one each have a price, and how the cost lands on the page.
 
      A dilemma with a hole lets the reader off the hook, and the producer will find it. The walk-through is the writer's preparation, never the page: the chapter carries only as much as a reader needs to feel the stakes, and lets the story carry it. Once agreed, it goes in the outline entry as the chapter's **choice**.
-2. **Facts.** Check every canon and real-world fact online before drafting, never from memory, and keep the sources for the hand-over. Add every date the chapter rests on to the story's timeline (`timeline.ts`), then compute each date, weekday, age, interval and time of day from it with the date tool. Never do date arithmetic in your head.
+2. **Facts.** Check every canon and real-world fact online before drafting, never from memory, and keep the sources for the hand-over. Add every date the chapter rests on to the story's world (`world.ts`), with its kind (real, canon or story), the people in it and where it happens, then compute each date, weekday, age, interval and time of day from it with the date tool. Never do date arithmetic in your head.
 
    ```
-   npx tsx src/projects/audiobook/drama/tools/story-dates-cli.ts <story> sheet <date or event id>
+   npx tsx src/projects/stories/tools/story-dates-cli.ts <story> sheet <date or event id>
    ```
 
    `sheet` gives the weekday, everyone's age and the time since each earlier event; `age`, `between`, `weekday` and `clock` (the time in one place shown in others, through daylight saving) answer single questions. The file's header lists them.
@@ -30,7 +30,7 @@ Read the workshop's `CLAUDE.md` (`src/projects/audiobook/drama/CLAUDE.md`), then
 5. **Self-check.** Go through `craft.md` against the draft, line by line. The checks that catch what a writer can't see in their own text: any rule, note or outline phrase that has leaked onto the page; a word or phrase repeated without meaning more each time; a sentence that has to be read twice; a place, idiom or reference that needs knowledge the reader may not have; a number the reader has to work out; a moment where the reader can't tell what someone feels; a choice the reader meets before they know what each road costs.
 6. **Cold read.** Copy the chapters up to and including this one into a folder outside the repository (the scratchpad), then spawn a fresh general-purpose agent with `cold-read.md` as its brief, the story's reader from its `CLAUDE.md`, and the copies' paths, in order, and nothing else: no notes, outline or voice. Its value is that it doesn't know what was meant. The copies matter: an agent that opens a file inside the story's folder has that folder's `CLAUDE.md` loaded for it, and then knows.
 7. **Revise.** Every place it got lost, misread or felt nothing is fixed at its cause, which is usually in a paragraph before the one it quotes. A confusion is kept only when it's a mystery the reader knows is a mystery. A cold read pulls toward completeness, since a reader asked what they had to work out will list every gap, so its questions are not orders to add facts: a gap is fixed with the least that lets the reader follow and feel the scene, often by showing it, or by cutting what raised the question. A cold reader also can't tell a true detail of a place from a false one; that check is the writer's and the producer's. And it doesn't know the story's stance on hard subjects, so its discomfort is a signal, never a veto: a character who says something hurtful, true to who they are, stays, and the people around them are allowed to wince. What gets fixed is the book being careless with someone, never a character being honest. Softening a hard moment because a reader flinched is the instinct the story's `CLAUDE.md` tells the writer to push against. A revision is again written as if it had always been so. When the revision is large, run the cold read again with a fresh agent.
-8. **Threads.** Reread the other chapters against this one. What does it plant that a later chapter should pay off, and what does it pay off that an earlier one should plant? Did it change a fact another chapter states? Revise the other chapters to fit, as deeply as they need, and update the outline's threads and the timeline.
+8. **Threads.** Reread the other chapters against this one. What does it plant that a later chapter should pay off, and what does it pay off that an earlier one should plant? Did it change a fact another chapter states? Revise the other chapters to fit, as deeply as they need, and update the outline's threads and the world.
 9. **Hand over.** Give the producer the chapter, with a short note: the judgement calls, the sources, what the cold read found and what changed because of it. The producer reads it, and the notes come back.
 
 ## Adding a chapter
@@ -49,6 +49,6 @@ The producer describes the reading: lost here, flat there, this rang false. Find
 
 ## Starting a story
 
-1. **The story's `CLAUDE.md`:** what the story is, its values, its reader, and the producer's standing decisions. **`outline.md`:** what each chapter is for, and the threads. **`timeline.ts`** and **`people.md`.**
+1. **The story's `CLAUDE.md`:** what the story is, its values, its reader, and the producer's standing decisions. **`outline.md`:** what each chapter is for, and the threads. **`world.ts`** and **`people.md`.**
 2. **The narrator's voice, by interview.** Ask the producer, a few questions at a time, with each option shown as the same short moment from the story told that way (examples), and some questions as plain descriptions (abstractions). Cover: how close the narrator stands (outside, inside one person, moving between hearts), who it is as a presence, how facts about the world arrive, how openly it judges, tense, its humour, how it changes in dark times, and whether it says "you" or "I". Where the producer can't choose, recommend, with authors whose narrators work that way.
 3. **A reference passage.** Write a scene in the agreed voice, about 400 words, from the story's own material. Once the producer approves it, it goes in `voice.md` with the answers, and every chapter is drafted with it in mind.

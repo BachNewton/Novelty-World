@@ -3,7 +3,7 @@
   "title": "Citizens of the Federation",
   "author": "Kyle Hutchinson and Claude",
   "narrator": "A full cast of AI voices",
-  "cover": "cover.png",
+  "cover": "../../../../../stories/citizens-of-the-federation/book/cover.png",
   "chapters": [
     { "title": "Dark by Four", "audio": "01.mp3", "image": "01.png" },
     { "title": "Responsible Party", "audio": "02.mp3", "image": "02.png" },

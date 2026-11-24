@@ -1,12 +1,12 @@
 /**
- * Builds a drama story's manuscript as a novel: a PDF typeset with Typst and `novel.typ` beside
+ * Builds a story's manuscript as a novel: a PDF typeset with Typst and `novel.typ` beside
  * this file, for reading, or an EPUB (`epub.ts`), for reading apps and text-to-speech readers
- * such as ElevenReader. The output file's extension picks which. The chapters are `stories/<slug>/chapters/<nn>/chapter.md` in folder order, each
+ * such as ElevenReader. The output file's extension picks which. The chapters are `<slug>/chapters/<nn>/chapter.md` in folder order, each
  * opening with `# Chapter N: Title`; the title and author come from `book/book.json`, and its
  * `cover` image, when it names one, is the first page. Nothing else in the story is read.
  *
- *   node src/projects/audiobook/novel/build-novel.ts <slug> <out.pdf|out.epub>
- *   node src/projects/audiobook/novel/build-novel.ts --list     the slugs of stories with chapters
+ *   node src/projects/stories/novel/build-novel.ts <slug> <out.pdf|out.epub>
+ *   node src/projects/stories/novel/build-novel.ts --list     the slugs of stories with chapters
  *
  * The PDF needs `typst` on the PATH, or its path in the TYPST environment variable. The GitHub
  * workflow `novel-pdf.yml` runs it on every push to main that touches a story's chapters or
@@ -20,7 +20,7 @@ import process from "node:process";
 import { writeEpub } from "./epub.ts";
 
 const HERE = import.meta.dirname;
-const STORIES = resolve(HERE, "../drama/stories");
+const STORIES = resolve(HERE, "..");
 const TEMPLATE = join(HERE, "novel.typ");
 
 interface Chapter {

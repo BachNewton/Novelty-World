@@ -158,8 +158,8 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    // A build tool that reads only the repo's own story folders and writes where it's told.
-    files: ["src/projects/audiobook/novel/*.ts"],
+    // Tools that read only the repo's own story folders, and the novel build, which writes where it's told.
+    files: ["src/projects/stories/novel/*.ts", "src/projects/stories/tools/*.ts"],
     rules: {
       "security/detect-non-literal-fs-filename": "off",
     },

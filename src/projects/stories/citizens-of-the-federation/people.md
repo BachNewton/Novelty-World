@@ -1,6 +1,6 @@
 # The people
 
-Who everyone is and what happens to them, as the chapters have it. Birthdays and every other date are in `timeline.ts`, and any age is computed from it with the date tool, never from this page.
+Who everyone is and what happens to them, as the chapters have it. Birthdays and every other date are in `world.ts`, and any age is computed from it with the date tool, never from this page.
 
 ## The Dorseys and the Novaks (San Francisco, Dayton and Helsinki)
 

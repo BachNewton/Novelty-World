@@ -1,5 +1,5 @@
 /**
- * A drama story as an EPUB, for reading apps and text-to-speech readers such as ElevenReader.
+ * A story as an EPUB, for reading apps and text-to-speech readers such as ElevenReader.
  * It carries only what should be read aloud: a title page, then each chapter under its heading.
  * The contents is the reader's navigation, not a page, and the draft's edition is metadata.
  * A scene break is a rule, which a reader shows and a voice passes over.

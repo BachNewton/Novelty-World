@@ -1,5 +1,5 @@
 /**
- * Calendar and clock arithmetic for a story's timeline, so that no date, weekday,
+ * Calendar and clock arithmetic for a story's world (`story-world.ts`), so that no date, weekday,
  * age, interval or time of day in the prose is worked out by hand.
  */
 
@@ -7,15 +7,6 @@ export interface DayDate {
   year: number;
   month: number;
   day: number;
-}
-
-export interface Timeline {
-  /** Where scenes happen, each with its IANA time zone. */
-  places: Record<string, { zone: string }>;
-  /** Everyone whose age the story states or implies. */
-  people: Record<string, { name: string; born: string; died?: string }>;
-  /** Dated facts: chapters, the characters' history, real history and canon. A date may be partial (YYYY or YYYY-MM) when that is all the story knows. */
-  events: Record<string, { date: string; what: string }>;
 }
 
 export interface Interval {

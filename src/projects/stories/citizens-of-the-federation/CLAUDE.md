@@ -1,6 +1,6 @@
 # Citizens of the Federation
 
-A growing collection of stories about the everyday lives of ordinary people in the Star Trek universe, on Earth and other Federation planets, across the centuries. The workshop's `CLAUDE.md` (`../../CLAUDE.md`) says how the producer and the writer work, and the `write-fiction` skill is how a chapter is written. Beside this file: the narrator in `voice.md`, each chapter's job and the threads between them in `outline.md`, the people in `people.md`, every date in `timeline.ts`, and what's still open in `open-questions.md`.
+A growing collection of stories about the everyday lives of ordinary people in the Star Trek universe, on Earth and other Federation planets, across the centuries. The Stories project's `CLAUDE.md` (`../CLAUDE.md`) says how the producer and the writer work, and the `write-fiction` skill is how a chapter is written. Beside this file: the narrator in `voice.md`, each chapter's job and the threads between them in `outline.md`, the people in `people.md`, the story's world as data (every date, person, tie and place, each marked real, canon or story) in `world.ts`, and what's still open in `open-questions.md`.
 
 ## The idea
 
@@ -108,4 +108,4 @@ Stay as close to canon as possible, filling gaps only where needed and only wher
 
 ## Thinking about it like code
 
-The producer is a software engineer, and tradeoffs land best in those terms: the core is the spec, the outline's test is the test suite, and canon is the external API. Where the analogy breaks, say so: a novel's chapters are meant to depend on each other (the workshop's `CLAUDE.md`).
+The producer is a software engineer, and tradeoffs land best in those terms: the core is the spec, the outline's test is the test suite, and canon is the external API. Where the analogy breaks, say so: a novel's chapters are meant to depend on each other (the Stories project's `CLAUDE.md`).

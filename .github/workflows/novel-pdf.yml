@@ -1,4 +1,4 @@
-# Builds every drama story that has chapters as a novel (src/projects/audiobook/novel/), a PDF
+# Builds every story that has chapters as a novel (src/projects/stories/novel/), a PDF
 # to read and an EPUB for reading apps and text-to-speech readers such as ElevenReader, and
 # publishes both to a release of its own, tagged novel-<slug>. The assets are replaced each
 # time, so their download links never change, and the tag moves to the commit
@@ -10,9 +10,9 @@ on:
   push:
     branches: [main]
     paths:
-      - src/projects/audiobook/drama/stories/*/chapters/**/chapter.md
-      - src/projects/audiobook/drama/stories/*/book/**
-      - src/projects/audiobook/novel/**
+      - src/projects/stories/*/chapters/**/chapter.md
+      - src/projects/stories/*/book/**
+      - src/projects/stories/novel/**
       - .github/workflows/novel-pdf.yml
   workflow_dispatch:
 
@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      BUILD: src/projects/audiobook/novel/build-novel.ts
-      STORIES: src/projects/audiobook/drama/stories
+      BUILD: src/projects/stories/novel/build-novel.ts
+      STORIES: src/projects/stories
     steps:
       - uses: actions/checkout@v4
       # Node 24 runs the TypeScript build script as it is, with no install.

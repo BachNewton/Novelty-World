@@ -1,6 +1,6 @@
 ---
 name: voice-casting
-description: Cast AI voices for an audio story in the Audiobook drama workshop (src/projects/audiobook/drama) without the owner auditioning them. Use whenever a story gets a new character, a voice is replaced, or the owner says a voice sounds dull, muffled, unclear or like a different microphone.
+description: Cast AI voices for a story performed in the Audiobook project's audio production (src/projects/audiobook/production) without the owner auditioning them. Use whenever a story gets a new character, a voice is replaced, or the owner says a voice sounds dull, muffled, unclear or like a different microphone.
 ---
 
 # Casting a voice
@@ -14,7 +14,7 @@ Cloning copies a reference clip's recording as well as its person. Every line in
 ## The steps
 
 1. Add the role to the story's `cast.yaml`: `role`, `seed`, `design` and `reference_text`. The description sets the pitch: the owner trusts it to, so casting doesn't check it.
-2. Run `tools/design_voices.py` from `src/projects/audiobook/drama` (the usage is in its header). It tries up to eight seeds and locks the first that scores at least 3 of 5.
+2. Run `tools/design_voices.py` from `src/projects/audiobook/production` (the usage is in its header). It tries up to eight seeds and locks the first that scores at least 3 of 5.
 3. If it reports `NO VOICE`, run `tools/audition.py` on a batch of reworded descriptions and new seeds, score it with `tools/score_voices.py`, and copy the winner into `voices/<role>/` with its transcript. Then put its description and seed in `cast.yaml`.
 4. Commit the new `voices/<role>/` folder, and set the role's `seed` to the one that passed.
 5. Render as usual. Keep one voice per role across a whole book.

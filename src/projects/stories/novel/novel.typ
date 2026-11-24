@@ -1,4 +1,4 @@
-// A drama story typeset as a novel. build-novel.ts writes novel.json (the title, author,
+// A story typeset as a novel. build-novel.ts writes novel.json (the title, author,
 // cover, edition line and chapters) beside a copy of this file and compiles it.
 #import "@preview/cmarker:0.1.9"
 
