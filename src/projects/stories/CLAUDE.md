@@ -26,7 +26,16 @@ The `write-fiction` skill is how Claude writes, rewrites and reviews: the steps,
 
 ## A story's world
 
-Each story keeps its world as data in `world.ts`, in the shape `tools/story-world.ts` defines: its places, its people, the ties between them, its chapters, and every dated event it rests on. Every event and every person says where it comes from, `real`, `canon` or `story`, so the line between the real world, the universe the story borrows and the story's own invention is never left to a sentence's wording. The date tool computes from the world, and anything that draws the story reads it. `tools/story-world.test.ts` holds it together: every person and place it points at exists, and its chapters are the book's.
+Each story keeps its world as data in `world.ts`, in the shape `tools/story-world.ts` defines: its places, its people, the ties between them, its chapters, and every dated event it rests on. Every event and every person says where it comes from, `real`, `canon` or `story`, so the line between the real world, the universe the story borrows and the story's own invention is never left to a sentence's wording. When the source says a thing happens, it is `real` or `canon` however much the story adds, and only what no source mentions is `story`.
+
+Canon always names its sources (`sources`, at least one): the series or film, the episode, the year it aired, and how directly it says the thing (`stated` in dialogue, `shown` on screen, `background` in a prop or display, or `implied`). The year is the era, since each canon fact is read as what its writers feared or hoped then, and how it is said is how much it binds: a line of dialogue outweighs a display in the background. A fact canon gives more than once lists every source, especially where they disagree. Sources are checked online when they are written down, never from memory.
+
+Where the story builds on its source, the event says how:
+
+- **Filled in** (`filled`): the source is silent on a detail and the story supplies it without contradicting anything, such as the year a canon place was built or the dates of a war canon only names. The field says which part is the story's.
+- **Read** (`reading`): canon says something specific that the story can't take literally, because canon contradicts itself, the real world, or the story's own needs. The field holds what canon says, what the story makes of it, and why that reading contradicts least. A reading is a ruling the producer agrees to before it is written.
+
+The date tool computes from the world, and anything that draws the story reads it. `tools/story-world.test.ts` holds it together: every person and place it points at exists, and its chapters are the book's.
 
 ## Layout
 

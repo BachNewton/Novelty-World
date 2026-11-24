@@ -18,7 +18,7 @@ Read the Stories project's `CLAUDE.md` (`src/projects/stories/CLAUDE.md`), then 
      - **The hole check:** whether every option means something real, whether a sensible person in the scene could find a way round it, whether the kind choice and the right one each have a price, and how the cost lands on the page.
 
      A dilemma with a hole lets the reader off the hook, and the producer will find it. The walk-through is the writer's preparation, never the page: the chapter carries only as much as a reader needs to feel the stakes, and lets the story carry it. Once agreed, it goes in the outline entry as the chapter's **choice**.
-2. **Facts.** Check every canon and real-world fact online before drafting, never from memory, and keep the sources for the hand-over. Add every date the chapter rests on to the story's world (`world.ts`), with its kind (real, canon or story), the people in it and where it happens, then compute each date, weekday, age, interval and time of day from it with the date tool. Never do date arithmetic in your head.
+2. **Facts.** Check every canon and real-world fact online before drafting, never from memory, and keep the sources for the hand-over. Add every date the chapter rests on to the story's world (`world.ts`), with its kind (real, canon or story), canon's sources as you checked them, what the story filled in or how it reads canon (the Stories project's `CLAUDE.md`), the people in it and where it happens, then compute each date, weekday, age, interval and time of day from it with the date tool. Never do date arithmetic in your head.
 
    ```
    npx tsx src/projects/stories/tools/story-dates-cli.ts <story> sheet <date or event id>
