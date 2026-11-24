@@ -889,6 +889,19 @@ What follows. 18 holds: the copy is the base of the next rung at the larger size
 
 What follows. 25 and 26 hold: the search closes what the exploiters found and adds strength besides, so the next step is the search at play time; its runtime (about 500 net evaluations a searched decision, a minute on the TypeScript export) is a build and a ruling for the owner before anything is seated. 27 and 28 hold with 26 failing: the holes close in training at no cost elsewhere, and the next rung's league is built round exploiters, each rung's own exploiter trained against it and pinned. Both hold: the two are one recipe (a league with exploiters, its best net searched at play time), the search first since it is measured. 25 fails: the search no longer adds strength on this net, and the gate left open is the representation.
 
+**The league read: pinning the exploiters closed nothing and cost strength.** Head to head on the eGPU, 1,024 games each, every seat at its most likely move (`runs/readings3/`):
+
+| Net | xd0 alone among four of it (par 20%) | it alone among four d4-500 (par 20%) |
+|---|---|---|
+| d4-500 | 41.2% [38.2, 44.4] | 20% by construction |
+| hx0 at 70 (exploiters pinned, seed 2) | 46.1% [42.9, 49.3] | 14.7% [12.5, 17.1] |
+| g0 at 75 (its control) | 36.6% [33.7, 39.7] | 19.6% [17.2, 22.2] |
+| hx1 at 70 (exploiters pinned, seed 3) | 33.5% [30.6, 36.5] | 14.4% [12.3, 16.8] |
+| g1 at 75 (its control) | 30.5% [27.7, 33.4] | 18.2% [15.9, 20.7] |
+
+27 **failed**: xd0 does no worse against the runs that met it than against their controls (9.5 points better on seed 2, 3 on seed 3). 28 **failed** on seed 2 (hx0 under g0 by more than the overlap) and held on seed 3 inside it; read together, the exploiters cost both runs 4 to 5 points against d4-500, about 35 Elo a seat. What does take xd0's edge down is training on from d4-500 at all: the controls, which never met it, hold it to 31% and 37% against its 41% on d4-500 itself. So an exploiter's edge is mostly in the one net it was trained against, and moving the net a little erases much of it; the holes it finds are not a fixed flaw a league could train out at this share. The raw control also reads xd0 lower than the trainer's 54%: 41.2% on these deals, still twice its par.
+
+
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 
 What follows. 1 holds: the next imitation is a larger net on the exact space, and its turn time in the TypeScript export is a ruling for the owner before it is seated. 1 fails with the control repeating: size isn't the lever at this data. 4 holds: stage 3 is the next line and `search.py` its first piece, with the hours going to distilling the search's choices. 4 fails while 2 holds: the search is no better than its leaf, so the value head is fitted to real outcomes (more of the loss, every seat's score, a larger net if 1 held) and 4 read again with rollouts to the game's end. 3 gaining three points or more says part of the plateau is a constant rate's jitter, and stage 2's recipe gets a falling rate.
