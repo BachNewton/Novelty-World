@@ -71,6 +71,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "bot-lab": dynamic(() =>
     import("@/projects/bot-lab").then((m) => ({ default: m.BotLab })),
   ),
+  "citizens-of-the-federation": dynamic(() =>
+    import("@/projects/stories").then((m) => ({ default: m.CitizensOfTheFederation })),
+  ),
   audiobook: dynamic(() =>
     import("@/projects/audiobook").then((m) => ({ default: m.Audiobook })),
   ),

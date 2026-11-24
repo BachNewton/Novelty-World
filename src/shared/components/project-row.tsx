@@ -35,6 +35,7 @@ import {
   PawPrint,
   Compass,
   Cpu,
+  BookOpen,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -70,6 +71,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   PawPrint,
   Compass,
   Cpu,
+  BookOpen,
 };
 
 interface ProjectRowProps {

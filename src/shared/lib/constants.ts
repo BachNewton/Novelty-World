@@ -10,9 +10,17 @@ export const CATEGORIES: Category[] = [
   { name: "Tools", slug: "tools", description: "Utilities and solvers" },
   { name: "Travel", slug: "travel", parentSlug: "tools", description: "Travel guides and catalogues" },
   { name: "Music", slug: "music", parentSlug: "tools", description: "Making and hearing music" },
+  { name: "Stories", slug: "stories", description: "Original fiction, and guides to its worlds" },
 ];
 
 export const PROJECTS: Project[] = [
+  {
+    name: "Citizens of the Federation",
+    slug: "citizens-of-the-federation",
+    description: "Ordinary lives in the Star Trek universe, from 2020 to First Contact",
+    categorySlug: "stories",
+    icon: "BookOpen",
+  },
   {
     name: "Monopoly",
     slug: "monopoly",

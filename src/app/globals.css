@@ -992,6 +992,24 @@ body {
   animation: wh-heart-rise 1.6s ease-out forwards;
 }
 
+/* Stories: a story guide's colours and type. Each story takes its look from its
+   own cover and sets the --story-* properties on its guide (its theme.ts); these
+   name them for the guide. Real history, canon and the story's own each keep one
+   colour, with a shape as the second cue; chapters are the fourth. */
+@theme inline {
+  --color-story-night: var(--story-night);
+  --color-story-band: var(--story-band);
+  --color-story-ink: var(--story-ink);
+  --color-story-ink-soft: var(--story-ink-soft);
+  --color-story-line: var(--story-line);
+  --color-story-real: var(--story-real);
+  --color-story-canon: var(--story-canon);
+  --color-story-own: var(--story-own);
+  --color-story-chapter: var(--story-chapter);
+  --font-story-display: var(--story-display);
+  --font-story-label: var(--story-label);
+}
+
 /* Composer: one palette for its tracks, sections and themes, spaced so that
    neighbours differ. */
 @theme static {

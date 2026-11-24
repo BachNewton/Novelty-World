@@ -37,6 +37,10 @@ Where the story builds on its source, the event says how:
 
 The date tool computes from the world, and anything that draws the story reads it. `tools/story-world.test.ts` holds it together: every person and place it points at exists, and its chapters are the book's.
 
+## The guide
+
+Each story with a world has a page on the site: a guide to it, in the Stories category of the home page (registered in `PROJECTS` under its own slug, its component exported from `index.tsx`). It is built from `world.ts` by `guide/`: the whole span on one timeline at one even scale that the reader zooms, the world's events on the left and the chapters, births and deaths on the right, and a panel with the details of whatever is picked (an event, a person and their life, a chapter, a place). It shows the story's facts as settled: the story's own dates, and what is real, canon or the story's, but never the sources, what was filled in or how canon was read, which are for the producer and the writer. Each story takes its look from its cover, in its `theme.ts`: the colours and fonts the guide uses, and the ground down the timeline by era.
+
 ## Layout
 
 - `<slug>/`, one story each:
@@ -47,7 +51,9 @@ The date tool computes from the world, and anything that draws the story reads i
   - `open-questions.md`: what the producer still has to decide or come back to.
   - `chapters/<nn>/chapter.md`: the manuscript.
   - `book/`: the title, author and cover the novel is built with (`book.json`).
+  - `theme.ts`: the guide's look, from the cover.
 - `tools/`: the story's world type, the date tool, and their tests.
+- `guide/`: the guide page, shared by every story.
 - `novel/`: the novel build.
 
 ## The novel
