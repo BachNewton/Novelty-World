@@ -199,7 +199,7 @@ def bench(board, tables, ckpt: str | None, batches: list[int], ticks: int, repea
     return out
 
 
-def main(argv: list[str] | None = None) -> int:
+def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="what", required=True)
     pair = sub.add_parser("pair")
@@ -219,7 +219,11 @@ def main(argv: list[str] | None = None) -> int:
         q.add_argument("--tables", default=None)
         q.add_argument("--f32", action="store_true", help="the network in float32 (default bfloat16)")
         q.add_argument("--out", default="")
-    args = p.parse_args(argv)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     board = Board.load("cpu")
     tables = load_tables(args.tables)
     dtype = jnp.float32 if args.f32 else jnp.bfloat16

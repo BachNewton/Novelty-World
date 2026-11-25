@@ -26,7 +26,7 @@ from ..lockstep import GameReport
 from ..records import read_records
 from . import blitz
 from .engine import Options, Rules
-from .state import from_torch, new_games, seed_states, to_torch
+from .state import new_games, seed_states, to_torch
 
 
 def options_to_torch(o: Options) -> SimpleNamespace:

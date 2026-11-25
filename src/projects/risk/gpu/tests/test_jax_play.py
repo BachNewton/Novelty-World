@@ -27,7 +27,6 @@ from riskgpu.jaxengine.engine import Rules  # noqa: E402
 from riskgpu.jaxengine.obs import TurnLog, clock, observe  # noqa: E402
 from riskgpu.jaxengine.play import RANDOM, Player, Seat, act  # noqa: E402
 from riskgpu.jaxengine.state import new_games, seed_states, to_torch  # noqa: E402
-from riskgpu.jaxengine.lockstep import options_to_torch  # noqa: E402
 
 
 @pytest.fixture(scope="module")

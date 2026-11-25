@@ -22,10 +22,9 @@ import jax.numpy as jnp  # noqa: E402
 from riskgpu.board import Board  # noqa: E402
 from riskgpu.canonical import options_ints, state_ints  # noqa: E402
 from riskgpu.data import best_tables_prefix, fixture_paths  # noqa: E402
-from riskgpu.engine import ATTACK, BLITZ, IllegalMove, Ctx, StepInfo, step, validate  # noqa: E402
+from riskgpu.engine import ATTACK, IllegalMove, Ctx, StepInfo, step, validate  # noqa: E402
 from riskgpu.options import options as torch_options  # noqa: E402
 from riskgpu.records import read_records  # noqa: E402
-from riskgpu.selfplay.actions import MAIN  # noqa: E402
 from riskgpu.state import new_games as torch_new_games  # noqa: E402
 from riskgpu.tables import BlitzTables, resolve_blitz  # noqa: E402
 from riskgpu.jaxengine import blitz  # noqa: E402

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from ..board import CARDS, MAX_SEATS, TERRITORIES
 from ..engine import ATTACK, BLITZ, PLACE
-from ..selfplay.obs import GLOBAL, NODE, SLOT
+from ..selfplay.obs import GLOBAL, NODE
 from ..state import HAND_MAX
 from .engine import Options, Rules
 from .state import I32, State, take
