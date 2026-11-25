@@ -47,11 +47,9 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| g0 and g1's sharp panels with d4-500 an anchor: each run at 300, 250, 150, 200 and 100, in that order (g0-300 is read, below) | the spot machine (`infra/spot/README.md`), `~/novelty/risk-gpu/runs/readings2/panel-<run>-<iteration>-g4096.json`, queued there by `runs/readings2/night.sh` and `day2.sh` | which snapshot of the rung is its best, and whether g1 gained on d4-500 as g0 did (predictions 1 to 5) | the run folders by `npm run spot -- pull g0` (and `g1`), from the main checkout; the readings by `ssh spot`, as tar of `runs/readings2` |
-| h0 and h0c, 300 iterations each from g0-300, then their sharp panels at 300, 200 and 100 | the spot machine, card 0 and card 1, started by `runs/readings2/day2.sh` when the panels above are read (its progress in `runs/readings2/day2.log`); about five hours a run alone on a card | whether pinning learned-v2's and learned-v3's nets in the league makes a rung gain on the table and not on its parent alone (predictions 22 to 24) | `npm run spot -- pull h0` (and `h0c`); the readings as above |
 | d4-500 against rule-v7.1 at 2,400 turns (run 44936976152), still playing | GitHub Actions, branch `risk/clock-gauntlet` | the last of how the clock net plays past turn 600 (its kept rounds are read under the seat's ruling below) | when it has finished: `gh run download 44936976152 --repo BachNewton/Novelty-World --name risk-results --dir <an empty folder>`, and its run-log record alone added to `eval/runs.jsonl`, as d0-200's was (commit 1bd26f96): a 2,400-turn gauntlet stays out of `gauntlets.jsonl`, which keeps no turn cap and feeds the provisional Elo |
 
-**Not yet run.** S1 and S2, the search's two tests (predictions 25 and 26, below): each needs most of a night on the eGPU alone. big-tpu-2's sharp panel (15 and 18), and xd1's, yb0's and yb1's (13), which the fork doesn't wait on. big-tpu-2c (128x4, the control) and big-tpu-3 (384x8), pushed as one session once big-tpu-2's has ended, and read as big-tpu-2 is: `python -m riskgpu.tpu.launch train big-tpu-2c big-tpu-3 --task distil --source runs/own-records/d4-500 --clock --data-dataset bachnewton/risk-bundle-tpu-big-tpu-2 --run-args big-tpu-2c="--width 128 --layers 4" --run-args big-tpu-3="--width 384 --layers 8" --run-share big-tpu-3=3 --session-hours 2.5 -- --heads 8 --lr 5e-4 --warmup 500 --max-samples 100000000 --minibatch 4096`. The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
+**Not yet run.** S1 and S2, the search's two tests (predictions 25 and 26, below): each needs most of a night on the eGPU alone. h0's and h0c's sharp panels at 300, 200 and 100 (22 to 24): both trained to 300 on the spot machine and are home, in `runs/selfplay/h0` and `h0c`. big-tpu-2's sharp panel (15 and 18), and xd1's, yb0's and yb1's (13), which the fork doesn't wait on. big-tpu-2c (128x4, the control) and big-tpu-3 (384x8), pushed as one session once big-tpu-2's has ended, and read as big-tpu-2 is: `python -m riskgpu.tpu.launch train big-tpu-2c big-tpu-3 --task distil --source runs/own-records/d4-500 --clock --data-dataset bachnewton/risk-bundle-tpu-big-tpu-2 --run-args big-tpu-2c="--width 128 --layers 4" --run-args big-tpu-3="--width 384 --layers 8" --run-share big-tpu-3=3 --session-hours 2.5 -- --heads 8 --lr 5e-4 --warmup 500 --max-samples 100000000 --minibatch 4096`. The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
 ## The brief
 
@@ -872,7 +870,22 @@ What follows. 18 holds: the copy is the base of the next rung at the larger size
 
 **big-tpu-2: the copy came back, and bent short of 90%.** The session returned `best.pt` at 100 million samples (its last step): held out it makes d4-500's most likely move at 83.7% [83.5, 83.9] of 3.03 million decisions (the main choice 86.7%; move-ins 95%, attacks 85%, placements 80%, fortifies 77%). Held out it climbed 0.3 points over its last 25 million samples while its training agreement went from 89.1% to 91.5%, so it ended limited by the data (14.9 million decisions), not by its size or its steps. 16 **failed**. 15 and 18 wait on its panel.
 
-**The spot machine is unreachable**: its SSH timed out on Monday 23 November, so g0 and g1's earlier snapshots, h0 and h0c and their panels (1, 22 to 24) are unread, on its disk. **d4-500's 2,400-turn gauntlet** (44936976152) is still playing.
+**g0 and g1's panels, home from the spot machine: neither rung passed d4-500 against b1-100, and g1 lost ground.** The sharp panel's most likely move, at 4,096 games:
+
+| Snapshot | alone among four b1-100 | alone among four d4-500 | four against one d4-500 |
+|---|---|---|---|
+| g0-100 | 39.5% [37.3, 41.6] | 19.3% [17.5, 21.1] | 77.2% |
+| g0-150 | 40.4% | 18.8% | 74.7% |
+| g0-200 | 45.3% [43.1, 47.5] | 22.3% | 76.2% |
+| g0-250 | 44.7% | 25.2% | 77.9% |
+| g0-300 | 42.0% [39.8, 44.2] | 33.4% [31.3, 35.6] | 84.5% |
+| g1-100 | 40.7% | 16.5% | 79.7% |
+| g1-150 | 37.9% [35.8, 40.1] | 25.4% | 78.1% |
+| g1-200 | 40.2% | 32.0% [29.9, 34.2] | 81.9% |
+| g1-250 | 45.2% [43.0, 47.4] | 31.2% | 69.4% |
+| g1-300 | 32.8% [30.8, 34.9] | 28.7% | 80.0% |
+
+Against b1-100 neither run's best (45.3%, 45.2%) is clear of d4-500's own 45.5%, while against d4-500, the net both started from, each climbs from under par to about a third. Of the rung's predictions, 1 and 2 **failed**, and 3 **failed** on g1 (37.9% at 150, 32.8% at 300): a restart from a strong net can lose what it had against the net before it. That is the gauntlets' reading of g0-300 again, now on both seeds and every snapshot: the recipe gains on its parent and not on the field. When the machine was reached again its cards were held by its owner's own work, so nothing of ours runs there. **d4-500's 2,400-turn gauntlet** (44936976152) is still playing.
 
 **The fork the readings leave: search at play time, or a league with exploiters.** The current recipe has stopped gaining on the field: a run climbs for 300 to 400 iterations and wanders, each seat gained less on the ladder (+221, +69), and the next rung (g0) gained on its parent and lost about 65 on the field. The exploiters show the net is far from the game's limit (a night of best response beats it at 2.7 times its par), so the headroom is real and the recipe isn't reaching it. Two levers are left that the record supports, and each has a test of hours that the next step waits on. `search.py` takes `--raw-ckpt`, so its raw seats can play another net (an exploiter, a later rung) while the search models every seat with its own: with `--skip-mass 0` it is a head to head between two nets.
 
